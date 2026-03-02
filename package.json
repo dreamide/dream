@@ -1,0 +1,111 @@
+{
+  "name": "dream",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n NEXT,ELECTRON -c cyan,magenta \"pnpm dev:next\" \"pnpm dev:electron\"",
+    "dev:next": "cross-env BROWSER=none next dev --webpack --port 3210",
+    "dev:electron": "node scripts/wait-for-next-dev.mjs 3210 && cross-env NODE_ENV=development ELECTRON_RENDERER_URL=http://127.0.0.1:3210 electron electron/main.js",
+    "build": "next build",
+    "start": "cross-env NODE_ENV=production electron electron/main.js",
+    "dist": "pnpm build && electron-builder",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "format": "biome format --write ."
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.50",
+    "@ai-sdk/openai": "^3.0.37",
+    "@ai-sdk/react": "^3.0.107",
+    "@radix-ui/react-use-controllable-state": "^1.2.2",
+    "@rive-app/react-webgl2": "^4.27.0",
+    "@streamdown/cjk": "^1.0.2",
+    "@streamdown/code": "^1.0.3",
+    "@streamdown/math": "^1.0.2",
+    "@streamdown/mermaid": "^1.0.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "@xyflow/react": "^12.10.1",
+    "ai": "^6.0.105",
+    "ai-elements": "^1.8.4",
+    "ansi-to-react": "^6.2.6",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "electron-store": "^11.0.2",
+    "embla-carousel-react": "^8.6.0",
+    "lucide-react": "^0.575.0",
+    "media-chrome": "^4.18.0",
+    "motion": "^12.34.3",
+    "nanoid": "^5.1.6",
+    "next": "16.1.6",
+    "radix-ui": "^1.4.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-jsx-parser": "^2.4.1",
+    "react-resizable-panels": "^4.7.0",
+    "shiki": "^4.0.0",
+    "streamdown": "^2.3.0",
+    "tailwind-merge": "^3.5.0",
+    "tokenlens": "^1.3.1",
+    "use-stick-to-bottom": "^1.1.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^40.6.1",
+    "electron-builder": "^26.8.1",
+    "shadcn": "^3.8.5",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5",
+    "wait-on": "^9.0.4"
+  },
+  "main": "electron/main.js",
+  "build": {
+    "appId": "com.mikecao.dream",
+    "productName": "Dream IDE",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "next.config.ts",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ]
+    },
+    "publish": "never"
+  },
+  "type": "module"
+}
