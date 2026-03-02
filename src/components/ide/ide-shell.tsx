@@ -1237,42 +1237,47 @@ export const IdeShell = () => {
                           return (
                             <div
                               className={cn(
-                                "group rounded-md border px-2 py-2 transition-colors",
+                                "group relative rounded-md border transition-colors",
                                 isActive
                                   ? "border-primary/40 bg-primary/10"
                                   : "border-transparent hover:border-border hover:bg-muted",
                               )}
                               key={project.id}
                             >
-                              <div className="flex items-start gap-2">
-                                <button
-                                  className="min-w-0 flex-1 text-left"
-                                  onClick={() => setActiveProjectId(project.id)}
-                                  type="button"
-                                >
+                              <button
+                                className="w-full rounded-[inherit] px-2 py-2 text-left"
+                                onClick={() => setActiveProjectId(project.id)}
+                                type="button"
+                              >
+                                <div className="min-w-0 pr-6 text-left">
                                   <p className="truncate font-medium text-sm">
                                     {project.name}
                                   </p>
                                   <p className="truncate text-muted-foreground text-xs">
                                     {project.path}
                                   </p>
-                                </button>
+                                </div>
+                                <div className="mt-1 flex items-center gap-1">
+                                  <Badge variant="outline">
+                                    {project.provider}
+                                  </Badge>
+                                  <Badge variant="secondary">
+                                    {project.model}
+                                  </Badge>
+                                </div>
+                              </button>
+                              <div className="absolute top-2 right-2">
                                 <button
                                   aria-label={`Close ${project.name}`}
                                   className="rounded p-0.5 opacity-30 transition-opacity hover:bg-muted hover:opacity-100"
-                                  onClick={() => handleCloseProject(project.id)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleCloseProject(project.id);
+                                  }}
                                   type="button"
                                 >
                                   <X className="size-3.5" />
                                 </button>
-                              </div>
-                              <div className="mt-1 flex items-center gap-1">
-                                <Badge variant="outline">
-                                  {project.provider}
-                                </Badge>
-                                <Badge variant="secondary">
-                                  {project.model}
-                                </Badge>
                               </div>
                             </div>
                           );
