@@ -26,7 +26,6 @@ export interface PanelVisibility {
   left: boolean;
   middle: boolean;
   right: boolean;
-  bottom: boolean;
 }
 
 export interface PersistedIdeState {

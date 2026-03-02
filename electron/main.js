@@ -29,7 +29,6 @@ const store = new Store({
     activeProjectId: null,
     chats: {},
     panelVisibility: {
-      bottom: true,
       left: true,
       middle: true,
       right: true,
