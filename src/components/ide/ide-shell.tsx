@@ -1248,12 +1248,9 @@ export const IdeShell = () => {
         <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-2")} />
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="flex items-center gap-2 text-xs tracking-wide uppercase">
-            <span className="rounded bg-slate-200 px-2 py-0.5 text-slate-700">
-              Dream
-            </span>
-            <span className="text-muted-foreground">AI IDE</span>
-          </div>
+          <span className="text-muted-foreground text-xs tracking-wide">
+            DREAM
+          </span>
         </div>
 
         <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
