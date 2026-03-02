@@ -20,7 +20,6 @@ import {
   Bot,
   FolderPlus,
   MessageSquare,
-  PanelBottom,
   PanelLeft,
   PanelRight,
   Play,
@@ -108,7 +107,8 @@ import type {
 
 const STATE_STORAGE_KEY = "dream:ide:state";
 
-type BottomTab = "output" | "terminal";
+type MiddleTab = "chat" | "terminal";
+type RightTab = "preview" | "output";
 type SettingsSection = "providers" | "terminal";
 
 type RunnerStatus = "running" | "stopped";
@@ -619,7 +619,8 @@ export const IdeShell = () => {
     loggedIn: false,
     message: "",
   });
-  const [bottomTab, setBottomTab] = useState<BottomTab>("output");
+  const [middleTab, setMiddleTab] = useState<MiddleTab>("chat");
+  const [rightTab, setRightTab] = useState<RightTab>("preview");
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [stateHydrated, setStateHydrated] = useState(false);
 
@@ -876,6 +877,7 @@ export const IdeShell = () => {
     if (
       !activeProject ||
       !panelVisibility.right ||
+      rightTab !== "preview" ||
       activeProjectRunnerStatus !== "running"
     ) {
       desktopApi.updatePreview({ visible: false });
@@ -906,7 +908,7 @@ export const IdeShell = () => {
       url: activeProject.previewUrl,
       visible: true,
     });
-  }, [activeProject, panelVisibility.right, runnerStatus]);
+  }, [activeProject, panelVisibility.right, rightTab, runnerStatus]);
 
   useEffect(() => {
     const desktopApi = getDesktopApi();
@@ -935,13 +937,13 @@ export const IdeShell = () => {
   }, [syncPreviewBounds]);
 
   useEffect(() => {
-    if (!panelVisibility.bottom || bottomTab !== "terminal") {
+    if (!panelVisibility.middle || middleTab !== "terminal") {
       return;
     }
 
     terminalFitRef.current?.fit();
     terminalRef.current?.focus();
-  }, [bottomTab, panelVisibility.bottom]);
+  }, [middleTab, panelVisibility.middle]);
 
   useEffect(() => {
     return () => {
@@ -1275,13 +1277,6 @@ export const IdeShell = () => {
           >
             <PanelRight className="size-4" />
           </ToggleButton>
-          <ToggleButton
-            active={panelVisibility.bottom}
-            onClick={() => togglePanel("bottom")}
-            title="Toggle bottom panel"
-          >
-            <PanelBottom className="size-4" />
-          </ToggleButton>
         </div>
       </header>
 
@@ -1380,247 +1375,251 @@ export const IdeShell = () => {
           ) : null}
 
           <Panel defaultSize={panelVisibility.left ? 82 : 100} minSize={20}>
-            <Group orientation="vertical">
-              <Panel
-                defaultSize={panelVisibility.bottom ? 68 : 100}
-                minSize={25}
-              >
-                <Group orientation="horizontal">
-                  {panelVisibility.middle ? (
-                    <>
-                      <Panel
-                        defaultSize={panelVisibility.right ? 54 : 100}
-                        minSize={30}
-                      >
-                        <div className="h-full border-r">
-                          {activeProject ? (
-                            <ChatPanel
-                              chats={chats}
-                              onMessagesChange={setMessagesForProject}
-                              onProjectChange={updateProject}
-                              project={activeProject}
-                              settings={settings}
-                            />
-                          ) : (
-                            <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
-                          )}
-                        </div>
-                      </Panel>
-                      {panelVisibility.right ? (
-                        <ResizeHandle className="w-1" />
-                      ) : null}
-                    </>
-                  ) : null}
+            <Group orientation="horizontal">
+              {panelVisibility.middle ? (
+                <Panel
+                  defaultSize={panelVisibility.right ? 54 : 100}
+                  minSize={30}
+                >
+                  <Tabs
+                    className="flex h-full flex-col gap-0 border-r"
+                    onValueChange={(value) => setMiddleTab(value as MiddleTab)}
+                    value={middleTab}
+                  >
+                    <div className="border-b px-3 py-2">
+                      <TabsList>
+                        <TabsTrigger value="chat">Chat</TabsTrigger>
+                        <TabsTrigger value="terminal">Terminal</TabsTrigger>
+                      </TabsList>
+                    </div>
 
-                  {panelVisibility.right ? (
-                    <Panel
-                      defaultSize={panelVisibility.middle ? 46 : 100}
-                      minSize={26}
+                    <TabsContent
+                      className={cn(
+                        "mt-0 min-h-0 flex-1",
+                        middleTab !== "chat" ? "hidden" : "",
+                      )}
+                      forceMount
+                      value="chat"
+                    >
+                      {activeProject ? (
+                        <ChatPanel
+                          chats={chats}
+                          onMessagesChange={setMessagesForProject}
+                          onProjectChange={updateProject}
+                          project={activeProject}
+                          settings={settings}
+                        />
+                      ) : (
+                        <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
+                      )}
+                    </TabsContent>
+
+                    <TabsContent
+                      className={cn(
+                        "mt-0 min-h-0 flex-1",
+                        middleTab !== "terminal" ? "hidden" : "",
+                      )}
+                      forceMount
+                      value="terminal"
                     >
                       <div className="flex h-full flex-col">
-                        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-                          <Button
-                            className="h-8"
-                            disabled={!activeProject}
-                            onClick={
-                              activeRunnerStatus === "running"
-                                ? stopRunner
-                                : startRunner
-                            }
-                            size="sm"
-                            variant={
-                              activeRunnerStatus === "running"
-                                ? "secondary"
-                                : "default"
-                            }
-                          >
-                            {activeRunnerStatus === "running" ? (
-                              <>
-                                <Square className="mr-1.5 size-3.5" />
-                                Stop
-                              </>
-                            ) : (
-                              <>
-                                <Play className="mr-1.5 size-3.5" />
-                                Run
-                              </>
-                            )}
-                          </Button>
-
-                          {activeProject ? (
-                            <>
-                              <Input
-                                className="h-8 min-w-52 flex-1 text-xs"
-                                onChange={(event) => {
-                                  const value = event.currentTarget.value;
-                                  updateProject(
-                                    activeProject.id,
-                                    (project) => ({
-                                      ...project,
-                                      runCommand: value,
-                                    }),
-                                  );
-                                }}
-                                value={activeProject.runCommand}
-                              />
-                              <Input
-                                className="h-8 min-w-52 flex-1 text-xs"
-                                onChange={(event) => {
-                                  const value = event.currentTarget.value;
-                                  updateProject(
-                                    activeProject.id,
-                                    (project) => ({
-                                      ...project,
-                                      previewUrl: value,
-                                    }),
-                                  );
-                                }}
-                                value={activeProject.previewUrl}
-                              />
-                              <Button
-                                className="h-8"
-                                onClick={() => {
-                                  setPreviewError(null);
-                                  syncPreviewBounds();
-                                }}
-                                size="icon"
-                                variant="outline"
-                              >
-                                <RefreshCcw className="size-4" />
-                              </Button>
-                            </>
-                          ) : null}
+                        <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <TerminalSquare className="size-4" />
+                            <span>Workspace terminal</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              className="h-7 gap-1 px-2 text-xs"
+                              disabled={!activeProject}
+                              onClick={() => void startActiveTerminal()}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <Play className="size-3.5" />
+                              New
+                            </Button>
+                            <Button
+                              className="h-7 gap-1 px-2 text-xs"
+                              disabled={activeTerminalStatus !== "running"}
+                              onClick={() => void stopActiveTerminal()}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <Square className="size-3.5" />
+                              Stop
+                            </Button>
+                            <Badge variant="outline">
+                              {activeTerminalStatus}
+                            </Badge>
+                            {activeTerminalTransport === "pipe" ? (
+                              <Badge variant="secondary">pipe fallback</Badge>
+                            ) : null}
+                          </div>
                         </div>
-
-                        <div className="relative min-h-0 flex-1 bg-muted/20">
+                        <div className="min-h-0 flex-1 bg-background p-2">
                           <div
-                            className="absolute inset-0"
-                            ref={previewHostRef}
+                            className="h-full w-full"
+                            ref={setTerminalHost}
                           />
-                          {!activeProject ||
-                          activeRunnerStatus !== "running" ? (
-                            <div className="absolute inset-0 p-3">
-                              <AppShellPlaceholder
-                                message={
-                                  !activeProject
-                                    ? "Add a project and click Run to start a live preview."
-                                    : "Preview will appear here after you click Run."
-                                }
-                              />
-                            </div>
-                          ) : null}
-                          {previewError ? (
-                            <div className="absolute right-3 bottom-3 left-3 rounded-md border border-destructive/40 bg-background/95 p-2 text-destructive text-xs">
-                              <div className="mb-1 flex items-center gap-1.5">
-                                <AlertCircle className="size-3.5" />
-                                Preview error
-                              </div>
-                              <p className="break-all">{previewError}</p>
-                            </div>
-                          ) : null}
                         </div>
                       </div>
-                    </Panel>
-                  ) : null}
+                    </TabsContent>
+                  </Tabs>
+                </Panel>
+              ) : null}
 
-                  {!mainWorkspaceVisible ? (
-                    <Panel defaultSize={100} minSize={20}>
-                      <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
-                    </Panel>
-                  ) : null}
-                </Group>
-              </Panel>
+              {panelVisibility.middle && panelVisibility.right ? (
+                <ResizeHandle className="w-1" />
+              ) : null}
 
-              {panelVisibility.bottom ? (
-                <>
-                  <ResizeHandle className="h-1" />
-                  <Panel defaultSize={32} minSize={14}>
-                    <Tabs
-                      className="flex h-full flex-col"
-                      onValueChange={(value) =>
-                        setBottomTab(value as BottomTab)
-                      }
-                      value={bottomTab}
-                    >
-                      <div className="border-b px-3 py-2">
+              {panelVisibility.right ? (
+                <Panel
+                  defaultSize={panelVisibility.middle ? 46 : 100}
+                  minSize={26}
+                >
+                  <Tabs
+                    className="flex h-full flex-col gap-0"
+                    onValueChange={(value) => setRightTab(value as RightTab)}
+                    value={rightTab}
+                  >
+                    <div className="border-b px-3 py-2">
+                      <div className="mb-2">
                         <TabsList>
+                          <TabsTrigger value="preview">Preview</TabsTrigger>
                           <TabsTrigger value="output">Output</TabsTrigger>
-                          <TabsTrigger value="terminal">Terminal</TabsTrigger>
                         </TabsList>
                       </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          className="h-8"
+                          disabled={!activeProject}
+                          onClick={
+                            activeRunnerStatus === "running"
+                              ? stopRunner
+                              : startRunner
+                          }
+                          size="sm"
+                          variant={
+                            activeRunnerStatus === "running"
+                              ? "secondary"
+                              : "default"
+                          }
+                        >
+                          {activeRunnerStatus === "running" ? (
+                            <>
+                              <Square className="mr-1.5 size-3.5" />
+                              Stop
+                            </>
+                          ) : (
+                            <>
+                              <Play className="mr-1.5 size-3.5" />
+                              Run
+                            </>
+                          )}
+                        </Button>
 
-                      <TabsContent
-                        className={cn(
-                          "mt-0 min-h-0 flex-1",
-                          bottomTab !== "output" ? "hidden" : "",
-                        )}
-                        forceMount
-                        value="output"
-                      >
-                        <ScrollArea className="h-full px-3 py-2">
-                          <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-5">
-                            {activeProject
-                              ? runLog ||
-                                "Run output will stream here after you start the project."
-                              : "Select a project to view its run output."}
-                          </pre>
-                        </ScrollArea>
-                      </TabsContent>
+                        {activeProject ? (
+                          <>
+                            <Input
+                              className="h-8 min-w-52 flex-1 text-xs"
+                              onChange={(event) => {
+                                const value = event.currentTarget.value;
+                                updateProject(activeProject.id, (project) => ({
+                                  ...project,
+                                  runCommand: value,
+                                }));
+                              }}
+                              value={activeProject.runCommand}
+                            />
+                            <Input
+                              className="h-8 min-w-52 flex-1 text-xs"
+                              onChange={(event) => {
+                                const value = event.currentTarget.value;
+                                updateProject(activeProject.id, (project) => ({
+                                  ...project,
+                                  previewUrl: value,
+                                }));
+                              }}
+                              value={activeProject.previewUrl}
+                            />
+                            <Button
+                              className="h-8"
+                              onClick={() => {
+                                setPreviewError(null);
+                                syncPreviewBounds();
+                              }}
+                              size="icon"
+                              variant="outline"
+                            >
+                              <RefreshCcw className="size-4" />
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
 
-                      <TabsContent
-                        className={cn(
-                          "mt-0 min-h-0 flex-1",
-                          bottomTab !== "terminal" ? "hidden" : "",
-                        )}
-                        forceMount
-                        value="terminal"
-                      >
-                        <div className="flex h-full flex-col">
-                          <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
-                            <div className="flex items-center gap-2">
-                              <TerminalSquare className="size-4" />
-                              <span>Workspace terminal</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                className="h-7 gap-1 px-2 text-xs"
-                                disabled={!activeProject}
-                                onClick={() => void startActiveTerminal()}
-                                size="sm"
-                                variant="outline"
-                              >
-                                <Play className="size-3.5" />
-                                New
-                              </Button>
-                              <Button
-                                className="h-7 gap-1 px-2 text-xs"
-                                disabled={activeTerminalStatus !== "running"}
-                                onClick={() => void stopActiveTerminal()}
-                                size="sm"
-                                variant="outline"
-                              >
-                                <Square className="size-3.5" />
-                                Stop
-                              </Button>
-                              <Badge variant="outline">
-                                {activeTerminalStatus}
-                              </Badge>
-                              {activeTerminalTransport === "pipe" ? (
-                                <Badge variant="secondary">pipe fallback</Badge>
-                              ) : null}
-                            </div>
-                          </div>
-                          <div className="min-h-0 flex-1 bg-background p-2">
-                            <div
-                              className="h-full w-full"
-                              ref={setTerminalHost}
+                    <TabsContent
+                      className={cn(
+                        "mt-0 min-h-0 flex-1",
+                        rightTab !== "preview" ? "hidden" : "",
+                      )}
+                      forceMount
+                      value="preview"
+                    >
+                      <div className="relative h-full bg-muted/20">
+                        <div
+                          className="absolute inset-0"
+                          ref={previewHostRef}
+                        />
+                        {!activeProject || activeRunnerStatus !== "running" ? (
+                          <div className="absolute inset-0 p-3">
+                            <AppShellPlaceholder
+                              message={
+                                !activeProject
+                                  ? "Add a project and click Run to start a live preview."
+                                  : "Preview will appear here after you click Run."
+                              }
                             />
                           </div>
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-                  </Panel>
-                </>
+                        ) : null}
+                        {previewError ? (
+                          <div className="absolute right-3 bottom-3 left-3 rounded-md border border-destructive/40 bg-background/95 p-2 text-destructive text-xs">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <AlertCircle className="size-3.5" />
+                              Preview error
+                            </div>
+                            <p className="break-all">{previewError}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent
+                      className={cn(
+                        "mt-0 min-h-0 flex-1",
+                        rightTab !== "output" ? "hidden" : "",
+                      )}
+                      forceMount
+                      value="output"
+                    >
+                      <ScrollArea className="h-full px-3 py-2">
+                        <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-5">
+                          {activeProject
+                            ? runLog ||
+                              "Run output will stream here after you start the project."
+                            : "Select a project to view its run output."}
+                        </pre>
+                      </ScrollArea>
+                    </TabsContent>
+                  </Tabs>
+                </Panel>
+              ) : null}
+
+              {!mainWorkspaceVisible ? (
+                <Panel defaultSize={100} minSize={20}>
+                  <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
+                </Panel>
               ) : null}
             </Group>
           </Panel>

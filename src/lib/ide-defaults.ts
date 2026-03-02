@@ -35,7 +35,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
-  bottom: true,
   left: true,
   middle: true,
   right: true,
