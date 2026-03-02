@@ -237,14 +237,22 @@ export async function POST(request: Request): Promise<Response> {
             : {}),
         });
 
+  const openAiProviderOptions =
+    provider === "openai" && useChatgptCodexEndpoint
+      ? {
+          instructions: SYSTEM_PROMPT,
+          store: false,
+        }
+      : undefined;
+
   const textResult = streamText({
     messages: await convertToModelMessages(messages),
     model: providerFactory(model),
-    ...(useChatgptCodexEndpoint
-      ? { providerOptions: { openai: { store: false } } }
+    ...(openAiProviderOptions
+      ? { providerOptions: { openai: openAiProviderOptions } }
       : {}),
     stopWhen: stepCountIs(8),
-    system: SYSTEM_PROMPT,
+    system: openAiProviderOptions ? undefined : SYSTEM_PROMPT,
     temperature: 0.2,
     tools: {
       listFiles: tool({
