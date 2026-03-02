@@ -59,6 +59,7 @@ export interface TerminalDataEvent {
 export interface TerminalStatusEvent {
   projectId: string;
   status: "running" | "stopped";
+  transport?: "pty" | "pipe";
   pid?: number;
   code?: number | null;
   signal?: NodeJS.Signals | null;
@@ -119,7 +120,7 @@ export interface DreamDesktopApi {
 
   startTerminal: (
     payload: StartTerminalPayload,
-  ) => Promise<{ status: string; pid?: number }>;
+  ) => Promise<{ status: string; pid?: number; transport?: "pty" | "pipe" }>;
   sendTerminalInput: (payload: TerminalInputPayload) => void;
   stopTerminal: (projectId: string) => Promise<boolean>;
   onTerminalData: (listener: (event: TerminalDataEvent) => void) => () => void;

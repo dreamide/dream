@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { spawn as spawnProcess } from "node:child_process";
+import { existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,7 @@ import {
 } from "electron";
 import Store from "electron-store";
 import next from "next";
+import { spawn as spawnPty } from "node-pty";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -55,6 +57,7 @@ let nextHttpServer = null;
 
 const runProcesses = new Map();
 const terminalSessions = new Map();
+const terminalTransports = new Map();
 
 const previewState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
@@ -94,12 +97,133 @@ function isRendererNavigation(url) {
   return targetOrigin === rendererOrigin;
 }
 
+function parseCommandParts(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const matches = trimmed.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g);
+  if (!matches || matches.length === 0) {
+    return null;
+  }
+
+  const parts = matches.map((part) =>
+    part.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1"),
+  );
+  const command = parts[0];
+  if (!command) {
+    return null;
+  }
+
+  return {
+    args: parts.slice(1),
+    command,
+  };
+}
+
+function resolveTerminalCwd(cwd) {
+  if (typeof cwd !== "string") {
+    return app.getPath("home");
+  }
+
+  const trimmed = cwd.trim();
+  if (!trimmed) {
+    return app.getPath("home");
+  }
+
+  try {
+    if (existsSync(trimmed) && statSync(trimmed).isDirectory()) {
+      return trimmed;
+    }
+  } catch {
+    // ignore and fall back
+  }
+
+  return app.getPath("home");
+}
+
+function buildTerminalShellCandidates(preferredShellPath) {
+  const defaultShellArgs = process.platform === "win32" ? [] : ["-il"];
+  const candidates = [];
+  const seen = new Set();
+
+  const addCandidate = (rawValue, label) => {
+    const parsed = parseCommandParts(rawValue);
+    if (!parsed) {
+      return;
+    }
+
+    const args = parsed.args.length > 0 ? parsed.args : defaultShellArgs;
+    const key = `${parsed.command}\u0000${args.join("\u0000")}`;
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    candidates.push({
+      args,
+      command: parsed.command,
+      label,
+    });
+  };
+
+  addCandidate(preferredShellPath, "configured shell");
+  addCandidate(process.env.SHELL, "SHELL environment");
+
+  if (process.platform === "win32") {
+    addCandidate("powershell.exe", "PowerShell fallback");
+    addCandidate("cmd.exe", "CMD fallback");
+  } else if (process.platform === "darwin") {
+    addCandidate("/bin/zsh", "macOS zsh fallback");
+    addCandidate("/bin/bash", "bash fallback");
+    addCandidate("/bin/sh", "sh fallback");
+  } else {
+    addCandidate("/bin/bash", "bash fallback");
+    addCandidate("/bin/sh", "sh fallback");
+  }
+
+  return candidates;
+}
+
+function getPipeFallbackShell() {
+  if (process.platform === "win32") {
+    return {
+      args: [],
+      command: "powershell.exe",
+      label: "PowerShell pipe fallback",
+    };
+  }
+
+  if (existsSync("/bin/bash")) {
+    return {
+      args: ["--noprofile", "--norc", "-i"],
+      command: "/bin/bash",
+      label: "bash pipe fallback",
+    };
+  }
+
+  return {
+    args: ["-i"],
+    command: "/bin/sh",
+    label: "sh pipe fallback",
+  };
+}
+
 async function configureRendererProxy(webContents) {
   try {
-    await webContents.session.setProxy({
-      mode: "system",
-      proxyBypassRules: "localhost,127.0.0.1,::1,<local>",
-    });
+    const proxyConfig = isDevelopment
+      ? { mode: "direct" }
+      : {
+          mode: "system",
+          proxyBypassRules: "localhost,127.0.0.1,::1,<local>",
+        };
+
+    await webContents.session.setProxy(proxyConfig);
 
     await webContents.session.forceReloadProxyConfig();
   } catch (error) {
@@ -198,7 +322,7 @@ function stopChildProcess(child) {
   }
 
   if (process.platform === "win32") {
-    spawn("taskkill", ["/pid", String(child.pid), "/f", "/t"], {
+    spawnProcess("taskkill", ["/pid", String(child.pid), "/f", "/t"], {
       stdio: "ignore",
     });
     return;
@@ -222,13 +346,24 @@ function stopRunProcess(projectId) {
 }
 
 function stopTerminalSession(projectId) {
-  const child = terminalSessions.get(projectId);
-  if (!child) {
+  const session = terminalSessions.get(projectId);
+  const transport = terminalTransports.get(projectId);
+  if (!session) {
     return;
   }
 
-  stopChildProcess(child);
+  try {
+    session.kill();
+  } catch {
+    // ignore
+  }
   terminalSessions.delete(projectId);
+  terminalTransports.delete(projectId);
+  sendToRenderer("terminal:status", {
+    projectId,
+    status: "stopped",
+    transport,
+  });
 }
 
 function stopAllProcesses() {
@@ -380,7 +515,7 @@ ipcMain.handle(
 
     stopRunProcess(projectId);
 
-    const child = spawn(command, {
+    const child = spawnProcess(command, {
       cwd,
       env: {
         ...process.env,
@@ -455,61 +590,208 @@ ipcMain.handle(
 
     stopTerminalSession(projectId);
 
-    const shellPath =
-      preferredShellPath ||
-      process.env.SHELL ||
-      (process.platform === "win32" ? "powershell.exe" : "bash");
+    const shellCandidates = buildTerminalShellCandidates(preferredShellPath);
+    const resolvedCwd = resolveTerminalCwd(cwd);
 
-    const shellArgs = process.platform === "win32" ? [] : ["-l"];
+    if (resolvedCwd !== cwd) {
+      sendToRenderer("terminal:data", {
+        chunk: `\r\n\u001b[33m[terminal warning] CWD not found: ${cwd}. Using ${resolvedCwd}.\u001b[0m\r\n`,
+        projectId,
+      });
+    }
 
-    const child = spawn(shellPath, shellArgs, {
-      cwd,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color",
-      },
-      stdio: ["pipe", "pipe", "pipe"],
+    let terminalSession;
+    let chosenShell = null;
+    const spawnErrors = [];
+
+    for (const candidate of shellCandidates) {
+      try {
+        terminalSession = spawnPty(candidate.command, candidate.args, {
+          cols: 120,
+          cwd: resolvedCwd,
+          env: {
+            ...process.env,
+            TERM: "xterm-256color",
+          },
+          name: "xterm-256color",
+          rows: 36,
+        });
+        chosenShell = candidate;
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        spawnErrors.push(
+          `${candidate.command} (${candidate.label}): ${message}`,
+        );
+      }
+    }
+
+    if (!terminalSession || !chosenShell) {
+      const pipeFallbackCandidate = getPipeFallbackShell();
+
+      let child;
+      try {
+        child = spawnProcess(
+          pipeFallbackCandidate.command,
+          pipeFallbackCandidate.args,
+          {
+            cwd: resolvedCwd,
+            env: {
+              ...process.env,
+              BASH_SILENCE_DEPRECATION_WARNING: "1",
+              PS1: "\\u@\\h \\W $ ",
+              TERM: "xterm-256color",
+            },
+            shell: false,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        spawnErrors.push(
+          `${pipeFallbackCandidate.command} (${pipeFallbackCandidate.label}): ${message}`,
+        );
+        const detail =
+          spawnErrors.length > 0 ? `\r\n${spawnErrors.join("\r\n")}` : "";
+        sendToRenderer("terminal:data", {
+          chunk: `\r\n[terminal error] Unable to start shell.${detail}\r\n`,
+          projectId,
+        });
+        sendToRenderer("terminal:status", {
+          projectId,
+          status: "stopped",
+        });
+        return { status: "stopped" };
+      }
+
+      if (typeof child.pid !== "number") {
+        const detail =
+          spawnErrors.length > 0 ? `\r\n${spawnErrors.join("\r\n")}` : "";
+        sendToRenderer("terminal:data", {
+          chunk: `\r\n[terminal error] Shell started without a PID.${detail}\r\n`,
+          projectId,
+        });
+        sendToRenderer("terminal:status", {
+          projectId,
+          status: "stopped",
+        });
+        return { status: "stopped" };
+      }
+
+      terminalSessions.set(projectId, {
+        kill: () => stopChildProcess(child),
+        write: (data) => {
+          if (
+            typeof data !== "string" ||
+            !child.stdin ||
+            child.stdin.destroyed ||
+            child.stdin.writableEnded
+          ) {
+            return;
+          }
+
+          child.stdin.write(data);
+        },
+      });
+      terminalTransports.set(projectId, "pipe");
+
+      sendToRenderer("terminal:status", {
+        pid: child.pid,
+        projectId,
+        status: "running",
+        transport: "pipe",
+      });
+
+      const shellArgsText = pipeFallbackCandidate.args.join(" ");
+      sendToRenderer("terminal:data", {
+        chunk: `\u001b[2m[terminal started (pipe fallback): ${pipeFallbackCandidate.command}${shellArgsText ? ` ${shellArgsText}` : ""}]\u001b[0m\r\n`,
+        projectId,
+      });
+
+      if (spawnErrors.length > 0) {
+        sendToRenderer("terminal:data", {
+          chunk: `\u001b[2m[terminal info] PTY unavailable; using pipe fallback.\u001b[0m\r\n`,
+          projectId,
+        });
+      }
+
+      child.stdout?.on("data", (chunk) => {
+        sendToRenderer("terminal:data", {
+          chunk: chunk.toString(),
+          projectId,
+        });
+      });
+
+      child.stderr?.on("data", (chunk) => {
+        sendToRenderer("terminal:data", {
+          chunk: chunk.toString(),
+          projectId,
+        });
+      });
+
+      child.on("close", (code, signal) => {
+        terminalSessions.delete(projectId);
+        terminalTransports.delete(projectId);
+        sendToRenderer("terminal:status", {
+          code,
+          projectId,
+          signal,
+          status: "stopped",
+          transport: "pipe",
+        });
+      });
+
+      child.on("error", (error) => {
+        terminalSessions.delete(projectId);
+        terminalTransports.delete(projectId);
+        sendToRenderer("terminal:data", {
+          chunk: `\r\n[terminal error] ${error.message}\r\n`,
+          projectId,
+        });
+        sendToRenderer("terminal:status", {
+          projectId,
+          status: "stopped",
+          transport: "pipe",
+        });
+      });
+
+      return { pid: child.pid, status: "running", transport: "pipe" };
+    }
+
+    terminalSessions.set(projectId, terminalSession);
+    terminalTransports.set(projectId, "pty");
+    sendToRenderer("terminal:status", {
+      pid: terminalSession.pid,
+      projectId,
+      status: "running",
+      transport: "pty",
     });
 
-    terminalSessions.set(projectId, child);
-
     sendToRenderer("terminal:data", {
-      chunk: `\u001b[2m[terminal started: ${shellPath}]\u001b[0m\r\n`,
+      chunk: `\u001b[2m[terminal started: ${chosenShell.command} ${chosenShell.args.join(" ")}]\u001b[0m\r\n`,
       projectId,
     });
 
-    child.stdout?.on("data", (chunk) => {
+    terminalSession.onData((chunk) => {
       sendToRenderer("terminal:data", {
-        chunk: chunk.toString(),
+        chunk,
         projectId,
       });
     });
 
-    child.stderr?.on("data", (chunk) => {
-      sendToRenderer("terminal:data", {
-        chunk: chunk.toString(),
-        projectId,
-      });
-    });
-
-    child.on("close", (code, signal) => {
+    terminalSession.onExit(({ exitCode, signal }) => {
       terminalSessions.delete(projectId);
+      terminalTransports.delete(projectId);
       sendToRenderer("terminal:status", {
-        code,
+        code: exitCode,
         projectId,
-        signal,
+        signal: signal ?? null,
         status: "stopped",
+        transport: "pty",
       });
     });
 
-    child.on("error", (error) => {
-      sendToRenderer("terminal:data", {
-        chunk: `\r\n[terminal error] ${error.message}\r\n`,
-        projectId,
-      });
-    });
-
-    return { pid: child.pid, status: "running" };
+    return { pid: terminalSession.pid, status: "running", transport: "pty" };
   },
 );
 
@@ -518,12 +800,16 @@ ipcMain.on("terminal:input", (_event, { data, projectId }) => {
     return;
   }
 
-  const child = terminalSessions.get(projectId);
-  if (!child || child.killed || !child.stdin?.writable) {
+  const session = terminalSessions.get(projectId);
+  if (!session) {
     return;
   }
 
-  child.stdin.write(data);
+  try {
+    session.write(data);
+  } catch {
+    // ignore write failures after process/session exits
+  }
 });
 
 ipcMain.handle("terminal:stop", (_event, { projectId }) => {

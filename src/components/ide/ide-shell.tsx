@@ -114,6 +114,9 @@ type SettingsSection = "providers" | "terminal";
 type RunnerStatus = "running" | "stopped";
 
 type TerminalStatus = "running" | "stopped";
+type TerminalTransport = "pty" | "pipe";
+
+const GLOBAL_TERMINAL_SESSION_ID = "__global_terminal__";
 
 interface CodexLoginStatus {
   authMode: string;
@@ -556,6 +559,39 @@ const AppShellPlaceholder = ({ message }: { message: string }) => (
   </div>
 );
 
+const echoPipeFallbackInput = (terminal: Terminal, data: string) => {
+  let echoed = "";
+
+  for (const char of data) {
+    const code = char.charCodeAt(0);
+
+    if (char === "\r" || char === "\n") {
+      echoed += "\r\n";
+      continue;
+    }
+
+    if (char === "\u007f") {
+      echoed += "\b \b";
+      continue;
+    }
+
+    if (code === 0x03) {
+      echoed += "^C\r\n";
+      continue;
+    }
+
+    if (char === "\u001b" || code < 0x20) {
+      continue;
+    }
+
+    echoed += char;
+  }
+
+  if (echoed) {
+    terminal.write(echoed);
+  }
+};
+
 export const IdeShell = () => {
   const [projects, setProjects] = useState<ProjectConfig[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -571,6 +607,9 @@ export const IdeShell = () => {
   const [terminalStatus, setTerminalStatus] = useState<
     Record<string, TerminalStatus>
   >({});
+  const [terminalTransport, setTerminalTransport] = useState<
+    Record<string, TerminalTransport>
+  >({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection>("providers");
@@ -585,20 +624,16 @@ export const IdeShell = () => {
   const [stateHydrated, setStateHydrated] = useState(false);
 
   const previewHostRef = useRef<HTMLDivElement | null>(null);
-  const terminalHostRef = useRef<HTMLDivElement | null>(null);
+  const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const terminalFitRef = useRef<FitAddon | null>(null);
-  const activeProjectRef = useRef<string | null>(null);
+  const terminalTransportRef = useRef<TerminalTransport>("pty");
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? null,
     [activeProjectId, projects],
   );
   const [isMacOs, setIsMacOs] = useState(false);
-
-  useEffect(() => {
-    activeProjectRef.current = activeProject?.id ?? null;
-  }, [activeProject?.id]);
 
   useEffect(() => {
     setIsMacOs(/mac/i.test(window.navigator.userAgent));
@@ -712,14 +747,26 @@ export const IdeShell = () => {
     };
 
     const onTerminalData = (event: TerminalDataEvent) => {
-      if (event.projectId !== activeProjectRef.current) {
+      if (event.projectId !== GLOBAL_TERMINAL_SESSION_ID) {
         return;
       }
-
       terminalRef.current?.write(event.chunk);
     };
 
     const onTerminalStatus = (event: TerminalStatusEvent) => {
+      if (event.projectId !== GLOBAL_TERMINAL_SESSION_ID) {
+        return;
+      }
+
+      const transport = event.transport;
+      if (transport) {
+        terminalTransportRef.current = transport;
+        setTerminalTransport((previous) => ({
+          ...previous,
+          [event.projectId]: transport,
+        }));
+      }
+
       setTerminalStatus((previous) => ({
         ...previous,
         [event.projectId]: event.status,
@@ -748,7 +795,7 @@ export const IdeShell = () => {
   }, []);
 
   useEffect(() => {
-    const host = terminalHostRef.current;
+    const host = terminalHost;
     if (!host) {
       return;
     }
@@ -783,21 +830,24 @@ export const IdeShell = () => {
     };
 
     fit();
+    terminal.focus();
 
     const resizeObserver = new ResizeObserver(fit);
     resizeObserver.observe(host);
 
     const inputSubscription = terminal.onData((data) => {
       const desktopApi = getDesktopApi();
-      const projectId = activeProjectRef.current;
-
-      if (!desktopApi || !projectId) {
+      if (!desktopApi) {
         return;
+      }
+
+      if (terminalTransportRef.current === "pipe") {
+        echoPipeFallbackInput(terminal, data);
       }
 
       desktopApi.sendTerminalInput({
         data,
-        projectId,
+        projectId: GLOBAL_TERMINAL_SESSION_ID,
       });
     });
 
@@ -811,7 +861,7 @@ export const IdeShell = () => {
       terminalRef.current = null;
       terminalFitRef.current = null;
     };
-  }, []);
+  }, [terminalHost]);
 
   const syncPreviewBounds = useCallback(() => {
     const desktopApi = getDesktopApi();
@@ -885,23 +935,13 @@ export const IdeShell = () => {
   }, [syncPreviewBounds]);
 
   useEffect(() => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi || !activeProject) {
-      return;
-    }
-
     if (!panelVisibility.bottom || bottomTab !== "terminal") {
       return;
     }
 
-    terminalRef.current?.clear();
-
-    void desktopApi.startTerminal({
-      cwd: activeProject.path,
-      projectId: activeProject.id,
-      shellPath: settings.shellPath || undefined,
-    });
-  }, [activeProject, bottomTab, panelVisibility.bottom, settings.shellPath]);
+    terminalFitRef.current?.fit();
+    terminalRef.current?.focus();
+  }, [bottomTab, panelVisibility.bottom]);
 
   useEffect(() => {
     return () => {
@@ -969,7 +1009,6 @@ export const IdeShell = () => {
     const desktopApi = getDesktopApi();
     if (desktopApi) {
       void desktopApi.stopRunner(projectId);
-      void desktopApi.stopTerminal(projectId);
     }
 
     setProjects((previous) => {
@@ -1055,6 +1094,45 @@ export const IdeShell = () => {
 
     await desktopApi.stopRunner(activeProject.id);
   }, [activeProject]);
+
+  const startActiveTerminal = useCallback(async () => {
+    if (!activeProject) {
+      return;
+    }
+
+    const desktopApi = getDesktopApi();
+    if (!desktopApi) {
+      return;
+    }
+
+    terminalRef.current?.clear();
+    terminalRef.current?.focus();
+
+    setTerminalStatus((previous) => ({
+      ...previous,
+      [GLOBAL_TERMINAL_SESSION_ID]: "running",
+    }));
+
+    await desktopApi.startTerminal({
+      cwd: activeProject.path,
+      projectId: GLOBAL_TERMINAL_SESSION_ID,
+      shellPath: settings.shellPath || undefined,
+    });
+  }, [activeProject, settings.shellPath]);
+
+  const stopActiveTerminal = useCallback(async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi) {
+      return;
+    }
+
+    setTerminalStatus((previous) => ({
+      ...previous,
+      [GLOBAL_TERMINAL_SESSION_ID]: "stopped",
+    }));
+
+    await desktopApi.stopTerminal(GLOBAL_TERMINAL_SESSION_ID);
+  }, []);
 
   const openExternalUrl = useCallback((url: string) => {
     const desktopApi = getDesktopApi();
@@ -1151,9 +1229,10 @@ export const IdeShell = () => {
   const activeRunnerStatus = activeProject
     ? (runnerStatus[activeProject.id] ?? "stopped")
     : "stopped";
-  const activeTerminalStatus = activeProject
-    ? (terminalStatus[activeProject.id] ?? "stopped")
-    : "stopped";
+  const activeTerminalStatus =
+    terminalStatus[GLOBAL_TERMINAL_SESSION_ID] ?? "stopped";
+  const activeTerminalTransport =
+    terminalTransport[GLOBAL_TERMINAL_SESSION_ID] ?? "pty";
   const openAiModels = getOpenAiModelsForAuthMode(settings.openAiAuthMode);
   const selectedDefaultOpenAiModel = openAiModels.includes(
     settings.defaultOpenAiModel,
@@ -1474,7 +1553,11 @@ export const IdeShell = () => {
                       </div>
 
                       <TabsContent
-                        className="mt-0 min-h-0 flex-1"
+                        className={cn(
+                          "mt-0 min-h-0 flex-1",
+                          bottomTab !== "output" ? "hidden" : "",
+                        )}
+                        forceMount
                         value="output"
                       >
                         <ScrollArea className="h-full px-3 py-2">
@@ -1488,27 +1571,52 @@ export const IdeShell = () => {
                       </TabsContent>
 
                       <TabsContent
-                        className="mt-0 min-h-0 flex-1"
+                        className={cn(
+                          "mt-0 min-h-0 flex-1",
+                          bottomTab !== "terminal" ? "hidden" : "",
+                        )}
+                        forceMount
                         value="terminal"
                       >
                         <div className="flex h-full flex-col">
                           <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
                             <div className="flex items-center gap-2">
                               <TerminalSquare className="size-4" />
-                              <span>
-                                {activeProject
-                                  ? `${activeProject.name} terminal`
-                                  : "Terminal"}
-                              </span>
+                              <span>Workspace terminal</span>
                             </div>
-                            <Badge variant="outline">
-                              {activeTerminalStatus}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                className="h-7 gap-1 px-2 text-xs"
+                                disabled={!activeProject}
+                                onClick={() => void startActiveTerminal()}
+                                size="sm"
+                                variant="outline"
+                              >
+                                <Play className="size-3.5" />
+                                New
+                              </Button>
+                              <Button
+                                className="h-7 gap-1 px-2 text-xs"
+                                disabled={activeTerminalStatus !== "running"}
+                                onClick={() => void stopActiveTerminal()}
+                                size="sm"
+                                variant="outline"
+                              >
+                                <Square className="size-3.5" />
+                                Stop
+                              </Button>
+                              <Badge variant="outline">
+                                {activeTerminalStatus}
+                              </Badge>
+                              {activeTerminalTransport === "pipe" ? (
+                                <Badge variant="secondary">pipe fallback</Badge>
+                              ) : null}
+                            </div>
                           </div>
                           <div className="min-h-0 flex-1 bg-background p-2">
                             <div
                               className="h-full w-full"
-                              ref={terminalHostRef}
+                              ref={setTerminalHost}
                             />
                           </div>
                         </div>
