@@ -17,7 +17,6 @@ import {
 } from "ai";
 import {
   AlertCircle,
-  Bot,
   FolderPlus,
   MessageSquare,
   PanelLeft,
@@ -58,6 +57,11 @@ import {
   PromptInputBody,
   PromptInputFooter,
   type PromptInputMessage,
+  PromptInputSelect,
+  PromptInputSelectContent,
+  PromptInputSelectItem,
+  PromptInputSelectTrigger,
+  PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
@@ -418,57 +422,7 @@ const ChatPanel = ({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
-        <div className="flex items-center gap-2 text-sm">
-          <Bot className="size-4" />
-          <span className="font-medium">AI Workspace</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select
-            onValueChange={(value) => {
-              onProjectChange(project.id, (current) => ({
-                ...current,
-                model: getDefaultModelForProvider(
-                  value as AiProvider,
-                  settings,
-                ),
-                provider: value as AiProvider,
-              }));
-            }}
-            value={project.provider}
-          >
-            <SelectTrigger className="h-8 w-32 text-xs">
-              <SelectValue placeholder="Provider" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="openai">OpenAI</SelectItem>
-              <SelectItem value="anthropic">Anthropic</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            onValueChange={(value) => {
-              onProjectChange(project.id, (current) => ({
-                ...current,
-                model: value,
-              }));
-            }}
-            value={selectedModel}
-          >
-            <SelectTrigger className="h-8 w-56 text-xs">
-              <SelectValue placeholder="Model" />
-            </SelectTrigger>
-            <SelectContent>
-              {models.map((model) => (
-                <SelectItem key={model} value={model}>
-                  {model}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <Conversation className="min-h-0">
+      <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-4 p-3">
           {messages.length === 0 ? (
             <ConversationEmptyState
@@ -483,37 +437,89 @@ const ChatPanel = ({
       </Conversation>
 
       <div className="border-t p-3">
-        <PromptInput className="w-full" onSubmit={handleSubmit}>
+        <PromptInput
+          className="w-full rounded-2xl border bg-background px-2 pt-2 pb-1"
+          onSubmit={handleSubmit}
+        >
           <PromptInputBody>
             <PromptInputTextarea
+              className="min-h-[104px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
               placeholder={`Ask AI to update ${project.name}...`}
             />
           </PromptInputBody>
-          <PromptInputFooter>
-            <PromptInputTools>
+          <PromptInputFooter className="items-center">
+            <PromptInputTools className="gap-1.5 overflow-x-auto">
               <PromptInputActionMenu>
                 <PromptInputActionMenuTrigger tooltip="Attach file" />
                 <PromptInputActionMenuContent>
                   <PromptInputActionAddAttachments />
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
-              {!providerCredential && !usesCodexLogin ? (
-                <Badge className="ml-1" variant="destructive">
-                  Missing {credentialLabel}
-                </Badge>
-              ) : usesCodexLogin ? (
-                <Badge className="ml-1" variant="secondary">
-                  Using Codex Login
-                </Badge>
-              ) : null}
+
+              <PromptInputSelect
+                onValueChange={(value) => {
+                  onProjectChange(project.id, (current) => ({
+                    ...current,
+                    model: getDefaultModelForProvider(
+                      value as AiProvider,
+                      settings,
+                    ),
+                    provider: value as AiProvider,
+                  }));
+                }}
+                value={project.provider}
+              >
+                <PromptInputSelectTrigger className="h-8 min-w-[110px] px-2 text-xs">
+                  <PromptInputSelectValue placeholder="Provider" />
+                </PromptInputSelectTrigger>
+                <PromptInputSelectContent>
+                  <PromptInputSelectItem value="openai">
+                    OpenAI
+                  </PromptInputSelectItem>
+                  <PromptInputSelectItem value="anthropic">
+                    Anthropic
+                  </PromptInputSelectItem>
+                </PromptInputSelectContent>
+              </PromptInputSelect>
+
+              <PromptInputSelect
+                onValueChange={(value) => {
+                  onProjectChange(project.id, (current) => ({
+                    ...current,
+                    model: value,
+                  }));
+                }}
+                value={selectedModel}
+              >
+                <PromptInputSelectTrigger className="h-8 min-w-[180px] max-w-[260px] px-2 text-xs">
+                  <PromptInputSelectValue placeholder="Model" />
+                </PromptInputSelectTrigger>
+                <PromptInputSelectContent>
+                  {models.map((model) => (
+                    <PromptInputSelectItem key={model} value={model}>
+                      {model}
+                    </PromptInputSelectItem>
+                  ))}
+                </PromptInputSelectContent>
+              </PromptInputSelect>
             </PromptInputTools>
             <PromptInputSubmit
+              className="size-8 rounded-full"
               disabled={!providerCredential && !usesCodexLogin}
               onStop={stop}
               status={status}
             />
           </PromptInputFooter>
         </PromptInput>
+
+        <div className="mt-2 flex items-center gap-2">
+          {!providerCredential && !usesCodexLogin ? (
+            <Badge variant="destructive">Missing {credentialLabel}</Badge>
+          ) : usesCodexLogin ? (
+            <Badge variant="secondary">Using Codex Login</Badge>
+          ) : null}
+        </div>
+
         {localError ? (
           <p className="mt-2 text-destructive text-xs">{localError}</p>
         ) : null}
