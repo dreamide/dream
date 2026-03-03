@@ -1,0 +1,79 @@
+import type { Terminal } from "@xterm/xterm";
+import type { PropsWithChildren } from "react";
+import { Separator } from "react-resizable-panels";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+export const ResizeHandle = ({
+  className,
+  id,
+}: { className?: string; id?: string }) => (
+  <Separator
+    className={cn(
+      "relative bg-border/70 after:absolute after:inset-0 after:bg-primary/0 after:transition-colors hover:after:bg-primary/20",
+      className,
+    )}
+    id={id}
+  />
+);
+
+export const ToggleButton = ({
+  active,
+  children,
+  onClick,
+  title,
+}: PropsWithChildren<{
+  active: boolean;
+  onClick: () => void;
+  title: string;
+}>) => (
+  <Button
+    aria-label={title}
+    className="size-8 [-webkit-app-region:no-drag]"
+    onClick={onClick}
+    size="icon"
+    title={title}
+    variant={active ? "secondary" : "ghost"}
+  >
+    {children}
+  </Button>
+);
+
+export const AppShellPlaceholder = ({ message }: { message: string }) => (
+  <div className="flex h-full items-center justify-center rounded-md border border-dashed bg-muted/30 p-4 text-center text-muted-foreground text-sm">
+    {message}
+  </div>
+);
+
+export const echoPipeFallbackInput = (terminal: Terminal, data: string) => {
+  let echoed = "";
+
+  for (const char of data) {
+    const code = char.charCodeAt(0);
+
+    if (char === "\r" || char === "\n") {
+      echoed += "\r\n";
+      continue;
+    }
+
+    if (char === "\u007f") {
+      echoed += "\b \b";
+      continue;
+    }
+
+    if (code === 0x03) {
+      echoed += "^C\r\n";
+      continue;
+    }
+
+    if (char === "\u001b" || code < 0x20) {
+      continue;
+    }
+
+    echoed += char;
+  }
+
+  if (echoed) {
+    terminal.write(echoed);
+  }
+};
