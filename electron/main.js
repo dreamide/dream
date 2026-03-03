@@ -36,10 +36,12 @@ const store = new Store({
     projects: [],
     settings: {
       anthropicApiKey: "",
-      defaultAnthropicModel: "claude-3-7-sonnet-latest",
-      defaultOpenAiModel: "gpt-4.1-mini",
+      anthropicSelectedModels: [],
+      defaultAnthropicModel: "",
+      defaultOpenAiModel: "",
       openAiAuthMode: "apiKey",
       openAiApiKey: "",
+      openAiSelectedModels: [],
       shellPath: "",
     },
   },
@@ -57,6 +59,7 @@ let nextHttpServer = null;
 const runProcesses = new Map();
 const terminalSessions = new Map();
 const terminalTransports = new Map();
+const terminalShells = new Map();
 
 const previewState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
@@ -123,6 +126,21 @@ function parseCommandParts(value) {
     args: parts.slice(1),
     command,
   };
+}
+
+function formatShellCommand(command, args = []) {
+  const trimmedCommand = typeof command === "string" ? command.trim() : "";
+  if (!trimmedCommand) {
+    return "";
+  }
+
+  const normalizedArgs = Array.isArray(args)
+    ? args
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter(Boolean)
+    : [];
+
+  return [trimmedCommand, ...normalizedArgs].join(" ");
 }
 
 function resolveTerminalCwd(cwd) {
@@ -347,6 +365,7 @@ function stopRunProcess(projectId) {
 function stopTerminalSession(projectId) {
   const session = terminalSessions.get(projectId);
   const transport = terminalTransports.get(projectId);
+  const shell = terminalShells.get(projectId);
   if (!session) {
     return;
   }
@@ -358,8 +377,10 @@ function stopTerminalSession(projectId) {
   }
   terminalSessions.delete(projectId);
   terminalTransports.delete(projectId);
+  terminalShells.delete(projectId);
   sendToRenderer("terminal:status", {
     projectId,
+    shell,
     status: "stopped",
     transport,
   });
@@ -693,17 +714,22 @@ ipcMain.handle(
         },
       });
       terminalTransports.set(projectId, "pipe");
+      const shellCommand = formatShellCommand(
+        pipeFallbackCandidate.command,
+        pipeFallbackCandidate.args,
+      );
+      terminalShells.set(projectId, shellCommand);
 
       sendToRenderer("terminal:status", {
         pid: child.pid,
         projectId,
+        shell: shellCommand,
         status: "running",
         transport: "pipe",
       });
 
-      const shellArgsText = pipeFallbackCandidate.args.join(" ");
       sendToRenderer("terminal:data", {
-        chunk: `\u001b[2m[terminal started (pipe fallback): ${pipeFallbackCandidate.command}${shellArgsText ? ` ${shellArgsText}` : ""}]\u001b[0m\r\n`,
+        chunk: `\u001b[2m[terminal started (pipe fallback): ${shellCommand}]\u001b[0m\r\n`,
         projectId,
       });
 
@@ -731,9 +757,11 @@ ipcMain.handle(
       child.on("close", (code, signal) => {
         terminalSessions.delete(projectId);
         terminalTransports.delete(projectId);
+        terminalShells.delete(projectId);
         sendToRenderer("terminal:status", {
           code,
           projectId,
+          shell: shellCommand,
           signal,
           status: "stopped",
           transport: "pipe",
@@ -743,31 +771,44 @@ ipcMain.handle(
       child.on("error", (error) => {
         terminalSessions.delete(projectId);
         terminalTransports.delete(projectId);
+        terminalShells.delete(projectId);
         sendToRenderer("terminal:data", {
           chunk: `\r\n[terminal error] ${error.message}\r\n`,
           projectId,
         });
         sendToRenderer("terminal:status", {
           projectId,
+          shell: shellCommand,
           status: "stopped",
           transport: "pipe",
         });
       });
 
-      return { pid: child.pid, status: "running", transport: "pipe" };
+      return {
+        pid: child.pid,
+        shell: shellCommand,
+        status: "running",
+        transport: "pipe",
+      };
     }
 
     terminalSessions.set(projectId, terminalSession);
     terminalTransports.set(projectId, "pty");
+    const shellCommand = formatShellCommand(
+      chosenShell.command,
+      chosenShell.args,
+    );
+    terminalShells.set(projectId, shellCommand);
     sendToRenderer("terminal:status", {
       pid: terminalSession.pid,
       projectId,
+      shell: shellCommand,
       status: "running",
       transport: "pty",
     });
 
     sendToRenderer("terminal:data", {
-      chunk: `\u001b[2m[terminal started: ${chosenShell.command} ${chosenShell.args.join(" ")}]\u001b[0m\r\n`,
+      chunk: `\u001b[2m[terminal started: ${shellCommand}]\u001b[0m\r\n`,
       projectId,
     });
 
@@ -781,16 +822,23 @@ ipcMain.handle(
     terminalSession.onExit(({ exitCode, signal }) => {
       terminalSessions.delete(projectId);
       terminalTransports.delete(projectId);
+      terminalShells.delete(projectId);
       sendToRenderer("terminal:status", {
         code: exitCode,
         projectId,
+        shell: shellCommand,
         signal: signal ?? null,
         status: "stopped",
         transport: "pty",
       });
     });
 
-    return { pid: terminalSession.pid, status: "running", transport: "pty" };
+    return {
+      pid: terminalSession.pid,
+      shell: shellCommand,
+      status: "running",
+      transport: "pty",
+    };
   },
 );
 
