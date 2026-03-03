@@ -724,12 +724,16 @@ const ChatPanel = ({
   );
 };
 
-const ResizeHandle = ({ className }: { className?: string }) => (
+const ResizeHandle = ({
+  className,
+  id,
+}: { className?: string; id?: string }) => (
   <Separator
     className={cn(
       "relative bg-border/70 after:absolute after:inset-0 after:bg-primary/0 after:transition-colors hover:after:bg-primary/20",
       className,
     )}
+    id={id}
   />
 );
 
@@ -1896,10 +1900,16 @@ export const IdeShell = () => {
       </header>
 
       <div className="h-[calc(100vh-44px)] overflow-hidden">
-        <Group className="h-full" orientation="horizontal">
+        {!stateHydrated ? null : (
+        <Group className="h-full" id="ide-root" orientation="horizontal">
           {panelVisibility.left ? (
             <>
-              <Panel className="min-w-[230px]" defaultSize={18} minSize={14}>
+              <Panel
+                className="min-w-[230px]"
+                defaultSize={18}
+                id="ide-left"
+                minSize={14}
+              >
                 <div className="flex h-full flex-col border-r bg-muted/25 p-2">
                   <Button
                     className="w-full justify-start"
@@ -1985,21 +1995,27 @@ export const IdeShell = () => {
                   </Button>
                 </div>
               </Panel>
-              <ResizeHandle className="w-1" />
+              <ResizeHandle className="w-1" id="ide-left-handle" />
             </>
           ) : null}
 
-          <Panel defaultSize={panelVisibility.left ? 82 : 100} minSize={20}>
-            <Group orientation="horizontal">
+          <Panel
+            defaultSize={panelVisibility.left ? 82 : 100}
+            id="ide-main"
+            minSize={20}
+          >
+            <Group id="ide-workspace" orientation="horizontal">
               {panelVisibility.middle ? (
                 <Panel
                   defaultSize={panelVisibility.right ? 54 : 100}
+                  id="ide-middle"
                   minSize={30}
                 >
                   <div className="flex h-full flex-col border-r">
-                    <Group className="h-full" orientation="vertical">
+                    <Group className="h-full" id="ide-chat-term" orientation="vertical">
                       <Panel
                         defaultSize={terminalPanelOpen ? 74 : 100}
+                        id="ide-chat"
                         minSize={30}
                       >
                         <div className="flex h-full min-h-0 flex-col">
@@ -2039,9 +2055,10 @@ export const IdeShell = () => {
 
                       {terminalPanelOpen ? (
                         <>
-                          <ResizeHandle className="h-1" />
+                          <ResizeHandle className="h-1" id="ide-term-handle" />
                           <Panel
                             defaultSize={26}
+                            id="ide-terminal"
                             minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
                           >
                             <div
@@ -2084,12 +2101,13 @@ export const IdeShell = () => {
               ) : null}
 
               {panelVisibility.middle && panelVisibility.right ? (
-                <ResizeHandle className="w-1" />
+                <ResizeHandle className="w-1" id="ide-middle-handle" />
               ) : null}
 
               {panelVisibility.right ? (
                 <Panel
                   defaultSize={panelVisibility.middle ? 46 : 100}
+                  id="ide-right"
                   minSize={26}
                 >
                   <div className="flex h-full flex-col">
@@ -2174,9 +2192,10 @@ export const IdeShell = () => {
                       </div>
                     </div>
 
-                    <Group className="min-h-0 flex-1" orientation="vertical">
+                    <Group className="min-h-0 flex-1" id="ide-preview-output" orientation="vertical">
                       <Panel
                         defaultSize={outputPanelOpen ? 74 : 100}
+                        id="ide-preview"
                         minSize={30}
                       >
                         <div className="relative h-full bg-muted/20">
@@ -2210,9 +2229,10 @@ export const IdeShell = () => {
 
                       {outputPanelOpen ? (
                         <>
-                          <ResizeHandle className="h-1" />
+                          <ResizeHandle className="h-1" id="ide-output-handle" />
                           <Panel
                             defaultSize={26}
+                            id="ide-output"
                             minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
                           >
                             <div
@@ -2252,13 +2272,14 @@ export const IdeShell = () => {
               ) : null}
 
               {!mainWorkspaceVisible ? (
-                <Panel defaultSize={100} minSize={20}>
+                <Panel defaultSize={100} id="ide-fallback" minSize={20}>
                   <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
                 </Panel>
               ) : null}
             </Group>
           </Panel>
         </Group>
+        )}
       </div>
 
       <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
