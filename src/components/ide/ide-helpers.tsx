@@ -20,20 +20,26 @@ export const ResizeHandle = ({
 export const ToggleButton = ({
   active,
   children,
+  disabled,
   onClick,
   title,
 }: PropsWithChildren<{
   active: boolean;
+  disabled?: boolean;
   onClick: () => void;
   title: string;
 }>) => (
   <Button
     aria-label={title}
-    className="size-8 [-webkit-app-region:no-drag]"
+    className={cn(
+      "size-8 [-webkit-app-region:no-drag]",
+      active ? "text-foreground" : "text-muted-foreground",
+    )}
+    disabled={disabled}
     onClick={onClick}
     size="icon"
     title={title}
-    variant={active ? "secondary" : "ghost"}
+    variant="ghost"
   >
     {children}
   </Button>

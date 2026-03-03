@@ -145,15 +145,14 @@ export const FileTreeFolder = ({
           tabIndex={0}
           {...props}
         >
-          <CollapsibleTrigger asChild>
-            <button
+          <CollapsibleTrigger render={<button
               className={cn(
                 "flex w-full items-center gap-1 rounded px-2 py-1 text-left transition-colors hover:bg-muted/50",
                 isSelected && "bg-muted",
               )}
               onClick={handleSelect}
               type="button"
-            >
+            />}>
               <ChevronRightIcon
                 className={cn(
                   "size-4 shrink-0 text-muted-foreground transition-transform",
@@ -168,7 +167,6 @@ export const FileTreeFolder = ({
                 )}
               </FileTreeIcon>
               <FileTreeName>{name}</FileTreeName>
-            </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="ml-4 border-l pl-2">{children}</div>

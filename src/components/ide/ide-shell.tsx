@@ -3,10 +3,8 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
-import { TerminalSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel } from "react-resizable-panels";
-import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
@@ -42,14 +40,12 @@ export const IdeShell = () => {
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
-  const setTerminalPanelOpen = useIdeStore((s) => s.setTerminalPanelOpen);
   const setProviderSetupTarget = useIdeStore((s) => s.setProviderSetupTarget);
   const appendRunLog = useIdeStore((s) => s.appendRunLog);
   const setRunnerStatus = useIdeStore((s) => s.setRunnerStatus);
   const setTerminalStatus = useIdeStore((s) => s.setTerminalStatus);
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
-  const startActiveTerminal = useIdeStore((s) => s.startActiveTerminal);
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
@@ -195,6 +191,12 @@ export const IdeShell = () => {
 
     fit();
     terminal.focus();
+
+    // Auto-start pty if not already running
+    const ts = useIdeStore.getState().terminalStatus;
+    if ((ts[GLOBAL_TERMINAL_SESSION_ID] ?? "stopped") !== "running") {
+      void useIdeStore.getState().startActiveTerminal(terminalRef);
+    }
 
     const resizeObserver = new ResizeObserver(fit);
     resizeObserver.observe(host);
@@ -407,22 +409,6 @@ export const IdeShell = () => {
     }
   }, [settings]);
 
-  // Open terminal panel
-  const openTerminalPanel = useCallback(async () => {
-    setTerminalPanelOpen(true);
-
-    const ts = useIdeStore.getState().terminalStatus;
-    const activeTerminalStatus = ts[GLOBAL_TERMINAL_SESSION_ID] ?? "stopped";
-
-    if (activeTerminalStatus === "running") {
-      terminalFitRef.current?.fit();
-      terminalRef.current?.focus();
-      return;
-    }
-
-    await startActiveTerminal(terminalRef);
-  }, [setTerminalPanelOpen, startActiveTerminal]);
-
   // ── Derived values ──────────────────────────────────────────────────
   const mainWorkspaceVisible = panelVisibility.middle || panelVisibility.right;
 
@@ -467,33 +453,13 @@ export const IdeShell = () => {
                         id="ide-chat"
                         minSize={30}
                       >
-                        <div className="flex h-full min-h-0 flex-col">
-                          <div className="min-h-0 flex-1">
-                            {activeProject ? (
-                              <ChatPanel project={activeProject} />
-                            ) : (
-                              <div className="h-full p-3">
-                                <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
-                              </div>
-                            )}
+                        {activeProject ? (
+                          <ChatPanel project={activeProject} />
+                        ) : (
+                          <div className="h-full p-3">
+                            <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
                           </div>
-
-                          {!terminalPanelOpen ? (
-                            <div className="flex items-center justify-end border-t px-2 py-1.5">
-                              <Button
-                                aria-label="Open terminal"
-                                className="h-8 w-8"
-                                disabled={!activeProject}
-                                onClick={() => void openTerminalPanel()}
-                                size="icon"
-                                title="Open terminal"
-                                variant="ghost"
-                              >
-                                <TerminalSquare className="size-4" />
-                              </Button>
-                            </div>
-                          ) : null}
-                        </div>
+                        )}
                       </Panel>
 
                       {terminalPanelOpen ? (

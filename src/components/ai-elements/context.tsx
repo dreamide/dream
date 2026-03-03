@@ -1,7 +1,7 @@
 "use client";
 
 import type { LanguageModelUsage } from "ai";
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactElement } from "react";
 import { createContext, useContext, useMemo } from "react";
 import { getUsage } from "tokenlens";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,7 @@ export const Context = ({
 
   return (
     <ContextContext.Provider value={contextValue}>
-      <HoverCard closeDelay={0} openDelay={0} {...props} />
+      <HoverCard {...props} />
     </ContextContext.Provider>
   );
 };
@@ -112,16 +112,19 @@ export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
     style: "percent",
   }).format(usedPercent);
 
+  if (children) {
+    return (
+      <HoverCardTrigger render={children as ReactElement}>
+      </HoverCardTrigger>
+    );
+  }
+
   return (
-    <HoverCardTrigger asChild>
-      {children ?? (
-        <Button type="button" variant="ghost" {...props}>
-          <span className="font-medium text-muted-foreground">
-            {renderedPercent}
-          </span>
-          <ContextIcon />
-        </Button>
-      )}
+    <HoverCardTrigger render={<Button type="button" variant="ghost" {...props} />}>
+      <span className="font-medium text-muted-foreground">
+        {renderedPercent}
+      </span>
+      <ContextIcon />
     </HoverCardTrigger>
   );
 };

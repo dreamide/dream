@@ -1,6 +1,6 @@
 "use client";
 
-import { useControllableState } from "@radix-ui/react-use-controllable-state";
+import { useControllableState } from "@/hooks/use-controllable-state";
 import {
   CircleSmallIcon,
   MarsIcon,
@@ -37,9 +37,11 @@ import { cn } from "@/lib/utils";
 
 interface VoiceSelectorContextValue {
   value: string | undefined;
-  setValue: (value: string | undefined) => void;
+  setValue: (
+    value: (string | undefined) | ((prev: string | undefined) => string | undefined),
+  ) => void;
   open: boolean;
-  setOpen: (open: boolean) => void;
+  setOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 const VoiceSelectorContext = createContext<VoiceSelectorContextValue | null>(
@@ -72,7 +74,7 @@ export const VoiceSelector = ({
   children,
   ...props
 }: VoiceSelectorProps) => {
-  const [value, setValue] = useControllableState({
+  const [value, setValue] = useControllableState<string | undefined>({
     defaultProp: defaultValue,
     onChange: onValueChange,
     prop: valueProp,
@@ -80,9 +82,16 @@ export const VoiceSelector = ({
 
   const [open, setOpen] = useControllableState({
     defaultProp: defaultOpen,
-    onChange: onOpenChange,
+    onChange: onOpenChange
+      ? (v: boolean) => (onOpenChange as (open: boolean) => void)(v)
+      : undefined,
     prop: openProp,
   });
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean, _details?: unknown) => setOpen(nextOpen),
+    [setOpen],
+  );
 
   const voiceSelectorContext = useMemo(
     () => ({ open, setOpen, setValue, value }),
@@ -91,7 +100,7 @@ export const VoiceSelector = ({
 
   return (
     <VoiceSelectorContext.Provider value={voiceSelectorContext}>
-      <Dialog onOpenChange={setOpen} open={open} {...props}>
+      <Dialog onOpenChange={handleOpenChange} open={open} {...props}>
         {children}
       </Dialog>
     </VoiceSelectorContext.Provider>

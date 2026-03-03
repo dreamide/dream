@@ -325,7 +325,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
                 onValueChange={(value) => {
                   updateProject(project.id, (current) => ({
                     ...current,
-                    model: value,
+                    model: value as string,
                   }));
                 }}
                 value={selectedModel || undefined}
