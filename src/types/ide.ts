@@ -2,6 +2,7 @@ import type { UIMessage } from "ai";
 
 export type AiProvider = "openai" | "anthropic";
 export type ProviderAuthMode = "apiKey" | "codex";
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 export interface ProjectConfig {
   id: string;
@@ -11,6 +12,7 @@ export interface ProjectConfig {
   previewUrl: string;
   provider: AiProvider;
   model: string;
+  reasoningEffort: ReasoningEffort;
 }
 
 export interface AppSettings {

@@ -21,6 +21,7 @@ const requestBodySchema = z.object({
   model: z.string().min(1),
   projectPath: z.string().min(1),
   provider: z.enum(["openai", "anthropic"]),
+  reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
 });
 
 const BLOCKED_DIRECTORIES = new Set([
@@ -177,7 +178,8 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(parsed.error.message, { status: 400 });
   }
 
-  const { authMode, model, projectPath, provider } = parsed.data;
+  const { authMode, model, projectPath, provider, reasoningEffort } =
+    parsed.data;
   let credential = parsed.data.credential?.trim() ?? "";
   const messages = parsed.data.messages as UIMessage[];
 
@@ -225,10 +227,15 @@ export async function POST(request: Request): Promise<Response> {
         });
 
   const openAiProviderOptions =
-    provider === "openai" && useChatgptCodexEndpoint
+    provider === "openai"
       ? {
-          instructions: SYSTEM_PROMPT,
-          store: false,
+          ...(useChatgptCodexEndpoint
+            ? {
+                instructions: SYSTEM_PROMPT,
+                store: false,
+              }
+            : {}),
+          reasoningEffort,
         }
       : undefined;
 
@@ -239,7 +246,10 @@ export async function POST(request: Request): Promise<Response> {
       ? { providerOptions: { openai: openAiProviderOptions } }
       : {}),
     stopWhen: stepCountIs(8),
-    system: openAiProviderOptions ? undefined : SYSTEM_PROMPT,
+    system:
+      provider === "openai" && useChatgptCodexEndpoint
+        ? undefined
+        : SYSTEM_PROMPT,
     temperature: 0.2,
     tools: {
       listFiles: tool({

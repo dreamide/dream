@@ -106,6 +106,7 @@ import type {
   PreviewBounds,
   PreviewErrorEvent,
   ProjectConfig,
+  ReasoningEffort,
   RunnerDataEvent,
   RunnerStatusEvent,
   TerminalDataEvent,
@@ -156,6 +157,22 @@ const dedupeModels = (models: string[]): string[] => {
   return Array.from(
     new Set(models.map((model) => model.trim()).filter(Boolean)),
   );
+};
+
+const REASONING_EFFORT_OPTIONS: Array<{
+  label: string;
+  value: ReasoningEffort;
+}> = [
+  { label: "Low", value: "low" },
+  { label: "Medium", value: "medium" },
+  { label: "High", value: "high" },
+  { label: "Extra High", value: "xhigh" },
+];
+
+const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {
+  return REASONING_EFFORT_OPTIONS.some((option) => option.value === value)
+    ? (value as ReasoningEffort)
+    : "medium";
 };
 
 const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
@@ -213,7 +230,12 @@ const mergePersistedState = (
     return emptyState;
   }
 
-  const projects = Array.isArray(state.projects) ? state.projects : [];
+  const projects = (Array.isArray(state.projects) ? state.projects : []).map(
+    (project) => ({
+      ...project,
+      reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
+    }),
+  );
   const rawSettings = (state.settings ?? {}) as Partial<AppSettings>;
   const hasExplicitConnectedProviders = Object.hasOwn(
     rawSettings,
@@ -383,6 +405,9 @@ const ChatPanel = ({
   const selectedModel = models.includes(project.model)
     ? project.model
     : (models[0] ?? "");
+  const selectedReasoningEffort = normalizeReasoningEffort(
+    project.reasoningEffort,
+  );
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -427,6 +452,7 @@ const ChatPanel = ({
             model: activeModel,
             projectPath: project.path,
             provider: project.provider,
+            reasoningEffort: selectedReasoningEffort,
           },
         },
       );
@@ -438,6 +464,7 @@ const ChatPanel = ({
       project,
       providerAuthMode,
       providerCredential,
+      selectedReasoningEffort,
       sendMessage,
       usesCodexLogin,
     ],
@@ -634,6 +661,33 @@ const ChatPanel = ({
                   {models.map((model) => (
                     <PromptInputSelectItem key={model} value={model}>
                       {model}
+                    </PromptInputSelectItem>
+                  ))}
+                </PromptInputSelectContent>
+              </PromptInputSelect>
+
+              <PromptInputSelect
+                onValueChange={(value) => {
+                  onProjectChange(project.id, (current) => ({
+                    ...current,
+                    reasoningEffort: value as ReasoningEffort,
+                  }));
+                }}
+                value={selectedReasoningEffort}
+              >
+                <PromptInputSelectTrigger
+                  className="h-8 min-w-[120px] px-2 text-xs"
+                  disabled={project.provider !== "openai"}
+                >
+                  <PromptInputSelectValue placeholder="Reasoning" />
+                </PromptInputSelectTrigger>
+                <PromptInputSelectContent>
+                  {REASONING_EFFORT_OPTIONS.map((option) => (
+                    <PromptInputSelectItem
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
                     </PromptInputSelectItem>
                   ))}
                 </PromptInputSelectContent>
