@@ -18,7 +18,7 @@ export const IdeHeader = () => {
         </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
+      <div className={cn("ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]", !isMacOs && "mr-36")}>
         <ToggleButton
           active={panelVisibility.left}
           onClick={() => togglePanel("left")}
