@@ -117,17 +117,19 @@ export const WebPreviewNavigationButton = ({
 }: WebPreviewNavigationButtonProps) => (
   <TooltipProvider>
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          className="h-8 w-8 p-0 hover:text-foreground"
-          disabled={disabled}
-          onClick={onClick}
-          size="sm"
-          variant="ghost"
-          {...props}
-        >
-          {children}
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            className="h-8 w-8 p-0 hover:text-foreground"
+            disabled={disabled}
+            onClick={onClick}
+            size="sm"
+            variant="ghost"
+            {...props}
+          />
+        }
+      >
+        {children}
       </TooltipTrigger>
       <TooltipContent>
         <p>{tooltip}</p>
@@ -232,24 +234,26 @@ export const WebPreviewConsole = ({
       open={consoleOpen}
       {...props}
     >
-      <CollapsibleTrigger asChild>
-        <Button
-          className="flex w-full items-center justify-between p-4 text-left font-medium hover:bg-muted/50"
-          variant="ghost"
-        >
-          Console
-          <ChevronDownIcon
-            className={cn(
-              "h-4 w-4 transition-transform duration-200",
-              consoleOpen && "rotate-180",
-            )}
+      <CollapsibleTrigger
+        render={
+          <Button
+            className="flex w-full items-center justify-between p-4 text-left font-medium hover:bg-muted/50"
+            variant="ghost"
           />
-        </Button>
+        }
+      >
+        Console
+        <ChevronDownIcon
+          className={cn(
+            "h-4 w-4 transition-transform duration-200",
+            consoleOpen && "rotate-180",
+          )}
+        />
       </CollapsibleTrigger>
       <CollapsibleContent
         className={cn(
           "px-4 pb-4",
-          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+          "data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:zoom-out-95 data-[open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 outline-none data-[closed]:animate-out data-[open]:animate-in",
         )}
       >
         <div className="max-h-48 space-y-1 overflow-y-auto">

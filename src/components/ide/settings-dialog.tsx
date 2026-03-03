@@ -639,7 +639,7 @@ export const SettingsDialog = () => {
                           onValueChange={(value) =>
                             setSettings((previous) => ({
                               ...previous,
-                              defaultOpenAiModel: value,
+                              defaultOpenAiModel: value as string,
                             }))
                           }
                           value={selectedDefaultOpenAiModel || undefined}
@@ -725,7 +725,7 @@ export const SettingsDialog = () => {
                           onValueChange={(value) =>
                             setSettings((previous) => ({
                               ...previous,
-                              defaultAnthropicModel: value,
+                              defaultAnthropicModel: value as string,
                             }))
                           }
                           value={selectedDefaultAnthropicModel || undefined}

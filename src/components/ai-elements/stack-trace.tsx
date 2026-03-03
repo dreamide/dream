@@ -1,6 +1,6 @@
 "use client";
 
-import { useControllableState } from "@radix-ui/react-use-controllable-state";
+import { useControllableState } from "@/hooks/use-controllable-state";
 import {
   AlertTriangleIcon,
   CheckIcon,
@@ -216,15 +216,18 @@ export const StackTraceHeader = memo(
 
     return (
       <Collapsible onOpenChange={setIsOpen} open={isOpen}>
-        <CollapsibleTrigger asChild {...props}>
-          <div
-            className={cn(
-              "flex w-full cursor-pointer items-center gap-3 p-3 text-left transition-colors hover:bg-muted/50",
-              className,
-            )}
-          >
-            {children}
-          </div>
+        <CollapsibleTrigger
+          render={
+            <div
+              className={cn(
+                "flex w-full cursor-pointer items-center gap-3 p-3 text-left transition-colors hover:bg-muted/50",
+                className,
+              )}
+            />
+          }
+          {...props}
+        >
+          {children}
         </CollapsibleTrigger>
       </Collapsible>
     );
@@ -407,7 +410,7 @@ export const StackTraceContent = memo(
         <CollapsibleContent
           className={cn(
             "overflow-auto border-t bg-muted/30",
-            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in",
+            "data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:animate-out data-[open]:animate-in",
             className,
           )}
           style={{ maxHeight }}

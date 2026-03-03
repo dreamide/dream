@@ -260,7 +260,7 @@ export const TestSuiteName = ({
       )}
       {...props}
     >
-      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+      <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[open]:rotate-90" />
       <TestStatusIcon status={status} />
       <span className="font-medium text-sm">{children ?? name}</span>
     </CollapsibleTrigger>

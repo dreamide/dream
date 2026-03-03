@@ -1,9 +1,6 @@
-import { FolderPlus, Settings, X } from "lucide-react";
-import { useCallback } from "react";
+import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "./ide-store";
 
@@ -11,38 +8,11 @@ export const ProjectSidebar = () => {
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
-  const addProject = useIdeStore((s) => s.addProject);
   const closeProject = useIdeStore((s) => s.closeProject);
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-
-  const handleAddProject = useCallback(async () => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi) {
-      window.alert("Open this app inside Electron to add project folders.");
-      return;
-    }
-    const selectedPath = await desktopApi.pickProjectDirectory();
-    if (!selectedPath) return;
-    addProject(selectedPath);
-  }, [addProject]);
-
-  const handleOpenSettings = useCallback(() => {
-    setSettingsSection("providers");
-    setSettingsOpen(true);
-  }, [setSettingsOpen, setSettingsSection]);
 
   return (
     <div className="flex h-full flex-col border-r bg-muted/25 p-2">
-      <Button
-        className="w-full justify-start"
-        onClick={() => void handleAddProject()}
-      >
-        <FolderPlus className="mr-2 size-4" />
-        Add Project
-      </Button>
-
-      <ScrollArea className="mt-2 min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-1 pr-2">
           {projects.length === 0 ? (
             <p className="rounded-md border border-dashed p-3 text-muted-foreground text-xs">
@@ -100,15 +70,6 @@ export const ProjectSidebar = () => {
           )}
         </div>
       </ScrollArea>
-
-      <Button
-        className="mt-2 justify-start"
-        onClick={handleOpenSettings}
-        variant="outline"
-      >
-        <Settings className="mr-2 size-4" />
-        Settings
-      </Button>
     </div>
   );
 };
