@@ -51,6 +51,7 @@ export const createProjectConfig = (
     path,
     previewUrl: "http://127.0.0.1:3000",
     provider,
+    reasoningEffort: "medium",
     runCommand: "pnpm dev",
   };
 };
