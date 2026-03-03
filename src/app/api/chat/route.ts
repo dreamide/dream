@@ -41,12 +41,6 @@ When writing files, prefer complete and correct output over partial snippets.
 Never attempt to access files outside the active project root.`;
 
 const OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
-const OPENAI_CODEX_CHATGPT_MODELS = new Set([
-  "gpt-5",
-  "gpt-5.1",
-  "gpt-5-codex",
-  "gpt-5-codex-mini",
-]);
 
 const normalizePath = (value: string): string => value.replace(/\\/g, "/");
 
@@ -214,13 +208,6 @@ export async function POST(request: Request): Promise<Response> {
 
     credential = codexCredential.credential;
     useChatgptCodexEndpoint = codexCredential.source === "chatgpt";
-
-    if (useChatgptCodexEndpoint && !OPENAI_CODEX_CHATGPT_MODELS.has(model)) {
-      return new Response(
-        "Unsupported model for Codex Login. Choose one of: gpt-5-codex, gpt-5-codex-mini, gpt-5, gpt-5.1.",
-        { status: 400 },
-      );
-    }
   }
 
   if (!credential) {

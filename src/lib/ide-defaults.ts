@@ -7,30 +7,16 @@ import type {
   ProviderAuthMode,
 } from "@/types/ide";
 
-export const OPEN_AI_API_KEY_MODELS = [
-  "gpt-4.1-mini",
-  "gpt-4.1",
-  "gpt-4o-mini",
-];
-export const OPEN_AI_CODEX_MODELS = [
-  "gpt-5-codex",
-  "gpt-5-codex-mini",
-  "gpt-5",
-  "gpt-5.1",
-];
-export const ANTHROPIC_MODELS = [
-  "claude-3-7-sonnet-latest",
-  "claude-3-5-haiku-latest",
-];
-
 export const DEFAULT_PROVIDER: AiProvider = "openai";
 
 export const DEFAULT_SETTINGS: AppSettings = {
   anthropicApiKey: "",
-  defaultAnthropicModel: ANTHROPIC_MODELS[0],
-  defaultOpenAiModel: OPEN_AI_API_KEY_MODELS[0],
+  anthropicSelectedModels: [],
+  defaultAnthropicModel: "",
+  defaultOpenAiModel: "",
   openAiAuthMode: "apiKey",
   openAiApiKey: "",
+  openAiSelectedModels: [],
   shellPath: "",
 };
 
@@ -89,26 +75,29 @@ export const getDefaultModelForProvider = (
   provider: AiProvider,
   settings: AppSettings,
 ): string => {
-  const openAiModels = getOpenAiModelsForAuthMode(settings.openAiAuthMode);
+  const openAiModels = getModelsForProvider("openai", settings);
+  const anthropicModels = getModelsForProvider("anthropic", settings);
 
   return provider === "anthropic"
-    ? settings.defaultAnthropicModel
+    ? anthropicModels.includes(settings.defaultAnthropicModel)
+      ? settings.defaultAnthropicModel
+      : (anthropicModels[0] ?? "")
     : openAiModels.includes(settings.defaultOpenAiModel)
       ? settings.defaultOpenAiModel
-      : openAiModels[0];
-};
-
-export const getOpenAiModelsForAuthMode = (
-  mode: ProviderAuthMode,
-): string[] => {
-  return mode === "codex" ? OPEN_AI_CODEX_MODELS : OPEN_AI_API_KEY_MODELS;
+      : (openAiModels[0] ?? "");
 };
 
 export const getModelsForProvider = (
   provider: AiProvider,
   settings: AppSettings,
 ): string[] => {
+  const clean = (models: string[]): string[] => {
+    return Array.from(
+      new Set(models.map((model) => model.trim()).filter(Boolean)),
+    );
+  };
+
   return provider === "anthropic"
-    ? ANTHROPIC_MODELS
-    : getOpenAiModelsForAuthMode(settings.openAiAuthMode);
+    ? clean(settings.anthropicSelectedModels)
+    : clean(settings.openAiSelectedModels);
 };

@@ -84,7 +84,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { getDesktopApi } from "@/lib/electron";
 import {
   createProjectConfig,
@@ -92,7 +92,6 @@ import {
   DEFAULT_SETTINGS,
   getDefaultModelForProvider,
   getModelsForProvider,
-  getOpenAiModelsForAuthMode,
   getProviderAuthMode,
   getProviderCredential,
 } from "@/lib/ide-defaults";
@@ -111,8 +110,6 @@ import type {
 
 const STATE_STORAGE_KEY = "dream:ide:state";
 
-type MiddleTab = "chat" | "terminal";
-type RightTab = "preview" | "output";
 type SettingsSection = "providers" | "terminal";
 
 type RunnerStatus = "running" | "stopped";
@@ -128,6 +125,33 @@ interface CodexLoginStatus {
   loggedIn: boolean;
   message: string;
 }
+
+type ModelFetchSource = "api" | "unavailable";
+
+interface ProviderModelFetchResult {
+  models: string[];
+  source: ModelFetchSource;
+  error?: string;
+}
+
+interface ProviderModelsResponse {
+  fetchedAt: string;
+  openai: ProviderModelFetchResult;
+  anthropic: ProviderModelFetchResult;
+}
+
+interface ProviderModelState {
+  models: string[];
+  source: ModelFetchSource;
+  loading: boolean;
+  error: string | null;
+}
+
+const dedupeModels = (models: string[]): string[] => {
+  return Array.from(
+    new Set(models.map((model) => model.trim()).filter(Boolean)),
+  );
+};
 
 const emptyState: PersistedIdeState = {
   activeProjectId: null,
@@ -159,6 +183,38 @@ const mergePersistedState = (
     mergedSettings.openAiAuthMode !== "codex"
   ) {
     mergedSettings.openAiAuthMode = "apiKey";
+  }
+
+  const openAiSelectedModels = dedupeModels(
+    Array.isArray(mergedSettings.openAiSelectedModels)
+      ? mergedSettings.openAiSelectedModels
+      : [],
+  );
+  mergedSettings.openAiSelectedModels = openAiSelectedModels;
+
+  if (
+    !mergedSettings.openAiSelectedModels.includes(
+      mergedSettings.defaultOpenAiModel,
+    )
+  ) {
+    mergedSettings.defaultOpenAiModel =
+      mergedSettings.openAiSelectedModels[0] ?? "";
+  }
+
+  const anthropicSelectedModels = dedupeModels(
+    Array.isArray(mergedSettings.anthropicSelectedModels)
+      ? mergedSettings.anthropicSelectedModels
+      : [],
+  );
+  mergedSettings.anthropicSelectedModels = anthropicSelectedModels;
+
+  if (
+    !mergedSettings.anthropicSelectedModels.includes(
+      mergedSettings.defaultAnthropicModel,
+    )
+  ) {
+    mergedSettings.defaultAnthropicModel =
+      mergedSettings.anthropicSelectedModels[0] ?? "";
   }
 
   return {
@@ -266,9 +322,22 @@ const ChatPanel = ({
     onMessagesChange(project.id, messages);
   }, [project.id, messages, onMessagesChange]);
 
+  const models = getModelsForProvider(project.provider, settings);
+  const selectedModel = models.includes(project.model)
+    ? project.model
+    : (models[0] ?? "");
+
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       setLocalError(null);
+
+      const activeModel = models.includes(project.model)
+        ? project.model
+        : (models[0] ?? "");
+      if (!activeModel) {
+        setLocalError("Enable at least one model in Settings first.");
+        return;
+      }
 
       if (!providerCredential && !usesCodexLogin) {
         setLocalError(
@@ -290,7 +359,7 @@ const ChatPanel = ({
           body: {
             authMode: providerAuthMode,
             credential: providerCredential,
-            model: project.model,
+            model: activeModel,
             projectPath: project.path,
             provider: project.provider,
           },
@@ -299,6 +368,7 @@ const ChatPanel = ({
     },
     [
       credentialLabel,
+      models,
       project,
       providerAuthMode,
       providerCredential,
@@ -415,11 +485,6 @@ const ChatPanel = ({
     });
   }, [messages]);
 
-  const models = getModelsForProvider(project.provider, settings);
-  const selectedModel = models.includes(project.model)
-    ? project.model
-    : models[0];
-
   return (
     <div className="flex h-full flex-col">
       <Conversation className="min-h-0 flex-1">
@@ -489,9 +554,12 @@ const ChatPanel = ({
                     model: value,
                   }));
                 }}
-                value={selectedModel}
+                value={selectedModel || undefined}
               >
-                <PromptInputSelectTrigger className="h-8 min-w-[180px] max-w-[260px] px-2 text-xs">
+                <PromptInputSelectTrigger
+                  className="h-8 min-w-[180px] max-w-[260px] px-2 text-xs"
+                  disabled={models.length === 0}
+                >
                   <PromptInputSelectValue placeholder="Model" />
                 </PromptInputSelectTrigger>
                 <PromptInputSelectContent>
@@ -505,7 +573,9 @@ const ChatPanel = ({
             </PromptInputTools>
             <PromptInputSubmit
               className="size-8 rounded-full"
-              disabled={!providerCredential && !usesCodexLogin}
+              disabled={
+                (!providerCredential && !usesCodexLogin) || selectedModel === ""
+              }
               onStop={stop}
               status={status}
             />
@@ -515,8 +585,8 @@ const ChatPanel = ({
         <div className="mt-2 flex items-center gap-2">
           {!providerCredential && !usesCodexLogin ? (
             <Badge variant="destructive">Missing {credentialLabel}</Badge>
-          ) : usesCodexLogin ? (
-            <Badge variant="secondary">Using Codex Login</Badge>
+          ) : selectedModel === "" ? (
+            <Badge variant="outline">No model enabled</Badge>
           ) : null}
         </div>
 
@@ -613,9 +683,9 @@ export const IdeShell = () => {
   const [terminalStatus, setTerminalStatus] = useState<
     Record<string, TerminalStatus>
   >({});
-  const [terminalTransport, setTerminalTransport] = useState<
-    Record<string, TerminalTransport>
-  >({});
+  const [terminalShell, setTerminalShell] = useState<Record<string, string>>(
+    {},
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection>("providers");
@@ -625,10 +695,38 @@ export const IdeShell = () => {
     loggedIn: false,
     message: "",
   });
-  const [middleTab, setMiddleTab] = useState<MiddleTab>("chat");
-  const [rightTab, setRightTab] = useState<RightTab>("preview");
+  const [providerModels, setProviderModels] = useState<{
+    openai: ProviderModelState;
+    anthropic: ProviderModelState;
+    fetchedAt: string | null;
+  }>({
+    anthropic: {
+      error: null,
+      loading: false,
+      models: [],
+      source: "unavailable",
+    },
+    fetchedAt: null,
+    openai: {
+      error: null,
+      loading: false,
+      models: [],
+      source: "unavailable",
+    },
+  });
+  const [terminalPanelOpen, setTerminalPanelOpen] = useState(false);
+  const [outputPanelOpen, setOutputPanelOpen] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [stateHydrated, setStateHydrated] = useState(false);
+  const providerCredentialsRef = useRef<{
+    anthropicApiKey: string;
+    openAiApiKey: string;
+    openAiAuthMode: "apiKey" | "codex";
+  }>({
+    anthropicApiKey: DEFAULT_SETTINGS.anthropicApiKey,
+    openAiApiKey: DEFAULT_SETTINGS.openAiApiKey,
+    openAiAuthMode: DEFAULT_SETTINGS.openAiAuthMode,
+  });
 
   const previewHostRef = useRef<HTMLDivElement | null>(null);
   const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
@@ -768,16 +866,20 @@ export const IdeShell = () => {
       const transport = event.transport;
       if (transport) {
         terminalTransportRef.current = transport;
-        setTerminalTransport((previous) => ({
-          ...previous,
-          [event.projectId]: transport,
-        }));
       }
 
       setTerminalStatus((previous) => ({
         ...previous,
         [event.projectId]: event.status,
       }));
+
+      const shell = typeof event.shell === "string" ? event.shell.trim() : "";
+      if (shell) {
+        setTerminalShell((previous) => ({
+          ...previous,
+          [event.projectId]: shell,
+        }));
+      }
     };
 
     const onPreviewError = (event: PreviewErrorEvent) => {
@@ -883,7 +985,6 @@ export const IdeShell = () => {
     if (
       !activeProject ||
       !panelVisibility.right ||
-      rightTab !== "preview" ||
       activeProjectRunnerStatus !== "running"
     ) {
       desktopApi.updatePreview({ visible: false });
@@ -914,7 +1015,7 @@ export const IdeShell = () => {
       url: activeProject.previewUrl,
       visible: true,
     });
-  }, [activeProject, panelVisibility.right, rightTab, runnerStatus]);
+  }, [activeProject, panelVisibility.right, runnerStatus]);
 
   useEffect(() => {
     const desktopApi = getDesktopApi();
@@ -943,13 +1044,13 @@ export const IdeShell = () => {
   }, [syncPreviewBounds]);
 
   useEffect(() => {
-    if (!panelVisibility.middle || middleTab !== "terminal") {
+    if (!panelVisibility.middle || !terminalPanelOpen) {
       return;
     }
 
     terminalFitRef.current?.fit();
     terminalRef.current?.focus();
-  }, [middleTab, panelVisibility.middle]);
+  }, [panelVisibility.middle, terminalPanelOpen]);
 
   useEffect(() => {
     return () => {
@@ -1128,20 +1229,6 @@ export const IdeShell = () => {
     });
   }, [activeProject, settings.shellPath]);
 
-  const stopActiveTerminal = useCallback(async () => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi) {
-      return;
-    }
-
-    setTerminalStatus((previous) => ({
-      ...previous,
-      [GLOBAL_TERMINAL_SESSION_ID]: "stopped",
-    }));
-
-    await desktopApi.stopTerminal(GLOBAL_TERMINAL_SESSION_ID);
-  }, []);
-
   const openExternalUrl = useCallback((url: string) => {
     const desktopApi = getDesktopApi();
 
@@ -1184,54 +1271,294 @@ export const IdeShell = () => {
     }
   }, []);
 
+  const refreshProviderModels = useCallback(
+    async ({
+      anthropicApiKey,
+      openAiApiKey,
+      openAiAuthMode,
+    }: {
+      anthropicApiKey: string;
+      openAiApiKey: string;
+      openAiAuthMode: "apiKey" | "codex";
+    }) => {
+      setProviderModels((previous) => ({
+        ...previous,
+        anthropic: { ...previous.anthropic, error: null, loading: true },
+        openai: { ...previous.openai, error: null, loading: true },
+      }));
+
+      try {
+        const response = await fetch("/api/provider-models", {
+          body: JSON.stringify({
+            anthropicApiKey,
+            openAiApiKey,
+            openAiAuthMode,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Model fetch failed (${response.status}).`);
+        }
+
+        const payload = (await response.json()) as ProviderModelsResponse;
+        const openAiAvailableModels = dedupeModels(payload.openai.models);
+        const anthropicAvailableModels = dedupeModels(payload.anthropic.models);
+        const nextOpenAiModels = openAiAvailableModels;
+        const nextAnthropicModels = anthropicAvailableModels;
+
+        setProviderModels({
+          anthropic: {
+            error: payload.anthropic.error ?? null,
+            loading: false,
+            models: nextAnthropicModels,
+            source: payload.anthropic.source,
+          },
+          fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
+          openai: {
+            error: payload.openai.error ?? null,
+            loading: false,
+            models: nextOpenAiModels,
+            source: payload.openai.source,
+          },
+        });
+
+        setSettings((previous) => {
+          const currentOpenAiSelected = dedupeModels(
+            previous.openAiSelectedModels,
+          ).filter((model) => nextOpenAiModels.includes(model));
+          const currentAnthropicSelected = dedupeModels(
+            previous.anthropicSelectedModels,
+          ).filter((model) => nextAnthropicModels.includes(model));
+
+          const openAiSelectedModels =
+            currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
+          const anthropicSelectedModels =
+            currentAnthropicSelected.length > 0 ? currentAnthropicSelected : [];
+
+          const defaultOpenAiModel = openAiSelectedModels.includes(
+            previous.defaultOpenAiModel,
+          )
+            ? previous.defaultOpenAiModel
+            : (openAiSelectedModels[0] ?? "");
+          const defaultAnthropicModel = anthropicSelectedModels.includes(
+            previous.defaultAnthropicModel,
+          )
+            ? previous.defaultAnthropicModel
+            : (anthropicSelectedModels[0] ?? "");
+
+          if (
+            defaultOpenAiModel === previous.defaultOpenAiModel &&
+            defaultAnthropicModel === previous.defaultAnthropicModel &&
+            openAiSelectedModels.length ===
+              previous.openAiSelectedModels.length &&
+            anthropicSelectedModels.length ===
+              previous.anthropicSelectedModels.length &&
+            openAiSelectedModels.every(
+              (model, index) => previous.openAiSelectedModels[index] === model,
+            ) &&
+            anthropicSelectedModels.every(
+              (model, index) =>
+                previous.anthropicSelectedModels[index] === model,
+            )
+          ) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            anthropicSelectedModels,
+            defaultAnthropicModel,
+            defaultOpenAiModel,
+            openAiSelectedModels,
+          };
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unable to fetch models.";
+
+        setProviderModels((previous) => ({
+          anthropic: {
+            error: message,
+            loading: false,
+            models: previous.anthropic.models,
+            source: previous.anthropic.source,
+          },
+          fetchedAt: previous.fetchedAt,
+          openai: {
+            error: message,
+            loading: false,
+            models: previous.openai.models,
+            source: previous.openai.source,
+          },
+        }));
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
-    if (
-      !settingsOpen ||
-      settingsSection !== "providers" ||
-      settings.openAiAuthMode !== "codex"
-    ) {
+    providerCredentialsRef.current = {
+      anthropicApiKey: settings.anthropicApiKey,
+      openAiApiKey: settings.openAiApiKey,
+      openAiAuthMode: settings.openAiAuthMode,
+    };
+  }, [
+    settings.anthropicApiKey,
+    settings.openAiApiKey,
+    settings.openAiAuthMode,
+  ]);
+
+  const openAiModels = useMemo(() => {
+    return dedupeModels(settings.openAiSelectedModels);
+  }, [settings.openAiSelectedModels]);
+  const anthropicModels = useMemo(() => {
+    return dedupeModels(settings.anthropicSelectedModels);
+  }, [settings.anthropicSelectedModels]);
+
+  useEffect(() => {
+    if (!settingsOpen || settingsSection !== "providers") {
       return;
     }
 
-    void refreshCodexLoginStatus();
+    const providerCredentials = providerCredentialsRef.current;
+    void refreshProviderModels(providerCredentials);
+
+    if (providerCredentials.openAiAuthMode === "codex") {
+      void refreshCodexLoginStatus();
+    }
   }, [
     refreshCodexLoginStatus,
-    settings.openAiAuthMode,
+    refreshProviderModels,
     settingsOpen,
     settingsSection,
   ]);
 
   useEffect(() => {
-    const openAiModels = getOpenAiModelsForAuthMode(settings.openAiAuthMode);
-    const fallbackModel = openAiModels[0];
+    const fallbackOpenAiModel = openAiModels[0] ?? "";
+    const fallbackAnthropicModel = anthropicModels[0] ?? "";
 
-    if (!openAiModels.includes(settings.defaultOpenAiModel)) {
-      setSettings((previous) => ({
+    setSettings((previous) => {
+      const openAiSelectedModels = dedupeModels(previous.openAiSelectedModels);
+      const anthropicSelectedModels = dedupeModels(
+        previous.anthropicSelectedModels,
+      );
+      const safeOpenAiSelectedModels = openAiSelectedModels;
+      const safeAnthropicSelectedModels = anthropicSelectedModels;
+      const defaultOpenAiModel = safeOpenAiSelectedModels.includes(
+        previous.defaultOpenAiModel,
+      )
+        ? previous.defaultOpenAiModel
+        : (safeOpenAiSelectedModels[0] ?? "");
+      const defaultAnthropicModel = safeAnthropicSelectedModels.includes(
+        previous.defaultAnthropicModel,
+      )
+        ? previous.defaultAnthropicModel
+        : (safeAnthropicSelectedModels[0] ?? "");
+
+      if (
+        defaultOpenAiModel === previous.defaultOpenAiModel &&
+        defaultAnthropicModel === previous.defaultAnthropicModel &&
+        safeOpenAiSelectedModels.length ===
+          previous.openAiSelectedModels.length &&
+        safeAnthropicSelectedModels.length ===
+          previous.anthropicSelectedModels.length &&
+        safeOpenAiSelectedModels.every(
+          (model, index) => previous.openAiSelectedModels[index] === model,
+        ) &&
+        safeAnthropicSelectedModels.every(
+          (model, index) => previous.anthropicSelectedModels[index] === model,
+        )
+      ) {
+        return previous;
+      }
+
+      return {
         ...previous,
-        defaultOpenAiModel: fallbackModel,
-      }));
-    }
+        anthropicSelectedModels: safeAnthropicSelectedModels,
+        defaultAnthropicModel,
+        defaultOpenAiModel,
+        openAiSelectedModels: safeOpenAiSelectedModels,
+      };
+    });
 
     setProjects((previous) => {
       let changed = false;
       const next = previous.map((project) => {
         if (
-          project.provider !== "openai" ||
-          openAiModels.includes(project.model)
+          project.provider === "openai" &&
+          !openAiModels.includes(project.model) &&
+          project.model !== fallbackOpenAiModel
         ) {
-          return project;
+          changed = true;
+          return {
+            ...project,
+            model: fallbackOpenAiModel,
+          };
         }
 
-        changed = true;
-        return {
-          ...project,
-          model: fallbackModel,
-        };
+        if (
+          project.provider === "anthropic" &&
+          !anthropicModels.includes(project.model) &&
+          project.model !== fallbackAnthropicModel
+        ) {
+          changed = true;
+          return {
+            ...project,
+            model: fallbackAnthropicModel,
+          };
+        }
+
+        return project;
       });
 
       return changed ? next : previous;
     });
-  }, [settings.defaultOpenAiModel, settings.openAiAuthMode]);
+  }, [anthropicModels, openAiModels]);
+
+  const toggleProviderModel = useCallback(
+    (provider: AiProvider, model: string) => {
+      setSettings((previous) => {
+        if (provider === "openai") {
+          const current = dedupeModels(previous.openAiSelectedModels);
+          const next = current.includes(model)
+            ? current.filter((value) => value !== model)
+            : [...current, model];
+          if (next.length === 0) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            defaultOpenAiModel: next.includes(previous.defaultOpenAiModel)
+              ? previous.defaultOpenAiModel
+              : next[0],
+            openAiSelectedModels: next,
+          };
+        }
+
+        const current = dedupeModels(previous.anthropicSelectedModels);
+        const next = current.includes(model)
+          ? current.filter((value) => value !== model)
+          : [...current, model];
+        if (next.length === 0) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          anthropicSelectedModels: next,
+          defaultAnthropicModel: next.includes(previous.defaultAnthropicModel)
+            ? previous.defaultAnthropicModel
+            : next[0],
+        };
+      });
+    },
+    [],
+  );
 
   const runLog = activeProject ? (runLogs[activeProject.id] ?? "") : "";
   const activeRunnerStatus = activeProject
@@ -1239,14 +1566,35 @@ export const IdeShell = () => {
     : "stopped";
   const activeTerminalStatus =
     terminalStatus[GLOBAL_TERMINAL_SESSION_ID] ?? "stopped";
-  const activeTerminalTransport =
-    terminalTransport[GLOBAL_TERMINAL_SESSION_ID] ?? "pty";
-  const openAiModels = getOpenAiModelsForAuthMode(settings.openAiAuthMode);
+  const activeTerminalShell =
+    terminalShell[GLOBAL_TERMINAL_SESSION_ID] ||
+    settings.shellPath.trim() ||
+    "system shell";
   const selectedDefaultOpenAiModel = openAiModels.includes(
     settings.defaultOpenAiModel,
   )
     ? settings.defaultOpenAiModel
-    : openAiModels[0];
+    : (openAiModels[0] ?? "");
+  const selectedDefaultAnthropicModel = anthropicModels.includes(
+    settings.defaultAnthropicModel,
+  )
+    ? settings.defaultAnthropicModel
+    : (anthropicModels[0] ?? "");
+  const availableOpenAiModels = providerModels.openai.models;
+  const availableAnthropicModels = providerModels.anthropic.models;
+  const isRefreshingProviderModels =
+    providerModels.openai.loading || providerModels.anthropic.loading;
+  const openTerminalPanel = useCallback(async () => {
+    setTerminalPanelOpen(true);
+
+    if (activeTerminalStatus === "running") {
+      terminalFitRef.current?.fit();
+      terminalRef.current?.focus();
+      return;
+    }
+
+    await startActiveTerminal();
+  }, [activeTerminalStatus, startActiveTerminal]);
 
   const mainWorkspaceVisible = panelVisibility.middle || panelVisibility.right;
 
@@ -1387,91 +1735,82 @@ export const IdeShell = () => {
                   defaultSize={panelVisibility.right ? 54 : 100}
                   minSize={30}
                 >
-                  <Tabs
-                    className="flex h-full flex-col gap-0 border-r"
-                    onValueChange={(value) => setMiddleTab(value as MiddleTab)}
-                    value={middleTab}
-                  >
-                    <div className="border-b px-3 py-2">
-                      <TabsList>
-                        <TabsTrigger value="chat">Chat</TabsTrigger>
-                        <TabsTrigger value="terminal">Terminal</TabsTrigger>
-                      </TabsList>
-                    </div>
-
-                    <TabsContent
-                      className={cn(
-                        "mt-0 min-h-0 flex-1",
-                        middleTab !== "chat" ? "hidden" : "",
-                      )}
-                      forceMount
-                      value="chat"
-                    >
-                      {activeProject ? (
-                        <ChatPanel
-                          chats={chats}
-                          onMessagesChange={setMessagesForProject}
-                          onProjectChange={updateProject}
-                          project={activeProject}
-                          settings={settings}
-                        />
-                      ) : (
-                        <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
-                      )}
-                    </TabsContent>
-
-                    <TabsContent
-                      className={cn(
-                        "mt-0 min-h-0 flex-1",
-                        middleTab !== "terminal" ? "hidden" : "",
-                      )}
-                      forceMount
-                      value="terminal"
-                    >
-                      <div className="flex h-full flex-col">
-                        <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
-                          <div className="flex items-center gap-2">
-                            <TerminalSquare className="size-4" />
-                            <span>Workspace terminal</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              className="h-7 gap-1 px-2 text-xs"
-                              disabled={!activeProject}
-                              onClick={() => void startActiveTerminal()}
-                              size="sm"
-                              variant="outline"
-                            >
-                              <Play className="size-3.5" />
-                              New
-                            </Button>
-                            <Button
-                              className="h-7 gap-1 px-2 text-xs"
-                              disabled={activeTerminalStatus !== "running"}
-                              onClick={() => void stopActiveTerminal()}
-                              size="sm"
-                              variant="outline"
-                            >
-                              <Square className="size-3.5" />
-                              Stop
-                            </Button>
-                            <Badge variant="outline">
-                              {activeTerminalStatus}
-                            </Badge>
-                            {activeTerminalTransport === "pipe" ? (
-                              <Badge variant="secondary">pipe fallback</Badge>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div className="min-h-0 flex-1 bg-background p-2">
-                          <div
-                            className="h-full w-full"
-                            ref={setTerminalHost}
+                  <div className="flex h-full flex-col border-r">
+                    <div className="min-h-0 flex flex-1 flex-col">
+                      <div
+                        className={cn(
+                          "min-h-0",
+                          terminalPanelOpen ? "flex-[3]" : "flex-1",
+                        )}
+                      >
+                        {activeProject ? (
+                          <ChatPanel
+                            chats={chats}
+                            onMessagesChange={setMessagesForProject}
+                            onProjectChange={updateProject}
+                            project={activeProject}
+                            settings={settings}
                           />
+                        ) : (
+                          <div className="h-full p-3">
+                            <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
+                          </div>
+                        )}
+                      </div>
+
+                      {!terminalPanelOpen ? (
+                        <div className="flex items-center justify-end border-t px-2 py-1.5">
+                          <Button
+                            aria-label="Open terminal"
+                            className="h-8 w-8"
+                            disabled={!activeProject}
+                            onClick={() => void openTerminalPanel()}
+                            size="icon"
+                            title="Open terminal"
+                            variant="ghost"
+                          >
+                            <TerminalSquare className="size-4" />
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      <div
+                        className={cn(
+                          "min-h-0 flex-[2] border-t",
+                          !terminalPanelOpen ? "hidden" : "",
+                        )}
+                      >
+                        <div className="flex h-full flex-col">
+                          <div className="flex items-center justify-between px-3 py-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <TerminalSquare className="size-4" />
+                              <span>Terminal</span>
+                              <span className="text-muted-foreground">
+                                {activeTerminalShell}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                aria-label="Close terminal panel"
+                                className="h-7 w-7 p-0"
+                                onClick={() => setTerminalPanelOpen(false)}
+                                size="sm"
+                                variant="ghost"
+                              >
+                                <X className="size-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="min-h-0 flex-1 bg-background p-2">
+                            <div
+                              className="h-full w-full"
+                              ref={setTerminalHost}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </TabsContent>
-                  </Tabs>
+                    </div>
+                  </div>
                 </Panel>
               ) : null}
 
@@ -1484,18 +1823,8 @@ export const IdeShell = () => {
                   defaultSize={panelVisibility.middle ? 46 : 100}
                   minSize={26}
                 >
-                  <Tabs
-                    className="flex h-full flex-col gap-0"
-                    onValueChange={(value) => setRightTab(value as RightTab)}
-                    value={rightTab}
-                  >
+                  <div className="flex h-full flex-col">
                     <div className="border-b px-3 py-2">
-                      <div className="mb-2">
-                        <TabsList>
-                          <TabsTrigger value="preview">Preview</TabsTrigger>
-                          <TabsTrigger value="output">Output</TabsTrigger>
-                        </TabsList>
-                      </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           className="h-8"
@@ -1523,6 +1852,15 @@ export const IdeShell = () => {
                               Run
                             </>
                           )}
+                        </Button>
+                        <Button
+                          className="h-8 px-2 text-xs"
+                          disabled={outputPanelOpen}
+                          onClick={() => setOutputPanelOpen(true)}
+                          size="sm"
+                          variant="outline"
+                        >
+                          Show Output
                         </Button>
 
                         {activeProject ? (
@@ -1565,60 +1903,73 @@ export const IdeShell = () => {
                       </div>
                     </div>
 
-                    <TabsContent
-                      className={cn(
-                        "mt-0 min-h-0 flex-1",
-                        rightTab !== "preview" ? "hidden" : "",
-                      )}
-                      forceMount
-                      value="preview"
-                    >
-                      <div className="relative h-full bg-muted/20">
-                        <div
-                          className="absolute inset-0"
-                          ref={previewHostRef}
-                        />
-                        {!activeProject || activeRunnerStatus !== "running" ? (
-                          <div className="absolute inset-0 p-3">
-                            <AppShellPlaceholder
-                              message={
-                                !activeProject
-                                  ? "Add a project and click Run to start a live preview."
-                                  : "Preview will appear here after you click Run."
-                              }
-                            />
-                          </div>
-                        ) : null}
-                        {previewError ? (
-                          <div className="absolute right-3 bottom-3 left-3 rounded-md border border-destructive/40 bg-background/95 p-2 text-destructive text-xs">
-                            <div className="mb-1 flex items-center gap-1.5">
-                              <AlertCircle className="size-3.5" />
-                              Preview error
+                    <div className="min-h-0 flex flex-1 flex-col">
+                      <div
+                        className={cn(
+                          "min-h-0",
+                          outputPanelOpen ? "flex-[3]" : "flex-1",
+                        )}
+                      >
+                        <div className="relative h-full bg-muted/20">
+                          <div
+                            className="absolute inset-0"
+                            ref={previewHostRef}
+                          />
+                          {!activeProject ||
+                          activeRunnerStatus !== "running" ? (
+                            <div className="absolute inset-0 p-3">
+                              <AppShellPlaceholder
+                                message={
+                                  !activeProject
+                                    ? "Add a project and click Run to start a live preview."
+                                    : "Preview will appear here after you click Run."
+                                }
+                              />
                             </div>
-                            <p className="break-all">{previewError}</p>
-                          </div>
-                        ) : null}
+                          ) : null}
+                          {previewError ? (
+                            <div className="absolute right-3 bottom-3 left-3 rounded-md border border-destructive/40 bg-background/95 p-2 text-destructive text-xs">
+                              <div className="mb-1 flex items-center gap-1.5">
+                                <AlertCircle className="size-3.5" />
+                                Preview error
+                              </div>
+                              <p className="break-all">{previewError}</p>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                    </TabsContent>
 
-                    <TabsContent
-                      className={cn(
-                        "mt-0 min-h-0 flex-1",
-                        rightTab !== "output" ? "hidden" : "",
-                      )}
-                      forceMount
-                      value="output"
-                    >
-                      <ScrollArea className="h-full px-3 py-2">
-                        <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-5">
-                          {activeProject
-                            ? runLog ||
-                              "Run output will stream here after you start the project."
-                            : "Select a project to view its run output."}
-                        </pre>
-                      </ScrollArea>
-                    </TabsContent>
-                  </Tabs>
+                      <div
+                        className={cn(
+                          "min-h-0 flex-[2] border-t",
+                          !outputPanelOpen ? "hidden" : "",
+                        )}
+                      >
+                        <div className="flex h-full flex-col">
+                          <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
+                            <span>Run output</span>
+                            <Button
+                              aria-label="Close output panel"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setOutputPanelOpen(false)}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          </div>
+                          <ScrollArea className="min-h-0 flex-1 px-3 py-2">
+                            <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-5">
+                              {activeProject
+                                ? runLog ||
+                                  "Run output will stream here after you start the project."
+                                : "Select a project to view its run output."}
+                            </pre>
+                          </ScrollArea>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </Panel>
               ) : null}
 
@@ -1672,17 +2023,74 @@ export const IdeShell = () => {
               <div className="space-y-4 p-5">
                 {settingsSection === "providers" ? (
                   <>
+                    <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
+                      <p className="text-muted-foreground text-xs">
+                        {providerModels.fetchedAt
+                          ? `Last refreshed ${new Date(providerModels.fetchedAt).toLocaleString()}`
+                          : "Model lists will refresh when this panel opens."}
+                      </p>
+                      <Button
+                        className="h-7 px-2 text-xs"
+                        disabled={isRefreshingProviderModels}
+                        onClick={() =>
+                          void refreshProviderModels({
+                            anthropicApiKey: settings.anthropicApiKey,
+                            openAiApiKey: settings.openAiApiKey,
+                            openAiAuthMode: settings.openAiAuthMode,
+                          })
+                        }
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        {isRefreshingProviderModels
+                          ? "Refreshing..."
+                          : "Refresh Models"}
+                      </Button>
+                    </div>
+
                     <div className="space-y-3 rounded-lg border p-3">
-                      <p className="font-medium text-sm">OpenAI</p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">OpenAI</p>
+                        <Badge variant="outline">
+                          {providerModels.openai.source === "api"
+                            ? "Live list"
+                            : "Unavailable"}
+                        </Badge>
+                      </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="openai-auth-mode">Auth Method</Label>
                         <Select
-                          onValueChange={(value) =>
+                          onValueChange={(value) => {
+                            const nextMode = value as "apiKey" | "codex";
+
                             setSettings((previous) => ({
                               ...previous,
-                              openAiAuthMode: value as "apiKey" | "codex",
-                            }))
-                          }
+                              defaultOpenAiModel: "",
+                              openAiAuthMode: nextMode,
+                              openAiSelectedModels: [],
+                            }));
+
+                            setProviderModels((previous) => ({
+                              ...previous,
+                              openai: {
+                                ...previous.openai,
+                                error: null,
+                                models: [],
+                                source: "unavailable",
+                              },
+                            }));
+
+                            void refreshProviderModels({
+                              anthropicApiKey: settings.anthropicApiKey,
+                              openAiApiKey: settings.openAiApiKey,
+                              openAiAuthMode: nextMode,
+                            });
+
+                            if (nextMode === "codex") {
+                              void refreshCodexLoginStatus();
+                            }
+                          }}
                           value={settings.openAiAuthMode}
                         >
                           <SelectTrigger id="openai-auth-mode">
@@ -1694,6 +2102,12 @@ export const IdeShell = () => {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {providerModels.openai.error ? (
+                        <p className="text-amber-700 text-xs">
+                          {providerModels.openai.error}
+                        </p>
+                      ) : null}
 
                       {settings.openAiAuthMode === "apiKey" ? (
                         <div className="space-y-1.5">
@@ -1768,6 +2182,51 @@ export const IdeShell = () => {
                       )}
 
                       <div className="space-y-1.5">
+                        <Label>Enabled OpenAI Models</Label>
+                        <p className="text-muted-foreground text-xs">
+                          Only enabled models appear in project chat.
+                        </p>
+                        <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-1.5">
+                          {availableOpenAiModels.length === 0 ? (
+                            <p className="px-2 py-1.5 text-muted-foreground text-xs">
+                              No live models available yet. Add credentials and
+                              refresh.
+                            </p>
+                          ) : (
+                            availableOpenAiModels.map((model) => {
+                              const isSelected = openAiModels.includes(model);
+                              const isOnlyModel =
+                                isSelected && openAiModels.length === 1;
+
+                              return (
+                                <div
+                                  className={cn(
+                                    "flex items-center justify-between rounded-md border px-2 py-1.5",
+                                    isSelected ? "border-primary/40" : "",
+                                  )}
+                                  key={model}
+                                >
+                                  <Label className="truncate text-xs">
+                                    {model}
+                                  </Label>
+                                  <Switch
+                                    checked={isSelected}
+                                    disabled={isOnlyModel}
+                                    onCheckedChange={(checked) => {
+                                      if (checked === isSelected) {
+                                        return;
+                                      }
+                                      toggleProviderModel("openai", model);
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
                         <Label htmlFor="openai-model">
                           Default OpenAI Model
                         </Label>
@@ -1778,9 +2237,12 @@ export const IdeShell = () => {
                               defaultOpenAiModel: value,
                             }))
                           }
-                          value={selectedDefaultOpenAiModel}
+                          value={selectedDefaultOpenAiModel || undefined}
                         >
-                          <SelectTrigger id="openai-model">
+                          <SelectTrigger
+                            disabled={openAiModels.length === 0}
+                            id="openai-model"
+                          >
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1795,7 +2257,14 @@ export const IdeShell = () => {
                     </div>
 
                     <div className="space-y-3 rounded-lg border p-3">
-                      <p className="font-medium text-sm">Anthropic</p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">Anthropic</p>
+                        <Badge variant="outline">
+                          {providerModels.anthropic.source === "api"
+                            ? "Live list"
+                            : "Unavailable"}
+                        </Badge>
+                      </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="anthropic-key">Anthropic API Key</Label>
                         <Input
@@ -1812,21 +2281,85 @@ export const IdeShell = () => {
                         />
                       </div>
 
+                      {providerModels.anthropic.error ? (
+                        <p className="text-amber-700 text-xs">
+                          {providerModels.anthropic.error}
+                        </p>
+                      ) : null}
+
+                      <div className="space-y-1.5">
+                        <Label>Enabled Anthropic Models</Label>
+                        <p className="text-muted-foreground text-xs">
+                          Only enabled models appear in project chat.
+                        </p>
+                        <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-1.5">
+                          {availableAnthropicModels.length === 0 ? (
+                            <p className="px-2 py-1.5 text-muted-foreground text-xs">
+                              No live models available yet. Add credentials and
+                              refresh.
+                            </p>
+                          ) : (
+                            availableAnthropicModels.map((model) => {
+                              const isSelected =
+                                anthropicModels.includes(model);
+                              const isOnlyModel =
+                                isSelected && anthropicModels.length === 1;
+
+                              return (
+                                <div
+                                  className={cn(
+                                    "flex items-center justify-between rounded-md border px-2 py-1.5",
+                                    isSelected ? "border-primary/40" : "",
+                                  )}
+                                  key={model}
+                                >
+                                  <Label className="truncate text-xs">
+                                    {model}
+                                  </Label>
+                                  <Switch
+                                    checked={isSelected}
+                                    disabled={isOnlyModel}
+                                    onCheckedChange={(checked) => {
+                                      if (checked === isSelected) {
+                                        return;
+                                      }
+                                      toggleProviderModel("anthropic", model);
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
                       <div className="space-y-1.5">
                         <Label htmlFor="anthropic-model">
                           Default Anthropic Model
                         </Label>
-                        <Input
-                          id="anthropic-model"
-                          onChange={(event) =>
+                        <Select
+                          onValueChange={(value) =>
                             setSettings((previous) => ({
                               ...previous,
-                              defaultAnthropicModel: event.currentTarget.value,
+                              defaultAnthropicModel: value,
                             }))
                           }
-                          placeholder="claude-3-7-sonnet-latest"
-                          value={settings.defaultAnthropicModel}
-                        />
+                          value={selectedDefaultAnthropicModel || undefined}
+                        >
+                          <SelectTrigger
+                            disabled={anthropicModels.length === 0}
+                            id="anthropic-model"
+                          >
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {anthropicModels.map((model) => (
+                              <SelectItem key={model} value={model}>
+                                {model}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </>
