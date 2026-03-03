@@ -8,10 +8,12 @@ import type {
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
+const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
 
 export const DEFAULT_SETTINGS: AppSettings = {
   anthropicApiKey: "",
   anthropicSelectedModels: [],
+  connectedProviders: [],
   defaultAnthropicModel: "",
   defaultOpenAiModel: "",
   openAiAuthMode: "apiKey",
@@ -39,16 +41,31 @@ export const createProjectConfig = (
   settings: AppSettings,
 ): ProjectConfig => {
   const name = path.split(/[\\/]/).filter(Boolean).pop() ?? "project";
+  const connectedProviders = getConnectedProviders(settings);
+  const provider = connectedProviders[0] ?? DEFAULT_PROVIDER;
 
   return {
     id: crypto.randomUUID(),
-    model: getDefaultModelForProvider(DEFAULT_PROVIDER, settings),
+    model: getDefaultModelForProvider(provider, settings),
     name,
     path,
     previewUrl: "http://127.0.0.1:3000",
-    provider: DEFAULT_PROVIDER,
+    provider,
     runCommand: "pnpm dev",
   };
+};
+
+export const getConnectedProviders = (settings: AppSettings): AiProvider[] => {
+  return Array.from(
+    new Set(
+      (Array.isArray(settings.connectedProviders)
+        ? settings.connectedProviders
+        : []
+      ).filter((provider): provider is AiProvider =>
+        ALL_PROVIDERS.includes(provider as AiProvider),
+      ),
+    ),
+  );
 };
 
 export const getProviderAuthMode = (
@@ -91,6 +108,10 @@ export const getModelsForProvider = (
   provider: AiProvider,
   settings: AppSettings,
 ): string[] => {
+  if (!getConnectedProviders(settings).includes(provider)) {
+    return [];
+  }
+
   const clean = (models: string[]): string[] => {
     return Array.from(
       new Set(models.map((model) => model.trim()).filter(Boolean)),

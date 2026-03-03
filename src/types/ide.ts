@@ -14,6 +14,7 @@ export interface ProjectConfig {
 }
 
 export interface AppSettings {
+  connectedProviders: AiProvider[];
   openAiAuthMode: ProviderAuthMode;
   openAiApiKey: string;
   anthropicApiKey: string;
