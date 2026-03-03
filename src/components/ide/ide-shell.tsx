@@ -19,6 +19,7 @@ import {
   AlertCircle,
   ArrowLeft,
   FolderPlus,
+  Logs,
   MessageSquare,
   PanelLeft,
   PanelRight,
@@ -1303,6 +1304,25 @@ export const IdeShell = () => {
     });
   }, [activeProject, settings.shellPath]);
 
+  const stopActiveTerminal = useCallback(async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi) {
+      return;
+    }
+
+    setTerminalStatus((previous) => ({
+      ...previous,
+      [GLOBAL_TERMINAL_SESSION_ID]: "stopped",
+    }));
+
+    await desktopApi.stopTerminal(GLOBAL_TERMINAL_SESSION_ID);
+  }, []);
+
+  const closeTerminalPanel = useCallback(async () => {
+    setTerminalPanelOpen(false);
+    await stopActiveTerminal();
+  }, [stopActiveTerminal]);
+
   const openExternalUrl = useCallback((url: string) => {
     const desktopApi = getDesktopApi();
 
@@ -1986,7 +2006,7 @@ export const IdeShell = () => {
                                   <Button
                                     aria-label="Close terminal panel"
                                     className="h-7 w-7 p-0"
-                                    onClick={() => setTerminalPanelOpen(false)}
+                                    onClick={() => void closeTerminalPanel()}
                                     size="sm"
                                     variant="ghost"
                                   >
@@ -2049,13 +2069,15 @@ export const IdeShell = () => {
                           )}
                         </Button>
                         <Button
-                          className="h-8 px-2 text-xs"
+                          aria-label="Show output"
+                          className="h-8 w-8"
                           disabled={outputPanelOpen}
                           onClick={() => setOutputPanelOpen(true)}
-                          size="sm"
-                          variant="outline"
+                          size="icon"
+                          title="Show output"
+                          variant="ghost"
                         >
-                          Show Output
+                          <Logs className="size-4" />
                         </Button>
 
                         {activeProject ? (
@@ -2098,12 +2120,10 @@ export const IdeShell = () => {
                       </div>
                     </div>
 
-                    <div className="min-h-0 flex flex-1 flex-col">
-                      <div
-                        className={cn(
-                          "min-h-0",
-                          outputPanelOpen ? "flex-[3]" : "flex-1",
-                        )}
+                    <Group className="min-h-0 flex-1" orientation="vertical">
+                      <Panel
+                        defaultSize={outputPanelOpen ? 74 : 100}
+                        minSize={30}
                       >
                         <div className="relative h-full bg-muted/20">
                           <div
@@ -2132,38 +2152,47 @@ export const IdeShell = () => {
                             </div>
                           ) : null}
                         </div>
-                      </div>
+                      </Panel>
 
-                      <div
-                        className={cn(
-                          "min-h-0 flex-[2] border-t",
-                          !outputPanelOpen ? "hidden" : "",
-                        )}
-                      >
-                        <div className="flex h-full flex-col">
-                          <div className="flex items-center justify-between border-b px-3 py-2 text-xs">
-                            <span>Run output</span>
-                            <Button
-                              aria-label="Close output panel"
-                              className="h-7 w-7 p-0"
-                              onClick={() => setOutputPanelOpen(false)}
-                              size="sm"
-                              variant="ghost"
+                      {outputPanelOpen ? (
+                        <>
+                          <ResizeHandle className="h-1" />
+                          <Panel
+                            defaultSize={26}
+                            minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
+                          >
+                            <div
+                              className="flex h-full min-h-0 flex-col"
+                              style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
                             >
-                              <X className="size-4" />
-                            </Button>
-                          </div>
-                          <ScrollArea className="min-h-0 flex-1 px-3 py-2">
-                            <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-5">
-                              {activeProject
-                                ? runLog ||
-                                  "Run output will stream here after you start the project."
-                                : "Select a project to view its run output."}
-                            </pre>
-                          </ScrollArea>
-                        </div>
-                      </div>
-                    </div>
+                              <div className="flex items-center justify-between px-3 py-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <Logs className="size-4" />
+                                  <span>Run output</span>
+                                </div>
+                                <Button
+                                  aria-label="Close output panel"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => setOutputPanelOpen(false)}
+                                  size="sm"
+                                  variant="ghost"
+                                >
+                                  <X className="size-4" />
+                                </Button>
+                              </div>
+                              <ScrollArea className="min-h-0 flex-1 px-3 py-2">
+                                <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-5">
+                                  {activeProject
+                                    ? runLog ||
+                                      "Run output will stream here after you start the project."
+                                    : "Select a project to view its run output."}
+                                </pre>
+                              </ScrollArea>
+                            </div>
+                          </Panel>
+                        </>
+                      ) : null}
+                    </Group>
                   </div>
                 </Panel>
               ) : null}
