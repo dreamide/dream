@@ -130,3 +130,19 @@
     @apply bg-background text-foreground overscroll-none;
   }
 }
+
+/* Use native OS scrollbars in xterm instead of xterm's custom overlay scrollbar. */
+.xterm .xterm-scrollable-element > .scrollbar,
+.xterm .xterm-scrollable-element > .shadow {
+  display: none;
+}
+
+.xterm .xterm-scrollable-element > .visible,
+.xterm .xterm-scrollable-element > .invisible {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.xterm .xterm-viewport {
+  overflow-y: auto;
+}
