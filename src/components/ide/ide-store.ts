@@ -49,6 +49,7 @@ interface IdeState {
   previewError: string | null;
   stateHydrated: boolean;
   isMacOs: boolean;
+  isElectron: boolean;
 
   // Settings dialog state
   settingsOpen: boolean;
@@ -114,6 +115,7 @@ interface IdeState {
   setTerminalShell: (projectId: string, shell: string) => void;
   setPreviewError: (error: string | null) => void;
   setIsMacOs: (value: boolean) => void;
+  setIsElectron: (value: boolean) => void;
   openExternalUrl: (url: string) => void;
 
   // Actions – runner
@@ -159,6 +161,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   previewError: null,
   stateHydrated: false,
   isMacOs: false,
+  isElectron: false,
 
   // ── Settings dialog state ───────────────────────────────────────────
   settingsOpen: false,
@@ -530,6 +533,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   setPreviewError: (error) => set({ previewError: error }),
   setIsMacOs: (value) => set({ isMacOs: value }),
+  setIsElectron: (value) => set({ isElectron: value }),
 
   openExternalUrl: (url) => {
     const desktopApi = getDesktopApi();
