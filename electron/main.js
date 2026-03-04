@@ -451,14 +451,7 @@ async function createMainWindow() {
     minHeight: 720,
     minWidth: 1180,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    titleBarOverlay:
-      process.platform === "darwin"
-        ? undefined
-        : {
-            color: "#f8fafc",
-            height: 42,
-            symbolColor: "#0f172a",
-          },
+    ...(process.platform !== "darwin" && { frame: false }),
     trafficLightPosition:
       process.platform === "darwin" ? { x: 14, y: 14 } : undefined,
     webPreferences: {
@@ -515,6 +508,21 @@ ipcMain.handle("state:save", (_event, state) => {
 
   store.set(state);
   return true;
+});
+
+// Window controls (Windows/Linux frameless window)
+ipcMain.handle("window:minimize", () => {
+  mainWindow?.minimize();
+});
+ipcMain.handle("window:maximize", () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
+ipcMain.handle("window:close", () => {
+  mainWindow?.close();
 });
 
 ipcMain.handle("shell:open-external", (_event, { url }) => {
