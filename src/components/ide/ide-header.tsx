@@ -45,7 +45,12 @@ export const IdeHeader = () => {
   }, [setSettingsOpen, setSettingsSection]);
 
   return (
-    <header className={cn("relative flex h-11 items-center border-b bg-background pl-3 text-foreground [-webkit-app-region:drag]", isMacOs && "pr-3")}>
+    <header
+      className={cn(
+        "relative flex h-11 items-center border-b bg-background pl-3 text-foreground [-webkit-app-region:drag]",
+        isMacOs && "pr-3",
+      )}
+    >
       <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-2")} />
 
       <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
@@ -69,6 +74,15 @@ export const IdeHeader = () => {
         >
           <Settings className="size-4" />
         </Button>
+      </div>
+
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <span className="text-muted-foreground text-xs tracking-widest">
+          DREAM
+        </span>
+      </div>
+
+      <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
         <ToggleButton
           active={terminalPanelOpen}
           disabled={!activeProject}
@@ -77,15 +91,6 @@ export const IdeHeader = () => {
         >
           <TerminalSquare className="size-4" />
         </ToggleButton>
-      </div>
-
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <span className="text-muted-foreground text-xs tracking-wide">
-          DREAM
-        </span>
-      </div>
-
-      <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
         <ToggleButton
           active={panelVisibility.left}
           onClick={() => togglePanel("left")}

@@ -127,7 +127,7 @@
     @apply h-full;
   }
   body {
-    @apply bg-background text-foreground overscroll-none;
+    @apply bg-background font-sans text-foreground overscroll-none;
   }
 }
 
