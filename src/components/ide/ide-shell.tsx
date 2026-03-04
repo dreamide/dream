@@ -25,10 +25,13 @@ import {
 import { PreviewPanel } from "./preview-panel";
 import { ProjectSidebar } from "./project-sidebar";
 import { SettingsDialog } from "./settings-dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { TerminalPanel } from "./terminal-panel";
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
+  const appReady = useIdeStore((s) => s.appReady);
+  const setAppReady = useIdeStore((s) => s.setAppReady);
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const settings = useIdeStore((s) => s.settings);
@@ -74,6 +77,21 @@ export const IdeShell = () => {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // Mark app ready once hydration completes, and auto-refresh models
+  useEffect(() => {
+    if (!stateHydrated) return;
+    const { settings: s } = useIdeStore.getState();
+    void refreshProviderModels({
+      anthropicApiKey: s.anthropicApiKey,
+      openAiApiKey: s.openAiApiKey,
+      openAiAuthMode: s.openAiAuthMode,
+    });
+    if (s.openAiAuthMode === "codex") {
+      void refreshCodexLoginStatus();
+    }
+    setAppReady(true);
+  }, [stateHydrated, setAppReady, refreshProviderModels, refreshCodexLoginStatus]);
 
   // Subscribe to persisted state changes for auto-persistence
   useEffect(() => {
@@ -417,6 +435,11 @@ export const IdeShell = () => {
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="h-screen overflow-hidden bg-background text-foreground">
+      {!appReady && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+          <Spinner className="size-6 text-muted-foreground" />
+        </div>
+      )}
       <IdeHeader />
 
       <div className="h-[calc(100vh-44px)] overflow-hidden">

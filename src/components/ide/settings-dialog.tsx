@@ -95,9 +95,6 @@ export const SettingsDialog = () => {
       normalizedModelSearchQuery.length === 0 ||
       model.toLowerCase().includes(normalizedModelSearchQuery),
   );
-  const isRefreshingProviderModels =
-    providerModels.openai.loading || providerModels.anthropic.loading;
-
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
       <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
@@ -412,32 +409,6 @@ export const SettingsDialog = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2">
-                      <p className="text-muted-foreground text-xs">
-                        {providerModels.fetchedAt
-                          ? `Last refreshed ${new Date(providerModels.fetchedAt).toLocaleString()}`
-                          : "Model lists will refresh when this panel opens."}
-                      </p>
-                      <Button
-                        className="h-7 px-2 text-xs"
-                        disabled={isRefreshingProviderModels}
-                        onClick={() =>
-                          void refreshProviderModels({
-                            anthropicApiKey: settings.anthropicApiKey,
-                            openAiApiKey: settings.openAiApiKey,
-                            openAiAuthMode: settings.openAiAuthMode,
-                          })
-                        }
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        {isRefreshingProviderModels
-                          ? "Refreshing..."
-                          : "Refresh Models"}
-                      </Button>
-                    </div>
-
                     <div className="space-y-2 rounded-lg border p-3">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">
@@ -536,32 +507,7 @@ export const SettingsDialog = () => {
 
               {settingsSection === "models" ? (
                 <>
-                  <div className="space-y-2 rounded-lg border bg-muted/20 px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-muted-foreground text-xs">
-                        {providerModels.fetchedAt
-                          ? `Last refreshed ${new Date(providerModels.fetchedAt).toLocaleString()}`
-                          : "Model lists will refresh when this panel opens."}
-                      </p>
-                      <Button
-                        className="h-7 px-2 text-xs"
-                        disabled={isRefreshingProviderModels}
-                        onClick={() =>
-                          void refreshProviderModels({
-                            anthropicApiKey: settings.anthropicApiKey,
-                            openAiApiKey: settings.openAiApiKey,
-                            openAiAuthMode: settings.openAiAuthMode,
-                          })
-                        }
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        {isRefreshingProviderModels
-                          ? "Refreshing..."
-                          : "Refresh Models"}
-                      </Button>
-                    </div>
+                  <div className="rounded-lg border bg-muted/20 px-3 py-3">
                     <Input
                       onChange={(event) =>
                         setModelSearchQuery(event.currentTarget.value)
