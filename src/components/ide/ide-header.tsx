@@ -50,7 +50,7 @@ export const IdeHeader = () => {
       <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
         <Button
           aria-label="Add project"
-          className="size-8"
+          className="size-8 text-muted-foreground hover:text-foreground"
           onClick={() => void handleAddProject()}
           size="icon"
           title="Add project"
@@ -60,7 +60,7 @@ export const IdeHeader = () => {
         </Button>
         <Button
           aria-label="Settings"
-          className="size-8"
+          className="size-8 text-muted-foreground hover:text-foreground"
           onClick={handleOpenSettings}
           size="icon"
           title="Settings"
