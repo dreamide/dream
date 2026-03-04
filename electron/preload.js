@@ -17,6 +17,10 @@ contextBridge.exposeInMainWorld("dream", {
 
   openExternal: (url) => ipcRenderer.invoke("shell:open-external", { url }),
 
+  windowMinimize: () => ipcRenderer.invoke("window:minimize"),
+  windowMaximize: () => ipcRenderer.invoke("window:maximize"),
+  windowClose: () => ipcRenderer.invoke("window:close"),
+
   pickProjectDirectory: () => ipcRenderer.invoke("projects:pick-directory"),
 
   loadState: () => ipcRenderer.invoke("state:load"),

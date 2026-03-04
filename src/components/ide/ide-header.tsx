@@ -1,10 +1,13 @@
 import {
   FolderPlus,
   MessageSquare,
+  Minus,
   PanelLeft,
   PanelRight,
   Settings,
+  Square,
   TerminalSquare,
+  X,
 } from "lucide-react";
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
@@ -41,7 +44,7 @@ export const IdeHeader = () => {
   }, [setSettingsOpen, setSettingsSection]);
 
   return (
-    <header className="relative flex h-11 items-center border-b bg-background px-3 text-foreground [-webkit-app-region:drag]">
+    <header className={cn("relative flex h-11 items-center border-b bg-background pl-3 text-foreground [-webkit-app-region:drag]", isMacOs && "pr-3")}>
       <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-2")} />
 
       <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
@@ -81,7 +84,7 @@ export const IdeHeader = () => {
         </span>
       </div>
 
-      <div className={cn("ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]", !isMacOs && "mr-36")}>
+      <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
         <ToggleButton
           active={panelVisibility.left}
           onClick={() => togglePanel("left")}
@@ -104,6 +107,42 @@ export const IdeHeader = () => {
           <PanelRight className="size-4" />
         </ToggleButton>
       </div>
+
+      {!isMacOs && <WindowControls />}
     </header>
+  );
+};
+
+const WindowControls = () => {
+  const api = getDesktopApi();
+  if (!api) return null;
+
+  return (
+    <div className="flex h-full items-stretch [-webkit-app-region:no-drag]">
+      <button
+        aria-label="Minimize"
+        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={() => api.windowMinimize()}
+        type="button"
+      >
+        <Minus className="size-3.5" />
+      </button>
+      <button
+        aria-label="Maximize"
+        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={() => api.windowMaximize()}
+        type="button"
+      >
+        <Square className="size-3" />
+      </button>
+      <button
+        aria-label="Close"
+        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-red-500 hover:text-white"
+        onClick={() => api.windowClose()}
+        type="button"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
   );
 };

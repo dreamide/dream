@@ -111,6 +111,10 @@ export interface DreamDesktopApi {
 
   openExternal: (url: string) => Promise<boolean>;
 
+  windowMinimize: () => Promise<void>;
+  windowMaximize: () => Promise<void>;
+  windowClose: () => Promise<void>;
+
   pickProjectDirectory: () => Promise<string | null>;
 
   loadState: () => Promise<Partial<PersistedIdeState>>;
