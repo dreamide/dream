@@ -33,7 +33,9 @@ export const ToggleButton = ({
     aria-label={title}
     className={cn(
       "size-8 [-webkit-app-region:no-drag]",
-      active ? "text-foreground" : "text-muted-foreground",
+      active
+        ? "text-muted-foreground/80 hover:text-foreground"
+        : "text-muted-foreground/50 hover:text-foreground",
     )}
     disabled={disabled}
     onClick={onClick}
