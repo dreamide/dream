@@ -18,6 +18,7 @@ import { useIdeStore } from "./ide-store";
 
 export const IdeHeader = () => {
   const isMacOs = useIdeStore((s) => s.isMacOs);
+  const isElectron = useIdeStore((s) => s.isElectron);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const togglePanel = useIdeStore((s) => s.togglePanel);
   const addProject = useIdeStore((s) => s.addProject);
@@ -108,21 +109,20 @@ export const IdeHeader = () => {
         </ToggleButton>
       </div>
 
-      {!isMacOs && <WindowControls />}
+      {!isMacOs && isElectron && <WindowControls />}
     </header>
   );
 };
 
 const WindowControls = () => {
   const api = getDesktopApi();
-  if (!api) return null;
 
   return (
     <div className="flex h-full items-stretch [-webkit-app-region:no-drag]">
       <button
         aria-label="Minimize"
         className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onClick={() => api.windowMinimize()}
+        onClick={() => api?.windowMinimize()}
         type="button"
       >
         <Minus className="size-3.5" />
@@ -130,7 +130,7 @@ const WindowControls = () => {
       <button
         aria-label="Maximize"
         className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onClick={() => api.windowMaximize()}
+        onClick={() => api?.windowMaximize()}
         type="button"
       >
         <Square className="size-3" />
@@ -138,7 +138,7 @@ const WindowControls = () => {
       <button
         aria-label="Close"
         className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-red-500 hover:text-white"
-        onClick={() => api.windowClose()}
+        onClick={() => api?.windowClose()}
         type="button"
       >
         <X className="size-4" />

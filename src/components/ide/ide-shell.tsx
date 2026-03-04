@@ -5,7 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel } from "react-resizable-panels";
-import { getDesktopApi } from "@/lib/electron";
+import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
   getDefaultModelForProvider,
@@ -40,6 +40,7 @@ export const IdeShell = () => {
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
+  const setIsElectron = useIdeStore((s) => s.setIsElectron);
   const setProviderSetupTarget = useIdeStore((s) => s.setProviderSetupTarget);
   const appendRunLog = useIdeStore((s) => s.appendRunLog);
   const setRunnerStatus = useIdeStore((s) => s.setRunnerStatus);
@@ -63,10 +64,11 @@ export const IdeShell = () => {
 
   // ── Effects ──────────────────────────────────────────────────────────
 
-  // Detect macOS
+  // Detect macOS and Electron
   useEffect(() => {
     setIsMacOs(/mac/i.test(window.navigator.userAgent));
-  }, [setIsMacOs]);
+    setIsElectron(hasDesktopApi());
+  }, [setIsMacOs, setIsElectron]);
 
   // Hydrate state from storage
   useEffect(() => {
