@@ -50,6 +50,7 @@ interface IdeState {
   stateHydrated: boolean;
   isMacOs: boolean;
   isElectron: boolean;
+  appReady: boolean;
 
   // Settings dialog state
   settingsOpen: boolean;
@@ -116,6 +117,7 @@ interface IdeState {
   setPreviewError: (error: string | null) => void;
   setIsMacOs: (value: boolean) => void;
   setIsElectron: (value: boolean) => void;
+  setAppReady: (value: boolean) => void;
   openExternalUrl: (url: string) => void;
 
   // Actions – runner
@@ -162,6 +164,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   stateHydrated: false,
   isMacOs: false,
   isElectron: false,
+  appReady: false,
 
   // ── Settings dialog state ───────────────────────────────────────────
   settingsOpen: false,
@@ -534,6 +537,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   setPreviewError: (error) => set({ previewError: error }),
   setIsMacOs: (value) => set({ isMacOs: value }),
   setIsElectron: (value) => set({ isElectron: value }),
+  setAppReady: (value) => set({ appReady: value }),
 
   openExternalUrl: (url) => {
     const desktopApi = getDesktopApi();
