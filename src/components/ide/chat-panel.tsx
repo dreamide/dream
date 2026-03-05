@@ -33,17 +33,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   getConnectedProviders,
-  getDefaultModelForProvider,
   getModelsForProvider,
   getProviderAuthMode,
   getProviderCredential,
 } from "@/lib/ide-defaults";
-import type { AiProvider, ProjectConfig, ReasoningEffort } from "@/types/ide";
+import type { ProjectConfig, ReasoningEffort } from "@/types/ide";
 import { AssistantMessagePart } from "./assistant-message-part";
 import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
-  getProviderLabel,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
@@ -55,11 +53,25 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   const updateProject = useIdeStore((s) => s.updateProject);
 
   const connectedProviders = getConnectedProviders(settings);
-  const isProviderConnected = connectedProviders.includes(project.provider);
-  const providerAuthMode = getProviderAuthMode(project.provider, settings);
-  const providerCredential = getProviderCredential(project.provider, settings);
+  const allModelOptions = useMemo(() => {
+    return connectedProviders.flatMap((provider) =>
+      getModelsForProvider(provider, settings).map((model) => ({
+        model,
+        provider,
+      })),
+    );
+  }, [connectedProviders, settings]);
+  const selectedModelOption =
+    allModelOptions.find(
+      (option) =>
+        option.provider === project.provider && option.model === project.model,
+    ) ?? allModelOptions[0];
+  const selectedProvider = selectedModelOption?.provider ?? project.provider;
+  const isProviderConnected = connectedProviders.includes(selectedProvider);
+  const providerAuthMode = getProviderAuthMode(selectedProvider, settings);
+  const providerCredential = getProviderCredential(selectedProvider, settings);
   const usesCodexLogin =
-    project.provider === "openai" && providerAuthMode === "codex";
+    selectedProvider === "openai" && providerAuthMode === "codex";
   const credentialLabel = usesCodexLogin ? "Codex Login" : "API key";
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -81,10 +93,8 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
     setMessagesForProject(project.id, messages);
   }, [project.id, messages, setMessagesForProject]);
 
-  const models = getModelsForProvider(project.provider, settings);
-  const selectedModel = models.includes(project.model)
-    ? project.model
-    : (models[0] ?? "");
+  const selectedModel = selectedModelOption?.model ?? "";
+  const selectedModelValue = selectedModelOption?.model;
   const selectedReasoningEffort = normalizeReasoningEffort(
     project.reasoningEffort,
   );
@@ -93,11 +103,31 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
     async (prompt: PromptInputMessage) => {
       setLocalError(null);
 
-      const activeModel = models.includes(project.model)
-        ? project.model
-        : (models[0] ?? "");
+      const activeOption =
+        allModelOptions.find(
+          (option) =>
+            option.provider === project.provider &&
+            option.model === project.model,
+        ) ?? allModelOptions[0];
+      const activeProvider = activeOption?.provider ?? selectedProvider;
+      const activeModel = activeOption?.model ?? "";
+      const activeProviderAuthMode = getProviderAuthMode(
+        activeProvider,
+        settings,
+      );
+      const activeProviderCredential = getProviderCredential(
+        activeProvider,
+        settings,
+      );
+      const activeUsesCodexLogin =
+        activeProvider === "openai" && activeProviderAuthMode === "codex";
+      const activeCredentialLabel = activeUsesCodexLogin
+        ? "Codex Login"
+        : "API key";
+      const activeProviderConnected =
+        connectedProviders.includes(activeProvider);
 
-      if (!isProviderConnected) {
+      if (!activeProviderConnected) {
         setLocalError(
           "Connect a provider in Settings before sending a prompt.",
         );
@@ -109,9 +139,9 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         return;
       }
 
-      if (!providerCredential && !usesCodexLogin) {
+      if (!activeProviderCredential && !activeUsesCodexLogin) {
         setLocalError(
-          `Add a ${project.provider === "anthropic" ? "Anthropic" : "OpenAI"} ${credentialLabel} in Settings first.`,
+          `Add a ${activeProvider === "anthropic" ? "Anthropic" : "OpenAI"} ${activeCredentialLabel} in Settings first.`,
         );
         return;
       }
@@ -127,26 +157,24 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         },
         {
           body: {
-            authMode: providerAuthMode,
-            credential: providerCredential,
+            authMode: activeProviderAuthMode,
+            credential: activeProviderCredential,
             model: activeModel,
             projectPath: project.path,
-            provider: project.provider,
+            provider: activeProvider,
             reasoningEffort: selectedReasoningEffort,
           },
         },
       );
     },
     [
-      credentialLabel,
-      models,
-      isProviderConnected,
+      allModelOptions,
+      connectedProviders,
       project,
-      providerAuthMode,
-      providerCredential,
+      selectedProvider,
       selectedReasoningEffort,
       sendMessage,
-      usesCodexLogin,
+      settings,
     ],
   );
 
@@ -199,7 +227,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
 
       <div className="p-3">
         <PromptInput
-          className="w-full rounded-2xl bg-background px-2 pt-2 pb-1"
+          className="w-full rounded-2xl bg-muted/35 px-2 pt-2 pb-1"
           onSubmit={handleSubmit}
         >
           <PromptInputBody>
@@ -219,51 +247,38 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
 
               <PromptInputSelect
                 onValueChange={(value) => {
-                  updateProject(project.id, (current) => ({
-                    ...current,
-                    model: getDefaultModelForProvider(
-                      value as AiProvider,
-                      settings,
-                    ),
-                    provider: value as AiProvider,
-                  }));
-                }}
-                value={isProviderConnected ? project.provider : undefined}
-              >
-                <PromptInputSelectTrigger
-                  className="h-8 min-w-[110px] px-2 text-xs"
-                  disabled={connectedProviders.length === 0}
-                >
-                  <PromptInputSelectValue placeholder="Provider" />
-                </PromptInputSelectTrigger>
-                <PromptInputSelectContent>
-                  {connectedProviders.map((provider) => (
-                    <PromptInputSelectItem key={provider} value={provider}>
-                      {getProviderLabel(provider)}
-                    </PromptInputSelectItem>
-                  ))}
-                </PromptInputSelectContent>
-              </PromptInputSelect>
+                  if (typeof value !== "string") return;
+                  const matchingOptions = allModelOptions.filter(
+                    (option) => option.model === value,
+                  );
+                  const nextOption =
+                    matchingOptions.find(
+                      (option) => option.provider === project.provider,
+                    ) ?? matchingOptions[0];
+                  if (!nextOption) return;
 
-              <PromptInputSelect
-                onValueChange={(value) => {
                   updateProject(project.id, (current) => ({
                     ...current,
-                    model: value as string,
+                    model: nextOption.model,
+                    provider: nextOption.provider,
                   }));
                 }}
-                value={selectedModel || undefined}
+                value={selectedModelValue}
               >
                 <PromptInputSelectTrigger
                   className="h-8 min-w-[180px] max-w-[260px] px-2 text-xs"
-                  disabled={models.length === 0}
+                  disabled={allModelOptions.length === 0}
                 >
                   <PromptInputSelectValue placeholder="Model" />
                 </PromptInputSelectTrigger>
-                <PromptInputSelectContent>
-                  {models.map((model) => (
-                    <PromptInputSelectItem key={model} value={model}>
-                      {model}
+                <PromptInputSelectContent className="text-xs" side="top">
+                  {allModelOptions.map((option) => (
+                    <PromptInputSelectItem
+                      className="text-xs"
+                      key={`${option.provider}:${option.model}`}
+                      value={option.model}
+                    >
+                      {option.model}
                     </PromptInputSelectItem>
                   ))}
                 </PromptInputSelectContent>
@@ -280,13 +295,14 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
               >
                 <PromptInputSelectTrigger
                   className="h-8 min-w-[120px] px-2 text-xs"
-                  disabled={project.provider !== "openai"}
+                  disabled={selectedProvider !== "openai"}
                 >
                   <PromptInputSelectValue placeholder="Reasoning" />
                 </PromptInputSelectTrigger>
-                <PromptInputSelectContent>
+                <PromptInputSelectContent className="text-xs" side="top">
                   {REASONING_EFFORT_OPTIONS.map((option) => (
                     <PromptInputSelectItem
+                      className="text-xs"
                       key={option.value}
                       value={option.value}
                     >
