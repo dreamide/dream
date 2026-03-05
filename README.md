@@ -46,8 +46,8 @@ pnpm dev
 ```
 
 This starts:
-- Next.js dev server on `http://127.0.0.1:3000`
-- Electron shell pointed at that renderer
+- Electron main process
+- Next.js dev server on `http://127.0.0.1:3210` (started automatically by Electron)
 
 ## Quality checks
 

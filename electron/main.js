@@ -20,9 +20,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDevelopment = process.env.NODE_ENV === "development";
-const developmentRendererUrl =
-  process.env.ELECTRON_RENDERER_URL ?? "http://127.0.0.1:3210";
 const internalRendererPort = Number(process.env.ELECTRON_INTERNAL_PORT ?? 3210);
+const rendererUrlFromEnv = process.env.ELECTRON_RENDERER_URL?.trim();
+const developmentRendererUrl =
+  rendererUrlFromEnv || `http://127.0.0.1:${internalRendererPort}`;
+const rendererStartupTimeoutMs = Number(
+  process.env.NEXT_READY_TIMEOUT_MS ?? 45000,
+);
+const rendererProbeIntervalMs = 300;
 
 const store = new Store({
   defaults: {
@@ -53,6 +58,7 @@ let previewView = null;
 let previewAttached = false;
 
 let rendererUrl = developmentRendererUrl;
+let nextDevProcess = null;
 let nextAppServer = null;
 let nextHttpServer = null;
 
@@ -67,6 +73,8 @@ const previewState = {
   visible: false,
   url: "about:blank",
 };
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function sendToRenderer(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -416,7 +424,81 @@ async function pickDirectory() {
 async function startRendererServerIfNeeded() {
   if (isDevelopment) {
     rendererUrl = developmentRendererUrl;
-    return;
+
+    if (rendererUrlFromEnv) {
+      return;
+    }
+
+    const projectRoot = path.resolve(__dirname, "..");
+    const nextCli = path.join(
+      projectRoot,
+      "node_modules",
+      "next",
+      "dist",
+      "bin",
+      "next",
+    );
+
+    nextDevProcess = spawnProcess(
+      process.execPath,
+      [
+        nextCli,
+        "dev",
+        "--webpack",
+        "--hostname",
+        "127.0.0.1",
+        "--port",
+        String(internalRendererPort),
+      ],
+      {
+        cwd: projectRoot,
+        env: {
+          ...process.env,
+          BROWSER: "none",
+          FORCE_COLOR: "1",
+        },
+        stdio: "inherit",
+      },
+    );
+
+    nextDevProcess.on("error", (error) => {
+      console.error("Failed to start Next.js dev server:", error);
+    });
+
+    nextDevProcess.on("close", (code, signal) => {
+      console.log(
+        `Next.js dev server exited (code: ${code ?? "null"}, signal: ${signal ?? "null"}).`,
+      );
+    });
+
+    const startTime = Date.now();
+    let lastError = "not started";
+
+    while (Date.now() - startTime < rendererStartupTimeoutMs) {
+      if (
+        !nextDevProcess ||
+        typeof nextDevProcess.exitCode === "number" ||
+        nextDevProcess.signalCode
+      ) {
+        throw new Error("Next.js dev server exited before it became ready.");
+      }
+
+      try {
+        const response = await fetch(rendererUrl);
+        if (response.ok) {
+          return;
+        }
+        lastError = `HTTP ${response.status}`;
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+
+      await sleep(rendererProbeIntervalMs);
+    }
+
+    throw new Error(
+      `Timed out waiting for renderer on ${rendererUrl} after ${rendererStartupTimeoutMs}ms (last error: ${lastError}).`,
+    );
   }
 
   const appPath = app.getAppPath();
@@ -917,6 +999,11 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", async () => {
   stopAllProcesses();
+
+  if (nextDevProcess) {
+    stopChildProcess(nextDevProcess);
+    nextDevProcess = null;
+  }
 
   if (nextHttpServer) {
     await new Promise((resolve) => {
