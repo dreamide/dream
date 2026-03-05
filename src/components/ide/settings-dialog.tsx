@@ -106,19 +106,19 @@ export const SettingsDialog = () => {
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
       <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px] [&_[data-slot=dialog-close]]:right-4 [&_[data-slot=dialog-close]]:top-3.5">
-        <DialogHeader className="border-b px-6 py-3.5 text-left">
+        <DialogHeader className="px-6 py-3.5 text-left">
           <DialogTitle className="text-base leading-6">Settings</DialogTitle>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1">
-          <nav className="w-64 shrink-0 border-r bg-muted/25 p-3">
+          <nav className="w-64 shrink-0 p-3">
             <div className="space-y-1">
               <button
                 className={cn(
                   "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
                   settingsSection === "providers"
-                    ? "bg-primary/5 text-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setSettingsSection("providers")}
                 type="button"
@@ -132,8 +132,8 @@ export const SettingsDialog = () => {
                 className={cn(
                   "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
                   settingsSection === "models"
-                    ? "bg-primary/5 text-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setSettingsSection("models")}
                 type="button"
@@ -147,8 +147,8 @@ export const SettingsDialog = () => {
                 className={cn(
                   "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
                   settingsSection === "terminal"
-                    ? "bg-primary/5 text-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setSettingsSection("terminal")}
                 type="button"
@@ -165,7 +165,7 @@ export const SettingsDialog = () => {
             <div className="space-y-4 p-5">
               {settingsSection === "providers" ? (
                 providerSetupTarget ? (
-                  <div className="rounded-xl bg-background p-5 sm:p-6">
+                  <div className="rounded-xl p-5 sm:p-6">
                     <div className="mb-6 flex items-center justify-between">
                       <Button
                         className="h-9 w-9"
@@ -263,7 +263,7 @@ export const SettingsDialog = () => {
                             />
                           </div>
                         ) : (
-                          <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                          <div className="space-y-2 rounded-md p-3">
                             <p className="font-medium text-sm">Codex Login</p>
                             <p className="text-muted-foreground text-sm">
                               Uses your local Codex session from{" "}
@@ -287,7 +287,7 @@ export const SettingsDialog = () => {
                                 onClick={() => void refreshCodexLoginStatus()}
                                 size="sm"
                                 type="button"
-                                variant="outline"
+                                variant="ghost"
                               >
                                 Refresh Status
                               </Button>
@@ -347,7 +347,7 @@ export const SettingsDialog = () => {
                                 setProviderSetupTarget(null);
                               }}
                               type="button"
-                              variant="outline"
+                              variant="ghost"
                             >
                               Disconnect
                             </Button>
@@ -413,7 +413,7 @@ export const SettingsDialog = () => {
                                 setProviderSetupTarget(null);
                               }}
                               type="button"
-                              variant="outline"
+                              variant="ghost"
                             >
                               Disconnect
                             </Button>
@@ -424,14 +424,14 @@ export const SettingsDialog = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-2 rounded-lg bg-muted/20 p-3">
+                    <div className="space-y-2 rounded-lg p-3">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">
                           Connected providers
                         </p>
                       </div>
                       {connectedProviders.length === 0 ? (
-                        <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-sm">
+                        <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
                           Connect at least one provider before enabling models.
                         </p>
                       ) : (
@@ -440,7 +440,7 @@ export const SettingsDialog = () => {
                             connectedProviders.includes(provider),
                           ).map((provider) => (
                             <div
-                              className="flex items-center justify-between rounded-md bg-background/80 px-3 py-2"
+                              className="flex items-center justify-between rounded-md px-3 py-2"
                               key={provider}
                             >
                               <div>
@@ -479,17 +479,17 @@ export const SettingsDialog = () => {
                       )}
                     </div>
 
-                    <div className="space-y-2 rounded-lg bg-muted/20 p-3">
+                    <div className="space-y-2 rounded-lg p-3">
                       <p className="font-medium text-sm">Popular providers</p>
                       <div className="space-y-2">
                         {popularProviders.length === 0 ? (
-                          <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-sm">
+                          <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
                             All available providers are already connected.
                           </p>
                         ) : (
                           popularProviders.map((provider) => (
                             <div
-                              className="flex items-center justify-between rounded-md bg-background/80 px-3 py-2"
+                              className="flex items-center justify-between rounded-md px-3 py-2"
                               key={provider}
                             >
                               <div className="pr-3">
@@ -520,7 +520,7 @@ export const SettingsDialog = () => {
 
               {settingsSection === "models" ? (
                 <>
-                  <div className="rounded-lg bg-muted/20 px-3 py-3">
+                  <div className="rounded-lg px-3 py-3">
                     <Input
                       onChange={(event) =>
                         setModelSearchQuery(event.currentTarget.value)
@@ -531,13 +531,13 @@ export const SettingsDialog = () => {
                   </div>
 
                   {connectedProviders.length === 0 ? (
-                    <p className="rounded-md bg-muted/20 px-3 py-2 text-muted-foreground text-sm">
+                    <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
                       Connect a provider first in the Providers section.
                     </p>
                   ) : null}
 
                   {connectedProviders.length > 0 && isOpenAiConnected ? (
-                    <div className="space-y-3 rounded-lg bg-muted/20 p-4">
+                    <div className="space-y-3 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">OpenAI</p>
                       </div>
@@ -562,7 +562,7 @@ export const SettingsDialog = () => {
 
                               return (
                                 <div
-                                  className="flex items-center justify-between rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/40"
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1"
                                   key={model}
                                 >
                                   <Label
@@ -622,7 +622,7 @@ export const SettingsDialog = () => {
                   ) : null}
 
                   {connectedProviders.length > 0 && isAnthropicConnected ? (
-                    <div className="space-y-3 rounded-lg bg-muted/20 p-4">
+                    <div className="space-y-3 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">Anthropic</p>
                       </div>
@@ -648,7 +648,7 @@ export const SettingsDialog = () => {
 
                               return (
                                 <div
-                                  className="flex items-center justify-between rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/40"
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1"
                                   key={model}
                                 >
                                   <Label
@@ -710,7 +710,7 @@ export const SettingsDialog = () => {
               ) : null}
 
               {settingsSection === "terminal" ? (
-                <div className="space-y-1.5 rounded-lg border p-3">
+                <div className="space-y-1.5 rounded-lg p-3">
                   <Label htmlFor="shell-path">Terminal Shell Path</Label>
                   <Input
                     id="shell-path"

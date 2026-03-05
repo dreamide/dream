@@ -146,3 +146,10 @@
 .xterm .xterm-viewport {
   overflow-y: auto;
 }
+
+/* Hide native scrollbar arrow buttons (Windows/WebKit) across app scroll containers. */
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
