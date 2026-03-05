@@ -1,7 +1,10 @@
 import { TerminalSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIdeStore } from "./ide-store";
-import { GLOBAL_TERMINAL_SESSION_ID, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
+import {
+  GLOBAL_TERMINAL_SESSION_ID,
+  TERMINAL_MIN_HEIGHT_PX,
+} from "./ide-types";
 
 export interface TerminalPanelProps {
   terminalHostRef: (el: HTMLDivElement | null) => void;
@@ -44,7 +47,7 @@ export const TerminalPanel = ({ terminalHostRef }: TerminalPanelProps) => {
           </Button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 bg-background p-2">
+      <div className="min-h-0 flex-1 p-2">
         <div className="h-full w-full" ref={terminalHostRef} />
       </div>
     </div>

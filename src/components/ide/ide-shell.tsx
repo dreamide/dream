@@ -5,6 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Group, Panel } from "react-resizable-panels";
+import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
@@ -13,19 +14,22 @@ import {
 } from "@/lib/ide-defaults";
 import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
-import { AppShellPlaceholder, ResizeHandle, echoPipeFallbackInput } from "./ide-helpers";
 import { IdeHeader } from "./ide-header";
+import {
+  AppShellPlaceholder,
+  echoPipeFallbackInput,
+  ResizeHandle,
+} from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import {
+  dedupeModels,
   GLOBAL_TERMINAL_SESSION_ID,
   TERMINAL_MIN_HEIGHT_PX,
   type TerminalTransport,
-  dedupeModels,
 } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
 import { ProjectSidebar } from "./project-sidebar";
 import { SettingsDialog } from "./settings-dialog";
-import { Spinner } from "@/components/ui/spinner";
 import { TerminalPanel } from "./terminal-panel";
 
 export const IdeShell = () => {
@@ -91,7 +95,12 @@ export const IdeShell = () => {
       void refreshCodexLoginStatus();
     }
     setAppReady(true);
-  }, [stateHydrated, setAppReady, refreshProviderModels, refreshCodexLoginStatus]);
+  }, [
+    stateHydrated,
+    setAppReady,
+    refreshProviderModels,
+    refreshCodexLoginStatus,
+  ]);
 
   // Subscribe to persisted state changes for auto-persistence
   useEffect(() => {
@@ -173,7 +182,13 @@ export const IdeShell = () => {
       removeTerminalStatus();
       removePreviewError();
     };
-  }, [appendRunLog, setRunnerStatus, setTerminalStatus, setTerminalShell, setPreviewError]);
+  }, [
+    appendRunLog,
+    setRunnerStatus,
+    setTerminalStatus,
+    setTerminalShell,
+    setPreviewError,
+  ]);
 
   // Terminal xterm setup
   useEffect(() => {
@@ -336,7 +351,11 @@ export const IdeShell = () => {
       openAiApiKey: settings.openAiApiKey,
       openAiAuthMode: settings.openAiAuthMode,
     };
-  }, [settings.anthropicApiKey, settings.openAiApiKey, settings.openAiAuthMode]);
+  }, [
+    settings.anthropicApiKey,
+    settings.openAiApiKey,
+    settings.openAiAuthMode,
+  ]);
 
   // Auto-refresh models when settings panel opens
   useEffect(() => {
@@ -351,7 +370,12 @@ export const IdeShell = () => {
     if (creds.openAiAuthMode === "codex") {
       void refreshCodexLoginStatus();
     }
-  }, [refreshCodexLoginStatus, refreshProviderModels, settingsOpen, settingsSection]);
+  }, [
+    refreshCodexLoginStatus,
+    refreshProviderModels,
+    settingsOpen,
+    settingsSection,
+  ]);
 
   // Reset provider setup target when leaving providers section
   useEffect(() => {
@@ -368,22 +392,32 @@ export const IdeShell = () => {
     const safeConnectedProviders = getConnectedProviders(prev);
     const openAiSelectedModels = dedupeModels(prev.openAiSelectedModels);
     const anthropicSelectedModels = dedupeModels(prev.anthropicSelectedModels);
-    const defaultOpenAiModel = openAiSelectedModels.includes(prev.defaultOpenAiModel)
+    const defaultOpenAiModel = openAiSelectedModels.includes(
+      prev.defaultOpenAiModel,
+    )
       ? prev.defaultOpenAiModel
       : (openAiSelectedModels[0] ?? "");
-    const defaultAnthropicModel = anthropicSelectedModels.includes(prev.defaultAnthropicModel)
+    const defaultAnthropicModel = anthropicSelectedModels.includes(
+      prev.defaultAnthropicModel,
+    )
       ? prev.defaultAnthropicModel
       : (anthropicSelectedModels[0] ?? "");
 
     const changed =
       safeConnectedProviders.length !== prev.connectedProviders.length ||
-      !safeConnectedProviders.every((p, i) => prev.connectedProviders[i] === p) ||
+      !safeConnectedProviders.every(
+        (p, i) => prev.connectedProviders[i] === p,
+      ) ||
       defaultOpenAiModel !== prev.defaultOpenAiModel ||
       defaultAnthropicModel !== prev.defaultAnthropicModel ||
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
-      !openAiSelectedModels.every((m, i) => prev.openAiSelectedModels[i] === m) ||
-      !anthropicSelectedModels.every((m, i) => prev.anthropicSelectedModels[i] === m);
+      !openAiSelectedModels.every(
+        (m, i) => prev.openAiSelectedModels[i] === m,
+      ) ||
+      !anthropicSelectedModels.every(
+        (m, i) => prev.anthropicSelectedModels[i] === m,
+      );
 
     if (changed) {
       store.setSettings({
@@ -413,10 +447,19 @@ export const IdeShell = () => {
         projectsChanged = true;
       }
 
-      const providerModels = getModelsForProvider(next.provider, store.settings);
-      const fallbackModel = getDefaultModelForProvider(next.provider, store.settings);
+      const providerModels = getModelsForProvider(
+        next.provider,
+        store.settings,
+      );
+      const fallbackModel = getDefaultModelForProvider(
+        next.provider,
+        store.settings,
+      );
 
-      if (!providerModels.includes(next.model) && next.model !== fallbackModel) {
+      if (
+        !providerModels.includes(next.model) &&
+        next.model !== fallbackModel
+      ) {
         next = { ...next, model: fallbackModel };
         projectsChanged = true;
       }
@@ -434,9 +477,9 @@ export const IdeShell = () => {
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="h-screen overflow-hidden bg-background text-foreground">
+    <div className="h-screen overflow-hidden text-foreground">
       {!appReady && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
           <Spinner className="size-6 text-muted-foreground" />
         </div>
       )}
@@ -444,91 +487,106 @@ export const IdeShell = () => {
 
       <div className="h-[calc(100vh-44px)] overflow-hidden">
         {!stateHydrated ? null : (
-        <Group className="h-full" id="ide-root" orientation="horizontal">
-          {panelVisibility.left ? (
-            <>
-              <Panel
-                className="min-w-[230px]"
-                defaultSize={18}
-                id="ide-left"
-                minSize={14}
-              >
-                <ProjectSidebar />
-              </Panel>
-              <ResizeHandle className="w-1" id="ide-left-handle" />
-            </>
-          ) : null}
-
-          <Panel
-            defaultSize={panelVisibility.left ? 82 : 100}
-            id="ide-main"
-            minSize={20}
-          >
-            <Group id="ide-workspace" orientation="horizontal">
-              {panelVisibility.middle ? (
+          <Group className="h-full" id="ide-root" orientation="horizontal">
+            {panelVisibility.left ? (
+              <>
                 <Panel
-                  defaultSize={panelVisibility.right ? 54 : 100}
-                  id="ide-middle"
-                  minSize={30}
+                  className="min-w-[230px] pt-2 pr-1 pb-3 pl-2"
+                  defaultSize={18}
+                  id="ide-left"
+                  minSize={14}
                 >
-                  <div className="flex h-full flex-col border-r">
-                    <Group className="h-full" id="ide-chat-term" orientation="vertical">
-                      <Panel
-                        defaultSize={terminalPanelOpen ? 74 : 100}
-                        id="ide-chat"
-                        minSize={30}
-                      >
-                        {activeProject ? (
-                          <ChatPanel project={activeProject} />
-                        ) : (
-                          <div className="h-full p-3">
-                            <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
-                          </div>
-                        )}
-                      </Panel>
+                  <ProjectSidebar />
+                </Panel>
+                <ResizeHandle className="w-2" id="ide-left-handle" />
+              </>
+            ) : null}
 
-                      {terminalPanelOpen ? (
-                        <>
-                          <ResizeHandle className="h-1" id="ide-term-handle" />
+            <Panel
+              defaultSize={panelVisibility.left ? 82 : 100}
+              id="ide-main"
+              minSize={20}
+            >
+              <Group id="ide-workspace" orientation="horizontal">
+                {panelVisibility.middle ? (
+                  <Panel
+                    defaultSize={panelVisibility.right ? 54 : 100}
+                    id="ide-middle"
+                    minSize={30}
+                  >
+                    <div className="h-full pt-2 pr-2 pb-3 pl-3">
+                      <div className="flex h-full flex-col overflow-hidden border bg-muted/20 shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
+                        <Group
+                          className="h-full"
+                          id="ide-chat-term"
+                          orientation="vertical"
+                        >
                           <Panel
-                            defaultSize={26}
-                            id="ide-terminal"
-                            minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
+                            defaultSize={terminalPanelOpen ? 74 : 100}
+                            id="ide-chat"
+                            minSize={30}
                           >
-                            <TerminalPanel terminalHostRef={setTerminalHost} />
+                            {activeProject ? (
+                              <ChatPanel project={activeProject} />
+                            ) : (
+                              <div className="h-full p-3">
+                                <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
+                              </div>
+                            )}
                           </Panel>
-                        </>
-                      ) : null}
-                    </Group>
-                  </div>
-                </Panel>
-              ) : null}
 
-              {panelVisibility.middle && panelVisibility.right ? (
-                <ResizeHandle className="w-1" id="ide-middle-handle" />
-              ) : null}
+                          {terminalPanelOpen ? (
+                            <>
+                              <ResizeHandle
+                                className="h-2"
+                                id="ide-term-handle"
+                              />
+                              <Panel
+                                defaultSize={26}
+                                id="ide-terminal"
+                                minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
+                              >
+                                <TerminalPanel
+                                  terminalHostRef={setTerminalHost}
+                                />
+                              </Panel>
+                            </>
+                          ) : null}
+                        </Group>
+                      </div>
+                    </div>
+                  </Panel>
+                ) : null}
 
-              {panelVisibility.right ? (
-                <Panel
-                  defaultSize={panelVisibility.middle ? 46 : 100}
-                  id="ide-right"
-                  minSize={26}
-                >
-                  <PreviewPanel
-                    onSyncPreviewBounds={syncPreviewBounds}
-                    previewHostRef={previewHostRef}
-                  />
-                </Panel>
-              ) : null}
+                {panelVisibility.middle && panelVisibility.right ? (
+                  <ResizeHandle className="w-2" id="ide-middle-handle" />
+                ) : null}
 
-              {!mainWorkspaceVisible ? (
-                <Panel defaultSize={100} id="ide-fallback" minSize={20}>
-                  <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
-                </Panel>
-              ) : null}
-            </Group>
-          </Panel>
-        </Group>
+                {panelVisibility.right ? (
+                  <Panel
+                    defaultSize={panelVisibility.middle ? 46 : 100}
+                    id="ide-right"
+                    minSize={26}
+                  >
+                    <div className="h-full pt-2 pr-3 pb-3 pl-2">
+                      <div className="h-full overflow-hidden border bg-background shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
+                        <PreviewPanel
+                          onSyncPreviewBounds={syncPreviewBounds}
+                          previewHostRef={previewHostRef}
+                        />
+                      </div>
+                    </div>
+                  </Panel>
+                ) : null}
+
+                {!mainWorkspaceVisible ? (
+                  <Panel defaultSize={100} id="ide-fallback" minSize={20}>
+                    <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
+                  </Panel>
+                ) : null}
+              </Group>
+            </Panel>
+          </Group>
         )}
       </div>
 

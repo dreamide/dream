@@ -197,7 +197,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         <ConversationScrollButton />
       </Conversation>
 
-      <div className="border-t p-3">
+      <div className="p-3">
         <PromptInput
           className="w-full rounded-2xl bg-background px-2 pt-2 pb-1"
           onSubmit={handleSubmit}

@@ -47,7 +47,7 @@ export const IdeHeader = () => {
   return (
     <header
       className={cn(
-        "relative flex h-11 items-center border-b bg-background pl-3 text-foreground [-webkit-app-region:drag]",
+        "relative flex h-11 items-center pl-3 text-foreground [-webkit-app-region:drag]",
         isMacOs && "pr-3",
       )}
     >
@@ -126,7 +126,7 @@ const WindowControls = () => {
     <div className="flex h-full items-stretch [-webkit-app-region:no-drag]">
       <button
         aria-label="Minimize"
-        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
         onClick={() => api?.windowMinimize()}
         type="button"
       >
@@ -134,7 +134,7 @@ const WindowControls = () => {
       </button>
       <button
         aria-label="Maximize"
-        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
         onClick={() => api?.windowMaximize()}
         type="button"
       >

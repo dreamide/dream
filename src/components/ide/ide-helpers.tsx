@@ -7,14 +7,11 @@ import { cn } from "@/lib/utils";
 export const ResizeHandle = ({
   className,
   id,
-}: { className?: string; id?: string }) => (
-  <Separator
-    className={cn(
-      "relative bg-border/70 after:absolute after:inset-0 after:bg-primary/0 after:transition-colors hover:after:bg-primary/20",
-      className,
-    )}
-    id={id}
-  />
+}: {
+  className?: string;
+  id?: string;
+}) => (
+  <Separator className={cn("relative bg-transparent", className)} id={id} />
 );
 
 export const ToggleButton = ({
@@ -48,7 +45,7 @@ export const ToggleButton = ({
 );
 
 export const AppShellPlaceholder = ({ message }: { message: string }) => (
-  <div className="flex h-full items-center justify-center rounded-md border border-dashed bg-muted/30 p-4 text-center text-muted-foreground text-sm">
+  <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground text-sm">
     {message}
   </div>
 );
