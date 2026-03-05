@@ -1,7 +1,4 @@
-import {
-  DEFAULT_PANEL_VISIBILITY,
-  DEFAULT_SETTINGS,
-} from "@/lib/ide-defaults";
+import { DEFAULT_PANEL_VISIBILITY, DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import type {
   AppSettings,
   PersistedIdeState,
@@ -64,6 +61,26 @@ export const mergePersistedState = (
   ) {
     mergedSettings.openAiAuthMode = "apiKey";
   }
+
+  if (
+    mergedSettings.anthropicAuthMode !== "apiKey" &&
+    mergedSettings.anthropicAuthMode !== "claudeProMax"
+  ) {
+    mergedSettings.anthropicAuthMode = "apiKey";
+  }
+
+  mergedSettings.anthropicAccessToken =
+    typeof mergedSettings.anthropicAccessToken === "string"
+      ? mergedSettings.anthropicAccessToken
+      : "";
+  mergedSettings.anthropicRefreshToken =
+    typeof mergedSettings.anthropicRefreshToken === "string"
+      ? mergedSettings.anthropicRefreshToken
+      : "";
+  mergedSettings.anthropicAccessTokenExpiresAt =
+    typeof mergedSettings.anthropicAccessTokenExpiresAt === "number"
+      ? mergedSettings.anthropicAccessTokenExpiresAt
+      : null;
 
   const openAiSelectedModels = dedupeModels(
     Array.isArray(mergedSettings.openAiSelectedModels)

@@ -5,8 +5,6 @@ import {
   DEFAULT_SETTINGS,
   createProjectConfig,
   getConnectedProviders,
-  getDefaultModelForProvider,
-  getModelsForProvider,
 } from "@/lib/ide-defaults";
 import { getDesktopApi } from "@/lib/electron";
 import type {
@@ -84,7 +82,9 @@ interface IdeState {
   setOutputPanelOpen: (open: boolean) => void;
 
   // Actions – settings
-  setSettings: (updater: AppSettings | ((prev: AppSettings) => AppSettings)) => void;
+  setSettings: (
+    updater: AppSettings | ((prev: AppSettings) => AppSettings),
+  ) => void;
   setSettingsOpen: (open: boolean) => void;
   setSettingsSection: (section: SettingsSection) => void;
   setProviderSetupTarget: (target: AiProvider | null) => void;
@@ -98,7 +98,11 @@ interface IdeState {
   submitProviderSetup: (provider: AiProvider) => void;
   refreshCodexLoginStatus: () => Promise<void>;
   refreshProviderModels: (creds: {
+    anthropicAccessToken: string;
+    anthropicAccessTokenExpiresAt: number | null;
+    anthropicAuthMode: "apiKey" | "claudeProMax";
     anthropicApiKey: string;
+    anthropicRefreshToken: string;
     openAiApiKey: string;
     openAiAuthMode: "apiKey" | "codex";
   }) => Promise<void>;
@@ -219,7 +223,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       return {
         projects: nextProjects,
-        activeProjectId: ensureActiveProject(nextProjects, state.activeProjectId),
+        activeProjectId: ensureActiveProject(
+          nextProjects,
+          state.activeProjectId,
+        ),
         chats: nextChats,
         runLogs: nextRunLogs,
         runnerStatus: nextRunnerStatus,
@@ -352,7 +359,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const { connectProvider: connect, refreshProviderModels, settings } = get();
     connect(provider);
     void refreshProviderModels({
+      anthropicAccessToken: settings.anthropicAccessToken,
+      anthropicAccessTokenExpiresAt: settings.anthropicAccessTokenExpiresAt,
+      anthropicAuthMode: settings.anthropicAuthMode,
       anthropicApiKey: settings.anthropicApiKey,
+      anthropicRefreshToken: settings.anthropicRefreshToken,
       openAiApiKey: settings.openAiApiKey,
       openAiAuthMode: settings.openAiAuthMode,
     });
@@ -366,7 +377,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     try {
       const response = await fetch("/api/codex-auth");
-      if (!response.ok) throw new Error(`Status check failed (${response.status})`);
+      if (!response.ok)
+        throw new Error(`Status check failed (${response.status})`);
 
       const payload = (await response.json()) as {
         authMode: string;
@@ -394,23 +406,44 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }
   },
 
-  refreshProviderModels: async ({ anthropicApiKey, openAiApiKey, openAiAuthMode }) => {
+  refreshProviderModels: async ({
+    anthropicAccessToken,
+    anthropicAccessTokenExpiresAt,
+    anthropicAuthMode,
+    anthropicApiKey,
+    anthropicRefreshToken,
+    openAiApiKey,
+    openAiAuthMode,
+  }) => {
     set((state) => ({
       providerModels: {
         ...state.providerModels,
-        anthropic: { ...state.providerModels.anthropic, error: null, loading: true },
+        anthropic: {
+          ...state.providerModels.anthropic,
+          error: null,
+          loading: true,
+        },
         openai: { ...state.providerModels.openai, error: null, loading: true },
       },
     }));
 
     try {
       const response = await fetch("/api/provider-models", {
-        body: JSON.stringify({ anthropicApiKey, openAiApiKey, openAiAuthMode }),
+        body: JSON.stringify({
+          anthropicAccessToken,
+          anthropicAccessTokenExpiresAt,
+          anthropicAuthMode,
+          anthropicApiKey,
+          anthropicRefreshToken,
+          openAiApiKey,
+          openAiAuthMode,
+        }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
 
-      if (!response.ok) throw new Error(`Model fetch failed (${response.status}).`);
+      if (!response.ok)
+        throw new Error(`Model fetch failed (${response.status}).`);
 
       const payload = (await response.json()) as ProviderModelsResponse;
       const nextOpenAiModels = dedupeModels(payload.openai.models);
@@ -434,24 +467,41 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         },
       });
 
+      if (payload.anthropic.oauth) {
+        set((state) => ({
+          settings: {
+            ...state.settings,
+            anthropicAccessToken: payload.anthropic.oauth?.accessToken ?? "",
+            anthropicAccessTokenExpiresAt:
+              payload.anthropic.oauth?.expiresAt ?? null,
+            anthropicRefreshToken: payload.anthropic.oauth?.refreshToken ?? "",
+          },
+        }));
+      }
+
       // Reconcile selected models
       set((state) => {
         const prev = state.settings;
-        const currentOpenAiSelected = dedupeModels(prev.openAiSelectedModels).filter(
-          (m) => nextOpenAiModels.includes(m),
-        );
-        const currentAnthropicSelected = dedupeModels(prev.anthropicSelectedModels).filter(
-          (m) => nextAnthropicModels.includes(m),
-        );
+        const currentOpenAiSelected = dedupeModels(
+          prev.openAiSelectedModels,
+        ).filter((m) => nextOpenAiModels.includes(m));
+        const currentAnthropicSelected = dedupeModels(
+          prev.anthropicSelectedModels,
+        ).filter((m) => nextAnthropicModels.includes(m));
 
-        const openAiSelectedModels = currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
+        const openAiSelectedModels =
+          currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
         const anthropicSelectedModels =
           currentAnthropicSelected.length > 0 ? currentAnthropicSelected : [];
 
-        const defaultOpenAiModel = openAiSelectedModels.includes(prev.defaultOpenAiModel)
+        const defaultOpenAiModel = openAiSelectedModels.includes(
+          prev.defaultOpenAiModel,
+        )
           ? prev.defaultOpenAiModel
           : (openAiSelectedModels[0] ?? "");
-        const defaultAnthropicModel = anthropicSelectedModels.includes(prev.defaultAnthropicModel)
+        const defaultAnthropicModel = anthropicSelectedModels.includes(
+          prev.defaultAnthropicModel,
+        )
           ? prev.defaultAnthropicModel
           : (anthropicSelectedModels[0] ?? "");
 
@@ -459,9 +509,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           defaultOpenAiModel === prev.defaultOpenAiModel &&
           defaultAnthropicModel === prev.defaultAnthropicModel &&
           openAiSelectedModels.length === prev.openAiSelectedModels.length &&
-          anthropicSelectedModels.length === prev.anthropicSelectedModels.length &&
-          openAiSelectedModels.every((m, i) => prev.openAiSelectedModels[i] === m) &&
-          anthropicSelectedModels.every((m, i) => prev.anthropicSelectedModels[i] === m)
+          anthropicSelectedModels.length ===
+            prev.anthropicSelectedModels.length &&
+          openAiSelectedModels.every(
+            (m, i) => prev.openAiSelectedModels[i] === m,
+          ) &&
+          anthropicSelectedModels.every(
+            (m, i) => prev.anthropicSelectedModels[i] === m,
+          )
         ) {
           return state;
         }
@@ -477,7 +532,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         };
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to fetch models.";
+      const message =
+        error instanceof Error ? error.message : "Unable to fetch models.";
       set((state) => ({
         providerModels: {
           anthropic: {
@@ -518,7 +574,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     set((state) => {
       const current = state.runLogs[projectId] ?? "";
       const next = `${current}${chunk}`;
-      return { runLogs: { ...state.runLogs, [projectId]: next.slice(-150_000) } };
+      return {
+        runLogs: { ...state.runLogs, [projectId]: next.slice(-150_000) },
+      };
     });
   },
 
@@ -660,7 +718,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     set({
       projects: loaded.projects,
-      activeProjectId: ensureActiveProject(loaded.projects, loaded.activeProjectId),
+      activeProjectId: ensureActiveProject(
+        loaded.projects,
+        loaded.activeProjectId,
+      ),
       panelVisibility: loaded.panelVisibility,
       settings: loaded.settings,
       chats: loaded.chats,
@@ -669,7 +730,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   persist: () => {
-    const { projects, activeProjectId, panelVisibility, settings, chats, stateHydrated } = get();
+    const {
+      projects,
+      activeProjectId,
+      panelVisibility,
+      settings,
+      chats,
+      stateHydrated,
+    } = get();
     if (!stateHydrated) return;
 
     const nextState: PersistedIdeState = {

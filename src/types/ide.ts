@@ -1,7 +1,9 @@
 import type { UIMessage } from "ai";
 
 export type AiProvider = "openai" | "anthropic";
-export type ProviderAuthMode = "apiKey" | "codex";
+export type OpenAiAuthMode = "apiKey" | "codex";
+export type AnthropicAuthMode = "apiKey" | "claudeProMax";
+export type ProviderAuthMode = OpenAiAuthMode | AnthropicAuthMode;
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 export interface ProjectConfig {
@@ -17,9 +19,13 @@ export interface ProjectConfig {
 
 export interface AppSettings {
   connectedProviders: AiProvider[];
-  openAiAuthMode: ProviderAuthMode;
+  openAiAuthMode: OpenAiAuthMode;
   openAiApiKey: string;
+  anthropicAuthMode: AnthropicAuthMode;
   anthropicApiKey: string;
+  anthropicAccessToken: string;
+  anthropicRefreshToken: string;
+  anthropicAccessTokenExpiresAt: number | null;
   defaultOpenAiModel: string;
   defaultAnthropicModel: string;
   openAiSelectedModels: string[];

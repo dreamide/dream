@@ -64,7 +64,11 @@ export const IdeShell = () => {
   const terminalFitRef = useRef<FitAddon | null>(null);
   const terminalTransportRef = useRef<TerminalTransport>("pty");
   const providerCredentialsRef = useRef({
+    anthropicAccessToken: settings.anthropicAccessToken,
+    anthropicAccessTokenExpiresAt: settings.anthropicAccessTokenExpiresAt,
+    anthropicAuthMode: settings.anthropicAuthMode,
     anthropicApiKey: settings.anthropicApiKey,
+    anthropicRefreshToken: settings.anthropicRefreshToken,
     openAiApiKey: settings.openAiApiKey,
     openAiAuthMode: settings.openAiAuthMode,
   });
@@ -87,7 +91,11 @@ export const IdeShell = () => {
     if (!stateHydrated) return;
     const { settings: s } = useIdeStore.getState();
     void refreshProviderModels({
+      anthropicAccessToken: s.anthropicAccessToken,
+      anthropicAccessTokenExpiresAt: s.anthropicAccessTokenExpiresAt,
+      anthropicAuthMode: s.anthropicAuthMode,
       anthropicApiKey: s.anthropicApiKey,
+      anthropicRefreshToken: s.anthropicRefreshToken,
       openAiApiKey: s.openAiApiKey,
       openAiAuthMode: s.openAiAuthMode,
     });
@@ -347,12 +355,20 @@ export const IdeShell = () => {
   // Keep credentials ref in sync
   useEffect(() => {
     providerCredentialsRef.current = {
+      anthropicAccessToken: settings.anthropicAccessToken,
+      anthropicAccessTokenExpiresAt: settings.anthropicAccessTokenExpiresAt,
+      anthropicAuthMode: settings.anthropicAuthMode,
       anthropicApiKey: settings.anthropicApiKey,
+      anthropicRefreshToken: settings.anthropicRefreshToken,
       openAiApiKey: settings.openAiApiKey,
       openAiAuthMode: settings.openAiAuthMode,
     };
   }, [
+    settings.anthropicAccessToken,
+    settings.anthropicAccessTokenExpiresAt,
+    settings.anthropicAuthMode,
     settings.anthropicApiKey,
+    settings.anthropicRefreshToken,
     settings.openAiApiKey,
     settings.openAiAuthMode,
   ]);

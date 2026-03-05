@@ -108,6 +108,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   const settings = useIdeStore((s) => s.settings);
   const chats = useIdeStore((s) => s.chats);
   const setMessagesForProject = useIdeStore((s) => s.setMessagesForProject);
+  const setSettings = useIdeStore((s) => s.setSettings);
   const updateProject = useIdeStore((s) => s.updateProject);
   const scrollPositionsRef = useRef<Record<string, number>>({});
 
@@ -131,7 +132,18 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   const providerCredential = getProviderCredential(selectedProvider, settings);
   const usesCodexLogin =
     selectedProvider === "openai" && providerAuthMode === "codex";
-  const credentialLabel = usesCodexLogin ? "Codex Login" : "API key";
+  const usesAnthropicProMax =
+    selectedProvider === "anthropic" && providerAuthMode === "claudeProMax";
+  const hasProviderCredential = usesCodexLogin
+    ? true
+    : usesAnthropicProMax
+      ? settings.anthropicRefreshToken.trim().length > 0
+      : providerCredential.trim().length > 0;
+  const credentialLabel = usesCodexLogin
+    ? "Codex Login"
+    : usesAnthropicProMax
+      ? "Claude Pro/Max login"
+      : "API key";
   const [localError, setLocalError] = useState<string | null>(null);
 
   const transport = useMemo(
@@ -184,11 +196,24 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
       );
       const activeUsesCodexLogin =
         activeProvider === "openai" && activeProviderAuthMode === "codex";
+      const activeUsesAnthropicProMax =
+        activeProvider === "anthropic" &&
+        activeProviderAuthMode === "claudeProMax";
       const activeCredentialLabel = activeUsesCodexLogin
         ? "Codex Login"
-        : "API key";
+        : activeUsesAnthropicProMax
+          ? "Claude Pro/Max login"
+          : "API key";
       const activeProviderConnected =
         connectedProviders.includes(activeProvider);
+      let requestCredential = activeProviderCredential;
+      let anthropicOAuth:
+        | {
+            accessToken: string;
+            expiresAt: number;
+            refreshToken: string;
+          }
+        | undefined;
 
       if (!activeProviderConnected) {
         setLocalError(
@@ -202,7 +227,79 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         return;
       }
 
-      if (!activeProviderCredential && !activeUsesCodexLogin) {
+      if (
+        activeUsesAnthropicProMax &&
+        settings.anthropicRefreshToken.trim().length === 0
+      ) {
+        setLocalError(
+          "Complete Claude Pro/Max login in Settings before sending a prompt.",
+        );
+        return;
+      }
+
+      if (activeUsesAnthropicProMax) {
+        let nextAccessToken = settings.anthropicAccessToken.trim();
+        let nextRefreshToken = settings.anthropicRefreshToken.trim();
+        let nextExpiresAt =
+          typeof settings.anthropicAccessTokenExpiresAt === "number"
+            ? settings.anthropicAccessTokenExpiresAt
+            : Date.now() - 1;
+
+        const needsRefresh =
+          !nextAccessToken || nextExpiresAt <= Date.now() + 15_000;
+
+        if (needsRefresh) {
+          const refreshResponse = await fetch("/api/anthropic-oauth/refresh", {
+            body: JSON.stringify({ refreshToken: nextRefreshToken }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          });
+
+          if (!refreshResponse.ok) {
+            const message = await refreshResponse.text();
+            setLocalError(
+              message || "Unable to refresh Claude Pro/Max access token.",
+            );
+            return;
+          }
+
+          const refreshed = (await refreshResponse.json()) as {
+            accessToken?: string;
+            expiresAt?: number;
+            refreshToken?: string;
+          };
+
+          nextAccessToken = refreshed.accessToken?.trim() ?? "";
+          nextRefreshToken = refreshed.refreshToken?.trim() ?? "";
+          nextExpiresAt =
+            typeof refreshed.expiresAt === "number"
+              ? refreshed.expiresAt
+              : Date.now() - 1;
+
+          setSettings((previous) => ({
+            ...previous,
+            anthropicAccessToken: nextAccessToken,
+            anthropicAccessTokenExpiresAt: nextExpiresAt,
+            anthropicRefreshToken: nextRefreshToken,
+          }));
+        }
+
+        if (!nextAccessToken || !nextRefreshToken) {
+          setLocalError(
+            "Complete Claude Pro/Max login in Settings before sending a prompt.",
+          );
+          return;
+        }
+
+        requestCredential = nextAccessToken;
+        anthropicOAuth = {
+          accessToken: nextAccessToken,
+          expiresAt: nextExpiresAt,
+          refreshToken: nextRefreshToken,
+        };
+      }
+
+      if (!requestCredential && !activeUsesCodexLogin) {
         setLocalError(
           `Add a ${activeProvider === "anthropic" ? "Anthropic" : "OpenAI"} ${activeCredentialLabel} in Settings first.`,
         );
@@ -221,7 +318,8 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         {
           body: {
             authMode: activeProviderAuthMode,
-            credential: activeProviderCredential,
+            anthropicOAuth,
+            credential: requestCredential,
             model: activeModel,
             projectPath: project.path,
             provider: activeProvider,
@@ -237,6 +335,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
       selectedProvider,
       selectedReasoningEffort,
       sendMessage,
+      setSettings,
       settings,
     ],
   );
@@ -384,7 +483,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
                 className="size-8 rounded-md"
                 disabled={
                   !isProviderConnected ||
-                  (!providerCredential && !usesCodexLogin) ||
+                  !hasProviderCredential ||
                   selectedModel === ""
                 }
                 onStop={stop}
@@ -396,7 +495,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
           <div className="pointer-events-auto mt-2 flex items-center gap-2">
             {!isProviderConnected ? (
               <Badge variant="destructive">No provider connected</Badge>
-            ) : !providerCredential && !usesCodexLogin ? (
+            ) : !hasProviderCredential ? (
               <Badge variant="destructive">Missing {credentialLabel}</Badge>
             ) : selectedModel === "" ? (
               <Badge variant="outline">No model enabled</Badge>

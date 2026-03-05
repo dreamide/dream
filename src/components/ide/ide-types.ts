@@ -26,6 +26,11 @@ export interface ProviderModelFetchResult {
   models: string[];
   source: ModelFetchSource;
   error?: string;
+  oauth?: {
+    accessToken: string;
+    expiresAt: number;
+    refreshToken: string;
+  };
 }
 
 export interface ProviderModelsResponse {
@@ -89,7 +94,9 @@ export const inferConnectedProviders = (
     settings.openAiAuthMode === "codex" ||
     settings.openAiSelectedModels.length > 0;
   const hasAnthropicConfig =
+    settings.anthropicAuthMode === "claudeProMax" ||
     settings.anthropicApiKey.trim().length > 0 ||
+    settings.anthropicRefreshToken.trim().length > 0 ||
     settings.anthropicSelectedModels.length > 0;
 
   if (hasOpenAiConfig) {

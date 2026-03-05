@@ -11,7 +11,11 @@ export const DEFAULT_PROVIDER: AiProvider = "openai";
 const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  anthropicAccessToken: "",
+  anthropicAccessTokenExpiresAt: null,
+  anthropicAuthMode: "apiKey",
   anthropicApiKey: "",
+  anthropicRefreshToken: "",
   anthropicSelectedModels: [],
   connectedProviders: [],
   defaultAnthropicModel: "",
@@ -73,7 +77,9 @@ export const getProviderAuthMode = (
   provider: AiProvider,
   settings: AppSettings,
 ): ProviderAuthMode => {
-  return provider === "openai" ? settings.openAiAuthMode : "apiKey";
+  return provider === "openai"
+    ? settings.openAiAuthMode
+    : settings.anthropicAuthMode;
 };
 
 export const getProviderCredential = (
@@ -86,7 +92,9 @@ export const getProviderCredential = (
     return mode === "apiKey" ? settings.openAiApiKey : "";
   }
 
-  return settings.anthropicApiKey;
+  return mode === "apiKey"
+    ? settings.anthropicApiKey
+    : settings.anthropicAccessToken;
 };
 
 export const getDefaultModelForProvider = (

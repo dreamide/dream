@@ -1,5 +1,5 @@
 import { ArrowLeft, Boxes, Plug, Terminal, X } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -82,7 +82,12 @@ export const SettingsDialog = () => {
     settings.openAiAuthMode === "codex"
       ? codexLoginStatus.loggedIn
       : settings.openAiApiKey.trim().length > 0;
-  const canConnectAnthropic = settings.anthropicApiKey.trim().length > 0;
+  const isAnthropicProMaxMode = settings.anthropicAuthMode === "claudeProMax";
+  const hasAnthropicOauthSession =
+    settings.anthropicRefreshToken.trim().length > 0;
+  const canConnectAnthropic = isAnthropicProMaxMode
+    ? hasAnthropicOauthSession
+    : settings.anthropicApiKey.trim().length > 0;
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
   const normalizedModelSearchQuery = modelSearchQuery.trim().toLowerCase();
@@ -103,6 +108,160 @@ export const SettingsDialog = () => {
       ),
     [connectedProviders],
   );
+  const [anthropicOauthCode, setAnthropicOauthCode] = useState("");
+  const [anthropicOauthError, setAnthropicOauthError] = useState<string | null>(
+    null,
+  );
+  const [anthropicOauthPending, setAnthropicOauthPending] = useState(false);
+  const [anthropicOauthUrl, setAnthropicOauthUrl] = useState("");
+  const [anthropicOauthVerifier, setAnthropicOauthVerifier] = useState("");
+
+  const refreshModels = (
+    next: Pick<
+      typeof settings,
+      | "anthropicAccessToken"
+      | "anthropicAccessTokenExpiresAt"
+      | "anthropicAuthMode"
+      | "anthropicApiKey"
+      | "anthropicRefreshToken"
+      | "openAiApiKey"
+      | "openAiAuthMode"
+    >,
+  ) => {
+    void refreshProviderModels({
+      anthropicAccessToken: next.anthropicAccessToken,
+      anthropicAccessTokenExpiresAt: next.anthropicAccessTokenExpiresAt,
+      anthropicAuthMode: next.anthropicAuthMode,
+      anthropicApiKey: next.anthropicApiKey,
+      anthropicRefreshToken: next.anthropicRefreshToken,
+      openAiApiKey: next.openAiApiKey,
+      openAiAuthMode: next.openAiAuthMode,
+    });
+  };
+
+  const beginAnthropicProMaxAuth = async (openLink: boolean) => {
+    setAnthropicOauthError(null);
+    setAnthropicOauthPending(true);
+
+    try {
+      const response = await fetch("/api/anthropic-oauth/authorize", {
+        body: JSON.stringify({ mode: "max" }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to create authorization link (${response.status}).`,
+        );
+      }
+
+      const payload = (await response.json()) as {
+        url?: string;
+        verifier?: string;
+      };
+
+      const nextUrl = payload.url?.trim() ?? "";
+      const nextVerifier = payload.verifier?.trim() ?? "";
+
+      if (!nextUrl || !nextVerifier) {
+        throw new Error(
+          "Authorization link response is missing required fields.",
+        );
+      }
+
+      setAnthropicOauthUrl(nextUrl);
+      setAnthropicOauthVerifier(nextVerifier);
+
+      if (openLink) {
+        openExternalUrl(nextUrl);
+      }
+    } catch (error) {
+      setAnthropicOauthError(
+        error instanceof Error
+          ? error.message
+          : "Unable to start Claude Pro/Max authorization.",
+      );
+    } finally {
+      setAnthropicOauthPending(false);
+    }
+  };
+
+  const submitAnthropicProMaxCode = async () => {
+    const code = anthropicOauthCode.trim();
+    const verifier = anthropicOauthVerifier.trim();
+
+    if (!code) {
+      setAnthropicOauthError("Authorization code is required.");
+      return;
+    }
+
+    if (!verifier) {
+      setAnthropicOauthError("Generate an authorization link first.");
+      return;
+    }
+
+    setAnthropicOauthError(null);
+    setAnthropicOauthPending(true);
+
+    try {
+      const response = await fetch("/api/anthropic-oauth/exchange", {
+        body: JSON.stringify({ code, verifier }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(
+          message || `Authorization failed (${response.status}).`,
+        );
+      }
+
+      const payload = (await response.json()) as {
+        accessToken?: string;
+        expiresAt?: number;
+        refreshToken?: string;
+      };
+
+      const accessToken = payload.accessToken?.trim() ?? "";
+      const refreshToken = payload.refreshToken?.trim() ?? "";
+      const expiresAt =
+        typeof payload.expiresAt === "number" ? payload.expiresAt : null;
+
+      if (!accessToken || !refreshToken || !expiresAt) {
+        throw new Error("Authorization response is missing token fields.");
+      }
+
+      setSettings((previous) => ({
+        ...previous,
+        anthropicAccessToken: accessToken,
+        anthropicAccessTokenExpiresAt: expiresAt,
+        anthropicApiKey: "",
+        anthropicAuthMode: "claudeProMax",
+        anthropicRefreshToken: refreshToken,
+      }));
+
+      refreshModels({
+        anthropicAccessToken: accessToken,
+        anthropicAccessTokenExpiresAt: expiresAt,
+        anthropicApiKey: "",
+        anthropicAuthMode: "claudeProMax",
+        anthropicRefreshToken: refreshToken,
+        openAiApiKey: settings.openAiApiKey,
+        openAiAuthMode: settings.openAiAuthMode,
+      });
+
+      submitProviderSetup("anthropic");
+      setAnthropicOauthCode("");
+    } catch (error) {
+      setAnthropicOauthError(
+        error instanceof Error ? error.message : "Invalid authorization code.",
+      );
+    } finally {
+      setAnthropicOauthPending(false);
+    }
+  };
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
       <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px] [&_[data-slot=dialog-close]]:right-4 [&_[data-slot=dialog-close]]:top-3.5">
@@ -224,8 +383,15 @@ export const SettingsDialog = () => {
                                 },
                               }));
 
-                              void refreshProviderModels({
+                              refreshModels({
+                                anthropicAccessToken:
+                                  settings.anthropicAccessToken,
+                                anthropicAccessTokenExpiresAt:
+                                  settings.anthropicAccessTokenExpiresAt,
+                                anthropicAuthMode: settings.anthropicAuthMode,
                                 anthropicApiKey: settings.anthropicApiKey,
+                                anthropicRefreshToken:
+                                  settings.anthropicRefreshToken,
                                 openAiApiKey: settings.openAiApiKey,
                                 openAiAuthMode: nextMode,
                               });
@@ -360,7 +526,9 @@ export const SettingsDialog = () => {
                       <div className="mx-auto max-w-3xl space-y-5">
                         <div className="space-y-2">
                           <h3 className="font-semibold text-2xl">
-                            Connect Anthropic
+                            {settings.anthropicAuthMode === "claudeProMax"
+                              ? "Login with Claude Pro/Max"
+                              : "Connect Anthropic"}
                           </h3>
                           <p className="text-muted-foreground">
                             Anthropic gives you access to Claude models for
@@ -369,56 +537,238 @@ export const SettingsDialog = () => {
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label htmlFor="anthropic-key">
-                            Anthropic API Key
+                          <Label htmlFor="anthropic-auth-mode">
+                            Authentication Method
                           </Label>
-                          <Input
-                            id="anthropic-key"
-                            onChange={(event) =>
+                          <Select
+                            onValueChange={(value) => {
+                              const nextMode = value as
+                                | "apiKey"
+                                | "claudeProMax";
+                              const nextAnthropicSettings = {
+                                anthropicAccessToken:
+                                  nextMode === "claudeProMax"
+                                    ? settings.anthropicAccessToken
+                                    : "",
+                                anthropicAccessTokenExpiresAt:
+                                  nextMode === "claudeProMax"
+                                    ? settings.anthropicAccessTokenExpiresAt
+                                    : null,
+                                anthropicApiKey:
+                                  nextMode === "apiKey"
+                                    ? settings.anthropicApiKey
+                                    : "",
+                                anthropicAuthMode: nextMode,
+                                anthropicRefreshToken:
+                                  nextMode === "claudeProMax"
+                                    ? settings.anthropicRefreshToken
+                                    : "",
+                              } as const;
+
+                              setAnthropicOauthError(null);
+
                               setSettings((previous) => ({
                                 ...previous,
-                                anthropicApiKey: event.currentTarget.value,
-                              }))
-                            }
-                            placeholder="sk-ant-..."
-                            type="password"
-                            value={settings.anthropicApiKey}
-                          />
-                        </div>
+                                ...nextAnthropicSettings,
+                                anthropicSelectedModels: [],
+                                defaultAnthropicModel: "",
+                              }));
 
-                        {providerModels.anthropic.error ? (
-                          <p className="text-amber-700 text-sm">
-                            {providerModels.anthropic.error}
-                          </p>
-                        ) : null}
+                              setProviderModels((previous) => ({
+                                ...previous,
+                                anthropic: {
+                                  ...previous.anthropic,
+                                  error: null,
+                                  models: [],
+                                  source: "unavailable",
+                                },
+                              }));
 
-                        {!canConnectAnthropic ? (
-                          <p className="text-muted-foreground text-sm">
-                            Add an Anthropic API key before connecting.
-                          </p>
-                        ) : null}
+                              refreshModels({
+                                ...nextAnthropicSettings,
+                                openAiApiKey: settings.openAiApiKey,
+                                openAiAuthMode: settings.openAiAuthMode,
+                              });
 
-                        <div className="flex items-center gap-2 pt-1">
-                          <Button
-                            disabled={!canConnectAnthropic}
-                            onClick={() => submitProviderSetup("anthropic")}
-                            type="button"
+                              if (
+                                nextMode === "claudeProMax" &&
+                                settings.anthropicRefreshToken.trim().length ===
+                                  0 &&
+                                anthropicOauthVerifier.trim().length === 0
+                              ) {
+                                void beginAnthropicProMaxAuth(true);
+                              }
+                            }}
+                            value={settings.anthropicAuthMode}
                           >
-                            {isAnthropicConnected ? "Save" : "Connect"}
-                          </Button>
-                          {isAnthropicConnected ? (
-                            <Button
-                              onClick={() => {
-                                disconnectProvider("anthropic");
-                                setProviderSetupTarget(null);
-                              }}
-                              type="button"
-                              variant="ghost"
+                            <SelectTrigger
+                              className="w-full sm:w-[320px]"
+                              id="anthropic-auth-mode"
                             >
-                              Disconnect
-                            </Button>
-                          ) : null}
+                              <SelectValue placeholder="Select method" />
+                            </SelectTrigger>
+                            <SelectContent className="w-auto min-w-[320px]">
+                              <SelectItem value="apiKey">API Key</SelectItem>
+                              <SelectItem value="claudeProMax">
+                                Claude Pro/Max Subscription
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
+
+                        {settings.anthropicAuthMode === "apiKey" ? (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="anthropic-key">
+                                Anthropic API Key
+                              </Label>
+                              <Input
+                                id="anthropic-key"
+                                onChange={(event) =>
+                                  setSettings((previous) => ({
+                                    ...previous,
+                                    anthropicApiKey: event.currentTarget.value,
+                                  }))
+                                }
+                                placeholder="sk-ant-..."
+                                type="password"
+                                value={settings.anthropicApiKey}
+                              />
+                            </div>
+
+                            {providerModels.anthropic.error ? (
+                              <p className="text-amber-700 text-sm">
+                                {providerModels.anthropic.error}
+                              </p>
+                            ) : null}
+
+                            {!canConnectAnthropic ? (
+                              <p className="text-muted-foreground text-sm">
+                                Add an Anthropic API key before connecting.
+                              </p>
+                            ) : null}
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                disabled={!canConnectAnthropic}
+                                onClick={() => submitProviderSetup("anthropic")}
+                                type="button"
+                              >
+                                {isAnthropicConnected ? "Save" : "Connect"}
+                              </Button>
+                              {isAnthropicConnected ? (
+                                <Button
+                                  onClick={() => {
+                                    disconnectProvider("anthropic");
+                                    setProviderSetupTarget(null);
+                                  }}
+                                  type="button"
+                                  variant="ghost"
+                                >
+                                  Disconnect
+                                </Button>
+                              ) : null}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-muted-foreground">
+                              Visit{" "}
+                              {anthropicOauthUrl ? (
+                                <button
+                                  className="font-medium text-foreground underline"
+                                  onClick={() =>
+                                    openExternalUrl(anthropicOauthUrl)
+                                  }
+                                  type="button"
+                                >
+                                  this link
+                                </button>
+                              ) : (
+                                <span className="font-medium text-foreground">
+                                  this link
+                                </span>
+                              )}{" "}
+                              to collect your authorization code to connect your
+                              account and use Anthropic models.
+                            </p>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                disabled={anthropicOauthPending}
+                                onClick={() =>
+                                  void beginAnthropicProMaxAuth(true)
+                                }
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                              >
+                                {anthropicOauthUrl
+                                  ? "Open authorization link"
+                                  : "Generate authorization link"}
+                              </Button>
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label htmlFor="anthropic-pro-max-code">
+                                Claude Pro/Max authorization code
+                              </Label>
+                              <Input
+                                id="anthropic-pro-max-code"
+                                onChange={(event) =>
+                                  setAnthropicOauthCode(
+                                    event.currentTarget.value,
+                                  )
+                                }
+                                placeholder="Paste authorization code"
+                                value={anthropicOauthCode}
+                              />
+                            </div>
+
+                            {anthropicOauthError ? (
+                              <p className="text-amber-700 text-sm">
+                                {anthropicOauthError}
+                              </p>
+                            ) : null}
+                            {providerModels.anthropic.error ? (
+                              <p className="text-amber-700 text-sm">
+                                {providerModels.anthropic.error}
+                              </p>
+                            ) : null}
+                            {hasAnthropicOauthSession ? (
+                              <p className="text-emerald-700 text-sm">
+                                Claude Pro/Max subscription is connected.
+                              </p>
+                            ) : null}
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                disabled={
+                                  anthropicOauthPending ||
+                                  anthropicOauthCode.trim().length === 0
+                                }
+                                onClick={() => void submitAnthropicProMaxCode()}
+                                type="button"
+                              >
+                                {anthropicOauthPending
+                                  ? "Submitting..."
+                                  : "Submit"}
+                              </Button>
+                              {isAnthropicConnected ? (
+                                <Button
+                                  onClick={() => {
+                                    disconnectProvider("anthropic");
+                                    setProviderSetupTarget(null);
+                                  }}
+                                  type="button"
+                                  variant="ghost"
+                                >
+                                  Disconnect
+                                </Button>
+                              ) : null}
+                            </div>
+                          </>
+                        )}
                       </div>
                     ) : null}
                   </div>
