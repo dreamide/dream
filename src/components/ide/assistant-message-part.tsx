@@ -7,8 +7,10 @@ import {
   Wrench,
   XCircle,
 } from "lucide-react";
+import { useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { stringifyPart } from "./ide-state";
 
@@ -250,6 +252,7 @@ const renderWriteFileOutput = (output: unknown) => {
 };
 
 const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
+  const [showRawJson, setShowRawJson] = useState(false);
   const toolName = getToolName(part);
   const output = part.output;
   const input = part.input;
@@ -287,31 +290,53 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
             {formatToolName(toolName)}
           </p>
         </div>
-        <ToolStatusBadge state={part.state} />
+        <div className="flex items-center gap-2">
+          <ToolStatusBadge state={part.state} />
+          <Button
+            className="h-7 px-2 text-xs"
+            onClick={() => setShowRawJson((value) => !value)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {showRawJson ? "Hide JSON" : "JSON"}
+          </Button>
+        </div>
       </header>
 
       <div className="space-y-3 p-3">
-        {isRecord(input) ? (
+        {showRawJson ? (
           <div className="space-y-1.5">
             <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-              Input
+              Raw JSON
             </p>
-            <JsonBlock value={input} />
+            <JsonBlock value={part} />
           </div>
-        ) : null}
+        ) : (
+          <>
+            {isRecord(input) ? (
+              <div className="space-y-1.5">
+                <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                  Input
+                </p>
+                <JsonBlock value={input} />
+              </div>
+            ) : null}
 
-        <div className="space-y-1.5">
-          <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-            {hasError ? "Error" : "Output"}
-          </p>
-          {renderOutput()}
-        </div>
+            <div className="space-y-1.5">
+              <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                {hasError ? "Error" : "Output"}
+              </p>
+              {renderOutput()}
+            </div>
 
-        {isString(part.toolCallId) ? (
-          <p className="font-mono text-[11px] text-muted-foreground">
-            Call ID: {part.toolCallId}
-          </p>
-        ) : null}
+            {isString(part.toolCallId) ? (
+              <p className="font-mono text-[11px] text-muted-foreground">
+                Call ID: {part.toolCallId}
+              </p>
+            ) : null}
+          </>
+        )}
       </div>
     </section>
   );
