@@ -577,7 +577,7 @@ export const IdeShell = () => {
 
             {middleVisible && rightVisible ? (
               <ResizeHandle
-                className="w-3.5 cursor-col-resize"
+                className="w-px cursor-col-resize"
                 id="ide-middle-handle"
               />
             ) : null}
@@ -590,7 +590,7 @@ export const IdeShell = () => {
                 maxSize={middleVisible ? "60%" : "100%"}
                 minSize={middleVisible ? "10%" : leftVisible ? "10%" : "100%"}
               >
-                <div className="h-full pt-2 pr-3 pb-3 pl-2">
+                <div className="h-full pt-2 pr-3 pb-3 pl-0">
                   <div className="h-full overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
                     <PreviewPanel
                       onSyncPreviewBounds={syncPreviewBounds}
