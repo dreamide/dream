@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k -n NEXT,ELECTRON -c cyan,magenta \"pnpm dev:next\" \"pnpm dev:electron\"",
+    "dev": "pnpm dev:electron",
     "dev:next": "cross-env BROWSER=none next dev --webpack --hostname 127.0.0.1 --port 3210",
-    "dev:electron": "node scripts/wait-for-next-dev.mjs 3210 && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true ELECTRON_RENDERER_URL=http://127.0.0.1:3210 electron electron/main.js",
+    "dev:electron": "cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron electron/main.js",
     "build": "next build",
     "start": "cross-env NODE_ENV=production electron electron/main.js",
     "dist": "pnpm build && electron-builder",
