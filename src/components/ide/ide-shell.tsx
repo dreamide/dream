@@ -274,15 +274,11 @@ export const IdeShell = () => {
   const syncPreviewBounds = useCallback(() => {
     const desktopApi = getDesktopApi();
     const project = useIdeStore.getState().getActiveProject();
-    const rs = useIdeStore.getState().runnerStatus;
     const pv = useIdeStore.getState().panelVisibility;
-    const activeProjectRunnerStatus = project
-      ? (rs[project.id] ?? "stopped")
-      : "stopped";
 
     if (!desktopApi) return;
 
-    if (!project || !pv.right || activeProjectRunnerStatus !== "running") {
+    if (!project || !pv.right) {
       desktopApi.updatePreview({ visible: false });
       return;
     }
