@@ -59,8 +59,8 @@ const store = new Store({
 });
 
 let mainWindow = null;
-let previewView = null;
-let previewAttached = false;
+let activePreviewProjectId = null;
+const previewSessions = new Map();
 
 let rendererUrl = developmentRendererUrl;
 let nextDevProcess = null;
@@ -74,9 +74,7 @@ const terminalShells = new Map();
 
 const previewState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
-  currentLoadedUrl: "about:blank",
-  currentRequestedUrl: "about:blank",
-  loadingRequestedUrl: null,
+  projectId: null,
   visible: false,
   url: "about:blank",
 };
@@ -295,74 +293,127 @@ async function configureRendererProxy(webContents) {
   }
 }
 
-function ensurePreviewView() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
+function createPreviewSession(projectId) {
+  const view = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+
+  view.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  view.webContents.on("did-fail-load", (_event, code, description) => {
+    if (previewState.projectId !== projectId) {
+      return;
+    }
+
+    sendToRenderer("preview:error", {
+      code,
+      description,
+    });
+  });
+
+  return {
+    attached: false,
+    currentLoadedUrl: "about:blank",
+    currentRequestedUrl: "about:blank",
+    loadRequestId: 0,
+    loadingRequestedUrl: null,
+    projectId,
+    view,
+  };
+}
+
+function getPreviewSession(projectId) {
+  const normalizedProjectId =
+    typeof projectId === "string" ? projectId.trim() : "";
+  if (!normalizedProjectId) {
     return null;
   }
 
-  if (!previewView) {
-    previewView = new WebContentsView({
-      webPreferences: {
-        contextIsolation: true,
-        sandbox: true,
-      },
-    });
-
-    previewView.webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url);
-      return { action: "deny" };
-    });
-
-    previewView.webContents.on("did-fail-load", (_event, code, description) => {
-      sendToRenderer("preview:error", {
-        code,
-        description,
-      });
-    });
+  const existing = previewSessions.get(normalizedProjectId);
+  if (existing) {
+    return existing;
   }
 
-  return previewView;
+  const created = createPreviewSession(normalizedProjectId);
+  previewSessions.set(normalizedProjectId, created);
+  return created;
 }
 
-function attachPreviewIfNeeded() {
-  const view = ensurePreviewView();
-  if (!mainWindow || !view) {
+function attachPreviewSession(session) {
+  if (!mainWindow || mainWindow.isDestroyed() || !session) {
     return;
   }
 
-  if (!previewAttached) {
-    mainWindow.contentView.addChildView(view);
-    previewAttached = true;
-  }
-}
-
-function detachPreviewIfNeeded() {
-  if (!mainWindow || !previewView || !previewAttached) {
+  if (session.attached) {
     return;
   }
 
-  mainWindow.contentView.removeChildView(previewView);
-  previewAttached = false;
+  mainWindow.contentView.addChildView(session.view);
+  session.attached = true;
+}
+
+function detachPreviewSession(session) {
+  if (!mainWindow || mainWindow.isDestroyed() || !session || !session.attached) {
+    return;
+  }
+
+  mainWindow.contentView.removeChildView(session.view);
+  session.attached = false;
+}
+
+function detachAllPreviewSessions() {
+  for (const session of previewSessions.values()) {
+    detachPreviewSession(session);
+  }
 }
 
 function applyPreviewState() {
-  const view = ensurePreviewView();
-  if (!mainWindow || !view) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
-  const { bounds, url, visible } = previewState;
+  const { bounds, projectId, url, visible } = previewState;
   const canRender =
-    visible && bounds.width > 0 && bounds.height > 0 && isHttpUrl(url);
+    visible &&
+    typeof projectId === "string" &&
+    projectId.trim().length > 0 &&
+    bounds.width > 0 &&
+    bounds.height > 0 &&
+    isHttpUrl(url);
 
   if (!canRender) {
-    detachPreviewIfNeeded();
+    if (activePreviewProjectId) {
+      const activeSession = previewSessions.get(activePreviewProjectId);
+      if (activeSession) {
+        detachPreviewSession(activeSession);
+      }
+    }
+    activePreviewProjectId = null;
     return;
   }
 
-  attachPreviewIfNeeded();
+  const nextSession = getPreviewSession(projectId);
+  if (!nextSession) {
+    return;
+  }
 
-  view.setBounds({
+  if (activePreviewProjectId && activePreviewProjectId !== nextSession.projectId) {
+    const previousSession = previewSessions.get(activePreviewProjectId);
+    if (previousSession) {
+      detachPreviewSession(previousSession);
+    }
+  }
+
+  activePreviewProjectId = nextSession.projectId;
+  attachPreviewSession(nextSession);
+
+  nextSession.view.setBounds({
     height: Math.round(bounds.height),
     width: Math.round(bounds.width),
     x: Math.round(bounds.x),
@@ -370,48 +421,75 @@ function applyPreviewState() {
   });
 
   if (
-    previewState.currentRequestedUrl !== url &&
-    previewState.loadingRequestedUrl !== url
+    nextSession.currentRequestedUrl === url ||
+    nextSession.loadingRequestedUrl === url
   ) {
-    previewState.loadingRequestedUrl = url;
-    const candidates = getPreviewLoadCandidates(url);
+    return;
+  }
 
-    const loadCandidate = async (index = 0) => {
-      const candidate = candidates[index];
-      if (!candidate) {
-        previewState.loadingRequestedUrl = null;
-        previewState.currentRequestedUrl = "about:blank";
-        previewState.currentLoadedUrl = "about:blank";
+  nextSession.currentRequestedUrl = url;
+  nextSession.loadingRequestedUrl = url;
+  const requestId = ++nextSession.loadRequestId;
+  const candidates = getPreviewLoadCandidates(url);
+
+  const loadCandidate = async (index = 0) => {
+    if (requestId !== nextSession.loadRequestId) {
+      return;
+    }
+
+    const candidate = candidates[index];
+    if (!candidate) {
+      if (requestId !== nextSession.loadRequestId) {
+        return;
+      }
+
+      nextSession.loadingRequestedUrl = null;
+      nextSession.currentRequestedUrl = "about:blank";
+      nextSession.currentLoadedUrl = "about:blank";
+
+      if (previewState.projectId === nextSession.projectId) {
         sendToRenderer("preview:error", {
           code: "LOAD_URL_FAILED",
           description: "Failed to load preview URL.",
         });
+      }
+
+      return;
+    }
+
+    try {
+      await nextSession.view.webContents.loadURL(candidate);
+
+      if (requestId !== nextSession.loadRequestId) {
         return;
       }
 
-      try {
-        await view.webContents.loadURL(candidate);
-        previewState.loadingRequestedUrl = null;
-        previewState.currentRequestedUrl = url;
-        previewState.currentLoadedUrl = candidate;
-      } catch (error) {
-        if (index + 1 < candidates.length) {
-          await loadCandidate(index + 1);
-          return;
-        }
+      nextSession.loadingRequestedUrl = null;
+      nextSession.currentLoadedUrl = candidate;
+    } catch (error) {
+      if (requestId !== nextSession.loadRequestId) {
+        return;
+      }
 
-        previewState.loadingRequestedUrl = null;
-        previewState.currentRequestedUrl = "about:blank";
-        previewState.currentLoadedUrl = "about:blank";
+      if (index + 1 < candidates.length) {
+        await loadCandidate(index + 1);
+        return;
+      }
+
+      nextSession.loadingRequestedUrl = null;
+      nextSession.currentRequestedUrl = "about:blank";
+      nextSession.currentLoadedUrl = "about:blank";
+
+      if (previewState.projectId === nextSession.projectId) {
         sendToRenderer("preview:error", {
           code: "LOAD_URL_FAILED",
           description: error instanceof Error ? error.message : "Unknown error",
         });
       }
-    };
+    }
+  };
 
-    void loadCandidate();
-  }
+  void loadCandidate();
 }
 
 function stopChildProcess(child) {
@@ -641,8 +719,10 @@ async function createMainWindow() {
   });
 
   mainWindow.on("closed", () => {
+    detachAllPreviewSessions();
+    activePreviewProjectId = null;
+    previewState.projectId = null;
     mainWindow = null;
-    detachPreviewIfNeeded();
   });
 
   await configureRendererProxy(mainWindow.webContents);
@@ -1034,6 +1114,10 @@ ipcMain.handle("terminal:stop", (_event, { projectId }) => {
 ipcMain.on("preview:update", (_event, payload) => {
   if (!payload || typeof payload !== "object") {
     return;
+  }
+
+  if (typeof payload.projectId === "string" && payload.projectId.trim().length > 0) {
+    previewState.projectId = payload.projectId.trim();
   }
 
   const nextBounds = payload.bounds;
