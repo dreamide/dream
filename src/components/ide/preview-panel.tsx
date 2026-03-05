@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  Logs,
-  Play,
-  RefreshCcw,
-  Square,
-  X,
-} from "lucide-react";
+import { AlertCircle, Logs, Play, RefreshCcw, Square, X } from "lucide-react";
 import type { RefObject } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
@@ -42,7 +35,7 @@ export const PreviewPanel = ({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b px-3 py-2">
+      <div className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <Button
             className="h-8"
@@ -129,7 +122,7 @@ export const PreviewPanel = ({
           id="ide-preview"
           minSize={30}
         >
-          <div className="relative h-full bg-muted/20">
+          <div className="relative h-full">
             <div className="absolute inset-0" ref={previewHostRef} />
             {!activeProject || activeRunnerStatus !== "running" ? (
               <div className="absolute inset-0 p-3">
@@ -143,7 +136,7 @@ export const PreviewPanel = ({
               </div>
             ) : null}
             {previewError ? (
-              <div className="absolute right-3 bottom-3 left-3 rounded-md border border-destructive/40 bg-background/95 p-2 text-destructive text-xs">
+              <div className="absolute right-3 bottom-3 left-3 rounded-md p-2 text-destructive text-xs shadow-sm">
                 <div className="mb-1 flex items-center gap-1.5">
                   <AlertCircle className="size-3.5" />
                   Preview error

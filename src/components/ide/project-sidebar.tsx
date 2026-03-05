@@ -11,11 +11,11 @@ export const ProjectSidebar = () => {
   const closeProject = useIdeStore((s) => s.closeProject);
 
   return (
-    <div className="flex h-full flex-col border-r bg-muted/25 p-2">
+    <div className="flex h-full flex-col p-2">
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-1 pr-2">
           {projects.length === 0 ? (
-            <p className="rounded-md border border-dashed p-3 text-muted-foreground text-xs">
+            <p className="rounded-md p-3 text-muted-foreground text-xs">
               Add a folder to start working on multiple projects in one
               workspace.
             </p>
@@ -28,8 +28,8 @@ export const ProjectSidebar = () => {
                   className={cn(
                     "group relative rounded-md border transition-colors",
                     isActive
-                      ? "border-primary/40 bg-primary/10"
-                      : "border-transparent hover:border-border hover:bg-muted",
+                      ? "border-primary/60 bg-primary/15"
+                      : "border-transparent bg-muted/10 hover:bg-muted/20",
                   )}
                   key={project.id}
                 >
@@ -42,7 +42,14 @@ export const ProjectSidebar = () => {
                       <p className="truncate font-medium text-sm">
                         {project.name}
                       </p>
-                      <p className="truncate text-muted-foreground text-xs">
+                      <p
+                        className={cn(
+                          "truncate text-xs",
+                          isActive
+                            ? "text-foreground/80"
+                            : "text-muted-foreground",
+                        )}
+                      >
                         {project.path}
                       </p>
                     </div>
@@ -54,7 +61,7 @@ export const ProjectSidebar = () => {
                   <div className="absolute top-2 right-2">
                     <button
                       aria-label={`Close ${project.name}`}
-                      className="rounded p-0.5 opacity-30 transition-opacity hover:bg-muted hover:opacity-100"
+                      className="rounded p-0.5 opacity-30 transition-opacity hover:opacity-100"
                       onClick={(event) => {
                         event.stopPropagation();
                         closeProject(project.id);
