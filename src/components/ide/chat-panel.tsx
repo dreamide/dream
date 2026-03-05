@@ -210,9 +210,9 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   }, [messages]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       <Conversation className="min-h-0 flex-1">
-        <ConversationContent className="gap-4 p-3">
+        <ConversationContent className="gap-4 p-3 pb-56">
           {messages.length === 0 ? (
             <ConversationEmptyState
               description="Ask the assistant to inspect, edit, or create files in the active project."
@@ -222,12 +222,12 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
             messageContent
           )}
         </ConversationContent>
-        <ConversationScrollButton />
+        <ConversationScrollButton className="bottom-56" />
       </Conversation>
 
-      <div className="p-3">
+      <div className="pointer-events-none absolute right-0 bottom-0 left-0 p-3">
         <PromptInput
-          className="w-full rounded-2xl bg-muted/35 px-2 pt-2 pb-1"
+          className="pointer-events-auto w-full rounded-2xl border border-foreground/15 bg-background/70 px-2 pt-2 pb-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-2xl [&_[data-slot=input-group]]:!border-transparent [&_[data-slot=input-group]]:!ring-0 [&_[data-slot=input-group]]:!shadow-none [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:!border-transparent [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:!ring-0"
           onSubmit={handleSubmit}
         >
           <PromptInputBody>
@@ -325,7 +325,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
           </PromptInputFooter>
         </PromptInput>
 
-        <div className="mt-2 flex items-center gap-2">
+        <div className="pointer-events-auto mt-2 flex items-center gap-2">
           {!isProviderConnected ? (
             <Badge variant="destructive">No provider connected</Badge>
           ) : !providerCredential && !usesCodexLogin ? (
@@ -336,7 +336,9 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         </div>
 
         {localError ? (
-          <p className="mt-2 text-destructive text-xs">{localError}</p>
+          <p className="pointer-events-auto mt-2 text-destructive text-xs">
+            {localError}
+          </p>
         ) : null}
       </div>
     </div>
