@@ -149,7 +149,7 @@ export const PreviewPanel = ({
 
         {outputPanelOpen ? (
           <>
-            <ResizeHandle className="h-1" id="ide-output-handle" />
+            <ResizeHandle className="h-2 cursor-row-resize" id="ide-output-handle" />
             <Panel
               defaultSize={26}
               id="ide-output"
