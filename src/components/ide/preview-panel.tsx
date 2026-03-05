@@ -1,5 +1,6 @@
 import { AlertCircle, Logs, Play, RefreshCcw, Square, X } from "lucide-react";
 import type { RefObject } from "react";
+import { useEffect, useRef } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ export const PreviewPanel = ({
   onSyncPreviewBounds,
   previewHostRef,
 }: PreviewPanelProps) => {
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const runnerStatus = useIdeStore((s) => s.runnerStatus);
   const runLogs = useIdeStore((s) => s.runLogs);
@@ -32,6 +34,22 @@ export const PreviewPanel = ({
     ? (runnerStatus[activeProject.id] ?? "stopped")
     : "stopped";
   const runLog = activeProject ? (runLogs[activeProject.id] ?? "") : "";
+
+  useEffect(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+
+    const sync = () => onSyncPreviewBounds();
+    const observer = new ResizeObserver(sync);
+    observer.observe(container);
+
+    const frame = window.requestAnimationFrame(sync);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [onSyncPreviewBounds]);
 
   return (
     <div className="flex h-full flex-col">
@@ -122,7 +140,7 @@ export const PreviewPanel = ({
           id="ide-preview"
           minSize={30}
         >
-          <div className="relative h-full">
+          <div className="relative h-full" ref={previewContainerRef}>
             <div className="absolute inset-0" ref={previewHostRef} />
             {!activeProject ? (
               <div className="absolute inset-0 p-3">

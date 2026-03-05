@@ -75,7 +75,8 @@ const terminalShells = new Map();
 const previewState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
   currentLoadedUrl: "about:blank",
-  loadingUrl: null,
+  currentRequestedUrl: "about:blank",
+  loadingRequestedUrl: null,
   visible: false,
   url: "about:blank",
 };
@@ -94,23 +95,36 @@ function isHttpUrl(value) {
   return /^https?:\/\//i.test(value.trim());
 }
 
-function normalizePreviewUrl(value) {
-  const raw = typeof value === "string" ? value.trim() : "";
-  if (!raw) {
-    return raw;
-  }
-
+function getAlternateLoopbackUrl(value) {
   try {
-    const url = new URL(raw);
-    if (url.hostname.toLowerCase() === "localhost") {
-      url.hostname = "127.0.0.1";
-      return url.toString();
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+
+    if (host === "localhost") {
+      parsed.hostname = "127.0.0.1";
+      return parsed.toString();
+    }
+
+    if (host === "127.0.0.1") {
+      parsed.hostname = "localhost";
+      return parsed.toString();
     }
   } catch {
-    // Ignore parse failures and return raw string.
+    // ignore parse failures
   }
 
-  return raw;
+  return null;
+}
+
+function getPreviewLoadCandidates(value) {
+  const primary = value.trim();
+  const alternate = getAlternateLoopbackUrl(primary);
+
+  if (!alternate || alternate === primary) {
+    return [primary];
+  }
+
+  return [primary, alternate];
 }
 
 function getUrlOrigin(value) {
@@ -355,21 +369,48 @@ function applyPreviewState() {
     y: Math.round(bounds.y),
   });
 
-  if (previewState.currentLoadedUrl !== url && previewState.loadingUrl !== url) {
-    previewState.loadingUrl = url;
-    view.webContents.loadURL(url).catch((error) => {
-      previewState.loadingUrl = null;
-      previewState.currentLoadedUrl = "about:blank";
-      sendToRenderer("preview:error", {
-        code: "LOAD_URL_FAILED",
-        description: error instanceof Error ? error.message : "Unknown error",
-      });
-    });
+  if (
+    previewState.currentRequestedUrl !== url &&
+    previewState.loadingRequestedUrl !== url
+  ) {
+    previewState.loadingRequestedUrl = url;
+    const candidates = getPreviewLoadCandidates(url);
 
-    view.webContents.once("did-finish-load", () => {
-      previewState.loadingUrl = null;
-      previewState.currentLoadedUrl = url;
-    });
+    const loadCandidate = async (index = 0) => {
+      const candidate = candidates[index];
+      if (!candidate) {
+        previewState.loadingRequestedUrl = null;
+        previewState.currentRequestedUrl = "about:blank";
+        previewState.currentLoadedUrl = "about:blank";
+        sendToRenderer("preview:error", {
+          code: "LOAD_URL_FAILED",
+          description: "Failed to load preview URL.",
+        });
+        return;
+      }
+
+      try {
+        await view.webContents.loadURL(candidate);
+        previewState.loadingRequestedUrl = null;
+        previewState.currentRequestedUrl = url;
+        previewState.currentLoadedUrl = candidate;
+      } catch (error) {
+        if (index + 1 < candidates.length) {
+          await loadCandidate(index + 1);
+          return;
+        }
+
+        previewState.loadingRequestedUrl = null;
+        previewState.currentRequestedUrl = "about:blank";
+        previewState.currentLoadedUrl = "about:blank";
+        sendToRenderer("preview:error", {
+          code: "LOAD_URL_FAILED",
+          description: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    };
+
+    void loadCandidate();
   }
 }
 
@@ -1010,7 +1051,7 @@ ipcMain.on("preview:update", (_event, payload) => {
   }
 
   if (typeof payload.url === "string" && payload.url.trim().length > 0) {
-    previewState.url = normalizePreviewUrl(payload.url);
+    previewState.url = payload.url.trim();
   }
 
   applyPreviewState();
