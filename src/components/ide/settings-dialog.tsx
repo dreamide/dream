@@ -1,6 +1,5 @@
-import { ArrowLeft, X } from "lucide-react";
+import { ArrowLeft, Boxes, Plug, Terminal, X } from "lucide-react";
 import { useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { getConnectedProviders, getModelsForProvider } from "@/lib/ide-defaults";
+import {
+  getConnectedProviders,
+  getModelsForProvider,
+} from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "./ide-store";
 import {
@@ -43,7 +45,6 @@ export const SettingsDialog = () => {
   const setProviderSetupTarget = useIdeStore((s) => s.setProviderSetupTarget);
   const setModelSearchQuery = useIdeStore((s) => s.setModelSearchQuery);
   const setProviderModels = useIdeStore((s) => s.setProviderModels);
-  const connectProvider = useIdeStore((s) => s.connectProvider);
   const disconnectProvider = useIdeStore((s) => s.disconnectProvider);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
   const openProviderSetup = useIdeStore((s) => s.openProviderSetup);
@@ -95,11 +96,18 @@ export const SettingsDialog = () => {
       normalizedModelSearchQuery.length === 0 ||
       model.toLowerCase().includes(normalizedModelSearchQuery),
   );
+  const popularProviders = useMemo(
+    () =>
+      ALL_PROVIDERS.filter(
+        (provider) => !connectedProviders.includes(provider),
+      ),
+    [connectedProviders],
+  );
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
-      <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
-        <DialogHeader className="border-b px-6 py-3 text-left">
-          <DialogTitle>Settings</DialogTitle>
+      <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px] [&_[data-slot=dialog-close]]:right-4 [&_[data-slot=dialog-close]]:top-3.5">
+        <DialogHeader className="border-b px-6 py-3.5 text-left">
+          <DialogTitle className="text-base leading-6">Settings</DialogTitle>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1">
@@ -115,7 +123,10 @@ export const SettingsDialog = () => {
                 onClick={() => setSettingsSection("providers")}
                 type="button"
               >
-                Providers
+                <span className="flex items-center gap-2">
+                  <Plug className="size-4" />
+                  Providers
+                </span>
               </button>
               <button
                 className={cn(
@@ -127,7 +138,10 @@ export const SettingsDialog = () => {
                 onClick={() => setSettingsSection("models")}
                 type="button"
               >
-                Models
+                <span className="flex items-center gap-2">
+                  <Boxes className="size-4" />
+                  Models
+                </span>
               </button>
               <button
                 className={cn(
@@ -139,7 +153,10 @@ export const SettingsDialog = () => {
                 onClick={() => setSettingsSection("terminal")}
                 type="button"
               >
-                Terminal
+                <span className="flex items-center gap-2">
+                  <Terminal className="size-4" />
+                  Terminal
+                </span>
               </button>
             </div>
           </nav>
@@ -148,7 +165,7 @@ export const SettingsDialog = () => {
             <div className="space-y-4 p-5">
               {settingsSection === "providers" ? (
                 providerSetupTarget ? (
-                  <div className="rounded-xl border bg-background p-5 sm:p-6">
+                  <div className="rounded-xl bg-background p-5 sm:p-6">
                     <div className="mb-6 flex items-center justify-between">
                       <Button
                         className="h-9 w-9"
@@ -224,9 +241,7 @@ export const SettingsDialog = () => {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="apiKey">API Key</SelectItem>
-                              <SelectItem value="codex">
-                                Codex Login
-                              </SelectItem>
+                              <SelectItem value="codex">Codex Login</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -409,17 +424,14 @@ export const SettingsDialog = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-2 rounded-lg border p-3">
+                    <div className="space-y-2 rounded-lg bg-muted/20 p-3">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">
                           Connected providers
                         </p>
-                        <Badge variant="outline">
-                          {connectedProviders.length}
-                        </Badge>
                       </div>
                       {connectedProviders.length === 0 ? (
-                        <p className="rounded-md border border-dashed px-3 py-2 text-muted-foreground text-xs">
+                        <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-xs">
                           Connect at least one provider before enabling models.
                         </p>
                       ) : (
@@ -428,7 +440,7 @@ export const SettingsDialog = () => {
                             connectedProviders.includes(provider),
                           ).map((provider) => (
                             <div
-                              className="flex items-center justify-between rounded-md border px-3 py-2"
+                              className="flex items-center justify-between rounded-md bg-background/80 px-3 py-2"
                               key={provider}
                             >
                               <div>
@@ -467,16 +479,17 @@ export const SettingsDialog = () => {
                       )}
                     </div>
 
-                    <div className="space-y-2 rounded-lg border p-3">
+                    <div className="space-y-2 rounded-lg bg-muted/20 p-3">
                       <p className="font-medium text-sm">Popular providers</p>
                       <div className="space-y-2">
-                        {ALL_PROVIDERS.map((provider) => {
-                          const isConnected =
-                            connectedProviders.includes(provider);
-
-                          return (
+                        {popularProviders.length === 0 ? (
+                          <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-xs">
+                            All available providers are already connected.
+                          </p>
+                        ) : (
+                          popularProviders.map((provider) => (
                             <div
-                              className="flex items-center justify-between rounded-md border px-3 py-2"
+                              className="flex items-center justify-between rounded-md bg-background/80 px-3 py-2"
                               key={provider}
                             >
                               <div className="pr-3">
@@ -492,13 +505,13 @@ export const SettingsDialog = () => {
                                 onClick={() => openProviderSetup(provider)}
                                 size="sm"
                                 type="button"
-                                variant={isConnected ? "outline" : "default"}
+                                variant="default"
                               >
-                                {isConnected ? "Manage" : "Connect"}
+                                Connect
                               </Button>
                             </div>
-                          );
-                        })}
+                          ))
+                        )}
                       </div>
                     </div>
                   </>
@@ -507,7 +520,7 @@ export const SettingsDialog = () => {
 
               {settingsSection === "models" ? (
                 <>
-                  <div className="rounded-lg border bg-muted/20 px-3 py-3">
+                  <div className="rounded-lg bg-muted/20 px-3 py-3">
                     <Input
                       onChange={(event) =>
                         setModelSearchQuery(event.currentTarget.value)
@@ -518,27 +531,22 @@ export const SettingsDialog = () => {
                   </div>
 
                   {connectedProviders.length === 0 ? (
-                    <p className="rounded-md border border-dashed px-3 py-2 text-muted-foreground text-xs">
+                    <p className="rounded-md bg-muted/20 px-3 py-2 text-muted-foreground text-xs">
                       Connect a provider first in the Providers section.
                     </p>
                   ) : null}
 
                   {connectedProviders.length > 0 && isOpenAiConnected ? (
-                    <div className="space-y-3 rounded-lg border p-3">
+                    <div className="space-y-3 rounded-lg bg-muted/20 p-4">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">OpenAI</p>
-                        <Badge variant="outline">
-                          {providerModels.openai.source === "api"
-                            ? "Live list"
-                            : "Unavailable"}
-                        </Badge>
                       </div>
                       <div className="space-y-1.5">
                         <Label>Enabled OpenAI Models</Label>
                         <p className="text-muted-foreground text-xs">
                           Only enabled models appear in project chat.
                         </p>
-                        <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-1.5">
+                        <div className="space-y-1.5 rounded-md p-1">
                           {availableOpenAiModels.length === 0 ? (
                             <p className="px-2 py-1.5 text-muted-foreground text-xs">
                               No live models available yet. Refresh after
@@ -555,8 +563,8 @@ export const SettingsDialog = () => {
                               return (
                                 <div
                                   className={cn(
-                                    "flex items-center justify-between rounded-md border px-2 py-1.5",
-                                    isSelected ? "border-primary/40" : "",
+                                    "flex min-h-10 items-center justify-between rounded-md bg-background/80 px-3 py-2",
+                                    isSelected ? "bg-primary/10" : "",
                                   )}
                                   key={model}
                                 >
@@ -609,21 +617,16 @@ export const SettingsDialog = () => {
                   ) : null}
 
                   {connectedProviders.length > 0 && isAnthropicConnected ? (
-                    <div className="space-y-3 rounded-lg border p-3">
+                    <div className="space-y-3 rounded-lg bg-muted/20 p-4">
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">Anthropic</p>
-                        <Badge variant="outline">
-                          {providerModels.anthropic.source === "api"
-                            ? "Live list"
-                            : "Unavailable"}
-                        </Badge>
                       </div>
                       <div className="space-y-1.5">
                         <Label>Enabled Anthropic Models</Label>
                         <p className="text-muted-foreground text-xs">
                           Only enabled models appear in project chat.
                         </p>
-                        <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border p-1.5">
+                        <div className="space-y-1.5 rounded-md p-1">
                           {availableAnthropicModels.length === 0 ? (
                             <p className="px-2 py-1.5 text-muted-foreground text-xs">
                               No live models available yet. Refresh after
@@ -641,8 +644,8 @@ export const SettingsDialog = () => {
                               return (
                                 <div
                                   className={cn(
-                                    "flex items-center justify-between rounded-md border px-2 py-1.5",
-                                    isSelected ? "border-primary/40" : "",
+                                    "flex min-h-10 items-center justify-between rounded-md bg-background/80 px-3 py-2",
+                                    isSelected ? "bg-primary/10" : "",
                                   )}
                                   key={model}
                                 >
