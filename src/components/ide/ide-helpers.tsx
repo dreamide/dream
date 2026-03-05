@@ -37,7 +37,7 @@ export const ToggleButton = ({
     className={cn(
       "size-8 [-webkit-app-region:no-drag]",
       active
-        ? "text-muted-foreground/80 hover:text-foreground"
+        ? "text-foreground hover:text-foreground"
         : "text-muted-foreground/50 hover:text-foreground",
     )}
     disabled={disabled}
