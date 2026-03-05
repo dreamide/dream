@@ -117,7 +117,7 @@ export const SettingsDialog = () => {
                 className={cn(
                   "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
                   settingsSection === "providers"
-                    ? "bg-primary/10 text-foreground"
+                    ? "bg-primary/5 text-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
                 onClick={() => setSettingsSection("providers")}
@@ -132,7 +132,7 @@ export const SettingsDialog = () => {
                 className={cn(
                   "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
                   settingsSection === "models"
-                    ? "bg-primary/10 text-foreground"
+                    ? "bg-primary/5 text-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
                 onClick={() => setSettingsSection("models")}
@@ -147,7 +147,7 @@ export const SettingsDialog = () => {
                 className={cn(
                   "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
                   settingsSection === "terminal"
-                    ? "bg-primary/10 text-foreground"
+                    ? "bg-primary/5 text-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
                 onClick={() => setSettingsSection("terminal")}
@@ -562,13 +562,17 @@ export const SettingsDialog = () => {
 
                               return (
                                 <div
-                                  className={cn(
-                                    "flex min-h-10 items-center justify-between rounded-md bg-background/80 px-3 py-2",
-                                    isSelected ? "bg-primary/10" : "",
-                                  )}
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/40"
                                   key={model}
                                 >
-                                  <Label className="truncate text-xs">
+                                  <Label
+                                    className={cn(
+                                      "truncate text-xs",
+                                      isSelected
+                                        ? "text-foreground"
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
                                     {model}
                                   </Label>
                                   <Switch
@@ -599,12 +603,13 @@ export const SettingsDialog = () => {
                           value={selectedDefaultOpenAiModel || undefined}
                         >
                           <SelectTrigger
+                            className="w-56 max-w-full"
                             disabled={openAiModels.length === 0}
                             id="openai-model"
                           >
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="min-w-56">
                             {openAiModels.map((model) => (
                               <SelectItem key={model} value={model}>
                                 {model}
@@ -643,13 +648,17 @@ export const SettingsDialog = () => {
 
                               return (
                                 <div
-                                  className={cn(
-                                    "flex min-h-10 items-center justify-between rounded-md bg-background/80 px-3 py-2",
-                                    isSelected ? "bg-primary/10" : "",
-                                  )}
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1 transition-colors hover:bg-muted/40"
                                   key={model}
                                 >
-                                  <Label className="truncate text-xs">
+                                  <Label
+                                    className={cn(
+                                      "truncate text-xs",
+                                      isSelected
+                                        ? "text-foreground"
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
                                     {model}
                                   </Label>
                                   <Switch
@@ -680,12 +689,13 @@ export const SettingsDialog = () => {
                           value={selectedDefaultAnthropicModel || undefined}
                         >
                           <SelectTrigger
+                            className="w-56 max-w-full"
                             disabled={anthropicModels.length === 0}
                             id="anthropic-model"
                           >
                             <SelectValue placeholder="Select model" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="min-w-56">
                             {anthropicModels.map((model) => (
                               <SelectItem key={model} value={model}>
                                 {model}
