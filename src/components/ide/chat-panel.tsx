@@ -275,7 +275,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       <Conversation className="min-h-0 flex-1" initial={false} key={project.id}>
-        <ConversationContent className="gap-4 p-3 pb-56">
+        <ConversationContent className="mx-auto w-full max-w-[800px] gap-4 p-3 pb-56">
           {messages.length === 0 ? (
             <ConversationEmptyState
               description="Ask the assistant to inspect, edit, or create files in the active project."
@@ -293,120 +293,122 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
       </Conversation>
 
       <div className="pointer-events-none absolute right-0 bottom-0 left-0 p-3">
-        <PromptInput
-          className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:shadow-[0_8px_24px_rgba(15,23,42,0.12)] [&_[data-slot=input-group]]:backdrop-blur-2xl"
-          onSubmit={handleSubmit}
-        >
-          <PromptInputBody>
-            <PromptInputTextarea
-              className="min-h-[104px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
-              placeholder={`Ask AI to update ${project.name}...`}
-            />
-          </PromptInputBody>
-          <PromptInputFooter className="items-center">
-            <PromptInputTools className="gap-1.5 overflow-x-auto">
-              <PromptInputActionMenu>
-                <PromptInputActionMenuTrigger tooltip="Attach file" />
-                <PromptInputActionMenuContent>
-                  <PromptInputActionAddAttachments />
-                </PromptInputActionMenuContent>
-              </PromptInputActionMenu>
+        <div className="mx-auto w-full max-w-[800px]">
+          <PromptInput
+            className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:shadow-[0_8px_24px_rgba(15,23,42,0.12)] [&_[data-slot=input-group]]:backdrop-blur-2xl"
+            onSubmit={handleSubmit}
+          >
+            <PromptInputBody>
+              <PromptInputTextarea
+                className="min-h-[104px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                placeholder={`Ask AI to update ${project.name}...`}
+              />
+            </PromptInputBody>
+            <PromptInputFooter className="items-center">
+              <PromptInputTools className="gap-1.5 overflow-x-auto">
+                <PromptInputActionMenu>
+                  <PromptInputActionMenuTrigger tooltip="Attach file" />
+                  <PromptInputActionMenuContent>
+                    <PromptInputActionAddAttachments />
+                  </PromptInputActionMenuContent>
+                </PromptInputActionMenu>
 
-              <PromptInputSelect
-                onValueChange={(value) => {
-                  if (typeof value !== "string") return;
-                  const matchingOptions = allModelOptions.filter(
-                    (option) => option.model === value,
-                  );
-                  const nextOption =
-                    matchingOptions.find(
-                      (option) => option.provider === project.provider,
-                    ) ?? matchingOptions[0];
-                  if (!nextOption) return;
+                <PromptInputSelect
+                  onValueChange={(value) => {
+                    if (typeof value !== "string") return;
+                    const matchingOptions = allModelOptions.filter(
+                      (option) => option.model === value,
+                    );
+                    const nextOption =
+                      matchingOptions.find(
+                        (option) => option.provider === project.provider,
+                      ) ?? matchingOptions[0];
+                    if (!nextOption) return;
 
-                  updateProject(project.id, (current) => ({
-                    ...current,
-                    model: nextOption.model,
-                    provider: nextOption.provider,
-                  }));
-                }}
-                value={selectedModelValue}
-              >
-                <PromptInputSelectTrigger
-                  className="h-8 min-w-[180px] max-w-[260px] px-2 text-xs"
-                  disabled={allModelOptions.length === 0}
+                    updateProject(project.id, (current) => ({
+                      ...current,
+                      model: nextOption.model,
+                      provider: nextOption.provider,
+                    }));
+                  }}
+                  value={selectedModelValue}
                 >
-                  <PromptInputSelectValue placeholder="Model" />
-                </PromptInputSelectTrigger>
-                <PromptInputSelectContent className="text-xs" side="top">
-                  {allModelOptions.map((option) => (
-                    <PromptInputSelectItem
-                      className="text-xs"
-                      key={`${option.provider}:${option.model}`}
-                      value={option.model}
-                    >
-                      {option.model}
-                    </PromptInputSelectItem>
-                  ))}
-                </PromptInputSelectContent>
-              </PromptInputSelect>
+                  <PromptInputSelectTrigger
+                    className="h-8 min-w-[180px] max-w-[260px] px-2 text-xs"
+                    disabled={allModelOptions.length === 0}
+                  >
+                    <PromptInputSelectValue placeholder="Model" />
+                  </PromptInputSelectTrigger>
+                  <PromptInputSelectContent className="text-xs" side="top">
+                    {allModelOptions.map((option) => (
+                      <PromptInputSelectItem
+                        className="text-xs"
+                        key={`${option.provider}:${option.model}`}
+                        value={option.model}
+                      >
+                        {option.model}
+                      </PromptInputSelectItem>
+                    ))}
+                  </PromptInputSelectContent>
+                </PromptInputSelect>
 
-              <PromptInputSelect
-                onValueChange={(value) => {
-                  updateProject(project.id, (current) => ({
-                    ...current,
-                    reasoningEffort: value as ReasoningEffort,
-                  }));
-                }}
-                value={selectedReasoningEffort}
-              >
-                <PromptInputSelectTrigger
-                  className="h-8 min-w-[120px] px-2 text-xs"
-                  disabled={selectedProvider !== "openai"}
+                <PromptInputSelect
+                  onValueChange={(value) => {
+                    updateProject(project.id, (current) => ({
+                      ...current,
+                      reasoningEffort: value as ReasoningEffort,
+                    }));
+                  }}
+                  value={selectedReasoningEffort}
                 >
-                  <span className="truncate">{selectedReasoningLabel}</span>
-                </PromptInputSelectTrigger>
-                <PromptInputSelectContent className="text-xs" side="top">
-                  {REASONING_EFFORT_OPTIONS.map((option) => (
-                    <PromptInputSelectItem
-                      className="text-xs"
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </PromptInputSelectItem>
-                  ))}
-                </PromptInputSelectContent>
-              </PromptInputSelect>
-            </PromptInputTools>
-            <PromptInputSubmit
-              className="size-8 rounded-md"
-              disabled={
-                !isProviderConnected ||
-                (!providerCredential && !usesCodexLogin) ||
-                selectedModel === ""
-              }
-              onStop={stop}
-              status={status}
-            />
-          </PromptInputFooter>
-        </PromptInput>
+                  <PromptInputSelectTrigger
+                    className="h-8 min-w-[120px] px-2 text-xs"
+                    disabled={selectedProvider !== "openai"}
+                  >
+                    <span className="truncate">{selectedReasoningLabel}</span>
+                  </PromptInputSelectTrigger>
+                  <PromptInputSelectContent className="text-xs" side="top">
+                    {REASONING_EFFORT_OPTIONS.map((option) => (
+                      <PromptInputSelectItem
+                        className="text-xs"
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </PromptInputSelectItem>
+                    ))}
+                  </PromptInputSelectContent>
+                </PromptInputSelect>
+              </PromptInputTools>
+              <PromptInputSubmit
+                className="size-8 rounded-md"
+                disabled={
+                  !isProviderConnected ||
+                  (!providerCredential && !usesCodexLogin) ||
+                  selectedModel === ""
+                }
+                onStop={stop}
+                status={status}
+              />
+            </PromptInputFooter>
+          </PromptInput>
 
-        <div className="pointer-events-auto mt-2 flex items-center gap-2">
-          {!isProviderConnected ? (
-            <Badge variant="destructive">No provider connected</Badge>
-          ) : !providerCredential && !usesCodexLogin ? (
-            <Badge variant="destructive">Missing {credentialLabel}</Badge>
-          ) : selectedModel === "" ? (
-            <Badge variant="outline">No model enabled</Badge>
+          <div className="pointer-events-auto mt-2 flex items-center gap-2">
+            {!isProviderConnected ? (
+              <Badge variant="destructive">No provider connected</Badge>
+            ) : !providerCredential && !usesCodexLogin ? (
+              <Badge variant="destructive">Missing {credentialLabel}</Badge>
+            ) : selectedModel === "" ? (
+              <Badge variant="outline">No model enabled</Badge>
+            ) : null}
+          </div>
+
+          {localError ? (
+            <p className="pointer-events-auto mt-2 text-destructive text-xs">
+              {localError}
+            </p>
           ) : null}
         </div>
-
-        {localError ? (
-          <p className="pointer-events-auto mt-2 text-destructive text-xs">
-            {localError}
-          </p>
-        ) : null}
       </div>
     </div>
   );
