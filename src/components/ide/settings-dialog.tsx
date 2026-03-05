@@ -265,13 +265,13 @@ export const SettingsDialog = () => {
                         ) : (
                           <div className="space-y-2 rounded-md border bg-muted/20 p-3">
                             <p className="font-medium text-sm">Codex Login</p>
-                            <p className="text-muted-foreground text-xs">
+                            <p className="text-muted-foreground text-sm">
                               Uses your local Codex session from{" "}
                               <code>~/.codex/auth.json</code>.
                             </p>
                             <p
                               className={cn(
-                                "text-xs",
+                                "text-sm",
                                 codexLoginStatus.loggedIn
                                   ? "text-emerald-700"
                                   : "text-amber-700",
@@ -292,7 +292,7 @@ export const SettingsDialog = () => {
                                 Refresh Status
                               </Button>
                               <Button
-                                className="h-8 px-0 text-xs"
+                                className="h-8 px-0 text-sm"
                                 onClick={() =>
                                   openExternalUrl("https://chatgpt.com")
                                 }
@@ -304,7 +304,7 @@ export const SettingsDialog = () => {
                               </Button>
                             </div>
                             <Button
-                              className="h-7 px-0 text-xs"
+                              className="h-7 px-0 text-sm"
                               onClick={() =>
                                 openExternalUrl(
                                   "https://platform.openai.com/docs/codex/overview",
@@ -319,13 +319,13 @@ export const SettingsDialog = () => {
                         )}
 
                         {providerModels.openai.error ? (
-                          <p className="text-amber-700 text-xs">
+                          <p className="text-amber-700 text-sm">
                             {providerModels.openai.error}
                           </p>
                         ) : null}
 
                         {!canConnectOpenAi ? (
-                          <p className="text-muted-foreground text-xs">
+                          <p className="text-muted-foreground text-sm">
                             {settings.openAiAuthMode === "codex"
                               ? "Run `codex login` and refresh status before connecting."
                               : "Add an OpenAI API key before connecting."}
@@ -387,13 +387,13 @@ export const SettingsDialog = () => {
                         </div>
 
                         {providerModels.anthropic.error ? (
-                          <p className="text-amber-700 text-xs">
+                          <p className="text-amber-700 text-sm">
                             {providerModels.anthropic.error}
                           </p>
                         ) : null}
 
                         {!canConnectAnthropic ? (
-                          <p className="text-muted-foreground text-xs">
+                          <p className="text-muted-foreground text-sm">
                             Add an Anthropic API key before connecting.
                           </p>
                         ) : null}
@@ -431,7 +431,7 @@ export const SettingsDialog = () => {
                         </p>
                       </div>
                       {connectedProviders.length === 0 ? (
-                        <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-xs">
+                        <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-sm">
                           Connect at least one provider before enabling models.
                         </p>
                       ) : (
@@ -447,7 +447,7 @@ export const SettingsDialog = () => {
                                 <p className="font-medium text-sm">
                                   {getProviderLabel(provider)}
                                 </p>
-                                <p className="text-muted-foreground text-xs">
+                                <p className="text-muted-foreground text-sm">
                                   {provider === "openai"
                                     ? `${openAiModels.length} models enabled`
                                     : `${anthropicModels.length} models enabled`}
@@ -455,7 +455,7 @@ export const SettingsDialog = () => {
                               </div>
                               <div className="flex items-center gap-2">
                                 <Button
-                                  className="h-7 px-2 text-xs"
+                                  className="h-7 px-2 text-sm"
                                   onClick={() => openProviderSetup(provider)}
                                   size="sm"
                                   type="button"
@@ -464,7 +464,7 @@ export const SettingsDialog = () => {
                                   Manage
                                 </Button>
                                 <Button
-                                  className="h-7 px-2 text-xs"
+                                  className="h-7 px-2 text-sm"
                                   onClick={() => disconnectProvider(provider)}
                                   size="sm"
                                   type="button"
@@ -483,7 +483,7 @@ export const SettingsDialog = () => {
                       <p className="font-medium text-sm">Popular providers</p>
                       <div className="space-y-2">
                         {popularProviders.length === 0 ? (
-                          <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-xs">
+                          <p className="rounded-md bg-background/70 px-3 py-2 text-muted-foreground text-sm">
                             All available providers are already connected.
                           </p>
                         ) : (
@@ -496,12 +496,12 @@ export const SettingsDialog = () => {
                                 <p className="font-medium text-sm">
                                   {getProviderLabel(provider)}
                                 </p>
-                                <p className="text-muted-foreground text-xs">
+                                <p className="text-muted-foreground text-sm">
                                   {getProviderDescription(provider)}
                                 </p>
                               </div>
                               <Button
-                                className="h-7 px-2 text-xs"
+                                className="h-7 px-2 text-sm"
                                 onClick={() => openProviderSetup(provider)}
                                 size="sm"
                                 type="button"
@@ -531,7 +531,7 @@ export const SettingsDialog = () => {
                   </div>
 
                   {connectedProviders.length === 0 ? (
-                    <p className="rounded-md bg-muted/20 px-3 py-2 text-muted-foreground text-xs">
+                    <p className="rounded-md bg-muted/20 px-3 py-2 text-muted-foreground text-sm">
                       Connect a provider first in the Providers section.
                     </p>
                   ) : null}
@@ -543,17 +543,17 @@ export const SettingsDialog = () => {
                       </div>
                       <div className="space-y-1.5">
                         <Label>Enabled OpenAI Models</Label>
-                        <p className="text-muted-foreground text-xs">
+                        <p className="text-muted-foreground text-sm">
                           Only enabled models appear in project chat.
                         </p>
                         <div className="space-y-1.5 rounded-md p-1">
                           {availableOpenAiModels.length === 0 ? (
-                            <p className="px-2 py-1.5 text-muted-foreground text-xs">
+                            <p className="px-2 py-1.5 text-muted-foreground text-sm">
                               No live models available yet. Refresh after
                               connecting.
                             </p>
                           ) : filteredOpenAiModels.length === 0 ? (
-                            <p className="px-2 py-1.5 text-muted-foreground text-xs">
+                            <p className="px-2 py-1.5 text-muted-foreground text-sm">
                               No models match this search.
                             </p>
                           ) : (
@@ -567,7 +567,7 @@ export const SettingsDialog = () => {
                                 >
                                   <Label
                                     className={cn(
-                                      "truncate text-xs",
+                                      "truncate text-sm",
                                       isSelected
                                         ? "text-foreground"
                                         : "text-muted-foreground",
@@ -628,17 +628,17 @@ export const SettingsDialog = () => {
                       </div>
                       <div className="space-y-1.5">
                         <Label>Enabled Anthropic Models</Label>
-                        <p className="text-muted-foreground text-xs">
+                        <p className="text-muted-foreground text-sm">
                           Only enabled models appear in project chat.
                         </p>
                         <div className="space-y-1.5 rounded-md p-1">
                           {availableAnthropicModels.length === 0 ? (
-                            <p className="px-2 py-1.5 text-muted-foreground text-xs">
+                            <p className="px-2 py-1.5 text-muted-foreground text-sm">
                               No live models available yet. Refresh after
                               connecting.
                             </p>
                           ) : filteredAnthropicModels.length === 0 ? (
-                            <p className="px-2 py-1.5 text-muted-foreground text-xs">
+                            <p className="px-2 py-1.5 text-muted-foreground text-sm">
                               No models match this search.
                             </p>
                           ) : (
@@ -653,7 +653,7 @@ export const SettingsDialog = () => {
                                 >
                                   <Label
                                     className={cn(
-                                      "truncate text-xs",
+                                      "truncate text-sm",
                                       isSelected
                                         ? "text-foreground"
                                         : "text-muted-foreground",
@@ -723,7 +723,7 @@ export const SettingsDialog = () => {
                     placeholder="/bin/zsh"
                     value={settings.shellPath}
                   />
-                  <p className="text-muted-foreground text-xs">
+                  <p className="text-muted-foreground text-sm">
                     Leave empty to use the system default shell.
                   </p>
                 </div>
