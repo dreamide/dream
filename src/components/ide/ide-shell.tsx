@@ -474,6 +474,23 @@ export const IdeShell = () => {
 
   // ── Derived values ──────────────────────────────────────────────────
   const mainWorkspaceVisible = panelVisibility.middle || panelVisibility.right;
+  const leftVisible = panelVisibility.left;
+  const middleVisible = panelVisibility.middle;
+  const rightVisible = panelVisibility.right;
+  const middleDefaultSize = rightVisible
+    ? leftVisible
+      ? "52%"
+      : "70%"
+    : leftVisible
+      ? "82%"
+      : "100%";
+  const rightDefaultSize = middleVisible
+    ? leftVisible
+      ? "30%"
+      : "30%"
+    : leftVisible
+      ? "82%"
+      : "100%";
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
@@ -487,105 +504,108 @@ export const IdeShell = () => {
 
       <div className="h-[calc(100vh-44px)] overflow-hidden">
         {!stateHydrated ? null : (
-          <Group className="h-full" id="ide-root" orientation="horizontal">
-            {panelVisibility.left ? (
+          <Group
+            className="h-full"
+            id="ide-root"
+            orientation="horizontal"
+            resizeTargetMinimumSize={{ coarse: 28, fine: 16 }}
+          >
+            {leftVisible ? (
               <>
                 <Panel
-                  className="min-w-[230px] pt-2 pr-1 pb-3 pl-2"
-                  defaultSize={18}
+                  className="min-w-[100px] pt-2 pr-1 pb-3 pl-2"
+                  defaultSize="320px"
+                  disabled
                   id="ide-left"
-                  minSize={14}
+                  maxSize="320px"
+                  minSize="320px"
                 >
                   <ProjectSidebar />
                 </Panel>
-                <ResizeHandle className="w-2" id="ide-left-handle" />
               </>
             ) : null}
 
-            <Panel
-              defaultSize={panelVisibility.left ? 82 : 100}
-              id="ide-main"
-              minSize={20}
-            >
-              <Group id="ide-workspace" orientation="horizontal">
-                {panelVisibility.middle ? (
-                  <Panel
-                    defaultSize={panelVisibility.right ? 54 : 100}
-                    id="ide-middle"
-                    minSize={30}
-                  >
-                    <div className="h-full pt-2 pr-2 pb-3 pl-3">
-                      <div className="flex h-full flex-col overflow-hidden border bg-muted/20 shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
-                        <Group
-                          className="h-full"
-                          id="ide-chat-term"
-                          orientation="vertical"
-                        >
+            {middleVisible ? (
+              <Panel
+                className="min-w-[100px]"
+                defaultSize={middleDefaultSize}
+                id="ide-middle"
+                maxSize="85%"
+                minSize="10%"
+              >
+                <div className="h-full pt-2 pr-2 pb-3 pl-3">
+                  <div className="mx-auto flex h-full w-full max-w-[800px] flex-col overflow-hidden rounded-lg border border-foreground/20 bg-muted/20 shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
+                    <Group
+                      className="h-full"
+                      id="ide-chat-term"
+                      orientation="vertical"
+                    >
+                      <Panel
+                        defaultSize={terminalPanelOpen ? 74 : 100}
+                        id="ide-chat"
+                        minSize={30}
+                      >
+                        {activeProject ? (
+                          <ChatPanel project={activeProject} />
+                        ) : (
+                          <div className="h-full p-3">
+                            <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
+                          </div>
+                        )}
+                      </Panel>
+
+                      {terminalPanelOpen ? (
+                        <>
+                          <ResizeHandle
+                            className="h-2 cursor-row-resize"
+                            id="ide-term-handle"
+                          />
                           <Panel
-                            defaultSize={terminalPanelOpen ? 74 : 100}
-                            id="ide-chat"
-                            minSize={30}
+                            defaultSize={26}
+                            id="ide-terminal"
+                            minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
                           >
-                            {activeProject ? (
-                              <ChatPanel project={activeProject} />
-                            ) : (
-                              <div className="h-full p-3">
-                                <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
-                              </div>
-                            )}
+                            <TerminalPanel terminalHostRef={setTerminalHost} />
                           </Panel>
+                        </>
+                      ) : null}
+                    </Group>
+                  </div>
+                </div>
+              </Panel>
+            ) : null}
 
-                          {terminalPanelOpen ? (
-                            <>
-                              <ResizeHandle
-                                className="h-2"
-                                id="ide-term-handle"
-                              />
-                              <Panel
-                                defaultSize={26}
-                                id="ide-terminal"
-                                minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
-                              >
-                                <TerminalPanel
-                                  terminalHostRef={setTerminalHost}
-                                />
-                              </Panel>
-                            </>
-                          ) : null}
-                        </Group>
-                      </div>
-                    </div>
-                  </Panel>
-                ) : null}
+            {middleVisible && rightVisible ? (
+              <ResizeHandle
+                className="w-3.5 cursor-col-resize"
+                id="ide-middle-handle"
+              />
+            ) : null}
 
-                {panelVisibility.middle && panelVisibility.right ? (
-                  <ResizeHandle className="w-2" id="ide-middle-handle" />
-                ) : null}
+            {rightVisible ? (
+              <Panel
+                className="min-w-[100px]"
+                defaultSize={rightDefaultSize}
+                id="ide-right"
+                maxSize={middleVisible ? "60%" : "100%"}
+                minSize={middleVisible ? "10%" : leftVisible ? "10%" : "100%"}
+              >
+                <div className="h-full pt-2 pr-3 pb-3 pl-2">
+                  <div className="h-full overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
+                    <PreviewPanel
+                      onSyncPreviewBounds={syncPreviewBounds}
+                      previewHostRef={previewHostRef}
+                    />
+                  </div>
+                </div>
+              </Panel>
+            ) : null}
 
-                {panelVisibility.right ? (
-                  <Panel
-                    defaultSize={panelVisibility.middle ? 46 : 100}
-                    id="ide-right"
-                    minSize={26}
-                  >
-                    <div className="h-full pt-2 pr-3 pb-3 pl-2">
-                      <div className="h-full overflow-hidden border bg-background shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
-                        <PreviewPanel
-                          onSyncPreviewBounds={syncPreviewBounds}
-                          previewHostRef={previewHostRef}
-                        />
-                      </div>
-                    </div>
-                  </Panel>
-                ) : null}
-
-                {!mainWorkspaceVisible ? (
-                  <Panel defaultSize={100} id="ide-fallback" minSize={20}>
-                    <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
-                  </Panel>
-                ) : null}
-              </Group>
-            </Panel>
+            {!mainWorkspaceVisible ? (
+              <Panel defaultSize={100} id="ide-fallback" minSize={40}>
+                <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
+              </Panel>
+            ) : null}
           </Group>
         )}
       </div>

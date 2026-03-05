@@ -1,6 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import type { PropsWithChildren } from "react";
-import { Separator } from "react-resizable-panels";
+import { ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -11,7 +11,13 @@ export const ResizeHandle = ({
   className?: string;
   id?: string;
 }) => (
-  <Separator className={cn("relative bg-transparent", className)} id={id} />
+  <ResizableHandle
+    className={cn(
+      "z-20 touch-none select-none bg-transparent hover:bg-border/40",
+      className,
+    )}
+    id={id}
+  />
 );
 
 export const ToggleButton = ({
