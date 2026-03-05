@@ -40,8 +40,13 @@ const store = new Store({
     },
     projects: [],
     settings: {
+      anthropicAccessToken: "",
+      anthropicAccessTokenExpiresAt: null,
+      anthropicAuthMode: "apiKey",
       anthropicApiKey: "",
+      anthropicRefreshToken: "",
       anthropicSelectedModels: [],
+      connectedProviders: [],
       defaultAnthropicModel: "",
       defaultOpenAiModel: "",
       openAiAuthMode: "apiKey",
