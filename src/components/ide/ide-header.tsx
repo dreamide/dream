@@ -1,9 +1,9 @@
 import {
-  FolderPlus,
   MessageSquare,
   Minus,
   PanelLeft,
   PanelRight,
+  Plus,
   Settings,
   Square,
   TerminalSquare,
@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { getDesktopApi } from "@/lib/electron";
+import { cn } from "@/lib/utils";
 import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
@@ -62,7 +62,7 @@ export const IdeHeader = () => {
           title="Add project"
           variant="ghost"
         >
-          <FolderPlus className="size-4" />
+          <Plus className="size-4" />
         </Button>
         <Button
           aria-label="Settings"
