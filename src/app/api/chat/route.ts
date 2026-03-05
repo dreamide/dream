@@ -10,12 +10,23 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
+import {
+  ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER,
+  refreshAnthropicAccessToken,
+} from "@/lib/anthropic-oauth";
 import { readCodexCredential } from "@/lib/codex-auth";
 
 export const runtime = "nodejs";
 
 const requestBodySchema = z.object({
-  authMode: z.enum(["apiKey", "codex"]).default("apiKey"),
+  anthropicOAuth: z
+    .object({
+      accessToken: z.string().optional(),
+      expiresAt: z.number().optional(),
+      refreshToken: z.string().optional(),
+    })
+    .optional(),
+  authMode: z.enum(["apiKey", "codex", "claudeProMax"]).default("apiKey"),
   credential: z.string().optional(),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
@@ -178,8 +189,14 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(parsed.error.message, { status: 400 });
   }
 
-  const { authMode, model, projectPath, provider, reasoningEffort } =
-    parsed.data;
+  const {
+    anthropicOAuth,
+    authMode,
+    model,
+    projectPath,
+    provider,
+    reasoningEffort,
+  } = parsed.data;
   let credential = parsed.data.credential?.trim() ?? "";
   const messages = parsed.data.messages as UIMessage[];
 
@@ -212,13 +229,108 @@ export async function POST(request: Request): Promise<Response> {
     useChatgptCodexEndpoint = codexCredential.source === "chatgpt";
   }
 
+  if (provider === "anthropic" && authMode === "claudeProMax") {
+    const refreshToken = anthropicOAuth?.refreshToken?.trim() ?? "";
+    const oauthAccessToken = anthropicOAuth?.accessToken?.trim() ?? "";
+    const oauthExpiresAt =
+      typeof anthropicOAuth?.expiresAt === "number"
+        ? anthropicOAuth.expiresAt
+        : null;
+
+    if (!refreshToken) {
+      return new Response(
+        "Claude Pro/Max session is missing. Reconnect Anthropic in Settings.",
+        { status: 401 },
+      );
+    }
+
+    const needsRefresh =
+      !oauthAccessToken ||
+      (oauthExpiresAt !== null && oauthExpiresAt <= Date.now() + 15_000);
+
+    if (needsRefresh) {
+      const refreshed = await refreshAnthropicAccessToken(refreshToken);
+      credential = refreshed.accessToken;
+    } else {
+      credential = oauthAccessToken;
+    }
+  }
+
   if (!credential) {
     return new Response("Missing provider credential.", { status: 400 });
   }
 
+  const anthropicOauthFetch: typeof fetch = async (input, init) => {
+    const requestHeaders = new Headers();
+
+    if (input instanceof Request) {
+      input.headers.forEach((value, key) => {
+        requestHeaders.set(key, value);
+      });
+    }
+
+    if (init?.headers) {
+      const incoming = new Headers(init.headers);
+      incoming.forEach((value, key) => {
+        requestHeaders.set(key, value);
+      });
+    }
+
+    const incomingBeta = requestHeaders.get("anthropic-beta") ?? "";
+    const mergedBetas = Array.from(
+      new Set(
+        [
+          ...ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER.split(","),
+          ...incomingBeta.split(","),
+        ]
+          .map((beta) => beta.trim())
+          .filter(Boolean),
+      ),
+    ).join(",");
+
+    requestHeaders.set("anthropic-beta", mergedBetas);
+    requestHeaders.set("user-agent", "claude-cli/2.1.2 (external, cli)");
+
+    let requestInput: Request | URL | string = input;
+
+    try {
+      const inputUrl =
+        typeof input === "string" || input instanceof URL
+          ? new URL(input.toString())
+          : new URL(input.url);
+
+      if (
+        inputUrl.pathname === "/v1/messages" &&
+        !inputUrl.searchParams.has("beta")
+      ) {
+        inputUrl.searchParams.set("beta", "true");
+        requestInput =
+          input instanceof Request
+            ? new Request(inputUrl.toString(), input)
+            : inputUrl;
+      }
+    } catch {
+      // Ignore URL parsing failures and pass through unchanged input.
+    }
+
+    return fetch(requestInput, {
+      ...init,
+      headers: requestHeaders,
+    });
+  };
+
   const providerFactory =
     provider === "anthropic"
-      ? createAnthropic({ apiKey: credential })
+      ? authMode === "claudeProMax"
+        ? createAnthropic({
+            authToken: credential,
+            fetch: anthropicOauthFetch,
+            headers: {
+              "anthropic-beta": ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER,
+              "user-agent": "claude-cli/2.1.2 (external, cli)",
+            },
+          })
+        : createAnthropic({ apiKey: credential })
       : createOpenAI({
           apiKey: credential,
           ...(useChatgptCodexEndpoint

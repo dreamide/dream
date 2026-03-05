@@ -1,11 +1,19 @@
 import { z } from "zod";
+import {
+  ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER,
+  refreshAnthropicAccessToken,
+} from "@/lib/anthropic-oauth";
 import { readCodexCredential } from "@/lib/codex-auth";
-import type { ProviderAuthMode } from "@/types/ide";
+import type { AnthropicAuthMode, OpenAiAuthMode } from "@/types/ide";
 
 export const runtime = "nodejs";
 
 const requestBodySchema = z.object({
+  anthropicAccessToken: z.string().optional(),
+  anthropicAccessTokenExpiresAt: z.number().nullable().optional(),
+  anthropicAuthMode: z.enum(["apiKey", "claudeProMax"]).default("apiKey"),
   anthropicApiKey: z.string().optional(),
+  anthropicRefreshToken: z.string().optional(),
   openAiApiKey: z.string().optional(),
   openAiAuthMode: z.enum(["apiKey", "codex"]).default("apiKey"),
 });
@@ -16,6 +24,11 @@ interface ProviderModelResult {
   models: string[];
   source: ModelSource;
   error?: string;
+  oauth?: {
+    accessToken: string;
+    expiresAt: number;
+    refreshToken: string;
+  };
 }
 
 const OPENAI_MODELS_URL = "https://api.openai.com/v1/models";
@@ -96,7 +109,7 @@ const fetchOpenAiModelsWithCodexChatgpt = async (
 };
 
 const fetchOpenAiModels = async (
-  authMode: ProviderAuthMode,
+  authMode: OpenAiAuthMode,
   openAiApiKey: string,
 ): Promise<ProviderModelResult> => {
   if (authMode === "apiKey") {
@@ -191,9 +204,112 @@ const fetchOpenAiModels = async (
   }
 };
 
-const fetchAnthropicModels = async (
-  anthropicApiKey: string,
+interface AnthropicOAuthInput {
+  accessToken: string;
+  expiresAt: number | null;
+  refreshToken: string;
+}
+
+const isAnthropicTokenExpired = (expiresAt: number | null): boolean => {
+  if (typeof expiresAt !== "number") {
+    return true;
+  }
+
+  return expiresAt <= Date.now() + 15_000;
+};
+
+const fetchAnthropicModelsWithOAuth = async (
+  oauthInput: AnthropicOAuthInput,
 ): Promise<ProviderModelResult> => {
+  const refreshToken = oauthInput.refreshToken.trim();
+
+  if (!refreshToken) {
+    return {
+      error: "Log in with Claude Pro/Max before fetching models.",
+      models: [],
+      source: "unavailable",
+    };
+  }
+
+  let tokens = {
+    accessToken: oauthInput.accessToken.trim(),
+    expiresAt: oauthInput.expiresAt,
+    refreshToken,
+  };
+
+  try {
+    if (!tokens.accessToken || isAnthropicTokenExpired(tokens.expiresAt)) {
+      const refreshed = await refreshAnthropicAccessToken(tokens.refreshToken);
+      tokens = {
+        accessToken: refreshed.accessToken,
+        expiresAt: refreshed.expiresAt,
+        refreshToken: refreshed.refreshToken,
+      };
+    }
+
+    const requestModels = async (accessToken: string): Promise<string[]> => {
+      const response = await fetch(ANTHROPIC_MODELS_URL, {
+        headers: {
+          "anthropic-beta": ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER,
+          "anthropic-version": "2023-06-01",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Anthropic request failed (${response.status}).`);
+      }
+
+      const payload = (await response.json()) as {
+        data?: Array<{ id?: string }>;
+      };
+      const modelIds = (payload.data ?? [])
+        .map((entry) => entry.id?.trim() ?? "")
+        .filter(Boolean);
+      return dedupeAndSort(modelIds);
+    };
+
+    const models = await requestModels(tokens.accessToken);
+
+    if (models.length === 0) {
+      return {
+        error: "Anthropic returned no models.",
+        models: [],
+        source: "unavailable",
+      };
+    }
+
+    return {
+      models,
+      oauth: {
+        accessToken: tokens.accessToken,
+        expiresAt: tokens.expiresAt ?? Date.now() + 15 * 60 * 1000,
+        refreshToken: tokens.refreshToken,
+      },
+      source: "api",
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch Anthropic models.",
+      models: [],
+      source: "unavailable",
+    };
+  }
+};
+
+const fetchAnthropicModels = async (
+  authMode: AnthropicAuthMode,
+  anthropicApiKey: string,
+  oauthInput: AnthropicOAuthInput,
+): Promise<ProviderModelResult> => {
+  if (authMode === "claudeProMax") {
+    return fetchAnthropicModelsWithOAuth(oauthInput);
+  }
+
   if (!anthropicApiKey) {
     return {
       error: "Add an Anthropic API key to fetch the latest model list.",
@@ -264,10 +380,20 @@ export async function POST(request: Request): Promise<Response> {
   const openAiApiKey = parsed.data.openAiApiKey?.trim() ?? "";
   const anthropicApiKey = parsed.data.anthropicApiKey?.trim() ?? "";
   const openAiAuthMode = parsed.data.openAiAuthMode;
+  const anthropicAuthMode = parsed.data.anthropicAuthMode;
+  const anthropicOAuthInput: AnthropicOAuthInput = {
+    accessToken: parsed.data.anthropicAccessToken?.trim() ?? "",
+    expiresAt: parsed.data.anthropicAccessTokenExpiresAt ?? null,
+    refreshToken: parsed.data.anthropicRefreshToken?.trim() ?? "",
+  };
 
   const [openai, anthropic] = await Promise.all([
     fetchOpenAiModels(openAiAuthMode, openAiApiKey),
-    fetchAnthropicModels(anthropicApiKey),
+    fetchAnthropicModels(
+      anthropicAuthMode,
+      anthropicApiKey,
+      anthropicOAuthInput,
+    ),
   ]);
 
   return Response.json({
