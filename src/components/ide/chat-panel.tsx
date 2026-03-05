@@ -39,12 +39,13 @@ import {
   getProviderCredential,
 } from "@/lib/ide-defaults";
 import type { AiProvider, ProjectConfig, ReasoningEffort } from "@/types/ide";
-import { renderUserMessageText, stringifyPart } from "./ide-state";
+import { AssistantMessagePart } from "./assistant-message-part";
+import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
-  REASONING_EFFORT_OPTIONS,
   getProviderLabel,
   normalizeReasoningEffort,
+  REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
 
 export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
@@ -167,88 +168,11 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         <Message from={message.role} key={message.id}>
           <MessageContent>
             {message.parts.map((part, index) => {
-              if (part.type === "text") {
-                return (
-                  <MessageResponse key={`${message.id}-text-${index}`}>
-                    {part.text}
-                  </MessageResponse>
-                );
-              }
-
-              if (part.type === "reasoning") {
-                return (
-                  <pre
-                    className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs"
-                    key={`${message.id}-reasoning-${index}`}
-                  >
-                    {part.text}
-                  </pre>
-                );
-              }
-
-              if (part.type === "file") {
-                const label = part.filename ?? part.url ?? "Attached file";
-
-                return (
-                  <Badge
-                    key={`${message.id}-file-${index}`}
-                    variant="secondary"
-                  >
-                    File: {label}
-                  </Badge>
-                );
-              }
-
-              if (part.type === "source-url") {
-                return (
-                  <a
-                    className="block text-xs text-primary underline underline-offset-4"
-                    href={part.url}
-                    key={`${message.id}-source-url-${index}`}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Source: {part.url}
-                  </a>
-                );
-              }
-
-              if (part.type === "source-document") {
-                return (
-                  <Badge
-                    key={`${message.id}-source-document-${index}`}
-                    variant="outline"
-                  >
-                    Source: {part.title ?? part.filename ?? "Document"}
-                  </Badge>
-                );
-              }
-
-              if (
-                typeof part.type === "string" &&
-                (part.type.startsWith("tool-") || part.type === "dynamic-tool")
-              ) {
-                return (
-                  <pre
-                    className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs"
-                    key={`${message.id}-tool-${index}`}
-                  >
-                    {stringifyPart(part)}
-                  </pre>
-                );
-              }
-
-              if (part.type === "step-start") {
-                return null;
-              }
-
               return (
-                <pre
-                  className="whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs"
+                <AssistantMessagePart
                   key={`${message.id}-part-${index}`}
-                >
-                  {stringifyPart(part)}
-                </pre>
+                  part={part}
+                />
               );
             })}
           </MessageContent>
