@@ -1,5 +1,4 @@
 import { X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "./ide-store";
@@ -26,10 +25,10 @@ export const ProjectSidebar = () => {
               return (
                 <div
                   className={cn(
-                    "group relative rounded-md border transition-colors",
+                    "group relative rounded-md transition-colors",
                     isActive
-                      ? "border-primary/60 bg-primary/15"
-                      : "border-transparent bg-muted/10 hover:bg-muted/20",
+                      ? "bg-muted"
+                      : "bg-transparent hover:bg-muted/20",
                   )}
                   key={project.id}
                 >
@@ -52,10 +51,6 @@ export const ProjectSidebar = () => {
                       >
                         {project.path}
                       </p>
-                    </div>
-                    <div className="mt-1 flex items-center gap-1">
-                      <Badge variant="outline">{project.provider}</Badge>
-                      <Badge variant="secondary">{project.model}</Badge>
                     </div>
                   </button>
                   <div className="absolute top-2 right-2">
