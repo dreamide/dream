@@ -534,7 +534,7 @@ export const IdeShell = () => {
                 minSize="600px"
               >
                 <div className="h-full pt-2 pr-2 pb-3 pl-3">
-                  <div className="mx-auto flex h-full w-full max-w-[800px] flex-col overflow-hidden rounded-lg border border-foreground/20 bg-muted/20 shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
+                  <div className="mx-auto flex h-full w-full max-w-[800px] flex-col overflow-hidden rounded-lg border border-foreground/20 shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
                     <Group
                       className="h-full"
                       id="ide-chat-term"

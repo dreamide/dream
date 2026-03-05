@@ -23,7 +23,7 @@ export const TerminalPanel = ({ terminalHostRef }: TerminalPanelProps) => {
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col"
+      className="flex h-full min-h-0 flex-col border-t border-foreground/20"
       style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
     >
       <div className="flex items-center justify-between px-3 py-2 text-xs">
