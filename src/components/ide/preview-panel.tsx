@@ -124,14 +124,10 @@ export const PreviewPanel = ({
         >
           <div className="relative h-full">
             <div className="absolute inset-0" ref={previewHostRef} />
-            {!activeProject || activeRunnerStatus !== "running" ? (
+            {!activeProject ? (
               <div className="absolute inset-0 p-3">
                 <AppShellPlaceholder
-                  message={
-                    !activeProject
-                      ? "Add a project and click Run to start a live preview."
-                      : "Preview will appear here after you click Run."
-                  }
+                  message="Add a project and click Run to start a live preview."
                 />
               </div>
             ) : null}

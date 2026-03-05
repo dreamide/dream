@@ -75,6 +75,7 @@ const terminalShells = new Map();
 const previewState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
   currentLoadedUrl: "about:blank",
+  loadingUrl: null,
   visible: false,
   url: "about:blank",
 };
@@ -91,6 +92,25 @@ function sendToRenderer(channel, payload) {
 
 function isHttpUrl(value) {
   return /^https?:\/\//i.test(value.trim());
+}
+
+function normalizePreviewUrl(value) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) {
+    return raw;
+  }
+
+  try {
+    const url = new URL(raw);
+    if (url.hostname.toLowerCase() === "localhost") {
+      url.hostname = "127.0.0.1";
+      return url.toString();
+    }
+  } catch {
+    // Ignore parse failures and return raw string.
+  }
+
+  return raw;
 }
 
 function getUrlOrigin(value) {
@@ -335,13 +355,20 @@ function applyPreviewState() {
     y: Math.round(bounds.y),
   });
 
-  if (previewState.currentLoadedUrl !== url) {
-    previewState.currentLoadedUrl = url;
+  if (previewState.currentLoadedUrl !== url && previewState.loadingUrl !== url) {
+    previewState.loadingUrl = url;
     view.webContents.loadURL(url).catch((error) => {
+      previewState.loadingUrl = null;
+      previewState.currentLoadedUrl = "about:blank";
       sendToRenderer("preview:error", {
         code: "LOAD_URL_FAILED",
         description: error instanceof Error ? error.message : "Unknown error",
       });
+    });
+
+    view.webContents.once("did-finish-load", () => {
+      previewState.loadingUrl = null;
+      previewState.currentLoadedUrl = url;
     });
   }
 }
@@ -983,7 +1010,7 @@ ipcMain.on("preview:update", (_event, payload) => {
   }
 
   if (typeof payload.url === "string" && payload.url.trim().length > 0) {
-    previewState.url = payload.url.trim();
+    previewState.url = normalizePreviewUrl(payload.url);
   }
 
   applyPreviewState();
