@@ -227,7 +227,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
 
       <div className="pointer-events-none absolute right-0 bottom-0 left-0 p-3">
         <PromptInput
-          className="pointer-events-auto w-full rounded-2xl border border-foreground/15 bg-background/70 px-2 pt-2 pb-1 shadow-[0_8px_24px_rgba(15,23,42,0.12)] backdrop-blur-2xl [&_[data-slot=input-group]]:!border-transparent [&_[data-slot=input-group]]:!ring-0 [&_[data-slot=input-group]]:!shadow-none [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:!border-transparent [&_[data-slot=input-group]]:has-[[data-slot=input-group-control]:focus-visible]:!ring-0"
+          className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:shadow-[0_8px_24px_rgba(15,23,42,0.12)] [&_[data-slot=input-group]]:backdrop-blur-2xl"
           onSubmit={handleSubmit}
         >
           <PromptInputBody>
