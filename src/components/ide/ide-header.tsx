@@ -56,23 +56,23 @@ export const IdeHeader = () => {
       <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
         <Button
           aria-label="Add project"
-          className="size-8 text-muted-foreground hover:text-foreground"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
           onClick={() => void handleAddProject()}
-          size="icon"
+          size="icon-sm"
           title="Add project"
           variant="ghost"
         >
-          <Plus className="size-4" />
+          <Plus className="size-4 shrink-0" />
         </Button>
         <Button
           aria-label="Settings"
-          className="size-8 text-muted-foreground hover:text-foreground"
+          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
           onClick={handleOpenSettings}
-          size="icon"
+          size="icon-sm"
           title="Settings"
           variant="ghost"
         >
-          <Settings className="size-4" />
+          <Settings className="size-4 shrink-0" />
         </Button>
       </div>
 
