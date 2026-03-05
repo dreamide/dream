@@ -108,6 +108,7 @@ export interface TerminalInputPayload {
 
 export interface PreviewUpdatePayload {
   bounds?: PreviewBounds;
+  projectId?: string;
   visible?: boolean;
   url?: string;
 }

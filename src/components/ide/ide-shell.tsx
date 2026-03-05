@@ -279,7 +279,10 @@ export const IdeShell = () => {
     if (!desktopApi) return;
 
     if (!project || !pv.right) {
-      desktopApi.updatePreview({ visible: false });
+      desktopApi.updatePreview({
+        projectId: project?.id,
+        visible: false,
+      });
       return;
     }
 
@@ -288,7 +291,10 @@ export const IdeShell = () => {
 
     const rect = host.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) {
-      desktopApi.updatePreview({ visible: false });
+      desktopApi.updatePreview({
+        projectId: project.id,
+        visible: false,
+      });
       return;
     }
 
@@ -301,6 +307,7 @@ export const IdeShell = () => {
 
     desktopApi.updatePreview({
       bounds,
+      projectId: project.id,
       url: project.previewUrl,
       visible: true,
     });
