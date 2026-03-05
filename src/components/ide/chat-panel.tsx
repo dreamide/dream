@@ -1,6 +1,14 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
   Conversation,
   ConversationContent,
@@ -46,11 +54,62 @@ import {
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
 
+const ConversationScrollMemory = ({
+  projectId,
+  scrollPositionsRef,
+}: {
+  projectId: string;
+  scrollPositionsRef: React.MutableRefObject<Record<string, number>>;
+}) => {
+  const { scrollRef, scrollToBottom, stopScroll } = useStickToBottomContext();
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+
+    const saveScroll = () => {
+      scrollPositionsRef.current[projectId] = element.scrollTop;
+    };
+
+    saveScroll();
+    element.addEventListener("scroll", saveScroll, { passive: true });
+
+    return () => {
+      saveScroll();
+      element.removeEventListener("scroll", saveScroll);
+    };
+  }, [projectId, scrollPositionsRef, scrollRef]);
+
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const element = scrollRef.current;
+      if (!element) return;
+
+      stopScroll();
+      const savedScroll = scrollPositionsRef.current[projectId];
+
+      if (typeof savedScroll === "number") {
+        element.scrollTop = savedScroll;
+        return;
+      }
+
+      void scrollToBottom("instant");
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [projectId, scrollPositionsRef, scrollRef, scrollToBottom, stopScroll]);
+
+  return null;
+};
+
 export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   const settings = useIdeStore((s) => s.settings);
   const chats = useIdeStore((s) => s.chats);
   const setMessagesForProject = useIdeStore((s) => s.setMessagesForProject);
   const updateProject = useIdeStore((s) => s.updateProject);
+  const scrollPositionsRef = useRef<Record<string, number>>({});
 
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo(() => {
@@ -98,6 +157,10 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   const selectedReasoningEffort = normalizeReasoningEffort(
     project.reasoningEffort,
   );
+  const selectedReasoningLabel =
+    REASONING_EFFORT_OPTIONS.find(
+      (option) => option.value === selectedReasoningEffort,
+    )?.label ?? "Reasoning";
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -211,7 +274,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
-      <Conversation className="min-h-0 flex-1">
+      <Conversation className="min-h-0 flex-1" initial={false} key={project.id}>
         <ConversationContent className="gap-4 p-3 pb-56">
           {messages.length === 0 ? (
             <ConversationEmptyState
@@ -222,6 +285,10 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
             messageContent
           )}
         </ConversationContent>
+        <ConversationScrollMemory
+          projectId={project.id}
+          scrollPositionsRef={scrollPositionsRef}
+        />
         <ConversationScrollButton className="bottom-56" />
       </Conversation>
 
@@ -297,7 +364,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
                   className="h-8 min-w-[120px] px-2 text-xs"
                   disabled={selectedProvider !== "openai"}
                 >
-                  <PromptInputSelectValue placeholder="Reasoning" />
+                  <span className="truncate">{selectedReasoningLabel}</span>
                 </PromptInputSelectTrigger>
                 <PromptInputSelectContent className="text-xs" side="top">
                   {REASONING_EFFORT_OPTIONS.map((option) => (
@@ -313,7 +380,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
               </PromptInputSelect>
             </PromptInputTools>
             <PromptInputSubmit
-              className="size-8 rounded-full"
+              className="size-8 rounded-md"
               disabled={
                 !isProviderConnected ||
                 (!providerCredential && !usesCodexLogin) ||
