@@ -1,10 +1,11 @@
-import { AlertCircle, Logs, Play, RotateCw, Square } from "lucide-react";
+import { Logs, Play, RotateCw, Square, X } from "lucide-react";
 import type { RefObject } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { getDesktopApi } from "@/lib/electron";
 import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import {
@@ -23,11 +24,11 @@ export const PreviewPanel = ({
   previewHostRef,
 }: PreviewPanelProps) => {
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
+  const [previewUrlDraft, setPreviewUrlDraft] = useState("");
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const terminalStatus = useIdeStore((s) => s.terminalStatus);
   const previewLoading = useIdeStore((s) => s.previewLoading);
   const outputPanelOpen = useIdeStore((s) => s.outputPanelOpen);
-  const previewError = useIdeStore((s) => s.previewError);
   const setOutputPanelOpen = useIdeStore((s) => s.setOutputPanelOpen);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
   const updateProject = useIdeStore((s) => s.updateProject);
@@ -46,6 +47,10 @@ export const PreviewPanel = ({
     : false;
 
   useEffect(() => {
+    setPreviewUrlDraft(activeProject?.previewUrl ?? "");
+  }, [activeProject?.id, activeProject?.previewUrl]);
+
+  useEffect(() => {
     const container = previewContainerRef.current;
     if (!container) return;
 
@@ -60,6 +65,23 @@ export const PreviewPanel = ({
       observer.disconnect();
     };
   }, [onSyncPreviewBounds]);
+
+  const handlePreviewAction = () => {
+    if (!activeProject) {
+      return;
+    }
+
+    if (isPreviewLoading) {
+      getDesktopApi()?.updatePreview({
+        projectId: activeProject.id,
+        stop: true,
+      });
+      return;
+    }
+
+    setPreviewError(null);
+    onSyncPreviewBounds(true);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -115,28 +137,47 @@ export const PreviewPanel = ({
                 }}
                 value={activeProject.runCommand}
               />
-              <Input
-                className="h-8 min-w-52 flex-1 text-xs"
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  updateProject(activeProject.id, (project) => ({
-                    ...project,
-                    previewUrl: value,
-                  }));
-                }}
-                value={activeProject.previewUrl}
-              />
+              <div className="relative min-w-52 flex-1">
+                <Input
+                  className="h-8 w-full pr-8 text-xs"
+                  onChange={(event) => {
+                    setPreviewUrlDraft(event.currentTarget.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+
+                    event.preventDefault();
+
+                    const value = previewUrlDraft.trim();
+                    if (!value || value === activeProject.previewUrl) {
+                      return;
+                    }
+
+                    setPreviewError(null);
+                    updateProject(activeProject.id, (project) => ({
+                      ...project,
+                      previewUrl: value,
+                    }));
+                  }}
+                  value={previewUrlDraft}
+                />
+                {isPreviewLoading ? (
+                  <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 text-muted-foreground">
+                    <Spinner className="size-4" />
+                  </div>
+                ) : null}
+              </div>
               <Button
+                aria-label={isPreviewLoading ? "Stop loading preview" : "Refresh preview"}
                 className="h-8"
-                disabled={isPreviewLoading}
-                onClick={() => {
-                  setPreviewError(null);
-                  onSyncPreviewBounds(true);
-                }}
+                onClick={handlePreviewAction}
                 size="icon"
+                title={isPreviewLoading ? "Stop loading preview" : "Refresh preview"}
                 variant="outline"
               >
-                {isPreviewLoading ? <Spinner className="size-4" /> : <RotateCw className="size-4" />}
+                {isPreviewLoading ? <X className="size-4" /> : <RotateCw className="size-4" />}
               </Button>
             </>
           ) : null}
@@ -165,15 +206,6 @@ export const PreviewPanel = ({
                 <AppShellPlaceholder
                   message="Add a project and click Run to start a live preview."
                 />
-              </div>
-            ) : null}
-            {previewError ? (
-              <div className="absolute right-3 bottom-3 left-3 rounded-md p-2 text-destructive text-xs shadow-sm">
-                <div className="mb-1 flex items-center gap-1.5">
-                  <AlertCircle className="size-3.5" />
-                  Preview error
-                </div>
-                <p className="break-all">{previewError}</p>
               </div>
             ) : null}
           </div>

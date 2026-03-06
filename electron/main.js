@@ -417,6 +417,28 @@ function detachAllPreviewSessions() {
   }
 }
 
+function stopPreviewNavigation(projectId) {
+  const session = getPreviewSession(projectId);
+  if (!session) {
+    return;
+  }
+
+  session.loadRequestId += 1;
+  session.loadingRequestedUrl = null;
+  session.currentRequestedUrl = session.currentLoadedUrl || "about:blank";
+
+  try {
+    session.view.webContents.stop();
+  } catch {
+    // ignore stop failures
+  }
+
+  sendToRenderer("preview:status", {
+    loading: false,
+    projectId: session.projectId,
+  });
+}
+
 function applyPreviewState() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -1228,6 +1250,11 @@ ipcMain.on("preview:update", (_event, payload) => {
 
   if (typeof payload.projectId === "string" && payload.projectId.trim().length > 0) {
     previewState.projectId = payload.projectId.trim();
+  }
+
+  if (payload.stop === true) {
+    stopPreviewNavigation(previewState.projectId);
+    return;
   }
 
   const nextBounds = payload.bounds;
