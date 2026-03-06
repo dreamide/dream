@@ -51,7 +51,7 @@ export const IdeHeader = () => {
         isMacOs && "pr-3",
       )}
     >
-      <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-2")} />
+      <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-0")} />
 
       <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
         <Button

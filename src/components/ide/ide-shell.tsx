@@ -258,7 +258,23 @@ export const IdeShell = () => {
   // Sync preview bounds when project or panel visibility changes
   useEffect(() => {
     syncPreviewBounds();
-  }, [activeProject, panelVisibility.right, settingsOpen, syncPreviewBounds]);
+  }, [activeProject, panelVisibility.right, syncPreviewBounds]);
+
+  // Delay preview restore until the settings dialog exit animation completes.
+  useEffect(() => {
+    if (settingsOpen) {
+      syncPreviewBounds();
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      syncPreviewBounds();
+    }, 200);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [settingsOpen, syncPreviewBounds]);
 
   // Preview cleanup on unmount
   useEffect(() => {
