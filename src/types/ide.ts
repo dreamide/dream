@@ -47,20 +47,6 @@ export interface PersistedIdeState {
   chats: Record<string, UIMessage[]>;
 }
 
-export interface RunnerDataEvent {
-  projectId: string;
-  chunk: string;
-  stream: "stdout" | "stderr";
-}
-
-export interface RunnerStatusEvent {
-  projectId: string;
-  status: "running" | "stopped";
-  pid?: number;
-  code?: number | null;
-  signal?: NodeJS.Signals | null;
-}
-
 export interface TerminalDataEvent {
   projectId: string;
   chunk: string;
@@ -88,16 +74,15 @@ export interface PreviewErrorEvent {
   description: string;
 }
 
-export interface StartRunnerPayload {
+export interface PreviewStatusEvent {
+  loading: boolean;
   projectId: string;
-  projectName: string;
-  cwd: string;
-  command: string;
 }
 
 export interface StartTerminalPayload {
   projectId: string;
   cwd: string;
+  command?: string;
   shellPath?: string;
 }
 
@@ -109,6 +94,7 @@ export interface TerminalInputPayload {
 export interface PreviewUpdatePayload {
   bounds?: PreviewBounds;
   projectId?: string;
+  reload?: boolean;
   visible?: boolean;
   url?: string;
 }
@@ -127,13 +113,6 @@ export interface DreamDesktopApi {
   loadState: () => Promise<Partial<PersistedIdeState>>;
   saveState: (state: PersistedIdeState) => Promise<boolean>;
 
-  startRunner: (
-    payload: StartRunnerPayload,
-  ) => Promise<{ status: string; pid?: number }>;
-  stopRunner: (projectId: string) => Promise<boolean>;
-  onRunnerData: (listener: (event: RunnerDataEvent) => void) => () => void;
-  onRunnerStatus: (listener: (event: RunnerStatusEvent) => void) => () => void;
-
   startTerminal: (payload: StartTerminalPayload) => Promise<{
     status: string;
     pid?: number;
@@ -149,4 +128,7 @@ export interface DreamDesktopApi {
 
   updatePreview: (payload: PreviewUpdatePayload) => void;
   onPreviewError: (listener: (event: PreviewErrorEvent) => void) => () => void;
+  onPreviewStatus: (
+    listener: (event: PreviewStatusEvent) => void,
+  ) => () => void;
 }

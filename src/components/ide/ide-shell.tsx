@@ -1,9 +1,6 @@
 "use client";
 
-import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { Terminal } from "@xterm/xterm";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
@@ -15,17 +12,12 @@ import {
 import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
 import { IdeHeader } from "./ide-header";
-import {
-  AppShellPlaceholder,
-  echoPipeFallbackInput,
-  ResizeHandle,
-} from "./ide-helpers";
+import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import {
   dedupeModels,
   GLOBAL_TERMINAL_SESSION_ID,
   TERMINAL_MIN_HEIGHT_PX,
-  type TerminalTransport,
 } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
 import { ProjectSidebar } from "./project-sidebar";
@@ -42,27 +34,23 @@ export const IdeShell = () => {
   const terminalPanelOpen = useIdeStore((s) => s.terminalPanelOpen);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
-  const runnerStatus = useIdeStore((s) => s.runnerStatus);
   const activeProject = useIdeStore((s) => s.getActiveProject());
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
   const setIsElectron = useIdeStore((s) => s.setIsElectron);
   const setProviderSetupTarget = useIdeStore((s) => s.setProviderSetupTarget);
-  const appendRunLog = useIdeStore((s) => s.appendRunLog);
-  const setRunnerStatus = useIdeStore((s) => s.setRunnerStatus);
+  const appendTerminalOutput = useIdeStore((s) => s.appendTerminalOutput);
   const setTerminalStatus = useIdeStore((s) => s.setTerminalStatus);
+  const setTerminalTransport = useIdeStore((s) => s.setTerminalTransport);
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
+  const setPreviewLoading = useIdeStore((s) => s.setPreviewLoading);
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const previewHostRef = useRef<HTMLDivElement | null>(null);
-  const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
-  const terminalRef = useRef<Terminal | null>(null);
-  const terminalFitRef = useRef<FitAddon | null>(null);
-  const terminalTransportRef = useRef<TerminalTransport>("pty");
   const providerCredentialsRef = useRef({
     anthropicAccessToken: settings.anthropicAccessToken,
     anthropicAccessTokenExpiresAt: settings.anthropicAccessTokenExpiresAt,
@@ -149,27 +137,15 @@ export const IdeShell = () => {
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
 
-    const removeRunnerData = desktopApi.onRunnerData((event) => {
-      appendRunLog(event.projectId, event.chunk);
-    });
-
-    const removeRunnerStatus = desktopApi.onRunnerStatus((event) => {
-      setRunnerStatus(event.projectId, event.status);
-    });
-
     const removeTerminalData = desktopApi.onTerminalData((event) => {
-      if (event.projectId !== GLOBAL_TERMINAL_SESSION_ID) return;
-      terminalRef.current?.write(event.chunk);
+      appendTerminalOutput(event.projectId, event.chunk);
     });
 
     const removeTerminalStatus = desktopApi.onTerminalStatus((event) => {
-      if (event.projectId !== GLOBAL_TERMINAL_SESSION_ID) return;
-
-      if (event.transport) {
-        terminalTransportRef.current = event.transport;
-      }
-
       setTerminalStatus(event.projectId, event.status);
+      if (event.transport) {
+        setTerminalTransport(event.projectId, event.transport);
+      }
 
       const shell = typeof event.shell === "string" ? event.shell.trim() : "";
       if (shell) {
@@ -183,95 +159,32 @@ export const IdeShell = () => {
       );
     });
 
+    const removePreviewStatus = desktopApi.onPreviewStatus((event) => {
+      setPreviewLoading(event.projectId, event.loading);
+      if (!event.loading) {
+        return;
+      }
+
+      setPreviewError(null);
+    });
+
     return () => {
-      removeRunnerData();
-      removeRunnerStatus();
       removeTerminalData();
       removeTerminalStatus();
       removePreviewError();
+      removePreviewStatus();
     };
   }, [
-    appendRunLog,
-    setRunnerStatus,
+    appendTerminalOutput,
     setTerminalStatus,
+    setTerminalTransport,
     setTerminalShell,
     setPreviewError,
+    setPreviewLoading,
   ]);
 
-  // Terminal xterm setup
-  useEffect(() => {
-    const host = terminalHost;
-    if (!host) return;
-
-    const terminal = new Terminal({
-      allowProposedApi: false,
-      convertEol: true,
-      cursorBlink: true,
-      cursorStyle: "bar",
-      fontFamily:
-        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-      fontSize: 12,
-      theme: {
-        background: "#ffffff",
-        cursor: "#111827",
-        foreground: "#1f2937",
-      },
-    });
-
-    const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
-
-    terminal.loadAddon(fitAddon);
-    terminal.loadAddon(webLinksAddon);
-    terminal.open(host);
-
-    terminalRef.current = terminal;
-    terminalFitRef.current = fitAddon;
-
-    const fit = () => {
-      fitAddon.fit();
-    };
-
-    fit();
-    terminal.focus();
-
-    // Auto-start pty if not already running
-    const ts = useIdeStore.getState().terminalStatus;
-    if ((ts[GLOBAL_TERMINAL_SESSION_ID] ?? "stopped") !== "running") {
-      void useIdeStore.getState().startActiveTerminal(terminalRef);
-    }
-
-    const resizeObserver = new ResizeObserver(fit);
-    resizeObserver.observe(host);
-
-    const inputSubscription = terminal.onData((data) => {
-      const desktopApi = getDesktopApi();
-      if (!desktopApi) return;
-
-      if (terminalTransportRef.current === "pipe") {
-        echoPipeFallbackInput(terminal, data);
-      }
-
-      desktopApi.sendTerminalInput({
-        data,
-        projectId: GLOBAL_TERMINAL_SESSION_ID,
-      });
-    });
-
-    window.addEventListener("resize", fit);
-
-    return () => {
-      inputSubscription.dispose();
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", fit);
-      terminal.dispose();
-      terminalRef.current = null;
-      terminalFitRef.current = null;
-    };
-  }, [terminalHost]);
-
   // Preview bounds sync
-  const syncPreviewBounds = useCallback(() => {
+  const syncPreviewBounds = useCallback((reload = false) => {
     const desktopApi = getDesktopApi();
     const project = useIdeStore.getState().getActiveProject();
     const pv = useIdeStore.getState().panelVisibility;
@@ -308,6 +221,7 @@ export const IdeShell = () => {
     desktopApi.updatePreview({
       bounds,
       projectId: project.id,
+      reload,
       url: project.previewUrl,
       visible: true,
     });
@@ -334,17 +248,10 @@ export const IdeShell = () => {
     };
   }, [syncPreviewBounds]);
 
-  // Sync preview bounds when runner status or visibility changes
+  // Sync preview bounds when project or panel visibility changes
   useEffect(() => {
     syncPreviewBounds();
-  }, [activeProject, panelVisibility.right, runnerStatus, syncPreviewBounds]);
-
-  // Terminal fit on panel open
-  useEffect(() => {
-    if (!panelVisibility.middle || !terminalPanelOpen) return;
-    terminalFitRef.current?.fit();
-    terminalRef.current?.focus();
-  }, [panelVisibility.middle, terminalPanelOpen]);
+  }, [activeProject, panelVisibility.right, syncPreviewBounds]);
 
   // Preview cleanup on unmount
   useEffect(() => {
@@ -584,7 +491,15 @@ export const IdeShell = () => {
                             id="ide-terminal"
                             minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
                           >
-                            <TerminalPanel terminalHostRef={setTerminalHost} />
+                            <TerminalPanel
+                              autoStart
+                              onClose={() => {
+                                useIdeStore.getState().setTerminalPanelOpen(false);
+                              }}
+                              onStart={() => useIdeStore.getState().startActiveTerminal()}
+                              onStop={() => useIdeStore.getState().stopActiveTerminal()}
+                              sessionId={GLOBAL_TERMINAL_SESSION_ID}
+                            />
                           </Panel>
                         </>
                       ) : null}

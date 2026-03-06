@@ -1,16 +1,19 @@
-import { AlertCircle, Logs, Play, RefreshCcw, Square, X } from "lucide-react";
+import { AlertCircle, Logs, Play, RefreshCcw, Square } from "lucide-react";
 import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
+import {
+  getPreviewTerminalSessionId,
+  TERMINAL_MIN_HEIGHT_PX,
+} from "./ide-types";
+import { TerminalPanel } from "./terminal-panel";
 
 export interface PreviewPanelProps {
-  onSyncPreviewBounds: () => void;
+  onSyncPreviewBounds: (reload?: boolean) => void;
   previewHostRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -20,8 +23,8 @@ export const PreviewPanel = ({
 }: PreviewPanelProps) => {
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const activeProject = useIdeStore((s) => s.getActiveProject());
-  const runnerStatus = useIdeStore((s) => s.runnerStatus);
-  const runLogs = useIdeStore((s) => s.runLogs);
+  const terminalStatus = useIdeStore((s) => s.terminalStatus);
+  const previewLoading = useIdeStore((s) => s.previewLoading);
   const outputPanelOpen = useIdeStore((s) => s.outputPanelOpen);
   const previewError = useIdeStore((s) => s.previewError);
   const setOutputPanelOpen = useIdeStore((s) => s.setOutputPanelOpen);
@@ -30,10 +33,16 @@ export const PreviewPanel = ({
   const startRunner = useIdeStore((s) => s.startRunner);
   const stopRunner = useIdeStore((s) => s.stopRunner);
 
-  const activeRunnerStatus = activeProject
-    ? (runnerStatus[activeProject.id] ?? "stopped")
-    : "stopped";
-  const runLog = activeProject ? (runLogs[activeProject.id] ?? "") : "";
+  const previewTerminalSessionId = activeProject
+    ? getPreviewTerminalSessionId(activeProject.id)
+    : null;
+  const activeRunnerStatus =
+    previewTerminalSessionId
+      ? (terminalStatus[previewTerminalSessionId] ?? "stopped")
+      : "stopped";
+  const isPreviewLoading = activeProject
+    ? (previewLoading[activeProject.id] ?? false)
+    : false;
 
   useEffect(() => {
     const container = previewContainerRef.current;
@@ -60,7 +69,9 @@ export const PreviewPanel = ({
             disabled={!activeProject}
             onClick={
               activeRunnerStatus === "running"
-                ? () => void stopRunner()
+                ? () => {
+                    void stopRunner().then(() => onSyncPreviewBounds(true));
+                  }
                 : () => void startRunner()
             }
             size="sm"
@@ -116,14 +127,17 @@ export const PreviewPanel = ({
               />
               <Button
                 className="h-8"
+                disabled={isPreviewLoading}
                 onClick={() => {
                   setPreviewError(null);
-                  onSyncPreviewBounds();
+                  onSyncPreviewBounds(true);
                 }}
                 size="icon"
                 variant="outline"
               >
-                <RefreshCcw className="size-4" />
+                <RefreshCcw
+                  className={`size-4 ${isPreviewLoading ? "animate-spin" : ""}`}
+                />
               </Button>
             </>
           ) : null}
@@ -169,34 +183,23 @@ export const PreviewPanel = ({
               id="ide-output"
               minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
             >
-              <div
-                className="flex h-full min-h-0 flex-col"
-                style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
-              >
-                <div className="flex items-center justify-between px-3 py-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Logs className="size-4" />
-                    <span>Run output</span>
-                  </div>
-                  <Button
-                    aria-label="Close output panel"
-                    className="h-7 w-7 p-0"
-                    onClick={() => setOutputPanelOpen(false)}
-                    size="sm"
-                    variant="ghost"
-                  >
-                    <X className="size-4" />
-                  </Button>
+              {activeProject && previewTerminalSessionId ? (
+                <TerminalPanel
+                  bordered={false}
+                  onClose={() => setOutputPanelOpen(false)}
+                  sessionId={previewTerminalSessionId}
+                  stopOnClose={false}
+                  subtitle={activeProject.runCommand}
+                  title="Run Output"
+                />
+              ) : (
+                <div
+                  className="flex h-full min-h-0 items-center justify-center px-3 text-muted-foreground text-sm"
+                  style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
+                >
+                  Select a project to view its run output.
                 </div>
-                <ScrollArea className="min-h-0 flex-1 px-3 py-2">
-                  <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-5">
-                    {activeProject
-                      ? runLog ||
-                        "Run output will stream here after you start the project."
-                      : "Select a project to view its run output."}
-                  </pre>
-                </ScrollArea>
-              </div>
+              )}
             </Panel>
           </>
         ) : null}

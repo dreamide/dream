@@ -23,6 +23,7 @@ import {
   STATE_STORAGE_KEY,
   type SettingsSection,
   dedupeModels,
+  getPreviewTerminalSessionId,
 } from "./ide-types";
 
 // ---------------------------------------------------------------------------
@@ -38,13 +39,14 @@ interface IdeState {
   chats: Record<string, UIMessage[]>;
 
   // Runtime state
-  runLogs: Record<string, string>;
-  runnerStatus: Record<string, "running" | "stopped">;
+  terminalOutput: Record<string, string>;
   terminalStatus: Record<string, "running" | "stopped">;
+  terminalTransport: Record<string, "pty" | "pipe">;
   terminalShell: Record<string, string>;
   terminalPanelOpen: boolean;
   outputPanelOpen: boolean;
   previewError: string | null;
+  previewLoading: Record<string, boolean>;
   stateHydrated: boolean;
   isMacOs: boolean;
   isElectron: boolean;
@@ -114,11 +116,16 @@ interface IdeState {
   setCodexLoginStatus: (status: CodexLoginStatus) => void;
 
   // Actions – runtime
-  setRunnerStatus: (projectId: string, status: "running" | "stopped") => void;
-  appendRunLog: (projectId: string, chunk: string) => void;
+  appendTerminalOutput: (projectId: string, chunk: string) => void;
+  clearTerminalOutput: (projectId: string) => void;
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
+  setTerminalTransport: (
+    projectId: string,
+    transport: "pty" | "pipe",
+  ) => void;
   setTerminalShell: (projectId: string, shell: string) => void;
   setPreviewError: (error: string | null) => void;
+  setPreviewLoading: (projectId: string, loading: boolean) => void;
   setIsMacOs: (value: boolean) => void;
   setIsElectron: (value: boolean) => void;
   setAppReady: (value: boolean) => void;
@@ -129,9 +136,7 @@ interface IdeState {
   stopRunner: () => Promise<void>;
 
   // Actions – terminal
-  startActiveTerminal: (
-    terminalRef: React.RefObject<import("@xterm/xterm").Terminal | null>,
-  ) => Promise<void>;
+  startActiveTerminal: () => Promise<void>;
   stopActiveTerminal: () => Promise<void>;
 
   // Actions – hydration & persistence
@@ -158,13 +163,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   chats: {},
 
   // ── Runtime state ───────────────────────────────────────────────────
-  runLogs: {},
-  runnerStatus: {},
+  terminalOutput: {},
   terminalStatus: {},
+  terminalTransport: {},
   terminalShell: {},
   terminalPanelOpen: false,
   outputPanelOpen: false,
   previewError: null,
+  previewLoading: {},
   stateHydrated: false,
   isMacOs: false,
   isElectron: false,
@@ -206,20 +212,23 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   closeProject: (projectId) => {
     const desktopApi = getDesktopApi();
+    const previewTerminalSessionId = getPreviewTerminalSessionId(projectId);
     if (desktopApi) {
-      void desktopApi.stopRunner(projectId);
+      void desktopApi.stopTerminal(previewTerminalSessionId);
     }
 
     set((state) => {
       const nextProjects = state.projects.filter((p) => p.id !== projectId);
       const nextChats = { ...state.chats };
       delete nextChats[projectId];
-      const nextRunLogs = { ...state.runLogs };
-      delete nextRunLogs[projectId];
-      const nextRunnerStatus = { ...state.runnerStatus };
-      delete nextRunnerStatus[projectId];
+      const nextTerminalOutput = { ...state.terminalOutput };
+      delete nextTerminalOutput[previewTerminalSessionId];
       const nextTerminalStatus = { ...state.terminalStatus };
-      delete nextTerminalStatus[projectId];
+      delete nextTerminalStatus[previewTerminalSessionId];
+      const nextTerminalTransport = { ...state.terminalTransport };
+      delete nextTerminalTransport[previewTerminalSessionId];
+      const nextTerminalShell = { ...state.terminalShell };
+      delete nextTerminalShell[previewTerminalSessionId];
 
       return {
         projects: nextProjects,
@@ -228,9 +237,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           state.activeProjectId,
         ),
         chats: nextChats,
-        runLogs: nextRunLogs,
-        runnerStatus: nextRunnerStatus,
+        terminalOutput: nextTerminalOutput,
         terminalStatus: nextTerminalStatus,
+        terminalTransport: nextTerminalTransport,
+        terminalShell: nextTerminalShell,
       };
     });
   },
@@ -564,25 +574,34 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   setCodexLoginStatus: (status) => set({ codexLoginStatus: status }),
 
   // ── Actions: runtime ────────────────────────────────────────────────
-  setRunnerStatus: (projectId, status) => {
-    set((state) => ({
-      runnerStatus: { ...state.runnerStatus, [projectId]: status },
-    }));
-  },
-
-  appendRunLog: (projectId, chunk) => {
+  appendTerminalOutput: (projectId, chunk) => {
     set((state) => {
-      const current = state.runLogs[projectId] ?? "";
+      const current = state.terminalOutput[projectId] ?? "";
       const next = `${current}${chunk}`;
       return {
-        runLogs: { ...state.runLogs, [projectId]: next.slice(-150_000) },
+        terminalOutput: {
+          ...state.terminalOutput,
+          [projectId]: next.slice(-150_000),
+        },
       };
     });
+  },
+
+  clearTerminalOutput: (projectId) => {
+    set((state) => ({
+      terminalOutput: { ...state.terminalOutput, [projectId]: "" },
+    }));
   },
 
   setTerminalStatus: (projectId, status) => {
     set((state) => ({
       terminalStatus: { ...state.terminalStatus, [projectId]: status },
+    }));
+  },
+
+  setTerminalTransport: (projectId, transport) => {
+    set((state) => ({
+      terminalTransport: { ...state.terminalTransport, [projectId]: transport },
     }));
   },
 
@@ -593,6 +612,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   setPreviewError: (error) => set({ previewError: error }),
+  setPreviewLoading: (projectId, loading) => {
+    set((state) => ({
+      previewLoading: { ...state.previewLoading, [projectId]: loading },
+    }));
+  },
   setIsMacOs: (value) => set({ isMacOs: value }),
   setIsElectron: (value) => set({ isElectron: value }),
   setAppReady: (value) => set({ appReady: value }),
@@ -613,21 +637,19 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
+    const sessionId = getPreviewTerminalSessionId(project.id);
 
     set((state) => ({
-      runLogs: {
-        ...state.runLogs,
-        [project.id]:
-          (state.runLogs[project.id] ?? "") + `\n$ ${project.runCommand}\n\n`,
-      },
+      outputPanelOpen: true,
       previewError: null,
+      terminalOutput: { ...state.terminalOutput, [sessionId]: "" },
     }));
 
-    await desktopApi.startRunner({
+    await desktopApi.startTerminal({
       command: project.runCommand,
       cwd: project.path,
-      projectId: project.id,
-      projectName: project.name,
+      projectId: sessionId,
+      shellPath: get().settings.shellPath || undefined,
     });
   },
 
@@ -638,11 +660,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
 
-    await desktopApi.stopRunner(project.id);
+    await desktopApi.stopTerminal(getPreviewTerminalSessionId(project.id));
   },
 
   // ── Actions: terminal ───────────────────────────────────────────────
-  startActiveTerminal: async (terminalRef) => {
+  startActiveTerminal: async () => {
     const { getActiveProject: getProject, settings } = get();
     const project = getProject();
     if (!project) return;
@@ -650,10 +672,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
 
-    terminalRef.current?.clear();
-    terminalRef.current?.focus();
-
     set((state) => ({
+      terminalOutput: {
+        ...state.terminalOutput,
+        [GLOBAL_TERMINAL_SESSION_ID]: "",
+      },
       terminalStatus: {
         ...state.terminalStatus,
         [GLOBAL_TERMINAL_SESSION_ID]: "running",
