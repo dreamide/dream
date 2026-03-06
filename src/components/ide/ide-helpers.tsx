@@ -13,7 +13,7 @@ export const ResizeHandle = ({
 }) => (
   <ResizableHandle
     className={cn(
-      "z-20 touch-none select-none bg-transparent hover:bg-border/40",
+      "z-20 touch-none select-none bg-transparent",
       className,
     )}
     id={id}
