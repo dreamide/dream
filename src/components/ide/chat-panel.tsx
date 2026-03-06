@@ -393,7 +393,15 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         <ConversationScrollButton className="bottom-56" />
       </Conversation>
 
-      <div id="chat-prompt" className="pointer-events-none absolute right-4 bottom-2 left-2">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-0 left-1/2 z-10 h-4 w-[min(calc(100%-1.5rem),800px)] -translate-x-1/2 bg-background"
+      />
+
+      <div
+        id="chat-prompt"
+        className="pointer-events-none absolute right-4 bottom-2 left-2 z-20"
+      >
         <div className="mx-auto w-full max-w-[800px]">
           <PromptInput
             id="chat-prompt-input"
