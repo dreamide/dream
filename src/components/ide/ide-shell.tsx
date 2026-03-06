@@ -24,6 +24,13 @@ import { ProjectSidebar } from "./project-sidebar";
 import { SettingsDialog } from "./settings-dialog";
 import { TerminalPanel } from "./terminal-panel";
 
+const PROJECT_SIDEBAR_WIDTH_PX = 320;
+const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
+const CHAT_PANEL_MIN_WIDTH_PX = 600;
+const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
+const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
+const PREVIEW_PANEL_MAX_WIDTH_PX = 1200;
+
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
   const appReady = useIdeStore((s) => s.appReady);
@@ -403,20 +410,6 @@ export const IdeShell = () => {
   const leftVisible = panelVisibility.left;
   const middleVisible = panelVisibility.middle;
   const rightVisible = panelVisibility.right;
-  const middleDefaultSize = rightVisible
-    ? leftVisible
-      ? "52%"
-      : "70%"
-    : leftVisible
-      ? "82%"
-      : "100%";
-  const rightDefaultSize = middleVisible
-    ? leftVisible
-      ? "30%"
-      : "30%"
-    : leftVisible
-      ? "82%"
-      : "100%";
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
@@ -440,11 +433,11 @@ export const IdeShell = () => {
               <>
                 <Panel
                   className="min-w-[100px] pt-2 pr-1 pb-3 pl-2"
-                  defaultSize="320px"
+                  defaultSize={PROJECT_SIDEBAR_WIDTH_PX}
                   disabled
                   id="ide-left"
-                  maxSize="320px"
-                  minSize="320px"
+                  maxSize={PROJECT_SIDEBAR_WIDTH_PX}
+                  minSize={PROJECT_SIDEBAR_WIDTH_PX}
                 >
                   <ProjectSidebar />
                 </Panel>
@@ -454,10 +447,9 @@ export const IdeShell = () => {
             {middleVisible ? (
               <Panel
                 className="min-w-[200px]"
-                defaultSize={middleDefaultSize}
+                defaultSize={CHAT_PANEL_DEFAULT_WIDTH_PX}
                 id="ide-middle"
-                maxSize="85%"
-                minSize="200px"
+                minSize={CHAT_PANEL_MIN_WIDTH_PX}
               >
                 <div className="h-full">
                   <div className="flex h-full w-full flex-col overflow-hidden rounded-lg">
@@ -519,10 +511,10 @@ export const IdeShell = () => {
             {rightVisible ? (
               <Panel
                 className="min-w-[100px]"
-                defaultSize={rightDefaultSize}
+                defaultSize={PREVIEW_PANEL_DEFAULT_WIDTH_PX}
                 id="ide-right"
-                maxSize={middleVisible ? "60%" : "100%"}
-                minSize={middleVisible ? "10%" : leftVisible ? "10%" : "100%"}
+                maxSize={PREVIEW_PANEL_MAX_WIDTH_PX}
+                minSize={middleVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 100}
               >
                 <div className="h-full pt-2 pr-3 pb-3 pl-0">
                   <div className="h-full overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-[0_3px_10px_rgba(15,23,42,0.06)]">

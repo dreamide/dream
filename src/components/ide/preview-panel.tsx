@@ -1,9 +1,10 @@
-import { AlertCircle, Logs, Play, RefreshCcw, Square } from "lucide-react";
+import { AlertCircle, Logs, Play, RotateCw, Square } from "lucide-react";
 import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import {
@@ -135,9 +136,7 @@ export const PreviewPanel = ({
                 size="icon"
                 variant="outline"
               >
-                <RefreshCcw
-                  className={`size-4 ${isPreviewLoading ? "animate-spin" : ""}`}
-                />
+                {isPreviewLoading ? <Spinner className="size-4" /> : <RotateCw className="size-4" />}
               </Button>
             </>
           ) : null}
@@ -185,7 +184,7 @@ export const PreviewPanel = ({
             >
               {activeProject && previewTerminalSessionId ? (
                 <TerminalPanel
-                  bordered={false}
+                  bordered
                   onClose={() => setOutputPanelOpen(false)}
                   sessionId={previewTerminalSessionId}
                   stopOnClose={false}

@@ -659,8 +659,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
+    const sessionId = getPreviewTerminalSessionId(project.id);
 
-    await desktopApi.stopTerminal(getPreviewTerminalSessionId(project.id));
+    set((state) => ({
+      outputPanelOpen: false,
+      terminalOutput: { ...state.terminalOutput, [sessionId]: "" },
+      terminalStatus: { ...state.terminalStatus, [sessionId]: "stopped" },
+    }));
+
+    await desktopApi.stopTerminal(sessionId);
   },
 
   // ── Actions: terminal ───────────────────────────────────────────────
