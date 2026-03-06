@@ -20,7 +20,7 @@ import {
   TERMINAL_MIN_HEIGHT_PX,
 } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
-import { ProjectSidebar } from "./project-sidebar";
+import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { TerminalPanel } from "./terminal-panel";
 
@@ -446,18 +446,16 @@ export const IdeShell = () => {
             resizeTargetMinimumSize={{ coarse: 28, fine: 16 }}
           >
             {leftVisible ? (
-              <>
-                <Panel
-                  className="min-w-[100px] pt-2 pr-1 pb-3 pl-2"
-                  defaultSize={PROJECT_SIDEBAR_WIDTH_PX}
-                  disabled
-                  id="ide-left"
-                  maxSize={PROJECT_SIDEBAR_WIDTH_PX}
-                  minSize={PROJECT_SIDEBAR_WIDTH_PX}
-                >
-                  <ProjectSidebar />
-                </Panel>
-              </>
+              <Panel
+                className="min-w-[100px]"
+                defaultSize={PROJECT_SIDEBAR_WIDTH_PX}
+                disabled
+                id="ide-left"
+                maxSize={PROJECT_SIDEBAR_WIDTH_PX}
+                minSize={PROJECT_SIDEBAR_WIDTH_PX}
+              >
+                <ProjectSidebar />
+              </Panel>
             ) : null}
 
             {middleVisible ? (
@@ -502,10 +500,16 @@ export const IdeShell = () => {
                             <TerminalPanel
                               autoStart
                               onClose={() => {
-                                useIdeStore.getState().setTerminalPanelOpen(false);
+                                useIdeStore
+                                  .getState()
+                                  .setTerminalPanelOpen(false);
                               }}
-                              onStart={() => useIdeStore.getState().startActiveTerminal()}
-                              onStop={() => useIdeStore.getState().stopActiveTerminal()}
+                              onStart={() =>
+                                useIdeStore.getState().startActiveTerminal()
+                              }
+                              onStop={() =>
+                                useIdeStore.getState().stopActiveTerminal()
+                              }
                               sessionId={GLOBAL_TERMINAL_SESSION_ID}
                             />
                           </Panel>
@@ -531,7 +535,7 @@ export const IdeShell = () => {
                 id="ide-right"
                 minSize={middleVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 100}
               >
-                <div className="h-full pt-2 pr-3 pb-3 pl-2">
+                <div className="h-full pr-2 pb-2">
                   <div className="h-full overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
                     <PreviewPanel
                       onSyncPreviewBounds={syncPreviewBounds}

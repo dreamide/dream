@@ -77,6 +77,12 @@ export const SettingsDialog = () => {
     : (anthropicModels[0] ?? "");
   const isOpenAiConnected = connectedProviders.includes("openai");
   const isAnthropicConnected = connectedProviders.includes("anthropic");
+  const openAiAuthModeLabel =
+    settings.openAiAuthMode === "codex" ? "Codex Login" : "API Key";
+  const anthropicAuthModeLabel =
+    settings.anthropicAuthMode === "claudeProMax"
+      ? "Claude Pro/Max Subscription"
+      : "API Key";
   const canConnectOpenAi =
     settings.openAiAuthMode === "codex"
       ? codexLoginStatus.loggedIn
@@ -402,7 +408,7 @@ export const SettingsDialog = () => {
                             value={settings.openAiAuthMode}
                           >
                             <SelectTrigger id="openai-auth-mode">
-                              <SelectValue placeholder="Select method" />
+                              <SelectValue>{openAiAuthModeLabel}</SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="apiKey">API Key</SelectItem>
@@ -604,7 +610,9 @@ export const SettingsDialog = () => {
                               className="w-full sm:w-[320px]"
                               id="anthropic-auth-mode"
                             >
-                              <SelectValue placeholder="Select method" />
+                              <SelectValue>
+                                {anthropicAuthModeLabel}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent className="w-auto min-w-[320px]">
                               <SelectItem value="apiKey">API Key</SelectItem>
