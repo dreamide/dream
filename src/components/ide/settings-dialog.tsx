@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -320,7 +319,7 @@ export const SettingsDialog = () => {
             </div>
           </nav>
 
-          <ScrollArea className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-y-auto">
             <div className="space-y-4 p-5">
               {settingsSection === "providers" ? (
                 providerSetupTarget ? (
@@ -1079,7 +1078,7 @@ export const SettingsDialog = () => {
                 </div>
               ) : null}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

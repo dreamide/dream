@@ -95,6 +95,7 @@ export interface PreviewUpdatePayload {
   bounds?: PreviewBounds;
   projectId?: string;
   reload?: boolean;
+  stop?: boolean;
   visible?: boolean;
   url?: string;
 }
