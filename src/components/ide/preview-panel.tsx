@@ -84,7 +84,7 @@ export const PreviewPanel = ({
   };
 
   return (
-    <div id="preview-panel" className="flex h-full flex-col">
+    <div id="preview-panel" className="flex h-full flex-col border border-foreground/20 rounded-lg pb-4 shadow-md">
       <div id="preview-controls" className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <Button

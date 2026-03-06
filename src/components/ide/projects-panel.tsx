@@ -10,7 +10,7 @@ export const ProjectSidebar = () => {
   const closeProject = useIdeStore((s) => s.closeProject);
 
   return (
-    <div id="projects-panel" className="flex h-full flex-col pl-2">
+    <div id="projects-panel" className="flex h-full flex-col">
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-1 pr-2">
           {projects.length === 0 ? (
