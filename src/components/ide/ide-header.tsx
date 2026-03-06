@@ -46,6 +46,7 @@ export const IdeHeader = () => {
 
   return (
     <header
+      id="app-titlebar"
       className={cn(
         "relative flex h-11 items-center pl-3 text-foreground [-webkit-app-region:drag]",
         isMacOs && "pr-3",

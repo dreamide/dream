@@ -38,7 +38,6 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { Badge } from "@/components/ui/badge";
 import {
   getConnectedProviders,
   getModelsForProvider,
@@ -372,9 +371,12 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   }, [messages]);
 
   return (
-    <div id="chat-panel" className="relative flex h-full min-h-0 flex-col pr-3 pb-3">
-      <Conversation className="min-h-0 flex-1" initial={false} key={project.id}>
-        <ConversationContent className="mx-auto w-full max-w-[800px] gap-4 px-0 pt-3 pb-56">
+    <div
+      id="chat-panel"
+      className="relative flex h-full min-h-0 flex-col pb-2"
+    >
+      <Conversation id="chat-conversation" className="min-h-0 flex-1" initial={false} key={project.id}>
+        <ConversationContent id="chat-conversation-content" className="mx-auto w-full max-w-[800px] gap-4 px-0 pr-2 pt-3 pb-50">
           {messages.length === 0 ? (
             <ConversationEmptyState
               description="Ask the assistant to inspect, edit, or create files in the active project."
@@ -391,10 +393,11 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         <ConversationScrollButton className="bottom-56" />
       </Conversation>
 
-      <div className="pointer-events-none absolute right-0 bottom-0 left-0">
+      <div id="chat-prompt" className="pointer-events-none absolute right-4 bottom-2 left-2">
         <div className="mx-auto w-full max-w-[800px]">
           <PromptInput
-            className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:shadow-[0_8px_24px_rgba(15,23,42,0.12)] [&_[data-slot=input-group]]:backdrop-blur-2xl"
+            id="chat-prompt-input"
+            className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-lg [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:backdrop-blur-2xl"
             onSubmit={handleSubmit}
           >
             <PromptInputBody>
@@ -491,22 +494,6 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
               />
             </PromptInputFooter>
           </PromptInput>
-
-          <div className="pointer-events-auto mt-2 flex items-center gap-2">
-            {!isProviderConnected ? (
-              <Badge variant="destructive">No provider connected</Badge>
-            ) : !hasProviderCredential ? (
-              <Badge variant="destructive">Missing {credentialLabel}</Badge>
-            ) : selectedModel === "" ? (
-              <Badge variant="outline">No model enabled</Badge>
-            ) : null}
-          </div>
-
-          {localError ? (
-            <p className="pointer-events-auto mt-2 text-destructive text-xs">
-              {localError}
-            </p>
-          ) : null}
         </div>
       </div>
     </div>
