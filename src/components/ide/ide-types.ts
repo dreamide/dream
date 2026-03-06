@@ -5,12 +5,12 @@ export const STATE_STORAGE_KEY = "dream:ide:state";
 
 export type SettingsSection = "providers" | "models" | "terminal";
 
-export type RunnerStatus = "running" | "stopped";
-
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
 
 export const GLOBAL_TERMINAL_SESSION_ID = "__global_terminal__";
+export const getPreviewTerminalSessionId = (projectId: string): string =>
+  `__preview_terminal__:${projectId}`;
 export const TERMINAL_MIN_HEIGHT_PX = 160;
 
 export interface CodexLoginStatus {

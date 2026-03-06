@@ -75,6 +75,7 @@ const terminalShells = new Map();
 const previewState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
   projectId: null,
+  reload: false,
   visible: false,
   url: "about:blank",
 };
@@ -306,16 +307,59 @@ function createPreviewSession(projectId) {
     return { action: "deny" };
   });
 
-  view.webContents.on("did-fail-load", (_event, code, description) => {
-    if (previewState.projectId !== projectId) {
-      return;
-    }
-
-    sendToRenderer("preview:error", {
-      code,
-      description,
+  view.webContents.on("did-start-loading", () => {
+    sendToRenderer("preview:status", {
+      loading: true,
+      projectId,
     });
   });
+
+  view.webContents.on("did-finish-load", () => {
+    const session = previewSessions.get(projectId);
+    if (session) {
+      session.loadingRequestedUrl = null;
+      session.currentLoadedUrl = session.view.webContents.getURL() || "about:blank";
+    }
+  });
+
+  view.webContents.on("did-stop-loading", () => {
+    const session = previewSessions.get(projectId);
+    if (session && session.view.webContents.getURL() !== "about:blank") {
+      session.loadingRequestedUrl = null;
+      session.currentLoadedUrl = session.view.webContents.getURL();
+    }
+
+    sendToRenderer("preview:status", {
+      loading: false,
+      projectId,
+    });
+  });
+
+  view.webContents.on(
+    "did-fail-load",
+    (_event, code, description, _validatedUrl, isMainFrame) => {
+      if (!isMainFrame) {
+        return;
+      }
+
+      const session = previewSessions.get(projectId);
+      if (session) {
+        session.currentLoadedUrl = "about:blank";
+        session.loadingRequestedUrl = null;
+      }
+
+      view.webContents.loadURL("about:blank").catch(() => {});
+
+      if (previewState.projectId !== projectId) {
+        return;
+      }
+
+      sendToRenderer("preview:error", {
+        code,
+        description,
+      });
+    },
+  );
 
   return {
     attached: false,
@@ -394,6 +438,12 @@ function applyPreviewState() {
         detachPreviewSession(activeSession);
       }
     }
+    if (typeof projectId === "string" && projectId.trim().length > 0) {
+      sendToRenderer("preview:status", {
+        loading: false,
+        projectId,
+      });
+    }
     activePreviewProjectId = null;
     return;
   }
@@ -420,10 +470,38 @@ function applyPreviewState() {
     y: Math.round(bounds.y),
   });
 
+  const forceReload = previewState.reload;
+  previewState.reload = false;
+
   if (
-    nextSession.currentRequestedUrl === url ||
+    (!forceReload && nextSession.currentRequestedUrl === url) ||
     nextSession.loadingRequestedUrl === url
   ) {
+    return;
+  }
+
+  if (
+    forceReload &&
+    nextSession.currentRequestedUrl === url &&
+    nextSession.currentLoadedUrl !== "about:blank" &&
+    !nextSession.loadingRequestedUrl
+  ) {
+    nextSession.loadingRequestedUrl = url;
+
+    try {
+      nextSession.view.webContents.reloadIgnoringCache();
+    } catch (error) {
+      nextSession.loadingRequestedUrl = null;
+      sendToRenderer("preview:error", {
+        code: "RELOAD_FAILED",
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+      sendToRenderer("preview:status", {
+        loading: false,
+        projectId: nextSession.projectId,
+      });
+    }
+
     return;
   }
 
@@ -446,6 +524,7 @@ function applyPreviewState() {
       nextSession.loadingRequestedUrl = null;
       nextSession.currentRequestedUrl = "about:blank";
       nextSession.currentLoadedUrl = "about:blank";
+      nextSession.view.webContents.loadURL("about:blank").catch(() => {});
 
       if (previewState.projectId === nextSession.projectId) {
         sendToRenderer("preview:error", {
@@ -479,6 +558,7 @@ function applyPreviewState() {
       nextSession.loadingRequestedUrl = null;
       nextSession.currentRequestedUrl = "about:blank";
       nextSession.currentLoadedUrl = "about:blank";
+      nextSession.view.webContents.loadURL("about:blank").catch(() => {});
 
       if (previewState.projectId === nextSession.projectId) {
         sendToRenderer("preview:error", {
@@ -846,7 +926,7 @@ ipcMain.handle("runner:stop", (_event, { projectId }) => {
 
 ipcMain.handle(
   "terminal:start",
-  (_event, { cwd, projectId, shellPath: preferredShellPath }) => {
+  (_event, { command, cwd, projectId, shellPath: preferredShellPath }) => {
     if (!projectId || !cwd) {
       throw new Error("Missing terminal parameters.");
     }
@@ -1027,6 +1107,21 @@ ipcMain.handle(
         });
       });
 
+      if (typeof command === "string" && command.trim()) {
+        setTimeout(() => {
+          const session = terminalSessions.get(projectId);
+          if (!session) {
+            return;
+          }
+
+          try {
+            session.write(`${command.trim()}\r`);
+          } catch {
+            // ignore write failures after session exits
+          }
+        }, 80);
+      }
+
       return {
         pid: child.pid,
         shell: shellCommand,
@@ -1075,6 +1170,21 @@ ipcMain.handle(
         transport: "pty",
       });
     });
+
+    if (typeof command === "string" && command.trim()) {
+      setTimeout(() => {
+        const session = terminalSessions.get(projectId);
+        if (!session) {
+          return;
+        }
+
+        try {
+          session.write(`${command.trim()}\r`);
+        } catch {
+          // ignore write failures after session exits
+        }
+      }, 80);
+    }
 
     return {
       pid: terminalSession.pid,
@@ -1132,6 +1242,10 @@ ipcMain.on("preview:update", (_event, payload) => {
 
   if (typeof payload.visible === "boolean") {
     previewState.visible = payload.visible;
+  }
+
+  if (payload.reload === true) {
+    previewState.reload = true;
   }
 
   if (typeof payload.url === "string" && payload.url.trim().length > 0) {

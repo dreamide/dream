@@ -26,11 +26,6 @@ contextBridge.exposeInMainWorld("dream", {
   loadState: () => ipcRenderer.invoke("state:load"),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
 
-  startRunner: (payload) => ipcRenderer.invoke("runner:start", payload),
-  stopRunner: (projectId) => ipcRenderer.invoke("runner:stop", { projectId }),
-  onRunnerData: (listener) => subscribe("runner:data", listener),
-  onRunnerStatus: (listener) => subscribe("runner:status", listener),
-
   startTerminal: (payload) => ipcRenderer.invoke("terminal:start", payload),
   sendTerminalInput: (payload) => ipcRenderer.send("terminal:input", payload),
   stopTerminal: (projectId) =>
@@ -40,4 +35,5 @@ contextBridge.exposeInMainWorld("dream", {
 
   updatePreview: (payload) => ipcRenderer.send("preview:update", payload),
   onPreviewError: (listener) => subscribe("preview:error", listener),
+  onPreviewStatus: (listener) => subscribe("preview:status", listener),
 });
