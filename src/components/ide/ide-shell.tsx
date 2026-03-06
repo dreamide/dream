@@ -194,10 +194,11 @@ export const IdeShell = () => {
     const desktopApi = getDesktopApi();
     const project = useIdeStore.getState().getActiveProject();
     const pv = useIdeStore.getState().panelVisibility;
+    const isSettingsOpen = useIdeStore.getState().settingsOpen;
 
     if (!desktopApi) return;
 
-    if (!project || !pv.right) {
+    if (!project || !pv.right || isSettingsOpen) {
       desktopApi.updatePreview({
         projectId: project?.id,
         visible: false,
@@ -257,7 +258,7 @@ export const IdeShell = () => {
   // Sync preview bounds when project or panel visibility changes
   useEffect(() => {
     syncPreviewBounds();
-  }, [activeProject, panelVisibility.right, syncPreviewBounds]);
+  }, [activeProject, panelVisibility.right, settingsOpen, syncPreviewBounds]);
 
   // Preview cleanup on unmount
   useEffect(() => {

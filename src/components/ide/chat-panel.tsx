@@ -372,7 +372,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   }, [messages]);
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col pr-3 pb-3">
       <Conversation className="min-h-0 flex-1" initial={false} key={project.id}>
         <ConversationContent className="mx-auto w-full max-w-[800px] gap-4 px-0 pt-3 pb-56">
           {messages.length === 0 ? (
@@ -391,7 +391,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         <ConversationScrollButton className="bottom-56" />
       </Conversation>
 
-      <div className="pointer-events-none absolute right-0 bottom-0 left-0 py-3">
+      <div className="pointer-events-none absolute right-0 bottom-0 left-0">
         <div className="mx-auto w-full max-w-[800px]">
           <PromptInput
             className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:shadow-[0_8px_24px_rgba(15,23,42,0.12)] [&_[data-slot=input-group]]:backdrop-blur-2xl"
