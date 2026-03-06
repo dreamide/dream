@@ -373,7 +373,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   return (
     <div
       id="chat-panel"
-      className="relative flex h-full min-h-0 flex-col pb-2"
+      className="relative flex h-full min-h-0 flex-col"
     >
       <Conversation id="chat-conversation" className="min-h-0 flex-1" initial={false} key={project.id}>
         <ConversationContent id="chat-conversation-content" className="mx-auto w-full max-w-[800px] gap-4 px-0 pr-2 pt-3 pb-50">
@@ -397,7 +397,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
         <div className="mx-auto w-full max-w-[800px]">
           <PromptInput
             id="chat-prompt-input"
-            className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-lg [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:backdrop-blur-2xl"
+            className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-lg [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:backdrop-blur-2xl [&_[data-slot=input-group]]:shadow-md"
             onSubmit={handleSubmit}
           >
             <PromptInputBody>
