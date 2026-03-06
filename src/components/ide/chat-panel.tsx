@@ -372,7 +372,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   }, [messages]);
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col pr-3 pb-3">
+    <div id="chat-panel" className="relative flex h-full min-h-0 flex-col pr-3 pb-3">
       <Conversation className="min-h-0 flex-1" initial={false} key={project.id}>
         <ConversationContent className="mx-auto w-full max-w-[800px] gap-4 px-0 pt-3 pb-56">
           {messages.length === 0 ? (
