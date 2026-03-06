@@ -444,7 +444,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
                   value={selectedModelValue}
                 >
                   <PromptInputSelectTrigger
-                    className="h-8 min-w-[180px] max-w-[260px] px-2 text-xs"
+                    className="h-8 w-auto max-w-[260px] px-2 text-xs"
                     disabled={allModelOptions.length === 0}
                   >
                     <PromptInputSelectValue placeholder="Model" />
@@ -472,7 +472,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
                   value={selectedReasoningEffort}
                 >
                   <PromptInputSelectTrigger
-                    className="h-8 min-w-[120px] px-2 text-xs"
+                    className="h-8 w-auto px-2 text-xs"
                     disabled={selectedProvider !== "openai"}
                   >
                     <span className="truncate">{selectedReasoningLabel}</span>
