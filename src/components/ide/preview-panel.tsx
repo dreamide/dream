@@ -154,7 +154,12 @@ export const PreviewPanel = ({
           minSize={30}
         >
           <div className="relative h-full" ref={previewContainerRef}>
-            <div className="absolute inset-0" ref={previewHostRef} />
+            <div
+              className="absolute top-px right-[2px] bottom-[6px] left-[2px]"
+              ref={previewHostRef}
+            />
+            <div className="pointer-events-none absolute right-0 bottom-0 h-4 w-4 rounded-tl-lg bg-background" />
+            <div className="pointer-events-none absolute bottom-0 left-0 h-4 w-4 rounded-tr-lg bg-background" />
             {!activeProject ? (
               <div className="absolute inset-0 p-3">
                 <AppShellPlaceholder

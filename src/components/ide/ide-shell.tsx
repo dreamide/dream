@@ -29,7 +29,6 @@ const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
 const CHAT_PANEL_MIN_WIDTH_PX = 600;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
-const PREVIEW_PANEL_MAX_WIDTH_PX = 1200;
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -446,7 +445,7 @@ export const IdeShell = () => {
 
             {middleVisible ? (
               <Panel
-                className="min-w-[200px]"
+                className="min-w-0"
                 defaultSize={CHAT_PANEL_DEFAULT_WIDTH_PX}
                 id="ide-middle"
                 minSize={CHAT_PANEL_MIN_WIDTH_PX}
@@ -510,13 +509,12 @@ export const IdeShell = () => {
 
             {rightVisible ? (
               <Panel
-                className="min-w-[100px]"
+                className="min-w-0"
                 defaultSize={PREVIEW_PANEL_DEFAULT_WIDTH_PX}
                 id="ide-right"
-                maxSize={PREVIEW_PANEL_MAX_WIDTH_PX}
                 minSize={middleVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 100}
               >
-                <div className="h-full pt-2 pr-3 pb-3 pl-0">
+                <div className="h-full pt-2 pr-3 pb-3 pl-2">
                   <div className="h-full overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-[0_3px_10px_rgba(15,23,42,0.06)]">
                     <PreviewPanel
                       onSyncPreviewBounds={syncPreviewBounds}
