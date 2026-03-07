@@ -55,6 +55,7 @@ const store = new Store({
       openAiSelectedModels: [],
       shellPath: "",
     },
+    threadSort: "recent",
     threads: [],
   },
   name: "dream-settings",
