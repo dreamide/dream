@@ -6,6 +6,19 @@ export type AnthropicAuthMode = "apiKey" | "claudeProMax";
 export type ProviderAuthMode = OpenAiAuthMode | AnthropicAuthMode;
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
+export interface ThreadConfig {
+  id: string;
+  projectId: string;
+  title: string;
+  provider: AiProvider;
+  model: string;
+  reasoningEffort: ReasoningEffort;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  remoteConversationId: string | null;
+}
+
 export interface ProjectConfig {
   id: string;
   name: string;
@@ -44,6 +57,8 @@ export interface PersistedIdeState {
   activeProjectId: string | null;
   panelVisibility: PanelVisibility;
   settings: AppSettings;
+  threads: ThreadConfig[];
+  activeThreadIdByProject: Record<string, string | null>;
   chats: Record<string, UIMessage[]>;
 }
 

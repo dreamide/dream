@@ -44,7 +44,7 @@ import {
   getProviderAuthMode,
   getProviderCredential,
 } from "@/lib/ide-defaults";
-import type { ProjectConfig, ReasoningEffort } from "@/types/ide";
+import type { ProjectConfig, ReasoningEffort, ThreadConfig } from "@/types/ide";
 import { AssistantMessagePart } from "./assistant-message-part";
 import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
@@ -54,11 +54,11 @@ import {
 } from "./ide-types";
 
 const ConversationScrollMemory = ({
-  projectId,
   scrollPositionsRef,
+  threadId,
 }: {
-  projectId: string;
   scrollPositionsRef: React.MutableRefObject<Record<string, number>>;
+  threadId: string;
 }) => {
   const { scrollRef, scrollToBottom, stopScroll } = useStickToBottomContext();
 
@@ -67,7 +67,7 @@ const ConversationScrollMemory = ({
     if (!element) return;
 
     const saveScroll = () => {
-      scrollPositionsRef.current[projectId] = element.scrollTop;
+      scrollPositionsRef.current[threadId] = element.scrollTop;
     };
 
     saveScroll();
@@ -77,7 +77,7 @@ const ConversationScrollMemory = ({
       saveScroll();
       element.removeEventListener("scroll", saveScroll);
     };
-  }, [projectId, scrollPositionsRef, scrollRef]);
+  }, [scrollPositionsRef, scrollRef, threadId]);
 
   useLayoutEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -85,7 +85,7 @@ const ConversationScrollMemory = ({
       if (!element) return;
 
       stopScroll();
-      const savedScroll = scrollPositionsRef.current[projectId];
+      const savedScroll = scrollPositionsRef.current[threadId];
 
       if (typeof savedScroll === "number") {
         element.scrollTop = savedScroll;
@@ -98,17 +98,45 @@ const ConversationScrollMemory = ({
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [projectId, scrollPositionsRef, scrollRef, scrollToBottom, stopScroll]);
+  }, [scrollPositionsRef, scrollRef, scrollToBottom, stopScroll, threadId]);
 
   return null;
 };
 
-export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
+const inferThreadTitle = (promptText: string): string => {
+  const collapsed = promptText.replace(/\s+/g, " ").trim();
+  if (!collapsed) {
+    return "New thread";
+  }
+
+  return collapsed.slice(0, 60);
+};
+
+const getMessagePartKey = (
+  messageId: string,
+  part: Record<string, unknown>,
+): string => {
+  const partId =
+    (typeof part.id === "string" && part.id) ||
+    (typeof part.toolCallId === "string" && part.toolCallId) ||
+    (typeof part.providerExecutedId === "string" && part.providerExecutedId) ||
+    JSON.stringify(part);
+
+  return `${messageId}-${part.type ?? "part"}-${partId}`;
+};
+
+export const ChatPanel = ({
+  project,
+  thread,
+}: {
+  project: ProjectConfig;
+  thread: ThreadConfig;
+}) => {
   const settings = useIdeStore((s) => s.settings);
   const chats = useIdeStore((s) => s.chats);
-  const setMessagesForProject = useIdeStore((s) => s.setMessagesForProject);
+  const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const setSettings = useIdeStore((s) => s.setSettings);
-  const updateProject = useIdeStore((s) => s.updateProject);
+  const updateThread = useIdeStore((s) => s.updateThread);
   const scrollPositionsRef = useRef<Record<string, number>>({});
 
   const connectedProviders = getConnectedProviders(settings);
@@ -120,12 +148,13 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
       })),
     );
   }, [connectedProviders, settings]);
+
   const selectedModelOption =
     allModelOptions.find(
       (option) =>
-        option.provider === project.provider && option.model === project.model,
+        option.provider === thread.provider && option.model === thread.model,
     ) ?? allModelOptions[0];
-  const selectedProvider = selectedModelOption?.provider ?? project.provider;
+  const selectedProvider = selectedModelOption?.provider ?? thread.provider;
   const isProviderConnected = connectedProviders.includes(selectedProvider);
   const providerAuthMode = getProviderAuthMode(selectedProvider, settings);
   const providerCredential = getProviderCredential(selectedProvider, settings);
@@ -138,11 +167,6 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
     : usesAnthropicProMax
       ? settings.anthropicRefreshToken.trim().length > 0
       : providerCredential.trim().length > 0;
-  const credentialLabel = usesCodexLogin
-    ? "Codex Login"
-    : usesAnthropicProMax
-      ? "Claude Pro/Max login"
-      : "API key";
   const [localError, setLocalError] = useState<string | null>(null);
 
   const transport = useMemo(
@@ -151,8 +175,8 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   );
 
   const { messages, sendMessage, status, stop } = useChat({
-    id: `project:${project.id}`,
-    messages: chats[project.id] ?? [],
+    id: `thread:${thread.id}`,
+    messages: chats[thread.id] ?? [],
     onError: (error) => {
       setLocalError(error.message);
     },
@@ -160,13 +184,13 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   });
 
   useEffect(() => {
-    setMessagesForProject(project.id, messages);
-  }, [project.id, messages, setMessagesForProject]);
+    setMessagesForThread(thread.id, messages);
+  }, [messages, setMessagesForThread, thread.id]);
 
   const selectedModel = selectedModelOption?.model ?? "";
   const selectedModelValue = selectedModelOption?.model;
   const selectedReasoningEffort = normalizeReasoningEffort(
-    project.reasoningEffort,
+    thread.reasoningEffort,
   );
   const selectedReasoningLabel =
     REASONING_EFFORT_OPTIONS.find(
@@ -180,8 +204,8 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
       const activeOption =
         allModelOptions.find(
           (option) =>
-            option.provider === project.provider &&
-            option.model === project.model,
+            option.provider === thread.provider &&
+            option.model === thread.model,
         ) ?? allModelOptions[0];
       const activeProvider = activeOption?.provider ?? selectedProvider;
       const activeModel = activeOption?.model ?? "";
@@ -198,11 +222,6 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
       const activeUsesAnthropicProMax =
         activeProvider === "anthropic" &&
         activeProviderAuthMode === "claudeProMax";
-      const activeCredentialLabel = activeUsesCodexLogin
-        ? "Codex Login"
-        : activeUsesAnthropicProMax
-          ? "Claude Pro/Max login"
-          : "API key";
       const activeProviderConnected =
         connectedProviders.includes(activeProvider);
       let requestCredential = activeProviderCredential;
@@ -300,13 +319,20 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
 
       if (!requestCredential && !activeUsesCodexLogin) {
         setLocalError(
-          `Add a ${activeProvider === "anthropic" ? "Anthropic" : "OpenAI"} ${activeCredentialLabel} in Settings first.`,
+          `Add a ${activeProvider === "anthropic" ? "Anthropic" : "OpenAI"} credential in Settings first.`,
         );
         return;
       }
 
       if (!prompt.text.trim() && prompt.files.length === 0) {
         return;
+      }
+
+      if ((chats[thread.id] ?? []).length === 0) {
+        updateThread(thread.id, (current) => ({
+          ...current,
+          title: inferThreadTitle(prompt.text),
+        }));
       }
 
       await sendMessage(
@@ -329,13 +355,16 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
     },
     [
       allModelOptions,
+      chats,
       connectedProviders,
-      project,
+      project.path,
       selectedProvider,
       selectedReasoningEffort,
       sendMessage,
       setSettings,
       settings,
+      thread,
+      updateThread,
     ],
   );
 
@@ -356,10 +385,13 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
       return (
         <Message from={message.role} key={message.id}>
           <MessageContent>
-            {message.parts.map((part, index) => {
+            {message.parts.map((part) => {
               return (
                 <AssistantMessagePart
-                  key={`${message.id}-part-${index}`}
+                  key={getMessagePartKey(
+                    message.id,
+                    part as Record<string, unknown>,
+                  )}
                   part={part}
                 />
               );
@@ -371,12 +403,17 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
   }, [messages]);
 
   return (
-    <div
-      id="chat-panel"
-      className="relative flex h-full min-h-0 flex-col"
-    >
-      <Conversation id="chat-conversation" className="min-h-0 flex-1" initial={false} key={project.id}>
-        <ConversationContent id="chat-conversation-content" className="mx-auto w-full max-w-[800px] gap-4 px-0 pr-2 pt-3 pb-50">
+    <div id="chat-panel" className="relative flex h-full min-h-0 flex-col">
+      <Conversation
+        id="chat-conversation"
+        className="min-h-0 flex-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-1rem),transparent_calc(100%-1rem),transparent_100%)] [webkit-mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-1rem),transparent_calc(100%-1rem),transparent_100%)]"
+        initial={false}
+        key={thread.id}
+      >
+        <ConversationContent
+          id="chat-conversation-content"
+          className="mx-auto w-full max-w-[800px] gap-4 px-0 pr-2 pt-3 pb-50"
+        >
           {messages.length === 0 ? (
             <ConversationEmptyState
               description="Ask the assistant to inspect, edit, or create files in the active project."
@@ -387,16 +424,19 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
           )}
         </ConversationContent>
         <ConversationScrollMemory
-          projectId={project.id}
           scrollPositionsRef={scrollPositionsRef}
+          threadId={thread.id}
         />
         <ConversationScrollButton className="bottom-56" />
       </Conversation>
 
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-0 left-1/2 z-10 h-4 w-[min(calc(100%-1.5rem),800px)] -translate-x-1/2 bg-background"
-      />
+      {localError ? (
+        <div className="pointer-events-none absolute right-4 bottom-42 left-2 z-20">
+          <div className="mx-auto w-full max-w-[800px] rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-700">
+            {localError}
+          </div>
+        </div>
+      ) : null}
 
       <div
         id="chat-prompt"
@@ -431,11 +471,11 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
                     );
                     const nextOption =
                       matchingOptions.find(
-                        (option) => option.provider === project.provider,
+                        (option) => option.provider === thread.provider,
                       ) ?? matchingOptions[0];
                     if (!nextOption) return;
 
-                    updateProject(project.id, (current) => ({
+                    updateThread(thread.id, (current) => ({
                       ...current,
                       model: nextOption.model,
                       provider: nextOption.provider,
@@ -464,7 +504,7 @@ export const ChatPanel = ({ project }: { project: ProjectConfig }) => {
 
                 <PromptInputSelect
                   onValueChange={(value) => {
-                    updateProject(project.id, (current) => ({
+                    updateThread(thread.id, (current) => ({
                       ...current,
                       reasoningEffort: value as ReasoningEffort,
                     }));
