@@ -31,11 +31,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ThreadSortOrder } from "@/types/ide";
 import { getThreadsForProject } from "./ide-state";
@@ -72,24 +67,19 @@ const ProjectActionsMenu = ({
 }) => {
   return (
     <DropdownMenu onOpenChange={onOpenChange} open={open}>
-      <Tooltip>
-        <TooltipTrigger render={<span className="inline-flex" />}>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                aria-label={`${label} actions`}
-                className="h-8 w-8 p-0"
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              />
-            }
-          >
-            <Ellipsis className="size-4" />
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{label} actions</TooltipContent>
-      </Tooltip>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label={`${label} actions`}
+            className="h-8 w-8 p-0"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis className="size-4" />
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36">
         <DropdownMenuItem onClick={onEdit}>
           <FilePenLine className="size-4" />
@@ -124,24 +114,19 @@ const ThreadActionsMenu = ({
 }) => {
   return (
     <DropdownMenu onOpenChange={onOpenChange} open={open}>
-      <Tooltip>
-        <TooltipTrigger render={<span className="inline-flex" />}>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                aria-label={`${label} actions`}
-                className="h-8 w-8 p-0"
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              />
-            }
-          >
-            <Ellipsis className="size-4" />
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{label} actions</TooltipContent>
-      </Tooltip>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label={`${label} actions`}
+            className="h-8 w-8 p-0"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis className="size-4" />
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36">
         <DropdownMenuItem onClick={onEdit}>
           <FilePenLine className="size-4" />
@@ -250,24 +235,19 @@ export const ProjectSidebar = () => {
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <span className="px-1 font-medium text-sm">Projects</span>
           <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger render={<span className="inline-flex" />}>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      aria-label="Sort threads"
-                      className="h-8 w-8 p-0"
-                      size="icon-sm"
-                      type="button"
-                      variant="ghost"
-                    />
-                  }
-                >
-                  <ArrowUpDown className="size-4" />
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>Sort threads</TooltipContent>
-            </Tooltip>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  aria-label="Sort threads"
+                  className="h-8 w-8 p-0"
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                />
+              }
+            >
+              <ArrowUpDown className="size-4" />
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Sort threads</DropdownMenuLabel>

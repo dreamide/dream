@@ -46,13 +46,14 @@ export const PreviewPanel = ({
   const activeRunnerStatus = previewTerminalSessionId
     ? (terminalStatus[previewTerminalSessionId] ?? "stopped")
     : "stopped";
+  const isPreviewRunning = activeRunnerStatus === "running";
   const isPreviewLoading = activeProject
     ? (previewLoading[activeProject.id] ?? false)
     : false;
 
   useEffect(() => {
     setPreviewUrlDraft(activeProject?.previewUrl ?? "");
-  }, [activeProject?.id, activeProject?.previewUrl]);
+  }, [activeProject?.previewUrl]);
 
   useEffect(() => {
     const container = previewContainerRef.current;
@@ -226,15 +227,21 @@ export const PreviewPanel = ({
           minSize={30}
         >
           <div className="relative h-full" ref={previewContainerRef}>
-            <div
-              className="absolute top-px right-[2px] bottom-[6px] left-[2px]"
-              ref={previewHostRef}
-            />
+            {activeProject && isPreviewRunning ? (
+              <div
+                className="absolute top-px right-[2px] bottom-[6px] left-[2px]"
+                ref={previewHostRef}
+              />
+            ) : null}
             <div className="pointer-events-none absolute right-0 bottom-0 h-4 w-4 rounded-tl-lg bg-background" />
             <div className="pointer-events-none absolute bottom-0 left-0 h-4 w-4 rounded-tr-lg bg-background" />
             {!activeProject ? (
               <div className="absolute inset-0 p-3">
                 <AppShellPlaceholder message="Add a project and click Run to start a live preview." />
+              </div>
+            ) : !isPreviewRunning ? (
+              <div className="absolute inset-0 p-3">
+                <AppShellPlaceholder message="Run the project to show the live preview." />
               </div>
             ) : null}
           </div>

@@ -6,9 +6,43 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
+import { useRegisterModalVisibility } from "@/lib/modal-visibility"
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+type DialogOpenChangeHandler = NonNullable<DialogPrimitive.Root.Props["onOpenChange"]>
+
+function Dialog({
+  defaultOpen = false,
+  onOpenChange,
+  open: controlledOpen,
+  ...props
+}: DialogPrimitive.Root.Props) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+  const open = controlledOpen ?? uncontrolledOpen
+
+  useRegisterModalVisibility(open)
+
+  const handleOpenChange = React.useCallback<DialogOpenChangeHandler>(
+    (...args) => {
+      const [nextOpen] = args
+
+      if (controlledOpen === undefined) {
+        setUncontrolledOpen(nextOpen)
+      }
+
+      onOpenChange?.(...args)
+    },
+    [controlledOpen, onOpenChange]
+  )
+
+  return (
+    <DialogPrimitive.Root
+      data-slot="dialog"
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      open={controlledOpen}
+      {...props}
+    />
+  )
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
