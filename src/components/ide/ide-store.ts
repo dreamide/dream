@@ -96,6 +96,7 @@ interface IdeState {
     updater: (thread: ThreadConfig) => ThreadConfig,
   ) => void;
   closeThread: (threadId: string) => void;
+  archiveThread: (threadId: string) => void;
   setMessagesForThread: (threadId: string, messages: UIMessage[]) => void;
   setThreadSort: (sortOrder: ThreadSortOrder) => void;
 
@@ -170,6 +171,25 @@ const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
   anthropic: { error: null, loading: false, models: [], source: "unavailable" },
   fetchedAt: null,
   openai: { error: null, loading: false, models: [], source: "unavailable" },
+};
+
+const areMessagesEqual = (
+  left: UIMessage[] | undefined,
+  right: UIMessage[],
+): boolean => {
+  if (left === right) {
+    return true;
+  }
+
+  if (!left || left.length !== right.length) {
+    return false;
+  }
+
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
 };
 
 export const useIdeStore = create<IdeState>((set, get) => ({
@@ -343,6 +363,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       const thread = createThreadConfig(project, { title });
       return {
+        activeProjectId: projectId,
         activeThreadIdByProject: {
           ...state.activeThreadIdByProject,
           [projectId]: thread.id,
@@ -413,6 +434,40 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     });
   },
 
+  archiveThread: (threadId) => {
+    set((state) => {
+      const thread = state.threads.find((item) => item.id === threadId);
+      if (!thread || thread.archivedAt !== null) {
+        return state;
+      }
+
+      const archivedAt = new Date().toISOString();
+      const nextThreads = state.threads.map((item) =>
+        item.id === threadId
+          ? {
+              ...item,
+              archivedAt,
+              updatedAt: archivedAt,
+            }
+          : item,
+      );
+
+      return {
+        activeThreadIdByProject: {
+          ...state.activeThreadIdByProject,
+          [thread.projectId]: ensureActiveThreadForProject(
+            nextThreads,
+            thread.projectId,
+            state.activeThreadIdByProject[thread.projectId] === threadId
+              ? null
+              : (state.activeThreadIdByProject[thread.projectId] ?? null),
+          ),
+        },
+        threads: nextThreads,
+      };
+    });
+  },
+
   setMessagesForThread: (threadId, messages) => {
     set((state) => {
       const thread = state.threads.find((item) => item.id === threadId);
@@ -420,11 +475,27 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
 
+      const nextActiveThreadIdByProject = {
+        ...state.activeThreadIdByProject,
+        [thread.projectId]: threadId,
+      };
+      const messagesChanged = !areMessagesEqual(
+        state.chats[threadId],
+        messages,
+      );
+
+      if (!messagesChanged) {
+        if (state.activeThreadIdByProject[thread.projectId] === threadId) {
+          return state;
+        }
+
+        return {
+          activeThreadIdByProject: nextActiveThreadIdByProject,
+        };
+      }
+
       return {
-        activeThreadIdByProject: {
-          ...state.activeThreadIdByProject,
-          [thread.projectId]: threadId,
-        },
+        activeThreadIdByProject: nextActiveThreadIdByProject,
         chats: { ...state.chats, [threadId]: messages },
         threads: state.threads.map((item) =>
           item.id === threadId
