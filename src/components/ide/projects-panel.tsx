@@ -1,9 +1,12 @@
 import {
+  Archive,
   ArrowUpDown,
   ChevronDown,
   ChevronRight,
   Ellipsis,
+  FilePenLine,
   MessageSquarePlus,
+  Trash2,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -42,13 +46,19 @@ const THREAD_SORT_OPTIONS: Array<{
   { label: "Title A-Z", value: "titleAsc" },
 ];
 
-type RenameTarget = { id: string; kind: "thread"; name: string };
+type RenameTarget =
+  | { id: string; kind: "project"; name: string }
+  | { id: string; kind: "thread"; name: string };
 
 const ProjectActionsMenu = ({
   label,
+  onEdit,
+  onNewThread,
   onRemove,
 }: {
   label: string;
+  onEdit: () => void;
+  onNewThread: () => void;
   onRemove: () => void;
 }) => {
   return (
@@ -68,7 +78,19 @@ const ProjectActionsMenu = ({
         <Ellipsis className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-32">
-        <DropdownMenuItem onClick={onRemove}>Remove</DropdownMenuItem>
+        <DropdownMenuItem onClick={onEdit}>
+          <FilePenLine className="size-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onRemove}>
+          <Trash2 className="size-4" />
+          Remove
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onNewThread}>
+          <MessageSquarePlus className="size-4" />
+          New thread
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -100,8 +122,14 @@ const ThreadActionsMenu = ({
         <Ellipsis className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-36">
-        <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
-        <DropdownMenuItem onClick={onArchive}>Archive</DropdownMenuItem>
+        <DropdownMenuItem onClick={onEdit}>
+          <FilePenLine className="size-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onArchive}>
+          <Archive className="size-4" />
+          Archive
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -117,6 +145,7 @@ export const ProjectSidebar = () => {
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setActiveThreadId = useIdeStore((s) => s.setActiveThreadId);
   const setThreadSort = useIdeStore((s) => s.setThreadSort);
+  const updateProject = useIdeStore((s) => s.updateProject);
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
@@ -177,10 +206,17 @@ export const ProjectSidebar = () => {
       return;
     }
 
-    updateThread(renameTarget.id, (current) => ({
-      ...current,
-      title: nextName,
-    }));
+    if (renameTarget.kind === "project") {
+      updateProject(renameTarget.id, (current) => ({
+        ...current,
+        name: nextName,
+      }));
+    } else {
+      updateThread(renameTarget.id, (current) => ({
+        ...current,
+        title: nextName,
+      }));
+    }
 
     closeRenameDialog();
   };
@@ -191,20 +227,6 @@ export const ProjectSidebar = () => {
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <span className="px-1 font-medium text-sm">Projects</span>
           <div className="flex items-center gap-1">
-            <Button
-              aria-label="New thread"
-              className="h-8 w-8 p-0"
-              disabled={!activeProjectId}
-              onClick={() => {
-                if (!activeProjectId) return;
-                addThread(activeProjectId);
-              }}
-              size="icon-sm"
-              title="New thread"
-              variant="ghost"
-            >
-              <MessageSquarePlus className="size-4" />
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -293,7 +315,7 @@ export const ProjectSidebar = () => {
                         type="button"
                       >
                         <div className="min-w-0 pr-10 text-left">
-                          <p className="truncate font-medium text-sm">
+                          <p className="truncate font-medium text-muted-foreground text-sm">
                             {project.name}
                           </p>
                         </div>
@@ -301,6 +323,14 @@ export const ProjectSidebar = () => {
                       <div className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                         <ProjectActionsMenu
                           label={project.name}
+                          onEdit={() =>
+                            openRenameDialog({
+                              id: project.id,
+                              kind: "project",
+                              name: project.name,
+                            })
+                          }
+                          onNewThread={() => addThread(project.id)}
                           onRemove={() => closeProject(project.id)}
                         />
                       </div>
@@ -373,9 +403,12 @@ export const ProjectSidebar = () => {
         <DialogContent className="sm:max-w-sm">
           <form className="space-y-4" onSubmit={handleRenameSubmit}>
             <DialogHeader>
-              <DialogTitle>Rename thread</DialogTitle>
+              <DialogTitle>
+                Rename {renameTarget?.kind === "project" ? "project" : "thread"}
+              </DialogTitle>
               <DialogDescription>
-                Choose a new name for this thread.
+                Choose a new name for this{" "}
+                {renameTarget?.kind === "project" ? "project" : "thread"}.
               </DialogDescription>
             </DialogHeader>
             <Input
