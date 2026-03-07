@@ -6,7 +6,7 @@ import {
   Ellipsis,
   FilePenLine,
   MessageSquarePlus,
-  Trash2,
+  X,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { ThreadSortOrder } from "@/types/ide";
 import { getThreadsForProject } from "./ide-state";
@@ -54,36 +59,44 @@ const ProjectActionsMenu = ({
   label,
   onEdit,
   onNewThread,
+  onOpenChange,
   onRemove,
+  open,
 }: {
   label: string;
   onEdit: () => void;
   onNewThread: () => void;
+  onOpenChange: (open: boolean) => void;
   onRemove: () => void;
+  open: boolean;
 }) => {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={`${label} actions`}
-            className="h-8 w-8 p-0"
-            size="icon-sm"
-            title={`${label} actions`}
-            type="button"
-            variant="ghost"
-          />
-        }
-      >
-        <Ellipsis className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-32">
+    <DropdownMenu onOpenChange={onOpenChange} open={open}>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex" />}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                aria-label={`${label} actions`}
+                className="h-8 w-8 p-0"
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <Ellipsis className="size-4" />
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{label} actions</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-36">
         <DropdownMenuItem onClick={onEdit}>
           <FilePenLine className="size-4" />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onRemove}>
-          <Trash2 className="size-4" />
+          <X className="size-4" />
           Remove
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -100,27 +113,35 @@ const ThreadActionsMenu = ({
   label,
   onArchive,
   onEdit,
+  onOpenChange,
+  open,
 }: {
   label: string;
   onArchive: () => void;
   onEdit: () => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
 }) => {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={`${label} actions`}
-            className="h-8 w-8 p-0"
-            size="icon-sm"
-            title={`${label} actions`}
-            type="button"
-            variant="ghost"
-          />
-        }
-      >
-        <Ellipsis className="size-4" />
-      </DropdownMenuTrigger>
+    <DropdownMenu onOpenChange={onOpenChange} open={open}>
+      <Tooltip>
+        <TooltipTrigger render={<span className="inline-flex" />}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                aria-label={`${label} actions`}
+                className="h-8 w-8 p-0"
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <Ellipsis className="size-4" />
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{label} actions</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="w-36">
         <DropdownMenuItem onClick={onEdit}>
           <FilePenLine className="size-4" />
@@ -149,9 +170,11 @@ export const ProjectSidebar = () => {
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
+
   const [collapsedProjects, setCollapsedProjects] = useState<
     Record<string, boolean>
   >({});
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -226,45 +249,48 @@ export const ProjectSidebar = () => {
       <div id="projects-panel" className="flex h-full flex-col">
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <span className="px-1 font-medium text-sm">Projects</span>
-          <div className="flex items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    aria-label="Sort threads"
-                    className="h-8 w-8 p-0"
-                    size="icon-sm"
-                    title="Sort threads"
-                    type="button"
-                    variant="ghost"
-                  />
-                }
-              >
-                <ArrowUpDown className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Sort threads</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    onValueChange={(value) =>
-                      setThreadSort(value as ThreadSortOrder)
-                    }
-                    value={threadSort}
-                  >
-                    {THREAD_SORT_OPTIONS.map((option) => (
-                      <DropdownMenuRadioItem
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger render={<span className="inline-flex" />}>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      aria-label="Sort threads"
+                      className="h-8 w-8 p-0"
+                      size="icon-sm"
+                      type="button"
+                      variant="ghost"
+                    />
+                  }
+                >
+                  <ArrowUpDown className="size-4" />
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Sort threads</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Sort threads</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  onValueChange={(value) =>
+                    setThreadSort(value as ThreadSortOrder)
+                  }
+                  value={threadSort}
+                >
+                  {THREAD_SORT_OPTIONS.map((option) => (
+                    <DropdownMenuRadioItem
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-1 pr-2">
             {projects.length === 0 ? (
@@ -279,6 +305,8 @@ export const ProjectSidebar = () => {
                 const activeThreadId =
                   activeThreadIdByProject[project.id] ?? null;
                 const projectThreads = threadsByProject[project.id] ?? [];
+                const projectMenuId = `project:${project.id}`;
+                const isProjectMenuOpen = openMenuId === projectMenuId;
 
                 return (
                   <div className="rounded-md" key={project.id}>
@@ -320,7 +348,14 @@ export const ProjectSidebar = () => {
                           </p>
                         </div>
                       </button>
-                      <div className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <div
+                        className={cn(
+                          "absolute top-1/2 right-1.5 -translate-y-1/2 transition-opacity",
+                          isProjectMenuOpen
+                            ? "opacity-100"
+                            : "opacity-0 group-hover:opacity-100",
+                        )}
+                      >
                         <ProjectActionsMenu
                           label={project.name}
                           onEdit={() =>
@@ -331,7 +366,11 @@ export const ProjectSidebar = () => {
                             })
                           }
                           onNewThread={() => addThread(project.id)}
+                          onOpenChange={(open) =>
+                            setOpenMenuId(open ? projectMenuId : null)
+                          }
                           onRemove={() => closeProject(project.id)}
+                          open={isProjectMenuOpen}
                         />
                       </div>
                     </div>
@@ -341,6 +380,8 @@ export const ProjectSidebar = () => {
                         {projectThreads.map((thread) => {
                           const isActiveThread =
                             isActive && thread.id === activeThreadId;
+                          const threadMenuId = `thread:${thread.id}`;
+                          const isThreadMenuOpen = openMenuId === threadMenuId;
 
                           return (
                             <div
@@ -366,7 +407,14 @@ export const ProjectSidebar = () => {
                                   </p>
                                 </div>
                               </button>
-                              <div className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                              <div
+                                className={cn(
+                                  "absolute top-1/2 right-1.5 -translate-y-1/2 transition-opacity",
+                                  isThreadMenuOpen
+                                    ? "opacity-100"
+                                    : "opacity-0 group-hover:opacity-100",
+                                )}
+                              >
                                 <ThreadActionsMenu
                                   label={thread.title}
                                   onArchive={() => archiveThread(thread.id)}
@@ -377,6 +425,10 @@ export const ProjectSidebar = () => {
                                       name: thread.title,
                                     })
                                   }
+                                  onOpenChange={(open) =>
+                                    setOpenMenuId(open ? threadMenuId : null)
+                                  }
+                                  open={isThreadMenuOpen}
                                 />
                               </div>
                             </div>

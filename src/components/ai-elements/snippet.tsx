@@ -17,6 +17,11 @@ import {
   InputGroupInput,
   InputGroupText,
 } from "@/components/ui/input-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface SnippetContextType {
@@ -126,15 +131,21 @@ export const SnippetCopyButton = ({
   const Icon = isCopied ? CheckIcon : CopyIcon;
 
   return (
-    <InputGroupButton
-      aria-label="Copy"
-      className={className}
-      onClick={copyToClipboard}
-      size="icon-sm"
-      title="Copy"
-      {...props}
-    >
-      {children ?? <Icon className="size-3.5" size={14} />}
-    </InputGroupButton>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <InputGroupButton
+            aria-label="Copy"
+            className={className}
+            onClick={copyToClipboard}
+            size="icon-sm"
+            {...props}
+          />
+        }
+      >
+        {children ?? <Icon className="size-3.5" size={14} />}
+      </TooltipTrigger>
+      <TooltipContent>Copy</TooltipContent>
+    </Tooltip>
   );
 };
