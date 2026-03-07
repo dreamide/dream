@@ -2,20 +2,30 @@ import {
   ArrowUpDown,
   ChevronDown,
   ChevronRight,
+  Ellipsis,
   MessageSquarePlus,
-  X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { ThreadSortOrder } from "@/types/ide";
@@ -32,6 +42,71 @@ const THREAD_SORT_OPTIONS: Array<{
   { label: "Title A-Z", value: "titleAsc" },
 ];
 
+type RenameTarget = { id: string; kind: "thread"; name: string };
+
+const ProjectActionsMenu = ({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) => {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label={`${label} actions`}
+            className="h-8 w-8 p-0"
+            size="icon-sm"
+            title={`${label} actions`}
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-32">
+        <DropdownMenuItem onClick={onRemove}>Remove</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const ThreadActionsMenu = ({
+  label,
+  onArchive,
+  onEdit,
+}: {
+  label: string;
+  onArchive: () => void;
+  onEdit: () => void;
+}) => {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label={`${label} actions`}
+            className="h-8 w-8 p-0"
+            size="icon-sm"
+            title={`${label} actions`}
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-36">
+        <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+        <DropdownMenuItem onClick={onArchive}>Archive</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 export const ProjectSidebar = () => {
   const projects = useIdeStore((s) => s.projects);
   const allThreads = useIdeStore((s) => s.threads);
@@ -42,11 +117,15 @@ export const ProjectSidebar = () => {
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setActiveThreadId = useIdeStore((s) => s.setActiveThreadId);
   const setThreadSort = useIdeStore((s) => s.setThreadSort);
-  const closeThread = useIdeStore((s) => s.closeThread);
+  const updateThread = useIdeStore((s) => s.updateThread);
+  const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
   const [collapsedProjects, setCollapsedProjects] = useState<
     Record<string, boolean>
   >({});
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
   const threadsByProject = useMemo(() => {
     return Object.fromEntries(
       projects.map((project) => [
@@ -80,183 +159,246 @@ export const ProjectSidebar = () => {
     }));
   };
 
+  const openRenameDialog = (target: RenameTarget) => {
+    setRenameTarget(target);
+    setRenameValue(target.name);
+  };
+
+  const closeRenameDialog = () => {
+    setRenameTarget(null);
+    setRenameValue("");
+  };
+
+  const handleRenameSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const nextName = renameValue.trim();
+    if (!renameTarget || !nextName) {
+      return;
+    }
+
+    updateThread(renameTarget.id, (current) => ({
+      ...current,
+      title: nextName,
+    }));
+
+    closeRenameDialog();
+  };
+
   return (
-    <div id="projects-panel" className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 px-2 pb-2">
-        <span className="px-1 font-medium text-sm">Projects</span>
-        <div className="flex items-center gap-1">
-          <Button
-            aria-label="New thread"
-            className="h-8 w-8 p-0"
-            disabled={!activeProjectId}
-            onClick={() => {
-              if (!activeProjectId) return;
-              addThread(activeProjectId);
-            }}
-            size="icon-sm"
-            title="New thread"
-            variant="ghost"
-          >
-            <MessageSquarePlus className="size-4" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  aria-label="Sort threads"
-                  className="h-8 w-8 p-0"
-                  size="icon-sm"
-                  title="Sort threads"
-                  type="button"
-                  variant="ghost"
-                />
-              }
+    <>
+      <div id="projects-panel" className="flex h-full flex-col">
+        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+          <span className="px-1 font-medium text-sm">Projects</span>
+          <div className="flex items-center gap-1">
+            <Button
+              aria-label="New thread"
+              className="h-8 w-8 p-0"
+              disabled={!activeProjectId}
+              onClick={() => {
+                if (!activeProjectId) return;
+                addThread(activeProjectId);
+              }}
+              size="icon-sm"
+              title="New thread"
+              variant="ghost"
             >
-              <ArrowUpDown className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Sort threads</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  onValueChange={(value) =>
-                    setThreadSort(value as ThreadSortOrder)
-                  }
-                  value={threadSort}
-                >
-                  {THREAD_SORT_OPTIONS.map((option) => (
-                    <DropdownMenuRadioItem
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-1 pr-2">
-          {projects.length === 0 ? (
-            <p className="rounded-md p-3 text-muted-foreground text-xs">
-              Add a folder to start working on multiple projects in one
-              workspace.
-            </p>
-          ) : (
-            projects.map((project) => {
-              const isActive = project.id === activeProjectId;
-              const isCollapsed = collapsedProjects[project.id] ?? false;
-              const activeThreadId =
-                activeThreadIdByProject[project.id] ?? null;
-              const projectThreads = threadsByProject[project.id] ?? [];
-
-              return (
-                <div className="rounded-md" key={project.id}>
-                  <div
-                    className={cn(
-                      "group relative flex items-center gap-1 rounded-md transition-colors",
-                      isActive
-                        ? "bg-muted"
-                        : "bg-transparent hover:bg-muted/20",
-                    )}
+              <MessageSquarePlus className="size-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    aria-label="Sort threads"
+                    className="h-8 w-8 p-0"
+                    size="icon-sm"
+                    title="Sort threads"
+                    type="button"
+                    variant="ghost"
+                  />
+                }
+              >
+                <ArrowUpDown className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Sort threads</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    onValueChange={(value) =>
+                      setThreadSort(value as ThreadSortOrder)
+                    }
+                    value={threadSort}
                   >
-                    <button
-                      aria-label={
-                        isCollapsed
-                          ? "Expand project threads"
-                          : "Collapse project threads"
-                      }
-                      className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleProjectCollapsed(project.id);
-                      }}
-                      type="button"
-                    >
-                      {isCollapsed ? (
-                        <ChevronRight className="size-3.5" />
-                      ) : (
-                        <ChevronDown className="size-3.5" />
-                      )}
-                    </button>
-                    <button
-                      className="min-w-0 flex-1 rounded-[inherit] px-1 py-2 text-left"
-                      onClick={() => setActiveProjectId(project.id)}
-                      type="button"
-                    >
-                      <div className="min-w-0 pr-6 text-left">
-                        <p className="truncate font-medium text-sm">
-                          {project.name}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      aria-label={`Close ${project.name}`}
-                      className="absolute top-2 right-2 rounded p-0.5 opacity-30 transition-opacity hover:opacity-100"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        closeProject(project.id);
-                      }}
-                      type="button"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  </div>
-
-                  {!isCollapsed ? (
-                    <div className="mt-1 ml-[11px] space-y-1 border-l border-border pl-[18px]">
-                      {projectThreads.map((thread) => {
-                        const isActiveThread =
-                          isActive && thread.id === activeThreadId;
-
-                        return (
-                          <div
-                            className={cn(
-                              "group relative rounded-md transition-colors",
-                              isActiveThread
-                                ? "bg-muted/70"
-                                : "hover:bg-muted/20",
-                            )}
-                            key={thread.id}
-                          >
-                            <button
-                              className="w-full rounded-[inherit] px-2 py-1.5 text-left"
-                              onClick={() => {
-                                setActiveProjectId(project.id);
-                                setActiveThreadId(project.id, thread.id);
-                              }}
-                              type="button"
-                            >
-                              <div className="min-w-0 pr-6">
-                                <p className="truncate text-sm">
-                                  {thread.title}
-                                </p>
-                              </div>
-                            </button>
-                            <button
-                              aria-label={`Close ${thread.title}`}
-                              className="absolute top-1.5 right-1 rounded p-0.5 opacity-30 transition-opacity hover:opacity-100"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                closeThread(thread.id);
-                              }}
-                              type="button"
-                            >
-                              <X className="size-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })
-          )}
+                    {THREAD_SORT_OPTIONS.map((option) => (
+                      <DropdownMenuRadioItem
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      </ScrollArea>
-    </div>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-1 pr-2">
+            {projects.length === 0 ? (
+              <p className="rounded-md p-3 text-muted-foreground text-xs">
+                Add a folder to start working on multiple projects in one
+                workspace.
+              </p>
+            ) : (
+              projects.map((project) => {
+                const isActive = project.id === activeProjectId;
+                const isCollapsed = collapsedProjects[project.id] ?? false;
+                const activeThreadId =
+                  activeThreadIdByProject[project.id] ?? null;
+                const projectThreads = threadsByProject[project.id] ?? [];
+
+                return (
+                  <div className="rounded-md" key={project.id}>
+                    <div
+                      className={cn(
+                        "group relative flex items-center gap-1 rounded-md transition-colors",
+                        isActive
+                          ? "bg-muted"
+                          : "bg-transparent hover:bg-muted/20",
+                      )}
+                    >
+                      <button
+                        aria-label={
+                          isCollapsed
+                            ? "Expand project threads"
+                            : "Collapse project threads"
+                        }
+                        className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleProjectCollapsed(project.id);
+                        }}
+                        type="button"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="size-3.5" />
+                        ) : (
+                          <ChevronDown className="size-3.5" />
+                        )}
+                      </button>
+                      <button
+                        className="min-w-0 flex-1 rounded-[inherit] px-1 py-2 text-left"
+                        onClick={() => setActiveProjectId(project.id)}
+                        type="button"
+                      >
+                        <div className="min-w-0 pr-10 text-left">
+                          <p className="truncate font-medium text-sm">
+                            {project.name}
+                          </p>
+                        </div>
+                      </button>
+                      <div className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                        <ProjectActionsMenu
+                          label={project.name}
+                          onRemove={() => closeProject(project.id)}
+                        />
+                      </div>
+                    </div>
+
+                    {!isCollapsed ? (
+                      <div className="mt-1 ml-[11px] space-y-1 border-l border-border pl-[18px]">
+                        {projectThreads.map((thread) => {
+                          const isActiveThread =
+                            isActive && thread.id === activeThreadId;
+
+                          return (
+                            <div
+                              className={cn(
+                                "group relative rounded-md transition-colors",
+                                isActiveThread
+                                  ? "bg-muted/70"
+                                  : "hover:bg-muted/20",
+                              )}
+                              key={thread.id}
+                            >
+                              <button
+                                className="w-full rounded-[inherit] px-2 py-1.5 text-left"
+                                onClick={() => {
+                                  setActiveProjectId(project.id);
+                                  setActiveThreadId(project.id, thread.id);
+                                }}
+                                type="button"
+                              >
+                                <div className="min-w-0 pr-10">
+                                  <p className="truncate text-sm">
+                                    {thread.title}
+                                  </p>
+                                </div>
+                              </button>
+                              <div className="absolute top-1/2 right-1.5 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                                <ThreadActionsMenu
+                                  label={thread.title}
+                                  onArchive={() => archiveThread(thread.id)}
+                                  onEdit={() =>
+                                    openRenameDialog({
+                                      id: thread.id,
+                                      kind: "thread",
+                                      name: thread.title,
+                                    })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            closeRenameDialog();
+          }
+        }}
+        open={renameTarget !== null}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <form className="space-y-4" onSubmit={handleRenameSubmit}>
+            <DialogHeader>
+              <DialogTitle>Rename thread</DialogTitle>
+              <DialogDescription>
+                Choose a new name for this thread.
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              autoFocus
+              onChange={(event) => setRenameValue(event.target.value)}
+              placeholder="Enter a name"
+              value={renameValue}
+            />
+            <DialogFooter>
+              <Button
+                onClick={closeRenameDialog}
+                type="button"
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button disabled={renameValue.trim().length === 0} type="submit">
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
