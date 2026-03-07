@@ -2,6 +2,11 @@ import type { Terminal } from "@xterm/xterm";
 import type { PropsWithChildren } from "react";
 import { ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export const ResizeHandle = ({
@@ -12,10 +17,7 @@ export const ResizeHandle = ({
   id?: string;
 }) => (
   <ResizableHandle
-    className={cn(
-      "z-20 touch-none select-none bg-transparent",
-      className,
-    )}
+    className={cn("z-20 touch-none select-none bg-transparent", className)}
     id={id}
   />
 );
@@ -32,22 +34,28 @@ export const ToggleButton = ({
   onClick: () => void;
   title: string;
 }>) => (
-  <Button
-    aria-label={title}
-    className={cn(
-      "size-8 [-webkit-app-region:no-drag]",
-      active
-        ? "text-foreground hover:text-foreground"
-        : "text-muted-foreground/50 hover:text-foreground",
-    )}
-    disabled={disabled}
-    onClick={onClick}
-    size="icon"
-    title={title}
-    variant="ghost"
-  >
-    {children}
-  </Button>
+  <Tooltip>
+    <TooltipTrigger
+      render={
+        <Button
+          aria-label={title}
+          className={cn(
+            "size-8 [-webkit-app-region:no-drag]",
+            active
+              ? "text-foreground hover:text-foreground"
+              : "text-muted-foreground/50 hover:text-foreground",
+          )}
+          disabled={disabled}
+          onClick={onClick}
+          size="icon"
+          variant="ghost"
+        />
+      }
+    >
+      {children}
+    </TooltipTrigger>
+    <TooltipContent>{title}</TooltipContent>
+  </Tooltip>
 );
 
 export const AppShellPlaceholder = ({ message }: { message: string }) => (

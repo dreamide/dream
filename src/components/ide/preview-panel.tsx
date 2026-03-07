@@ -5,6 +5,11 @@ import { Group, Panel } from "react-resizable-panels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
@@ -38,10 +43,9 @@ export const PreviewPanel = ({
   const previewTerminalSessionId = activeProject
     ? getPreviewTerminalSessionId(activeProject.id)
     : null;
-  const activeRunnerStatus =
-    previewTerminalSessionId
-      ? (terminalStatus[previewTerminalSessionId] ?? "stopped")
-      : "stopped";
+  const activeRunnerStatus = previewTerminalSessionId
+    ? (terminalStatus[previewTerminalSessionId] ?? "stopped")
+    : "stopped";
   const isPreviewLoading = activeProject
     ? (previewLoading[activeProject.id] ?? false)
     : false;
@@ -84,7 +88,10 @@ export const PreviewPanel = ({
   };
 
   return (
-    <div id="preview-panel" className="flex h-full flex-col border border-foreground/20 rounded-lg pb-4 shadow-md">
+    <div
+      id="preview-panel"
+      className="flex h-full flex-col border border-foreground/20 rounded-lg pb-4 shadow-md"
+    >
       <div id="preview-controls" className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -112,17 +119,23 @@ export const PreviewPanel = ({
               </>
             )}
           </Button>
-          <Button
-            aria-label="Show output"
-            className="h-8 w-8"
-            disabled={outputPanelOpen}
-            onClick={() => setOutputPanelOpen(true)}
-            size="icon"
-            title="Show output"
-            variant="ghost"
-          >
-            <Logs className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Show output"
+                  className="h-8 w-8"
+                  disabled={outputPanelOpen}
+                  onClick={() => setOutputPanelOpen(true)}
+                  size="icon"
+                  variant="ghost"
+                />
+              }
+            >
+              <Logs className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent>Show output</TooltipContent>
+          </Tooltip>
 
           {activeProject ? (
             <>
@@ -169,16 +182,34 @@ export const PreviewPanel = ({
                   </div>
                 ) : null}
               </div>
-              <Button
-                aria-label={isPreviewLoading ? "Stop loading preview" : "Refresh preview"}
-                className="h-8"
-                onClick={handlePreviewAction}
-                size="icon"
-                title={isPreviewLoading ? "Stop loading preview" : "Refresh preview"}
-                variant="outline"
-              >
-                {isPreviewLoading ? <X className="size-4" /> : <RotateCw className="size-4" />}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      aria-label={
+                        isPreviewLoading
+                          ? "Stop loading preview"
+                          : "Refresh preview"
+                      }
+                      className="h-8"
+                      onClick={handlePreviewAction}
+                      size="icon"
+                      variant="outline"
+                    />
+                  }
+                >
+                  {isPreviewLoading ? (
+                    <X className="size-4" />
+                  ) : (
+                    <RotateCw className="size-4" />
+                  )}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isPreviewLoading
+                    ? "Stop loading preview"
+                    : "Refresh preview"}
+                </TooltipContent>
+              </Tooltip>
             </>
           ) : null}
         </div>
@@ -203,9 +234,7 @@ export const PreviewPanel = ({
             <div className="pointer-events-none absolute bottom-0 left-0 h-4 w-4 rounded-tr-lg bg-background" />
             {!activeProject ? (
               <div className="absolute inset-0 p-3">
-                <AppShellPlaceholder
-                  message="Add a project and click Run to start a live preview."
-                />
+                <AppShellPlaceholder message="Add a project and click Run to start a live preview." />
               </div>
             ) : null}
           </div>
@@ -213,7 +242,10 @@ export const PreviewPanel = ({
 
         {outputPanelOpen ? (
           <>
-            <ResizeHandle className="h-2 cursor-row-resize" id="ide-output-handle" />
+            <ResizeHandle
+              className="h-2 cursor-row-resize"
+              id="ide-output-handle"
+            />
             <Panel
               defaultSize={26}
               id="ide-output"

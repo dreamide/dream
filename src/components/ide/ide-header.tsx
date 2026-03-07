@@ -11,6 +11,11 @@ import {
 } from "lucide-react";
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import { ToggleButton } from "./ide-helpers";
@@ -55,26 +60,38 @@ export const IdeHeader = () => {
       <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-0")} />
 
       <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-        <Button
-          aria-label="Add project"
-          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-          onClick={() => void handleAddProject()}
-          size="icon-sm"
-          title="Add project"
-          variant="ghost"
-        >
-          <Plus className="size-4 shrink-0" />
-        </Button>
-        <Button
-          aria-label="Settings"
-          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-          onClick={handleOpenSettings}
-          size="icon-sm"
-          title="Settings"
-          variant="ghost"
-        >
-          <Settings className="size-4 shrink-0" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="Add project"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => void handleAddProject()}
+                size="icon-sm"
+                variant="ghost"
+              />
+            }
+          >
+            <Plus className="size-4 shrink-0" />
+          </TooltipTrigger>
+          <TooltipContent>Add project</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="Settings"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                onClick={handleOpenSettings}
+                size="icon-sm"
+                variant="ghost"
+              />
+            }
+          >
+            <Settings className="size-4 shrink-0" />
+          </TooltipTrigger>
+          <TooltipContent>Settings</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
