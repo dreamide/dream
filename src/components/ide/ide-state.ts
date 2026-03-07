@@ -1,9 +1,3 @@
-import { DEFAULT_PANEL_VISIBILITY, DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import type {
-  AppSettings,
-  PersistedIdeState,
-  ProjectConfig,
-} from "@/types/ide";
 import type {
   DynamicToolUIPart,
   FileUIPart,
@@ -12,8 +6,19 @@ import type {
   SourceUrlUIPart,
   TextUIPart,
   ToolUIPart,
+  UIMessage,
 } from "ai";
-import type { UIMessage } from "ai";
+import {
+  createThreadConfig,
+  DEFAULT_PANEL_VISIBILITY,
+  DEFAULT_SETTINGS,
+} from "@/lib/ide-defaults";
+import type {
+  AppSettings,
+  PersistedIdeState,
+  ProjectConfig,
+  ThreadConfig,
+} from "@/types/ide";
 import {
   dedupeModels,
   inferConnectedProviders,
@@ -22,10 +27,59 @@ import {
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
+  activeThreadIdByProject: {},
   chats: {},
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
+  threads: [],
+};
+
+const isUiMessageArray = (value: unknown): value is UIMessage[] => {
+  return Array.isArray(value);
+};
+
+const normalizeThread = (
+  thread: ThreadConfig,
+  projectsById: Map<string, ProjectConfig>,
+): ThreadConfig | null => {
+  const project = projectsById.get(thread.projectId);
+  if (!project) {
+    return null;
+  }
+
+  const title = typeof thread.title === "string" ? thread.title.trim() : "";
+  const createdAt =
+    typeof thread.createdAt === "string" && thread.createdAt.trim().length > 0
+      ? thread.createdAt
+      : new Date().toISOString();
+  const updatedAt =
+    typeof thread.updatedAt === "string" && thread.updatedAt.trim().length > 0
+      ? thread.updatedAt
+      : createdAt;
+
+  return {
+    ...thread,
+    archivedAt:
+      typeof thread.archivedAt === "string" &&
+      thread.archivedAt.trim().length > 0
+        ? thread.archivedAt
+        : null,
+    createdAt,
+    model: typeof thread.model === "string" ? thread.model : project.model,
+    provider:
+      thread.provider === "anthropic" || thread.provider === "openai"
+        ? thread.provider
+        : project.provider,
+    reasoningEffort: normalizeReasoningEffort(thread.reasoningEffort),
+    remoteConversationId:
+      typeof thread.remoteConversationId === "string" &&
+      thread.remoteConversationId.trim().length > 0
+        ? thread.remoteConversationId
+        : null,
+    title: title || "New thread",
+    updatedAt,
+  };
 };
 
 export const mergePersistedState = (
@@ -40,6 +94,9 @@ export const mergePersistedState = (
       ...project,
       reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
     }),
+  );
+  const projectsById = new Map(
+    projects.map((project) => [project.id, project]),
   );
   const rawSettings = (state.settings ?? {}) as Partial<AppSettings>;
   const hasExplicitConnectedProviders = Object.hasOwn(
@@ -119,16 +176,68 @@ export const mergePersistedState = (
     hasExplicitConnectedProviders,
   );
 
+  const rawThreads = Array.isArray(state.threads) ? state.threads : [];
+  const normalizedThreads = rawThreads
+    .map((thread) => normalizeThread(thread, projectsById))
+    .filter((thread): thread is ThreadConfig => thread !== null);
+
+  const legacyChats =
+    state.chats && typeof state.chats === "object" ? state.chats : {};
+  const chats: Record<string, UIMessage[]> = {};
+  const threads =
+    normalizedThreads.length > 0
+      ? normalizedThreads
+      : projects.map((project) => createThreadConfig(project));
+
+  for (const thread of threads) {
+    const threadMessages = legacyChats[thread.id];
+    if (isUiMessageArray(threadMessages)) {
+      chats[thread.id] = threadMessages;
+      continue;
+    }
+
+    const legacyProjectMessages = legacyChats[thread.projectId];
+    if (isUiMessageArray(legacyProjectMessages)) {
+      chats[thread.id] = legacyProjectMessages;
+      continue;
+    }
+
+    chats[thread.id] = [];
+  }
+
+  const activeThreadIdByProject = projects.reduce<
+    Record<string, string | null>
+  >((acc, project) => {
+    const projectThreads = threads.filter(
+      (thread) => thread.projectId === project.id,
+    );
+    if (projectThreads.length === 0) {
+      acc[project.id] = null;
+      return acc;
+    }
+
+    const requestedThreadId =
+      state.activeThreadIdByProject?.[project.id] ?? null;
+    acc[project.id] = projectThreads.some(
+      (thread) => thread.id === requestedThreadId,
+    )
+      ? requestedThreadId
+      : (projectThreads[0]?.id ?? null);
+    return acc;
+  }, {});
+
   return {
     activeProjectId:
       typeof state.activeProjectId === "string" ? state.activeProjectId : null,
-    chats: state.chats ?? {},
+    activeThreadIdByProject,
+    chats,
     panelVisibility: {
       ...DEFAULT_PANEL_VISIBILITY,
       ...(state.panelVisibility ?? {}),
     },
     projects,
     settings: mergedSettings,
+    threads,
   };
 };
 
@@ -148,6 +257,37 @@ export const ensureActiveProject = (
   }
 
   return projects[0]?.id ?? null;
+};
+
+export const getThreadsForProject = (
+  threads: ThreadConfig[],
+  projectId: string,
+): ThreadConfig[] => {
+  return threads
+    .filter(
+      (thread) => thread.projectId === projectId && thread.archivedAt === null,
+    )
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+};
+
+export const ensureActiveThreadForProject = (
+  threads: ThreadConfig[],
+  projectId: string,
+  activeThreadId: string | null,
+): string | null => {
+  const projectThreads = getThreadsForProject(threads, projectId);
+  if (projectThreads.length === 0) {
+    return null;
+  }
+
+  if (
+    activeThreadId &&
+    projectThreads.some((thread) => thread.id === activeThreadId)
+  ) {
+    return activeThreadId;
+  }
+
+  return projectThreads[0]?.id ?? null;
 };
 
 export const renderUserMessageText = (message: UIMessage): string => {

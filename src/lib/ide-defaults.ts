@@ -5,6 +5,7 @@ import type {
   PersistedIdeState,
   ProjectConfig,
   ProviderAuthMode,
+  ThreadConfig,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
@@ -34,10 +35,12 @@ export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
 
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
+  activeThreadIdByProject: {},
   chats: {},
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
+  threads: [],
 });
 
 export const createProjectConfig = (
@@ -57,6 +60,28 @@ export const createProjectConfig = (
     provider,
     reasoningEffort: "medium",
     runCommand: "pnpm dev",
+  };
+};
+
+export const createThreadConfig = (
+  project: ProjectConfig,
+  overrides?: Partial<
+    Pick<ThreadConfig, "model" | "provider" | "reasoningEffort" | "title">
+  >,
+): ThreadConfig => {
+  const timestamp = new Date().toISOString();
+
+  return {
+    archivedAt: null,
+    createdAt: timestamp,
+    id: crypto.randomUUID(),
+    model: overrides?.model ?? project.model,
+    projectId: project.id,
+    provider: overrides?.provider ?? project.provider,
+    reasoningEffort: overrides?.reasoningEffort ?? project.reasoningEffort,
+    remoteConversationId: null,
+    title: overrides?.title?.trim() || "New thread",
+    updatedAt: timestamp,
   };
 };
 

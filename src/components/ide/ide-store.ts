@@ -1,29 +1,36 @@
 import type { UIMessage } from "ai";
 import { create } from "zustand";
+import { getDesktopApi } from "@/lib/electron";
 import {
+  createProjectConfig,
+  createThreadConfig,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
-  createProjectConfig,
   getConnectedProviders,
 } from "@/lib/ide-defaults";
-import { getDesktopApi } from "@/lib/electron";
 import type {
   AiProvider,
   AppSettings,
   PanelVisibility,
   PersistedIdeState,
   ProjectConfig,
+  ThreadConfig,
 } from "@/types/ide";
-import { ensureActiveProject, mergePersistedState } from "./ide-state";
+import {
+  ensureActiveProject,
+  ensureActiveThreadForProject,
+  getThreadsForProject,
+  mergePersistedState,
+} from "./ide-state";
 import {
   type CodexLoginStatus,
+  dedupeModels,
   GLOBAL_TERMINAL_SESSION_ID,
+  getPreviewTerminalSessionId,
   type ProviderModelState,
   type ProviderModelsResponse,
-  STATE_STORAGE_KEY,
   type SettingsSection,
-  dedupeModels,
-  getPreviewTerminalSessionId,
+  STATE_STORAGE_KEY,
 } from "./ide-types";
 
 // ---------------------------------------------------------------------------
@@ -34,6 +41,8 @@ interface IdeState {
   // Persisted state
   projects: ProjectConfig[];
   activeProjectId: string | null;
+  threads: ThreadConfig[];
+  activeThreadIdByProject: Record<string, string | null>;
   panelVisibility: PanelVisibility;
   settings: AppSettings;
   chats: Record<string, UIMessage[]>;
@@ -66,6 +75,8 @@ interface IdeState {
 
   // Derived (computed inline via getters, but activeProject is common enough)
   getActiveProject: () => ProjectConfig | null;
+  getThreadsForProject: (projectId: string) => ThreadConfig[];
+  getActiveThread: () => ThreadConfig | null;
 
   // Actions – projects
   setProjects: (projects: ProjectConfig[]) => void;
@@ -76,7 +87,14 @@ interface IdeState {
     projectId: string,
     updater: (project: ProjectConfig) => ProjectConfig,
   ) => void;
-  setMessagesForProject: (projectId: string, messages: UIMessage[]) => void;
+  addThread: (projectId: string, title?: string) => void;
+  setActiveThreadId: (projectId: string, threadId: string | null) => void;
+  updateThread: (
+    threadId: string,
+    updater: (thread: ThreadConfig) => ThreadConfig,
+  ) => void;
+  closeThread: (threadId: string) => void;
+  setMessagesForThread: (threadId: string, messages: UIMessage[]) => void;
 
   // Actions – panels
   togglePanel: (panel: keyof PanelVisibility) => void;
@@ -119,10 +137,7 @@ interface IdeState {
   appendTerminalOutput: (projectId: string, chunk: string) => void;
   clearTerminalOutput: (projectId: string) => void;
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
-  setTerminalTransport: (
-    projectId: string,
-    transport: "pty" | "pipe",
-  ) => void;
+  setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
   setTerminalShell: (projectId: string, shell: string) => void;
   setPreviewError: (error: string | null) => void;
   setPreviewLoading: (projectId: string, loading: boolean) => void;
@@ -158,6 +173,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Persisted state ─────────────────────────────────────────────────
   projects: [],
   activeProjectId: null,
+  threads: [],
+  activeThreadIdByProject: {},
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   settings: DEFAULT_SETTINGS,
   chats: {},
@@ -194,20 +211,67 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const { projects, activeProjectId } = get();
     return projects.find((p) => p.id === activeProjectId) ?? null;
   },
+  getThreadsForProject: (projectId) => {
+    return getThreadsForProject(get().threads, projectId);
+  },
+  getActiveThread: () => {
+    const { activeProjectId, activeThreadIdByProject, threads } = get();
+    if (!activeProjectId) {
+      return null;
+    }
+
+    const activeThreadId = activeThreadIdByProject[activeProjectId] ?? null;
+    if (!activeThreadId) {
+      return null;
+    }
+
+    return threads.find((thread) => thread.id === activeThreadId) ?? null;
+  },
 
   // ── Actions: projects ───────────────────────────────────────────────
   setProjects: (projects) => set({ projects }),
-  setActiveProjectId: (id) => set({ activeProjectId: id }),
+  setActiveProjectId: (id) => {
+    set((state) => {
+      if (!id) {
+        return { activeProjectId: null };
+      }
+
+      return {
+        activeProjectId: id,
+        activeThreadIdByProject: {
+          ...state.activeThreadIdByProject,
+          [id]: ensureActiveThreadForProject(
+            state.threads,
+            id,
+            state.activeThreadIdByProject[id] ?? null,
+          ),
+        },
+      };
+    });
+  },
 
   addProject: (path) => {
     const { projects, settings } = get();
     const existing = projects.find((p) => p.path === path);
     if (existing) {
-      set({ activeProjectId: existing.id });
+      get().setActiveProjectId(existing.id);
       return;
     }
-    const next = createProjectConfig(path, settings);
-    set({ projects: [...projects, next], activeProjectId: next.id });
+    const nextProject = createProjectConfig(path, settings);
+    const nextThread = createThreadConfig(nextProject);
+    set((state) => ({
+      projects: [...projects, nextProject],
+      activeProjectId: nextProject.id,
+      activeThreadIdByProject: {
+        ...state.activeThreadIdByProject,
+        [nextProject.id]: nextThread.id,
+      },
+      chats: {
+        ...state.chats,
+        [nextThread.id]: [],
+      },
+      threads: [...state.threads, nextThread],
+    }));
   },
 
   closeProject: (projectId) => {
@@ -219,8 +283,18 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     set((state) => {
       const nextProjects = state.projects.filter((p) => p.id !== projectId);
+      const removedThreadIds = state.threads
+        .filter((thread) => thread.projectId === projectId)
+        .map((thread) => thread.id);
+      const nextThreads = state.threads.filter(
+        (thread) => thread.projectId !== projectId,
+      );
       const nextChats = { ...state.chats };
-      delete nextChats[projectId];
+      for (const threadId of removedThreadIds) {
+        delete nextChats[threadId];
+      }
+      const nextActiveThreadIdByProject = { ...state.activeThreadIdByProject };
+      delete nextActiveThreadIdByProject[projectId];
       const nextTerminalOutput = { ...state.terminalOutput };
       delete nextTerminalOutput[previewTerminalSessionId];
       const nextTerminalStatus = { ...state.terminalStatus };
@@ -236,11 +310,13 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           nextProjects,
           state.activeProjectId,
         ),
+        activeThreadIdByProject: nextActiveThreadIdByProject,
         chats: nextChats,
         terminalOutput: nextTerminalOutput,
         terminalStatus: nextTerminalStatus,
         terminalTransport: nextTerminalTransport,
         terminalShell: nextTerminalShell,
+        threads: nextThreads,
       };
     });
   },
@@ -253,10 +329,108 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }));
   },
 
-  setMessagesForProject: (projectId, messages) => {
+  addThread: (projectId, title) => {
+    set((state) => {
+      const project = state.projects.find((item) => item.id === projectId);
+      if (!project) {
+        return state;
+      }
+
+      const thread = createThreadConfig(project, { title });
+      return {
+        activeThreadIdByProject: {
+          ...state.activeThreadIdByProject,
+          [projectId]: thread.id,
+        },
+        chats: {
+          ...state.chats,
+          [thread.id]: [],
+        },
+        threads: [thread, ...state.threads],
+      };
+    });
+  },
+
+  setActiveThreadId: (projectId, threadId) => {
     set((state) => ({
-      chats: { ...state.chats, [projectId]: messages },
+      activeThreadIdByProject: {
+        ...state.activeThreadIdByProject,
+        [projectId]: ensureActiveThreadForProject(
+          state.threads,
+          projectId,
+          threadId,
+        ),
+      },
     }));
+  },
+
+  updateThread: (threadId, updater) => {
+    set((state) => ({
+      threads: state.threads.map((thread) => {
+        if (thread.id !== threadId) {
+          return thread;
+        }
+
+        const nextThread = updater(thread);
+        return {
+          ...nextThread,
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+  },
+
+  closeThread: (threadId) => {
+    set((state) => {
+      const thread = state.threads.find((item) => item.id === threadId);
+      if (!thread) {
+        return state;
+      }
+
+      const nextThreads = state.threads.filter((item) => item.id !== threadId);
+      const nextChats = { ...state.chats };
+      delete nextChats[threadId];
+
+      return {
+        activeThreadIdByProject: {
+          ...state.activeThreadIdByProject,
+          [thread.projectId]: ensureActiveThreadForProject(
+            nextThreads,
+            thread.projectId,
+            state.activeThreadIdByProject[thread.projectId] === threadId
+              ? null
+              : (state.activeThreadIdByProject[thread.projectId] ?? null),
+          ),
+        },
+        chats: nextChats,
+        threads: nextThreads,
+      };
+    });
+  },
+
+  setMessagesForThread: (threadId, messages) => {
+    set((state) => {
+      const thread = state.threads.find((item) => item.id === threadId);
+      if (!thread) {
+        return state;
+      }
+
+      return {
+        activeThreadIdByProject: {
+          ...state.activeThreadIdByProject,
+          [thread.projectId]: threadId,
+        },
+        chats: { ...state.chats, [threadId]: messages },
+        threads: state.threads.map((item) =>
+          item.id === threadId
+            ? {
+                ...item,
+                updatedAt: new Date().toISOString(),
+              }
+            : item,
+        ),
+      };
+    });
   },
 
   // ── Actions: panels ─────────────────────────────────────────────────
@@ -724,10 +898,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       if (!rawState) {
         loaded = {
           activeProjectId: null,
+          activeThreadIdByProject: {},
           chats: {},
           panelVisibility: DEFAULT_PANEL_VISIBILITY,
           projects: [],
           settings: DEFAULT_SETTINGS,
+          threads: [],
         };
       } else {
         try {
@@ -737,20 +913,35 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         } catch {
           loaded = {
             activeProjectId: null,
+            activeThreadIdByProject: {},
             chats: {},
             panelVisibility: DEFAULT_PANEL_VISIBILITY,
             projects: [],
             settings: DEFAULT_SETTINGS,
+            threads: [],
           };
         }
       }
     }
 
+    const nextActiveProjectId = ensureActiveProject(
+      loaded.projects,
+      loaded.activeProjectId,
+    );
+
     set({
       projects: loaded.projects,
-      activeProjectId: ensureActiveProject(
-        loaded.projects,
-        loaded.activeProjectId,
+      activeProjectId: nextActiveProjectId,
+      threads: loaded.threads,
+      activeThreadIdByProject: Object.fromEntries(
+        loaded.projects.map((project) => [
+          project.id,
+          ensureActiveThreadForProject(
+            loaded.threads,
+            project.id,
+            loaded.activeThreadIdByProject[project.id] ?? null,
+          ),
+        ]),
       ),
       panelVisibility: loaded.panelVisibility,
       settings: loaded.settings,
@@ -763,6 +954,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const {
       projects,
       activeProjectId,
+      threads,
+      activeThreadIdByProject,
       panelVisibility,
       settings,
       chats,
@@ -772,10 +965,21 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const nextState: PersistedIdeState = {
       activeProjectId: ensureActiveProject(projects, activeProjectId),
+      activeThreadIdByProject: Object.fromEntries(
+        projects.map((project) => [
+          project.id,
+          ensureActiveThreadForProject(
+            threads,
+            project.id,
+            activeThreadIdByProject[project.id] ?? null,
+          ),
+        ]),
+      ),
       chats,
       panelVisibility,
       projects,
       settings,
+      threads,
     };
 
     const desktopApi = getDesktopApi();

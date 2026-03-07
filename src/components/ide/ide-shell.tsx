@@ -23,6 +23,7 @@ import { PreviewPanel } from "./preview-panel";
 import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { TerminalPanel } from "./terminal-panel";
+import { ThreadSidebar } from "./thread-sidebar";
 
 const PROJECT_SIDEBAR_WIDTH_PX = 320;
 const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
@@ -41,6 +42,7 @@ export const IdeShell = () => {
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
   const activeProject = useIdeStore((s) => s.getActiveProject());
+  const activeThread = useIdeStore((s) => s.getActiveThread());
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
@@ -108,27 +110,33 @@ export const IdeShell = () => {
   useEffect(() => {
     let prev = {
       activeProjectId: useIdeStore.getState().activeProjectId,
+      activeThreadIdByProject: useIdeStore.getState().activeThreadIdByProject,
       chats: useIdeStore.getState().chats,
       panelVisibility: useIdeStore.getState().panelVisibility,
       projects: useIdeStore.getState().projects,
       settings: useIdeStore.getState().settings,
+      threads: useIdeStore.getState().threads,
     };
 
     const unsub = useIdeStore.subscribe((state) => {
       const next = {
         activeProjectId: state.activeProjectId,
+        activeThreadIdByProject: state.activeThreadIdByProject,
         chats: state.chats,
         panelVisibility: state.panelVisibility,
         projects: state.projects,
         settings: state.settings,
+        threads: state.threads,
       };
 
       if (
         next.activeProjectId !== prev.activeProjectId ||
+        next.activeThreadIdByProject !== prev.activeThreadIdByProject ||
         next.chats !== prev.chats ||
         next.panelVisibility !== prev.panelVisibility ||
         next.projects !== prev.projects ||
-        next.settings !== prev.settings
+        next.settings !== prev.settings ||
+        next.threads !== prev.threads
       ) {
         prev = next;
         if (state.stateHydrated) state.persist();
@@ -257,6 +265,11 @@ export const IdeShell = () => {
 
   // Sync preview bounds when project or panel visibility changes
   useEffect(() => {
+    if (!panelVisibility.right && !activeProject) {
+      syncPreviewBounds();
+      return;
+    }
+
     syncPreviewBounds();
   }, [activeProject, panelVisibility.right, syncPreviewBounds]);
 
@@ -336,7 +349,7 @@ export const IdeShell = () => {
   // Sync settings integrity (dedupe models, fix connected providers)
   useEffect(() => {
     const store = useIdeStore.getState();
-    const prev = store.settings;
+    const prev = settings;
 
     const safeConnectedProviders = getConnectedProviders(prev);
     const openAiSelectedModels = dedupeModels(prev.openAiSelectedModels);
@@ -382,8 +395,9 @@ export const IdeShell = () => {
     // Fix projects whose provider/model is no longer valid
     const connectedProviders = safeConnectedProviders;
     const fallbackProvider = connectedProviders[0] ?? null;
-    const { projects } = store;
+    const { projects, threads } = store;
     let projectsChanged = false;
+    let threadsChanged = false;
     const nextProjects = projects.map((project) => {
       let next = project;
 
@@ -418,6 +432,47 @@ export const IdeShell = () => {
 
     if (projectsChanged) {
       store.setProjects(nextProjects);
+    }
+
+    const nextThreads = threads.map((thread) => {
+      let next = thread;
+      const project = projects.find((item) => item.id === thread.projectId);
+
+      if (!project) {
+        return next;
+      }
+
+      if (!connectedProviders.includes(next.provider) && fallbackProvider) {
+        next = {
+          ...next,
+          model: getDefaultModelForProvider(fallbackProvider, store.settings),
+          provider: fallbackProvider,
+        };
+        threadsChanged = true;
+      }
+
+      const providerModels = getModelsForProvider(
+        next.provider,
+        store.settings,
+      );
+      const fallbackModel = getDefaultModelForProvider(
+        next.provider,
+        store.settings,
+      );
+
+      if (
+        !providerModels.includes(next.model) &&
+        next.model !== fallbackModel
+      ) {
+        next = { ...next, model: fallbackModel };
+        threadsChanged = true;
+      }
+
+      return next;
+    });
+
+    if (threadsChanged) {
+      useIdeStore.setState({ threads: nextThreads });
     }
   }, [settings]);
 
@@ -478,7 +533,22 @@ export const IdeShell = () => {
                         minSize={30}
                       >
                         {activeProject ? (
-                          <ChatPanel project={activeProject} />
+                          <div className="flex h-full min-h-0">
+                            <ThreadSidebar project={activeProject} />
+                            <div className="min-w-0 flex-1">
+                              {activeThread ? (
+                                <ChatPanel
+                                  key={activeThread.id}
+                                  project={activeProject}
+                                  thread={activeThread}
+                                />
+                              ) : (
+                                <div className="h-full p-3">
+                                  <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         ) : (
                           <div className="h-full p-3">
                             <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />

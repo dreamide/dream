@@ -32,6 +32,7 @@ const rendererProbeIntervalMs = 300;
 const store = new Store({
   defaults: {
     activeProjectId: null,
+    activeThreadIdByProject: {},
     chats: {},
     panelVisibility: {
       left: true,
@@ -54,6 +55,7 @@ const store = new Store({
       openAiSelectedModels: [],
       shellPath: "",
     },
+    threads: [],
   },
   name: "dream-settings",
 });
@@ -318,7 +320,8 @@ function createPreviewSession(projectId) {
     const session = previewSessions.get(projectId);
     if (session) {
       session.loadingRequestedUrl = null;
-      session.currentLoadedUrl = session.view.webContents.getURL() || "about:blank";
+      session.currentLoadedUrl =
+        session.view.webContents.getURL() || "about:blank";
     }
   });
 
@@ -403,7 +406,12 @@ function attachPreviewSession(session) {
 }
 
 function detachPreviewSession(session) {
-  if (!mainWindow || mainWindow.isDestroyed() || !session || !session.attached) {
+  if (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    !session ||
+    !session.attached
+  ) {
     return;
   }
 
@@ -475,7 +483,10 @@ function applyPreviewState() {
     return;
   }
 
-  if (activePreviewProjectId && activePreviewProjectId !== nextSession.projectId) {
+  if (
+    activePreviewProjectId &&
+    activePreviewProjectId !== nextSession.projectId
+  ) {
     const previousSession = previewSessions.get(activePreviewProjectId);
     if (previousSession) {
       detachPreviewSession(previousSession);
@@ -1248,7 +1259,10 @@ ipcMain.on("preview:update", (_event, payload) => {
     return;
   }
 
-  if (typeof payload.projectId === "string" && payload.projectId.trim().length > 0) {
+  if (
+    typeof payload.projectId === "string" &&
+    payload.projectId.trim().length > 0
+  ) {
     previewState.projectId = payload.projectId.trim();
   }
 
