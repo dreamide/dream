@@ -18,6 +18,7 @@ import type {
   PersistedIdeState,
   ProjectConfig,
   ThreadConfig,
+  ThreadSortOrder,
 } from "@/types/ide";
 import {
   dedupeModels,
@@ -32,7 +33,20 @@ export const emptyState: PersistedIdeState = {
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
+  threadSort: "recent",
   threads: [],
+};
+
+export const normalizeThreadSortOrder = (value: unknown): ThreadSortOrder => {
+  switch (value) {
+    case "createdAsc":
+    case "createdDesc":
+    case "recent":
+    case "titleAsc":
+      return value;
+    default:
+      return "recent";
+  }
 };
 
 const isUiMessageArray = (value: unknown): value is UIMessage[] => {
@@ -237,6 +251,7 @@ export const mergePersistedState = (
     },
     projects,
     settings: mergedSettings,
+    threadSort: normalizeThreadSortOrder(state.threadSort),
     threads,
   };
 };
@@ -262,12 +277,24 @@ export const ensureActiveProject = (
 export const getThreadsForProject = (
   threads: ThreadConfig[],
   projectId: string,
+  sortOrder: ThreadSortOrder = "recent",
 ): ThreadConfig[] => {
-  return threads
-    .filter(
-      (thread) => thread.projectId === projectId && thread.archivedAt === null,
-    )
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const projectThreads = threads.filter(
+    (thread) => thread.projectId === projectId && thread.archivedAt === null,
+  );
+
+  return projectThreads.sort((a, b) => {
+    switch (sortOrder) {
+      case "createdAsc":
+        return a.createdAt.localeCompare(b.createdAt);
+      case "createdDesc":
+        return b.createdAt.localeCompare(a.createdAt);
+      case "titleAsc":
+        return a.title.localeCompare(b.title);
+      default:
+        return b.updatedAt.localeCompare(a.updatedAt);
+    }
+  });
 };
 
 export const ensureActiveThreadForProject = (

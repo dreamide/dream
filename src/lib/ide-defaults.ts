@@ -40,6 +40,7 @@ export const createEmptyState = (): PersistedIdeState => ({
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
+  threadSort: "recent",
   threads: [],
 });
 

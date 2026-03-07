@@ -5,6 +5,11 @@ export type OpenAiAuthMode = "apiKey" | "codex";
 export type AnthropicAuthMode = "apiKey" | "claudeProMax";
 export type ProviderAuthMode = OpenAiAuthMode | AnthropicAuthMode;
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type ThreadSortOrder =
+  | "recent"
+  | "createdDesc"
+  | "createdAsc"
+  | "titleAsc";
 
 export interface ThreadConfig {
   id: string;
@@ -59,6 +64,7 @@ export interface PersistedIdeState {
   settings: AppSettings;
   threads: ThreadConfig[];
   activeThreadIdByProject: Record<string, string | null>;
+  threadSort: ThreadSortOrder;
   chats: Record<string, UIMessage[]>;
 }
 

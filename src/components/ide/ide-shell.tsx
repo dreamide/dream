@@ -23,7 +23,6 @@ import { PreviewPanel } from "./preview-panel";
 import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { TerminalPanel } from "./terminal-panel";
-import { ThreadSidebar } from "./thread-sidebar";
 
 const PROJECT_SIDEBAR_WIDTH_PX = 320;
 const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
@@ -115,6 +114,7 @@ export const IdeShell = () => {
       panelVisibility: useIdeStore.getState().panelVisibility,
       projects: useIdeStore.getState().projects,
       settings: useIdeStore.getState().settings,
+      threadSort: useIdeStore.getState().threadSort,
       threads: useIdeStore.getState().threads,
     };
 
@@ -126,6 +126,7 @@ export const IdeShell = () => {
         panelVisibility: state.panelVisibility,
         projects: state.projects,
         settings: state.settings,
+        threadSort: state.threadSort,
         threads: state.threads,
       };
 
@@ -136,6 +137,7 @@ export const IdeShell = () => {
         next.panelVisibility !== prev.panelVisibility ||
         next.projects !== prev.projects ||
         next.settings !== prev.settings ||
+        next.threadSort !== prev.threadSort ||
         next.threads !== prev.threads
       ) {
         prev = next;
@@ -533,22 +535,17 @@ export const IdeShell = () => {
                         minSize={30}
                       >
                         {activeProject ? (
-                          <div className="flex h-full min-h-0">
-                            <ThreadSidebar project={activeProject} />
-                            <div className="min-w-0 flex-1">
-                              {activeThread ? (
-                                <ChatPanel
-                                  key={activeThread.id}
-                                  project={activeProject}
-                                  thread={activeThread}
-                                />
-                              ) : (
-                                <div className="h-full p-3">
-                                  <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
-                                </div>
-                              )}
+                          activeThread ? (
+                            <ChatPanel
+                              key={activeThread.id}
+                              project={activeProject}
+                              thread={activeThread}
+                            />
+                          ) : (
+                            <div className="h-full p-3">
+                              <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
                             </div>
-                          </div>
+                          )
                         ) : (
                           <div className="h-full p-3">
                             <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />

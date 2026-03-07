@@ -15,6 +15,7 @@ import type {
   PersistedIdeState,
   ProjectConfig,
   ThreadConfig,
+  ThreadSortOrder,
 } from "@/types/ide";
 import {
   ensureActiveProject,
@@ -43,6 +44,7 @@ interface IdeState {
   activeProjectId: string | null;
   threads: ThreadConfig[];
   activeThreadIdByProject: Record<string, string | null>;
+  threadSort: ThreadSortOrder;
   panelVisibility: PanelVisibility;
   settings: AppSettings;
   chats: Record<string, UIMessage[]>;
@@ -95,6 +97,7 @@ interface IdeState {
   ) => void;
   closeThread: (threadId: string) => void;
   setMessagesForThread: (threadId: string, messages: UIMessage[]) => void;
+  setThreadSort: (sortOrder: ThreadSortOrder) => void;
 
   // Actions – panels
   togglePanel: (panel: keyof PanelVisibility) => void;
@@ -175,6 +178,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   activeProjectId: null,
   threads: [],
   activeThreadIdByProject: {},
+  threadSort: "recent",
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   settings: DEFAULT_SETTINGS,
   chats: {},
@@ -212,7 +216,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     return projects.find((p) => p.id === activeProjectId) ?? null;
   },
   getThreadsForProject: (projectId) => {
-    return getThreadsForProject(get().threads, projectId);
+    const { threadSort, threads } = get();
+    return getThreadsForProject(threads, projectId, threadSort);
   },
   getActiveThread: () => {
     const { activeProjectId, activeThreadIdByProject, threads } = get();
@@ -432,6 +437,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       };
     });
   },
+
+  setThreadSort: (threadSort) => set({ threadSort }),
 
   // ── Actions: panels ─────────────────────────────────────────────────
   togglePanel: (panel) => {
@@ -903,6 +910,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           panelVisibility: DEFAULT_PANEL_VISIBILITY,
           projects: [],
           settings: DEFAULT_SETTINGS,
+          threadSort: "recent",
           threads: [],
         };
       } else {
@@ -918,6 +926,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             panelVisibility: DEFAULT_PANEL_VISIBILITY,
             projects: [],
             settings: DEFAULT_SETTINGS,
+            threadSort: "recent",
             threads: [],
           };
         }
@@ -945,6 +954,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       ),
       panelVisibility: loaded.panelVisibility,
       settings: loaded.settings,
+      threadSort: loaded.threadSort,
       chats: loaded.chats,
       stateHydrated: true,
     });
@@ -956,6 +966,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       activeProjectId,
       threads,
       activeThreadIdByProject,
+      threadSort,
       panelVisibility,
       settings,
       chats,
@@ -979,6 +990,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       panelVisibility,
       projects,
       settings,
+      threadSort,
       threads,
     };
 
