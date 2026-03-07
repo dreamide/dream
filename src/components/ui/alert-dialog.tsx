@@ -5,9 +5,45 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useRegisterModalVisibility } from "@/lib/modal-visibility"
 
-function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+type AlertDialogOpenChangeHandler = NonNullable<
+  AlertDialogPrimitive.Root.Props["onOpenChange"]
+>
+
+function AlertDialog({
+  defaultOpen = false,
+  onOpenChange,
+  open: controlledOpen,
+  ...props
+}: AlertDialogPrimitive.Root.Props) {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+  const open = controlledOpen ?? uncontrolledOpen
+
+  useRegisterModalVisibility(open)
+
+  const handleOpenChange = React.useCallback<AlertDialogOpenChangeHandler>(
+    (...args) => {
+      const [nextOpen] = args
+
+      if (controlledOpen === undefined) {
+        setUncontrolledOpen(nextOpen)
+      }
+
+      onOpenChange?.(...args)
+    },
+    [controlledOpen, onOpenChange]
+  )
+
+  return (
+    <AlertDialogPrimitive.Root
+      data-slot="alert-dialog"
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      open={controlledOpen}
+      {...props}
+    />
+  )
 }
 
 function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {

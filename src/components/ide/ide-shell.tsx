@@ -9,6 +9,10 @@ import {
   getDefaultModelForProvider,
   getModelsForProvider,
 } from "@/lib/ide-defaults";
+import {
+  isModalPreviewHidden,
+  useModalPreviewHidden,
+} from "@/lib/modal-visibility";
 import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
 import { IdeHeader } from "./ide-header";
@@ -17,6 +21,7 @@ import { useIdeStore } from "./ide-store";
 import {
   dedupeModels,
   GLOBAL_TERMINAL_SESSION_ID,
+  getPreviewTerminalSessionId,
   TERMINAL_MIN_HEIGHT_PX,
 } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
@@ -26,7 +31,7 @@ import { TerminalPanel } from "./terminal-panel";
 
 const PROJECT_SIDEBAR_WIDTH_PX = 320;
 const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
-const CHAT_PANEL_MIN_WIDTH_PX = 600;
+const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
 
@@ -42,6 +47,7 @@ export const IdeShell = () => {
   const settingsSection = useIdeStore((s) => s.settingsSection);
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeThread = useIdeStore((s) => s.getActiveThread());
+  const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
@@ -204,11 +210,20 @@ export const IdeShell = () => {
     const desktopApi = getDesktopApi();
     const project = useIdeStore.getState().getActiveProject();
     const pv = useIdeStore.getState().panelVisibility;
-    const isSettingsOpen = useIdeStore.getState().settingsOpen;
+    const terminalStatus = useIdeStore.getState().terminalStatus;
 
     if (!desktopApi) return;
 
-    if (!project || !pv.right || isSettingsOpen) {
+    const isPreviewRunnerRunning = project
+      ? terminalStatus[getPreviewTerminalSessionId(project.id)] === "running"
+      : false;
+
+    if (
+      !project ||
+      !pv.right ||
+      !isPreviewRunnerRunning ||
+      isModalPreviewHidden()
+    ) {
       desktopApi.updatePreview({
         projectId: project?.id,
         visible: false,
@@ -275,21 +290,15 @@ export const IdeShell = () => {
     syncPreviewBounds();
   }, [activeProject, panelVisibility.right, syncPreviewBounds]);
 
-  // Delay preview restore until the settings dialog exit animation completes.
+  // Keep the preview hidden while any modal is open or finishing its exit animation.
   useEffect(() => {
-    if (settingsOpen) {
+    if (modalPreviewHidden) {
       syncPreviewBounds();
       return;
     }
 
-    const timeout = window.setTimeout(() => {
-      syncPreviewBounds();
-    }, 200);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [settingsOpen, syncPreviewBounds]);
+    syncPreviewBounds();
+  }, [modalPreviewHidden, syncPreviewBounds]);
 
   // Preview cleanup on unmount
   useEffect(() => {
