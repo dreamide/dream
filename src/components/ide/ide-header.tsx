@@ -22,6 +22,7 @@ import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
 export const IdeHeader = () => {
+  const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
@@ -59,40 +60,42 @@ export const IdeHeader = () => {
     >
       <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-0")} />
 
-      <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                aria-label="Add project"
-                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                onClick={() => void handleAddProject()}
-                size="icon-sm"
-                variant="ghost"
-              />
-            }
-          >
-            <Plus className="size-4 shrink-0" />
-          </TooltipTrigger>
-          <TooltipContent>Add project</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                aria-label="Settings"
-                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                onClick={handleOpenSettings}
-                size="icon-sm"
-                variant="ghost"
-              />
-            }
-          >
-            <Settings className="size-4 shrink-0" />
-          </TooltipTrigger>
-          <TooltipContent>Settings</TooltipContent>
-        </Tooltip>
-      </div>
+      {appReady ? (
+        <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Add project"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => void handleAddProject()}
+                  size="icon-sm"
+                  variant="ghost"
+                />
+              }
+            >
+              <Plus className="size-4 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>Add project</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Settings"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={handleOpenSettings}
+                  size="icon-sm"
+                  variant="ghost"
+                />
+              }
+            >
+              <Settings className="size-4 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>Settings</TooltipContent>
+          </Tooltip>
+        </div>
+      ) : null}
 
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <span className="text-muted-foreground text-xs tracking-widest">
@@ -100,39 +103,41 @@ export const IdeHeader = () => {
         </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
-        <ToggleButton
-          active={terminalPanelOpen}
-          disabled={!activeProject}
-          onClick={() => setTerminalPanelOpen(!terminalPanelOpen)}
-          title="Toggle terminal"
-        >
-          <TerminalSquare className="size-4" />
-        </ToggleButton>
-        <ToggleButton
-          active={panelVisibility.left}
-          onClick={() => togglePanel("left")}
-          title="Toggle projects panel"
-        >
-          <PanelLeft className="size-4" />
-        </ToggleButton>
-        <ToggleButton
-          active={panelVisibility.middle}
-          onClick={() => togglePanel("middle")}
-          title="Toggle chat panel"
-        >
-          <MessageSquare className="size-4" />
-        </ToggleButton>
-        <ToggleButton
-          active={panelVisibility.right}
-          onClick={() => togglePanel("right")}
-          title="Toggle preview panel"
-        >
-          <PanelRight className="size-4" />
-        </ToggleButton>
-      </div>
+      {appReady ? (
+        <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
+          <ToggleButton
+            active={terminalPanelOpen}
+            disabled={!activeProject}
+            onClick={() => setTerminalPanelOpen(!terminalPanelOpen)}
+            title="Toggle terminal"
+          >
+            <TerminalSquare className="size-4" />
+          </ToggleButton>
+          <ToggleButton
+            active={panelVisibility.left}
+            onClick={() => togglePanel("left")}
+            title="Toggle projects panel"
+          >
+            <PanelLeft className="size-4" />
+          </ToggleButton>
+          <ToggleButton
+            active={panelVisibility.middle}
+            onClick={() => togglePanel("middle")}
+            title="Toggle chat panel"
+          >
+            <MessageSquare className="size-4" />
+          </ToggleButton>
+          <ToggleButton
+            active={panelVisibility.right}
+            onClick={() => togglePanel("right")}
+            title="Toggle preview panel"
+          >
+            <PanelRight className="size-4" />
+          </ToggleButton>
+        </div>
+      ) : null}
 
-      {!isMacOs && isElectron && <WindowControls />}
+      {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
     </header>
   );
 };
