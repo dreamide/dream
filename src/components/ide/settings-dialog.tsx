@@ -1,5 +1,15 @@
-import { ArrowLeft, Boxes, Plug, Terminal, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  Boxes,
+  Monitor,
+  Moon,
+  Plug,
+  Sun,
+  Terminal,
+  X,
+} from "lucide-react";
+import { useTheme } from "next-themes";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getConnectedProviders,
   getModelOptionsForProvider,
@@ -52,6 +63,7 @@ export const SettingsDialog = () => {
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
+  const { setTheme, theme } = useTheme();
 
   const connectedProviders = useMemo(
     () => getConnectedProviders(settings),
@@ -136,6 +148,11 @@ export const SettingsDialog = () => {
   const [anthropicOauthPending, setAnthropicOauthPending] = useState(false);
   const [anthropicOauthUrl, setAnthropicOauthUrl] = useState("");
   const [anthropicOauthVerifier, setAnthropicOauthVerifier] = useState("");
+  const [themeMounted, setThemeMounted] = useState(false);
+
+  useEffect(() => {
+    setThemeMounted(true);
+  }, []);
 
   const refreshModels = (
     next: Pick<
@@ -296,6 +313,21 @@ export const SettingsDialog = () => {
               <button
                 className={cn(
                   "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
+                  settingsSection === "appearance"
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setSettingsSection("appearance")}
+                type="button"
+              >
+                <span className="flex items-center gap-2">
+                  <Monitor className="size-4" />
+                  Appearance
+                </span>
+              </button>
+              <button
+                className={cn(
+                  "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
                   settingsSection === "providers"
                     ? "font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -343,6 +375,48 @@ export const SettingsDialog = () => {
 
           <div className="min-w-0 flex-1 overflow-y-auto">
             <div className="space-y-4 p-5">
+              {settingsSection === "appearance" ? (
+                <div className="space-y-4 rounded-lg p-3">
+                  <div className="space-y-1">
+                    <h3 className="font-medium text-sm">Theme</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Choose how Dream should appear across the app.
+                    </p>
+                  </div>
+
+                  <div className="max-w-sm">
+                    <Tabs
+                      onValueChange={(value) => {
+                        if (!value) {
+                          return;
+                        }
+
+                        setTheme(value);
+                      }}
+                      value={themeMounted ? (theme ?? "system") : "system"}
+                    >
+                      <TabsList
+                        className="w-full justify-start"
+                        id="theme-tabs"
+                      >
+                        <TabsTrigger value="system">
+                          <Monitor className="size-4" />
+                          System
+                        </TabsTrigger>
+                        <TabsTrigger value="light">
+                          <Sun className="size-4" />
+                          Light
+                        </TabsTrigger>
+                        <TabsTrigger value="dark">
+                          <Moon className="size-4" />
+                          Dark
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                </div>
+              ) : null}
+
               {settingsSection === "providers" ? (
                 providerSetupTarget ? (
                   <div className="rounded-xl p-5 sm:p-6">
