@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { TerminalSquare, X } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
@@ -35,6 +36,7 @@ export const TerminalPanel = ({
   stopOnClose = true,
 }: TerminalPanelProps) => {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const terminalInstanceRef = useRef<Terminal | null>(null);
   const transportRef = useRef(
     useIdeStore.getState().terminalTransport[sessionId] ?? "pty",
   );
@@ -42,10 +44,13 @@ export const TerminalPanel = ({
     useIdeStore.getState().terminalStatus[sessionId] ?? "stopped",
   );
   const terminalShell = useIdeStore((s) => s.terminalShell[sessionId]);
-  const terminalStatus = useIdeStore((s) => s.terminalStatus[sessionId] ?? "stopped");
+  const terminalStatus = useIdeStore(
+    (s) => s.terminalStatus[sessionId] ?? "stopped",
+  );
   const terminalTransport = useIdeStore(
     (s) => s.terminalTransport[sessionId] ?? "pty",
   );
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     transportRef.current = terminalTransport;
@@ -56,10 +61,31 @@ export const TerminalPanel = ({
   }, [terminalStatus]);
 
   useEffect(() => {
+    if (!resolvedTheme) {
+      return;
+    }
+
+    const terminal = terminalInstanceRef.current;
+    if (!terminal) {
+      return;
+    }
+
+    const rootStyles = getComputedStyle(document.documentElement);
+    terminal.options.theme = {
+      background: rootStyles.getPropertyValue("--background").trim(),
+      cursor: rootStyles.getPropertyValue("--foreground").trim(),
+      foreground: rootStyles.getPropertyValue("--foreground").trim(),
+      selectionBackground: rootStyles.getPropertyValue("--accent").trim(),
+    };
+  }, [resolvedTheme]);
+
+  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
     }
+
+    const rootStyles = getComputedStyle(document.documentElement);
 
     const terminal = new Terminal({
       allowProposedApi: false,
@@ -70,11 +96,13 @@ export const TerminalPanel = ({
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 12,
       theme: {
-        background: "#ffffff",
-        cursor: "#111827",
-        foreground: "#1f2937",
+        background: rootStyles.getPropertyValue("--background").trim(),
+        cursor: rootStyles.getPropertyValue("--foreground").trim(),
+        foreground: rootStyles.getPropertyValue("--foreground").trim(),
+        selectionBackground: rootStyles.getPropertyValue("--accent").trim(),
       },
     });
+    terminalInstanceRef.current = terminal;
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
@@ -133,6 +161,7 @@ export const TerminalPanel = ({
       inputSubscription.dispose();
       resizeObserver.disconnect();
       window.removeEventListener("resize", fit);
+      terminalInstanceRef.current = null;
       terminal.dispose();
     };
   }, [autoStart, onStart, sessionId]);
