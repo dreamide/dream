@@ -1,4 +1,5 @@
 import { getConnectedProviders } from "@/lib/ide-defaults";
+import type { ModelOption } from "@/lib/models";
 import type { AiProvider, AppSettings, ReasoningEffort } from "@/types/ide";
 
 export const STATE_STORAGE_KEY = "dream:ide:state";
@@ -23,7 +24,7 @@ export interface CodexLoginStatus {
 export type ModelFetchSource = "api" | "unavailable";
 
 export interface ProviderModelFetchResult {
-  models: string[];
+  models: ModelOption[];
   source: ModelFetchSource;
   error?: string;
   oauth?: {
@@ -40,7 +41,7 @@ export interface ProviderModelsResponse {
 }
 
 export interface ProviderModelState {
-  models: string[];
+  models: ModelOption[];
   source: ModelFetchSource;
   loading: boolean;
   error: string | null;

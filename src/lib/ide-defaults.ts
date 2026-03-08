@@ -1,3 +1,4 @@
+import { createModelOption, type ModelOption } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
@@ -156,4 +157,17 @@ export const getModelsForProvider = (
   return provider === "anthropic"
     ? clean(settings.anthropicSelectedModels)
     : clean(settings.openAiSelectedModels);
+};
+
+export const getModelOptionsForProvider = (
+  provider: AiProvider,
+  settings: AppSettings,
+  availableModels: ModelOption[] = [],
+): ModelOption[] => {
+  const selectedIds = getModelsForProvider(provider, settings);
+  const modelsById = new Map(availableModels.map((model) => [model.id, model]));
+
+  return selectedIds.map(
+    (id) => modelsById.get(id) ?? createModelOption(provider, id),
+  );
 };

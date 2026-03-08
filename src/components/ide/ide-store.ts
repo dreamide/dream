@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS,
   getConnectedProviders,
 } from "@/lib/ide-defaults";
+import { dedupeModelOptions } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
@@ -708,8 +709,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         throw new Error(`Model fetch failed (${response.status}).`);
 
       const payload = (await response.json()) as ProviderModelsResponse;
-      const nextOpenAiModels = dedupeModels(payload.openai.models);
-      const nextAnthropicModels = dedupeModels(payload.anthropic.models);
+      const nextOpenAiModels = dedupeModelOptions(payload.openai.models);
+      const nextAnthropicModels = dedupeModelOptions(payload.anthropic.models);
+      const nextOpenAiModelIds = nextOpenAiModels.map((model) => model.id);
+      const nextAnthropicModelIds = nextAnthropicModels.map(
+        (model) => model.id,
+      );
 
       set({
         providerModels: {
@@ -746,10 +751,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const prev = state.settings;
         const currentOpenAiSelected = dedupeModels(
           prev.openAiSelectedModels,
-        ).filter((m) => nextOpenAiModels.includes(m));
+        ).filter((m) => nextOpenAiModelIds.includes(m));
         const currentAnthropicSelected = dedupeModels(
           prev.anthropicSelectedModels,
-        ).filter((m) => nextAnthropicModels.includes(m));
+        ).filter((m) => nextAnthropicModelIds.includes(m));
 
         const openAiSelectedModels =
           currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
