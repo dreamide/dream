@@ -40,7 +40,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import {
   getConnectedProviders,
-  getModelsForProvider,
+  getModelOptionsForProvider,
   getProviderAuthMode,
   getProviderCredential,
 } from "@/lib/ide-defaults";
@@ -115,14 +115,18 @@ const inferThreadTitle = (promptText: string): string => {
 const getMessagePartKey = (
   messageId: string,
   part: Record<string, unknown>,
+  index: number,
 ): string => {
   const partId =
     (typeof part.id === "string" && part.id) ||
     (typeof part.toolCallId === "string" && part.toolCallId) ||
-    (typeof part.providerExecutedId === "string" && part.providerExecutedId) ||
-    JSON.stringify(part);
+    (typeof part.providerExecutedId === "string" && part.providerExecutedId);
 
-  return `${messageId}-${part.type ?? "part"}-${partId}`;
+  if (partId) {
+    return `${messageId}-${part.type ?? "part"}-${partId}-${index}`;
+  }
+
+  return `${messageId}-${part.type ?? "part"}-${index}`;
 };
 
 export const ChatPanel = ({
@@ -134,6 +138,7 @@ export const ChatPanel = ({
 }) => {
   const settings = useIdeStore((s) => s.settings);
   const chats = useIdeStore((s) => s.chats);
+  const providerModels = useIdeStore((s) => s.providerModels);
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const setSettings = useIdeStore((s) => s.setSettings);
   const updateThread = useIdeStore((s) => s.updateThread);
@@ -142,17 +147,22 @@ export const ChatPanel = ({
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo(() => {
     return connectedProviders.flatMap((provider) =>
-      getModelsForProvider(provider, settings).map((model) => ({
-        model,
+      getModelOptionsForProvider(
+        provider,
+        settings,
+        providerModels[provider].models,
+      ).map((model) => ({
+        id: model.id,
+        label: model.label,
         provider,
       })),
     );
-  }, [connectedProviders, settings]);
+  }, [connectedProviders, providerModels, settings]);
 
   const selectedModelOption =
     allModelOptions.find(
       (option) =>
-        option.provider === thread.provider && option.model === thread.model,
+        option.provider === thread.provider && option.id === thread.model,
     ) ?? allModelOptions[0];
   const selectedProvider = selectedModelOption?.provider ?? thread.provider;
   const isProviderConnected = connectedProviders.includes(selectedProvider);
@@ -187,8 +197,9 @@ export const ChatPanel = ({
     setMessagesForThread(thread.id, messages);
   }, [messages, setMessagesForThread, thread.id]);
 
-  const selectedModel = selectedModelOption?.model ?? "";
-  const selectedModelValue = selectedModelOption?.model;
+  const selectedModel = selectedModelOption?.id ?? "";
+  const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
+  const selectedModelValue = selectedModelOption?.id;
   const selectedReasoningEffort = normalizeReasoningEffort(
     thread.reasoningEffort,
   );
@@ -204,11 +215,10 @@ export const ChatPanel = ({
       const activeOption =
         allModelOptions.find(
           (option) =>
-            option.provider === thread.provider &&
-            option.model === thread.model,
+            option.provider === thread.provider && option.id === thread.model,
         ) ?? allModelOptions[0];
       const activeProvider = activeOption?.provider ?? selectedProvider;
-      const activeModel = activeOption?.model ?? "";
+      const activeModel = activeOption?.id ?? "";
       const activeProviderAuthMode = getProviderAuthMode(
         activeProvider,
         settings,
@@ -385,12 +395,13 @@ export const ChatPanel = ({
       return (
         <Message from={message.role} key={message.id}>
           <MessageContent>
-            {message.parts.map((part) => {
+            {message.parts.map((part, index) => {
               return (
                 <AssistantMessagePart
                   key={getMessagePartKey(
                     message.id,
                     part as Record<string, unknown>,
+                    index,
                   )}
                   part={part}
                 />
@@ -467,7 +478,7 @@ export const ChatPanel = ({
                   onValueChange={(value) => {
                     if (typeof value !== "string") return;
                     const matchingOptions = allModelOptions.filter(
-                      (option) => option.model === value,
+                      (option) => option.id === value,
                     );
                     const nextOption =
                       matchingOptions.find(
@@ -477,7 +488,7 @@ export const ChatPanel = ({
 
                     updateThread(thread.id, (current) => ({
                       ...current,
-                      model: nextOption.model,
+                      model: nextOption.id,
                       provider: nextOption.provider,
                     }));
                   }}
@@ -487,16 +498,18 @@ export const ChatPanel = ({
                     className="h-8 w-auto max-w-[260px] px-2 text-xs"
                     disabled={allModelOptions.length === 0}
                   >
-                    <PromptInputSelectValue placeholder="Model" />
+                    <PromptInputSelectValue placeholder="Model">
+                      {selectedModelLabel}
+                    </PromptInputSelectValue>
                   </PromptInputSelectTrigger>
                   <PromptInputSelectContent className="text-xs" side="top">
                     {allModelOptions.map((option) => (
                       <PromptInputSelectItem
                         className="text-xs"
-                        key={`${option.provider}:${option.model}`}
-                        value={option.model}
+                        key={`${option.provider}:${option.id}`}
+                        value={option.id}
                       >
-                        {option.model}
+                        {option.label}
                       </PromptInputSelectItem>
                     ))}
                   </PromptInputSelectContent>

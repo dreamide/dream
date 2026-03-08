@@ -4,6 +4,11 @@ import {
   refreshAnthropicAccessToken,
 } from "@/lib/anthropic-oauth";
 import { readCodexCredential } from "@/lib/codex-auth";
+import {
+  createModelOption,
+  dedupeModelOptions,
+  type ModelOption,
+} from "@/lib/models";
 import type { AnthropicAuthMode, OpenAiAuthMode } from "@/types/ide";
 
 export const runtime = "nodejs";
@@ -21,7 +26,7 @@ const requestBodySchema = z.object({
 type ModelSource = "api" | "unavailable";
 
 interface ProviderModelResult {
-  models: string[];
+  models: ModelOption[];
   source: ModelSource;
   error?: string;
   oauth?: {
@@ -37,11 +42,9 @@ const OPENAI_CODEX_CHATGPT_MODELS_URL =
 const ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
 
-const dedupeAndSort = (models: string[]): string[] => {
-  return Array.from(
-    new Set(models.map((model) => model.trim()).filter(Boolean)),
-  )
-    .sort((a, b) => a.localeCompare(b))
+const dedupeAndSort = (models: ModelOption[]): ModelOption[] => {
+  return dedupeModelOptions(models)
+    .sort((a, b) => a.id.localeCompare(b.id))
     .reverse();
 };
 
@@ -51,7 +54,7 @@ const isOpenAiChatModel = (model: string): boolean => {
 
 const fetchOpenAiModelsWithApiKey = async (
   apiKey: string,
-): Promise<string[]> => {
+): Promise<ModelOption[]> => {
   const response = await fetch(OPENAI_MODELS_URL, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -68,17 +71,22 @@ const fetchOpenAiModelsWithApiKey = async (
     data?: Array<{ id?: string }>;
   };
 
-  const modelIds = (payload.data ?? [])
-    .map((entry) => entry.id?.trim() ?? "")
-    .filter(Boolean);
+  const modelIds = (payload.data ?? []).flatMap((entry) => {
+    const id = entry.id?.trim() ?? "";
+    return id ? [id] : [];
+  });
   const chatModels = modelIds.filter((model) => isOpenAiChatModel(model));
 
-  return dedupeAndSort(chatModels.length > 0 ? chatModels : modelIds);
+  return dedupeAndSort(
+    (chatModels.length > 0 ? chatModels : modelIds).map((id) =>
+      createModelOption("openai", id),
+    ),
+  );
 };
 
 const fetchOpenAiModelsWithCodexChatgpt = async (
   accessToken: string,
-): Promise<string[]> => {
+): Promise<ModelOption[]> => {
   const url = new URL(OPENAI_CODEX_CHATGPT_MODELS_URL);
   url.searchParams.set("client_version", CODEX_CLIENT_VERSION);
 
@@ -101,9 +109,14 @@ const fetchOpenAiModelsWithCodexChatgpt = async (
     }>;
   };
 
-  const modelIds = (payload.models ?? [])
-    .map((entry) => entry.slug?.trim() ?? entry.display_name?.trim() ?? "")
-    .filter(Boolean);
+  const modelIds = (payload.models ?? []).flatMap((entry) => {
+    const id = entry.slug?.trim() ?? "";
+    if (!id) {
+      return [];
+    }
+
+    return [createModelOption("openai", id, entry.display_name)];
+  });
 
   return dedupeAndSort(modelIds);
 };
@@ -247,7 +260,9 @@ const fetchAnthropicModelsWithOAuth = async (
       };
     }
 
-    const requestModels = async (accessToken: string): Promise<string[]> => {
+    const requestModels = async (
+      accessToken: string,
+    ): Promise<ModelOption[]> => {
       const response = await fetch(ANTHROPIC_MODELS_URL, {
         headers: {
           "anthropic-beta": ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER,
@@ -262,12 +277,16 @@ const fetchAnthropicModelsWithOAuth = async (
       }
 
       const payload = (await response.json()) as {
-        data?: Array<{ id?: string }>;
+        data?: Array<{ display_name?: string; id?: string }>;
       };
-      const modelIds = (payload.data ?? [])
-        .map((entry) => entry.id?.trim() ?? "")
-        .filter(Boolean);
-      return dedupeAndSort(modelIds);
+      return dedupeAndSort(
+        (payload.data ?? []).flatMap((entry) => {
+          const id = entry.id?.trim() ?? "";
+          return id
+            ? [createModelOption("anthropic", id, entry.display_name)]
+            : [];
+        }),
+      );
     };
 
     const models = await requestModels(tokens.accessToken);
@@ -332,12 +351,16 @@ const fetchAnthropicModels = async (
     }
 
     const payload = (await response.json()) as {
-      data?: Array<{ id?: string }>;
+      data?: Array<{ display_name?: string; id?: string }>;
     };
-    const modelIds = (payload.data ?? [])
-      .map((entry) => entry.id?.trim() ?? "")
-      .filter(Boolean);
-    const models = dedupeAndSort(modelIds);
+    const models = dedupeAndSort(
+      (payload.data ?? []).flatMap((entry) => {
+        const id = entry.id?.trim() ?? "";
+        return id
+          ? [createModelOption("anthropic", id, entry.display_name)]
+          : [];
+      }),
+    );
 
     if (models.length === 0) {
       return {

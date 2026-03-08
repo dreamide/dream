@@ -19,6 +19,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   getConnectedProviders,
+  getModelOptionsForProvider,
   getModelsForProvider,
 } from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
@@ -95,16 +96,31 @@ export const SettingsDialog = () => {
     : settings.anthropicApiKey.trim().length > 0;
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
+  const openAiModelOptions = useMemo(
+    () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
+    [availableOpenAiModels, settings],
+  );
+  const anthropicModelOptions = useMemo(
+    () =>
+      getModelOptionsForProvider(
+        "anthropic",
+        settings,
+        availableAnthropicModels,
+      ),
+    [availableAnthropicModels, settings],
+  );
   const normalizedModelSearchQuery = modelSearchQuery.trim().toLowerCase();
   const filteredOpenAiModels = availableOpenAiModels.filter(
     (model) =>
       normalizedModelSearchQuery.length === 0 ||
-      model.toLowerCase().includes(normalizedModelSearchQuery),
+      model.id.toLowerCase().includes(normalizedModelSearchQuery) ||
+      model.label.toLowerCase().includes(normalizedModelSearchQuery),
   );
   const filteredAnthropicModels = availableAnthropicModels.filter(
     (model) =>
       normalizedModelSearchQuery.length === 0 ||
-      model.toLowerCase().includes(normalizedModelSearchQuery),
+      model.id.toLowerCase().includes(normalizedModelSearchQuery) ||
+      model.label.toLowerCase().includes(normalizedModelSearchQuery),
   );
   const popularProviders = useMemo(
     () =>
@@ -915,12 +931,14 @@ export const SettingsDialog = () => {
                             </p>
                           ) : (
                             filteredOpenAiModels.map((model) => {
-                              const isSelected = openAiModels.includes(model);
+                              const isSelected = openAiModels.includes(
+                                model.id,
+                              );
 
                               return (
                                 <div
                                   className="flex items-center justify-between rounded-sm px-1.5 py-1"
-                                  key={model}
+                                  key={model.id}
                                 >
                                   <Label
                                     className={cn(
@@ -930,13 +948,13 @@ export const SettingsDialog = () => {
                                         : "text-muted-foreground",
                                     )}
                                   >
-                                    {model}
+                                    {model.label}
                                   </Label>
                                   <Switch
                                     checked={isSelected}
                                     onCheckedChange={(checked) => {
                                       if (checked === isSelected) return;
-                                      toggleProviderModel("openai", model);
+                                      toggleProviderModel("openai", model.id);
                                     }}
                                   />
                                 </div>
@@ -964,12 +982,17 @@ export const SettingsDialog = () => {
                             disabled={openAiModels.length === 0}
                             id="openai-model"
                           >
-                            <SelectValue placeholder="Select model" />
+                            <SelectValue placeholder="Select model">
+                              {openAiModelOptions.find(
+                                (model) =>
+                                  model.id === selectedDefaultOpenAiModel,
+                              )?.label ?? selectedDefaultOpenAiModel}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="min-w-56">
-                            {openAiModels.map((model) => (
-                              <SelectItem key={model} value={model}>
-                                {model}
+                            {openAiModelOptions.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1000,13 +1023,14 @@ export const SettingsDialog = () => {
                             </p>
                           ) : (
                             filteredAnthropicModels.map((model) => {
-                              const isSelected =
-                                anthropicModels.includes(model);
+                              const isSelected = anthropicModels.includes(
+                                model.id,
+                              );
 
                               return (
                                 <div
                                   className="flex items-center justify-between rounded-sm px-1.5 py-1"
-                                  key={model}
+                                  key={model.id}
                                 >
                                   <Label
                                     className={cn(
@@ -1016,13 +1040,16 @@ export const SettingsDialog = () => {
                                         : "text-muted-foreground",
                                     )}
                                   >
-                                    {model}
+                                    {model.label}
                                   </Label>
                                   <Switch
                                     checked={isSelected}
                                     onCheckedChange={(checked) => {
                                       if (checked === isSelected) return;
-                                      toggleProviderModel("anthropic", model);
+                                      toggleProviderModel(
+                                        "anthropic",
+                                        model.id,
+                                      );
                                     }}
                                   />
                                 </div>
@@ -1050,12 +1077,17 @@ export const SettingsDialog = () => {
                             disabled={anthropicModels.length === 0}
                             id="anthropic-model"
                           >
-                            <SelectValue placeholder="Select model" />
+                            <SelectValue placeholder="Select model">
+                              {anthropicModelOptions.find(
+                                (model) =>
+                                  model.id === selectedDefaultAnthropicModel,
+                              )?.label ?? selectedDefaultAnthropicModel}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="min-w-56">
-                            {anthropicModels.map((model) => (
-                              <SelectItem key={model} value={model}>
-                                {model}
+                            {anthropicModelOptions.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
