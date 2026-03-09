@@ -1,7 +1,9 @@
 import { spawn as spawnProcess } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -29,37 +31,191 @@ const rendererStartupTimeoutMs = Number(
 );
 const rendererProbeIntervalMs = 300;
 
-const store = new Store({
-  defaults: {
-    activeProjectId: null,
-    activeThreadIdByProject: {},
-    chats: {},
-    panelVisibility: {
-      left: true,
-      middle: true,
-      right: true,
-    },
-    projects: [],
-    settings: {
-      anthropicAccessToken: "",
-      anthropicAccessTokenExpiresAt: null,
-      anthropicAuthMode: "apiKey",
-      anthropicApiKey: "",
-      anthropicRefreshToken: "",
-      anthropicSelectedModels: [],
-      connectedProviders: [],
-      defaultAnthropicModel: "",
-      defaultOpenAiModel: "",
-      openAiAuthMode: "apiKey",
-      openAiApiKey: "",
-      openAiSelectedModels: [],
-      shellPath: "",
-    },
-    threadSort: "recent",
-    threads: [],
+const DEFAULT_PERSISTED_STATE = {
+  activeProjectId: null,
+  activeThreadIdByProject: {},
+  chats: {},
+  panelVisibility: {
+    left: true,
+    middle: true,
+    right: true,
   },
+  projects: [],
+  settings: {
+    anthropicAccessToken: "",
+    anthropicAccessTokenExpiresAt: null,
+    anthropicAuthMode: "apiKey",
+    anthropicApiKey: "",
+    anthropicRefreshToken: "",
+    anthropicSelectedModels: [],
+    connectedProviders: [],
+    defaultAnthropicModel: "",
+    defaultOpenAiModel: "",
+    openAiAuthMode: "apiKey",
+    openAiApiKey: "",
+    openAiSelectedModels: [],
+    shellPath: "",
+  },
+  threadSort: "recent",
+  threads: [],
+};
+const PERSISTED_STATE_KEY = "ide-state";
+const LEGACY_STORE_FILENAME = "dream-settings.json";
+const SQLITE_STATE_FILENAME = "dream.sqlite";
+
+const legacyStore = new Store({
+  defaults: DEFAULT_PERSISTED_STATE,
   name: "dream-settings",
 });
+let stateDatabase = null;
+
+function cloneDefaultPersistedState() {
+  return JSON.parse(JSON.stringify(DEFAULT_PERSISTED_STATE));
+}
+
+function getLegacyStorePath() {
+  return path.join(app.getPath("userData"), LEGACY_STORE_FILENAME);
+}
+
+function getStateDatabase() {
+  if (stateDatabase) {
+    return stateDatabase;
+  }
+
+  const databasePath = path.join(
+    app.getPath("userData"),
+    SQLITE_STATE_FILENAME,
+  );
+  const database = new DatabaseSync(databasePath);
+  database.exec(`
+    PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS app_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS app_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+  database
+    .prepare(
+      `
+        INSERT INTO app_meta (key, value)
+        VALUES ('schema_version', '1')
+        ON CONFLICT(key) DO NOTHING
+      `,
+    )
+    .run();
+  stateDatabase = database;
+  return database;
+}
+
+function readAppMeta(database, key) {
+  const row = database
+    .prepare("SELECT value FROM app_meta WHERE key = ?")
+    .get(key);
+  return typeof row?.value === "string" ? row.value : null;
+}
+
+function writeAppMeta(database, key, value) {
+  database
+    .prepare(
+      `
+        INSERT INTO app_meta (key, value)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `,
+    )
+    .run(key, value);
+}
+
+function readLegacyPersistedState() {
+  try {
+    const legacyState = legacyStore.store;
+    if (legacyState && typeof legacyState === "object") {
+      return legacyState;
+    }
+  } catch {
+    // ignore legacy read failures
+  }
+
+  return cloneDefaultPersistedState();
+}
+
+function getLegacyStoreUpdatedAt() {
+  try {
+    const legacyStorePath = getLegacyStorePath();
+    if (!existsSync(legacyStorePath)) {
+      return null;
+    }
+
+    return statSync(legacyStorePath).mtime.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedState(state) {
+  if (!state || typeof state !== "object") {
+    return false;
+  }
+
+  const database = getStateDatabase();
+  database
+    .prepare(
+      `
+        INSERT INTO app_state (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+      `,
+    )
+    .run(PERSISTED_STATE_KEY, JSON.stringify(state), new Date().toISOString());
+  return true;
+}
+
+function syncLegacyPersistedState(database) {
+  const legacyState = readLegacyPersistedState();
+  savePersistedState(legacyState);
+  writeAppMeta(
+    database,
+    "legacy_store_synced_at",
+    getLegacyStoreUpdatedAt() ?? new Date().toISOString(),
+  );
+  return legacyState;
+}
+
+function loadPersistedState() {
+  const database = getStateDatabase();
+  const row = database
+    .prepare("SELECT value FROM app_state WHERE key = ?")
+    .get(PERSISTED_STATE_KEY);
+  const legacyStoreUpdatedAt = getLegacyStoreUpdatedAt();
+  const legacyStoreSyncedAt = readAppMeta(database, "legacy_store_synced_at");
+
+  if (typeof row?.value === "string" && row.value.trim()) {
+    try {
+      const persistedState = JSON.parse(row.value);
+      if (persistedState && typeof persistedState === "object") {
+        if (
+          legacyStoreUpdatedAt &&
+          (!legacyStoreSyncedAt || legacyStoreUpdatedAt > legacyStoreSyncedAt)
+        ) {
+          return syncLegacyPersistedState(database);
+        }
+
+        return persistedState;
+      }
+    } catch {
+      // ignore invalid sqlite payloads and fall through to migration
+    }
+  }
+
+  return syncLegacyPersistedState(database);
+}
 
 let mainWindow = null;
 let activePreviewProjectId = null;
@@ -686,6 +842,320 @@ async function pickDirectory() {
   return result.filePaths[0] ?? null;
 }
 
+function readJsonLines(filePath) {
+  try {
+    const content = readFileSync(filePath, "utf8");
+    return content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .flatMap((line) => {
+        try {
+          return [JSON.parse(line)];
+        } catch {
+          return [];
+        }
+      });
+  } catch {
+    return [];
+  }
+}
+
+function collectJsonlFiles(directory) {
+  if (!existsSync(directory)) {
+    return [];
+  }
+
+  const files = [];
+  const stack = [directory];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    let entries = [];
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name.toLowerCase().endsWith(".jsonl")) {
+        files.push(fullPath);
+      }
+    }
+  }
+
+  return files;
+}
+
+function getDefaultImportedModel(provider, settings) {
+  if (provider === "anthropic") {
+    return (
+      settings.defaultAnthropicModel ||
+      settings.anthropicSelectedModels?.[0] ||
+      ""
+    );
+  }
+
+  return (
+    settings.defaultOpenAiModel || settings.openAiSelectedModels?.[0] || ""
+  );
+}
+
+function normalizePathKey(value) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().toLowerCase()
+    : null;
+}
+
+function inferThreadTitle(titleFromIndex, messages, sessionId) {
+  if (typeof titleFromIndex === "string" && titleFromIndex.trim()) {
+    return titleFromIndex.trim();
+  }
+
+  const firstUserMessage = messages.find((message) => message.role === "user");
+  const text = firstUserMessage?.parts?.[0]?.text;
+  if (typeof text === "string" && text.trim()) {
+    return text.trim().replace(/\s+/g, " ").slice(0, 60);
+  }
+
+  return `Imported ${sessionId}`;
+}
+
+function createImportedMessage(sessionId, role, index, text) {
+  const trimmed = typeof text === "string" ? text.trimEnd() : "";
+  if (!trimmed) {
+    return null;
+  }
+
+  const parts =
+    role === "assistant"
+      ? [
+          { type: "step-start" },
+          {
+            state: "done",
+            text: trimmed,
+            type: "text",
+          },
+        ]
+      : [
+          {
+            text: trimmed,
+            type: "text",
+          },
+        ];
+
+  return {
+    id: `codex-${sessionId}-${role}-${index}`,
+    parts,
+    role,
+  };
+}
+
+function importCodexThreadsIntoState(currentState) {
+  const codexRoot = path.join(app.getPath("home"), ".codex");
+  const sessionIndexPath = path.join(codexRoot, "session_index.jsonl");
+  const sessionIndex = new Map();
+
+  for (const entry of readJsonLines(sessionIndexPath)) {
+    const id = entry?.id?.trim?.();
+    if (!id) {
+      continue;
+    }
+
+    sessionIndex.set(id, {
+      title: entry?.thread_name?.trim?.() ?? "",
+      updatedAt: entry?.updated_at?.trim?.() ?? "",
+    });
+  }
+
+  const sessionFiles = [
+    ...collectJsonlFiles(path.join(codexRoot, "sessions")),
+    ...collectJsonlFiles(path.join(codexRoot, "archived_sessions")),
+  ];
+
+  const nextState = {
+    ...currentState,
+    activeThreadIdByProject: {
+      ...(currentState.activeThreadIdByProject ?? {}),
+    },
+    chats: { ...(currentState.chats ?? {}) },
+    projects: [...(currentState.projects ?? [])],
+    threads: [...(currentState.threads ?? [])],
+  };
+
+  const projectIdsByPath = new Map(
+    nextState.projects.flatMap((project) => {
+      const pathKey = normalizePathKey(project?.path);
+      const projectId =
+        typeof project?.id === "string" && project.id.trim()
+          ? project.id
+          : null;
+
+      return pathKey && projectId ? [[pathKey, projectId]] : [];
+    }),
+  );
+  const threadIds = new Set(
+    nextState.threads.flatMap((thread) =>
+      typeof thread?.id === "string" && thread.id.trim() ? [thread.id] : [],
+    ),
+  );
+  const remoteConversationIds = new Set(
+    nextState.threads.flatMap((thread) =>
+      typeof thread?.remoteConversationId === "string" &&
+      thread.remoteConversationId.trim()
+        ? [thread.remoteConversationId]
+        : [],
+    ),
+  );
+
+  const result = {
+    importedMessages: 0,
+    importedThreads: 0,
+    projectsCreated: 0,
+    skippedThreads: 0,
+  };
+
+  for (const filePath of sessionFiles) {
+    const entries = readJsonLines(filePath);
+    if (entries.length === 0) {
+      continue;
+    }
+
+    const metaEntry = entries.find((entry) => entry?.type === "session_meta");
+    const payload = metaEntry?.payload ?? {};
+    const sessionId =
+      typeof payload.id === "string" && payload.id.trim()
+        ? payload.id.trim()
+        : "";
+
+    if (!sessionId) {
+      result.skippedThreads += 1;
+      continue;
+    }
+
+    const threadId = `codex-${sessionId}`;
+    if (threadIds.has(threadId) || remoteConversationIds.has(sessionId)) {
+      result.skippedThreads += 1;
+      continue;
+    }
+
+    const cwd =
+      typeof payload.cwd === "string" && payload.cwd.trim()
+        ? payload.cwd.trim()
+        : path.join(codexRoot, "imported");
+    const provider =
+      payload.model_provider === "anthropic" ? "anthropic" : "openai";
+
+    const importedMessages = [];
+    let userIndex = 0;
+    let assistantIndex = 0;
+
+    for (const entry of entries) {
+      if (entry?.type !== "event_msg" || !entry.payload) {
+        continue;
+      }
+
+      if (entry.payload.type === "user_message") {
+        const message = createImportedMessage(
+          sessionId,
+          "user",
+          userIndex,
+          entry.payload.message,
+        );
+        userIndex += 1;
+        if (message) {
+          importedMessages.push(message);
+        }
+        continue;
+      }
+
+      if (entry.payload.type === "agent_message") {
+        const message = createImportedMessage(
+          sessionId,
+          "assistant",
+          assistantIndex,
+          entry.payload.message,
+        );
+        assistantIndex += 1;
+        if (message) {
+          importedMessages.push(message);
+        }
+      }
+    }
+
+    if (importedMessages.length === 0) {
+      result.skippedThreads += 1;
+      continue;
+    }
+
+    const pathKey = normalizePathKey(cwd);
+    let projectId = pathKey ? (projectIdsByPath.get(pathKey) ?? null) : null;
+    if (!projectId) {
+      projectId = randomUUID();
+      nextState.projects.push({
+        id: projectId,
+        model: getDefaultImportedModel(provider, nextState.settings ?? {}),
+        name: path.basename(cwd) || "Imported Codex Threads",
+        path: cwd,
+        previewUrl: "http://127.0.0.1:3000",
+        provider,
+        reasoningEffort: "medium",
+        runCommand: "pnpm dev",
+      });
+      if (pathKey) {
+        projectIdsByPath.set(pathKey, projectId);
+      }
+      if (!(projectId in nextState.activeThreadIdByProject)) {
+        nextState.activeThreadIdByProject[projectId] = null;
+      }
+      result.projectsCreated += 1;
+    }
+
+    const indexedMeta = sessionIndex.get(sessionId);
+    const createdAt =
+      typeof payload.timestamp === "string" && payload.timestamp.trim()
+        ? payload.timestamp.trim()
+        : new Date().toISOString();
+    const updatedAt =
+      indexedMeta?.updatedAt || entries.at(-1)?.timestamp || createdAt;
+
+    nextState.threads.unshift({
+      archivedAt: null,
+      createdAt,
+      id: threadId,
+      model: getDefaultImportedModel(provider, nextState.settings ?? {}),
+      projectId,
+      provider,
+      reasoningEffort: "medium",
+      remoteConversationId: sessionId,
+      title: inferThreadTitle(indexedMeta?.title, importedMessages, sessionId),
+      updatedAt,
+    });
+    nextState.chats[threadId] = importedMessages;
+    threadIds.add(threadId);
+    remoteConversationIds.add(sessionId);
+    result.importedMessages += importedMessages.length;
+    result.importedThreads += 1;
+
+    if (!nextState.activeThreadIdByProject[projectId]) {
+      nextState.activeThreadIdByProject[projectId] = threadId;
+    }
+  }
+
+  return { nextState, result };
+}
+
 async function startRendererServerIfNeeded() {
   if (isDevelopment) {
     rendererUrl = developmentRendererUrl;
@@ -847,17 +1317,19 @@ async function createMainWindow() {
 }
 
 ipcMain.handle("projects:pick-directory", pickDirectory);
-
-ipcMain.handle("state:load", () => store.store);
-
-ipcMain.handle("state:save", (_event, state) => {
-  if (!state || typeof state !== "object") {
-    return false;
+ipcMain.handle("codex:import-threads", () => {
+  const { nextState, result } = importCodexThreadsIntoState(
+    loadPersistedState(),
+  );
+  if (result.importedThreads > 0) {
+    savePersistedState(nextState);
   }
-
-  store.set(state);
-  return true;
+  return result;
 });
+
+ipcMain.handle("state:load", () => loadPersistedState());
+
+ipcMain.handle("state:save", (_event, state) => savePersistedState(state));
 
 // Window controls (Windows/Linux frameless window)
 ipcMain.handle("window:minimize", () => {
@@ -1328,6 +1800,11 @@ app.on("before-quit", async () => {
   if (nextAppServer) {
     await nextAppServer.close();
     nextAppServer = null;
+  }
+
+  if (stateDatabase) {
+    stateDatabase.close();
+    stateDatabase = null;
   }
 });
 

@@ -100,6 +100,13 @@ export interface PreviewStatusEvent {
   projectId: string;
 }
 
+export interface CodexImportResult {
+  importedMessages: number;
+  importedThreads: number;
+  projectsCreated: number;
+  skippedThreads: number;
+}
+
 export interface StartTerminalPayload {
   projectId: string;
   cwd: string;
@@ -131,6 +138,7 @@ export interface DreamDesktopApi {
   windowClose: () => Promise<void>;
 
   pickProjectDirectory: () => Promise<string | null>;
+  importCodexThreads: () => Promise<CodexImportResult>;
 
   loadState: () => Promise<Partial<PersistedIdeState>>;
   saveState: (state: PersistedIdeState) => Promise<boolean>;

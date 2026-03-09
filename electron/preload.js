@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("dream", {
   windowClose: () => ipcRenderer.invoke("window:close"),
 
   pickProjectDirectory: () => ipcRenderer.invoke("projects:pick-directory"),
+  importCodexThreads: () => ipcRenderer.invoke("codex:import-threads"),
 
   loadState: () => ipcRenderer.invoke("state:load"),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
