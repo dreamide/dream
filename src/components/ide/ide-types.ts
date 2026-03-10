@@ -13,7 +13,9 @@ export type SettingsSection =
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
 
-export const GLOBAL_TERMINAL_SESSION_ID = "__global_terminal__";
+export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
+export const createProjectTerminalSessionId = (projectId: string): string =>
+  `${PROJECT_TERMINAL_SESSION_PREFIX}${projectId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 export const getPreviewTerminalSessionId = (projectId: string): string =>
   `__preview_terminal__:${projectId}`;
 export const TERMINAL_MIN_HEIGHT_PX = 160;

@@ -6,7 +6,6 @@ import {
   Plug,
   Sun,
   Terminal,
-  X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
@@ -465,15 +464,7 @@ export const SettingsDialog = () => {
                       >
                         <ArrowLeft className="size-4" />
                       </Button>
-                      <Button
-                        className="h-9 w-9"
-                        onClick={() => setSettingsOpen(false)}
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <X className="size-4" />
-                      </Button>
+                      <div className="h-9 w-9" />
                     </div>
 
                     {providerSetupTarget === "openai" ? (

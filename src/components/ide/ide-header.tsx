@@ -6,7 +6,6 @@ import {
   Plus,
   Settings,
   Square,
-  TerminalSquare,
   X,
 } from "lucide-react";
 import { useCallback } from "react";
@@ -30,9 +29,6 @@ export const IdeHeader = () => {
   const addProject = useIdeStore((s) => s.addProject);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-  const terminalPanelOpen = useIdeStore((s) => s.terminalPanelOpen);
-  const setTerminalPanelOpen = useIdeStore((s) => s.setTerminalPanelOpen);
-  const activeProject = useIdeStore((s) => s.getActiveProject());
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -105,14 +101,6 @@ export const IdeHeader = () => {
 
       {appReady ? (
         <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
-          <ToggleButton
-            active={terminalPanelOpen}
-            disabled={!activeProject}
-            onClick={() => setTerminalPanelOpen(!terminalPanelOpen)}
-            title="Toggle terminal"
-          >
-            <TerminalSquare className="size-4" />
-          </ToggleButton>
           <ToggleButton
             active={panelVisibility.left}
             onClick={() => togglePanel("left")}

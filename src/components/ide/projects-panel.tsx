@@ -6,6 +6,7 @@ import {
   Ellipsis,
   FilePenLine,
   MessageSquarePlus,
+  TerminalSquare,
   X,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
@@ -53,6 +54,7 @@ type RenameTarget =
 const ProjectActionsMenu = ({
   label,
   onEdit,
+  onOpenTerminal,
   onNewThread,
   onOpenChange,
   onRemove,
@@ -60,6 +62,7 @@ const ProjectActionsMenu = ({
 }: {
   label: string;
   onEdit: () => void;
+  onOpenTerminal: () => void;
   onNewThread: () => void;
   onOpenChange: (open: boolean) => void;
   onRemove: () => void;
@@ -93,6 +96,10 @@ const ProjectActionsMenu = ({
         <DropdownMenuItem onClick={onNewThread}>
           <MessageSquarePlus className="size-4" />
           New thread
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onOpenTerminal}>
+          <TerminalSquare className="size-4" />
+          Open terminal
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -155,6 +162,7 @@ export const ProjectSidebar = () => {
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
+  const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
 
   const [collapsedProjects, setCollapsedProjects] = useState<
     Record<string, boolean>
@@ -345,6 +353,10 @@ export const ProjectSidebar = () => {
                               name: project.name,
                             })
                           }
+                          onOpenTerminal={() => {
+                            setActiveProjectId(project.id);
+                            void openProjectTerminal(project.id);
+                          }}
                           onNewThread={() => addThread(project.id)}
                           onOpenChange={(open) =>
                             setOpenMenuId(open ? projectMenuId : null)

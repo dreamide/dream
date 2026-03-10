@@ -26,8 +26,8 @@ import {
 } from "./ide-state";
 import {
   type CodexLoginStatus,
+  createProjectTerminalSessionId,
   dedupeModels,
-  GLOBAL_TERMINAL_SESSION_ID,
   getPreviewTerminalSessionId,
   type ProviderModelState,
   type ProviderModelsResponse,
@@ -55,7 +55,8 @@ interface IdeState {
   terminalStatus: Record<string, "running" | "stopped">;
   terminalTransport: Record<string, "pty" | "pipe">;
   terminalShell: Record<string, string>;
-  terminalPanelOpen: boolean;
+  projectTerminalSessionIds: Record<string, string[]>;
+  activeTerminalSessionIdByProject: Record<string, string | null>;
   outputPanelOpen: boolean;
   previewError: string | null;
   previewLoading: Record<string, boolean>;
@@ -103,7 +104,6 @@ interface IdeState {
 
   // Actions – panels
   togglePanel: (panel: keyof PanelVisibility) => void;
-  setTerminalPanelOpen: (open: boolean) => void;
   setOutputPanelOpen: (open: boolean) => void;
 
   // Actions – settings
@@ -156,8 +156,13 @@ interface IdeState {
   stopRunner: () => Promise<void>;
 
   // Actions – terminal
-  startActiveTerminal: () => Promise<void>;
-  stopActiveTerminal: () => Promise<void>;
+  openProjectTerminal: (projectId: string) => Promise<void>;
+  addProjectTerminal: (projectId: string) => Promise<void>;
+  setActiveProjectTerminalId: (
+    projectId: string,
+    sessionId: string | null,
+  ) => void;
+  closeProjectTerminal: (projectId: string, sessionId: string) => Promise<void>;
 
   // Actions – hydration & persistence
   hydrate: () => Promise<void>;
@@ -209,7 +214,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   terminalStatus: {},
   terminalTransport: {},
   terminalShell: {},
-  terminalPanelOpen: false,
+  projectTerminalSessionIds: {},
+  activeTerminalSessionIdByProject: {},
   outputPanelOpen: false,
   previewError: null,
   previewLoading: {},
@@ -303,8 +309,13 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   closeProject: (projectId) => {
     const desktopApi = getDesktopApi();
     const previewTerminalSessionId = getPreviewTerminalSessionId(projectId);
+    const projectTerminalSessionIds =
+      get().projectTerminalSessionIds[projectId] ?? [];
     if (desktopApi) {
       void desktopApi.stopTerminal(previewTerminalSessionId);
+      for (const sessionId of projectTerminalSessionIds) {
+        void desktopApi.stopTerminal(sessionId);
+      }
     }
 
     set((state) => {
@@ -329,6 +340,23 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       delete nextTerminalTransport[previewTerminalSessionId];
       const nextTerminalShell = { ...state.terminalShell };
       delete nextTerminalShell[previewTerminalSessionId];
+      const nextProjectTerminalSessionIds = {
+        ...state.projectTerminalSessionIds,
+      };
+      const nextActiveTerminalSessionIdByProject = {
+        ...state.activeTerminalSessionIdByProject,
+      };
+
+      delete nextProjectTerminalSessionIds[projectId];
+      delete nextActiveTerminalSessionIdByProject[projectId];
+
+      for (const sessionId of state.projectTerminalSessionIds[projectId] ??
+        []) {
+        delete nextTerminalOutput[sessionId];
+        delete nextTerminalStatus[sessionId];
+        delete nextTerminalTransport[sessionId];
+        delete nextTerminalShell[sessionId];
+      }
 
       return {
         projects: nextProjects,
@@ -342,6 +370,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         terminalStatus: nextTerminalStatus,
         terminalTransport: nextTerminalTransport,
         terminalShell: nextTerminalShell,
+        projectTerminalSessionIds: nextProjectTerminalSessionIds,
+        activeTerminalSessionIdByProject: nextActiveTerminalSessionIdByProject,
         threads: nextThreads,
       };
     });
@@ -521,7 +551,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       },
     }));
   },
-  setTerminalPanelOpen: (open) => set({ terminalPanelOpen: open }),
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
 
   // ── Actions: settings ───────────────────────────────────────────────
@@ -928,44 +957,132 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   // ── Actions: terminal ───────────────────────────────────────────────
-  startActiveTerminal: async () => {
-    const { getActiveProject: getProject, settings } = get();
-    const project = getProject();
+  openProjectTerminal: async (projectId) => {
+    const existingSessionIds = get().projectTerminalSessionIds[projectId] ?? [];
+
+    if (existingSessionIds.length > 0) {
+      const activeSessionId =
+        get().activeTerminalSessionIdByProject[projectId] ??
+        existingSessionIds[existingSessionIds.length - 1] ??
+        null;
+
+      if (activeSessionId) {
+        set((state) => ({
+          activeProjectId: projectId,
+          activeTerminalSessionIdByProject: {
+            ...state.activeTerminalSessionIdByProject,
+            [projectId]: activeSessionId,
+          },
+        }));
+      }
+      return;
+    }
+
+    await get().addProjectTerminal(projectId);
+  },
+
+  addProjectTerminal: async (projectId) => {
+    const { projects, settings } = get();
+    const project = projects.find((item) => item.id === projectId);
     if (!project) return;
 
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
 
+    const sessionId = createProjectTerminalSessionId(projectId);
+
     set((state) => ({
+      activeProjectId: projectId,
+      projectTerminalSessionIds: {
+        ...state.projectTerminalSessionIds,
+        [projectId]: [
+          ...(state.projectTerminalSessionIds[projectId] ?? []),
+          sessionId,
+        ],
+      },
+      activeTerminalSessionIdByProject: {
+        ...state.activeTerminalSessionIdByProject,
+        [projectId]: sessionId,
+      },
       terminalOutput: {
         ...state.terminalOutput,
-        [GLOBAL_TERMINAL_SESSION_ID]: "",
+        [sessionId]: "",
       },
       terminalStatus: {
         ...state.terminalStatus,
-        [GLOBAL_TERMINAL_SESSION_ID]: "running",
+        [sessionId]: "running",
       },
     }));
 
     await desktopApi.startTerminal({
       cwd: project.path,
-      projectId: GLOBAL_TERMINAL_SESSION_ID,
+      projectId: sessionId,
       shellPath: settings.shellPath || undefined,
     });
   },
 
-  stopActiveTerminal: async () => {
+  setActiveProjectTerminalId: (projectId, sessionId) => {
+    set((state) => {
+      const sessionIds = state.projectTerminalSessionIds[projectId] ?? [];
+      const nextSessionId =
+        sessionId && sessionIds.includes(sessionId)
+          ? sessionId
+          : (sessionIds[0] ?? null);
+
+      return {
+        activeTerminalSessionIdByProject: {
+          ...state.activeTerminalSessionIdByProject,
+          [projectId]: nextSessionId,
+        },
+      };
+    });
+  },
+
+  closeProjectTerminal: async (projectId, sessionId) => {
     const desktopApi = getDesktopApi();
-    if (!desktopApi) return;
+    if (desktopApi) {
+      await desktopApi.stopTerminal(sessionId);
+    }
 
-    set((state) => ({
-      terminalStatus: {
-        ...state.terminalStatus,
-        [GLOBAL_TERMINAL_SESSION_ID]: "stopped",
-      },
-    }));
+    set((state) => {
+      const currentSessionIds =
+        state.projectTerminalSessionIds[projectId] ?? [];
+      if (!currentSessionIds.includes(sessionId)) {
+        return state;
+      }
 
-    await desktopApi.stopTerminal(GLOBAL_TERMINAL_SESSION_ID);
+      const nextSessionIds = currentSessionIds.filter((id) => id !== sessionId);
+      const activeSessionId =
+        state.activeTerminalSessionIdByProject[projectId] ?? null;
+      const nextActiveSessionId =
+        activeSessionId === sessionId
+          ? (nextSessionIds.at(-1) ?? null)
+          : activeSessionId;
+      const nextTerminalOutput = { ...state.terminalOutput };
+      const nextTerminalStatus = { ...state.terminalStatus };
+      const nextTerminalTransport = { ...state.terminalTransport };
+      const nextTerminalShell = { ...state.terminalShell };
+
+      delete nextTerminalOutput[sessionId];
+      delete nextTerminalStatus[sessionId];
+      delete nextTerminalTransport[sessionId];
+      delete nextTerminalShell[sessionId];
+
+      return {
+        terminalOutput: nextTerminalOutput,
+        terminalStatus: nextTerminalStatus,
+        terminalTransport: nextTerminalTransport,
+        terminalShell: nextTerminalShell,
+        projectTerminalSessionIds: {
+          ...state.projectTerminalSessionIds,
+          [projectId]: nextSessionIds,
+        },
+        activeTerminalSessionIdByProject: {
+          ...state.activeTerminalSessionIdByProject,
+          [projectId]: nextActiveSessionId,
+        },
+      };
+    });
   },
 
   // ── Actions: hydration & persistence ────────────────────────────────
