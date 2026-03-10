@@ -20,20 +20,20 @@ import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import {
   dedupeModels,
-  GLOBAL_TERMINAL_SESSION_ID,
   getPreviewTerminalSessionId,
   TERMINAL_MIN_HEIGHT_PX,
 } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
 import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
-import { TerminalPanel } from "./terminal-panel";
+import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
 const PROJECT_SIDEBAR_WIDTH_PX = 320;
 const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
+const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -42,7 +42,6 @@ export const IdeShell = () => {
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const settings = useIdeStore((s) => s.settings);
-  const terminalPanelOpen = useIdeStore((s) => s.terminalPanelOpen);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
   const activeProject = useIdeStore((s) => s.getActiveProject());
@@ -492,6 +491,14 @@ export const IdeShell = () => {
   const leftVisible = panelVisibility.left;
   const middleVisible = panelVisibility.middle;
   const rightVisible = panelVisibility.right;
+  const projectTerminalSessionIds = useIdeStore(
+    (s) => s.projectTerminalSessionIds,
+  );
+  const activeProjectTerminalSessionIds = activeProject
+    ? (projectTerminalSessionIds[activeProject.id] ??
+      EMPTY_TERMINAL_SESSION_IDS)
+    : EMPTY_TERMINAL_SESSION_IDS;
+  const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
@@ -539,7 +546,7 @@ export const IdeShell = () => {
                       orientation="vertical"
                     >
                       <Panel
-                        defaultSize={terminalPanelOpen ? 74 : 100}
+                        defaultSize={terminalPanelVisible ? 74 : 100}
                         id="ide-chat"
                         minSize={30}
                       >
@@ -562,7 +569,7 @@ export const IdeShell = () => {
                         )}
                       </Panel>
 
-                      {terminalPanelOpen ? (
+                      {terminalPanelVisible && activeProject ? (
                         <>
                           <ResizeHandle
                             className="h-2 cursor-row-resize"
@@ -573,20 +580,9 @@ export const IdeShell = () => {
                             id="ide-terminal"
                             minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
                           >
-                            <TerminalPanel
-                              autoStart
-                              onClose={() => {
-                                useIdeStore
-                                  .getState()
-                                  .setTerminalPanelOpen(false);
-                              }}
-                              onStart={() =>
-                                useIdeStore.getState().startActiveTerminal()
-                              }
-                              onStop={() =>
-                                useIdeStore.getState().stopActiveTerminal()
-                              }
-                              sessionId={GLOBAL_TERMINAL_SESSION_ID}
+                            <ProjectTerminalTabsPanel
+                              key={activeProject.id}
+                              projectId={activeProject.id}
                             />
                           </Panel>
                         </>
