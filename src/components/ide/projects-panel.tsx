@@ -204,6 +204,11 @@ export const ProjectSidebar = () => {
     }));
   };
 
+  const handleProjectClick = (projectId: string) => {
+    setActiveProjectId(projectId);
+    toggleProjectCollapsed(projectId);
+  };
+
   const openRenameDialog = (target: RenameTarget) => {
     setRenameTarget(target);
     setRenameValue(target.name);
@@ -327,7 +332,7 @@ export const ProjectSidebar = () => {
                       </button>
                       <button
                         className="min-w-0 flex-1 rounded-[inherit] px-1 py-2 text-left"
-                        onClick={() => setActiveProjectId(project.id)}
+                        onClick={() => handleProjectClick(project.id)}
                         type="button"
                       >
                         <div className="min-w-0 pr-10 text-left">
