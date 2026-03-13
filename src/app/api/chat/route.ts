@@ -53,8 +53,21 @@ When writing files, prefer complete and correct output over partial snippets.
 Never attempt to access files outside the active project root.`;
 
 const OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
+const DEFAULT_TOOL_STEP_LIMIT = 8;
+const REASONING_TOOL_STEP_LIMIT = 20;
 
 const normalizePath = (value: string): string => value.replace(/\\/g, "/");
+
+const isOpenAiReasoningModel = (modelId: string): boolean => {
+  const normalized = modelId.trim().toLowerCase();
+
+  return ["gpt-5", "o1", "o3", "o4", "codex"].some(
+    (prefix) =>
+      normalized === prefix ||
+      normalized.startsWith(`${prefix}-`) ||
+      normalized.startsWith(`${prefix}.`),
+  );
+};
 
 const resolveProjectPath = (projectRoot: string, filePath: string): string => {
   const root = path.resolve(projectRoot);
@@ -350,6 +363,8 @@ export async function POST(request: Request): Promise<Response> {
           reasoningEffort,
         }
       : undefined;
+  const usesOpenAiReasoningModel =
+    provider === "openai" && isOpenAiReasoningModel(model);
 
   const textResult = streamText({
     messages: await convertToModelMessages(messages),
@@ -357,12 +372,16 @@ export async function POST(request: Request): Promise<Response> {
     ...(openAiProviderOptions
       ? { providerOptions: { openai: openAiProviderOptions } }
       : {}),
-    stopWhen: stepCountIs(8),
+    stopWhen: stepCountIs(
+      usesOpenAiReasoningModel
+        ? REASONING_TOOL_STEP_LIMIT
+        : DEFAULT_TOOL_STEP_LIMIT,
+    ),
     system:
       provider === "openai" && useChatgptCodexEndpoint
         ? undefined
         : SYSTEM_PROMPT,
-    temperature: 0.2,
+    ...(usesOpenAiReasoningModel ? {} : { temperature: 0.2 }),
     tools: {
       listFiles: tool({
         description:

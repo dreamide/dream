@@ -1264,7 +1264,7 @@ async function startRendererServerIfNeeded() {
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
     backgroundColor: "#f8fafc",
-    height: 980,
+    height: 1080,
     minHeight: 720,
     minWidth: 1180,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
@@ -1278,7 +1278,7 @@ async function createMainWindow() {
       sandbox: false,
       spellcheck: false,
     },
-    width: 1680,
+    width: 1920,
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
