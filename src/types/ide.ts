@@ -1,9 +1,13 @@
 import type { UIMessage } from "ai";
 
-export type AiProvider = "openai" | "anthropic";
+export type AiProvider = "openai" | "anthropic" | "gemini";
 export type OpenAiAuthMode = "apiKey" | "codex";
 export type AnthropicAuthMode = "apiKey" | "claudeProMax";
-export type ProviderAuthMode = OpenAiAuthMode | AnthropicAuthMode;
+export type GeminiAuthMode = "apiKey";
+export type ProviderAuthMode =
+  | OpenAiAuthMode
+  | AnthropicAuthMode
+  | GeminiAuthMode;
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type ThreadSortOrder =
   | "recent"
@@ -44,10 +48,13 @@ export interface AppSettings {
   anthropicAccessToken: string;
   anthropicRefreshToken: string;
   anthropicAccessTokenExpiresAt: number | null;
+  geminiApiKey: string;
   defaultOpenAiModel: string;
   defaultAnthropicModel: string;
+  defaultGeminiModel: string;
   openAiSelectedModels: string[];
   anthropicSelectedModels: string[];
+  geminiSelectedModels: string[];
   shellPath: string;
 }
 

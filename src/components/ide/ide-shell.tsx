@@ -69,6 +69,7 @@ export const IdeShell = () => {
     anthropicAuthMode: settings.anthropicAuthMode,
     anthropicApiKey: settings.anthropicApiKey,
     anthropicRefreshToken: settings.anthropicRefreshToken,
+    geminiApiKey: settings.geminiApiKey,
     openAiApiKey: settings.openAiApiKey,
     openAiAuthMode: settings.openAiAuthMode,
   });
@@ -96,6 +97,7 @@ export const IdeShell = () => {
       anthropicAuthMode: s.anthropicAuthMode,
       anthropicApiKey: s.anthropicApiKey,
       anthropicRefreshToken: s.anthropicRefreshToken,
+      geminiApiKey: s.geminiApiKey,
       openAiApiKey: s.openAiApiKey,
       openAiAuthMode: s.openAiAuthMode,
     });
@@ -316,6 +318,7 @@ export const IdeShell = () => {
       anthropicAuthMode: settings.anthropicAuthMode,
       anthropicApiKey: settings.anthropicApiKey,
       anthropicRefreshToken: settings.anthropicRefreshToken,
+      geminiApiKey: settings.geminiApiKey,
       openAiApiKey: settings.openAiApiKey,
       openAiAuthMode: settings.openAiAuthMode,
     };
@@ -325,6 +328,7 @@ export const IdeShell = () => {
     settings.anthropicAuthMode,
     settings.anthropicApiKey,
     settings.anthropicRefreshToken,
+    settings.geminiApiKey,
     settings.openAiApiKey,
     settings.openAiAuthMode,
   ]);
@@ -364,6 +368,7 @@ export const IdeShell = () => {
     const safeConnectedProviders = getConnectedProviders(prev);
     const openAiSelectedModels = dedupeModels(prev.openAiSelectedModels);
     const anthropicSelectedModels = dedupeModels(prev.anthropicSelectedModels);
+    const geminiSelectedModels = dedupeModels(prev.geminiSelectedModels);
     const defaultOpenAiModel = openAiSelectedModels.includes(
       prev.defaultOpenAiModel,
     )
@@ -374,6 +379,11 @@ export const IdeShell = () => {
     )
       ? prev.defaultAnthropicModel
       : (anthropicSelectedModels[0] ?? "");
+    const defaultGeminiModel = geminiSelectedModels.includes(
+      prev.defaultGeminiModel,
+    )
+      ? prev.defaultGeminiModel
+      : (geminiSelectedModels[0] ?? "");
 
     const changed =
       safeConnectedProviders.length !== prev.connectedProviders.length ||
@@ -382,14 +392,17 @@ export const IdeShell = () => {
       ) ||
       defaultOpenAiModel !== prev.defaultOpenAiModel ||
       defaultAnthropicModel !== prev.defaultAnthropicModel ||
+      defaultGeminiModel !== prev.defaultGeminiModel ||
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
+      geminiSelectedModels.length !== prev.geminiSelectedModels.length ||
       !openAiSelectedModels.every(
         (m, i) => prev.openAiSelectedModels[i] === m,
       ) ||
       !anthropicSelectedModels.every(
         (m, i) => prev.anthropicSelectedModels[i] === m,
-      );
+      ) ||
+      !geminiSelectedModels.every((m, i) => prev.geminiSelectedModels[i] === m);
 
     if (changed) {
       store.setSettings({
@@ -397,7 +410,9 @@ export const IdeShell = () => {
         anthropicSelectedModels,
         connectedProviders: safeConnectedProviders,
         defaultAnthropicModel,
+        defaultGeminiModel,
         defaultOpenAiModel,
+        geminiSelectedModels,
         openAiSelectedModels,
       });
     }

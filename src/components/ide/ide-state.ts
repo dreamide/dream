@@ -82,7 +82,9 @@ const normalizeThread = (
     createdAt,
     model: typeof thread.model === "string" ? thread.model : project.model,
     provider:
-      thread.provider === "anthropic" || thread.provider === "openai"
+      thread.provider === "anthropic" ||
+      thread.provider === "gemini" ||
+      thread.provider === "openai"
         ? thread.provider
         : project.provider,
     reasoningEffort: normalizeReasoningEffort(thread.reasoningEffort),
@@ -152,6 +154,10 @@ export const mergePersistedState = (
     typeof mergedSettings.anthropicAccessTokenExpiresAt === "number"
       ? mergedSettings.anthropicAccessTokenExpiresAt
       : null;
+  mergedSettings.geminiApiKey =
+    typeof mergedSettings.geminiApiKey === "string"
+      ? mergedSettings.geminiApiKey
+      : "";
 
   const openAiSelectedModels = dedupeModels(
     Array.isArray(mergedSettings.openAiSelectedModels)
@@ -183,6 +189,22 @@ export const mergePersistedState = (
   ) {
     mergedSettings.defaultAnthropicModel =
       mergedSettings.anthropicSelectedModels[0] ?? "";
+  }
+
+  const geminiSelectedModels = dedupeModels(
+    Array.isArray(mergedSettings.geminiSelectedModels)
+      ? mergedSettings.geminiSelectedModels
+      : [],
+  );
+  mergedSettings.geminiSelectedModels = geminiSelectedModels;
+
+  if (
+    !mergedSettings.geminiSelectedModels.includes(
+      mergedSettings.defaultGeminiModel,
+    )
+  ) {
+    mergedSettings.defaultGeminiModel =
+      mergedSettings.geminiSelectedModels[0] ?? "";
   }
 
   mergedSettings.connectedProviders = inferConnectedProviders(

@@ -19,6 +19,7 @@ const requestBodySchema = z.object({
   anthropicAuthMode: z.enum(["apiKey", "claudeProMax"]).default("apiKey"),
   anthropicApiKey: z.string().optional(),
   anthropicRefreshToken: z.string().optional(),
+  geminiApiKey: z.string().optional(),
   openAiApiKey: z.string().optional(),
   openAiAuthMode: z.enum(["apiKey", "codex"]).default("apiKey"),
 });
@@ -40,6 +41,8 @@ const OPENAI_MODELS_URL = "https://api.openai.com/v1/models";
 const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
 const ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models";
+const GEMINI_OPENAI_MODELS_URL =
+  "https://generativelanguage.googleapis.com/v1beta/openai/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
 
 const dedupeAndSort = (models: ModelOption[]): ModelOption[] => {
@@ -386,6 +389,68 @@ const fetchAnthropicModels = async (
   }
 };
 
+const fetchGeminiModels = async (
+  geminiApiKey: string,
+): Promise<ProviderModelResult> => {
+  if (!geminiApiKey) {
+    return {
+      error: "Add a Gemini API key to fetch the latest model list.",
+      models: [],
+      source: "unavailable",
+    };
+  }
+
+  try {
+    const response = await fetch(GEMINI_OPENAI_MODELS_URL, {
+      headers: {
+        Authorization: `Bearer ${geminiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini request failed (${response.status}).`);
+    }
+
+    const payload = (await response.json()) as {
+      data?: Array<{ id?: string }>;
+    };
+    const modelIds = (payload.data ?? [])
+      .flatMap((entry) => {
+        const id = entry.id?.trim() ?? "";
+        return id ? [id] : [];
+      })
+      .filter((id) => id.toLowerCase().startsWith("gemini"));
+
+    const models = dedupeAndSort(
+      modelIds.map((id) => createModelOption("gemini", id)),
+    );
+
+    if (models.length === 0) {
+      return {
+        error: "Gemini returned no models.",
+        models: [],
+        source: "unavailable",
+      };
+    }
+
+    return {
+      models,
+      source: "api",
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch Gemini models.",
+      models: [],
+      source: "unavailable",
+    };
+  }
+};
+
 export async function POST(request: Request): Promise<Response> {
   let rawBody: unknown;
 
@@ -402,6 +467,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const openAiApiKey = parsed.data.openAiApiKey?.trim() ?? "";
   const anthropicApiKey = parsed.data.anthropicApiKey?.trim() ?? "";
+  const geminiApiKey = parsed.data.geminiApiKey?.trim() ?? "";
   const openAiAuthMode = parsed.data.openAiAuthMode;
   const anthropicAuthMode = parsed.data.anthropicAuthMode;
   const anthropicOAuthInput: AnthropicOAuthInput = {
@@ -410,18 +476,20 @@ export async function POST(request: Request): Promise<Response> {
     refreshToken: parsed.data.anthropicRefreshToken?.trim() ?? "",
   };
 
-  const [openai, anthropic] = await Promise.all([
+  const [openai, anthropic, gemini] = await Promise.all([
     fetchOpenAiModels(openAiAuthMode, openAiApiKey),
     fetchAnthropicModels(
       anthropicAuthMode,
       anthropicApiKey,
       anthropicOAuthInput,
     ),
+    fetchGeminiModels(geminiApiKey),
   ]);
 
   return Response.json({
     anthropic,
     fetchedAt: new Date().toISOString(),
+    gemini,
     openai,
   });
 }

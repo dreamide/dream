@@ -10,7 +10,7 @@ import type {
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
-const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
+const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "gemini"];
 
 export const DEFAULT_SETTINGS: AppSettings = {
   anthropicAccessToken: "",
@@ -21,7 +21,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   anthropicSelectedModels: [],
   connectedProviders: [],
   defaultAnthropicModel: "",
+  defaultGeminiModel: "",
   defaultOpenAiModel: "",
+  geminiApiKey: "",
+  geminiSelectedModels: [],
   openAiAuthMode: "apiKey",
   openAiApiKey: "",
   openAiSelectedModels: [],
@@ -104,9 +107,15 @@ export const getProviderAuthMode = (
   provider: AiProvider,
   settings: AppSettings,
 ): ProviderAuthMode => {
-  return provider === "openai"
-    ? settings.openAiAuthMode
-    : settings.anthropicAuthMode;
+  if (provider === "openai") {
+    return settings.openAiAuthMode;
+  }
+
+  if (provider === "anthropic") {
+    return settings.anthropicAuthMode;
+  }
+
+  return "apiKey";
 };
 
 export const getProviderCredential = (
@@ -119,9 +128,13 @@ export const getProviderCredential = (
     return mode === "apiKey" ? settings.openAiApiKey : "";
   }
 
-  return mode === "apiKey"
-    ? settings.anthropicApiKey
-    : settings.anthropicAccessToken;
+  if (provider === "anthropic") {
+    return mode === "apiKey"
+      ? settings.anthropicApiKey
+      : settings.anthropicAccessToken;
+  }
+
+  return settings.geminiApiKey;
 };
 
 export const getDefaultModelForProvider = (
@@ -130,14 +143,23 @@ export const getDefaultModelForProvider = (
 ): string => {
   const openAiModels = getModelsForProvider("openai", settings);
   const anthropicModels = getModelsForProvider("anthropic", settings);
+  const geminiModels = getModelsForProvider("gemini", settings);
 
-  return provider === "anthropic"
-    ? anthropicModels.includes(settings.defaultAnthropicModel)
+  if (provider === "anthropic") {
+    return anthropicModels.includes(settings.defaultAnthropicModel)
       ? settings.defaultAnthropicModel
-      : (anthropicModels[0] ?? "")
-    : openAiModels.includes(settings.defaultOpenAiModel)
-      ? settings.defaultOpenAiModel
-      : (openAiModels[0] ?? "");
+      : (anthropicModels[0] ?? "");
+  }
+
+  if (provider === "gemini") {
+    return geminiModels.includes(settings.defaultGeminiModel)
+      ? settings.defaultGeminiModel
+      : (geminiModels[0] ?? "");
+  }
+
+  return openAiModels.includes(settings.defaultOpenAiModel)
+    ? settings.defaultOpenAiModel
+    : (openAiModels[0] ?? "");
 };
 
 export const getModelsForProvider = (
@@ -154,9 +176,15 @@ export const getModelsForProvider = (
     );
   };
 
-  return provider === "anthropic"
-    ? clean(settings.anthropicSelectedModels)
-    : clean(settings.openAiSelectedModels);
+  if (provider === "anthropic") {
+    return clean(settings.anthropicSelectedModels);
+  }
+
+  if (provider === "gemini") {
+    return clean(settings.geminiSelectedModels);
+  }
+
+  return clean(settings.openAiSelectedModels);
 };
 
 export const getModelOptionsForProvider = (

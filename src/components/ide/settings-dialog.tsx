@@ -76,6 +76,10 @@ export const SettingsDialog = () => {
     () => getModelsForProvider("anthropic", settings),
     [settings],
   );
+  const geminiModels = useMemo(
+    () => getModelsForProvider("gemini", settings),
+    [settings],
+  );
 
   const selectedDefaultOpenAiModel = openAiModels.includes(
     settings.defaultOpenAiModel,
@@ -87,8 +91,14 @@ export const SettingsDialog = () => {
   )
     ? settings.defaultAnthropicModel
     : (anthropicModels[0] ?? "");
+  const selectedDefaultGeminiModel = geminiModels.includes(
+    settings.defaultGeminiModel,
+  )
+    ? settings.defaultGeminiModel
+    : (geminiModels[0] ?? "");
   const isOpenAiConnected = connectedProviders.includes("openai");
   const isAnthropicConnected = connectedProviders.includes("anthropic");
+  const isGeminiConnected = connectedProviders.includes("gemini");
   const openAiAuthModeLabel =
     settings.openAiAuthMode === "codex" ? "Codex Login" : "API Key";
   const anthropicAuthModeLabel =
@@ -105,8 +115,10 @@ export const SettingsDialog = () => {
   const canConnectAnthropic = isAnthropicProMaxMode
     ? hasAnthropicOauthSession
     : settings.anthropicApiKey.trim().length > 0;
+  const canConnectGemini = settings.geminiApiKey.trim().length > 0;
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
+  const availableGeminiModels = providerModels.gemini.models;
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
     [availableOpenAiModels, settings],
@@ -120,6 +132,10 @@ export const SettingsDialog = () => {
       ),
     [availableAnthropicModels, settings],
   );
+  const geminiModelOptions = useMemo(
+    () => getModelOptionsForProvider("gemini", settings, availableGeminiModels),
+    [availableGeminiModels, settings],
+  );
   const normalizedModelSearchQuery = modelSearchQuery.trim().toLowerCase();
   const filteredOpenAiModels = availableOpenAiModels.filter(
     (model) =>
@@ -128,6 +144,12 @@ export const SettingsDialog = () => {
       model.label.toLowerCase().includes(normalizedModelSearchQuery),
   );
   const filteredAnthropicModels = availableAnthropicModels.filter(
+    (model) =>
+      normalizedModelSearchQuery.length === 0 ||
+      model.id.toLowerCase().includes(normalizedModelSearchQuery) ||
+      model.label.toLowerCase().includes(normalizedModelSearchQuery),
+  );
+  const filteredGeminiModels = availableGeminiModels.filter(
     (model) =>
       normalizedModelSearchQuery.length === 0 ||
       model.id.toLowerCase().includes(normalizedModelSearchQuery) ||
@@ -161,6 +183,7 @@ export const SettingsDialog = () => {
       | "anthropicAuthMode"
       | "anthropicApiKey"
       | "anthropicRefreshToken"
+      | "geminiApiKey"
       | "openAiApiKey"
       | "openAiAuthMode"
     >,
@@ -171,6 +194,7 @@ export const SettingsDialog = () => {
       anthropicAuthMode: next.anthropicAuthMode,
       anthropicApiKey: next.anthropicApiKey,
       anthropicRefreshToken: next.anthropicRefreshToken,
+      geminiApiKey: next.geminiApiKey,
       openAiApiKey: next.openAiApiKey,
       openAiAuthMode: next.openAiAuthMode,
     });
@@ -285,6 +309,7 @@ export const SettingsDialog = () => {
         anthropicApiKey: "",
         anthropicAuthMode: "claudeProMax",
         anthropicRefreshToken: refreshToken,
+        geminiApiKey: settings.geminiApiKey,
         openAiApiKey: settings.openAiApiKey,
         openAiAuthMode: settings.openAiAuthMode,
       });
@@ -479,6 +504,7 @@ export const SettingsDialog = () => {
                                 anthropicApiKey: settings.anthropicApiKey,
                                 anthropicRefreshToken:
                                   settings.anthropicRefreshToken,
+                                geminiApiKey: settings.geminiApiKey,
                                 openAiApiKey: settings.openAiApiKey,
                                 openAiAuthMode: nextMode,
                               });
@@ -673,6 +699,7 @@ export const SettingsDialog = () => {
 
                               refreshModels({
                                 ...nextAnthropicSettings,
+                                geminiApiKey: settings.geminiApiKey,
                                 openAiApiKey: settings.openAiApiKey,
                                 openAiAuthMode: settings.openAiAuthMode,
                               });
@@ -860,6 +887,70 @@ export const SettingsDialog = () => {
                         )}
                       </div>
                     ) : null}
+
+                    {providerSetupTarget === "gemini" ? (
+                      <div className="mx-auto max-w-3xl space-y-5">
+                        <div className="space-y-2">
+                          <h3 className="font-semibold text-2xl">
+                            Connect Gemini
+                          </h3>
+                          <p className="text-muted-foreground">
+                            Gemini gives you access to Google's Gemini models
+                            for chat, coding, and multimodal work.
+                          </p>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="gemini-key">Gemini API Key</Label>
+                          <Input
+                            id="gemini-key"
+                            onChange={(event) =>
+                              setSettings((previous) => ({
+                                ...previous,
+                                geminiApiKey: event.currentTarget.value,
+                              }))
+                            }
+                            placeholder="AIza..."
+                            type="password"
+                            value={settings.geminiApiKey}
+                          />
+                        </div>
+
+                        {providerModels.gemini.error ? (
+                          <p className="text-amber-700 text-sm">
+                            {providerModels.gemini.error}
+                          </p>
+                        ) : null}
+
+                        {!canConnectGemini ? (
+                          <p className="text-muted-foreground text-sm">
+                            Add a Gemini API key before connecting.
+                          </p>
+                        ) : null}
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            disabled={!canConnectGemini}
+                            onClick={() => submitProviderSetup("gemini")}
+                            type="button"
+                          >
+                            {isGeminiConnected ? "Save" : "Connect"}
+                          </Button>
+                          {isGeminiConnected ? (
+                            <Button
+                              onClick={() => {
+                                disconnectProvider("gemini");
+                                setProviderSetupTarget(null);
+                              }}
+                              type="button"
+                              variant="ghost"
+                            >
+                              Disconnect
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <>
@@ -889,7 +980,9 @@ export const SettingsDialog = () => {
                                 <p className="text-muted-foreground text-sm">
                                   {provider === "openai"
                                     ? `${openAiModels.length} models enabled`
-                                    : `${anthropicModels.length} models enabled`}
+                                    : provider === "anthropic"
+                                      ? `${anthropicModels.length} models enabled`
+                                      : `${geminiModels.length} models enabled`}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -925,32 +1018,31 @@ export const SettingsDialog = () => {
                           <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
                             All available providers are already connected.
                           </p>
-                        ) : (
-                          popularProviders.map((provider) => (
-                            <div
-                              className="flex items-center justify-between rounded-md px-3 py-2"
-                              key={provider}
-                            >
-                              <div className="pr-3">
-                                <p className="font-medium text-sm">
-                                  {getProviderLabel(provider)}
-                                </p>
-                                <p className="text-muted-foreground text-sm">
-                                  {getProviderDescription(provider)}
-                                </p>
-                              </div>
-                              <Button
-                                className="h-7 px-2 text-sm"
-                                onClick={() => openProviderSetup(provider)}
-                                size="sm"
-                                type="button"
-                                variant="default"
-                              >
-                                Connect
-                              </Button>
+                        ) : null}
+                        {popularProviders.map((provider) => (
+                          <div
+                            className="flex items-center justify-between rounded-md px-3 py-2"
+                            key={provider}
+                          >
+                            <div className="pr-3">
+                              <p className="font-medium text-sm">
+                                {getProviderLabel(provider)}
+                              </p>
+                              <p className="text-muted-foreground text-sm">
+                                {getProviderDescription(provider)}
+                              </p>
                             </div>
-                          ))
-                        )}
+                            <Button
+                              className="h-7 px-2 text-sm"
+                              onClick={() => openProviderSetup(provider)}
+                              size="sm"
+                              type="button"
+                              variant="default"
+                            >
+                              Connect
+                            </Button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </>
@@ -1152,6 +1244,98 @@ export const SettingsDialog = () => {
                           </SelectTrigger>
                           <SelectContent className="min-w-56">
                             {anthropicModelOptions.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {connectedProviders.length > 0 && isGeminiConnected ? (
+                    <div className="space-y-3 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">Gemini</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Enabled Gemini Models</Label>
+                        <p className="text-muted-foreground text-sm">
+                          Only enabled models appear in project chat.
+                        </p>
+                        <div className="space-y-1.5 rounded-md p-1">
+                          {availableGeminiModels.length === 0 ? (
+                            <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                              No live models available yet. Refresh after
+                              connecting.
+                            </p>
+                          ) : filteredGeminiModels.length === 0 ? (
+                            <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                              No models match this search.
+                            </p>
+                          ) : (
+                            filteredGeminiModels.map((model) => {
+                              const isSelected = geminiModels.includes(
+                                model.id,
+                              );
+
+                              return (
+                                <div
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1"
+                                  key={model.id}
+                                >
+                                  <Label
+                                    className={cn(
+                                      "truncate text-sm",
+                                      isSelected
+                                        ? "text-foreground"
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {model.label}
+                                  </Label>
+                                  <Switch
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      if (checked === isSelected) return;
+                                      toggleProviderModel("gemini", model.id);
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="gemini-model">
+                          Default Gemini Model
+                        </Label>
+                        <Select
+                          onValueChange={(value) =>
+                            setSettings((previous) => ({
+                              ...previous,
+                              defaultGeminiModel: value as string,
+                            }))
+                          }
+                          value={selectedDefaultGeminiModel || undefined}
+                        >
+                          <SelectTrigger
+                            className="w-56 max-w-full"
+                            disabled={geminiModels.length === 0}
+                            id="gemini-model"
+                          >
+                            <SelectValue placeholder="Select model">
+                              {geminiModelOptions.find(
+                                (model) =>
+                                  model.id === selectedDefaultGeminiModel,
+                              )?.label ?? selectedDefaultGeminiModel}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="min-w-56">
+                            {geminiModelOptions.map((model) => (
                               <SelectItem key={model.id} value={model.id}>
                                 {model.label}
                               </SelectItem>

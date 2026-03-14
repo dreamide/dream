@@ -44,6 +44,7 @@ export interface ProviderModelsResponse {
   fetchedAt: string;
   openai: ProviderModelFetchResult;
   anthropic: ProviderModelFetchResult;
+  gemini: ProviderModelFetchResult;
 }
 
 export interface ProviderModelState {
@@ -75,16 +76,30 @@ export const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {
     : "medium";
 };
 
-export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
+export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "gemini"];
 
 export const getProviderLabel = (provider: AiProvider): string => {
-  return provider === "openai" ? "OpenAI" : "Anthropic";
+  if (provider === "openai") {
+    return "OpenAI";
+  }
+
+  if (provider === "anthropic") {
+    return "Anthropic";
+  }
+
+  return "Gemini";
 };
 
 export const getProviderDescription = (provider: AiProvider): string => {
-  return provider === "openai"
-    ? "Access GPT and Codex models for coding and general chat."
-    : "Access Claude models for reasoning and long-context tasks.";
+  if (provider === "openai") {
+    return "Access GPT and Codex models for coding and general chat.";
+  }
+
+  if (provider === "anthropic") {
+    return "Access Claude models for reasoning and long-context tasks.";
+  }
+
+  return "Access Google's Gemini models for chat, code, and multimodal tasks.";
 };
 
 export const inferConnectedProviders = (
@@ -105,6 +120,9 @@ export const inferConnectedProviders = (
     settings.anthropicApiKey.trim().length > 0 ||
     settings.anthropicRefreshToken.trim().length > 0 ||
     settings.anthropicSelectedModels.length > 0;
+  const hasGeminiConfig =
+    settings.geminiApiKey.trim().length > 0 ||
+    settings.geminiSelectedModels.length > 0;
 
   if (hasOpenAiConfig) {
     inferredProviders.push("openai");
@@ -112,6 +130,10 @@ export const inferConnectedProviders = (
 
   if (hasAnthropicConfig) {
     inferredProviders.push("anthropic");
+  }
+
+  if (hasGeminiConfig) {
+    inferredProviders.push("gemini");
   }
 
   return inferredProviders;
