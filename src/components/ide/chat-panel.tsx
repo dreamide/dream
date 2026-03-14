@@ -438,16 +438,16 @@ export const ChatPanel = ({
   }, [messages]);
 
   return (
-    <div id="chat-panel" className="relative flex h-full min-h-0 flex-col">
+    <div id="chat-panel" className="flex h-full min-h-0 flex-col">
       <Conversation
         id="chat-conversation"
-        className="min-h-0 flex-1 [mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-1rem),transparent_calc(100%-1rem),transparent_100%)] [webkit-mask-image:linear-gradient(to_bottom,black_0,black_calc(100%-1rem),transparent_calc(100%-1rem),transparent_100%)]"
+        className="min-h-0 flex-1"
         initial={false}
         key={thread.id}
       >
         <ConversationContent
           id="chat-conversation-content"
-          className="mx-auto w-full max-w-[800px] gap-4 px-0 pr-2 pt-3 pb-50"
+          className="mx-auto w-full max-w-[800px] gap-4 px-0 pr-2 pt-3 pb-4"
         >
           {messages.length === 0 ? (
             <ConversationEmptyState
@@ -462,23 +462,20 @@ export const ChatPanel = ({
           scrollPositionsRef={scrollPositionsRef}
           threadId={thread.id}
         />
-        <ConversationScrollButton className="bottom-56" />
+        <ConversationScrollButton />
       </Conversation>
 
       {localError ? (
-        <div className="pointer-events-none absolute right-4 bottom-42 left-2 z-20">
+        <div className="shrink-0 px-2 pb-1">
           <div className="mx-auto w-full max-w-[800px] rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-700">
             {localError}
           </div>
         </div>
       ) : null}
 
-      <div
-        id="chat-prompt"
-        className="pointer-events-none absolute right-4 bottom-2 left-2 z-20"
-      >
+      <div id="chat-prompt" className="shrink-0 px-2 pb-2">
         <div className="mx-auto w-full max-w-[800px]">
-          <div className="pointer-events-auto overflow-hidden rounded-lg border border-foreground/20 bg-background/70 shadow-md backdrop-blur-2xl">
+          <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
             {/* ── Prompt Input ──────────────────────────────────────── */}
             <PromptInput
               id="chat-prompt-input"
