@@ -71,13 +71,17 @@ export const createProjectConfig = (
 export const createThreadConfig = (
   project: ProjectConfig,
   overrides?: Partial<
-    Pick<ThreadConfig, "model" | "provider" | "reasoningEffort" | "title">
+    Pick<
+      ThreadConfig,
+      "chatMode" | "model" | "provider" | "reasoningEffort" | "title"
+    >
   >,
 ): ThreadConfig => {
   const timestamp = new Date().toISOString();
 
   return {
     archivedAt: null,
+    chatMode: overrides?.chatMode ?? "build",
     createdAt: timestamp,
     id: crypto.randomUUID(),
     model: overrides?.model ?? project.model,

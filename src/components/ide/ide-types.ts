@@ -1,6 +1,11 @@
 import { getConnectedProviders } from "@/lib/ide-defaults";
 import type { ModelOption } from "@/lib/models";
-import type { AiProvider, AppSettings, ReasoningEffort } from "@/types/ide";
+import type {
+  AiProvider,
+  AppSettings,
+  ChatMode,
+  ReasoningEffort,
+} from "@/types/ide";
 
 export const STATE_STORAGE_KEY = "dream:ide:state";
 
@@ -74,6 +79,18 @@ export const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {
   return REASONING_EFFORT_OPTIONS.some((option) => option.value === value)
     ? (value as ReasoningEffort)
     : "medium";
+};
+
+export const CHAT_MODE_OPTIONS: Array<{
+  label: string;
+  value: ChatMode;
+}> = [
+  { label: "Plan", value: "plan" },
+  { label: "Build", value: "build" },
+];
+
+export const normalizeChatMode = (value: unknown): ChatMode => {
+  return value === "plan" || value === "build" ? value : "build";
 };
 
 export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "gemini"];

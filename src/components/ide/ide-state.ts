@@ -23,6 +23,7 @@ import type {
 import {
   dedupeModels,
   inferConnectedProviders,
+  normalizeChatMode,
   normalizeReasoningEffort,
 } from "./ide-types";
 
@@ -79,6 +80,9 @@ const normalizeThread = (
       thread.archivedAt.trim().length > 0
         ? thread.archivedAt
         : null,
+    chatMode: normalizeChatMode(
+      (thread as unknown as Record<string, unknown>).chatMode,
+    ),
     createdAt,
     model: typeof thread.model === "string" ? thread.model : project.model,
     provider:
