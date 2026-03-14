@@ -4,16 +4,26 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { Plus, TerminalSquare, X } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
+import { cn } from "@/lib/utils";
 import { echoPipeFallbackInput } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
+const TERMINAL_SURFACE_CLASS =
+  "overflow-hidden rounded-lg bg-[#0b1020] text-slate-100";
+const TERMINAL_HOST_CLASS =
+  "h-full w-full overflow-hidden rounded-lg bg-[#0a0f1d]";
+const TERMINAL_THEME = {
+  background: "#0a0f1d",
+  cursor: "#f8fafc",
+  foreground: "#e2e8f0",
+  selectionBackground: "rgba(96, 165, 250, 0.3)",
+};
 
 export interface TerminalPanelProps {
   sessionId: string;
@@ -55,7 +65,6 @@ export const TerminalPanel = ({
   const terminalTransport = useIdeStore(
     (s) => s.terminalTransport[sessionId] ?? "pty",
   );
-  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     transportRef.current = terminalTransport;
@@ -66,31 +75,10 @@ export const TerminalPanel = ({
   }, [terminalStatus]);
 
   useEffect(() => {
-    if (!resolvedTheme) {
-      return;
-    }
-
-    const terminal = terminalInstanceRef.current;
-    if (!terminal) {
-      return;
-    }
-
-    const rootStyles = getComputedStyle(document.documentElement);
-    terminal.options.theme = {
-      background: rootStyles.getPropertyValue("--background").trim(),
-      cursor: rootStyles.getPropertyValue("--foreground").trim(),
-      foreground: rootStyles.getPropertyValue("--foreground").trim(),
-      selectionBackground: rootStyles.getPropertyValue("--accent").trim(),
-    };
-  }, [resolvedTheme]);
-
-  useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return;
     }
-
-    const rootStyles = getComputedStyle(document.documentElement);
 
     const terminal = new Terminal({
       allowProposedApi: false,
@@ -100,12 +88,7 @@ export const TerminalPanel = ({
       fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 12,
-      theme: {
-        background: rootStyles.getPropertyValue("--background").trim(),
-        cursor: rootStyles.getPropertyValue("--foreground").trim(),
-        foreground: rootStyles.getPropertyValue("--foreground").trim(),
-        selectionBackground: rootStyles.getPropertyValue("--accent").trim(),
-      },
+      theme: TERMINAL_THEME,
     });
     terminalInstanceRef.current = terminal;
 
@@ -174,36 +157,49 @@ export const TerminalPanel = ({
   const shellLabel = subtitle ?? terminalShell ?? "system shell";
 
   return (
-    <div
-      className={`flex h-full min-h-0 flex-col${bordered ? " border-t border-foreground/20" : ""}`}
-      style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
-    >
+    <div className={cn("flex h-full min-h-0 flex-col", bordered ? "pt-2" : "")}>
       {showHeader ? (
-        <div className="flex items-center justify-between px-3 py-2 text-xs">
-          <div className="flex items-center gap-2">
-            <TerminalSquare className="size-4" />
-            <span>{title}</span>
-            <span className="text-muted-foreground">{shellLabel}</span>
-          </div>
-          <Button
-            aria-label={`Close ${title.toLowerCase()}`}
-            className="h-7 w-7 p-0"
-            onClick={() => {
-              onClose();
-              if (stopOnClose) {
-                void onStop?.();
-              }
-            }}
-            size="sm"
-            variant="ghost"
+        <div className="min-h-0 flex-1 p-2">
+          <div
+            className={cn(
+              "flex h-full min-h-0 flex-col",
+              TERMINAL_SURFACE_CLASS,
+            )}
+            style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
           >
-            <X className="size-4" />
-          </Button>
+            <div className="flex items-center justify-between px-3 py-1.5 text-slate-100 text-xs">
+              <div className="flex min-w-0 items-center gap-2">
+                <TerminalSquare className="size-4 shrink-0 text-slate-300" />
+                <span className="truncate font-medium">{title}</span>
+                <span className="truncate text-slate-400">{shellLabel}</span>
+              </div>
+              <Button
+                aria-label={`Close ${title.toLowerCase()}`}
+                className="h-7 w-7 p-0 text-slate-300 hover:bg-white/8 hover:text-white"
+                onClick={() => {
+                  onClose();
+                  if (stopOnClose) {
+                    void onStop?.();
+                  }
+                }}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 p-2">
+              <div className={TERMINAL_HOST_CLASS} ref={hostRef} />
+            </div>
+          </div>
         </div>
       ) : null}
-      <div className="min-h-0 flex-1 p-2">
-        <div className="h-full w-full" ref={hostRef} />
-      </div>
+      {!showHeader ? (
+        <div className="min-h-0 flex-1 p-2">
+          <div className={TERMINAL_HOST_CLASS} ref={hostRef} />
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -243,71 +239,82 @@ export const ProjectTerminalTabsPanel = ({
   }
 
   return (
-    <div
-      className="flex h-full min-h-0 flex-col border-t border-foreground/20"
-      style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
-    >
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-          <TerminalSquare className="size-4 shrink-0" />
-          <Tabs
-            className="min-w-0 flex-1"
-            onValueChange={(value) =>
-              setActiveProjectTerminalId(projectId, value)
-            }
-            value={resolvedActiveSessionId}
-          >
-            <TabsList className="h-8 max-w-full justify-start overflow-x-auto">
-              {sessionIds.map((sessionId, index) => (
-                <TabsTrigger
-                  className="h-6 shrink-0 px-2 text-xs"
-                  key={sessionId}
-                  value={sessionId}
+    <div className="flex h-full min-h-0 flex-col p-2">
+      <div
+        className={cn("flex min-h-0 flex-1 flex-col", TERMINAL_SURFACE_CLASS)}
+        style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
+      >
+        <div className="flex items-center gap-2 px-3 py-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+            <TerminalSquare className="size-4 shrink-0 text-slate-300" />
+            <Tabs
+              className="min-w-0 flex-1"
+              onValueChange={(value) =>
+                setActiveProjectTerminalId(projectId, value)
+              }
+              value={resolvedActiveSessionId}
+            >
+              <TabsList className="h-8 max-w-full justify-start overflow-x-auto bg-white/6">
+                {sessionIds.map((sessionId, index) => (
+                  <div className="relative shrink-0" key={sessionId}>
+                    <TabsTrigger
+                      className="h-6 shrink-0 px-2 pr-9 text-slate-400 text-xs hover:text-slate-100 data-[active]:bg-white/10 data-[active]:text-slate-50"
+                      value={sessionId}
+                    >
+                      <span className="truncate">Terminal {index + 1}</span>
+                    </TabsTrigger>
+                    <button
+                      aria-label={`Close terminal ${index + 1}`}
+                      className="-translate-y-1/2 absolute top-1/2 right-1.5 rounded p-0.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-50"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void closeProjectTerminal(projectId, sessionId);
+                      }}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      type="button"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  aria-label="Open another terminal"
+                  className="ml-2 h-6 w-6 shrink-0 rounded-md p-0 text-slate-300 hover:bg-white/10 hover:text-white"
+                  onClick={() => void addProjectTerminal(projectId)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
                 >
-                  Terminal {index + 1}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+                  <Plus className="size-3.5" />
+                </Button>
+              </TabsList>
+            </Tabs>
+          </div>
+          <span className="truncate text-slate-400 text-xs">
+            {terminalShell ?? "system shell"}
+          </span>
         </div>
-        <span className="truncate text-muted-foreground text-xs">
-          {terminalShell ?? "system shell"}
-        </span>
-        <Button
-          aria-label="Open another terminal"
-          className="h-7 w-7 shrink-0 p-0"
-          onClick={() => void addProjectTerminal(projectId)}
-          size="sm"
-          variant="ghost"
-        >
-          <Plus className="size-4" />
-        </Button>
-        <Button
-          aria-label="Close terminal"
-          className="h-7 w-7 shrink-0 p-0"
-          onClick={() =>
-            void closeProjectTerminal(projectId, resolvedActiveSessionId)
-          }
-          size="sm"
-          variant="ghost"
-        >
-          <X className="size-4" />
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1">
-        <TerminalPanel
-          bordered={false}
-          onClose={() =>
-            void closeProjectTerminal(projectId, resolvedActiveSessionId)
-          }
-          sessionId={resolvedActiveSessionId}
-          showHeader={false}
-          stopOnClose={false}
-          subtitle={terminalShell}
-          title={
-            activeTabIndex >= 0 ? `Terminal ${activeTabIndex + 1}` : "Terminal"
-          }
-        />
+        <div className="min-h-0 flex-1">
+          <TerminalPanel
+            bordered={false}
+            onClose={() =>
+              void closeProjectTerminal(projectId, resolvedActiveSessionId)
+            }
+            sessionId={resolvedActiveSessionId}
+            showHeader={false}
+            stopOnClose={false}
+            subtitle={terminalShell}
+            title={
+              activeTabIndex >= 0
+                ? `Terminal ${activeTabIndex + 1}`
+                : "Terminal"
+            }
+          />
+        </div>
       </div>
     </div>
   );

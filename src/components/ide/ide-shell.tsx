@@ -33,6 +33,7 @@ const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
+const CHAT_PANEL_MIN_HEIGHT_PX = 180;
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 
 export const IdeShell = () => {
@@ -563,7 +564,7 @@ export const IdeShell = () => {
                       <Panel
                         defaultSize={terminalPanelVisible ? 74 : 100}
                         id="ide-chat"
-                        minSize={30}
+                        minSize={`${CHAT_PANEL_MIN_HEIGHT_PX}px`}
                       >
                         {activeProject ? (
                           activeThread ? (
@@ -593,7 +594,7 @@ export const IdeShell = () => {
                           <Panel
                             defaultSize={26}
                             id="ide-terminal"
-                            minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
+                            minSize={`${TERMINAL_MIN_HEIGHT_PX + 16}px`}
                           >
                             <ProjectTerminalTabsPanel
                               key={activeProject.id}
