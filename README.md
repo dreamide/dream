@@ -85,3 +85,17 @@ Set your API keys in-app:
 - Enter OpenAI and/or Anthropic API keys
 
 The chat route uses the active project's provider/model plus its selected folder as the editable project root.
+
+## Codex thread import
+
+Codex thread import is available as a standalone script instead of an in-app action:
+
+```bash
+pnpm import:codex-threads
+```
+
+Optional flags:
+
+- `--dry-run`
+- `--codex-dir /path/to/.codex`
+- `--user-data-dir /path/to/app/user-data`
