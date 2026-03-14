@@ -58,6 +58,7 @@ interface IdeState {
   projectTerminalSessionIds: Record<string, string[]>;
   activeTerminalSessionIdByProject: Record<string, string | null>;
   outputPanelOpen: boolean;
+  autoAcceptEdits: boolean;
   previewError: string | null;
   previewLoading: Record<string, boolean>;
   stateHydrated: boolean;
@@ -106,6 +107,7 @@ interface IdeState {
   // Actions – panels
   togglePanel: (panel: keyof PanelVisibility) => void;
   setOutputPanelOpen: (open: boolean) => void;
+  setAutoAcceptEdits: (value: boolean) => void;
 
   // Actions – settings
   setSettings: (
@@ -220,6 +222,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   projectTerminalSessionIds: {},
   activeTerminalSessionIdByProject: {},
   outputPanelOpen: false,
+  autoAcceptEdits: false,
   previewError: null,
   previewLoading: {},
   stateHydrated: false,
@@ -555,6 +558,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }));
   },
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
+  setAutoAcceptEdits: (value) => set({ autoAcceptEdits: value }),
 
   // ── Actions: settings ───────────────────────────────────────────────
   setSettings: (updater) => {

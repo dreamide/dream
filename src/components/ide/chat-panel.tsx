@@ -1,5 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { CircleCheck } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -29,26 +30,41 @@ import {
   PromptInputBody,
   PromptInputFooter,
   type PromptInputMessage,
-  PromptInputSelect,
-  PromptInputSelectContent,
-  PromptInputSelectItem,
-  PromptInputSelectTrigger,
-  PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   getConnectedProviders,
   getModelOptionsForProvider,
   getProviderAuthMode,
   getProviderCredential,
 } from "@/lib/ide-defaults";
-import type { ProjectConfig, ReasoningEffort, ThreadConfig } from "@/types/ide";
+import { cn } from "@/lib/utils";
+import type {
+  ChatMode,
+  ProjectConfig,
+  ReasoningEffort,
+  ThreadConfig,
+} from "@/types/ide";
 import { AssistantMessagePart } from "./assistant-message-part";
 import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
+  CHAT_MODE_OPTIONS,
+  normalizeChatMode,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
@@ -139,6 +155,8 @@ export const ChatPanel = ({
   const settings = useIdeStore((s) => s.settings);
   const chats = useIdeStore((s) => s.chats);
   const providerModels = useIdeStore((s) => s.providerModels);
+  const autoAcceptEdits = useIdeStore((s) => s.autoAcceptEdits);
+  const setAutoAcceptEdits = useIdeStore((s) => s.setAutoAcceptEdits);
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const setSettings = useIdeStore((s) => s.setSettings);
   const updateThread = useIdeStore((s) => s.updateThread);
@@ -207,6 +225,10 @@ export const ChatPanel = ({
     REASONING_EFFORT_OPTIONS.find(
       (option) => option.value === selectedReasoningEffort,
     )?.label ?? "Reasoning";
+  const selectedChatMode = normalizeChatMode(thread.chatMode);
+  const selectedChatModeLabel =
+    CHAT_MODE_OPTIONS.find((option) => option.value === selectedChatMode)
+      ?.label ?? "Build";
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -354,6 +376,7 @@ export const ChatPanel = ({
           body: {
             authMode: activeProviderAuthMode,
             anthropicOAuth,
+            chatMode: selectedChatMode,
             credential: requestCredential,
             model: activeModel,
             projectPath: project.path,
@@ -368,6 +391,7 @@ export const ChatPanel = ({
       chats,
       connectedProviders,
       project.path,
+      selectedChatMode,
       selectedProvider,
       selectedReasoningEffort,
       sendMessage,
@@ -454,107 +478,175 @@ export const ChatPanel = ({
         className="pointer-events-none absolute right-4 bottom-2 left-2 z-20"
       >
         <div className="mx-auto w-full max-w-[800px]">
-          <PromptInput
-            id="chat-prompt-input"
-            className="pointer-events-auto w-full [&_[data-slot=input-group]]:rounded-lg [&_[data-slot=input-group]]:border-foreground/20 [&_[data-slot=input-group]]:bg-background/70 [&_[data-slot=input-group]]:backdrop-blur-2xl [&_[data-slot=input-group]]:shadow-md"
-            onSubmit={handleSubmit}
-          >
-            <PromptInputBody>
-              <PromptInputTextarea
-                className="min-h-[104px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
-                placeholder={`Ask AI to update ${project.name}...`}
-              />
-            </PromptInputBody>
-            <PromptInputFooter className="items-center">
-              <PromptInputTools className="gap-1.5 overflow-x-auto">
-                <PromptInputActionMenu>
-                  <PromptInputActionMenuTrigger tooltip="Attach file" />
-                  <PromptInputActionMenuContent>
-                    <PromptInputActionAddAttachments />
-                  </PromptInputActionMenuContent>
-                </PromptInputActionMenu>
+          <div className="pointer-events-auto overflow-hidden rounded-lg border border-foreground/20 bg-background/70 shadow-md backdrop-blur-2xl">
+            {/* ── Prompt Input ──────────────────────────────────────── */}
+            <PromptInput
+              id="chat-prompt-input"
+              className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none"
+              onSubmit={handleSubmit}
+            >
+              <PromptInputBody>
+                <PromptInputTextarea
+                  className="min-h-[80px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                  placeholder="Ask anything..."
+                />
+              </PromptInputBody>
+              <PromptInputFooter className="items-center">
+                <PromptInputTools>
+                  <PromptInputActionMenu>
+                    <PromptInputActionMenuTrigger tooltip="Attach file" />
+                    <PromptInputActionMenuContent>
+                      <PromptInputActionAddAttachments />
+                    </PromptInputActionMenuContent>
+                  </PromptInputActionMenu>
+                </PromptInputTools>
+                <PromptInputSubmit
+                  className="size-8 rounded-md"
+                  disabled={
+                    !isProviderConnected ||
+                    !hasProviderCredential ||
+                    selectedModel === ""
+                  }
+                  onStop={stop}
+                  status={status}
+                />
+              </PromptInputFooter>
+            </PromptInput>
 
-                <PromptInputSelect
-                  onValueChange={(value) => {
-                    if (typeof value !== "string") return;
-                    const matchingOptions = allModelOptions.filter(
-                      (option) => option.id === value,
-                    );
-                    const nextOption =
-                      matchingOptions.find(
-                        (option) => option.provider === thread.provider,
-                      ) ?? matchingOptions[0];
-                    if (!nextOption) return;
+            {/* ── Options Row ───────────────────────────────────────── */}
+            <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
+              {/* Plan / Build selector */}
+              <Select
+                onValueChange={(value) => {
+                  updateThread(thread.id, (current) => ({
+                    ...current,
+                    chatMode: value as ChatMode,
+                  }));
+                }}
+                value={selectedChatMode}
+              >
+                <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                  <SelectValue>{selectedChatModeLabel}</SelectValue>
+                </SelectTrigger>
+                <SelectContent className="text-xs" side="top">
+                  {CHAT_MODE_OPTIONS.map((option) => (
+                    <SelectItem
+                      className="text-xs"
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-                    updateThread(thread.id, (current) => ({
-                      ...current,
-                      model: nextOption.id,
-                      provider: nextOption.provider,
-                    }));
-                  }}
-                  value={selectedModelValue}
+              {/* Model selector */}
+              <Select
+                onValueChange={(value) => {
+                  if (typeof value !== "string") return;
+                  const matchingOptions = allModelOptions.filter(
+                    (option) => option.id === value,
+                  );
+                  const nextOption =
+                    matchingOptions.find(
+                      (option) => option.provider === thread.provider,
+                    ) ?? matchingOptions[0];
+                  if (!nextOption) return;
+
+                  updateThread(thread.id, (current) => ({
+                    ...current,
+                    model: nextOption.id,
+                    provider: nextOption.provider,
+                  }));
+                }}
+                value={selectedModelValue}
+              >
+                <SelectTrigger
+                  className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                  disabled={allModelOptions.length === 0}
                 >
-                  <PromptInputSelectTrigger
-                    className="h-8 w-auto max-w-[260px] px-2 text-xs"
-                    disabled={allModelOptions.length === 0}
-                  >
-                    <PromptInputSelectValue placeholder="Model">
-                      {selectedModelLabel}
-                    </PromptInputSelectValue>
-                  </PromptInputSelectTrigger>
-                  <PromptInputSelectContent className="text-xs" side="top">
-                    {allModelOptions.map((option) => (
-                      <PromptInputSelectItem
-                        className="text-xs"
-                        key={`${option.provider}:${option.id}`}
-                        value={option.id}
-                      >
-                        {option.label}
-                      </PromptInputSelectItem>
-                    ))}
-                  </PromptInputSelectContent>
-                </PromptInputSelect>
+                  <SelectValue placeholder="Model">
+                    <span className="flex items-center gap-1">
+                      <span className="font-semibold text-muted-foreground/70">
+                        {selectedProvider === "anthropic"
+                          ? "A\\"
+                          : selectedProvider === "gemini"
+                            ? "G"
+                            : "O"}
+                      </span>
+                      <span className="truncate">{selectedModelLabel}</span>
+                    </span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="text-xs" side="top">
+                  {allModelOptions.map((option) => (
+                    <SelectItem
+                      className="text-xs"
+                      key={`${option.provider}:${option.id}`}
+                      value={option.id}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-                <PromptInputSelect
-                  onValueChange={(value) => {
-                    updateThread(thread.id, (current) => ({
-                      ...current,
-                      reasoningEffort: value as ReasoningEffort,
-                    }));
-                  }}
-                  value={selectedReasoningEffort}
+              {/* Reasoning effort selector */}
+              <Select
+                onValueChange={(value) => {
+                  updateThread(thread.id, (current) => ({
+                    ...current,
+                    reasoningEffort: value as ReasoningEffort,
+                  }));
+                }}
+                value={selectedReasoningEffort}
+              >
+                <SelectTrigger
+                  className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                  disabled={selectedProvider !== "openai"}
                 >
-                  <PromptInputSelectTrigger
-                    className="h-8 w-auto px-2 text-xs"
-                    disabled={selectedProvider !== "openai"}
-                  >
-                    <span className="truncate">{selectedReasoningLabel}</span>
-                  </PromptInputSelectTrigger>
-                  <PromptInputSelectContent className="text-xs" side="top">
-                    {REASONING_EFFORT_OPTIONS.map((option) => (
-                      <PromptInputSelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </PromptInputSelectItem>
-                    ))}
-                  </PromptInputSelectContent>
-                </PromptInputSelect>
-              </PromptInputTools>
-              <PromptInputSubmit
-                className="size-8 rounded-md"
-                disabled={
-                  !isProviderConnected ||
-                  !hasProviderCredential ||
-                  selectedModel === ""
-                }
-                onStop={stop}
-                status={status}
-              />
-            </PromptInputFooter>
-          </PromptInput>
+                  <span className="truncate">{selectedReasoningLabel}</span>
+                </SelectTrigger>
+                <SelectContent className="text-xs" side="top">
+                  {REASONING_EFFORT_OPTIONS.map((option) => (
+                    <SelectItem
+                      className="text-xs"
+                      key={option.value}
+                      value={option.value}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Auto-accept edits toggle */}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      className={cn(
+                        "ml-auto rounded p-1 transition-colors",
+                        autoAcceptEdits
+                          ? "text-green-500 hover:text-green-600"
+                          : "text-muted-foreground/40 hover:text-muted-foreground",
+                      )}
+                      onClick={() => setAutoAcceptEdits(!autoAcceptEdits)}
+                      type="button"
+                    />
+                  }
+                >
+                  <CircleCheck className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  {autoAcceptEdits
+                    ? "Auto-accept edits (on)"
+                    : "Auto-accept edits (off)"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
         </div>
       </div>
     </div>

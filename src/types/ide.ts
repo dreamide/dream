@@ -9,6 +9,7 @@ export type ProviderAuthMode =
   | AnthropicAuthMode
   | GeminiAuthMode;
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type ChatMode = "plan" | "build";
 export type ThreadSortOrder =
   | "recent"
   | "createdDesc"
@@ -22,6 +23,7 @@ export interface ThreadConfig {
   provider: AiProvider;
   model: string;
   reasoningEffort: ReasoningEffort;
+  chatMode: ChatMode;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
