@@ -74,6 +74,7 @@ interface IdeState {
   providerModels: {
     openai: ProviderModelState;
     anthropic: ProviderModelState;
+    gemini: ProviderModelState;
     fetchedAt: string | null;
   };
 
@@ -128,6 +129,7 @@ interface IdeState {
     anthropicAuthMode: "apiKey" | "claudeProMax";
     anthropicApiKey: string;
     anthropicRefreshToken: string;
+    geminiApiKey: string;
     openAiApiKey: string;
     openAiAuthMode: "apiKey" | "codex";
   }) => Promise<void>;
@@ -176,6 +178,7 @@ interface IdeState {
 const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
   anthropic: { error: null, loading: false, models: [], source: "unavailable" },
   fetchedAt: null,
+  gemini: { error: null, loading: false, models: [], source: "unavailable" },
   openai: { error: null, loading: false, models: [], source: "unavailable" },
 };
 
@@ -594,6 +597,16 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           },
         };
       }
+      if (provider === "gemini") {
+        return {
+          settings: {
+            ...state.settings,
+            connectedProviders: current.filter((p) => p !== provider),
+            defaultGeminiModel: "",
+            geminiSelectedModels: [],
+          },
+        };
+      }
       return {
         settings: {
           ...state.settings,
@@ -620,6 +633,21 @@ export const useIdeStore = create<IdeState>((set, get) => ({
               ? prev.defaultOpenAiModel
               : (next[0] ?? ""),
             openAiSelectedModels: next,
+          },
+        };
+      }
+      if (provider === "gemini") {
+        const current = dedupeModels(prev.geminiSelectedModels);
+        const next = current.includes(model)
+          ? current.filter((v) => v !== model)
+          : [...current, model];
+        return {
+          settings: {
+            ...prev,
+            defaultGeminiModel: next.includes(prev.defaultGeminiModel)
+              ? prev.defaultGeminiModel
+              : (next[0] ?? ""),
+            geminiSelectedModels: next,
           },
         };
       }
@@ -656,6 +684,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       anthropicAuthMode: settings.anthropicAuthMode,
       anthropicApiKey: settings.anthropicApiKey,
       anthropicRefreshToken: settings.anthropicRefreshToken,
+      geminiApiKey: settings.geminiApiKey,
       openAiApiKey: settings.openAiApiKey,
       openAiAuthMode: settings.openAiAuthMode,
     });
@@ -704,6 +733,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     anthropicAuthMode,
     anthropicApiKey,
     anthropicRefreshToken,
+    geminiApiKey,
     openAiApiKey,
     openAiAuthMode,
   }) => {
@@ -715,6 +745,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           error: null,
           loading: true,
         },
+        gemini: { ...state.providerModels.gemini, error: null, loading: true },
         openai: { ...state.providerModels.openai, error: null, loading: true },
       },
     }));
@@ -727,6 +758,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           anthropicAuthMode,
           anthropicApiKey,
           anthropicRefreshToken,
+          geminiApiKey,
           openAiApiKey,
           openAiAuthMode,
         }),
@@ -740,10 +772,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const payload = (await response.json()) as ProviderModelsResponse;
       const nextOpenAiModels = dedupeModelOptions(payload.openai.models);
       const nextAnthropicModels = dedupeModelOptions(payload.anthropic.models);
+      const nextGeminiModels = dedupeModelOptions(payload.gemini.models);
       const nextOpenAiModelIds = nextOpenAiModels.map((model) => model.id);
       const nextAnthropicModelIds = nextAnthropicModels.map(
         (model) => model.id,
       );
+      const nextGeminiModelIds = nextGeminiModels.map((model) => model.id);
 
       set({
         providerModels: {
@@ -754,6 +788,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             source: payload.anthropic.source,
           },
           fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
+          gemini: {
+            error: payload.gemini.error ?? null,
+            loading: false,
+            models: nextGeminiModels,
+            source: payload.gemini.source,
+          },
           openai: {
             error: payload.openai.error ?? null,
             loading: false,
@@ -784,11 +824,16 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const currentAnthropicSelected = dedupeModels(
           prev.anthropicSelectedModels,
         ).filter((m) => nextAnthropicModelIds.includes(m));
+        const currentGeminiSelected = dedupeModels(
+          prev.geminiSelectedModels,
+        ).filter((m) => nextGeminiModelIds.includes(m));
 
         const openAiSelectedModels =
           currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
         const anthropicSelectedModels =
           currentAnthropicSelected.length > 0 ? currentAnthropicSelected : [];
+        const geminiSelectedModels =
+          currentGeminiSelected.length > 0 ? currentGeminiSelected : [];
 
         const defaultOpenAiModel = openAiSelectedModels.includes(
           prev.defaultOpenAiModel,
@@ -800,18 +845,28 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         )
           ? prev.defaultAnthropicModel
           : (anthropicSelectedModels[0] ?? "");
+        const defaultGeminiModel = geminiSelectedModels.includes(
+          prev.defaultGeminiModel,
+        )
+          ? prev.defaultGeminiModel
+          : (geminiSelectedModels[0] ?? "");
 
         if (
           defaultOpenAiModel === prev.defaultOpenAiModel &&
           defaultAnthropicModel === prev.defaultAnthropicModel &&
+          defaultGeminiModel === prev.defaultGeminiModel &&
           openAiSelectedModels.length === prev.openAiSelectedModels.length &&
           anthropicSelectedModels.length ===
             prev.anthropicSelectedModels.length &&
+          geminiSelectedModels.length === prev.geminiSelectedModels.length &&
           openAiSelectedModels.every(
             (m, i) => prev.openAiSelectedModels[i] === m,
           ) &&
           anthropicSelectedModels.every(
             (m, i) => prev.anthropicSelectedModels[i] === m,
+          ) &&
+          geminiSelectedModels.every(
+            (m, i) => prev.geminiSelectedModels[i] === m,
           )
         ) {
           return state;
@@ -822,7 +877,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             ...prev,
             anthropicSelectedModels,
             defaultAnthropicModel,
+            defaultGeminiModel,
             defaultOpenAiModel,
+            geminiSelectedModels,
             openAiSelectedModels,
           },
         };
@@ -839,6 +896,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             source: state.providerModels.anthropic.source,
           },
           fetchedAt: state.providerModels.fetchedAt,
+          gemini: {
+            error: message,
+            loading: false,
+            models: state.providerModels.gemini.models,
+            source: state.providerModels.gemini.source,
+          },
           openai: {
             error: message,
             loading: false,

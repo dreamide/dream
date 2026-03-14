@@ -329,7 +329,7 @@ export const ChatPanel = ({
 
       if (!requestCredential && !activeUsesCodexLogin) {
         setLocalError(
-          `Add a ${activeProvider === "anthropic" ? "Anthropic" : "OpenAI"} credential in Settings first.`,
+          `Add a ${activeProvider === "anthropic" ? "Anthropic" : activeProvider === "gemini" ? "Gemini" : "OpenAI"} credential in Settings first.`,
         );
         return;
       }

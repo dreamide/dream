@@ -27,6 +27,16 @@ const ANTHROPIC_TOKEN_LABELS: Record<string, string> = {
   sonnet: "Sonnet",
 };
 
+const GEMINI_TOKEN_LABELS: Record<string, string> = {
+  exp: "Experimental",
+  flash: "Flash",
+  gemini: "Gemini",
+  lite: "Lite",
+  preview: "Preview",
+  pro: "Pro",
+  thinking: "Thinking",
+};
+
 const formatToken = (
   provider: AiProvider,
   token: string,
@@ -45,7 +55,11 @@ const formatToken = (
   }
 
   const labels =
-    provider === "openai" ? OPENAI_TOKEN_LABELS : ANTHROPIC_TOKEN_LABELS;
+    provider === "openai"
+      ? OPENAI_TOKEN_LABELS
+      : provider === "anthropic"
+        ? ANTHROPIC_TOKEN_LABELS
+        : GEMINI_TOKEN_LABELS;
   const normalized = token.toLowerCase();
   const mapped = labels[normalized];
 
@@ -95,6 +109,14 @@ export const formatModelIdLabel = (
       .map((part, index) => formatToken(provider, part, index === 0))
       .join(" ");
     return rest ? `Claude ${rest}` : "Claude";
+  }
+
+  if (provider === "gemini" && parts[0]?.toLowerCase() === "gemini") {
+    const rest = parts
+      .slice(1)
+      .map((part, index) => formatToken(provider, part, index === 0))
+      .join(" ");
+    return rest ? `Gemini ${rest}` : "Gemini";
   }
 
   return parts

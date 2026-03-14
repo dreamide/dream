@@ -31,7 +31,7 @@ const requestBodySchema = z.object({
   messages: z.array(z.unknown()),
   model: z.string().min(1),
   projectPath: z.string().min(1),
-  provider: z.enum(["openai", "anthropic"]),
+  provider: z.enum(["openai", "anthropic", "gemini"]),
   reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
 });
 
@@ -53,6 +53,8 @@ When writing files, prefer complete and correct output over partial snippets.
 Never attempt to access files outside the active project root.`;
 
 const OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
+const GEMINI_OPENAI_BASE_URL =
+  "https://generativelanguage.googleapis.com/v1beta/openai";
 const DEFAULT_TOOL_STEP_LIMIT = 8;
 const REASONING_TOOL_STEP_LIMIT = 20;
 
@@ -344,12 +346,18 @@ export async function POST(request: Request): Promise<Response> {
             },
           })
         : createAnthropic({ apiKey: credential })
-      : createOpenAI({
-          apiKey: credential,
-          ...(useChatgptCodexEndpoint
-            ? { baseURL: OPENAI_CODEX_CHATGPT_BASE_URL }
-            : {}),
-        });
+      : provider === "gemini"
+        ? createOpenAI({
+            apiKey: credential,
+            baseURL: GEMINI_OPENAI_BASE_URL,
+            name: "gemini",
+          })
+        : createOpenAI({
+            apiKey: credential,
+            ...(useChatgptCodexEndpoint
+              ? { baseURL: OPENAI_CODEX_CHATGPT_BASE_URL }
+              : {}),
+          });
 
   const openAiProviderOptions =
     provider === "openai"
@@ -365,10 +373,14 @@ export async function POST(request: Request): Promise<Response> {
       : undefined;
   const usesOpenAiReasoningModel =
     provider === "openai" && isOpenAiReasoningModel(model);
+  const languageModel =
+    provider === "gemini"
+      ? providerFactory.chat(model)
+      : providerFactory(model);
 
   const textResult = streamText({
     messages: await convertToModelMessages(messages),
-    model: providerFactory(model),
+    model: languageModel,
     ...(openAiProviderOptions
       ? { providerOptions: { openai: openAiProviderOptions } }
       : {}),
