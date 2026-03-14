@@ -11,11 +11,6 @@ import { useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { stringifyPart } from "./ide-state";
 
@@ -148,13 +143,9 @@ const renderListFilesOutput = (output: unknown) => {
               <li
                 className="rounded-sm px-2 py-1 font-mono text-xs hover:bg-muted/40"
                 key={file}
+                title={file}
               >
-                <Tooltip>
-                  <TooltipTrigger render={<span className="block truncate" />}>
-                    {file}
-                  </TooltipTrigger>
-                  <TooltipContent align="start">{file}</TooltipContent>
-                </Tooltip>
+                <span className="block truncate">{file}</span>
               </li>
             ))}
           </ul>

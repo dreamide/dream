@@ -27,14 +27,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
   getModelOptionsForProvider,
   getModelsForProvider,
 } from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
-import type { CodexImportResult } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import {
   ALL_PROVIDERS,
@@ -64,7 +62,6 @@ export const SettingsDialog = () => {
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
-  const hydrate = useIdeStore((s) => s.hydrate);
   const { setTheme, theme } = useTheme();
 
   const connectedProviders = useMemo(
@@ -150,10 +147,6 @@ export const SettingsDialog = () => {
   const [anthropicOauthPending, setAnthropicOauthPending] = useState(false);
   const [anthropicOauthUrl, setAnthropicOauthUrl] = useState("");
   const [anthropicOauthVerifier, setAnthropicOauthVerifier] = useState("");
-  const [codexImportPending, setCodexImportPending] = useState(false);
-  const [codexImportError, setCodexImportError] = useState<string | null>(null);
-  const [codexImportResult, setCodexImportResult] =
-    useState<CodexImportResult | null>(null);
   const [themeMounted, setThemeMounted] = useState(false);
 
   useEffect(() => {
@@ -304,33 +297,6 @@ export const SettingsDialog = () => {
       );
     } finally {
       setAnthropicOauthPending(false);
-    }
-  };
-
-  const importCodexThreads = async () => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi) {
-      setCodexImportError("Codex thread import is only available in Electron.");
-      return;
-    }
-
-    setCodexImportError(null);
-    setCodexImportPending(true);
-
-    try {
-      const result = await desktopApi.importCodexThreads();
-      setCodexImportResult(result);
-      if (result.importedThreads > 0) {
-        await hydrate();
-      }
-    } catch (error) {
-      setCodexImportError(
-        error instanceof Error
-          ? error.message
-          : "Unable to import Codex threads.",
-      );
-    } finally {
-      setCodexImportPending(false);
     }
   };
 
@@ -950,44 +916,6 @@ export const SettingsDialog = () => {
                           ))}
                         </div>
                       )}
-                    </div>
-
-                    <div className="space-y-2 rounded-lg p-3">
-                      <p className="font-medium text-sm">
-                        Import Codex Threads
-                      </p>
-                      <p className="text-muted-foreground text-sm">
-                        Pulls chats from your local Codex sessions and archived
-                        sessions into Dream for reference.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          className="h-7 px-2 text-sm"
-                          disabled={codexImportPending}
-                          onClick={() => void importCodexThreads()}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          {codexImportPending
-                            ? "Importing..."
-                            : "Import Codex Threads"}
-                        </Button>
-                      </div>
-                      {codexImportError ? (
-                        <p className="text-amber-700 text-sm">
-                          {codexImportError}
-                        </p>
-                      ) : null}
-                      {codexImportResult ? (
-                        <p className="text-muted-foreground text-sm">
-                          Imported {codexImportResult.importedThreads} thread(s)
-                          and {codexImportResult.importedMessages} message(s).
-                          Created {codexImportResult.projectsCreated} new
-                          project(s), skipped {codexImportResult.skippedThreads}{" "}
-                          thread(s).
-                        </p>
-                      ) : null}
                     </div>
 
                     <div className="space-y-2 rounded-lg p-3">
