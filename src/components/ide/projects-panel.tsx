@@ -285,7 +285,7 @@ export const ProjectSidebar = () => {
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-1 pr-2">
+          <div className="space-y-1 pr-4">
             {projects.length === 0 ? (
               <p className="rounded-md p-3 text-muted-foreground text-xs">
                 Add a folder to start working on multiple projects in one

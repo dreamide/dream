@@ -23,7 +23,7 @@ export const createProjectTerminalSessionId = (projectId: string): string =>
   `${PROJECT_TERMINAL_SESSION_PREFIX}${projectId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 export const getPreviewTerminalSessionId = (projectId: string): string =>
   `__preview_terminal__:${projectId}`;
-export const TERMINAL_MIN_HEIGHT_PX = 160;
+export const TERMINAL_MIN_HEIGHT_PX = 48;
 
 export interface CodexLoginStatus {
   authMode: string;
