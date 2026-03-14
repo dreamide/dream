@@ -1133,7 +1133,7 @@ export const SettingsDialog = () => {
                               defaultOpenAiModel: value as string,
                             }))
                           }
-                          value={selectedDefaultOpenAiModel || undefined}
+                          value={selectedDefaultOpenAiModel}
                         >
                           <SelectTrigger
                             className="w-56 max-w-full"
@@ -1228,7 +1228,7 @@ export const SettingsDialog = () => {
                               defaultAnthropicModel: value as string,
                             }))
                           }
-                          value={selectedDefaultAnthropicModel || undefined}
+                          value={selectedDefaultAnthropicModel}
                         >
                           <SelectTrigger
                             className="w-56 max-w-full"
@@ -1320,7 +1320,7 @@ export const SettingsDialog = () => {
                               defaultGeminiModel: value as string,
                             }))
                           }
-                          value={selectedDefaultGeminiModel || undefined}
+                          value={selectedDefaultGeminiModel}
                         >
                           <SelectTrigger
                             className="w-56 max-w-full"
