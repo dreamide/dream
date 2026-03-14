@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { CircleCheck } from "lucide-react";
+import { CheckCheck } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -482,7 +482,7 @@ export const ChatPanel = ({
             {/* ── Prompt Input ──────────────────────────────────────── */}
             <PromptInput
               id="chat-prompt-input"
-              className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none"
+              className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
               onSubmit={handleSubmit}
             >
               <PromptInputBody>
@@ -637,7 +637,7 @@ export const ChatPanel = ({
                     />
                   }
                 >
-                  <CircleCheck className="size-4" />
+                  <CheckCheck className="size-4" />
                 </TooltipTrigger>
                 <TooltipContent>
                   {autoAcceptEdits
