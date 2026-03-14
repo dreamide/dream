@@ -244,7 +244,7 @@ export const ProjectSidebar = () => {
 
   return (
     <>
-      <div id="projects-panel" className="flex h-full flex-col">
+      <div id="projects-panel" className="flex h-full flex-col pr-2">
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <span className="px-1 font-medium text-sm">Projects</span>
           <DropdownMenu>
