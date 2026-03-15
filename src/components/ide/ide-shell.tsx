@@ -99,6 +99,16 @@ export const IdeShell = () => {
     setIsElectron(hasDesktopApi());
   }, [setIsMacOs, setIsElectron]);
 
+  // Sync base color attribute to <html> element
+  useEffect(() => {
+    const baseColor = settings.baseColor || "neutral";
+    if (baseColor === "neutral") {
+      document.documentElement.removeAttribute("data-base-color");
+    } else {
+      document.documentElement.setAttribute("data-base-color", baseColor);
+    }
+  }, [settings.baseColor]);
+
   // Hydrate state from storage
   useEffect(() => {
     void hydrate();

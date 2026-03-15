@@ -13,6 +13,7 @@ export const DEFAULT_PROVIDER: AiProvider = "openai";
 const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "gemini"];
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  baseColor: "neutral",
   anthropicAccessToken: "",
   anthropicAccessTokenExpiresAt: null,
   anthropicAuthMode: "apiKey",
