@@ -50,7 +50,7 @@ function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
 }
 
 function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+  return <DialogPrimitive.Portal data-slot="dialog-portal" keepMounted {...props} />
 }
 
 function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
