@@ -851,7 +851,9 @@ export const SettingsDialog = () => {
                                 {providerModels.anthropic.error}
                               </p>
                             ) : null}
-                            {hasAnthropicOauthSession ? (
+                            {hasAnthropicOauthSession &&
+                            !anthropicOauthError &&
+                            !providerModels.anthropic.error ? (
                               <p className="text-emerald-700 text-sm">
                                 Claude Pro/Max subscription is connected.
                               </p>
@@ -1095,7 +1097,7 @@ export const SettingsDialog = () => {
 
                               return (
                                 <div
-                                  className="flex items-center justify-between rounded-sm px-1.5 py-1"
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
                                   key={model.id}
                                 >
                                   <Label
@@ -1187,7 +1189,7 @@ export const SettingsDialog = () => {
 
                               return (
                                 <div
-                                  className="flex items-center justify-between rounded-sm px-1.5 py-1"
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
                                   key={model.id}
                                 >
                                   <Label
@@ -1282,7 +1284,7 @@ export const SettingsDialog = () => {
 
                               return (
                                 <div
-                                  className="flex items-center justify-between rounded-sm px-1.5 py-1"
+                                  className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
                                   key={model.id}
                                 >
                                   <Label
