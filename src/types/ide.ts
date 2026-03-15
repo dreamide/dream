@@ -8,6 +8,7 @@ export type ProviderAuthMode =
   | OpenAiAuthMode
   | AnthropicAuthMode
   | GeminiAuthMode;
+export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type ChatMode = "plan" | "build";
 export type ThreadSortOrder =
@@ -42,6 +43,7 @@ export interface ProjectConfig {
 }
 
 export interface AppSettings {
+  baseColor: BaseColor;
   connectedProviders: AiProvider[];
   openAiAuthMode: OpenAiAuthMode;
   openAiApiKey: string;

@@ -33,6 +33,7 @@ import {
   getModelsForProvider,
 } from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
+import type { BaseColor } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import {
   ALL_PROVIDERS,
@@ -347,7 +348,7 @@ export const SettingsDialog = () => {
               >
                 <span className="flex items-center gap-2">
                   <Monitor className="size-4" />
-                  Appearance
+                  General
                 </span>
               </button>
               <button
@@ -438,6 +439,53 @@ export const SettingsDialog = () => {
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
+                  </div>
+
+                  <div className="space-y-1 pt-2">
+                    <h3 className="font-medium text-sm">Base color</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Set the base gray scale used across the interface.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      ["neutral", "slate", "gray", "zinc", "stone"] as const
+                    ).map((color) => (
+                      <button
+                        className={cn(
+                          "flex items-center gap-2 rounded-md border px-3 py-2 text-sm capitalize transition-colors hover:bg-muted",
+                          settings.baseColor === color
+                            ? "border-foreground font-medium"
+                            : "border-border text-muted-foreground",
+                        )}
+                        key={color}
+                        onClick={() =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            baseColor: color as BaseColor,
+                          }))
+                        }
+                        type="button"
+                      >
+                        <span
+                          className="size-3 rounded-full"
+                          style={{
+                            backgroundColor:
+                              color === "neutral"
+                                ? "oklch(0.556 0 0)"
+                                : color === "slate"
+                                  ? "oklch(0.554 0.046 257.417)"
+                                  : color === "gray"
+                                    ? "oklch(0.551 0.027 264.364)"
+                                    : color === "zinc"
+                                      ? "oklch(0.552 0.016 285.938)"
+                                      : "oklch(0.553 0.013 58.071)",
+                          }}
+                        />
+                        {color}
+                      </button>
+                    ))}
                   </div>
                 </div>
               ) : null}
