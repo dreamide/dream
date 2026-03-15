@@ -288,7 +288,7 @@ export const ProjectSidebar = () => {
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-1 px-3 pb-3 pr-4">
+          <div className="space-y-1 px-2 pb-3">
             {projects.length === 0 ? (
               <p className="rounded-md p-3 text-muted-foreground text-xs">
                 Add a folder to start working on multiple projects in one
@@ -338,7 +338,7 @@ export const ProjectSidebar = () => {
                         onClick={() => handleProjectClick(project.id)}
                         type="button"
                       >
-                        <div className="min-w-0 pr-10 text-left">
+                        <div className="min-w-0 pr-6 text-left">
                           <p className="truncate font-medium text-muted-foreground text-sm">
                             {project.name}
                           </p>
@@ -376,7 +376,7 @@ export const ProjectSidebar = () => {
                     </div>
 
                     {!isCollapsed ? (
-                      <div className="mt-1 ml-[11px] space-y-1 border-l border-border pl-[18px]">
+                      <div className="mt-1 ml-2 space-y-1 border-l border-border pl-3">
                         {projectThreads.map((thread) => {
                           const isActiveThread =
                             isActive && thread.id === activeThreadId;
@@ -401,7 +401,7 @@ export const ProjectSidebar = () => {
                                 }}
                                 type="button"
                               >
-                                <div className="min-w-0 pr-10">
+                                <div className="min-w-0 pr-6">
                                   <p className="truncate text-sm">
                                     {thread.title}
                                   </p>

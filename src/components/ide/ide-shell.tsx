@@ -34,8 +34,8 @@ import { SettingsDialog } from "./settings-dialog";
 import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
 const PROJECT_SIDEBAR_WIDTH_PX = 240;
-const PROJECT_SIDEBAR_MIN_WIDTH_PX = 100;
-const PROJECT_SIDEBAR_MAX_WIDTH_PX = 300;
+const PROJECT_SIDEBAR_MIN_WIDTH_PX = 200;
+const PROJECT_SIDEBAR_MAX_WIDTH_PX = 400;
 const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
@@ -75,12 +75,14 @@ export const IdeShell = () => {
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
   const setPreviewLoading = useIdeStore((s) => s.setPreviewLoading);
+  const togglePanel = useIdeStore((s) => s.togglePanel);
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const leftPanelRef = useRef<PanelImperativeHandle | null>(null);
   const middlePanelRef = useRef<PanelImperativeHandle | null>(null);
+  const rightPanelRef = useRef<PanelImperativeHandle | null>(null);
   const previewHostRef = useRef<HTMLDivElement | null>(null);
   const providerCredentialsRef = useRef({
     anthropicAccessToken: settings.anthropicAccessToken,
@@ -545,7 +547,6 @@ export const IdeShell = () => {
   }, [settings]);
 
   // ── Derived values ──────────────────────────────────────────────────
-  const mainWorkspaceVisible = panelVisibility.middle || panelVisibility.right;
   const leftVisible = panelVisibility.left;
   const middleVisible = panelVisibility.middle;
   const rightVisible = panelVisibility.right;
@@ -579,6 +580,16 @@ export const IdeShell = () => {
     }
   }, [middleVisible]);
 
+  useEffect(() => {
+    const panel = rightPanelRef.current;
+    if (!panel) return;
+    if (rightVisible) {
+      panel.expand();
+    } else {
+      panel.collapse();
+    }
+  }, [rightVisible]);
+
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="h-screen overflow-hidden text-foreground">
@@ -605,6 +616,12 @@ export const IdeShell = () => {
               id="ide-left"
               maxSize={PROJECT_SIDEBAR_MAX_WIDTH_PX}
               minSize={PROJECT_SIDEBAR_MIN_WIDTH_PX}
+              onResize={(size) => {
+                const collapsed = size.inPixels === 0;
+                const visible = useIdeStore.getState().panelVisibility.left;
+                if (collapsed && visible) togglePanel("left");
+                if (!collapsed && !visible) togglePanel("left");
+              }}
               panelRef={leftPanelRef}
             >
               <div className="h-full pb-2">
@@ -612,9 +629,7 @@ export const IdeShell = () => {
               </div>
             </Panel>
 
-            {leftVisible ? (
-              <ResizeHandle className="w-px" id="ide-left-handle" />
-            ) : null}
+            <ResizeHandle className="w-px" id="ide-left-handle" />
 
             <Panel
               className="min-w-0"
@@ -623,6 +638,12 @@ export const IdeShell = () => {
               defaultSize={middleVisible ? CHAT_PANEL_DEFAULT_WIDTH_PX : 0}
               id="ide-middle"
               minSize={CHAT_PANEL_MIN_WIDTH_PX}
+              onResize={(size) => {
+                const collapsed = size.inPixels === 0;
+                const visible = useIdeStore.getState().panelVisibility.middle;
+                if (collapsed && visible) togglePanel("middle");
+                if (!collapsed && !visible) togglePanel("middle");
+              }}
               panelRef={middlePanelRef}
             >
               <div className="h-full">
@@ -686,31 +707,32 @@ export const IdeShell = () => {
               </div>
             </Panel>
 
-            {middleVisible && rightVisible ? (
-              <ResizeHandle className="w-px" id="ide-middle-handle" />
-            ) : null}
+            <ResizeHandle className="w-px" id="ide-middle-handle" />
 
-            {rightVisible ? (
-              <Panel
-                className="min-w-0"
-                defaultSize={PREVIEW_PANEL_DEFAULT_WIDTH_PX}
-                id="ide-right"
-                minSize={PREVIEW_PANEL_MIN_WIDTH_PX}
-              >
-                <div className="h-full pr-2 pb-2">
+            <Panel
+              className="min-w-0"
+              collapsedSize={0}
+              collapsible
+              defaultSize={rightVisible ? PREVIEW_PANEL_DEFAULT_WIDTH_PX : 0}
+              id="ide-right"
+              minSize={PREVIEW_PANEL_MIN_WIDTH_PX}
+              onResize={(size) => {
+                const collapsed = size.inPixels === 0;
+                const visible = useIdeStore.getState().panelVisibility.right;
+                if (collapsed && visible) togglePanel("right");
+                if (!collapsed && !visible) togglePanel("right");
+              }}
+              panelRef={rightPanelRef}
+            >
+              <div className="h-full pr-2 pb-2">
+                {rightVisible ? (
                   <PreviewPanel
                     onSyncPreviewBounds={syncPreviewBounds}
                     previewHostRef={previewHostRef}
                   />
-                </div>
-              </Panel>
-            ) : null}
-
-            {!mainWorkspaceVisible ? (
-              <Panel defaultSize={100} id="ide-fallback" minSize={40}>
-                <AppShellPlaceholder message="Enable the chat or preview panel from the top-right controls." />
-              </Panel>
-            ) : null}
+                ) : null}
+              </div>
+            </Panel>
           </Group>
         )}
       </div>
