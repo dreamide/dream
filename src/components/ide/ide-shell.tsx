@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Group, Panel } from "react-resizable-panels";
+import {
+  Group,
+  Panel,
+  type PanelImperativeHandle,
+} from "react-resizable-panels";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -73,6 +77,7 @@ export const IdeShell = () => {
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Refs ─────────────────────────────────────────────────────────────
+  const middlePanelRef = useRef<PanelImperativeHandle | null>(null);
   const previewHostRef = useRef<HTMLDivElement | null>(null);
   const providerCredentialsRef = useRef({
     anthropicAccessToken: settings.anthropicAccessToken,
@@ -540,6 +545,17 @@ export const IdeShell = () => {
     : EMPTY_TERMINAL_SESSION_IDS;
   const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
 
+  // Sync middle panel collapsed state with visibility toggle
+  useEffect(() => {
+    const panel = middlePanelRef.current;
+    if (!panel) return;
+    if (middleVisible) {
+      panel.expand();
+    } else {
+      panel.collapse();
+    }
+  }, [middleVisible]);
+
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="h-screen overflow-hidden text-foreground">
@@ -571,74 +587,75 @@ export const IdeShell = () => {
               </Panel>
             ) : null}
 
-            {middleVisible ? (
-              <Panel
-                className="min-w-0"
-                defaultSize={CHAT_PANEL_DEFAULT_WIDTH_PX}
-                id="ide-middle"
-                minSize={CHAT_PANEL_MIN_WIDTH_PX}
-              >
-                <div className="h-full">
-                  <div className="flex h-full w-full flex-col rounded-lg">
-                    <Group
-                      className="h-full"
-                      id="ide-chat-term"
-                      orientation="vertical"
+            <Panel
+              className="min-w-0"
+              collapsedSize={0}
+              collapsible
+              defaultSize={middleVisible ? CHAT_PANEL_DEFAULT_WIDTH_PX : 0}
+              id="ide-middle"
+              minSize={CHAT_PANEL_MIN_WIDTH_PX}
+              panelRef={middlePanelRef}
+            >
+              <div className="h-full">
+                <div className="flex h-full w-full flex-col rounded-lg">
+                  <Group
+                    className="h-full"
+                    id="ide-chat-term"
+                    orientation="vertical"
+                  >
+                    <Panel
+                      defaultSize={terminalPanelVisible ? 74 : 100}
+                      id="ide-chat"
+                      minSize={`${CHAT_PANEL_MIN_HEIGHT_PX}px`}
                     >
-                      <Panel
-                        defaultSize={terminalPanelVisible ? 74 : 100}
-                        id="ide-chat"
-                        minSize={`${CHAT_PANEL_MIN_HEIGHT_PX}px`}
-                      >
-                        {activeProject ? (
-                          projectThreads.length > 0 ? (
-                            projectThreads.map((thread) => (
-                              <div
-                                key={thread.id}
-                                className={
-                                  thread.id === activeThread?.id
-                                    ? "flex h-full min-h-0 flex-col"
-                                    : "hidden"
-                                }
-                              >
-                                <ChatPanel
-                                  project={activeProject}
-                                  thread={thread}
-                                />
-                              </div>
-                            ))
-                          ) : (
-                            <div className="h-full p-3">
-                              <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
+                      {activeProject ? (
+                        projectThreads.length > 0 ? (
+                          projectThreads.map((thread) => (
+                            <div
+                              key={thread.id}
+                              className={
+                                thread.id === activeThread?.id
+                                  ? "flex h-full min-h-0 flex-col"
+                                  : "hidden"
+                              }
+                            >
+                              <ChatPanel
+                                project={activeProject}
+                                thread={thread}
+                              />
                             </div>
-                          )
+                          ))
                         ) : (
                           <div className="h-full p-3">
-                            <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
+                            <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
                           </div>
-                        )}
-                      </Panel>
+                        )
+                      ) : (
+                        <div className="h-full p-3">
+                          <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
+                        </div>
+                      )}
+                    </Panel>
 
-                      {terminalPanelVisible && activeProject ? (
-                        <>
-                          <ResizeHandle className="h-2" id="ide-term-handle" />
-                          <Panel
-                            defaultSize={26}
-                            id="ide-terminal"
-                            minSize={`${TERMINAL_MIN_HEIGHT_PX + 16}px`}
-                          >
-                            <ProjectTerminalTabsPanel
-                              key={activeProject.id}
-                              projectId={activeProject.id}
-                            />
-                          </Panel>
-                        </>
-                      ) : null}
-                    </Group>
-                  </div>
+                    {terminalPanelVisible && activeProject ? (
+                      <>
+                        <ResizeHandle className="h-2" id="ide-term-handle" />
+                        <Panel
+                          defaultSize={26}
+                          id="ide-terminal"
+                          minSize={`${TERMINAL_MIN_HEIGHT_PX + 16}px`}
+                        >
+                          <ProjectTerminalTabsPanel
+                            key={activeProject.id}
+                            projectId={activeProject.id}
+                          />
+                        </Panel>
+                      </>
+                    ) : null}
+                  </Group>
                 </div>
-              </Panel>
-            ) : null}
+              </div>
+            </Panel>
 
             {middleVisible && rightVisible ? (
               <ResizeHandle className="w-px" id="ide-middle-handle" />
@@ -649,7 +666,7 @@ export const IdeShell = () => {
                 className="min-w-0"
                 defaultSize={PREVIEW_PANEL_DEFAULT_WIDTH_PX}
                 id="ide-right"
-                minSize={middleVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 100}
+                minSize={PREVIEW_PANEL_MIN_WIDTH_PX}
               >
                 <div className="h-full pr-2 pb-4">
                   <PreviewPanel
