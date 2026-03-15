@@ -67,6 +67,13 @@ export const IdeHeader = () => {
             </TooltipTrigger>
             <TooltipContent>Add project</TooltipContent>
           </Tooltip>
+          <ToggleButton
+            active={panelVisibility.left}
+            onClick={() => togglePanel("left")}
+            title="Toggle projects panel"
+          >
+            <PanelLeft className="size-4" />
+          </ToggleButton>
         </div>
       ) : null}
 
@@ -78,13 +85,6 @@ export const IdeHeader = () => {
 
       {appReady ? (
         <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
-          <ToggleButton
-            active={panelVisibility.left}
-            onClick={() => togglePanel("left")}
-            title="Toggle projects panel"
-          >
-            <PanelLeft className="size-4" />
-          </ToggleButton>
           <ToggleButton
             active={panelVisibility.middle}
             onClick={() => togglePanel("middle")}
