@@ -27,8 +27,6 @@ export const IdeHeader = () => {
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const togglePanel = useIdeStore((s) => s.togglePanel);
   const addProject = useIdeStore((s) => s.addProject);
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -40,11 +38,6 @@ export const IdeHeader = () => {
     if (!selectedPath) return;
     addProject(selectedPath);
   }, [addProject]);
-
-  const handleOpenSettings = useCallback(() => {
-    setSettingsSection("providers");
-    setSettingsOpen(true);
-  }, [setSettingsOpen, setSettingsSection]);
 
   return (
     <header
@@ -73,22 +66,6 @@ export const IdeHeader = () => {
               <Plus className="size-4 shrink-0" />
             </TooltipTrigger>
             <TooltipContent>Add project</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label="Settings"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  onClick={handleOpenSettings}
-                  size="icon-sm"
-                  variant="ghost"
-                />
-              }
-            >
-              <Settings className="size-4 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
           </Tooltip>
         </div>
       ) : null}
@@ -130,6 +107,41 @@ export const IdeHeader = () => {
   );
 };
 
+export const IdeFooter = () => {
+  const appReady = useIdeStore((s) => s.appReady);
+  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
+  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+
+  const handleOpenSettings = useCallback(() => {
+    setSettingsSection("providers");
+    setSettingsOpen(true);
+  }, [setSettingsOpen, setSettingsSection]);
+
+  return (
+    <footer className="relative flex h-11 items-center pl-3 pr-3 text-foreground">
+      {appReady ? (
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Settings"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={handleOpenSettings}
+                  size="icon-sm"
+                  variant="ghost"
+                />
+              }
+            >
+              <Settings className="size-4 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>Settings</TooltipContent>
+          </Tooltip>
+        </div>
+      ) : null}
+    </footer>
+  );
+};
 const WindowControls = () => {
   const api = getDesktopApi();
 

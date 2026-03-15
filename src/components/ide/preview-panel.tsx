@@ -6,7 +6,6 @@ import {
   MoreVertical,
   Play,
   RotateCw,
-  Search,
   Square,
   X,
 } from "lucide-react";
@@ -289,10 +288,7 @@ export const PreviewPanel = ({
 
           {outputPanelOpen ? (
             <>
-              <ResizeHandle
-                className="h-2 cursor-row-resize"
-                id="ide-output-handle"
-              />
+              <ResizeHandle className="h-2" id="ide-output-handle" />
               <Panel
                 defaultSize={30}
                 id="ide-output"
@@ -302,20 +298,18 @@ export const PreviewPanel = ({
                   <div className="flex h-full min-h-0 flex-col">
                     {/* Output header bar */}
                     <div className="flex items-center gap-2 border-t border-foreground/10 bg-muted/30 px-3 py-1.5">
-                      <Search className="size-3.5 shrink-0 text-muted-foreground/50" />
-                      <span className="text-xs text-muted-foreground/50">
-                        Search...
-                      </span>
-                      <div className="ml-auto flex items-center gap-3">
-                        <span className="cursor-default text-xs font-medium text-muted-foreground">
+                      <div className="flex items-center gap-3">
+                        <span className="cursor-default text-xs font-medium uppercase text-muted-foreground">
                           all
                         </span>
-                        <span className="cursor-default text-xs text-muted-foreground/40">
+                        <span className="cursor-default text-xs uppercase text-muted-foreground/40">
                           stdout
                         </span>
-                        <span className="cursor-default text-xs text-muted-foreground/40">
+                        <span className="cursor-default text-xs uppercase text-muted-foreground/40">
                           stderr
                         </span>
+                      </div>
+                      <div className="ml-auto flex items-center gap-3">
                         <button
                           className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                           onClick={() => setOutputPanelOpen(false)}

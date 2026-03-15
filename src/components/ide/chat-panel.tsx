@@ -1,5 +1,5 @@
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { CheckCheck } from "lucide-react";
 import {
   useCallback,
@@ -68,6 +68,8 @@ import {
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
+
+const EMPTY_MESSAGES: UIMessage[] = [];
 
 const ConversationScrollMemory = ({
   scrollPositionsRef,
@@ -153,7 +155,9 @@ export const ChatPanel = ({
   thread: ThreadConfig;
 }) => {
   const settings = useIdeStore((s) => s.settings);
-  const chats = useIdeStore((s) => s.chats);
+  const threadMessages = useIdeStore(
+    (s) => s.chats[thread.id] ?? EMPTY_MESSAGES,
+  );
   const providerModels = useIdeStore((s) => s.providerModels);
   const autoAcceptEdits = useIdeStore((s) => s.autoAcceptEdits);
   const setAutoAcceptEdits = useIdeStore((s) => s.setAutoAcceptEdits);
@@ -204,7 +208,7 @@ export const ChatPanel = ({
 
   const { messages, sendMessage, status, stop } = useChat({
     id: `thread:${thread.id}`,
-    messages: chats[thread.id] ?? [],
+    messages: threadMessages,
     onError: (error) => {
       setLocalError(error.message);
     },
@@ -360,7 +364,7 @@ export const ChatPanel = ({
         return;
       }
 
-      if ((chats[thread.id] ?? []).length === 0) {
+      if (threadMessages.length === 0) {
         updateThread(thread.id, (current) => ({
           ...current,
           title: inferThreadTitle(prompt.text),
@@ -388,7 +392,7 @@ export const ChatPanel = ({
     },
     [
       allModelOptions,
-      chats,
+      threadMessages,
       connectedProviders,
       project.path,
       selectedChatMode,
@@ -443,11 +447,10 @@ export const ChatPanel = ({
         id="chat-conversation"
         className="min-h-0 flex-1"
         initial={false}
-        key={thread.id}
       >
         <ConversationContent
           id="chat-conversation-content"
-          className="mx-auto w-full max-w-[800px] gap-4 px-0 pr-2 pt-3 pb-4"
+          className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-4"
         >
           {messages.length === 0 ? (
             <ConversationEmptyState
@@ -467,14 +470,14 @@ export const ChatPanel = ({
 
       {localError ? (
         <div className="shrink-0 px-2 pb-1">
-          <div className="mx-auto w-full max-w-[800px] rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-700">
+          <div className="mx-auto w-full max-w-[700px] rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-700">
             {localError}
           </div>
         </div>
       ) : null}
 
       <div id="chat-prompt" className="shrink-0 px-2 pb-2">
-        <div className="mx-auto w-full max-w-[800px]">
+        <div className="mx-auto w-full max-w-[700px]">
           <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
             {/* ── Prompt Input ──────────────────────────────────────── */}
             <PromptInput

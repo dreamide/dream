@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Group, Panel } from "react-resizable-panels";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
@@ -15,8 +15,9 @@ import {
 } from "@/lib/modal-visibility";
 import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
-import { IdeHeader } from "./ide-header";
+import { IdeFooter, IdeHeader } from "./ide-header";
 import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
+import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
   dedupeModels,
@@ -47,6 +48,15 @@ export const IdeShell = () => {
   const settingsSection = useIdeStore((s) => s.settingsSection);
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeThread = useIdeStore((s) => s.getActiveThread());
+  const threads = useIdeStore((s) => s.threads);
+  const threadSort = useIdeStore((s) => s.threadSort);
+  const projectThreads = useMemo(
+    () =>
+      activeProject
+        ? getThreadsForProject(threads, activeProject.id, threadSort)
+        : [],
+    [threads, activeProject, threadSort],
+  );
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
@@ -113,7 +123,7 @@ export const IdeShell = () => {
     refreshCodexLoginStatus,
   ]);
 
-  // Subscribe to persisted state changes for auto-persistence
+  // Subscribe to persisted state changes for auto-persistence (debounced)
   useEffect(() => {
     let prev = {
       activeProjectId: useIdeStore.getState().activeProjectId,
@@ -125,6 +135,7 @@ export const IdeShell = () => {
       threadSort: useIdeStore.getState().threadSort,
       threads: useIdeStore.getState().threads,
     };
+    let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
     const unsub = useIdeStore.subscribe((state) => {
       const next = {
@@ -149,11 +160,24 @@ export const IdeShell = () => {
         next.threads !== prev.threads
       ) {
         prev = next;
-        if (state.stateHydrated) state.persist();
+        if (state.stateHydrated) {
+          if (persistTimer !== null) clearTimeout(persistTimer);
+          persistTimer = setTimeout(() => {
+            persistTimer = null;
+            useIdeStore.getState().persist();
+          }, 300);
+        }
       }
     });
 
-    return unsub;
+    return () => {
+      unsub();
+      if (persistTimer !== null) {
+        clearTimeout(persistTimer);
+        // Flush pending persist on unmount
+        useIdeStore.getState().persist();
+      }
+    };
   }, []);
 
   // Desktop event listeners
@@ -526,7 +550,7 @@ export const IdeShell = () => {
       )}
       <IdeHeader />
 
-      <div className="h-[calc(100vh-44px)] overflow-hidden">
+      <div className="h-[calc(100vh-88px)] overflow-hidden">
         {!stateHydrated ? null : (
           <Group
             className="h-full"
@@ -567,12 +591,22 @@ export const IdeShell = () => {
                         minSize={`${CHAT_PANEL_MIN_HEIGHT_PX}px`}
                       >
                         {activeProject ? (
-                          activeThread ? (
-                            <ChatPanel
-                              key={activeThread.id}
-                              project={activeProject}
-                              thread={activeThread}
-                            />
+                          projectThreads.length > 0 ? (
+                            projectThreads.map((thread) => (
+                              <div
+                                key={thread.id}
+                                className={
+                                  thread.id === activeThread?.id
+                                    ? "flex h-full min-h-0 flex-col"
+                                    : "hidden"
+                                }
+                              >
+                                <ChatPanel
+                                  project={activeProject}
+                                  thread={thread}
+                                />
+                              </div>
+                            ))
                           ) : (
                             <div className="h-full p-3">
                               <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
@@ -587,10 +621,7 @@ export const IdeShell = () => {
 
                       {terminalPanelVisible && activeProject ? (
                         <>
-                          <ResizeHandle
-                            className="h-2 cursor-row-resize"
-                            id="ide-term-handle"
-                          />
+                          <ResizeHandle className="h-2" id="ide-term-handle" />
                           <Panel
                             defaultSize={26}
                             id="ide-terminal"
@@ -610,10 +641,7 @@ export const IdeShell = () => {
             ) : null}
 
             {middleVisible && rightVisible ? (
-              <ResizeHandle
-                className="w-px cursor-col-resize"
-                id="ide-middle-handle"
-              />
+              <ResizeHandle className="w-px" id="ide-middle-handle" />
             ) : null}
 
             {rightVisible ? (
@@ -641,6 +669,7 @@ export const IdeShell = () => {
         )}
       </div>
 
+      <IdeFooter />
       <SettingsDialog />
     </div>
   );

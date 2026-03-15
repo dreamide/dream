@@ -196,11 +196,33 @@ const areMessagesEqual = (
     return false;
   }
 
-  try {
-    return JSON.stringify(left) === JSON.stringify(right);
-  } catch {
-    return false;
+  for (let i = 0; i < left.length; i++) {
+    const l = left[i];
+    const r = right[i];
+    if (l === r) continue;
+    if (l.id !== r.id || l.role !== r.role) return false;
+    if (l.parts.length !== r.parts.length) return false;
+    if (l.parts !== r.parts) {
+      // Check the last part for streaming changes (text growth, tool result)
+      const lp = l.parts[l.parts.length - 1] as Record<string, unknown>;
+      const rp = r.parts[r.parts.length - 1] as Record<string, unknown>;
+      if (lp !== rp) {
+        if (lp?.type !== rp?.type) return false;
+        if (
+          lp?.type === "text" &&
+          (lp as { text: string }).text !== (rp as { text: string }).text
+        )
+          return false;
+        if (
+          lp?.type === "tool-invocation" &&
+          lp?.toolInvocation !== rp?.toolInvocation
+        )
+          return false;
+      }
+    }
   }
+
+  return true;
 };
 
 export const useIdeStore = create<IdeState>((set, get) => ({
