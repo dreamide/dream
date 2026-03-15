@@ -148,35 +148,18 @@
   overflow-y: auto;
 }
 
-/* Hide native scrollbar arrow buttons (Windows/WebKit) across app scroll containers. */
+/* Hide native scrollbar arrow buttons */
 *::-webkit-scrollbar-button {
-  -webkit-appearance: none;
-  appearance: none;
-  display: none !important;
-  width: 0;
-  height: 0;
-  background: transparent;
-}
-
-*::-webkit-scrollbar-button:single-button,
-*::-webkit-scrollbar-button:vertical:decrement,
-*::-webkit-scrollbar-button:vertical:increment,
-*::-webkit-scrollbar-button:horizontal:decrement,
-*::-webkit-scrollbar-button:horizontal:increment,
-*::-webkit-scrollbar-button:start,
-*::-webkit-scrollbar-button:end {
-  -webkit-appearance: none;
-  appearance: none;
   display: none !important;
   width: 0 !important;
   height: 0 !important;
-  background: transparent !important;
 }
 
-/* macOS-like scrollbars: thin rounded strip, no buttons, fade in on hover/focus. */
+/* Scrollbars: styled to match Base UI ScrollArea (thin rounded, border-colored thumb). */
+
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   background: transparent;
 }
 
@@ -185,26 +168,8 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: rgba(100, 116, 139, 0.55);
+  background-color: var(--border);
   border: 2px solid transparent;
   border-radius: 999px;
   background-clip: padding-box;
-  opacity: 0;
-  transition: opacity 160ms ease-in-out;
-}
-
-*:hover::-webkit-scrollbar-thumb,
-*:focus-within::-webkit-scrollbar-thumb,
-*:active::-webkit-scrollbar-thumb {
-  opacity: 1;
-}
-
-.dark *:hover::-webkit-scrollbar-thumb,
-.dark *:focus-within::-webkit-scrollbar-thumb,
-.dark *:active::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.5);
-}
-
-.dark *::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.5);
 }

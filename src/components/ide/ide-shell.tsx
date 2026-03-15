@@ -578,7 +578,7 @@ export const IdeShell = () => {
                 id="ide-middle"
                 minSize={CHAT_PANEL_MIN_WIDTH_PX}
               >
-                <div className="h-full pb-2">
+                <div className="h-full">
                   <div className="flex h-full w-full flex-col rounded-lg">
                     <Group
                       className="h-full"
