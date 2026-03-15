@@ -668,7 +668,7 @@ export const IdeShell = () => {
                 id="ide-right"
                 minSize={PREVIEW_PANEL_MIN_WIDTH_PX}
               >
-                <div className="h-full pr-2 pb-4">
+                <div className="h-full pr-2 pb-2">
                   <PreviewPanel
                     onSyncPreviewBounds={syncPreviewBounds}
                     previewHostRef={previewHostRef}
