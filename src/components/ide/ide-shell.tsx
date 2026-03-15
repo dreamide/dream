@@ -33,7 +33,9 @@ import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
-const PROJECT_SIDEBAR_WIDTH_PX = 320;
+const PROJECT_SIDEBAR_WIDTH_PX = 240;
+const PROJECT_SIDEBAR_MIN_WIDTH_PX = 100;
+const PROJECT_SIDEBAR_MAX_WIDTH_PX = 300;
 const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
@@ -600,16 +602,19 @@ export const IdeShell = () => {
               collapsedSize={0}
               collapsible
               defaultSize={leftVisible ? PROJECT_SIDEBAR_WIDTH_PX : 0}
-              disabled
               id="ide-left"
-              maxSize={PROJECT_SIDEBAR_WIDTH_PX}
-              minSize={PROJECT_SIDEBAR_WIDTH_PX}
+              maxSize={PROJECT_SIDEBAR_MAX_WIDTH_PX}
+              minSize={PROJECT_SIDEBAR_MIN_WIDTH_PX}
               panelRef={leftPanelRef}
             >
               <div className="h-full pb-2">
                 <ProjectSidebar />
               </div>
             </Panel>
+
+            {leftVisible ? (
+              <ResizeHandle className="w-px" id="ide-left-handle" />
+            ) : null}
 
             <Panel
               className="min-w-0"
