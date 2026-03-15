@@ -77,6 +77,7 @@ export const IdeShell = () => {
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Refs ─────────────────────────────────────────────────────────────
+  const leftPanelRef = useRef<PanelImperativeHandle | null>(null);
   const middlePanelRef = useRef<PanelImperativeHandle | null>(null);
   const previewHostRef = useRef<HTMLDivElement | null>(null);
   const providerCredentialsRef = useRef({
@@ -545,7 +546,17 @@ export const IdeShell = () => {
     : EMPTY_TERMINAL_SESSION_IDS;
   const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
 
-  // Sync middle panel collapsed state with visibility toggle
+  // Sync panel collapsed states with visibility toggles
+  useEffect(() => {
+    const panel = leftPanelRef.current;
+    if (!panel) return;
+    if (leftVisible) {
+      panel.expand();
+    } else {
+      panel.collapse();
+    }
+  }, [leftVisible]);
+
   useEffect(() => {
     const panel = middlePanelRef.current;
     if (!panel) return;
@@ -574,18 +585,21 @@ export const IdeShell = () => {
             orientation="horizontal"
             resizeTargetMinimumSize={{ coarse: 28, fine: 16 }}
           >
-            {leftVisible ? (
-              <Panel
-                className="min-w-[100px] pl-2"
-                defaultSize={PROJECT_SIDEBAR_WIDTH_PX}
-                disabled
-                id="ide-left"
-                maxSize={PROJECT_SIDEBAR_WIDTH_PX}
-                minSize={PROJECT_SIDEBAR_WIDTH_PX}
-              >
+            <Panel
+              className="min-w-[100px] pl-2"
+              collapsedSize={0}
+              collapsible
+              defaultSize={leftVisible ? PROJECT_SIDEBAR_WIDTH_PX : 0}
+              disabled
+              id="ide-left"
+              maxSize={PROJECT_SIDEBAR_WIDTH_PX}
+              minSize={PROJECT_SIDEBAR_WIDTH_PX}
+              panelRef={leftPanelRef}
+            >
+              <div className="h-full pb-2">
                 <ProjectSidebar />
-              </Panel>
-            ) : null}
+              </div>
+            </Panel>
 
             <Panel
               className="min-w-0"

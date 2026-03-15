@@ -244,9 +244,12 @@ export const ProjectSidebar = () => {
 
   return (
     <>
-      <div id="projects-panel" className="flex h-full flex-col pr-2">
-        <div className="flex items-center justify-between gap-2 px-2 pb-2">
-          <span className="px-1 font-medium text-sm">Projects</span>
+      <div
+        id="projects-panel"
+        className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
+      >
+        <div className="flex items-center justify-between gap-2 px-3 py-2">
+          <span className="font-medium text-sm">Projects</span>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -285,7 +288,7 @@ export const ProjectSidebar = () => {
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-1 pr-4">
+          <div className="space-y-1 px-3 pb-3 pr-4">
             {projects.length === 0 ? (
               <p className="rounded-md p-3 text-muted-foreground text-xs">
                 Add a folder to start working on multiple projects in one
