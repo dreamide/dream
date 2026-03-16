@@ -1,5 +1,3 @@
-"use client";
-
 import type { Tool } from "ai";
 import { BotIcon } from "lucide-react";
 import type { ComponentProps } from "react";

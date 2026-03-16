@@ -1,6 +1,6 @@
 import { spawn as spawnProcess } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { createServer } from "node:http";
+import http from "node:http";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
@@ -14,8 +14,10 @@ import {
   WebContentsView,
 } from "electron";
 import Store from "electron-store";
-import next from "next";
 import { spawn as spawnPty } from "node-pty";
+import sirv from "sirv";
+
+import { startApiServer } from "./api-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,8 +27,9 @@ const internalRendererPort = Number(process.env.ELECTRON_INTERNAL_PORT ?? 3210);
 const rendererUrlFromEnv = process.env.ELECTRON_RENDERER_URL?.trim();
 const developmentRendererUrl =
   rendererUrlFromEnv || `http://127.0.0.1:${internalRendererPort}`;
+const apiServerPort = Number(process.env.ELECTRON_API_PORT ?? 3211);
 const rendererStartupTimeoutMs = Number(
-  process.env.NEXT_READY_TIMEOUT_MS ?? 45000,
+  process.env.VITE_READY_TIMEOUT_MS ?? 45000,
 );
 const rendererProbeIntervalMs = 300;
 
@@ -221,9 +224,8 @@ let activePreviewProjectId = null;
 const previewSessions = new Map();
 
 let rendererUrl = developmentRendererUrl;
-let nextDevProcess = null;
-let nextAppServer = null;
-let nextHttpServer = null;
+let viteDevProcess = null;
+let productionHttpServer = null;
 
 const runProcesses = new Map();
 const terminalSessions = new Map();
@@ -842,6 +844,9 @@ async function pickDirectory() {
 }
 
 async function startRendererServerIfNeeded() {
+  // Always start the API server (Hono) on the API port
+  await startApiServer(apiServerPort);
+
   if (isDevelopment) {
     rendererUrl = developmentRendererUrl;
 
@@ -850,25 +855,23 @@ async function startRendererServerIfNeeded() {
     }
 
     const projectRoot = path.resolve(__dirname, "..");
-    const nextCli = path.join(
+    const viteCli = path.join(
       projectRoot,
       "node_modules",
-      "next",
-      "dist",
+      "vite",
       "bin",
-      "next",
+      "vite.js",
     );
 
-    nextDevProcess = spawnProcess(
+    viteDevProcess = spawnProcess(
       process.execPath,
       [
-        nextCli,
-        "dev",
-        "--webpack",
-        "--hostname",
+        viteCli,
+        "--host",
         "127.0.0.1",
         "--port",
         String(internalRendererPort),
+        "--strictPort",
       ],
       {
         cwd: projectRoot,
@@ -881,13 +884,13 @@ async function startRendererServerIfNeeded() {
       },
     );
 
-    nextDevProcess.on("error", (error) => {
-      console.error("Failed to start Next.js dev server:", error);
+    viteDevProcess.on("error", (error) => {
+      console.error("Failed to start Vite dev server:", error);
     });
 
-    nextDevProcess.on("close", (code, signal) => {
+    viteDevProcess.on("close", (code, signal) => {
       console.log(
-        `Next.js dev server exited (code: ${code ?? "null"}, signal: ${signal ?? "null"}).`,
+        `Vite dev server exited (code: ${code ?? "null"}, signal: ${signal ?? "null"}).`,
       );
     });
 
@@ -896,11 +899,11 @@ async function startRendererServerIfNeeded() {
 
     while (Date.now() - startTime < rendererStartupTimeoutMs) {
       if (
-        !nextDevProcess ||
-        typeof nextDevProcess.exitCode === "number" ||
-        nextDevProcess.signalCode
+        !viteDevProcess ||
+        typeof viteDevProcess.exitCode === "number" ||
+        viteDevProcess.signalCode
       ) {
-        throw new Error("Next.js dev server exited before it became ready.");
+        throw new Error("Vite dev server exited before it became ready.");
       }
 
       try {
@@ -921,26 +924,50 @@ async function startRendererServerIfNeeded() {
     );
   }
 
+  // Production: serve Vite build output with sirv + proxy /api to Hono
   const appPath = app.getAppPath();
-  nextAppServer = next({
+  const distPath = path.join(appPath, "dist");
+  const sirvHandler = sirv(distPath, {
+    single: true,
     dev: false,
-    dir: appPath,
   });
 
-  await nextAppServer.prepare();
-  const handle = nextAppServer.getRequestHandler();
+  productionHttpServer = http.createServer((request, response) => {
+    // Proxy /api requests to the Hono API server
+    if (request.url?.startsWith("/api")) {
+      const proxyUrl = new URL(
+        request.url,
+        `http://127.0.0.1:${apiServerPort}`,
+      );
+      const proxyReq = http.request(
+        proxyUrl,
+        {
+          method: request.method,
+          headers: request.headers,
+        },
+        (proxyRes) => {
+          response.writeHead(proxyRes.statusCode, proxyRes.headers);
+          proxyRes.pipe(response, { end: true });
+        },
+      );
+      proxyReq.on("error", (error) => {
+        console.error("API proxy error:", error);
+        response.statusCode = 502;
+        response.end("API proxy error");
+      });
+      request.pipe(proxyReq, { end: true });
+      return;
+    }
 
-  nextHttpServer = createServer((request, response) => {
-    handle(request, response).catch((error) => {
-      console.error("Failed to serve Next request:", error);
-      response.statusCode = 500;
-      response.end("Renderer server error");
+    sirvHandler(request, response, () => {
+      response.statusCode = 404;
+      response.end("Not found");
     });
   });
 
   await new Promise((resolve, reject) => {
-    nextHttpServer.once("error", reject);
-    nextHttpServer.listen(internalRendererPort, "127.0.0.1", resolve);
+    productionHttpServer.once("error", reject);
+    productionHttpServer.listen(internalRendererPort, "127.0.0.1", resolve);
   });
 
   rendererUrl = `http://127.0.0.1:${internalRendererPort}`;
@@ -1460,21 +1487,16 @@ app.whenReady().then(async () => {
 app.on("before-quit", async () => {
   stopAllProcesses();
 
-  if (nextDevProcess) {
-    stopChildProcess(nextDevProcess);
-    nextDevProcess = null;
+  if (viteDevProcess) {
+    stopChildProcess(viteDevProcess);
+    viteDevProcess = null;
   }
 
-  if (nextHttpServer) {
+  if (productionHttpServer) {
     await new Promise((resolve) => {
-      nextHttpServer.close(() => resolve(undefined));
+      productionHttpServer.close(() => resolve(undefined));
     });
-    nextHttpServer = null;
-  }
-
-  if (nextAppServer) {
-    await nextAppServer.close();
-    nextAppServer = null;
+    productionHttpServer = null;
   }
 
   if (stateDatabase) {

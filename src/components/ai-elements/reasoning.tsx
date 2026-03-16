@@ -1,5 +1,3 @@
-"use client";
-
 import { useControllableState } from "@/hooks/use-controllable-state";
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";

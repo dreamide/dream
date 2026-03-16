@@ -10,7 +10,7 @@
     "includes": [
       "**",
       "!node_modules",
-      "!.next",
+      "!dist",
       "!dist",
       "!build",
       "!src/components/ai-elements",
@@ -36,7 +36,6 @@
       }
     },
     "domains": {
-      "next": "recommended",
       "react": "recommended"
     }
   },
