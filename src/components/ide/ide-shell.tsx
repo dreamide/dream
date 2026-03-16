@@ -17,6 +17,7 @@ import {
   isModalPreviewHidden,
   useModalPreviewHidden,
 } from "@/lib/modal-visibility";
+import { useUiStore } from "@/lib/ui-store";
 import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
 import { IdeFooter, IdeHeader } from "./ide-header";
@@ -101,19 +102,10 @@ export const IdeShell = () => {
     setIsElectron(hasDesktopApi());
   }, [setIsMacOs, setIsElectron]);
 
-  // Sync base color attribute to <html> element
-  useEffect(() => {
-    const baseColor = settings.baseColor || "neutral";
-    if (baseColor === "neutral") {
-      document.documentElement.removeAttribute("data-base-color");
-    } else {
-      document.documentElement.setAttribute("data-base-color", baseColor);
-    }
-  }, [settings.baseColor]);
-
   // Hydrate state from storage
   useEffect(() => {
     void hydrate();
+    useUiStore.getState().hydrateUi();
   }, [hydrate]);
 
   // Mark app ready once hydration completes, and auto-refresh models

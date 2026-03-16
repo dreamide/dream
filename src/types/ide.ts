@@ -43,7 +43,6 @@ export interface ProjectConfig {
 }
 
 export interface AppSettings {
-  baseColor: BaseColor;
   connectedProviders: AiProvider[];
   openAiAuthMode: OpenAiAuthMode;
   openAiApiKey: string;

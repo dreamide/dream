@@ -32,6 +32,7 @@ import {
   getModelOptionsForProvider,
   getModelsForProvider,
 } from "@/lib/ide-defaults";
+import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { BaseColor } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
@@ -63,6 +64,8 @@ export const SettingsDialog = () => {
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
+  const baseColor = useUiStore((s) => s.baseColor);
+  const setBaseColor = useUiStore((s) => s.setBaseColor);
   const { setTheme, theme } = useTheme();
 
   const connectedProviders = useMemo(
@@ -448,44 +451,31 @@ export const SettingsDialog = () => {
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {(
-                      ["neutral", "slate", "gray", "zinc", "stone"] as const
-                    ).map((color) => (
-                      <button
-                        className={cn(
-                          "flex items-center gap-2 rounded-md border px-3 py-2 text-sm capitalize transition-colors hover:bg-muted",
-                          settings.baseColor === color
-                            ? "border-foreground font-medium"
-                            : "border-border text-muted-foreground",
-                        )}
-                        key={color}
-                        onClick={() =>
-                          setSettings((prev) => ({
-                            ...prev,
-                            baseColor: color as BaseColor,
-                          }))
-                        }
-                        type="button"
+                  <div className="max-w-sm">
+                    <Tabs
+                      onValueChange={(value) => {
+                        if (!value) return;
+                        setBaseColor(value as BaseColor);
+                      }}
+                      value={baseColor}
+                    >
+                      <TabsList
+                        className="w-full justify-start"
+                        id="base-color-tabs"
                       >
-                        <span
-                          className="size-3 rounded-full"
-                          style={{
-                            backgroundColor:
-                              color === "neutral"
-                                ? "oklch(0.556 0 0)"
-                                : color === "slate"
-                                  ? "oklch(0.554 0.046 257.417)"
-                                  : color === "gray"
-                                    ? "oklch(0.551 0.027 264.364)"
-                                    : color === "zinc"
-                                      ? "oklch(0.552 0.016 285.938)"
-                                      : "oklch(0.553 0.013 58.071)",
-                          }}
-                        />
-                        {color}
-                      </button>
-                    ))}
+                        {(
+                          ["neutral", "slate", "gray", "zinc", "stone"] as const
+                        ).map((color) => (
+                          <TabsTrigger
+                            className="capitalize"
+                            key={color}
+                            value={color}
+                          >
+                            {color}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                    </Tabs>
                   </div>
                 </div>
               ) : null}
