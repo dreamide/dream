@@ -685,7 +685,7 @@ export const IdeShell = () => {
 
             <ResizeHandle
               className="w-px"
-              disabled={!middleVisible || !rightVisible}
+              disabled={!rightVisible || (!middleVisible && !leftVisible)}
               id="ide-middle-handle"
             />
 
@@ -697,7 +697,9 @@ export const IdeShell = () => {
               maxSize={rightVisible ? undefined : 0}
               minSize={rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0}
             >
-              <div className="h-full pr-2 pb-2">
+              <div
+                className={`h-full pr-2 pb-2 ${!middleVisible ? "pl-2" : ""}`}
+              >
                 <PreviewPanel
                   onSyncPreviewBounds={syncPreviewBounds}
                   previewHostRef={previewHostRef}
