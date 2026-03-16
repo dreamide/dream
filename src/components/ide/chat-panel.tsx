@@ -52,6 +52,7 @@ import {
   getProviderAuthMode,
   getProviderCredential,
 } from "@/lib/ide-defaults";
+import { getModelReasoningEfforts } from "@/lib/models";
 import { cn } from "@/lib/utils";
 import type {
   ChatMode,
@@ -222,13 +223,24 @@ export const ChatPanel = ({
   const selectedModel = selectedModelOption?.id ?? "";
   const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
   const selectedModelValue = selectedModelOption?.id;
+  const availableReasoningEfforts = getModelReasoningEfforts(
+    selectedProvider,
+    selectedModel,
+  );
+  const reasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter((option) =>
+    availableReasoningEfforts.includes(option.value),
+  );
   const selectedReasoningEffort = normalizeReasoningEffort(
     thread.reasoningEffort,
   );
   const selectedReasoningLabel =
+    reasoningEffortOptions.find(
+      (option) => option.value === selectedReasoningEffort,
+    )?.label ??
     REASONING_EFFORT_OPTIONS.find(
       (option) => option.value === selectedReasoningEffort,
-    )?.label ?? "Reasoning";
+    )?.label ??
+    "Reasoning";
   const selectedChatMode = normalizeChatMode(thread.chatMode);
   const selectedChatModeLabel =
     CHAT_MODE_OPTIONS.find((option) => option.value === selectedChatMode)
@@ -604,12 +616,12 @@ export const ChatPanel = ({
               >
                 <SelectTrigger
                   className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  disabled={selectedProvider !== "openai"}
+                  disabled={reasoningEffortOptions.length === 0}
                 >
                   <span className="truncate">{selectedReasoningLabel}</span>
                 </SelectTrigger>
                 <SelectContent className="text-xs" side="top">
-                  {REASONING_EFFORT_OPTIONS.map((option) => (
+                  {reasoningEffortOptions.map((option) => (
                     <SelectItem
                       className="text-xs"
                       key={option.value}

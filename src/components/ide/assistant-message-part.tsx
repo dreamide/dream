@@ -224,7 +224,9 @@ const renderReadFileOutput = (output: unknown) => {
   );
 };
 
-const renderWriteFileOutput = (output: unknown) => {
+const WriteFileOutput = ({ output }: { output: unknown }) => {
+  const [showContent, setShowContent] = useState(false);
+
   if (!isRecord(output)) {
     return <JsonBlock value={output} />;
   }
@@ -234,18 +236,42 @@ const renderWriteFileOutput = (output: unknown) => {
   const bytesWritten =
     typeof output.bytesWritten === "number" ? output.bytesWritten : null;
   const status = isString(output.status) ? output.status : null;
+  const content = isString(output.content) ? output.content : null;
+  const previousContent = isString(output.previousContent)
+    ? output.previousContent
+    : null;
+  const isNewFile = previousContent === null && content !== null;
 
   if (!filePath && mode === null && bytesWritten === null && status === null) {
     return <JsonBlock value={output} />;
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {status ? <Badge variant="secondary">Status: {status}</Badge> : null}
-      {filePath ? <Badge variant="outline">{filePath}</Badge> : null}
-      {mode ? <Badge variant="secondary">Mode: {mode}</Badge> : null}
-      {bytesWritten !== null ? (
-        <Badge variant="secondary">{bytesWritten.toLocaleString()} bytes</Badge>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {status ? <Badge variant="secondary">Status: {status}</Badge> : null}
+        {filePath ? <Badge variant="outline">{filePath}</Badge> : null}
+        {mode ? <Badge variant="secondary">Mode: {mode}</Badge> : null}
+        {bytesWritten !== null ? (
+          <Badge variant="secondary">
+            {bytesWritten.toLocaleString()} bytes
+          </Badge>
+        ) : null}
+        {isNewFile ? <Badge variant="secondary">New file</Badge> : null}
+        {content ? (
+          <button
+            className="text-muted-foreground text-xs underline hover:text-foreground"
+            onClick={() => setShowContent(!showContent)}
+            type="button"
+          >
+            {showContent ? "Hide content" : "Show content"}
+          </button>
+        ) : null}
+      </div>
+      {showContent && content ? (
+        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-xs">
+          {content}
+        </pre>
       ) : null}
     </div>
   );
@@ -273,7 +299,7 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
       case "readFile":
         return renderReadFileOutput(output);
       case "writeFile":
-        return renderWriteFileOutput(output);
+        return <WriteFileOutput output={output} />;
       case "searchInFiles":
         return renderSearchInFilesOutput(output);
       default:
