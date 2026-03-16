@@ -1,5 +1,3 @@
-"use client";
-
 import type { LanguageModelUsage } from "ai";
 import type { ComponentProps, ReactElement } from "react";
 import { createContext, useContext, useMemo } from "react";

@@ -1,5 +1,3 @@
-"use client";
-
 import { useControllableState } from "@/hooks/use-controllable-state";
 import { ChevronsUpDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";

@@ -1,5 +1,3 @@
-"use client";
-
 import type { ToolUIPart } from "ai";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, useContext } from "react";

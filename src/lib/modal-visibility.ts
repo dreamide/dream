@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 
 export const MODAL_EXIT_ANIMATION_MS = 200;

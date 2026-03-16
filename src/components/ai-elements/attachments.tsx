@@ -1,5 +1,3 @@
-"use client";
-
 import type { FileUIPart, SourceDocumentUIPart } from "ai";
 import {
   FileTextIcon,
