@@ -81,7 +81,7 @@ export const IdeShell = () => {
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const mainGroupRef = useRef<GroupImperativeHandle | null>(null);
-  const savedLayoutRef = useRef<Record<string, number> | null>(null);
+  const savedLayoutRef = useRef<Record<string, Record<string, number>>>({});
   const previewHostRef = useRef<HTMLDivElement | null>(null);
   const providerCredentialsRef = useRef({
     anthropicAccessToken: settings.anthropicAccessToken,
@@ -549,29 +549,30 @@ export const IdeShell = () => {
     : EMPTY_TERMINAL_SESSION_IDS;
   const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
 
-  // Save and restore layout when middle/right panels toggle visibility.
+  // Save layout per visibility combination, restore when returning to one.
+  // Key is e.g. "1-1-1" for all visible, "1-0-1" for left+right only.
+  const visibilityKey = `${+leftVisible}-${+middleVisible}-${+rightVisible}`;
+  const prevVisKeyRef = useRef(visibilityKey);
+
   useEffect(() => {
+    if (visibilityKey === prevVisKeyRef.current) return;
+    prevVisKeyRef.current = visibilityKey;
+
     const group = mainGroupRef.current;
     if (!group) return;
+    const saved = savedLayoutRef.current[visibilityKey];
+    if (!saved) return;
 
-    if (middleVisible && rightVisible && savedLayoutRef.current) {
-      const layout = savedLayoutRef.current;
-      savedLayoutRef.current = null;
-      // Delay to next frame so the Group processes updated constraints first
-      requestAnimationFrame(() => {
-        group.setLayout(layout);
-      });
-    }
-  }, [middleVisible, rightVisible]);
+    requestAnimationFrame(() => {
+      group.setLayout(saved);
+    });
+  }, [visibilityKey]);
 
-  // Save layout whenever it changes and both panels are visible
   const handleMainLayoutChanged = useCallback(
     (layout: Record<string, number>) => {
-      if (middleVisible && rightVisible) {
-        savedLayoutRef.current = layout;
-      }
+      savedLayoutRef.current[prevVisKeyRef.current] = layout;
     },
-    [middleVisible, rightVisible],
+    [],
   );
 
   // ── Render ──────────────────────────────────────────────────────────
@@ -607,9 +608,11 @@ export const IdeShell = () => {
               </div>
             </Panel>
 
-            {leftVisible && (middleVisible || rightVisible) ? (
-              <ResizeHandle className="w-px" id="ide-left-handle" />
-            ) : null}
+            <ResizeHandle
+              className="w-px"
+              disabled={!leftVisible || (!middleVisible && !rightVisible)}
+              id="ide-left-handle"
+            />
 
             {/* ─── MIDDLE: Chat + Terminal ─── */}
             <Panel
@@ -680,9 +683,11 @@ export const IdeShell = () => {
               </div>
             </Panel>
 
-            {middleVisible && rightVisible ? (
-              <ResizeHandle className="w-px" id="ide-middle-handle" />
-            ) : null}
+            <ResizeHandle
+              className="w-px"
+              disabled={!middleVisible || !rightVisible}
+              id="ide-middle-handle"
+            />
 
             {/* ─── RIGHT: Preview ─── */}
             <Panel
