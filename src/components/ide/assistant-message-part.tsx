@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { CheckIcon, ExternalLink, FileIcon, XIcon } from "lucide-react";
+import { CheckIcon, FileIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -576,26 +576,9 @@ export const AssistantMessagePart = ({
     return <Badge variant="secondary">File: {label}</Badge>;
   }
 
-  if (part.type === "source-url") {
-    return (
-      <a
-        className="inline-flex items-center gap-1.5 text-primary text-sm underline underline-offset-4"
-        href={part.url}
-        rel="noreferrer"
-        target="_blank"
-      >
-        Source
-        <ExternalLink className="size-3.5" />
-      </a>
-    );
-  }
-
-  if (part.type === "source-document") {
-    return (
-      <Badge variant="outline">
-        Source: {part.title ?? part.filename ?? "Document"}
-      </Badge>
-    );
+  if (part.type === "source-url" || part.type === "source-document") {
+    // Sources are grouped and rendered at the message level in chat-panel
+    return null;
   }
 
   if (part.type === "step-start") {
