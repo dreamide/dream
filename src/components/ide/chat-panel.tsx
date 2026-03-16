@@ -207,18 +207,45 @@ export const ChatPanel = ({
     [],
   );
 
-  const { messages, sendMessage, status, stop } = useChat({
-    id: `thread:${thread.id}`,
-    messages: threadMessages,
-    onError: (error) => {
-      setLocalError(error.message);
-    },
-    transport,
-  });
+  const { messages, sendMessage, status, stop, addToolApprovalResponse } =
+    useChat({
+      id: `thread:${thread.id}`,
+      messages: threadMessages,
+      onError: (error) => {
+        setLocalError(error.message);
+      },
+      transport,
+    });
 
   useEffect(() => {
     setMessagesForThread(thread.id, messages);
   }, [messages, setMessagesForThread, thread.id]);
+
+  // Auto-approve writeFile tool calls when autoAcceptEdits is enabled
+  useEffect(() => {
+    if (!autoAcceptEdits) return;
+    for (const message of messages) {
+      if (message.role !== "assistant") continue;
+      for (const part of message.parts) {
+        if (
+          typeof part.type === "string" &&
+          part.type === "tool-writeFile" &&
+          "approval" in part &&
+          part.approval &&
+          typeof part.approval === "object" &&
+          "id" in part.approval &&
+          !("approved" in part.approval) &&
+          "state" in part &&
+          part.state === "approval-requested"
+        ) {
+          addToolApprovalResponse({
+            id: part.approval.id as string,
+            approved: true,
+          });
+        }
+      }
+    }
+  }, [messages, autoAcceptEdits, addToolApprovalResponse]);
 
   const selectedModel = selectedModelOption?.id ?? "";
   const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
@@ -452,6 +479,7 @@ export const ChatPanel = ({
                     index,
                   )}
                   isStreaming={isPartStreaming}
+                  onToolApproval={addToolApprovalResponse}
                   part={part}
                 />
               );
@@ -460,7 +488,7 @@ export const ChatPanel = ({
         </Message>
       );
     });
-  }, [messages, isStreaming]);
+  }, [messages, isStreaming, addToolApprovalResponse]);
 
   return (
     <div id="chat-panel" className="flex h-full min-h-0 flex-col">

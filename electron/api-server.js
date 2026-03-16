@@ -1217,6 +1217,7 @@ app.post("/api/chat", async (c) => {
                 filePath: z.string().min(1),
                 mode: z.enum(["overwrite", "append"]).default("overwrite"),
               }),
+              requireApproval: true,
               execute: async ({ content, filePath, mode }) => {
                 const absolutePath = resolveProjectPath(projectPath, filePath);
                 let previousContent;

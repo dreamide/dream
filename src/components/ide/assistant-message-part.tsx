@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { ExternalLink, FileIcon } from "lucide-react";
+import { CheckIcon, ExternalLink, FileIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -10,6 +10,14 @@ import {
   CodeBlockHeader,
   CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
+import {
+  Confirmation,
+  ConfirmationAccepted,
+  ConfirmationAction,
+  ConfirmationActions,
+  ConfirmationRejected,
+  ConfirmationRequest,
+} from "@/components/ai-elements/confirmation";
 import { MessageResponse } from "@/components/ai-elements/message";
 import {
   Reasoning,
@@ -29,6 +37,7 @@ import { stringifyPart } from "./ide-state";
 type MessagePart = UIMessage["parts"][number];
 
 type ToolLikePart = MessagePart & {
+  approval?: { id: string; approved?: boolean; reason?: string };
   errorText?: string;
   input?: unknown;
   output?: unknown;
@@ -36,6 +45,11 @@ type ToolLikePart = MessagePart & {
   toolCallId?: string;
   toolName?: string;
 };
+
+type ToolApprovalHandler = (response: {
+  id: string;
+  approved: boolean;
+}) => void;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -354,7 +368,13 @@ const renderToolOutput = (part: ToolLikePart) => {
   );
 };
 
-const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
+const ToolPartCard = ({
+  part,
+  onToolApproval,
+}: {
+  part: ToolLikePart;
+  onToolApproval?: ToolApprovalHandler;
+}) => {
   const toolName = getToolName(part);
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isCompleted = state === "output-available" || state === "output-error";
@@ -372,11 +392,69 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
         };
 
   return (
-    <Tool defaultOpen={isCompleted}>
+    <Tool defaultOpen={isCompleted || state === "approval-requested"}>
       <ToolHeader title={formatToolName(toolName)} {...toolHeaderProps} />
       <ToolContent>
         {isRecord(part.input) ? (
           <ToolInput input={part.input as ToolPart["input"]} />
+        ) : null}
+        {part.approval && onToolApproval ? (
+          <Confirmation
+            approval={
+              part.approval as Parameters<typeof Confirmation>[0]["approval"]
+            }
+            state={state}
+          >
+            <ConfirmationRequest>
+              <span className="text-sm">
+                Allow <strong>{formatToolName(toolName)}</strong> to modify{" "}
+                {isRecord(part.input) && isString(part.input.filePath) ? (
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                    {part.input.filePath}
+                  </code>
+                ) : (
+                  "a file"
+                )}
+                ?
+              </span>
+            </ConfirmationRequest>
+            <ConfirmationAccepted>
+              <span className="flex items-center gap-1.5 text-sm text-green-700">
+                <CheckIcon className="size-4" />
+                Approved
+              </span>
+            </ConfirmationAccepted>
+            <ConfirmationRejected>
+              <span className="flex items-center gap-1.5 text-sm text-red-700">
+                <XIcon className="size-4" />
+                Rejected
+              </span>
+            </ConfirmationRejected>
+            <ConfirmationActions>
+              <ConfirmationAction
+                variant="outline"
+                onClick={() =>
+                  onToolApproval({
+                    id: part.approval!.id,
+                    approved: false,
+                  })
+                }
+              >
+                Reject
+              </ConfirmationAction>
+              <ConfirmationAction
+                variant="default"
+                onClick={() =>
+                  onToolApproval({
+                    id: part.approval!.id,
+                    approved: true,
+                  })
+                }
+              >
+                Approve
+              </ConfirmationAction>
+            </ConfirmationActions>
+          </Confirmation>
         ) : null}
         {renderToolOutput(part)}
       </ToolContent>
@@ -387,9 +465,11 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
 export const AssistantMessagePart = ({
   part,
   isStreaming = false,
+  onToolApproval,
 }: {
   part: MessagePart;
   isStreaming?: boolean;
+  onToolApproval?: ToolApprovalHandler;
 }) => {
   if (part.type === "text") {
     return <MessageResponse>{part.text}</MessageResponse>;
@@ -437,7 +517,7 @@ export const AssistantMessagePart = ({
   }
 
   if (isToolLikePart(part)) {
-    return <ToolPartCard part={part} />;
+    return <ToolPartCard onToolApproval={onToolApproval} part={part} />;
   }
 
   return (
