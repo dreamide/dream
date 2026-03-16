@@ -35,6 +35,12 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import {
+  Source,
+  Sources,
+  SourcesContent,
+  SourcesTrigger,
+} from "@/components/ai-elements/sources";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -463,11 +469,46 @@ export const ChatPanel = ({
 
       const isLastMessage = messageIndex === messages.length - 1;
 
+      // Group source parts for collapsible Sources display
+      const sourceParts = message.parts.filter(
+        (part) => part.type === "source-url" || part.type === "source-document",
+      );
+      const nonSourceParts = message.parts.filter(
+        (part) => part.type !== "source-url" && part.type !== "source-document",
+      );
+
       return (
         <Message from={message.role} key={message.id}>
+          {sourceParts.length > 0 ? (
+            <Sources>
+              <SourcesTrigger count={sourceParts.length} />
+              <SourcesContent>
+                {sourceParts.map((part, index) => {
+                  if (part.type === "source-url") {
+                    return (
+                      <Source
+                        href={part.url}
+                        key={`${message.id}-source-${index}`}
+                        title={part.url}
+                      />
+                    );
+                  }
+                  if (part.type === "source-document") {
+                    return (
+                      <Source
+                        key={`${message.id}-source-${index}`}
+                        title={part.title ?? part.filename ?? "Document"}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </SourcesContent>
+            </Sources>
+          ) : null}
           <MessageContent>
-            {message.parts.map((part, index) => {
-              const isLastPart = index === message.parts.length - 1;
+            {nonSourceParts.map((part, index) => {
+              const isLastPart = index === nonSourceParts.length - 1;
               const isPartStreaming =
                 isStreaming && isLastMessage && isLastPart;
 
