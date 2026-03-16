@@ -515,6 +515,7 @@ export const ChatPanel = ({
 
               return (
                 <AssistantMessagePart
+                  chatMode={selectedChatMode}
                   key={getMessagePartKey(
                     message.id,
                     part as Record<string, unknown>,
@@ -530,7 +531,7 @@ export const ChatPanel = ({
         </Message>
       );
     });
-  }, [messages, isStreaming, addToolApprovalResponse]);
+  }, [messages, isStreaming, addToolApprovalResponse, selectedChatMode]);
 
   return (
     <div id="chat-panel" className="flex h-full min-h-0 flex-col">
