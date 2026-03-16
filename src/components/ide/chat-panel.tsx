@@ -418,8 +418,10 @@ export const ChatPanel = ({
     ],
   );
 
+  const isStreaming = status === "streaming";
+
   const messageContent = useMemo(() => {
-    return messages.map((message) => {
+    return messages.map((message, messageIndex) => {
       if (message.role === "user") {
         return (
           <Message from="user" key={message.id}>
@@ -432,10 +434,16 @@ export const ChatPanel = ({
         );
       }
 
+      const isLastMessage = messageIndex === messages.length - 1;
+
       return (
         <Message from={message.role} key={message.id}>
           <MessageContent>
             {message.parts.map((part, index) => {
+              const isLastPart = index === message.parts.length - 1;
+              const isPartStreaming =
+                isStreaming && isLastMessage && isLastPart;
+
               return (
                 <AssistantMessagePart
                   key={getMessagePartKey(
@@ -443,6 +451,7 @@ export const ChatPanel = ({
                     part as Record<string, unknown>,
                     index,
                   )}
+                  isStreaming={isPartStreaming}
                   part={part}
                 />
               );
@@ -451,7 +460,7 @@ export const ChatPanel = ({
         </Message>
       );
     });
-  }, [messages]);
+  }, [messages, isStreaming]);
 
   return (
     <div id="chat-panel" className="flex h-full min-h-0 flex-col">
