@@ -1,12 +1,5 @@
 import type { UIMessage } from "ai";
-import {
-  CheckCircle2,
-  Circle,
-  Clock3,
-  ExternalLink,
-  Wrench,
-  XCircle,
-} from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
 import {
@@ -14,9 +7,14 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
+import type { ToolPart } from "@/components/ai-elements/tool";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+} from "@/components/ai-elements/tool";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { stringifyPart } from "./ide-state";
 
 type MessagePart = UIMessage["parts"][number];
@@ -53,73 +51,6 @@ const getToolName = (part: ToolLikePart): string => {
   }
 
   return part.type.startsWith("tool-") ? part.type.slice(5) : part.type;
-};
-
-const ToolStatusBadge = ({ state }: { state?: string }) => {
-  const currentState = state ?? "input-streaming";
-
-  const statusMap: Record<
-    string,
-    {
-      icon: React.ComponentType<{ className?: string }>;
-      label: string;
-      tone: string;
-    }
-  > = {
-    "approval-requested": {
-      icon: Clock3,
-      label: "Awaiting Approval",
-      tone: "text-amber-700",
-    },
-    "approval-responded": {
-      icon: CheckCircle2,
-      label: "Approval Received",
-      tone: "text-blue-700",
-    },
-    "input-available": {
-      icon: Clock3,
-      label: "Running",
-      tone: "text-foreground",
-    },
-    "input-streaming": {
-      icon: Circle,
-      label: "Pending",
-      tone: "text-muted-foreground",
-    },
-    "output-available": {
-      icon: CheckCircle2,
-      label: "Completed",
-      tone: "text-emerald-700",
-    },
-    "output-denied": {
-      icon: XCircle,
-      label: "Denied",
-      tone: "text-orange-700",
-    },
-    "output-error": {
-      icon: XCircle,
-      label: "Error",
-      tone: "text-destructive",
-    },
-  };
-
-  const status = statusMap[currentState] ?? {
-    icon: Circle,
-    label: currentState,
-    tone: "text-muted-foreground",
-  };
-
-  const Icon = status.icon;
-
-  return (
-    <Badge
-      className={cn("gap-1.5 rounded-full", status.tone)}
-      variant="secondary"
-    >
-      <Icon className="size-3.5" />
-      {status.label}
-    </Badge>
-  );
 };
 
 const JsonBlock = ({ value }: { value: unknown }) => (
@@ -282,94 +213,79 @@ const WriteFileOutput = ({ output }: { output: unknown }) => {
   );
 };
 
-const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
-  const [showRawJson, setShowRawJson] = useState(false);
+const renderToolOutput = (part: ToolLikePart) => {
   const toolName = getToolName(part);
-  const output = part.output;
-  const input = part.input;
   const hasError = isString(part.errorText) && part.errorText.length > 0;
 
-  const renderOutput = () => {
-    if (hasError) {
-      return (
+  if (hasError) {
+    return (
+      <div className="space-y-2">
+        <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+          Error
+        </h4>
         <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
           {part.errorText}
         </pre>
-      );
-    }
+      </div>
+    );
+  }
 
+  if (part.output === undefined) {
+    return null;
+  }
+
+  const outputContent = (() => {
     switch (toolName) {
       case "listFiles":
-        return renderListFilesOutput(output);
+        return renderListFilesOutput(part.output);
       case "readFile":
-        return renderReadFileOutput(output);
+        return renderReadFileOutput(part.output);
       case "writeFile":
-        return <WriteFileOutput output={output} />;
+        return <WriteFileOutput output={part.output} />;
       case "searchInFiles":
-        return renderSearchInFilesOutput(output);
+        return renderSearchInFilesOutput(part.output);
       default:
-        return <JsonBlock value={output} />;
+        return <JsonBlock value={part.output} />;
     }
-  };
+  })();
 
   return (
-    <section className="w-full overflow-hidden rounded-md border bg-muted/15">
-      <header className="flex items-center justify-between gap-2 border-b bg-background/70 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Wrench className="size-4 shrink-0 text-muted-foreground" />
-          <p className="truncate font-medium text-sm">
-            {formatToolName(toolName)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <ToolStatusBadge state={part.state} />
-          <Button
-            className="h-7 px-2 text-xs"
-            onClick={() => setShowRawJson((value) => !value)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            {showRawJson ? "Hide JSON" : "JSON"}
-          </Button>
-        </div>
-      </header>
+    <div className="space-y-2">
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        Result
+      </h4>
+      {outputContent}
+    </div>
+  );
+};
 
-      <div className="space-y-3 p-3">
-        {showRawJson ? (
-          <div className="space-y-1.5">
-            <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-              Raw JSON
-            </p>
-            <JsonBlock value={part} />
-          </div>
-        ) : (
-          <>
-            {isRecord(input) ? (
-              <div className="space-y-1.5">
-                <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                  Input
-                </p>
-                <JsonBlock value={input} />
-              </div>
-            ) : null}
+const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
+  const toolName = getToolName(part);
+  const state = (part.state ?? "input-streaming") as ToolPart["state"];
+  const isCompleted = state === "output-available" || state === "output-error";
 
-            <div className="space-y-1.5">
-              <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                {hasError ? "Error" : "Output"}
-              </p>
-              {renderOutput()}
-            </div>
+  const toolHeaderProps =
+    part.type === "dynamic-tool"
+      ? {
+          type: "dynamic-tool" as const,
+          state,
+          toolName: isString(part.toolName) ? part.toolName : toolName,
+        }
+      : {
+          type: part.type as `tool-${string}`,
+          state,
+        };
 
-            {isString(part.toolCallId) ? (
-              <p className="font-mono text-[11px] text-muted-foreground">
-                Call ID: {part.toolCallId}
-              </p>
-            ) : null}
-          </>
-        )}
-      </div>
-    </section>
+  return (
+    <Tool defaultOpen={isCompleted}>
+      <ToolHeader title={formatToolName(toolName)} {...toolHeaderProps} />
+      <ToolContent>
+        {isRecord(part.input) ? (
+          <ToolInput input={part.input as ToolPart["input"]} />
+        ) : null}
+        {renderToolOutput(part)}
+      </ToolContent>
+    </Tool>
   );
 };
 
