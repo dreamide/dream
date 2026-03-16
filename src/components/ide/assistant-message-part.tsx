@@ -1,5 +1,11 @@
 import type { UIMessage } from "ai";
-import { CheckIcon, FileIcon, XIcon } from "lucide-react";
+import {
+  CheckIcon,
+  FileIcon,
+  FileTextIcon,
+  SearchIcon,
+  XIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -46,6 +52,7 @@ import {
   ToolInput,
 } from "@/components/ai-elements/tool";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { stringifyPart } from "./ide-state";
 
 type MessagePart = UIMessage["parts"][number];
@@ -272,80 +279,158 @@ const ListFilesOutput = ({ output }: { output: unknown }) => {
   );
 };
 
-const renderSearchInFilesOutput = (output: unknown) => {
-  if (!isRecord(output) || !Array.isArray(output.matches)) {
-    return <JsonBlock value={output} />;
-  }
+// ── Chip-based tool components ─────────────────────────────────────────
 
-  const matches = output.matches.filter(isRecord);
-  const count =
-    typeof output.count === "number" ? output.count : matches.length;
+export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
+  const [expanded, setExpanded] = useState(false);
+  const output = part.output;
+  const hasOutput =
+    isRecord(output) && isString(output.filePath) && isString(output.content);
+  const filePath = hasOutput ? (output.filePath as string) : null;
+  const content = hasOutput ? (output.content as string) : null;
+  const start =
+    hasOutput && typeof output.startLine === "number" ? output.startLine : null;
+  const end =
+    hasOutput && typeof output.endLine === "number" ? output.endLine : null;
+  const filename = filePath?.split(/[\\/]/).pop() ?? "file";
+  const lineRange = start && end ? `L${start}-${end}` : null;
+  const isRunning =
+    part.state === "input-available" || part.state === "input-streaming";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
 
   return (
-    <div className="space-y-2">
-      <p className="text-muted-foreground text-sm">{count} match(es)</p>
-      <div className="max-h-80 space-y-1 overflow-auto rounded-md bg-muted/30 p-2">
-        {matches.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No matches found.</p>
-        ) : (
-          matches.map((match) => {
-            const file = isString(match.file) ? match.file : "unknown";
-            const line = typeof match.line === "number" ? match.line : "?";
-            const text = isString(match.text) ? match.text : "";
-            const key = `${file}:${line}:${text}`;
-
-            return (
-              <div
-                className="rounded-sm px-2 py-1.5 hover:bg-muted/40"
-                key={key}
-              >
-                <p className="font-mono text-[11px] text-muted-foreground">
-                  {file}:{line}
-                </p>
-                <p className="font-mono text-xs">{text || "(empty line)"}</p>
-              </div>
-            );
-          })
+    <div className={expanded ? "w-full" : undefined}>
+      <button
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          expanded
+            ? "border-primary/30 bg-primary/5 text-foreground"
+            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          hasError && "border-destructive/30 text-destructive",
+          isRunning && "animate-pulse",
         )}
-      </div>
+        onClick={() => hasOutput && setExpanded(!expanded)}
+        type="button"
+      >
+        <FileTextIcon className="size-3.5 shrink-0" />
+        <span className="max-w-48 truncate font-medium">{filename}</span>
+        {lineRange ? (
+          <span className="text-muted-foreground">{lineRange}</span>
+        ) : null}
+        {hasError ? <span className="text-destructive">error</span> : null}
+      </button>
+      {expanded && content && filePath ? (
+        <div className="mt-2 max-h-96 overflow-auto rounded-md border">
+          <CodeBlock
+            code={content}
+            language={inferLanguage(filePath)}
+            showLineNumbers
+          >
+            <CodeBlockHeader>
+              <CodeBlockTitle>
+                <FileIcon size={14} />
+                <CodeBlockFilename>{filename}</CodeBlockFilename>
+                {start && end ? (
+                  <Badge variant="secondary" className="ml-1 text-[10px]">
+                    Lines {start}-{end}
+                  </Badge>
+                ) : null}
+              </CodeBlockTitle>
+              <CodeBlockActions>
+                <CodeBlockCopyButton />
+              </CodeBlockActions>
+            </CodeBlockHeader>
+          </CodeBlock>
+        </div>
+      ) : null}
     </div>
   );
 };
 
-const renderReadFileOutput = (output: unknown) => {
-  if (
-    !isRecord(output) ||
-    !isString(output.filePath) ||
-    !isString(output.content)
-  ) {
-    return <JsonBlock value={output} />;
-  }
-
-  const start = typeof output.startLine === "number" ? output.startLine : null;
-  const end = typeof output.endLine === "number" ? output.endLine : null;
-  const language = inferLanguage(output.filePath);
-  const filename = output.filePath.split(/[\\/]/).pop() ?? output.filePath;
+export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
+  const [expanded, setExpanded] = useState(false);
+  const output = part.output;
+  const hasOutput = isRecord(output) && Array.isArray(output.matches);
+  const matches = hasOutput
+    ? (output.matches as Record<string, unknown>[]).filter(isRecord)
+    : [];
+  const count = hasOutput
+    ? typeof output.count === "number"
+      ? output.count
+      : matches.length
+    : 0;
+  const query =
+    isRecord(part.input) && isString(part.input.query)
+      ? part.input.query
+      : null;
+  const isRunning =
+    part.state === "input-available" || part.state === "input-streaming";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
 
   return (
-    <div className="max-h-96 overflow-auto">
-      <CodeBlock code={output.content} language={language} showLineNumbers>
-        <CodeBlockHeader>
-          <CodeBlockTitle>
-            <FileIcon size={14} />
-            <CodeBlockFilename>{filename}</CodeBlockFilename>
-            {start && end ? (
-              <Badge variant="secondary" className="ml-1 text-[10px]">
-                Lines {start}-{end}
-              </Badge>
-            ) : null}
-          </CodeBlockTitle>
-          <CodeBlockActions>
-            <CodeBlockCopyButton />
-          </CodeBlockActions>
-        </CodeBlockHeader>
-      </CodeBlock>
+    <div className={expanded ? "w-full" : undefined}>
+      <button
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          expanded
+            ? "border-primary/30 bg-primary/5 text-foreground"
+            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          hasError && "border-destructive/30 text-destructive",
+          isRunning && "animate-pulse",
+        )}
+        onClick={() => hasOutput && setExpanded(!expanded)}
+        type="button"
+      >
+        <SearchIcon className="size-3.5 shrink-0" />
+        {query ? (
+          <span className="max-w-48 truncate font-medium">
+            &ldquo;{query}&rdquo;
+          </span>
+        ) : (
+          <span className="font-medium">Search</span>
+        )}
+        {hasOutput ? (
+          <span className="text-muted-foreground">
+            {count} {count === 1 ? "match" : "matches"}
+          </span>
+        ) : null}
+        {hasError ? <span className="text-destructive">error</span> : null}
+      </button>
+      {expanded && hasOutput ? (
+        <div className="mt-2 max-h-80 space-y-1 overflow-auto rounded-md border bg-muted/30 p-2">
+          {matches.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No matches found.</p>
+          ) : (
+            matches.map((match) => {
+              const file = isString(match.file) ? match.file : "unknown";
+              const line = typeof match.line === "number" ? match.line : "?";
+              const text = isString(match.text) ? match.text : "";
+              const key = `${file}:${line}:${text}`;
+
+              return (
+                <div
+                  className="rounded-sm px-2 py-1.5 hover:bg-muted/40"
+                  key={key}
+                >
+                  <p className="font-mono text-[11px] text-muted-foreground">
+                    {file}:{line}
+                  </p>
+                  <p className="font-mono text-xs">{text || "(empty line)"}</p>
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : null}
     </div>
   );
+};
+
+/** Check if a tool part should render as an inline chip */
+export const isChipToolPart = (part: MessagePart): boolean => {
+  if (!isToolLikePart(part)) return false;
+  const toolName = getToolName(part);
+  return toolName === "readFile" || toolName === "searchInFiles";
 };
 
 const WriteFileOutput = ({ output }: { output: unknown }) => {
@@ -442,12 +527,8 @@ const renderToolOutput = (part: ToolLikePart) => {
     switch (toolName) {
       case "listFiles":
         return <ListFilesOutput output={part.output} />;
-      case "readFile":
-        return renderReadFileOutput(part.output);
       case "writeFile":
         return <WriteFileOutput output={part.output} />;
-      case "searchInFiles":
-        return renderSearchInFilesOutput(part.output);
       default:
         return <JsonBlock value={part.output} />;
     }

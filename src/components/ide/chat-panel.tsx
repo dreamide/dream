@@ -67,7 +67,12 @@ import type {
   ReasoningEffort,
   ThreadConfig,
 } from "@/types/ide";
-import { AssistantMessagePart } from "./assistant-message-part";
+import {
+  AssistantMessagePart,
+  isChipToolPart,
+  ReadFileChip,
+  SearchInFilesChip,
+} from "./assistant-message-part";
 import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
@@ -508,25 +513,87 @@ export const ChatPanel = ({
             </Sources>
           ) : null}
           <MessageContent>
-            {nonSourceParts.map((part, index) => {
-              const isLastPart = index === nonSourceParts.length - 1;
-              const isPartStreaming =
-                isStreaming && isLastMessage && isLastPart;
+            {(() => {
+              // Group consecutive chip-eligible parts into flex-wrap rows
+              const elements: React.ReactNode[] = [];
+              let chipGroup: {
+                part: (typeof nonSourceParts)[number];
+                index: number;
+              }[] = [];
 
-              return (
-                <AssistantMessagePart
-                  chatMode={selectedChatMode}
-                  key={getMessagePartKey(
-                    message.id,
-                    part as Record<string, unknown>,
-                    index,
-                  )}
-                  isStreaming={isPartStreaming}
-                  onToolApproval={addToolApprovalResponse}
-                  part={part}
-                />
-              );
-            })}
+              const flushChipGroup = () => {
+                if (chipGroup.length === 0) return;
+                const group = chipGroup;
+                elements.push(
+                  <div
+                    className="flex flex-wrap items-start gap-2"
+                    key={`chip-group-${group[0].index}`}
+                  >
+                    {group.map(({ part: chipPart, index: chipIndex }) => {
+                      const toolType = chipPart.type as string;
+                      const toolName = toolType.startsWith("tool-")
+                        ? toolType.slice(5)
+                        : "";
+                      const key = getMessagePartKey(
+                        message.id,
+                        chipPart as Record<string, unknown>,
+                        chipIndex,
+                      );
+                      if (toolName === "readFile") {
+                        return (
+                          <ReadFileChip
+                            key={key}
+                            part={
+                              chipPart as Parameters<
+                                typeof ReadFileChip
+                              >[0]["part"]
+                            }
+                          />
+                        );
+                      }
+                      return (
+                        <SearchInFilesChip
+                          key={key}
+                          part={
+                            chipPart as Parameters<
+                              typeof SearchInFilesChip
+                            >[0]["part"]
+                          }
+                        />
+                      );
+                    })}
+                  </div>,
+                );
+                chipGroup = [];
+              };
+
+              for (let i = 0; i < nonSourceParts.length; i++) {
+                const part = nonSourceParts[i];
+                if (isChipToolPart(part)) {
+                  chipGroup.push({ part, index: i });
+                } else {
+                  flushChipGroup();
+                  const isLastPart = i === nonSourceParts.length - 1;
+                  const isPartStreaming =
+                    isStreaming && isLastMessage && isLastPart;
+                  elements.push(
+                    <AssistantMessagePart
+                      chatMode={selectedChatMode}
+                      key={getMessagePartKey(
+                        message.id,
+                        part as Record<string, unknown>,
+                        i,
+                      )}
+                      isStreaming={isPartStreaming}
+                      onToolApproval={addToolApprovalResponse}
+                      part={part}
+                    />,
+                  );
+                }
+              }
+              flushChipGroup();
+              return elements;
+            })()}
           </MessageContent>
         </Message>
       );
