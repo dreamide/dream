@@ -1,6 +1,15 @@
 import type { UIMessage } from "ai";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, FileIcon } from "lucide-react";
 import { useState } from "react";
+import type { BundledLanguage } from "shiki";
+import {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+  CodeBlockFilename,
+  CodeBlockHeader,
+  CodeBlockTitle,
+} from "@/components/ai-elements/code-block";
 import { MessageResponse } from "@/components/ai-elements/message";
 import {
   Reasoning,
@@ -53,10 +62,73 @@ const getToolName = (part: ToolLikePart): string => {
   return part.type.startsWith("tool-") ? part.type.slice(5) : part.type;
 };
 
+const extToLanguage: Record<string, BundledLanguage> = {
+  astro: "astro",
+  bash: "bash",
+  c: "c",
+  coffee: "coffee",
+  cpp: "cpp",
+  cs: "csharp",
+  css: "css",
+  dart: "dart",
+  diff: "diff",
+  dockerfile: "dockerfile",
+  elm: "elm",
+  env: "dotenv",
+  erl: "erlang",
+  ex: "elixir",
+  go: "go",
+  graphql: "graphql",
+  h: "c",
+  hbs: "handlebars",
+  hpp: "cpp",
+  html: "html",
+  ini: "ini",
+  java: "java",
+  js: "javascript",
+  json: "json",
+  json5: "json5",
+  jsonc: "jsonc",
+  jsx: "jsx",
+  kt: "kotlin",
+  less: "less",
+  lua: "lua",
+  md: "markdown",
+  mdx: "mdx",
+  mjs: "javascript",
+  mts: "typescript",
+  php: "php",
+  prisma: "prisma",
+  proto: "proto",
+  py: "python",
+  rb: "ruby",
+  rs: "rust",
+  sass: "sass",
+  scala: "scala",
+  scss: "scss",
+  sh: "bash",
+  sql: "sql",
+  svelte: "svelte",
+  swift: "swift",
+  toml: "toml",
+  ts: "typescript",
+  tsx: "tsx",
+  txt: "log",
+  vue: "vue",
+  xml: "xml",
+  yaml: "yaml",
+  yml: "yaml",
+  zig: "zig",
+  zsh: "bash",
+};
+
+const inferLanguage = (filePath: string): BundledLanguage => {
+  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return extToLanguage[ext] ?? "log";
+};
+
 const JsonBlock = ({ value }: { value: unknown }) => (
-  <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 text-xs">
-    {stringifyPart(value)}
-  </pre>
+  <CodeBlock code={stringifyPart(value)} language="json" />
 );
 
 const renderListFilesOutput = (output: unknown) => {
@@ -142,20 +214,27 @@ const renderReadFileOutput = (output: unknown) => {
 
   const start = typeof output.startLine === "number" ? output.startLine : null;
   const end = typeof output.endLine === "number" ? output.endLine : null;
+  const language = inferLanguage(output.filePath);
+  const filename = output.filePath.split(/[\\/]/).pop() ?? output.filePath;
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline">{output.filePath}</Badge>
-        {start && end ? (
-          <Badge variant="secondary">
-            Lines {start}-{end}
-          </Badge>
-        ) : null}
-      </div>
-      <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-xs">
-        {output.content}
-      </pre>
+    <div className="max-h-96 overflow-auto">
+      <CodeBlock code={output.content} language={language} showLineNumbers>
+        <CodeBlockHeader>
+          <CodeBlockTitle>
+            <FileIcon size={14} />
+            <CodeBlockFilename>{filename}</CodeBlockFilename>
+            {start && end ? (
+              <Badge variant="secondary" className="ml-1 text-[10px]">
+                Lines {start}-{end}
+              </Badge>
+            ) : null}
+          </CodeBlockTitle>
+          <CodeBlockActions>
+            <CodeBlockCopyButton />
+          </CodeBlockActions>
+        </CodeBlockHeader>
+      </CodeBlock>
     </div>
   );
 };
@@ -205,9 +284,25 @@ const WriteFileOutput = ({ output }: { output: unknown }) => {
         ) : null}
       </div>
       {showContent && content ? (
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-xs">
-          {content}
-        </pre>
+        <div className="max-h-96 overflow-auto">
+          <CodeBlock
+            code={content}
+            language={filePath ? inferLanguage(filePath) : "log"}
+            showLineNumbers
+          >
+            <CodeBlockHeader>
+              <CodeBlockTitle>
+                <FileIcon size={14} />
+                <CodeBlockFilename>
+                  {filePath?.split(/[\\/]/).pop() ?? "output"}
+                </CodeBlockFilename>
+              </CodeBlockTitle>
+              <CodeBlockActions>
+                <CodeBlockCopyButton />
+              </CodeBlockActions>
+            </CodeBlockHeader>
+          </CodeBlock>
+        </div>
       ) : null}
     </div>
   );
