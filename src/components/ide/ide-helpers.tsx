@@ -1,7 +1,7 @@
 import type { Terminal } from "@xterm/xterm";
 import type { PropsWithChildren } from "react";
-import { ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
+import { ResizableHandle } from "@/components/ui/resizable";
 import {
   Tooltip,
   TooltipContent,
@@ -11,13 +11,20 @@ import { cn } from "@/lib/utils";
 
 export const ResizeHandle = ({
   className,
+  disabled,
   id,
 }: {
   className?: string;
+  disabled?: boolean;
   id?: string;
 }) => (
   <ResizableHandle
-    className={cn("z-20 touch-none select-none bg-transparent", className)}
+    className={cn(
+      "z-20 touch-none select-none bg-transparent",
+      className,
+      disabled && "!w-0 pointer-events-none opacity-0",
+    )}
+    disabled={disabled}
     id={id}
   />
 );
