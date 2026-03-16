@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 import { CheckIcon, ExternalLink, FileIcon, XIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -18,6 +18,11 @@ import {
   ConfirmationRejected,
   ConfirmationRequest,
 } from "@/components/ai-elements/confirmation";
+import {
+  FileTree,
+  FileTreeFile,
+  FileTreeFolder,
+} from "@/components/ai-elements/file-tree";
 import { MessageResponse } from "@/components/ai-elements/message";
 import {
   Reasoning,
@@ -145,33 +150,114 @@ const JsonBlock = ({ value }: { value: unknown }) => (
   <CodeBlock code={stringifyPart(value)} language="json" />
 );
 
-const renderListFilesOutput = (output: unknown) => {
-  if (!isRecord(output) || !Array.isArray(output.files)) {
+interface FileTreeNode {
+  name: string;
+  path: string;
+  children: Map<string, FileTreeNode>;
+  isFile: boolean;
+}
+
+const buildFileTree = (
+  paths: string[],
+): { root: FileTreeNode; defaultExpanded: Set<string> } => {
+  const root: FileTreeNode = {
+    name: "",
+    path: "",
+    children: new Map(),
+    isFile: false,
+  };
+
+  for (const filePath of paths) {
+    const parts = filePath.split(/[\\/]/);
+    let current = root;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const currentPath = parts.slice(0, i + 1).join("/");
+      const isLast = i === parts.length - 1;
+
+      if (!current.children.has(part)) {
+        current.children.set(part, {
+          name: part,
+          path: currentPath,
+          children: new Map(),
+          isFile: isLast,
+        });
+      }
+
+      current = current.children.get(part)!;
+    }
+  }
+
+  // Auto-expand first level folders
+  const defaultExpanded = new Set<string>();
+  for (const child of root.children.values()) {
+    if (!child.isFile) {
+      defaultExpanded.add(child.path);
+    }
+  }
+
+  return { root, defaultExpanded };
+};
+
+const FileTreeNodeView = ({ node }: { node: FileTreeNode }) => {
+  const sortedChildren = [...node.children.values()].sort((a, b) => {
+    if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
+
+  if (node.isFile) {
+    return <FileTreeFile name={node.name} path={node.path} />;
+  }
+
+  return (
+    <FileTreeFolder name={node.name} path={node.path}>
+      {sortedChildren.map((child) => (
+        <FileTreeNodeView key={child.path} node={child} />
+      ))}
+    </FileTreeFolder>
+  );
+};
+
+const ListFilesOutput = ({ output }: { output: unknown }) => {
+  const { files, count } = useMemo(() => {
+    if (!isRecord(output) || !Array.isArray(output.files)) {
+      return { files: null, count: 0 };
+    }
+    const filtered = output.files.filter(isString);
+    return {
+      files: filtered,
+      count: typeof output.count === "number" ? output.count : filtered.length,
+    };
+  }, [output]);
+
+  const { root, defaultExpanded } = useMemo(() => {
+    if (!files) return { root: null, defaultExpanded: new Set<string>() };
+    return buildFileTree(files);
+  }, [files]);
+
+  if (!files || !root) {
     return <JsonBlock value={output} />;
   }
 
-  const files = output.files.filter(isString);
-  const count = typeof output.count === "number" ? output.count : files.length;
+  if (files.length === 0) {
+    return <p className="text-muted-foreground text-sm">No files found.</p>;
+  }
+
+  const sortedChildren = [...root.children.values()].sort((a, b) => {
+    if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <div className="space-y-2">
       <p className="text-muted-foreground text-sm">{count} file(s) returned</p>
-      <div className="max-h-72 overflow-auto rounded-md bg-muted/30 p-2">
-        {files.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No files found.</p>
-        ) : (
-          <ul className="space-y-1">
-            {files.map((file) => (
-              <li
-                className="rounded-sm px-2 py-1 font-mono text-xs hover:bg-muted/40"
-                key={file}
-                title={file}
-              >
-                <span className="block truncate">{file}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <div className="max-h-72 overflow-auto">
+        <FileTree className="text-xs" defaultExpanded={defaultExpanded}>
+          {sortedChildren.map((child) => (
+            <FileTreeNodeView key={child.path} node={child} />
+          ))}
+        </FileTree>
       </div>
     </div>
   );
@@ -346,7 +432,7 @@ const renderToolOutput = (part: ToolLikePart) => {
   const outputContent = (() => {
     switch (toolName) {
       case "listFiles":
-        return renderListFilesOutput(part.output);
+        return <ListFilesOutput output={part.output} />;
       case "readFile":
         return renderReadFileOutput(part.output);
       case "writeFile":
