@@ -1,4 +1,4 @@
-import type { AiProvider } from "@/types/ide";
+import type { AiProvider, ReasoningEffort } from "@/types/ide";
 
 export interface ModelOption {
   id: string;
@@ -154,4 +154,87 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
   }
 
   return Array.from(seen.values());
+};
+
+/**
+ * Determine which reasoning effort levels a model supports.
+ *
+ * Returns the list of supported `ReasoningEffort` values, or an empty array
+ * if the model does not support reasoning effort at all (in which case the
+ * UI selector should be disabled).
+ *
+ * The logic is intentionally broad: we match on known model-id patterns
+ * rather than hard-coding a provider check, so new models that follow the
+ * same naming conventions are picked up automatically.
+ */
+export const getModelReasoningEfforts = (
+  provider: AiProvider,
+  modelId: string,
+): ReasoningEffort[] => {
+  const id = modelId.trim().toLowerCase();
+  if (!id) {
+    return [];
+  }
+
+  // --- OpenAI reasoning models (o1, o3, o4, codex, gpt-5, …) -----------
+  if (provider === "openai") {
+    const isReasoning = ["gpt-5", "o1", "o3", "o4", "codex"].some(
+      (prefix) =>
+        id === prefix ||
+        id.startsWith(`${prefix}-`) ||
+        id.startsWith(`${prefix}.`),
+    );
+
+    if (isReasoning) {
+      return ["low", "medium", "high"];
+    }
+
+    // Non-reasoning OpenAI models (gpt-4o, gpt-4, etc.) – no effort knob
+    return [];
+  }
+
+  // --- Anthropic models with extended thinking (claude-3.7+, claude-4+) --
+  if (provider === "anthropic") {
+    // New format: claude-{variant}-{major} e.g. claude-sonnet-4-20250514,
+    // claude-opus-4-20250514
+    const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
+    if (newFormat) {
+      const major = Number(newFormat[1]);
+      if (major >= 4) {
+        return ["low", "medium", "high"];
+      }
+    }
+
+    // Old format: claude-{major}-{minor}-{variant} e.g. claude-3-7-sonnet,
+    // claude-3-5-sonnet, or claude-{major}.{minor}
+    const oldFormat = id.match(/^claude-(\d+)[-.](\d+)/);
+    if (oldFormat) {
+      const major = Number(oldFormat[1]);
+      const minor = Number(oldFormat[2]);
+      if (major > 3 || (major === 3 && minor >= 7)) {
+        return ["low", "medium", "high"];
+      }
+    }
+
+    // claude-4 (no minor version, no variant prefix)
+    if (/^claude-(\d+)(?!\d)/.test(id)) {
+      const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
+      if (majorOnly >= 4) {
+        return ["low", "medium", "high"];
+      }
+    }
+
+    return [];
+  }
+
+  // --- Gemini thinking models ------------------------------------------
+  if (provider === "gemini") {
+    if (id.includes("thinking")) {
+      return ["low", "medium", "high"];
+    }
+
+    return [];
+  }
+
+  return [];
 };

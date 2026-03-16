@@ -15,6 +15,8 @@ import {
   refreshAnthropicAccessToken,
 } from "@/lib/anthropic-oauth";
 import { readCodexCredential } from "@/lib/codex-auth";
+import { getModelReasoningEfforts } from "@/lib/models";
+import type { AiProvider, ReasoningEffort } from "@/types/ide";
 
 export const runtime = "nodejs";
 
@@ -27,6 +29,7 @@ const requestBodySchema = z.object({
     })
     .optional(),
   authMode: z.enum(["apiKey", "codex", "claudeProMax"]).default("apiKey"),
+  chatMode: z.enum(["plan", "build"]).default("build"),
   credential: z.string().optional(),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
@@ -44,12 +47,20 @@ const BLOCKED_DIRECTORIES = new Set([
   "node_modules",
 ]);
 
-const SYSTEM_PROMPT = `You are an expert coding copilot embedded in a desktop IDE.
+const SYSTEM_PROMPT_BUILD = `You are an expert coding copilot embedded in a desktop IDE.
 
 Your primary responsibility is to safely edit files inside the active project.
 Use the available tools to inspect files before proposing changes.
 Always reference concrete files and exact updates.
 When writing files, prefer complete and correct output over partial snippets.
+Never attempt to access files outside the active project root.`;
+
+const SYSTEM_PROMPT_PLAN = `You are an expert coding copilot embedded in a desktop IDE.
+
+Your role is to analyze code and create detailed plans without making any changes.
+Use the available tools to read and search files to understand the codebase.
+Provide concrete, actionable plans that reference specific files and line numbers.
+Describe exactly what changes should be made and why, but do NOT write or modify any files.
 Never attempt to access files outside the active project root.`;
 
 const OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
@@ -69,6 +80,54 @@ const isOpenAiReasoningModel = (modelId: string): boolean => {
       normalized.startsWith(`${prefix}-`) ||
       normalized.startsWith(`${prefix}.`),
   );
+};
+
+/**
+ * Map reasoning effort to Anthropic thinking budget tokens.
+ * Returns undefined if the model doesn't support thinking.
+ */
+const getAnthropicThinkingOptions = (
+  provider: AiProvider,
+  modelId: string,
+  effort: ReasoningEffort,
+): { thinking: { type: string; budgetTokens: number } } | undefined => {
+  const efforts = getModelReasoningEfforts(provider, modelId);
+  if (efforts.length === 0) return undefined;
+
+  const budgetMap: Record<ReasoningEffort, number> = {
+    low: 2048,
+    medium: 8192,
+    high: 32768,
+    xhigh: 65536,
+  };
+
+  return {
+    thinking: { type: "enabled", budgetTokens: budgetMap[effort] },
+  };
+};
+
+/**
+ * Map reasoning effort to Gemini thinking budget tokens.
+ * Returns undefined if the model doesn't support thinking.
+ */
+const getGeminiThinkingOptions = (
+  provider: AiProvider,
+  modelId: string,
+  effort: ReasoningEffort,
+): { thinkingConfig: { thinkingBudget: number } } | undefined => {
+  const efforts = getModelReasoningEfforts(provider, modelId);
+  if (efforts.length === 0) return undefined;
+
+  const budgetMap: Record<ReasoningEffort, number> = {
+    low: 1024,
+    medium: 8192,
+    high: 24576,
+    xhigh: 24576,
+  };
+
+  return {
+    thinkingConfig: { thinkingBudget: budgetMap[effort] },
+  };
 };
 
 const resolveProjectPath = (projectRoot: string, filePath: string): string => {
@@ -207,11 +266,14 @@ export async function POST(request: Request): Promise<Response> {
   const {
     anthropicOAuth,
     authMode,
+    chatMode,
     model,
     projectPath,
     provider,
     reasoningEffort,
   } = parsed.data;
+  const isPlanMode = chatMode === "plan";
+  const systemPrompt = isPlanMode ? SYSTEM_PROMPT_PLAN : SYSTEM_PROMPT_BUILD;
   let credential = parsed.data.credential?.trim() ?? "";
   const messages = parsed.data.messages as UIMessage[];
 
@@ -364,40 +426,65 @@ export async function POST(request: Request): Promise<Response> {
       ? {
           ...(useChatgptCodexEndpoint
             ? {
-                instructions: SYSTEM_PROMPT,
+                instructions: systemPrompt,
                 store: false,
               }
             : {}),
           reasoningEffort,
         }
       : undefined;
+  const anthropicProviderOptions =
+    provider === "anthropic"
+      ? getAnthropicThinkingOptions(
+          provider,
+          model,
+          reasoningEffort as ReasoningEffort,
+        )
+      : undefined;
+  const geminiProviderOptions =
+    provider === "gemini"
+      ? getGeminiThinkingOptions(
+          provider,
+          model,
+          reasoningEffort as ReasoningEffort,
+        )
+      : undefined;
+
   const usesOpenAiReasoningModel =
     provider === "openai" && isOpenAiReasoningModel(model);
+  const usesReasoningModel =
+    getModelReasoningEfforts(provider as AiProvider, model).length > 0;
   const languageModel =
     provider === "gemini"
       ? providerFactory.chat(model)
       : providerFactory(model);
 
+  const providerOptions = {
+    ...(openAiProviderOptions ? { openai: openAiProviderOptions } : {}),
+    ...(anthropicProviderOptions
+      ? { anthropic: anthropicProviderOptions }
+      : {}),
+    ...(geminiProviderOptions ? { google: geminiProviderOptions } : {}),
+  };
+  const hasProviderOptions = Object.keys(providerOptions).length > 0;
+
   const textResult = streamText({
     messages: await convertToModelMessages(messages),
     model: languageModel,
-    ...(openAiProviderOptions
-      ? { providerOptions: { openai: openAiProviderOptions } }
-      : {}),
+    ...(hasProviderOptions ? { providerOptions } : {}),
     stopWhen: stepCountIs(
-      usesOpenAiReasoningModel
-        ? REASONING_TOOL_STEP_LIMIT
-        : DEFAULT_TOOL_STEP_LIMIT,
+      usesReasoningModel ? REASONING_TOOL_STEP_LIMIT : DEFAULT_TOOL_STEP_LIMIT,
     ),
     system:
       provider === "openai" && useChatgptCodexEndpoint
         ? undefined
-        : SYSTEM_PROMPT,
-    ...(usesOpenAiReasoningModel ? {} : { temperature: 0.2 }),
+        : systemPrompt,
+    ...(usesReasoningModel ? {} : { temperature: 0.2 }),
     tools: {
       listFiles: tool({
-        description:
-          "List project files recursively. Use this before reading or editing unfamiliar areas.",
+        description: isPlanMode
+          ? "List project files recursively. Use this to explore the project structure."
+          : "List project files recursively. Use this before reading or editing unfamiliar areas.",
         inputSchema: z.object({
           directory: z.string().default("."),
           maxResults: z.number().int().min(1).max(400).default(200),
@@ -451,32 +538,47 @@ export async function POST(request: Request): Promise<Response> {
           };
         },
       }),
-      writeFile: tool({
-        description:
-          "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
-        inputSchema: z.object({
-          content: z.string(),
-          filePath: z.string().min(1),
-          mode: z.enum(["overwrite", "append"]).default("overwrite"),
-        }),
-        execute: async ({ content, filePath, mode }) => {
-          const absolutePath = resolveProjectPath(projectPath, filePath);
-          await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+      ...(isPlanMode
+        ? {}
+        : {
+            writeFile: tool({
+              description:
+                "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
+              inputSchema: z.object({
+                content: z.string(),
+                filePath: z.string().min(1),
+                mode: z.enum(["overwrite", "append"]).default("overwrite"),
+              }),
+              execute: async ({ content, filePath, mode }) => {
+                const absolutePath = resolveProjectPath(projectPath, filePath);
+                let previousContent: string | undefined;
+                try {
+                  previousContent = await fs.readFile(absolutePath, "utf8");
+                } catch {
+                  // File doesn't exist yet
+                }
 
-          if (mode === "append") {
-            await fs.appendFile(absolutePath, content, "utf8");
-          } else {
-            await fs.writeFile(absolutePath, content, "utf8");
-          }
+                await fs.mkdir(path.dirname(absolutePath), {
+                  recursive: true,
+                });
 
-          return {
-            bytesWritten: Buffer.byteLength(content, "utf8"),
-            filePath,
-            mode,
-            status: "ok",
-          };
-        },
-      }),
+                if (mode === "append") {
+                  await fs.appendFile(absolutePath, content, "utf8");
+                } else {
+                  await fs.writeFile(absolutePath, content, "utf8");
+                }
+
+                return {
+                  bytesWritten: Buffer.byteLength(content, "utf8"),
+                  filePath,
+                  mode,
+                  status: "ok",
+                  ...(previousContent !== undefined ? { previousContent } : {}),
+                  content,
+                };
+              },
+            }),
+          }),
       searchInFiles: tool({
         description:
           "Search text across project files and return matching file/line snippets.",
