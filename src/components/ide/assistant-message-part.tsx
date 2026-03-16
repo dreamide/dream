@@ -9,6 +9,11 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -368,16 +373,23 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
   );
 };
 
-export const AssistantMessagePart = ({ part }: { part: MessagePart }) => {
+export const AssistantMessagePart = ({
+  part,
+  isStreaming = false,
+}: {
+  part: MessagePart;
+  isStreaming?: boolean;
+}) => {
   if (part.type === "text") {
     return <MessageResponse>{part.text}</MessageResponse>;
   }
 
   if (part.type === "reasoning") {
     return (
-      <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-sm">
-        {part.text}
-      </pre>
+      <Reasoning className="w-full" isStreaming={isStreaming}>
+        <ReasoningTrigger />
+        <ReasoningContent>{part.text}</ReasoningContent>
+      </Reasoning>
     );
   }
 
