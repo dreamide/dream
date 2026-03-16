@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Group,
+  type GroupImperativeHandle,
   Panel,
-  type PanelImperativeHandle,
 } from "react-resizable-panels";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
@@ -75,14 +75,12 @@ export const IdeShell = () => {
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
   const setPreviewLoading = useIdeStore((s) => s.setPreviewLoading);
-  const togglePanel = useIdeStore((s) => s.togglePanel);
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Refs ─────────────────────────────────────────────────────────────
-  const leftPanelRef = useRef<PanelImperativeHandle | null>(null);
-  const middlePanelRef = useRef<PanelImperativeHandle | null>(null);
-  const rightPanelRef = useRef<PanelImperativeHandle | null>(null);
+  const mainGroupRef = useRef<GroupImperativeHandle | null>(null);
+  const savedLayoutRef = useRef<Record<string, number> | null>(null);
   const previewHostRef = useRef<HTMLDivElement | null>(null);
   const providerCredentialsRef = useRef({
     anthropicAccessToken: settings.anthropicAccessToken,
@@ -559,36 +557,30 @@ export const IdeShell = () => {
     : EMPTY_TERMINAL_SESSION_IDS;
   const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
 
-  // Sync panel collapsed states with visibility toggles
+  // Save and restore layout when middle/right panels toggle visibility.
   useEffect(() => {
-    const panel = leftPanelRef.current;
-    if (!panel) return;
-    if (leftVisible) {
-      panel.expand();
-    } else {
-      panel.collapse();
-    }
-  }, [leftVisible]);
+    const group = mainGroupRef.current;
+    if (!group) return;
 
-  useEffect(() => {
-    const panel = middlePanelRef.current;
-    if (!panel) return;
-    if (middleVisible) {
-      panel.expand();
-    } else {
-      panel.collapse();
+    if (middleVisible && rightVisible && savedLayoutRef.current) {
+      const layout = savedLayoutRef.current;
+      savedLayoutRef.current = null;
+      // Delay to next frame so the Group processes updated constraints first
+      requestAnimationFrame(() => {
+        group.setLayout(layout);
+      });
     }
-  }, [middleVisible]);
+  }, [middleVisible, rightVisible]);
 
-  useEffect(() => {
-    const panel = rightPanelRef.current;
-    if (!panel) return;
-    if (rightVisible) {
-      panel.expand();
-    } else {
-      panel.collapse();
-    }
-  }, [rightVisible]);
+  // Save layout whenever it changes and both panels are visible
+  const handleMainLayoutChanged = useCallback(
+    (layout: Record<string, number>) => {
+      if (middleVisible && rightVisible) {
+        savedLayoutRef.current = layout;
+      }
+    },
+    [middleVisible, rightVisible],
+  );
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
@@ -604,47 +596,36 @@ export const IdeShell = () => {
         {!stateHydrated ? null : (
           <Group
             className="h-full"
+            groupRef={mainGroupRef}
             id="ide-root"
+            onLayoutChanged={handleMainLayoutChanged}
             orientation="horizontal"
             resizeTargetMinimumSize={{ coarse: 28, fine: 16 }}
           >
+            {/* ─── LEFT: Projects sidebar ─── */}
             <Panel
-              className="min-w-[100px] pl-2"
-              collapsedSize={0}
-              collapsible
-              defaultSize={leftVisible ? PROJECT_SIDEBAR_WIDTH_PX : 0}
+              className={leftVisible ? "min-w-0 pl-2" : "!hidden"}
+              defaultSize={PROJECT_SIDEBAR_WIDTH_PX}
               id="ide-left"
-              maxSize={PROJECT_SIDEBAR_MAX_WIDTH_PX}
-              minSize={PROJECT_SIDEBAR_MIN_WIDTH_PX}
-              onResize={(size) => {
-                const collapsed = size.inPixels === 0;
-                const visible = useIdeStore.getState().panelVisibility.left;
-                if (collapsed && visible) togglePanel("left");
-                if (!collapsed && !visible) togglePanel("left");
-              }}
-              panelRef={leftPanelRef}
+              maxSize={leftVisible ? PROJECT_SIDEBAR_MAX_WIDTH_PX : 0}
+              minSize={leftVisible ? PROJECT_SIDEBAR_MIN_WIDTH_PX : 0}
             >
               <div className="h-full pb-2">
                 <ProjectSidebar />
               </div>
             </Panel>
 
-            <ResizeHandle className="w-px" id="ide-left-handle" />
+            {leftVisible && (middleVisible || rightVisible) ? (
+              <ResizeHandle className="w-px" id="ide-left-handle" />
+            ) : null}
 
+            {/* ─── MIDDLE: Chat + Terminal ─── */}
             <Panel
-              className="min-w-0"
-              collapsedSize={0}
-              collapsible
-              defaultSize={middleVisible ? CHAT_PANEL_DEFAULT_WIDTH_PX : 0}
+              className={middleVisible ? "min-w-0" : "!hidden"}
+              defaultSize={CHAT_PANEL_DEFAULT_WIDTH_PX}
               id="ide-middle"
-              minSize={CHAT_PANEL_MIN_WIDTH_PX}
-              onResize={(size) => {
-                const collapsed = size.inPixels === 0;
-                const visible = useIdeStore.getState().panelVisibility.middle;
-                if (collapsed && visible) togglePanel("middle");
-                if (!collapsed && !visible) togglePanel("middle");
-              }}
-              panelRef={middlePanelRef}
+              maxSize={middleVisible ? undefined : 0}
+              minSize={middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0}
             >
               <div className="h-full">
                 <div className="flex h-full w-full flex-col rounded-lg">
@@ -707,30 +688,23 @@ export const IdeShell = () => {
               </div>
             </Panel>
 
-            <ResizeHandle className="w-px" id="ide-middle-handle" />
+            {middleVisible && rightVisible ? (
+              <ResizeHandle className="w-px" id="ide-middle-handle" />
+            ) : null}
 
+            {/* ─── RIGHT: Preview ─── */}
             <Panel
-              className="min-w-0"
-              collapsedSize={0}
-              collapsible
-              defaultSize={rightVisible ? PREVIEW_PANEL_DEFAULT_WIDTH_PX : 0}
+              className={rightVisible ? "min-w-0" : "!hidden"}
+              defaultSize={PREVIEW_PANEL_DEFAULT_WIDTH_PX}
               id="ide-right"
-              minSize={PREVIEW_PANEL_MIN_WIDTH_PX}
-              onResize={(size) => {
-                const collapsed = size.inPixels === 0;
-                const visible = useIdeStore.getState().panelVisibility.right;
-                if (collapsed && visible) togglePanel("right");
-                if (!collapsed && !visible) togglePanel("right");
-              }}
-              panelRef={rightPanelRef}
+              maxSize={rightVisible ? undefined : 0}
+              minSize={rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0}
             >
               <div className="h-full pr-2 pb-2">
-                {rightVisible ? (
-                  <PreviewPanel
-                    onSyncPreviewBounds={syncPreviewBounds}
-                    previewHostRef={previewHostRef}
-                  />
-                ) : null}
+                <PreviewPanel
+                  onSyncPreviewBounds={syncPreviewBounds}
+                  previewHostRef={previewHostRef}
+                />
               </div>
             </Panel>
           </Group>
