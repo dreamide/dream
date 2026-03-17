@@ -284,9 +284,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-          expanded
-            ? "border-primary/30 bg-primary/5 text-foreground"
-            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
           hasError && "border-destructive/30 text-destructive",
           isRunning && "animate-pulse",
         )}
@@ -296,7 +294,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
         <FolderIcon className="size-3.5 shrink-0" />
         <span className="font-medium">{directory ?? "files"}</span>
         {hasOutput ? (
-          <span className="text-muted-foreground">
+          <span className="opacity-70">
             {count} {count === 1 ? "file" : "files"}
           </span>
         ) : null}
@@ -337,9 +335,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-          expanded
-            ? "border-primary/30 bg-primary/5 text-foreground"
-            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
           hasError && "border-destructive/30 text-destructive",
           isRunning && "animate-pulse",
         )}
@@ -348,9 +344,6 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
       >
         <EyeIcon className="size-3.5 shrink-0" />
         <span className="max-w-48 truncate font-medium">{filename}</span>
-        {lineRange ? (
-          <span className="text-muted-foreground">{lineRange}</span>
-        ) : null}
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded && content && filePath ? (
@@ -408,9 +401,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-          expanded
-            ? "border-primary/30 bg-primary/5 text-foreground"
-            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
           hasError && "border-destructive/30 text-destructive",
           isRunning && "animate-pulse",
         )}
@@ -425,8 +416,8 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         ) : (
           <span className="font-medium">Search</span>
         )}
-        {hasOutput ? (
-          <span className="text-muted-foreground">
+        {hasOutput && count > 0 ? (
+          <span className="opacity-70">
             {count} {count === 1 ? "match" : "matches"}
           </span>
         ) : null}
@@ -518,9 +509,7 @@ export const WriteFileChip = ({
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-          expanded
-            ? "border-primary/30 bg-primary/5 text-foreground"
-            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
           hasError && "border-destructive/30 text-destructive",
           isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
           isRunning && "animate-pulse",
@@ -530,11 +519,9 @@ export const WriteFileChip = ({
       >
         <PenLineIcon className="size-3.5 shrink-0" />
         <span className="max-w-48 truncate font-medium">{filename}</span>
-        {mode === "append" ? (
-          <span className="text-muted-foreground">append</span>
-        ) : null}
+        {mode === "append" ? <span className="opacity-70">append</span> : null}
         {bytesWritten !== null ? (
-          <span className="text-muted-foreground">
+          <span className="opacity-70">
             {bytesWritten.toLocaleString()} bytes
           </span>
         ) : null}
