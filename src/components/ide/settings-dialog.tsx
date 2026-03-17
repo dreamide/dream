@@ -1113,10 +1113,6 @@ export const SettingsDialog = () => {
                         <p className="font-medium text-sm">OpenAI</p>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Enabled OpenAI Models</Label>
-                        <p className="text-muted-foreground text-sm">
-                          Only enabled models appear in project chat.
-                        </p>
                         <div className="space-y-1.5 rounded-md p-1">
                           {availableOpenAiModels.length === 0 ? (
                             <p className="px-2 py-1.5 text-muted-foreground text-sm">
@@ -1205,10 +1201,6 @@ export const SettingsDialog = () => {
                         <p className="font-medium text-sm">Anthropic</p>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Enabled Anthropic Models</Label>
-                        <p className="text-muted-foreground text-sm">
-                          Only enabled models appear in project chat.
-                        </p>
                         <div className="space-y-1.5 rounded-md p-1">
                           {availableAnthropicModels.length === 0 ? (
                             <p className="px-2 py-1.5 text-muted-foreground text-sm">
@@ -1300,10 +1292,6 @@ export const SettingsDialog = () => {
                         <p className="font-medium text-sm">Gemini</p>
                       </div>
                       <div className="space-y-1.5">
-                        <Label>Enabled Gemini Models</Label>
-                        <p className="text-muted-foreground text-sm">
-                          Only enabled models appear in project chat.
-                        </p>
                         <div className="space-y-1.5 rounded-md p-1">
                           {availableGeminiModels.length === 0 ? (
                             <p className="px-2 py-1.5 text-muted-foreground text-sm">
