@@ -566,10 +566,40 @@ export const ChatPanel = ({
                 chipGroup = [];
               };
 
+              // Check if a part renders as invisible (null) and should
+              // be skipped so it doesn't break chip group continuity
+              const isInvisiblePart = (
+                part: (typeof nonSourceParts)[number],
+                partIndex: number,
+              ) => {
+                if (part.type === "step-start") return true;
+                if (
+                  part.type === "reasoning" &&
+                  "text" in part &&
+                  typeof part.text === "string" &&
+                  part.text.trim().length === 0 &&
+                  !(
+                    isStreaming &&
+                    isLastMessage &&
+                    partIndex === nonSourceParts.length - 1
+                  )
+                )
+                  return true;
+                if (
+                  part.type === "text" &&
+                  "text" in part &&
+                  typeof part.text === "string" &&
+                  part.text.trim().length === 0
+                )
+                  return true;
+                return false;
+              };
+
               for (let i = 0; i < nonSourceParts.length; i++) {
                 const part = nonSourceParts[i];
                 if (isChipToolPart(part)) {
                   chipGroup.push({ part, index: i });
+                } else if (isInvisiblePart(part, i)) {
                 } else {
                   flushChipGroup();
                   const isLastPart = i === nonSourceParts.length - 1;
