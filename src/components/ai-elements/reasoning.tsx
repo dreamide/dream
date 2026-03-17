@@ -30,6 +30,7 @@ interface ReasoningContextValue {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   duration: number | undefined;
+  hasContent: boolean;
 }
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
@@ -48,6 +49,7 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   duration?: number;
+  hasContent?: boolean;
 };
 
 const AUTO_CLOSE_DELAY = 1000;
@@ -61,6 +63,7 @@ export const Reasoning = memo(
     defaultOpen,
     onOpenChange,
     duration: durationProp,
+    hasContent = true,
     children,
     ...props
   }: ReasoningProps) => {
@@ -127,8 +130,8 @@ export const Reasoning = memo(
     );
 
     const contextValue = useMemo(
-      () => ({ duration, isOpen, isStreaming, setIsOpen }),
-      [duration, isOpen, isStreaming, setIsOpen],
+      () => ({ duration, hasContent, isOpen, isStreaming, setIsOpen }),
+      [duration, hasContent, isOpen, isStreaming, setIsOpen],
     );
 
     return (
@@ -169,7 +172,7 @@ export const ReasoningTrigger = memo(
     getThinkingMessage = defaultGetThinkingMessage,
     ...props
   }: ReasoningTriggerProps) => {
-    const { isStreaming, isOpen, duration } = useReasoning();
+    const { isStreaming, isOpen, duration, hasContent } = useReasoning();
 
     return (
       <CollapsibleTrigger
@@ -177,18 +180,21 @@ export const ReasoningTrigger = memo(
           "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
           className,
         )}
+        disabled={!hasContent}
         {...props}
       >
         {children ?? (
           <>
             <BrainIcon className="size-4" />
             {getThinkingMessage(isStreaming, duration)}
-            <ChevronDownIcon
-              className={cn(
-                "size-4 transition-transform",
-                isOpen ? "rotate-180" : "rotate-0",
-              )}
-            />
+            {hasContent && (
+              <ChevronDownIcon
+                className={cn(
+                  "size-4 transition-transform",
+                  isOpen ? "rotate-180" : "rotate-0",
+                )}
+              />
+            )}
           </>
         )}
       </CollapsibleTrigger>
