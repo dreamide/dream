@@ -964,7 +964,9 @@ Your primary responsibility is to safely edit files inside the active project.
 Use the available tools to inspect files before proposing changes.
 Always reference concrete files and exact updates.
 When writing files, prefer complete and correct output over partial snippets.
-Never attempt to access files outside the active project root.`;
+Never attempt to access files outside the active project root.
+
+Important: Always explain your reasoning and findings in text before and after making tool calls. Briefly describe what you are looking for, what you found, and what you plan to do next. Do not make sequences of tool calls without any explanatory text in between.`;
 
 const SYSTEM_PROMPT_PLAN = `You are an expert coding copilot embedded in a desktop IDE.
 
@@ -972,13 +974,15 @@ Your role is to analyze code and create detailed plans without making any change
 Use the available tools to read and search files to understand the codebase.
 Provide concrete, actionable plans that reference specific files and line numbers.
 Describe exactly what changes should be made and why, but do NOT write or modify any files.
-Never attempt to access files outside the active project root.`;
+Never attempt to access files outside the active project root.
+
+Important: Always explain your reasoning and findings in text before and after making tool calls. Briefly describe what you are looking for, what you found, and what you plan to do next. Do not make sequences of tool calls without any explanatory text in between.`;
 
 const OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
 const GEMINI_OPENAI_BASE_URL =
   "https://generativelanguage.googleapis.com/v1beta/openai";
 const DEFAULT_TOOL_STEP_LIMIT = 8;
-const REASONING_TOOL_STEP_LIMIT = 20;
+const REASONING_TOOL_STEP_LIMIT = 50;
 
 const normalizePath = (value) => value.replace(/\\/g, "/");
 
@@ -1400,3 +1404,98 @@ export function startApiServer(port) {
 }
 
 export { app };
+
+const projectFilesRequestSchema = z.object({
+  directory: z.string().min(1).default("."),
+  maxResults: z.number().int().min(1).max(5000).default(2000),
+  projectPath: z.string().min(1),
+});
+
+const projectFileRequestSchema = z.object({
+  endLine: z.number().int().min(1).optional(),
+  filePath: z.string().min(1),
+  projectPath: z.string().min(1),
+  startLine: z.number().int().min(1).optional(),
+});
+
+const ensureProjectDirectory = async (projectPath) => {
+  const stats = await fs.stat(projectPath);
+  if (!stats.isDirectory()) {
+    throw new Error("projectPath must point to a directory.");
+  }
+};
+
+app.post("/api/project-files", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectFilesRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { directory, maxResults, projectPath } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    const files = await listProjectFiles(projectPath, directory, maxResults);
+    return c.json({ count: files.length, files });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to list files.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-file", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectFileRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { endLine, filePath, projectPath, startLine } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    const absolutePath = resolveProjectPath(projectPath, filePath);
+    const stats = await fs.stat(absolutePath);
+    if (!stats.isFile()) {
+      return c.text(`Not a file: ${filePath}`, 400);
+    }
+
+    const fullText = await fs.readFile(absolutePath, "utf8");
+
+    if (!startLine && !endLine) {
+      return c.json({ content: fullText, filePath });
+    }
+
+    const lines = fullText.split(/\r?\n/);
+    const safeStart = Math.max(1, startLine ?? 1);
+    const safeEnd = Math.min(lines.length, endLine ?? lines.length);
+    if (safeStart > safeEnd) {
+      return c.text("startLine cannot be greater than endLine.", 400);
+    }
+
+    return c.json({
+      content: lines.slice(safeStart - 1, safeEnd).join("\n"),
+      endLine: safeEnd,
+      filePath,
+      startLine: safeStart,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to read file.";
+    return c.text(message, 400);
+  }
+});
