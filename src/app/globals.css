@@ -377,6 +377,28 @@
   }
 }
 
+/* Streamdown markdown list styling overrides */
+[data-streamdown="unordered-list"],
+[data-streamdown="ordered-list"] {
+  list-style-position: outside;
+  padding-left: 1.5em;
+}
+
+[data-streamdown="unordered-list"] [data-streamdown="unordered-list"],
+[data-streamdown="unordered-list"] [data-streamdown="ordered-list"],
+[data-streamdown="ordered-list"] [data-streamdown="unordered-list"],
+[data-streamdown="ordered-list"] [data-streamdown="ordered-list"] {
+  padding-left: 1.5em;
+}
+
+[data-streamdown="list-item"] {
+  padding-left: 0.25em;
+}
+
+[data-streamdown="list-item"]::marker {
+  color: var(--muted-foreground);
+}
+
 /* Use native OS scrollbars in xterm instead of xterm's custom overlay scrollbar. */
 .xterm .xterm-scrollable-element > .scrollbar,
 .xterm .xterm-scrollable-element > .shadow {
