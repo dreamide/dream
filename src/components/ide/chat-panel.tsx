@@ -45,7 +45,9 @@ import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -63,6 +65,7 @@ import {
 import { getModelReasoningEfforts } from "@/lib/models";
 import { cn } from "@/lib/utils";
 import type {
+  AiProvider,
   ChatMode,
   ProjectConfig,
   ReasoningEffort,
@@ -86,6 +89,12 @@ import {
 } from "./ide-types";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
+
+const PROVIDER_LABELS: Record<AiProvider, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  gemini: "Gemini",
+};
 
 const ConversationScrollMemory = ({
   scrollPositionsRef,
@@ -197,6 +206,21 @@ export const ChatPanel = ({
     );
   }, [connectedProviders, providerModels, settings]);
 
+  const groupedModelOptions = useMemo(() => {
+    const groups: {
+      provider: AiProvider;
+      label: string;
+      models: typeof allModelOptions;
+    }[] = [];
+    for (const provider of connectedProviders) {
+      const models = allModelOptions.filter((m) => m.provider === provider);
+      if (models.length > 0) {
+        groups.push({ provider, label: PROVIDER_LABELS[provider], models });
+      }
+    }
+    return groups;
+  }, [connectedProviders, allModelOptions]);
+
   const selectedModelOption =
     allModelOptions.find(
       (option) =>
@@ -222,34 +246,40 @@ export const ChatPanel = ({
     [],
   );
 
-  const { messages, sendMessage, status, stop, addToolApprovalResponse } =
-    useChat({
-      id: `thread:${thread.id}`,
-      messages: threadMessages,
-      onError: (error) => {
-        console.error("[chat error]", error);
+  const {
+    messages,
+    sendMessage,
+    status,
+    stop,
+    addToolApprovalResponse,
+    clearError,
+  } = useChat({
+    id: `thread:${thread.id}`,
+    messages: threadMessages,
+    onError: (error) => {
+      console.error("[chat error]", error);
 
-        // The server-side onError already enriches the message, so
-        // error.message should be descriptive. Guard against edge cases
-        // where only the generic class name "Error" comes through.
-        const msg = error.message;
-        if (msg && msg !== "Error") {
-          setLocalError(msg);
-          return;
-        }
+      // The server-side onError already enriches the message, so
+      // error.message should be descriptive. Guard against edge cases
+      // where only the generic class name "Error" comes through.
+      const msg = error.message;
+      if (msg && msg !== "Error") {
+        setLocalError(msg);
+        return;
+      }
 
-        // Fallback: try cause chain
-        if (error.cause instanceof Error && error.cause.message) {
-          setLocalError(error.cause.message);
-          return;
-        }
+      // Fallback: try cause chain
+      if (error.cause instanceof Error && error.cause.message) {
+        setLocalError(error.cause.message);
+        return;
+      }
 
-        setLocalError(
-          "An unexpected error occurred. Check the developer console for details.",
-        );
-      },
-      transport,
-    });
+      setLocalError(
+        "An unexpected error occurred. Check the developer console for details.",
+      );
+    },
+    transport,
+  });
 
   useEffect(() => {
     setMessagesForThread(thread.id, messages);
@@ -310,6 +340,7 @@ export const ChatPanel = ({
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       setLocalError(null);
+      clearError();
 
       const activeOption =
         allModelOptions.find(
@@ -465,6 +496,7 @@ export const ChatPanel = ({
     },
     [
       allModelOptions,
+      clearError,
       threadMessages,
       connectedProviders,
       project.path,
@@ -699,7 +731,10 @@ export const ChatPanel = ({
             <button
               type="button"
               className="mt-0.5 shrink-0 rounded p-0.5 hover:bg-red-500/10"
-              onClick={() => setLocalError(null)}
+              onClick={() => {
+                setLocalError(null);
+                clearError();
+              }}
             >
               <X className="size-3.5" />
             </button>
@@ -808,14 +843,23 @@ export const ChatPanel = ({
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="text-xs" side="top">
-                  {allModelOptions.map((option) => (
-                    <SelectItem
-                      className="text-xs"
-                      key={`${option.provider}:${option.id}`}
-                      value={option.id}
-                    >
-                      {option.label}
-                    </SelectItem>
+                  {groupedModelOptions.map((group) => (
+                    <SelectGroup key={group.provider}>
+                      {connectedProviders.length > 1 && (
+                        <SelectLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                          {group.label}
+                        </SelectLabel>
+                      )}
+                      {group.models.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={`${option.provider}:${option.id}`}
+                          value={option.id}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   ))}
                 </SelectContent>
               </Select>
