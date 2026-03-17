@@ -421,7 +421,7 @@ export const FileExplorerPanel = () => {
           ) : selectedFileContent !== null ? (
             <div className="h-full p-3">
               <CodeBlock
-                className="h-full max-h-full overflow-hidden [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                className="flex h-full max-h-full flex-col overflow-hidden [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
                 code={selectedFileContent}
                 language={inferLanguage(selectedFilePath)}
                 showLineNumbers

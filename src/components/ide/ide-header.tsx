@@ -159,7 +159,7 @@ export const IdeFooter = () => {
         <div />
       )}
 
-      {appReady ? (
+      {appReady && panelVisibility.right ? (
         <Tabs
           className="ml-auto"
           onValueChange={handleRightPanelViewChange}
@@ -172,7 +172,6 @@ export const IdeFooter = () => {
                   <TabsTrigger
                     aria-label="Show preview"
                     className="h-6 w-8 px-0 data-[active]:bg-background"
-                    disabled={!panelVisibility.right}
                     value="preview"
                   />
                 }
@@ -187,7 +186,6 @@ export const IdeFooter = () => {
                   <TabsTrigger
                     aria-label="Show file explorer"
                     className="h-6 w-8 px-0 data-[active]:bg-background"
-                    disabled={!panelVisibility.right}
                     value="explorer"
                   />
                 }

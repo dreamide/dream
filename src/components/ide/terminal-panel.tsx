@@ -2,25 +2,55 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { Plus, TerminalSquare, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { type HTMLAttributes, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
+import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { echoPipeFallbackInput } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
-const TERMINAL_SURFACE_CLASS =
-  "overflow-hidden rounded-lg bg-[#0b1020] text-slate-100";
-const TERMINAL_HOST_CLASS =
-  "h-full w-full overflow-hidden rounded-lg bg-[#0a0f1d]";
-const TERMINAL_THEME = {
-  background: "#0a0f1d",
-  cursor: "#f8fafc",
-  foreground: "#e2e8f0",
-  selectionBackground: "rgba(96, 165, 250, 0.3)",
+const TERMINAL_SURFACE_CLASSES =
+  "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
+const TERMINAL_HOST_CLASS = "h-full w-full overflow-hidden";
+
+/**
+ * Wrapper that forces a dark color-scheme on the terminal panel, preserving
+ * the active base-color so that tinted dark palettes (slate, zinc, …) still
+ * apply correctly.
+ */
+const TerminalSurface = ({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) => {
+  const baseColor = useUiStore((s) => s.baseColor);
+
+  return (
+    <div
+      className={cn("dark", TERMINAL_SURFACE_CLASSES, className)}
+      data-base-color={baseColor === "neutral" ? undefined : baseColor}
+      {...props}
+    />
+  );
+};
+
+const resolveTerminalTheme = (host: HTMLElement) => {
+  const style = getComputedStyle(host);
+  const bg = style.getPropertyValue("--background").trim();
+  const fg = style.getPropertyValue("--foreground").trim();
+  const accent = style.getPropertyValue("--ring").trim();
+
+  return {
+    background: bg ? `oklch(${bg})` : "#0a0f1d",
+    cursor: fg ? `oklch(${fg})` : "#f8fafc",
+    foreground: fg ? `oklch(${fg})` : "#e2e8f0",
+    selectionBackground: accent
+      ? `oklch(${accent} / 30%)`
+      : "rgba(96, 165, 250, 0.3)",
+  };
 };
 
 export interface TerminalPanelProps {
@@ -86,7 +116,7 @@ export const TerminalPanel = ({
       fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 12,
-      theme: TERMINAL_THEME,
+      theme: resolveTerminalTheme(host),
     });
     terminalInstanceRef.current = terminal;
 
@@ -158,22 +188,21 @@ export const TerminalPanel = ({
     <div className={cn("flex h-full min-h-0 flex-col", bordered ? "pt-2" : "")}>
       {showHeader ? (
         <div className="min-h-0 flex-1 p-2">
-          <div
-            className={cn(
-              "flex h-full min-h-0 flex-col",
-              TERMINAL_SURFACE_CLASS,
-            )}
+          <TerminalSurface
+            className="flex h-full min-h-0 flex-col"
             style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
           >
-            <div className="flex items-center justify-between px-3 py-1.5 text-slate-100 text-xs">
+            <div className="flex items-center justify-between px-3 py-1.5 text-xs">
               <div className="flex min-w-0 items-center gap-2">
-                <TerminalSquare className="size-4 shrink-0 text-slate-300" />
+                <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
                 <span className="truncate font-medium">{title}</span>
-                <span className="truncate text-slate-400">{shellLabel}</span>
+                <span className="truncate text-muted-foreground">
+                  {shellLabel}
+                </span>
               </div>
               <Button
                 aria-label={`Close ${title.toLowerCase()}`}
-                className="h-7 w-7 p-0 text-slate-300 hover:bg-white/8 hover:text-white"
+                className="h-7 w-7 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => {
                   onClose();
                   if (stopOnClose) {
@@ -190,7 +219,7 @@ export const TerminalPanel = ({
             <div className="min-h-0 flex-1 p-2">
               <div className={TERMINAL_HOST_CLASS} ref={hostRef} />
             </div>
-          </div>
+          </TerminalSurface>
         </div>
       ) : null}
       {!showHeader ? (
@@ -238,13 +267,13 @@ export const ProjectTerminalTabsPanel = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col p-2">
-      <div
-        className={cn("flex min-h-0 flex-1 flex-col", TERMINAL_SURFACE_CLASS)}
+      <TerminalSurface
+        className="flex min-h-0 flex-1 flex-col"
         style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
       >
         <div className="flex items-center gap-2 px-3 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-            <TerminalSquare className="size-4 shrink-0 text-slate-300" />
+            <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
             <Tabs
               className="min-w-0 flex-1"
               onValueChange={(value) =>
@@ -252,18 +281,18 @@ export const ProjectTerminalTabsPanel = ({
               }
               value={resolvedActiveSessionId}
             >
-              <TabsList className="h-8 max-w-full justify-start overflow-x-auto bg-white/6">
+              <TabsList className="h-8 max-w-full justify-start overflow-x-auto bg-muted/60">
                 {sessionIds.map((sessionId, index) => (
                   <div className="relative shrink-0" key={sessionId}>
                     <TabsTrigger
-                      className="h-6 shrink-0 px-2 pr-9 text-slate-400 text-xs hover:text-slate-100 data-[active]:bg-white/10 data-[active]:text-slate-50"
+                      className="h-6 shrink-0 px-2 pr-9 text-muted-foreground text-xs hover:text-foreground data-[active]:bg-background data-[active]:text-foreground"
                       value={sessionId}
                     >
                       <span className="truncate">Terminal {index + 1}</span>
                     </TabsTrigger>
                     <button
                       aria-label={`Close terminal ${index + 1}`}
-                      className="-translate-y-1/2 absolute top-1/2 right-1.5 rounded p-0.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-50"
+                      className="-translate-y-1/2 absolute top-1/2 right-1.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -281,7 +310,7 @@ export const ProjectTerminalTabsPanel = ({
                 ))}
                 <Button
                   aria-label="Open another terminal"
-                  className="ml-2 h-6 w-6 shrink-0 rounded-md p-0 text-slate-300 hover:bg-white/10 hover:text-white"
+                  className="ml-2 h-6 w-6 shrink-0 rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   onClick={() => void addProjectTerminal(projectId)}
                   size="sm"
                   type="button"
@@ -292,7 +321,7 @@ export const ProjectTerminalTabsPanel = ({
               </TabsList>
             </Tabs>
           </div>
-          <span className="truncate text-slate-400 text-xs">
+          <span className="truncate text-muted-foreground text-xs">
             {terminalShell ?? "system shell"}
           </span>
         </div>
@@ -313,7 +342,7 @@ export const ProjectTerminalTabsPanel = ({
             }
           />
         </div>
-      </div>
+      </TerminalSurface>
     </div>
   );
 };
