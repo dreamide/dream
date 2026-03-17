@@ -40,3 +40,7 @@ yarn-error.log*
 .vscode/*
 !.vscode/settings.json
 node_modules
+
+# other
+nul
+.claude
