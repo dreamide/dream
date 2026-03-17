@@ -514,7 +514,7 @@ export const ChatPanel = ({
               </SourcesContent>
             </Sources>
           ) : null}
-          <MessageContent>
+          <MessageContent className="gap-3">
             {(() => {
               // Group consecutive chip-eligible parts into flex-wrap rows
               const elements: React.ReactNode[] = [];
