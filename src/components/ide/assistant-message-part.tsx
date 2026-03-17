@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import {
+  BrainIcon,
   CheckIcon,
   FileIcon,
   FileTextIcon,
@@ -749,6 +750,20 @@ export const AssistantMessagePart = ({
   }
 
   if (part.type === "reasoning") {
+    const hasReasoningText = part.text.trim().length > 0;
+
+    if (!hasReasoningText && !isStreaming) {
+      // No reasoning text available (e.g. OpenAI o-series models hide chain-of-thought)
+      return (
+        <Reasoning className="mb-0 w-full" defaultOpen={false}>
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <BrainIcon className="size-4" />
+            <p>Thought for a few seconds</p>
+          </div>
+        </Reasoning>
+      );
+    }
+
     return (
       <Reasoning className="mb-0 w-full" isStreaming={isStreaming}>
         <ReasoningTrigger />
