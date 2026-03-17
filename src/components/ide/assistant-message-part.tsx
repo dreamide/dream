@@ -351,11 +351,12 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded && content && filePath ? (
-        <div className="mt-2 max-h-96 overflow-auto rounded-md border">
+        <div className="mt-2 max-h-96 overflow-auto">
           <CodeBlock
             code={content}
             language={inferLanguage(filePath)}
             showLineNumbers
+            style={{ contentVisibility: "visible" }}
           >
             <CodeBlockHeader>
               <CodeBlockTitle>
@@ -603,11 +604,12 @@ export const WriteFileChip = ({
           ) : null}
           {/* Content preview */}
           {content && filePath ? (
-            <div className="max-h-96 overflow-auto rounded-md border">
+            <div className="max-h-96 overflow-auto">
               <CodeBlock
                 code={content}
                 language={inferLanguage(filePath)}
                 showLineNumbers
+                style={{ contentVisibility: "visible" }}
               >
                 <CodeBlockHeader>
                   <CodeBlockTitle>
@@ -748,7 +750,7 @@ export const AssistantMessagePart = ({
 
   if (part.type === "reasoning") {
     return (
-      <Reasoning className="w-full" isStreaming={isStreaming}>
+      <Reasoning className="mb-0 w-full" isStreaming={isStreaming}>
         <ReasoningTrigger />
         <ReasoningContent>{part.text}</ReasoningContent>
       </Reasoning>
