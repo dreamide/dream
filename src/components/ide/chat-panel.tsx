@@ -70,8 +70,10 @@ import type {
 import {
   AssistantMessagePart,
   isChipToolPart,
+  ListFilesChip,
   ReadFileChip,
   SearchInFilesChip,
+  WriteFileChip,
 } from "./assistant-message-part";
 import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
@@ -539,28 +541,25 @@ export const ChatPanel = ({
                         chipPart as Record<string, unknown>,
                         chipIndex,
                       );
+                      const chipPart_ = chipPart as Parameters<
+                        typeof ReadFileChip
+                      >[0]["part"];
                       if (toolName === "readFile") {
+                        return <ReadFileChip key={key} part={chipPart_} />;
+                      }
+                      if (toolName === "listFiles") {
+                        return <ListFilesChip key={key} part={chipPart_} />;
+                      }
+                      if (toolName === "writeFile") {
                         return (
-                          <ReadFileChip
+                          <WriteFileChip
                             key={key}
-                            part={
-                              chipPart as Parameters<
-                                typeof ReadFileChip
-                              >[0]["part"]
-                            }
+                            onToolApproval={addToolApprovalResponse}
+                            part={chipPart_}
                           />
                         );
                       }
-                      return (
-                        <SearchInFilesChip
-                          key={key}
-                          part={
-                            chipPart as Parameters<
-                              typeof SearchInFilesChip
-                            >[0]["part"]
-                          }
-                        />
-                      );
+                      return <SearchInFilesChip key={key} part={chipPart_} />;
                     })}
                   </div>,
                 );
@@ -585,7 +584,6 @@ export const ChatPanel = ({
                         i,
                       )}
                       isStreaming={isPartStreaming}
-                      onToolApproval={addToolApprovalResponse}
                       part={part}
                     />,
                   );

@@ -3,6 +3,8 @@ import {
   CheckIcon,
   FileIcon,
   FileTextIcon,
+  FolderIcon,
+  PencilIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react";
@@ -235,7 +237,13 @@ const FileTreeNodeView = ({ node }: { node: FileTreeNode }) => {
   );
 };
 
-const ListFilesOutput = ({ output }: { output: unknown }) => {
+export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
+  const [expanded, setExpanded] = useState(false);
+  const output = part.output;
+  const isRunning =
+    part.state === "input-available" || part.state === "input-streaming";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
+
   const { files, count } = useMemo(() => {
     if (!isRecord(output) || !Array.isArray(output.files)) {
       return { files: null, count: 0 };
@@ -252,29 +260,52 @@ const ListFilesOutput = ({ output }: { output: unknown }) => {
     return buildFileTree(files);
   }, [files]);
 
-  if (!files || !root) {
-    return <JsonBlock value={output} />;
-  }
+  const hasOutput = files !== null && root !== null;
+  const directory =
+    isRecord(part.input) && isString(part.input.directory)
+      ? part.input.directory
+      : null;
 
-  if (files.length === 0) {
-    return <p className="text-muted-foreground text-sm">No files found.</p>;
-  }
-
-  const sortedChildren = [...root.children.values()].sort((a, b) => {
-    if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-    return a.name.localeCompare(b.name);
-  });
+  const sortedChildren = useMemo(() => {
+    if (!root) return [];
+    return [...root.children.values()].sort((a, b) => {
+      if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [root]);
 
   return (
-    <div className="space-y-2">
-      <p className="text-muted-foreground text-sm">{count} file(s) returned</p>
-      <div className="max-h-72 overflow-auto">
-        <FileTree className="text-xs" defaultExpanded={defaultExpanded}>
-          {sortedChildren.map((child) => (
-            <FileTreeNodeView key={child.path} node={child} />
-          ))}
-        </FileTree>
-      </div>
+    <div className={expanded ? "w-full" : undefined}>
+      <button
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          expanded
+            ? "border-primary/30 bg-primary/5 text-foreground"
+            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          hasError && "border-destructive/30 text-destructive",
+          isRunning && "animate-pulse",
+        )}
+        onClick={() => hasOutput && setExpanded(!expanded)}
+        type="button"
+      >
+        <FolderIcon className="size-3.5 shrink-0" />
+        <span className="font-medium">{directory ?? "files"}</span>
+        {hasOutput ? (
+          <span className="text-muted-foreground">
+            {count} {count === 1 ? "file" : "files"}
+          </span>
+        ) : null}
+        {hasError ? <span className="text-destructive">error</span> : null}
+      </button>
+      {expanded && hasOutput ? (
+        <div className="mt-2 max-h-72 overflow-auto">
+          <FileTree className="text-xs" defaultExpanded={defaultExpanded}>
+            {sortedChildren.map((child) => (
+              <FileTreeNodeView key={child.path} node={child} />
+            ))}
+          </FileTree>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -430,72 +461,168 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
 export const isChipToolPart = (part: MessagePart): boolean => {
   if (!isToolLikePart(part)) return false;
   const toolName = getToolName(part);
-  return toolName === "readFile" || toolName === "searchInFiles";
+  return (
+    toolName === "readFile" ||
+    toolName === "searchInFiles" ||
+    toolName === "listFiles" ||
+    toolName === "writeFile"
+  );
 };
 
-const WriteFileOutput = ({ output }: { output: unknown }) => {
-  const [showContent, setShowContent] = useState(false);
+export const WriteFileChip = ({
+  part,
+  onToolApproval,
+}: {
+  part: ToolLikePart;
+  onToolApproval?: ToolApprovalHandler;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const output = part.output;
+  const state = (part.state ?? "input-streaming") as ToolPart["state"];
+  const isRunning = state === "input-available" || state === "input-streaming";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const isApprovalRequested = state === "approval-requested";
 
-  if (!isRecord(output)) {
-    return <JsonBlock value={output} />;
-  }
-
-  const filePath = isString(output.filePath) ? output.filePath : null;
-  const mode = isString(output.mode) ? output.mode : null;
+  const filePath =
+    isRecord(part.input) && isString(part.input.filePath)
+      ? part.input.filePath
+      : isRecord(output) && isString(output.filePath)
+        ? output.filePath
+        : null;
+  const filename = filePath?.split(/[\\/]/).pop() ?? "file";
+  const content =
+    isRecord(part.input) && isString(part.input.content)
+      ? part.input.content
+      : isRecord(output) && isString(output.content)
+        ? output.content
+        : null;
+  const mode =
+    isRecord(part.input) && isString(part.input.mode)
+      ? part.input.mode
+      : isRecord(output) && isString(output.mode)
+        ? output.mode
+        : null;
   const bytesWritten =
-    typeof output.bytesWritten === "number" ? output.bytesWritten : null;
-  const status = isString(output.status) ? output.status : null;
-  const content = isString(output.content) ? output.content : null;
-  const previousContent = isString(output.previousContent)
-    ? output.previousContent
-    : null;
-  const isNewFile = previousContent === null && content !== null;
-
-  if (!filePath && mode === null && bytesWritten === null && status === null) {
-    return <JsonBlock value={output} />;
-  }
+    isRecord(output) && typeof output.bytesWritten === "number"
+      ? output.bytesWritten
+      : null;
+  const hasOutput = isRecord(output) && isString(output.status);
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        {status ? <Badge variant="secondary">Status: {status}</Badge> : null}
-        {filePath ? <Badge variant="outline">{filePath}</Badge> : null}
-        {mode ? <Badge variant="secondary">Mode: {mode}</Badge> : null}
+    <div className={expanded ? "w-full" : undefined}>
+      <button
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          expanded
+            ? "border-primary/30 bg-primary/5 text-foreground"
+            : "border-border bg-background text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          hasError && "border-destructive/30 text-destructive",
+          isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
+          isRunning && "animate-pulse",
+        )}
+        onClick={() => setExpanded(!expanded)}
+        type="button"
+      >
+        <PencilIcon className="size-3.5 shrink-0" />
+        <span className="max-w-48 truncate font-medium">{filename}</span>
+        {mode === "append" ? (
+          <span className="text-muted-foreground">append</span>
+        ) : null}
         {bytesWritten !== null ? (
-          <Badge variant="secondary">
+          <span className="text-muted-foreground">
             {bytesWritten.toLocaleString()} bytes
-          </Badge>
+          </span>
         ) : null}
-        {isNewFile ? <Badge variant="secondary">New file</Badge> : null}
-        {content ? (
-          <button
-            className="text-muted-foreground text-xs underline hover:text-foreground"
-            onClick={() => setShowContent(!showContent)}
-            type="button"
-          >
-            {showContent ? "Hide content" : "Show content"}
-          </button>
+        {isApprovalRequested ? (
+          <span className="text-yellow-600">approval</span>
         ) : null}
-      </div>
-      {showContent && content ? (
-        <div className="max-h-96 overflow-auto">
-          <CodeBlock
-            code={content}
-            language={filePath ? inferLanguage(filePath) : "log"}
-            showLineNumbers
-          >
-            <CodeBlockHeader>
-              <CodeBlockTitle>
-                <FileIcon size={14} />
-                <CodeBlockFilename>
-                  {filePath?.split(/[\\/]/).pop() ?? "output"}
-                </CodeBlockFilename>
-              </CodeBlockTitle>
-              <CodeBlockActions>
-                <CodeBlockCopyButton />
-              </CodeBlockActions>
-            </CodeBlockHeader>
-          </CodeBlock>
+        {hasError ? <span className="text-destructive">error</span> : null}
+      </button>
+      {expanded ? (
+        <div className="mt-2 space-y-2">
+          {/* Approval UI */}
+          {part.approval && onToolApproval ? (
+            <Confirmation
+              approval={
+                part.approval as Parameters<typeof Confirmation>[0]["approval"]
+              }
+              state={state}
+            >
+              <ConfirmationRequest>
+                <span className="text-sm">
+                  Allow writing to{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                    {filePath ?? "file"}
+                  </code>
+                  ?
+                </span>
+              </ConfirmationRequest>
+              <ConfirmationAccepted>
+                <span className="flex items-center gap-1.5 text-sm text-green-700">
+                  <CheckIcon className="size-4" />
+                  Approved
+                </span>
+              </ConfirmationAccepted>
+              <ConfirmationRejected>
+                <span className="flex items-center gap-1.5 text-sm text-red-700">
+                  <XIcon className="size-4" />
+                  Rejected
+                </span>
+              </ConfirmationRejected>
+              <ConfirmationActions>
+                <ConfirmationAction
+                  variant="outline"
+                  onClick={() =>
+                    onToolApproval({
+                      id: part.approval!.id,
+                      approved: false,
+                    })
+                  }
+                >
+                  Reject
+                </ConfirmationAction>
+                <ConfirmationAction
+                  variant="default"
+                  onClick={() =>
+                    onToolApproval({
+                      id: part.approval!.id,
+                      approved: true,
+                    })
+                  }
+                >
+                  Approve
+                </ConfirmationAction>
+              </ConfirmationActions>
+            </Confirmation>
+          ) : null}
+          {/* Error */}
+          {hasError ? (
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+              {part.errorText}
+            </pre>
+          ) : null}
+          {/* Content preview */}
+          {content && filePath ? (
+            <div className="max-h-96 overflow-auto rounded-md border">
+              <CodeBlock
+                code={content}
+                language={inferLanguage(filePath)}
+                showLineNumbers
+              >
+                <CodeBlockHeader>
+                  <CodeBlockTitle>
+                    <FileIcon size={14} />
+                    <CodeBlockFilename>{filename}</CodeBlockFilename>
+                  </CodeBlockTitle>
+                  <CodeBlockActions>
+                    <CodeBlockCopyButton />
+                  </CodeBlockActions>
+                </CodeBlockHeader>
+              </CodeBlock>
+            </div>
+          ) : hasOutput ? (
+            <JsonBlock value={output} />
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -523,16 +650,7 @@ const renderToolOutput = (part: ToolLikePart) => {
     return null;
   }
 
-  const outputContent = (() => {
-    switch (toolName) {
-      case "listFiles":
-        return <ListFilesOutput output={part.output} />;
-      case "writeFile":
-        return <WriteFileOutput output={part.output} />;
-      default:
-        return <JsonBlock value={part.output} />;
-    }
-  })();
+  const outputContent = <JsonBlock value={part.output} />;
 
   return (
     <div className="space-y-2">
@@ -544,13 +662,7 @@ const renderToolOutput = (part: ToolLikePart) => {
   );
 };
 
-const ToolPartCard = ({
-  part,
-  onToolApproval,
-}: {
-  part: ToolLikePart;
-  onToolApproval?: ToolApprovalHandler;
-}) => {
+const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
   const toolName = getToolName(part);
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isCompleted = state === "output-available" || state === "output-error";
@@ -568,69 +680,11 @@ const ToolPartCard = ({
         };
 
   return (
-    <Tool defaultOpen={isCompleted || state === "approval-requested"}>
+    <Tool defaultOpen={isCompleted}>
       <ToolHeader title={formatToolName(toolName)} {...toolHeaderProps} />
       <ToolContent>
         {isRecord(part.input) ? (
           <ToolInput input={part.input as ToolPart["input"]} />
-        ) : null}
-        {part.approval && onToolApproval ? (
-          <Confirmation
-            approval={
-              part.approval as Parameters<typeof Confirmation>[0]["approval"]
-            }
-            state={state}
-          >
-            <ConfirmationRequest>
-              <span className="text-sm">
-                Allow <strong>{formatToolName(toolName)}</strong> to modify{" "}
-                {isRecord(part.input) && isString(part.input.filePath) ? (
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                    {part.input.filePath}
-                  </code>
-                ) : (
-                  "a file"
-                )}
-                ?
-              </span>
-            </ConfirmationRequest>
-            <ConfirmationAccepted>
-              <span className="flex items-center gap-1.5 text-sm text-green-700">
-                <CheckIcon className="size-4" />
-                Approved
-              </span>
-            </ConfirmationAccepted>
-            <ConfirmationRejected>
-              <span className="flex items-center gap-1.5 text-sm text-red-700">
-                <XIcon className="size-4" />
-                Rejected
-              </span>
-            </ConfirmationRejected>
-            <ConfirmationActions>
-              <ConfirmationAction
-                variant="outline"
-                onClick={() =>
-                  onToolApproval({
-                    id: part.approval!.id,
-                    approved: false,
-                  })
-                }
-              >
-                Reject
-              </ConfirmationAction>
-              <ConfirmationAction
-                variant="default"
-                onClick={() =>
-                  onToolApproval({
-                    id: part.approval!.id,
-                    approved: true,
-                  })
-                }
-              >
-                Approve
-              </ConfirmationAction>
-            </ConfirmationActions>
-          </Confirmation>
         ) : null}
         {renderToolOutput(part)}
       </ToolContent>
@@ -662,12 +716,10 @@ export const AssistantMessagePart = ({
   part,
   chatMode,
   isStreaming = false,
-  onToolApproval,
 }: {
   part: MessagePart;
   chatMode?: string;
   isStreaming?: boolean;
-  onToolApproval?: ToolApprovalHandler;
 }) => {
   if (part.type === "text") {
     if (chatMode === "plan" && part.text.trim().length > 0) {
@@ -719,7 +771,7 @@ export const AssistantMessagePart = ({
   }
 
   if (isToolLikePart(part)) {
-    return <ToolPartCard onToolApproval={onToolApproval} part={part} />;
+    return <ToolPartCard part={part} />;
   }
 
   return (
