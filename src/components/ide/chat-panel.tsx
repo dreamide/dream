@@ -226,37 +226,26 @@ export const ChatPanel = ({
       id: `thread:${thread.id}`,
       messages: threadMessages,
       onError: (error) => {
-        const parts: string[] = [];
-
-        // Try to extract status code from the error
-        const statusCode =
-          (error as unknown as Record<string, unknown>).statusCode ??
-          (error as unknown as Record<string, unknown>).status;
-        if (statusCode) {
-          parts.push(`[${statusCode}]`);
-        }
-
-        // Use the message, but skip if it's just the generic "Error"
-        if (error.message && error.message !== "Error") {
-          parts.push(error.message);
-        }
-
-        // Check for a nested cause
-        if (error.cause instanceof Error && error.cause.message) {
-          parts.push(error.cause.message);
-        }
-
-        // Fallback: if we still have nothing useful, show the full error
-        if (parts.length === 0) {
-          parts.push(
-            String(error) === "Error"
-              ? "An unknown error occurred. Check the console for details."
-              : String(error),
-          );
-        }
-
         console.error("[chat error]", error);
-        setLocalError(parts.join(" "));
+
+        // The server-side onError already enriches the message, so
+        // error.message should be descriptive. Guard against edge cases
+        // where only the generic class name "Error" comes through.
+        const msg = error.message;
+        if (msg && msg !== "Error") {
+          setLocalError(msg);
+          return;
+        }
+
+        // Fallback: try cause chain
+        if (error.cause instanceof Error && error.cause.message) {
+          setLocalError(error.cause.message);
+          return;
+        }
+
+        setLocalError(
+          "An unexpected error occurred. Check the developer console for details.",
+        );
       },
       transport,
     });

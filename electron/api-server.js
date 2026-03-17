@@ -337,6 +337,101 @@ const dedupeModelOptions = (models) => {
 };
 
 // ---------------------------------------------------------------------------
+// Error formatting
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract a human-readable message from a streaming error.
+ *
+ * Provider SDK errors (APICallError) carry statusCode, responseBody, data, and
+ * cause. We try each source in turn so the user sees something actionable
+ * rather than the bare word "Error".
+ */
+const formatStreamError = (error) => {
+  if (error == null) return "An unknown error occurred.";
+  if (typeof error === "string") return error || "An unknown error occurred.";
+  if (typeof error !== "object")
+    return String(error) || "An unknown error occurred.";
+
+  const details = [];
+  const isGeneric = (s) =>
+    !s || s === "Error" || s === "error" || s === "Unknown error";
+
+  // 1. Status code (e.g. 400, 401, 429, 529)
+  const statusCode = error.statusCode ?? error.status;
+  if (statusCode) details.push(`[${statusCode}]`);
+
+  // 2. Primary message
+  const msg = error.message;
+  if (!isGeneric(msg)) {
+    details.push(msg);
+  }
+
+  // 3. Structured `data` from provider SDKs
+  //    Anthropic: { type: "error", error: { type: "invalid_request_error", message: "..." } }
+  //    OpenAI:    { error: { message: "...", type: "...", code: "..." } }
+  const errData = error.data?.error ?? error.data;
+  if (errData && typeof errData === "object") {
+    // Error type/code (e.g. "invalid_request_error", "insufficient_quota")
+    const errType = errData.type ?? errData.code;
+    if (typeof errType === "string" && errType.length > 0) {
+      details.push(errType.replaceAll("_", " "));
+    }
+    // Message from the structured body (only if different from what we have)
+    const errMsg = errData.message;
+    if (typeof errMsg === "string" && !isGeneric(errMsg) && errMsg !== msg) {
+      details.push(errMsg);
+    }
+  }
+
+  // 4. responseBody — raw text (fallback if data didn't help)
+  if (
+    details.length <= 1 &&
+    typeof error.responseBody === "string" &&
+    error.responseBody.length > 0
+  ) {
+    try {
+      const body = JSON.parse(error.responseBody);
+      const bodyErrType = body?.error?.type ?? body?.error?.code;
+      const bodyMsg =
+        body?.error?.message ?? body?.message ?? body?.error_description;
+      if (typeof bodyErrType === "string" && bodyErrType.length > 0) {
+        details.push(bodyErrType.replaceAll("_", " "));
+      }
+      if (
+        typeof bodyMsg === "string" &&
+        !isGeneric(bodyMsg) &&
+        bodyMsg !== msg
+      ) {
+        details.push(bodyMsg);
+      }
+    } catch {
+      const trimmed = error.responseBody.trim();
+      if (trimmed.length > 0 && trimmed.length < 500 && trimmed !== msg) {
+        details.push(trimmed);
+      }
+    }
+  }
+
+  // 5. Cause chain
+  let cause = error.cause;
+  const seen = new Set();
+  while (cause && !seen.has(cause)) {
+    seen.add(cause);
+    const causeMsg = cause instanceof Error ? cause.message : String(cause);
+    if (!isGeneric(causeMsg) && causeMsg !== msg) {
+      details.push(causeMsg);
+      break;
+    }
+    cause = cause?.cause;
+  }
+
+  if (details.length > 0) return details.join(" \u2014 ");
+
+  return "An unexpected error occurred. Check the server console for details.";
+};
+
+// ---------------------------------------------------------------------------
 // Hono app
 // ---------------------------------------------------------------------------
 
@@ -1152,8 +1247,18 @@ app.post("/api/chat", async (c) => {
   };
   const hasProviderOptions = Object.keys(providerOptions).length > 0;
 
+  let modelMessages;
+  try {
+    modelMessages = await convertToModelMessages(messages);
+  } catch (err) {
+    console.error("[chat] Failed to convert messages:", err);
+    const detail =
+      err instanceof Error && err.message ? err.message : String(err);
+    return c.text(`Failed to prepare messages: ${detail}`, 400);
+  }
+
   const textResult = streamText({
-    messages: await convertToModelMessages(messages),
+    messages: modelMessages,
     model: languageModel,
     ...(hasProviderOptions ? { providerOptions } : {}),
     stopWhen: stepCountIs(
@@ -1265,63 +1370,7 @@ app.post("/api/chat", async (c) => {
   return textResult.toUIMessageStreamResponse({
     onError: (error) => {
       console.error("[chat stream error]", error);
-
-      // Extract as much useful information as possible from provider errors.
-      // APICallError (from @ai-sdk/provider) has: message, statusCode,
-      // responseBody, responseHeaders, url, data, cause.
-      if (error && typeof error === "object") {
-        const parts = [];
-
-        const statusCode = error.statusCode ?? error.status;
-        if (statusCode) parts.push(`[${statusCode}]`);
-
-        // Use the message if it's meaningful (not just the class name)
-        const msg = error.message;
-        if (typeof msg === "string" && msg.length > 0 && msg !== "Error") {
-          parts.push(msg);
-        }
-
-        // If the message was generic, try to parse responseBody for detail
-        if (parts.length <= 1 && typeof error.responseBody === "string") {
-          try {
-            const body = JSON.parse(error.responseBody);
-            const bodyMsg =
-              body?.error?.message ?? body?.message ?? body?.error;
-            if (typeof bodyMsg === "string" && bodyMsg.length > 0) {
-              parts.push(bodyMsg);
-            }
-          } catch {
-            // responseBody wasn't JSON — use it directly if short enough
-            if (
-              error.responseBody.length > 0 &&
-              error.responseBody.length < 500
-            ) {
-              parts.push(error.responseBody);
-            }
-          }
-        }
-
-        // Walk the cause chain for extra context
-        let cause = error.cause;
-        while (cause instanceof Error) {
-          if (
-            cause.message &&
-            cause.message !== "Error" &&
-            cause.message !== msg
-          ) {
-            parts.push(`(${cause.message})`);
-            break;
-          }
-          cause = cause.cause;
-        }
-
-        if (parts.length > 0) return parts.join(" ");
-      }
-
-      // Absolute fallback
-      const str = String(error);
-      if (str && str !== "Error" && str !== "Error: Error") return str;
-      return "An unexpected error occurred. Check the server console for details.";
+      return formatStreamError(error);
     },
   });
 });
