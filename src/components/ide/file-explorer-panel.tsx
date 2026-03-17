@@ -1,5 +1,6 @@
 import { FileIcon, FolderIcon, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Group, Panel } from "react-resizable-panels";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -17,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { AppShellPlaceholder } from "./ide-helpers";
+import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
 const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
@@ -353,94 +354,116 @@ export const FileExplorerPanel = () => {
         </Button>
       </div>
 
-      <div className="min-h-0 flex flex-1 overflow-hidden">
-        <div className="min-h-0 w-64 shrink-0 border-r border-foreground/10 bg-muted/20">
-          <ScrollArea className="h-full">
-            <div className="p-3">
-              {filesError ? (
-                <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
-                  {filesError}
-                </div>
-              ) : null}
+      <Group
+        className="min-h-0 flex-1"
+        id="file-explorer"
+        orientation="horizontal"
+        resizeTargetMinimumSize={{ coarse: 28, fine: 16 }}
+      >
+        <Panel
+          defaultSize="35%"
+          groupResizeBehavior="preserve-pixel-size"
+          id="file-explorer-tree"
+          maxSize="50%"
+          minSize="250px"
+        >
+          <div className="h-full border-r border-foreground/10 bg-muted/20">
+            <ScrollArea className="h-full">
+              <div className="p-3">
+                {filesError ? (
+                  <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
+                    {filesError}
+                  </div>
+                ) : null}
 
-              {!filesError && filesLoading && files.length === 0 ? (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <Spinner className="size-4" />
-                  <span>Loading project files…</span>
-                </div>
-              ) : null}
+                {!filesError && filesLoading && files.length === 0 ? (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                    <Spinner className="size-4" />
+                    <span>Loading project files…</span>
+                  </div>
+                ) : null}
 
-              {!filesError && !filesLoading && files.length === 0 ? (
-                <div className="text-muted-foreground text-sm">
-                  No project files found.
-                </div>
-              ) : null}
+                {!filesError && !filesLoading && files.length === 0 ? (
+                  <div className="text-muted-foreground text-sm">
+                    No project files found.
+                  </div>
+                ) : null}
 
-              {root ? (
-                <FileTree
-                  className="border-0 bg-transparent p-0 text-xs shadow-none"
-                  defaultExpanded={defaultExpanded}
-                  onSelect={(path) => {
-                    if (!files.includes(path)) {
-                      return;
-                    }
+                {root ? (
+                  <FileTree
+                    className="border-0 bg-transparent p-0 text-xs shadow-none"
+                    defaultExpanded={defaultExpanded}
+                    onSelect={(path) => {
+                      if (!files.includes(path)) {
+                        return;
+                      }
 
-                    setSelectedFileByProject((current) => ({
-                      ...current,
-                      [activeProject.id]: path,
-                    }));
-                    setFileError(null);
-                  }}
-                  selectedPath={selectedFilePath ?? undefined}
-                >
-                  {sortedChildren.map((child) => (
-                    <FileTreeNodeView key={child.path} node={child} />
-                  ))}
-                </FileTree>
-              ) : null}
-            </div>
-          </ScrollArea>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {!selectedFilePath ? (
-            <div className="h-full p-3">
-              <AppShellPlaceholder message="Select a file from the tree to open it here." />
-            </div>
-          ) : fileError ? (
-            <div className="p-3">
-              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
-                {fileError}
+                      setSelectedFileByProject((current) => ({
+                        ...current,
+                        [activeProject.id]: path,
+                      }));
+                      setFileError(null);
+                    }}
+                    selectedPath={selectedFilePath ?? undefined}
+                  >
+                    {sortedChildren.map((child) => (
+                      <FileTreeNodeView key={child.path} node={child} />
+                    ))}
+                  </FileTree>
+                ) : null}
               </div>
-            </div>
-          ) : fileLoading && !selectedFileContent ? (
-            <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
-              <Spinner className="size-4" />
-              <span>Opening {selectedFilePath}…</span>
-            </div>
-          ) : selectedFileContent !== null ? (
-            <div className="h-full p-3">
-              <CodeBlock
-                className="flex h-full max-h-full flex-col overflow-hidden [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                code={selectedFileContent}
-                language={inferLanguage(selectedFilePath)}
-                showLineNumbers
-                style={{ contentVisibility: "visible" }}
-              >
-                <CodeBlockHeader className="shrink-0">
-                  <CodeBlockTitle>
-                    <FileIcon size={14} />
-                    <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
-                  </CodeBlockTitle>
-                  <CodeBlockActions>
-                    <CodeBlockCopyButton />
-                  </CodeBlockActions>
-                </CodeBlockHeader>
-              </CodeBlock>
-            </div>
-          ) : null}
-        </div>
-      </div>
+            </ScrollArea>
+          </div>
+        </Panel>
+
+        <ResizeHandle id="file-explorer-handle" />
+
+        <Panel
+          defaultSize="65%"
+          id="file-explorer-content"
+          maxSize="85%"
+          minSize="50%"
+        >
+          <div className="h-full overflow-hidden">
+            {!selectedFilePath ? (
+              <div className="h-full p-3">
+                <AppShellPlaceholder message="Select a file from the tree to open it here." />
+              </div>
+            ) : fileError ? (
+              <div className="p-3">
+                <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+                  {fileError}
+                </div>
+              </div>
+            ) : fileLoading && !selectedFileContent ? (
+              <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+                <Spinner className="size-4" />
+                <span>Opening {selectedFilePath}…</span>
+              </div>
+            ) : selectedFileContent !== null ? (
+              <div className="h-full p-3">
+                <CodeBlock
+                  className="flex h-full max-h-full flex-col overflow-hidden [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                  code={selectedFileContent}
+                  language={inferLanguage(selectedFilePath)}
+                  showLineNumbers
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className="shrink-0">
+                    <CodeBlockTitle>
+                      <FileIcon size={14} />
+                      <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              </div>
+            ) : null}
+          </div>
+        </Panel>
+      </Group>
     </div>
   );
 };
