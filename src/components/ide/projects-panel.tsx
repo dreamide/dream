@@ -256,7 +256,7 @@ export const ProjectSidebar = () => {
         id="projects-panel"
         className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
       >
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center justify-between gap-2 px-2 py-2">
           <Tooltip>
             <TooltipTrigger
               render={
