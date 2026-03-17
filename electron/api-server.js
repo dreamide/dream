@@ -501,7 +501,7 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
   const modelIds = (payload.models ?? []).flatMap((entry) => {
     const id = entry.slug?.trim() ?? "";
     if (!id) return [];
-    return [createModelOption("openai", id, entry.display_name)];
+    return [createModelOption("openai", id)];
   });
   return dedupeAndSort(modelIds);
 };
@@ -1262,7 +1262,68 @@ app.post("/api/chat", async (c) => {
     },
   });
 
-  return textResult.toUIMessageStreamResponse();
+  return textResult.toUIMessageStreamResponse({
+    onError: (error) => {
+      console.error("[chat stream error]", error);
+
+      // Extract as much useful information as possible from provider errors.
+      // APICallError (from @ai-sdk/provider) has: message, statusCode,
+      // responseBody, responseHeaders, url, data, cause.
+      if (error && typeof error === "object") {
+        const parts = [];
+
+        const statusCode = error.statusCode ?? error.status;
+        if (statusCode) parts.push(`[${statusCode}]`);
+
+        // Use the message if it's meaningful (not just the class name)
+        const msg = error.message;
+        if (typeof msg === "string" && msg.length > 0 && msg !== "Error") {
+          parts.push(msg);
+        }
+
+        // If the message was generic, try to parse responseBody for detail
+        if (parts.length <= 1 && typeof error.responseBody === "string") {
+          try {
+            const body = JSON.parse(error.responseBody);
+            const bodyMsg =
+              body?.error?.message ?? body?.message ?? body?.error;
+            if (typeof bodyMsg === "string" && bodyMsg.length > 0) {
+              parts.push(bodyMsg);
+            }
+          } catch {
+            // responseBody wasn't JSON — use it directly if short enough
+            if (
+              error.responseBody.length > 0 &&
+              error.responseBody.length < 500
+            ) {
+              parts.push(error.responseBody);
+            }
+          }
+        }
+
+        // Walk the cause chain for extra context
+        let cause = error.cause;
+        while (cause instanceof Error) {
+          if (
+            cause.message &&
+            cause.message !== "Error" &&
+            cause.message !== msg
+          ) {
+            parts.push(`(${cause.message})`);
+            break;
+          }
+          cause = cause.cause;
+        }
+
+        if (parts.length > 0) return parts.join(" ");
+      }
+
+      // Absolute fallback
+      const str = String(error);
+      if (str && str !== "Error" && str !== "Error: Error") return str;
+      return "An unexpected error occurred. Check the server console for details.";
+    },
+  });
 });
 
 // ---------------------------------------------------------------------------
