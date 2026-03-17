@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@ai-sdk/openai@3.0.41':
+    hash: 1328f04aec3d895a4b154f29fe4fc88d972ed3e8d025092c7344eac9126bb1c1
+    path: patches/@ai-sdk__openai@3.0.41.patch
+
 importers:
 
   .:
@@ -13,7 +18,7 @@ importers:
         version: 3.0.58(zod@4.3.6)
       '@ai-sdk/openai':
         specifier: ^3.0.41
-        version: 3.0.41(zod@4.3.6)
+        version: 3.0.41(patch_hash=1328f04aec3d895a4b154f29fe4fc88d972ed3e8d025092c7344eac9126bb1c1)(zod@4.3.6)
       '@ai-sdk/react':
         specifier: ^3.0.118
         version: 3.0.118(react@19.2.3)(zod@4.3.6)
@@ -4976,7 +4981,7 @@ snapshots:
       '@vercel/oidc': 3.1.0
       zod: 4.3.6
 
-  '@ai-sdk/openai@3.0.41(zod@4.3.6)':
+  '@ai-sdk/openai@3.0.41(patch_hash=1328f04aec3d895a4b154f29fe4fc88d972ed3e8d025092c7344eac9126bb1c1)(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.19(zod@4.3.6)
