@@ -17,6 +17,7 @@ export type SettingsSection =
 
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
+export type RightPanelView = "preview" | "explorer";
 
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>

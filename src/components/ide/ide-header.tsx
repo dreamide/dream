@@ -1,6 +1,8 @@
 import {
+  Folder,
   MessageSquare,
   Minus,
+  Monitor,
   PanelLeft,
   PanelRight,
   Plus,
@@ -10,6 +12,7 @@ import {
 } from "lucide-react";
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -95,7 +98,7 @@ export const IdeHeader = () => {
           <ToggleButton
             active={panelVisibility.right}
             onClick={() => togglePanel("right")}
-            title="Toggle preview panel"
+            title="Toggle right panel"
           >
             <PanelRight className="size-4" />
           </ToggleButton>
@@ -109,6 +112,9 @@ export const IdeHeader = () => {
 
 export const IdeFooter = () => {
   const appReady = useIdeStore((s) => s.appReady);
+  const panelVisibility = useIdeStore((s) => s.panelVisibility);
+  const rightPanelView = useIdeStore((s) => s.rightPanelView);
+  const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
 
@@ -117,8 +123,19 @@ export const IdeFooter = () => {
     setSettingsOpen(true);
   }, [setSettingsOpen, setSettingsSection]);
 
+  const handleRightPanelViewChange = useCallback(
+    (value: string) => {
+      if (value !== "preview" && value !== "explorer") {
+        return;
+      }
+
+      setRightPanelView(value);
+    },
+    [setRightPanelView],
+  );
+
   return (
-    <footer className="relative flex h-11 items-center pl-3 pr-3 text-foreground">
+    <footer className="relative flex h-11 items-center justify-between pl-3 pr-3 text-foreground">
       {appReady ? (
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -138,10 +155,54 @@ export const IdeFooter = () => {
             <TooltipContent>Settings</TooltipContent>
           </Tooltip>
         </div>
+      ) : (
+        <div />
+      )}
+
+      {appReady ? (
+        <Tabs
+          className="ml-auto"
+          onValueChange={handleRightPanelViewChange}
+          value={rightPanelView}
+        >
+          <TabsList className="h-8 bg-muted/60">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <TabsTrigger
+                    aria-label="Show preview"
+                    className="h-6 w-8 px-0 data-[active]:bg-background"
+                    disabled={!panelVisibility.right}
+                    value="preview"
+                  />
+                }
+              >
+                <Monitor className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>Preview</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <TabsTrigger
+                    aria-label="Show file explorer"
+                    className="h-6 w-8 px-0 data-[active]:bg-background"
+                    disabled={!panelVisibility.right}
+                    value="explorer"
+                  />
+                }
+              >
+                <Folder className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>File explorer</TooltipContent>
+            </Tooltip>
+          </TabsList>
+        </Tabs>
       ) : null}
     </footer>
   );
 };
+
 const WindowControls = () => {
   const api = getDesktopApi();
 
