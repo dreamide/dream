@@ -1387,7 +1387,7 @@ export const SettingsDialog = () => {
                         shellPath: event.currentTarget.value,
                       }))
                     }
-                    placeholder="/bin/zsh"
+                    placeholder=""
                     value={settings.shellPath}
                   />
                   <p className="text-muted-foreground text-sm">
