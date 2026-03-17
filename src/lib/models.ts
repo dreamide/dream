@@ -167,6 +167,53 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
  * rather than hard-coding a provider check, so new models that follow the
  * same naming conventions are picked up automatically.
  */
+/**
+ * Approximate context-window sizes (in tokens) for well-known model
+ * families. The lookup is intentionally generous: we match on id prefixes
+ * so newly released variants are picked up automatically.
+ *
+ * Returns a sensible default (128 000) when the model is not recognized.
+ */
+const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
+  // Anthropic
+  [/^claude-(sonnet|opus|haiku)-4/, 200_000],
+  [/^claude-3[.-]7/, 200_000],
+  [/^claude-3[.-]5/, 200_000],
+  [/^claude-3/, 200_000],
+  [/^claude-/, 200_000],
+
+  // OpenAI
+  [/^o[134]/, 200_000],
+  [/^gpt-5/, 200_000],
+  [/^gpt-4o/, 128_000],
+  [/^gpt-4-turbo/, 128_000],
+  [/^gpt-4/, 128_000],
+  [/^codex-/, 200_000],
+
+  // Gemini
+  [/^gemini-2/, 1_000_000],
+  [/^gemini-1[.-]5-pro/, 2_000_000],
+  [/^gemini-1[.-]5-flash/, 1_000_000],
+  [/^gemini-/, 1_000_000],
+];
+
+const DEFAULT_CONTEXT_WINDOW = 128_000;
+
+export const getModelContextWindow = (modelId: string): number => {
+  const id = modelId.trim().toLowerCase();
+  for (const [pattern, tokens] of CONTEXT_WINDOW_ENTRIES) {
+    if (pattern.test(id)) return tokens;
+  }
+  return DEFAULT_CONTEXT_WINDOW;
+};
+
+/**
+ * Very rough token estimate: ~4 characters per token on average.
+ * This is not meant to be precise, just indicative for the UI gauge.
+ */
+export const estimateTokenCount = (text: string): number =>
+  Math.ceil(text.length / 4);
+
 export const getModelReasoningEfforts = (
   provider: AiProvider,
   modelId: string,
