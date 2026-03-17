@@ -34,6 +34,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import {
   Source,
   Sources,
@@ -797,14 +798,11 @@ export const ChatPanel = ({
                   disabled={allModelOptions.length === 0}
                 >
                   <SelectValue placeholder="Model">
-                    <span className="flex items-center gap-1">
-                      <span className="font-semibold text-muted-foreground/70">
-                        {selectedProvider === "anthropic"
-                          ? "A\\"
-                          : selectedProvider === "gemini"
-                            ? "G"
-                            : "O"}
-                      </span>
+                    <span className="flex items-center gap-1.5">
+                      <ProviderIcon
+                        className="size-3.5 shrink-0 text-muted-foreground/70"
+                        provider={selectedProvider}
+                      />
                       <span className="truncate">{selectedModelLabel}</span>
                     </span>
                   </SelectValue>
