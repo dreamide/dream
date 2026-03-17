@@ -53,7 +53,6 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
-import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import {
   Select,
   SelectContent,
@@ -745,20 +744,6 @@ export const ChatPanel = ({
                 description="Ask the assistant to inspect, edit, or create files in the active project."
                 title="No chat messages yet"
               />
-              <Suggestions className="max-w-full justify-center">
-                <Suggestion
-                  onClick={(text) => void handleSubmit({ text, files: [] })}
-                  suggestion="Explain the project structure"
-                />
-                <Suggestion
-                  onClick={(text) => void handleSubmit({ text, files: [] })}
-                  suggestion="Find potential bugs"
-                />
-                <Suggestion
-                  onClick={(text) => void handleSubmit({ text, files: [] })}
-                  suggestion="Suggest improvements"
-                />
-              </Suggestions>
             </div>
           ) : (
             messageContent
