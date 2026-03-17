@@ -254,7 +254,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Settings dialog state ───────────────────────────────────────────
   settingsOpen: false,
-  settingsSection: "providers",
+  settingsSection: "appearance",
   providerSetupTarget: null,
   modelSearchQuery: "",
   codexLoginStatus: {
