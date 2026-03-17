@@ -1,6 +1,5 @@
 import {
   Archive,
-  ArrowUpDown,
   ChevronDown,
   ChevronRight,
   Ellipsis,
@@ -22,30 +21,15 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { ThreadSortOrder } from "@/types/ide";
 import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
-
-const THREAD_SORT_OPTIONS: Array<{
-  label: string;
-  value: ThreadSortOrder;
-}> = [
-  { label: "Recent Activity", value: "recent" },
-  { label: "Newest First", value: "createdDesc" },
-  { label: "Oldest First", value: "createdAsc" },
-  { label: "Title A-Z", value: "titleAsc" },
-];
 
 type RenameTarget =
   | { id: string; kind: "project"; name: string }
@@ -157,7 +141,6 @@ export const ProjectSidebar = () => {
   const addThread = useIdeStore((s) => s.addThread);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setActiveThreadId = useIdeStore((s) => s.setActiveThreadId);
-  const setThreadSort = useIdeStore((s) => s.setThreadSort);
   const updateProject = useIdeStore((s) => s.updateProject);
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
@@ -250,41 +233,6 @@ export const ProjectSidebar = () => {
       >
         <div className="flex items-center justify-between gap-2 px-3 py-2">
           <span className="font-medium text-sm">Projects</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  aria-label="Sort threads"
-                  className="h-8 w-8 p-0"
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                />
-              }
-            >
-              <ArrowUpDown className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Sort threads</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  onValueChange={(value) =>
-                    setThreadSort(value as ThreadSortOrder)
-                  }
-                  value={threadSort}
-                >
-                  {THREAD_SORT_OPTIONS.map((option) => (
-                    <DropdownMenuRadioItem
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         <ScrollArea className="min-h-0 flex-1">

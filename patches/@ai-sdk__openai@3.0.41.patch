@@ -1,0 +1,114 @@
+diff --git a/dist/index.js b/dist/index.js
+index 0da55429b9ccca3433e4c18aca49c862228bf63e..4c9663c06683368138be84fa629992b63ded7e91 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -406,7 +406,7 @@ var openaiChatChunkSchema = (0, import_provider_utils3.lazySchema)(
+               content: import_v42.z.string().nullish(),
+               tool_calls: import_v42.z.array(
+                 import_v42.z.object({
+-                  index: import_v42.z.number(),
++                  index: import_v42.z.number().nullish(),
+                   id: import_v42.z.string().nullish(),
+                   type: import_v42.z.literal("function").nullish(),
+                   function: import_v42.z.object({
+@@ -1012,7 +1012,7 @@ var OpenAIChatLanguageModel = class {
+             }
+             if (delta.tool_calls != null) {
+               for (const toolCallDelta of delta.tool_calls) {
+-                const index = toolCallDelta.index;
++                const index = toolCallDelta.index ?? 0;
+                 if (toolCalls[index] == null) {
+                   if (toolCallDelta.type != null && toolCallDelta.type !== "function") {
+                     throw new import_provider3.InvalidResponseDataError({
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 242bc61cbf28ac25961630c0954045ce058560c5..f3186d02dbcc62918c82dedc838eb1c3d0799c15 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -395,7 +395,7 @@ var openaiChatChunkSchema = lazySchema(
+               content: z2.string().nullish(),
+               tool_calls: z2.array(
+                 z2.object({
+-                  index: z2.number(),
++                  index: z2.number().nullish(),
+                   id: z2.string().nullish(),
+                   type: z2.literal("function").nullish(),
+                   function: z2.object({
+@@ -1003,7 +1003,7 @@ var OpenAIChatLanguageModel = class {
+             }
+             if (delta.tool_calls != null) {
+               for (const toolCallDelta of delta.tool_calls) {
+-                const index = toolCallDelta.index;
++                const index = toolCallDelta.index ?? 0;
+                 if (toolCalls[index] == null) {
+                   if (toolCallDelta.type != null && toolCallDelta.type !== "function") {
+                     throw new InvalidResponseDataError({
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index a05ae597e0722a1b01a0248943925defa80f6c97..115e1fe4297ead89129726b5f764fe3c2d64439f 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -433,7 +433,7 @@ var openaiChatChunkSchema = (0, import_provider_utils3.lazySchema)(
+               content: import_v42.z.string().nullish(),
+               tool_calls: import_v42.z.array(
+                 import_v42.z.object({
+-                  index: import_v42.z.number(),
++                  index: import_v42.z.number().nullish(),
+                   id: import_v42.z.string().nullish(),
+                   type: import_v42.z.literal("function").nullish(),
+                   function: import_v42.z.object({
+@@ -1039,7 +1039,7 @@ var OpenAIChatLanguageModel = class {
+             }
+             if (delta.tool_calls != null) {
+               for (const toolCallDelta of delta.tool_calls) {
+-                const index = toolCallDelta.index;
++                const index = toolCallDelta.index ?? 0;
+                 if (toolCalls[index] == null) {
+                   if (toolCallDelta.type != null && toolCallDelta.type !== "function") {
+                     throw new import_provider3.InvalidResponseDataError({
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index 7d698b0378aae4212683ba8b8b2c3ade4d6ec9ae..960b0bd05e28762731e0daf4451d263961a84932 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -387,7 +387,7 @@ var openaiChatChunkSchema = lazySchema(
+               content: z2.string().nullish(),
+               tool_calls: z2.array(
+                 z2.object({
+-                  index: z2.number(),
++                  index: z2.number().nullish(),
+                   id: z2.string().nullish(),
+                   type: z2.literal("function").nullish(),
+                   function: z2.object({
+@@ -995,7 +995,7 @@ var OpenAIChatLanguageModel = class {
+             }
+             if (delta.tool_calls != null) {
+               for (const toolCallDelta of delta.tool_calls) {
+-                const index = toolCallDelta.index;
++                const index = toolCallDelta.index ?? 0;
+                 if (toolCalls[index] == null) {
+                   if (toolCallDelta.type != null && toolCallDelta.type !== "function") {
+                     throw new InvalidResponseDataError({
+diff --git a/src/chat/openai-chat-api.ts b/src/chat/openai-chat-api.ts
+index 7b634112a1c407fb4399f37e4f6007aafc730840..200db37b0242f9dfe8b5e43fdc7d6e49fee2bbcf 100644
+--- a/src/chat/openai-chat-api.ts
++++ b/src/chat/openai-chat-api.ts
+@@ -121,7 +121,7 @@ export const openaiChatChunkSchema = lazySchema(() =>
+                 tool_calls: z
+                   .array(
+                     z.object({
+-                      index: z.number(),
++                      index: z.number().nullish(),
+                       id: z.string().nullish(),
+                       type: z.literal('function').nullish(),
+                       function: z.object({
+diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
+index 96077d47c9e104143430d261e040b9ae89340940..687a9c79ff4ca308287b23e0ea27921fd809ba25 100644
+--- a/src/chat/openai-chat-language-model.ts
++++ b/src/chat/openai-chat-language-model.ts
+@@ -547,7 +547,7 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
+ 
+             if (delta.tool_calls != null) {
+               for (const toolCallDelta of delta.tool_calls) {
+-                const index = toolCallDelta.index;
++                const index = toolCallDelta.index ?? 0;
+ 
+                 // Tool call start. OpenAI returns all information except the arguments in the first chunk.
+                 if (toolCalls[index] == null) {

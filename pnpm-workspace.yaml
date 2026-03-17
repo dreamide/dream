@@ -8,3 +8,5 @@ onlyBuiltDependencies:
   - esbuild
   - msw
   - node-pty
+patchedDependencies:
+  '@ai-sdk/openai@3.0.41': patches/@ai-sdk__openai@3.0.41.patch
