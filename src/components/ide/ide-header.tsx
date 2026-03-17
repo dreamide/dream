@@ -113,7 +113,7 @@ export const IdeFooter = () => {
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
 
   const handleOpenSettings = useCallback(() => {
-    setSettingsSection("providers");
+    setSettingsSection("appearance");
     setSettingsOpen(true);
   }, [setSettingsOpen, setSettingsSection]);
 
