@@ -2,6 +2,7 @@ import type { UIMessage } from "ai";
 import {
   BrainIcon,
   CheckIcon,
+  EyeIcon,
   FileIcon,
   FolderIcon,
   PenLineIcon,
@@ -56,6 +57,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { stringifyPart } from "./ide-state";
+import { useIdeStore } from "./ide-store";
 
 type MessagePart = UIMessage["parts"][number];
 
@@ -261,10 +263,13 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
   }, [files]);
 
   const hasOutput = files !== null && root !== null;
-  const directory =
+  const projectPath = useIdeStore((s) => s.getActiveProject()?.path ?? null);
+  const rawDirectory =
     isRecord(part.input) && isString(part.input.directory)
       ? part.input.directory
       : null;
+  const directory =
+    rawDirectory === "." && projectPath ? projectPath : rawDirectory;
 
   const sortedChildren = useMemo(() => {
     if (!root) return [];
@@ -275,7 +280,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
   }, [root]);
 
   return (
-    <div className={expanded ? "w-full" : undefined}>
+    <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -298,13 +303,11 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded && hasOutput ? (
-        <div className="mt-2 max-h-72 overflow-auto">
-          <FileTree className="text-xs" defaultExpanded={defaultExpanded}>
-            {sortedChildren.map((child) => (
-              <FileTreeNodeView key={child.path} node={child} />
-            ))}
-          </FileTree>
-        </div>
+        <FileTree className="mt-2 text-xs" defaultExpanded={defaultExpanded}>
+          {sortedChildren.map((child) => (
+            <FileTreeNodeView key={child.path} node={child} />
+          ))}
+        </FileTree>
       ) : null}
     </div>
   );
@@ -330,7 +333,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
   const hasError = isString(part.errorText) && part.errorText.length > 0;
 
   return (
-    <div className={expanded ? "w-full" : undefined}>
+    <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -343,7 +346,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
         onClick={() => hasOutput && setExpanded(!expanded)}
         type="button"
       >
-        <FileIcon className="size-3.5 shrink-0" />
+        <EyeIcon className="size-3.5 shrink-0" />
         <span className="max-w-48 truncate font-medium">{filename}</span>
         {lineRange ? (
           <span className="text-muted-foreground">{lineRange}</span>
@@ -401,7 +404,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
   const hasError = isString(part.errorText) && part.errorText.length > 0;
 
   return (
-    <div className={expanded ? "w-full" : undefined}>
+    <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -511,7 +514,7 @@ export const WriteFileChip = ({
   const hasOutput = isRecord(output) && isString(output.status);
 
   return (
-    <div className={expanded ? "w-full" : undefined}>
+    <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -755,14 +758,8 @@ export const AssistantMessagePart = ({
 
     if (!hasReasoningText && !isStreaming) {
       // No reasoning text available (e.g. OpenAI o-series models hide chain-of-thought)
-      return (
-        <Reasoning className="mb-0 w-full" defaultOpen={false}>
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <BrainIcon className="size-4" />
-            <p>Thought for a few seconds</p>
-          </div>
-        </Reasoning>
-      );
+      // Hide empty thinking blocks entirely — they provide no useful info
+      return null;
     }
 
     return (
