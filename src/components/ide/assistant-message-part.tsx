@@ -750,7 +750,11 @@ export const AssistantMessagePart = ({
     }
 
     return (
-      <Reasoning className="mb-0 w-full" isStreaming={isStreaming}>
+      <Reasoning
+        className="mb-0 w-full"
+        isStreaming={isStreaming}
+        hasContent={hasReasoningText}
+      >
         <ReasoningTrigger />
         <ReasoningContent>{part.text}</ReasoningContent>
       </Reasoning>
