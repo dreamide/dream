@@ -352,14 +352,15 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded && content && filePath ? (
-        <div className="mt-2 max-h-96 overflow-auto">
+        <div className="mt-2">
           <CodeBlock
+            className="max-h-96"
             code={content}
             language={inferLanguage(filePath)}
             showLineNumbers
             style={{ contentVisibility: "visible" }}
           >
-            <CodeBlockHeader>
+            <CodeBlockHeader className="sticky top-0 z-10">
               <CodeBlockTitle>
                 <FileIcon size={14} />
                 <CodeBlockFilename>{filename}</CodeBlockFilename>
@@ -605,14 +606,15 @@ export const WriteFileChip = ({
           ) : null}
           {/* Content preview */}
           {content && filePath ? (
-            <div className="max-h-96 overflow-auto">
+            <div>
               <CodeBlock
+                className="max-h-96"
                 code={content}
                 language={inferLanguage(filePath)}
                 showLineNumbers
                 style={{ contentVisibility: "visible" }}
               >
-                <CodeBlockHeader>
+                <CodeBlockHeader className="sticky top-0 z-10">
                   <CodeBlockTitle>
                     <FileIcon size={14} />
                     <CodeBlockFilename>{filename}</CodeBlockFilename>
