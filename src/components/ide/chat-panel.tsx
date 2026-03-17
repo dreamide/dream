@@ -11,6 +11,18 @@ import {
 } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
+  Context,
+  ContextCacheUsage,
+  ContextContent,
+  ContextContentBody,
+  ContextContentFooter,
+  ContextContentHeader,
+  ContextInputUsage,
+  ContextOutputUsage,
+  ContextReasoningUsage,
+  ContextTrigger,
+} from "@/components/ai-elements/context";
+import {
   Conversation,
   ConversationContent,
   ConversationEmptyState,
@@ -62,7 +74,11 @@ import {
   getProviderAuthMode,
   getProviderCredential,
 } from "@/lib/ide-defaults";
-import { getModelReasoningEfforts } from "@/lib/models";
+import {
+  estimateTokenCount,
+  getModelContextWindow,
+  getModelReasoningEfforts,
+} from "@/lib/models";
 import { cn } from "@/lib/utils";
 import type {
   AiProvider,
@@ -336,6 +352,38 @@ export const ChatPanel = ({
   const selectedChatModeLabel =
     CHAT_MODE_OPTIONS.find((option) => option.value === selectedChatMode)
       ?.label ?? "Build";
+
+  const contextWindow = getModelContextWindow(selectedModel);
+  const estimatedUsedTokens = useMemo(() => {
+    let total = 0;
+    for (const message of messages) {
+      for (const part of message.parts as Record<string, unknown>[]) {
+        if (part.type === "text" && typeof part.text === "string") {
+          total += estimateTokenCount(part.text);
+        } else if (part.type === "reasoning" && typeof part.text === "string") {
+          total += estimateTokenCount(part.text);
+        } else if (
+          typeof part.type === "string" &&
+          (part.type.startsWith("tool-") || part.type === "dynamic-tool")
+        ) {
+          if (part.input) {
+            total += estimateTokenCount(JSON.stringify(part.input));
+          }
+          if (part.output) {
+            total += estimateTokenCount(JSON.stringify(part.output));
+          }
+        }
+      }
+    }
+    return total;
+  }, [messages]);
+
+  const modelId =
+    selectedProvider === "anthropic"
+      ? `anthropic:${selectedModel}`
+      : selectedProvider === "openai"
+        ? `openai:${selectedModel}`
+        : `google:${selectedModel}`;
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -899,7 +947,7 @@ export const ChatPanel = ({
                   render={
                     <button
                       className={cn(
-                        "ml-auto rounded p-1 transition-colors",
+                        "rounded p-1 transition-colors",
                         autoAcceptEdits
                           ? "text-green-500 hover:text-green-600"
                           : "text-muted-foreground/40 hover:text-muted-foreground",
@@ -917,6 +965,25 @@ export const ChatPanel = ({
                     : "Auto-accept edits (off)"}
                 </TooltipContent>
               </Tooltip>
+
+              {/* Context usage indicator */}
+              <Context
+                maxTokens={contextWindow}
+                modelId={modelId}
+                usedTokens={estimatedUsedTokens}
+              >
+                <ContextTrigger className="ml-auto h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
+                <ContextContent side="top" align="end">
+                  <ContextContentHeader />
+                  <ContextContentBody className="space-y-1.5">
+                    <ContextInputUsage />
+                    <ContextOutputUsage />
+                    <ContextReasoningUsage />
+                    <ContextCacheUsage />
+                  </ContextContentBody>
+                  <ContextContentFooter />
+                </ContextContent>
+              </Context>
             </div>
           </div>
         </div>
