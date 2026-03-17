@@ -354,13 +354,13 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
       {expanded && content && filePath ? (
         <div className="mt-2">
           <CodeBlock
-            className="max-h-96"
+            className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
             code={content}
             language={inferLanguage(filePath)}
             showLineNumbers
             style={{ contentVisibility: "visible" }}
           >
-            <CodeBlockHeader className="sticky top-0 z-10">
+            <CodeBlockHeader className="shrink-0">
               <CodeBlockTitle>
                 <FileIcon size={14} />
                 <CodeBlockFilename>{filename}</CodeBlockFilename>
@@ -608,13 +608,13 @@ export const WriteFileChip = ({
           {content && filePath ? (
             <div>
               <CodeBlock
-                className="max-h-96"
+                className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
                 code={content}
                 language={inferLanguage(filePath)}
                 showLineNumbers
                 style={{ contentVisibility: "visible" }}
               >
-                <CodeBlockHeader className="sticky top-0 z-10">
+                <CodeBlockHeader className="shrink-0">
                   <CodeBlockTitle>
                     <FileIcon size={14} />
                     <CodeBlockFilename>{filename}</CodeBlockFilename>
