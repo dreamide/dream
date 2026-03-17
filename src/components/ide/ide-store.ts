@@ -31,6 +31,7 @@ import {
   getPreviewTerminalSessionId,
   type ProviderModelState,
   type ProviderModelsResponse,
+  type RightPanelView,
   type SettingsSection,
   STATE_STORAGE_KEY,
 } from "./ide-types";
@@ -61,6 +62,7 @@ interface IdeState {
   autoAcceptEdits: boolean;
   previewError: string | null;
   previewLoading: Record<string, boolean>;
+  rightPanelView: RightPanelView;
   stateHydrated: boolean;
   isMacOs: boolean;
   isElectron: boolean;
@@ -108,6 +110,7 @@ interface IdeState {
   togglePanel: (panel: keyof PanelVisibility) => void;
   setOutputPanelOpen: (open: boolean) => void;
   setAutoAcceptEdits: (value: boolean) => void;
+  setRightPanelView: (view: RightPanelView) => void;
 
   // Actions – settings
   setSettings: (
@@ -247,6 +250,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   autoAcceptEdits: false,
   previewError: null,
   previewLoading: {},
+  rightPanelView: "preview",
   stateHydrated: false,
   isMacOs: false,
   isElectron: false,
@@ -265,141 +269,106 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
   providerModels: DEFAULT_PROVIDER_MODELS,
 
-  // ── Derived ─────────────────────────────────────────────────────────
+  // ── Getters ─────────────────────────────────────────────────────────
   getActiveProject: () => {
-    const { projects, activeProjectId } = get();
-    return projects.find((p) => p.id === activeProjectId) ?? null;
+    const { activeProjectId, projects } = get();
+    return projects.find((project) => project.id === activeProjectId) ?? null;
   },
+
   getThreadsForProject: (projectId) => {
     const { threadSort, threads } = get();
     return getThreadsForProject(threads, projectId, threadSort);
   },
+
   getActiveThread: () => {
-    const { activeProjectId, activeThreadIdByProject, threads } = get();
-    if (!activeProjectId) {
+    const { activeThreadIdByProject, getActiveProject, threads } = get();
+    const project = getActiveProject();
+    if (!project) {
       return null;
     }
 
-    const activeThreadId = activeThreadIdByProject[activeProjectId] ?? null;
-    if (!activeThreadId) {
-      return null;
-    }
-
+    const activeThreadId = activeThreadIdByProject[project.id] ?? null;
     return threads.find((thread) => thread.id === activeThreadId) ?? null;
   },
 
   // ── Actions: projects ───────────────────────────────────────────────
-  setProjects: (projects) => set({ projects }),
-  setActiveProjectId: (id) => {
+  setProjects: (projects) => {
     set((state) => {
-      if (!id) {
-        return { activeProjectId: null };
-      }
+      const nextActiveProjectId = ensureActiveProject(projects, state.activeProjectId);
+      const nextActiveThreadIdByProject = Object.fromEntries(
+        projects.map((project) => [
+          project.id,
+          ensureActiveThreadForProject(
+            state.threads,
+            project.id,
+            state.activeThreadIdByProject[project.id] ?? null,
+          ),
+        ]),
+      );
 
       return {
-        activeProjectId: id,
-        activeThreadIdByProject: {
-          ...state.activeThreadIdByProject,
-          [id]: ensureActiveThreadForProject(
-            state.threads,
-            id,
-            state.activeThreadIdByProject[id] ?? null,
-          ),
-        },
+        activeProjectId: nextActiveProjectId,
+        activeThreadIdByProject: nextActiveThreadIdByProject,
+        projects,
       };
     });
   },
 
-  addProject: (path) => {
-    const { projects, settings } = get();
-    const existing = projects.find((p) => p.path === path);
-    if (existing) {
-      get().setActiveProjectId(existing.id);
-      return;
-    }
-    const nextProject = createProjectConfig(path, settings);
-    const nextThread = createThreadConfig(nextProject);
+  setActiveProjectId: (id) => {
     set((state) => ({
-      projects: [...projects, nextProject],
-      activeProjectId: nextProject.id,
-      activeThreadIdByProject: {
-        ...state.activeThreadIdByProject,
-        [nextProject.id]: nextThread.id,
-      },
-      chats: {
-        ...state.chats,
-        [nextThread.id]: [],
-      },
-      threads: [...state.threads, nextThread],
+      activeProjectId: ensureActiveProject(state.projects, id),
     }));
   },
 
-  closeProject: (projectId) => {
-    const desktopApi = getDesktopApi();
-    const previewTerminalSessionId = getPreviewTerminalSessionId(projectId);
-    const projectTerminalSessionIds =
-      get().projectTerminalSessionIds[projectId] ?? [];
-    if (desktopApi) {
-      void desktopApi.stopTerminal(previewTerminalSessionId);
-      for (const sessionId of projectTerminalSessionIds) {
-        void desktopApi.stopTerminal(sessionId);
-      }
-    }
-
+  addProject: (path) => {
     set((state) => {
-      const nextProjects = state.projects.filter((p) => p.id !== projectId);
-      const removedThreadIds = state.threads
-        .filter((thread) => thread.projectId === projectId)
-        .map((thread) => thread.id);
-      const nextThreads = state.threads.filter(
-        (thread) => thread.projectId !== projectId,
-      );
-      const nextChats = { ...state.chats };
-      for (const threadId of removedThreadIds) {
-        delete nextChats[threadId];
-      }
-      const nextActiveThreadIdByProject = { ...state.activeThreadIdByProject };
-      delete nextActiveThreadIdByProject[projectId];
-      const nextTerminalOutput = { ...state.terminalOutput };
-      delete nextTerminalOutput[previewTerminalSessionId];
-      const nextTerminalStatus = { ...state.terminalStatus };
-      delete nextTerminalStatus[previewTerminalSessionId];
-      const nextTerminalTransport = { ...state.terminalTransport };
-      delete nextTerminalTransport[previewTerminalSessionId];
-      const nextTerminalShell = { ...state.terminalShell };
-      delete nextTerminalShell[previewTerminalSessionId];
-      const nextProjectTerminalSessionIds = {
-        ...state.projectTerminalSessionIds,
-      };
-      const nextActiveTerminalSessionIdByProject = {
-        ...state.activeTerminalSessionIdByProject,
-      };
-
-      delete nextProjectTerminalSessionIds[projectId];
-      delete nextActiveTerminalSessionIdByProject[projectId];
-
-      for (const sessionId of state.projectTerminalSessionIds[projectId] ??
-        []) {
-        delete nextTerminalOutput[sessionId];
-        delete nextTerminalStatus[sessionId];
-        delete nextTerminalTransport[sessionId];
-        delete nextTerminalShell[sessionId];
-      }
+      const nextProject = createProjectConfig(path, state.settings);
+      const nextThread = createThreadConfig(nextProject);
 
       return {
-        projects: nextProjects,
-        activeProjectId: ensureActiveProject(
-          nextProjects,
-          state.activeProjectId,
+        activeProjectId: nextProject.id,
+        activeThreadIdByProject: {
+          ...state.activeThreadIdByProject,
+          [nextProject.id]: nextThread.id,
+        },
+        chats: {
+          ...state.chats,
+          [nextThread.id]: [],
+        },
+        projects: [...state.projects, nextProject],
+        threads: [...state.threads, nextThread],
+      };
+    });
+  },
+
+  closeProject: (projectId) => {
+    set((state) => {
+      const nextProjects = state.projects.filter((project) => project.id !== projectId);
+      const nextThreads = state.threads.filter((thread) => thread.projectId !== projectId);
+      const nextChats = Object.fromEntries(
+        Object.entries(state.chats).filter(([threadId]) =>
+          nextThreads.some((thread) => thread.id === threadId),
         ),
-        activeThreadIdByProject: nextActiveThreadIdByProject,
+      );
+      const nextActiveProjectId = ensureActiveProject(
+        nextProjects,
+        state.activeProjectId === projectId ? null : state.activeProjectId,
+      );
+
+      return {
+        activeProjectId: nextActiveProjectId,
+        activeThreadIdByProject: Object.fromEntries(
+          nextProjects.map((project) => [
+            project.id,
+            ensureActiveThreadForProject(
+              nextThreads,
+              project.id,
+              state.activeThreadIdByProject[project.id] ?? null,
+            ),
+          ]),
+        ),
         chats: nextChats,
-        terminalOutput: nextTerminalOutput,
-        terminalStatus: nextTerminalStatus,
-        terminalTransport: nextTerminalTransport,
-        terminalShell: nextTerminalShell,
-        projectTerminalSessionIds: nextProjectTerminalSessionIds,
-        activeTerminalSessionIdByProject: nextActiveTerminalSessionIdByProject,
+        projects: nextProjects,
         threads: nextThreads,
       };
     });
@@ -407,8 +376,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   updateProject: (projectId, updater) => {
     set((state) => ({
-      projects: state.projects.map((p) =>
-        p.id === projectId ? updater(p) : p,
+      projects: state.projects.map((project) =>
+        project.id === projectId ? updater(project) : project,
       ),
     }));
   },
@@ -420,18 +389,19 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
 
-      const thread = createThreadConfig(project, { title });
+      const nextThread = createThreadConfig(project, { title });
+
       return {
         activeProjectId: projectId,
         activeThreadIdByProject: {
           ...state.activeThreadIdByProject,
-          [projectId]: thread.id,
+          [projectId]: nextThread.id,
         },
         chats: {
           ...state.chats,
-          [thread.id]: [],
+          [nextThread.id]: [],
         },
-        threads: [thread, ...state.threads],
+        threads: [...state.threads, nextThread],
       };
     });
   },
@@ -451,17 +421,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   updateThread: (threadId, updater) => {
     set((state) => ({
-      threads: state.threads.map((thread) => {
-        if (thread.id !== threadId) {
-          return thread;
-        }
-
-        const nextThread = updater(thread);
-        return {
-          ...nextThread,
-          updatedAt: new Date().toISOString(),
-        };
-      }),
+      threads: state.threads.map((thread) =>
+        thread.id === threadId ? updater(thread) : thread,
+      ),
     }));
   },
 
@@ -496,19 +458,13 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   archiveThread: (threadId) => {
     set((state) => {
       const thread = state.threads.find((item) => item.id === threadId);
-      if (!thread || thread.archivedAt !== null) {
+      if (!thread) {
         return state;
       }
 
       const archivedAt = new Date().toISOString();
       const nextThreads = state.threads.map((item) =>
-        item.id === threadId
-          ? {
-              ...item,
-              archivedAt,
-              updatedAt: archivedAt,
-            }
-          : item,
+        item.id === threadId ? { ...item, archivedAt } : item,
       );
 
       return {
@@ -581,6 +537,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
   setAutoAcceptEdits: (value) => set({ autoAcceptEdits: value }),
+  setRightPanelView: (view) => set({ rightPanelView: view }),
 
   // ── Actions: settings ───────────────────────────────────────────────
   setSettings: (updater) => {

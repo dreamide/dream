@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
+import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import {
@@ -35,7 +36,7 @@ export interface PreviewPanelProps {
   previewHostRef: RefObject<HTMLDivElement | null>;
 }
 
-export const PreviewPanel = ({
+const PreviewViewport = ({
   onSyncPreviewBounds,
   previewHostRef,
 }: PreviewPanelProps) => {
@@ -358,4 +359,14 @@ export const PreviewPanel = ({
       </div>
     </div>
   );
+};
+
+export const PreviewPanel = (props: PreviewPanelProps) => {
+  const rightPanelView = useIdeStore((s) => s.rightPanelView);
+
+  if (rightPanelView === "explorer") {
+    return <FileExplorerPanel />;
+  }
+
+  return <PreviewViewport {...props} />;
 };

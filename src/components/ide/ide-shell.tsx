@@ -48,6 +48,7 @@ export const IdeShell = () => {
   const setAppReady = useIdeStore((s) => s.setAppReady);
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
+  const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -244,6 +245,7 @@ export const IdeShell = () => {
     const desktopApi = getDesktopApi();
     const project = useIdeStore.getState().getActiveProject();
     const pv = useIdeStore.getState().panelVisibility;
+    const currentRightPanelView = useIdeStore.getState().rightPanelView;
     const terminalStatus = useIdeStore.getState().terminalStatus;
 
     if (!desktopApi) return;
@@ -256,6 +258,7 @@ export const IdeShell = () => {
       !project ||
       !pv.right ||
       !isPreviewRunnerRunning ||
+      currentRightPanelView !== "preview" ||
       isModalPreviewHidden()
     ) {
       desktopApi.updatePreview({
@@ -322,7 +325,12 @@ export const IdeShell = () => {
     }
 
     syncPreviewBounds();
-  }, [activeProject, panelVisibility.right, syncPreviewBounds]);
+  }, [
+    activeProject,
+    panelVisibility.right,
+    rightPanelView,
+    syncPreviewBounds,
+  ]);
 
   // Keep the preview hidden while any modal is open or finishing its exit animation.
   useEffect(() => {
@@ -332,7 +340,7 @@ export const IdeShell = () => {
     }
 
     syncPreviewBounds();
-  }, [modalPreviewHidden, syncPreviewBounds]);
+  }, [modalPreviewHidden, rightPanelView, syncPreviewBounds]);
 
   // Preview cleanup on unmount
   useEffect(() => {
@@ -687,7 +695,7 @@ export const IdeShell = () => {
               id="ide-middle-handle"
             />
 
-            {/* ─── RIGHT: Preview ─── */}
+            {/* ─── RIGHT: Preview / Explorer ─── */}
             <Panel
               className={rightVisible ? "min-w-0" : "!hidden"}
               defaultSize={PREVIEW_PANEL_DEFAULT_WIDTH_PX}
