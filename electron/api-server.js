@@ -541,8 +541,6 @@ const OPENAI_MODELS_URL = "https://api.openai.com/v1/models";
 const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
 const ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models";
-const GEMINI_OPENAI_MODELS_URL =
-  "https://generativelanguage.googleapis.com/v1beta/openai/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
 
 const dedupeAndSort = (models) => {
@@ -827,6 +825,9 @@ const fetchAnthropicModels = async (authMode, anthropicApiKey, oauthInput) => {
   }
 };
 
+const GEMINI_NATIVE_MODELS_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models";
+
 const fetchGeminiModels = async (geminiApiKey) => {
   if (!geminiApiKey) {
     return {
@@ -837,21 +838,20 @@ const fetchGeminiModels = async (geminiApiKey) => {
   }
 
   try {
-    const response = await fetch(GEMINI_OPENAI_MODELS_URL, {
-      headers: {
-        Authorization: `Bearer ${geminiApiKey}`,
-        "Content-Type": "application/json",
-      },
-      method: "GET",
-    });
+    const url = `${GEMINI_NATIVE_MODELS_URL}?key=${encodeURIComponent(geminiApiKey)}&pageSize=1000`;
+    const response = await fetch(url, { method: "GET" });
     if (!response.ok) {
       throw new Error(`Gemini request failed (${response.status}).`);
     }
     const payload = await response.json();
-    const modelIds = (payload.data ?? [])
+    const modelIds = (payload.models ?? [])
       .flatMap((entry) => {
-        const id = entry.id?.trim() ?? "";
-        return id ? [id] : [];
+        // Native API returns name like "models/gemini-2.0-flash"
+        let name = entry.name?.trim() ?? "";
+        if (name.toLowerCase().startsWith("models/")) {
+          name = name.slice("models/".length);
+        }
+        return name ? [name] : [];
       })
       .filter((id) => id.toLowerCase().startsWith("gemini"));
     const models = dedupeAndSort(
