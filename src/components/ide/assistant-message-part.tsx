@@ -3,9 +3,8 @@ import {
   BrainIcon,
   CheckIcon,
   FileIcon,
-  FileTextIcon,
   FolderIcon,
-  PencilIcon,
+  PenLineIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react";
@@ -344,7 +343,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
         onClick={() => hasOutput && setExpanded(!expanded)}
         type="button"
       >
-        <FileTextIcon className="size-3.5 shrink-0" />
+        <FileIcon className="size-3.5 shrink-0" />
         <span className="max-w-48 truncate font-medium">{filename}</span>
         {lineRange ? (
           <span className="text-muted-foreground">{lineRange}</span>
@@ -526,7 +525,7 @@ export const WriteFileChip = ({
         onClick={() => setExpanded(!expanded)}
         type="button"
       >
-        <PencilIcon className="size-3.5 shrink-0" />
+        <PenLineIcon className="size-3.5 shrink-0" />
         <span className="max-w-48 truncate font-medium">{filename}</span>
         {mode === "append" ? (
           <span className="text-muted-foreground">append</span>
