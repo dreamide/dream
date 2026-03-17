@@ -5,7 +5,6 @@ import {
   Monitor,
   PanelLeft,
   PanelRight,
-  Plus,
   Settings,
   Square,
   X,
@@ -29,18 +28,6 @@ export const IdeHeader = () => {
   const isElectron = useIdeStore((s) => s.isElectron);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const togglePanel = useIdeStore((s) => s.togglePanel);
-  const addProject = useIdeStore((s) => s.addProject);
-
-  const handleAddProject = useCallback(async () => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi) {
-      window.alert("Open this app inside Electron to add project folders.");
-      return;
-    }
-    const selectedPath = await desktopApi.pickProjectDirectory();
-    if (!selectedPath) return;
-    addProject(selectedPath);
-  }, [addProject]);
 
   return (
     <header
@@ -54,22 +41,6 @@ export const IdeHeader = () => {
 
       {appReady ? (
         <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label="Add project"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  onClick={() => void handleAddProject()}
-                  size="icon-sm"
-                  variant="ghost"
-                />
-              }
-            >
-              <Plus className="size-4 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent>Add project</TooltipContent>
-          </Tooltip>
           <ToggleButton
             active={panelVisibility.left}
             onClick={() => togglePanel("left")}

@@ -5,10 +5,17 @@ import {
   Ellipsis,
   FilePenLine,
   MessageSquarePlus,
+  Plus,
   TerminalSquare,
   X,
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +34,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
@@ -139,6 +152,7 @@ export const ProjectSidebar = () => {
   const activeThreadIdByProject = useIdeStore((s) => s.activeThreadIdByProject);
   const threadSort = useIdeStore((s) => s.threadSort);
   const addThread = useIdeStore((s) => s.addThread);
+  const addProject = useIdeStore((s) => s.addProject);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setActiveThreadId = useIdeStore((s) => s.setActiveThreadId);
   const updateProject = useIdeStore((s) => s.updateProject);
@@ -146,6 +160,17 @@ export const ProjectSidebar = () => {
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
+
+  const handleAddProject = useCallback(async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi) {
+      window.alert("Open this app inside Electron to add project folders.");
+      return;
+    }
+    const selectedPath = await desktopApi.pickProjectDirectory();
+    if (!selectedPath) return;
+    addProject(selectedPath);
+  }, [addProject]);
 
   const [collapsedProjects, setCollapsedProjects] = useState<
     Record<string, boolean>
@@ -232,7 +257,22 @@ export const ProjectSidebar = () => {
         className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
       >
         <div className="flex items-center justify-between gap-2 px-3 py-2">
-          <span className="font-medium text-sm">Projects</span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Add project"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => void handleAddProject()}
+                  size="icon-sm"
+                  variant="ghost"
+                />
+              }
+            >
+              <Plus className="size-4 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>Add project</TooltipContent>
+          </Tooltip>
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
