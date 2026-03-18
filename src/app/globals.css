@@ -440,3 +440,7 @@
   border-radius: 999px;
   background-clip: padding-box;
 }
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

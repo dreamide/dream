@@ -340,7 +340,7 @@ export const FileExplorerPanel = () => {
           </div>
         </div>
         <Button
-          className="h-7 w-7"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
           onClick={() => void loadProjectFiles()}
           size="icon-sm"
           type="button"
@@ -441,9 +441,9 @@ export const FileExplorerPanel = () => {
                 <span>Opening {selectedFilePath}…</span>
               </div>
             ) : selectedFileContent !== null ? (
-              <div className="h-full p-3">
+              <div className="h-full">
                 <CodeBlock
-                  className="flex h-full max-h-full flex-col overflow-hidden [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                  className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
                   code={selectedFileContent}
                   language={inferLanguage(selectedFilePath)}
                   showLineNumbers
