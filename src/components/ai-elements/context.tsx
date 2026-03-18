@@ -175,7 +175,7 @@ export const ContextContentBody = ({
   className,
   ...props
 }: ContextContentBodyProps) => (
-  <div className={cn("w-full p-3", className)} {...props}>
+  <div className={cn("w-full empty:hidden p-3", className)} {...props}>
     {children}
   </div>
 );
