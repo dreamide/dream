@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import { getPreviewTerminalSessionId } from "./ide-types";
 
 export interface PreviewPanelProps {
   onSyncPreviewBounds: (reload?: boolean) => void;
@@ -26,19 +25,12 @@ const PreviewViewport = ({
 }: PreviewPanelProps) => {
   const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const [previewUrlDraft, setPreviewUrlDraft] = useState("");
+  const [previewActive, setPreviewActive] = useState(false);
   const activeProject = useIdeStore((s) => s.getActiveProject());
-  const terminalStatus = useIdeStore((s) => s.terminalStatus);
   const previewLoading = useIdeStore((s) => s.previewLoading);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
   const updateProject = useIdeStore((s) => s.updateProject);
 
-  const previewTerminalSessionId = activeProject
-    ? getPreviewTerminalSessionId(activeProject.id)
-    : null;
-  const activeRunnerStatus = previewTerminalSessionId
-    ? (terminalStatus[previewTerminalSessionId] ?? "stopped")
-    : "stopped";
-  const isPreviewRunning = activeRunnerStatus === "running";
   const isPreviewLoading = activeProject
     ? (previewLoading[activeProject.id] ?? false)
     : false;
@@ -66,7 +58,30 @@ const PreviewViewport = ({
     };
   }, [onSyncPreviewBounds]);
 
-  const handlePreviewAction = () => {
+  const handleNavigate = () => {
+    if (!activeProject) {
+      return;
+    }
+
+    const value = previewUrlDraft.trim();
+    if (!value) {
+      return;
+    }
+
+    setPreviewError(null);
+    setPreviewActive(true);
+
+    if (value !== activeProject.previewUrl) {
+      updateProject(activeProject.id, (project) => ({
+        ...project,
+        previewUrl: value,
+      }));
+    }
+
+    onSyncPreviewBounds(true);
+  };
+
+  const handleRefresh = () => {
     if (!activeProject) {
       return;
     }
@@ -80,6 +95,7 @@ const PreviewViewport = ({
     }
 
     setPreviewError(null);
+    setPreviewActive(true);
     onSyncPreviewBounds(true);
   };
 
@@ -94,7 +110,7 @@ const PreviewViewport = ({
           <span
             className={cn(
               "inline-block size-2 shrink-0 rounded-full",
-              isPreviewRunning ? "bg-green-500" : "bg-muted-foreground/40",
+              previewActive ? "bg-green-500" : "bg-muted-foreground/40",
             )}
           />
           <span className="max-w-[140px] truncate">
@@ -154,7 +170,7 @@ const PreviewViewport = ({
                     : "text-muted-foreground/40",
                 )}
                 disabled={!activeProject}
-                onClick={handlePreviewAction}
+                onClick={handleRefresh}
                 type="button"
               />
             }
@@ -183,17 +199,7 @@ const PreviewViewport = ({
               }
 
               event.preventDefault();
-
-              const value = previewUrlDraft.trim();
-              if (!value || value === activeProject.previewUrl) {
-                return;
-              }
-
-              setPreviewError(null);
-              updateProject(activeProject.id, (project) => ({
-                ...project,
-                previewUrl: value,
-              }));
+              handleNavigate();
             }}
             placeholder="Enter URL..."
             value={previewUrlDraft}
@@ -209,16 +215,19 @@ const PreviewViewport = ({
       {/* ── Preview ─────────────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1">
         <div className="relative h-full" ref={previewContainerRef}>
-          {activeProject && isPreviewRunning ? (
-            <div className="absolute inset-0" ref={previewHostRef} />
+          {activeProject && previewActive ? (
+            <div
+              className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
+              ref={previewHostRef}
+            />
           ) : null}
           {!activeProject ? (
             <div className="absolute inset-0 p-3">
               <AppShellPlaceholder message="Add a project to start a live preview." />
             </div>
-          ) : !isPreviewRunning ? (
+          ) : !previewActive ? (
             <div className="absolute inset-0 p-3">
-              <AppShellPlaceholder message="Run the project to show the live preview." />
+              <AppShellPlaceholder message="Enter a URL to show the live preview." />
             </div>
           ) : null}
         </div>

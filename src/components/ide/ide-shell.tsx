@@ -22,11 +22,7 @@ import { IdeFooter, IdeHeader } from "./ide-header";
 import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
 import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
-import {
-  dedupeModels,
-  getPreviewTerminalSessionId,
-  TERMINAL_MIN_HEIGHT_PX,
-} from "./ide-types";
+import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
 import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
@@ -246,18 +242,13 @@ export const IdeShell = () => {
     const project = useIdeStore.getState().getActiveProject();
     const pv = useIdeStore.getState().panelVisibility;
     const currentRightPanelView = useIdeStore.getState().rightPanelView;
-    const terminalStatus = useIdeStore.getState().terminalStatus;
 
     if (!desktopApi) return;
 
-    const isPreviewRunnerRunning = project
-      ? terminalStatus[getPreviewTerminalSessionId(project.id)] === "running"
-      : false;
-
     if (
       !project ||
+      !project.previewUrl ||
       !pv.right ||
-      !isPreviewRunnerRunning ||
       currentRightPanelView !== "preview" ||
       isModalPreviewHidden()
     ) {
