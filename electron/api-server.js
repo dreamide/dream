@@ -1499,3 +1499,45 @@ app.post("/api/project-file", async (c) => {
     return c.text(message, 400);
   }
 });
+
+const MIME_TYPES = {
+  avif: "image/avif",
+  bmp: "image/bmp",
+  gif: "image/gif",
+  ico: "image/x-icon",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  svg: "image/svg+xml",
+  webp: "image/webp",
+};
+
+app.get("/api/project-file-raw", async (c) => {
+  const projectPath = c.req.query("projectPath");
+  const filePath = c.req.query("filePath");
+
+  if (!projectPath || !filePath) {
+    return c.text("Missing projectPath or filePath query parameter.", 400);
+  }
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    const absolutePath = resolveProjectPath(projectPath, filePath);
+    const stats = await fs.stat(absolutePath);
+    if (!stats.isFile()) {
+      return c.text(`Not a file: ${filePath}`, 400);
+    }
+
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+    const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
+    const data = await fs.readFile(absolutePath);
+
+    return new Response(data, {
+      headers: { "Content-Type": contentType },
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to read file.";
+    return c.text(message, 400);
+  }
+});

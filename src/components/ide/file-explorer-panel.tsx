@@ -40,6 +40,23 @@ interface FileTreeNode {
   isFile: boolean;
 }
 
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "ico",
+  "avif",
+]);
+
+const isImageFile = (filePath: string): boolean => {
+  const extension = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return IMAGE_EXTENSIONS.has(extension);
+};
+
 const inferLanguage = (filePath: string): BundledLanguage => {
   const extension = filePath.split(".").pop()?.toLowerCase() ?? "";
   const languages: Record<string, BundledLanguage> = {
@@ -232,6 +249,10 @@ export const FileExplorerPanel = () => {
 
   useEffect(() => {
     if (!projectId || !projectPath || !selectedFilePath) {
+      return;
+    }
+
+    if (isImageFile(selectedFilePath)) {
       return;
     }
 
@@ -439,6 +460,14 @@ export const FileExplorerPanel = () => {
               <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
                 <Spinner className="size-4" />
                 <span>Opening {selectedFilePath}…</span>
+              </div>
+            ) : isImageFile(selectedFilePath) ? (
+              <div className="flex h-full items-center justify-center p-6">
+                <img
+                  alt={selectedFilePath}
+                  className="max-h-full max-w-full object-contain"
+                  src={`/api/project-file-raw?projectPath=${encodeURIComponent(projectPath ?? "")}&filePath=${encodeURIComponent(selectedFilePath)}`}
+                />
               </div>
             ) : selectedFileContent !== null ? (
               <div className="h-full">
