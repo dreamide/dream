@@ -1,7 +1,7 @@
 import type { Terminal } from "@xterm/xterm";
 import type { PropsWithChildren } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle } from "@/components/ui/resizable";
 import {
   Tooltip,
   TooltipContent,
@@ -9,25 +9,86 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export const ResizeHandle = ({
-  className,
-  disabled,
-  id,
+// ── Panel resize handle ───────────────────────────────────────────────
+
+/**
+ * A draggable resize handle placed between two panels.
+ *
+ * `side` indicates which panel the handle resizes:
+ * - `"right"` — the handle sits on the right edge of a left-aligned panel;
+ *   dragging right increases width (positive delta).
+ * - `"left"` — the handle sits on the left edge of a right-aligned panel;
+ *   dragging left increases width (negative delta → positive growth).
+ */
+export const PanelResizeHandle = ({
+  onResizeStart,
+  onResize,
+  onResizeEnd,
+  side,
 }: {
-  className?: string;
-  disabled?: boolean;
-  id?: string;
-}) => (
-  <ResizableHandle
-    className={cn(
-      "z-20 touch-none select-none bg-transparent",
-      className,
-      disabled && "!w-0 pointer-events-none opacity-0",
-    )}
-    disabled={disabled}
-    id={id}
-  />
-);
+  onResizeStart?: () => void;
+  onResize: (deltaX: number) => void;
+  onResizeEnd?: () => void;
+  side: "left" | "right";
+}) => {
+  const draggingRef = useRef(false);
+  const startXRef = useRef(0);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      draggingRef.current = true;
+      startXRef.current = e.clientX;
+      onResizeStart?.();
+
+      // Capture pointer so we get events even if cursor leaves the handle
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [onResizeStart],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingRef.current) return;
+      const delta = e.clientX - startXRef.current;
+      onResize(side === "right" ? delta : -delta);
+    },
+    [onResize, side],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      onResizeEnd?.();
+    },
+    [onResizeEnd],
+  );
+
+  // Prevent text selection globally while dragging
+  useEffect(() => {
+    const onSelectStart = (e: Event) => {
+      if (draggingRef.current) e.preventDefault();
+    };
+    document.addEventListener("selectstart", onSelectStart);
+    return () => document.removeEventListener("selectstart", onSelectStart);
+  }, []);
+
+  return (
+    <div
+      className="group relative z-20 flex shrink-0 touch-none select-none items-center justify-center"
+      style={{ width: 7 }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      {/* Invisible hit area with col-resize cursor */}
+      <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
+    </div>
+  );
+};
 
 export const ToggleButton = ({
   active,

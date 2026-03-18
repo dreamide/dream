@@ -1,6 +1,5 @@
 import { FileIcon, FolderIcon, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Group, Panel } from "react-resizable-panels";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -18,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
+import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
 const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
@@ -375,18 +374,11 @@ export const FileExplorerPanel = () => {
         </Button>
       </div>
 
-      <Group
-        className="min-h-0 flex-1"
-        id="file-explorer"
-        orientation="horizontal"
-        resizeTargetMinimumSize={{ coarse: 28, fine: 16 }}
-      >
-        <Panel
-          defaultSize="35%"
-          groupResizeBehavior="preserve-pixel-size"
-          id="file-explorer-tree"
-          maxSize="50%"
-          minSize="250px"
+      <div className="flex min-h-0 flex-1">
+        {/* File tree */}
+        <div
+          className="shrink-0 overflow-hidden"
+          style={{ width: "35%", minWidth: 250, maxWidth: "50%" }}
         >
           <div className="h-full border-r border-foreground/10 bg-muted/20">
             <ScrollArea className="h-full">
@@ -435,64 +427,56 @@ export const FileExplorerPanel = () => {
               </div>
             </ScrollArea>
           </div>
-        </Panel>
+        </div>
 
-        <ResizeHandle id="file-explorer-handle" />
-
-        <Panel
-          defaultSize="65%"
-          id="file-explorer-content"
-          maxSize="85%"
-          minSize="50%"
-        >
-          <div className="h-full overflow-hidden">
-            {!selectedFilePath ? (
-              <div className="h-full p-3">
-                <AppShellPlaceholder message="Select a file from the tree to open it here." />
+        {/* File content */}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          {!selectedFilePath ? (
+            <div className="h-full p-3">
+              <AppShellPlaceholder message="Select a file from the tree to open it here." />
+            </div>
+          ) : fileError ? (
+            <div className="p-3">
+              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+                {fileError}
               </div>
-            ) : fileError ? (
-              <div className="p-3">
-                <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
-                  {fileError}
-                </div>
-              </div>
-            ) : fileLoading && !selectedFileContent ? (
-              <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
-                <Spinner className="size-4" />
-                <span>Opening {selectedFilePath}…</span>
-              </div>
-            ) : isImageFile(selectedFilePath) ? (
-              <div className="flex h-full items-center justify-center p-6">
-                <img
-                  alt={selectedFilePath}
-                  className="max-h-full max-w-full object-contain"
-                  src={`/api/project-file-raw?projectPath=${encodeURIComponent(projectPath ?? "")}&filePath=${encodeURIComponent(selectedFilePath)}`}
-                />
-              </div>
-            ) : selectedFileContent !== null ? (
-              <div className="h-full">
-                <CodeBlock
-                  className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                  code={selectedFileContent}
-                  language={inferLanguage(selectedFilePath)}
-                  showLineNumbers
-                  style={{ contentVisibility: "visible" }}
-                >
-                  <CodeBlockHeader className="shrink-0">
-                    <CodeBlockTitle>
-                      <FileIcon size={14} />
-                      <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
-                    </CodeBlockTitle>
-                    <CodeBlockActions>
-                      <CodeBlockCopyButton />
-                    </CodeBlockActions>
-                  </CodeBlockHeader>
-                </CodeBlock>
-              </div>
-            ) : null}
-          </div>
-        </Panel>
-      </Group>
+            </div>
+          ) : fileLoading && !selectedFileContent ? (
+            <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+              <Spinner className="size-4" />
+              <span>Opening {selectedFilePath}…</span>
+            </div>
+          ) : isImageFile(selectedFilePath) ? (
+            <div className="flex h-full items-center justify-center p-6">
+              <img
+                alt={selectedFilePath}
+                className="max-h-full max-w-full object-contain"
+                src={`/api/project-file-raw?projectPath=${encodeURIComponent(projectPath ?? "")}&filePath=${encodeURIComponent(selectedFilePath)}`}
+              />
+            </div>
+          ) : selectedFileContent !== null ? (
+            <div className="h-full">
+              <CodeBlock
+                className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                code={selectedFileContent}
+                language={inferLanguage(selectedFilePath)}
+                showLineNumbers
+                style={{ contentVisibility: "visible" }}
+              >
+                <CodeBlockHeader className="shrink-0">
+                  <CodeBlockTitle>
+                    <FileIcon size={14} />
+                    <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
+                  </CodeBlockTitle>
+                  <CodeBlockActions>
+                    <CodeBlockCopyButton />
+                  </CodeBlockActions>
+                </CodeBlockHeader>
+              </CodeBlock>
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 };

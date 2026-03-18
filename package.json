@@ -50,7 +50,6 @@
     "react-day-picker": "^9.14.0",
     "react-dom": "19.2.3",
     "react-jsx-parser": "^2.4.1",
-    "react-resizable-panels": "^4.7.3",
     "recharts": "2.15.4",
     "shiki": "^4.0.2",
     "sirv": "^3.0.2",
