@@ -14,11 +14,15 @@ import { cn } from "@/lib/utils";
 /**
  * A draggable resize handle placed between two panels.
  *
- * `side` indicates which panel the handle resizes:
+ * `side` indicates which panel edge the handle resizes:
  * - `"right"` — the handle sits on the right edge of a left-aligned panel;
- *   dragging right increases width (positive delta).
+ *   dragging right increases width.
  * - `"left"` — the handle sits on the left edge of a right-aligned panel;
- *   dragging left increases width (negative delta → positive growth).
+ *   dragging left increases width.
+ * - `"bottom"` — the handle sits on the bottom edge of a top-aligned panel;
+ *   dragging down increases height.
+ * - `"top"` — the handle sits on the top edge of a bottom-aligned panel;
+ *   dragging up increases height.
  */
 export const PanelResizeHandle = ({
   onResizeStart,
@@ -27,18 +31,20 @@ export const PanelResizeHandle = ({
   side,
 }: {
   onResizeStart?: () => void;
-  onResize: (deltaX: number) => void;
+  onResize: (delta: number) => void;
   onResizeEnd?: () => void;
-  side: "left" | "right";
+  side: "left" | "right" | "top" | "bottom";
 }) => {
   const draggingRef = useRef(false);
   const startXRef = useRef(0);
+  const startYRef = useRef(0);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
       draggingRef.current = true;
       startXRef.current = e.clientX;
+      startYRef.current = e.clientY;
       onResizeStart?.();
 
       // Capture pointer so we get events even if cursor leaves the handle
@@ -50,8 +56,14 @@ export const PanelResizeHandle = ({
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!draggingRef.current) return;
-      const delta = e.clientX - startXRef.current;
-      onResize(side === "right" ? delta : -delta);
+      if (side === "left" || side === "right") {
+        const delta = e.clientX - startXRef.current;
+        onResize(side === "right" ? delta : -delta);
+        return;
+      }
+
+      const delta = e.clientY - startYRef.current;
+      onResize(side === "bottom" ? delta : -delta);
     },
     [onResize, side],
   );
@@ -77,15 +89,26 @@ export const PanelResizeHandle = ({
 
   return (
     <div
-      className="group relative z-20 flex shrink-0 touch-none select-none items-center justify-center"
-      style={{ width: 7 }}
+      className={cn(
+        "group relative z-20 flex shrink-0 touch-none select-none items-center justify-center",
+        side === "left" || side === "right"
+          ? "cursor-col-resize"
+          : "cursor-row-resize",
+      )}
+      style={side === "left" || side === "right" ? { width: 1 } : { height: 1 }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
-      {/* Invisible hit area with col-resize cursor */}
-      <div className="absolute inset-y-0 -left-1 -right-1 cursor-col-resize" />
+      <div
+        className={cn(
+          "absolute",
+          side === "left" || side === "right"
+            ? "inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"
+            : "inset-x-0 -top-1.5 -bottom-1.5 cursor-row-resize",
+        )}
+      />
     </div>
   );
 };

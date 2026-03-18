@@ -31,6 +31,9 @@ const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
 const CHAT_PANEL_MIN_HEIGHT_PX = 180;
+const TERMINAL_PANEL_DEFAULT_HEIGHT_PX = 260;
+const TERMINAL_PANEL_MIN_HEIGHT_PX = TERMINAL_MIN_HEIGHT_PX + 16;
+const PANEL_RESIZE_HANDLE_SIZE_PX = 1;
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 
 /** Duration (ms) for panel slide animations. */
@@ -91,12 +94,16 @@ export const IdeShell = () => {
   // without triggering React re-renders on every pointer-move.
   const leftWidthRef = useRef(PROJECT_SIDEBAR_WIDTH_PX);
   const rightWidthRef = useRef(PREVIEW_PANEL_DEFAULT_WIDTH_PX);
+  const terminalHeightRef = useRef(TERMINAL_PANEL_DEFAULT_HEIGHT_PX);
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
+  const middlePanelRef = useRef<HTMLDivElement | null>(null);
+  const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
 
   // Snapshot the width at drag-start so delta is always relative to that.
   const widthAtDragStart = useRef(0);
+  const heightAtDragStart = useRef(0);
 
   const handleLeftResizeStart = useCallback(() => {
     widthAtDragStart.current = leftWidthRef.current;
@@ -139,6 +146,34 @@ export const IdeShell = () => {
     if (left) left.style.transition = "";
     const right = rightPanelRef.current;
     if (right) right.style.transition = "";
+  }, []);
+
+  const handleTerminalResizeStart = useCallback(() => {
+    heightAtDragStart.current =
+      terminalPanelRef.current?.getBoundingClientRect().height ??
+      terminalHeightRef.current;
+  }, []);
+
+  const handleTerminalResize = useCallback((deltaY: number) => {
+    const containerHeight =
+      middlePanelRef.current?.getBoundingClientRect().height ?? 0;
+    const maxHeight = Math.max(
+      TERMINAL_PANEL_MIN_HEIGHT_PX,
+      containerHeight - CHAT_PANEL_MIN_HEIGHT_PX - PANEL_RESIZE_HANDLE_SIZE_PX,
+    );
+    const next = Math.min(
+      maxHeight,
+      Math.max(
+        TERMINAL_PANEL_MIN_HEIGHT_PX,
+        heightAtDragStart.current + deltaY,
+      ),
+    );
+
+    terminalHeightRef.current = next;
+    const el = terminalPanelRef.current;
+    if (el) {
+      el.style.height = `${next}px`;
+    }
   }, []);
 
   // ── Effects ──────────────────────────────────────────────────────────
@@ -644,7 +679,10 @@ export const IdeShell = () => {
                 display: middleVisible ? undefined : "none",
               }}
             >
-              <div className="flex h-full w-full flex-col rounded-lg">
+              <div
+                ref={middlePanelRef}
+                className="flex h-full w-full flex-col rounded-lg"
+              >
                 {/* Chat area */}
                 <div
                   className="min-h-0 flex-1"
@@ -678,15 +716,27 @@ export const IdeShell = () => {
 
                 {/* Terminal area */}
                 {terminalPanelVisible && activeProject ? (
-                  <div
-                    className="shrink-0"
-                    style={{ minHeight: TERMINAL_MIN_HEIGHT_PX + 16 }}
-                  >
-                    <ProjectTerminalTabsPanel
-                      key={activeProject.id}
-                      projectId={activeProject.id}
+                  <>
+                    <PanelResizeHandle
+                      onResize={handleTerminalResize}
+                      onResizeStart={handleTerminalResizeStart}
+                      side="top"
                     />
-                  </div>
+                    <div
+                      ref={terminalPanelRef}
+                      className="shrink-0 overflow-hidden"
+                      style={{
+                        height: terminalHeightRef.current,
+                        minHeight: TERMINAL_PANEL_MIN_HEIGHT_PX,
+                        maxHeight: `calc(100% - ${CHAT_PANEL_MIN_HEIGHT_PX + PANEL_RESIZE_HANDLE_SIZE_PX}px)`,
+                      }}
+                    >
+                      <ProjectTerminalTabsPanel
+                        key={activeProject.id}
+                        projectId={activeProject.id}
+                      />
+                    </div>
+                  </>
                 ) : null}
               </div>
             </div>

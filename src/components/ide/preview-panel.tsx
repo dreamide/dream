@@ -128,7 +128,7 @@ const PreviewViewport = ({
       </div>
 
       {/* ── Navigation Bar ──────────────────────────────────────────────── */}
-      <div className="flex items-center gap-0.5 border-b border-foreground/10 px-1.5 py-1">
+      <div className="flex items-center gap-0.5 border-b border-foreground/10 px-1.5 py-2">
         <Tooltip>
           <TooltipTrigger
             render={
