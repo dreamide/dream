@@ -1,18 +1,6 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-  MoreVertical,
-  Play,
-  RotateCw,
-  Square,
-  X,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, MoreVertical, RotateCw, X } from "lucide-react";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Group, Panel } from "react-resizable-panels";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -23,13 +11,9 @@ import {
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import { FileExplorerPanel } from "./file-explorer-panel";
-import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
+import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import {
-  getPreviewTerminalSessionId,
-  TERMINAL_MIN_HEIGHT_PX,
-} from "./ide-types";
-import { TerminalPanel } from "./terminal-panel";
+import { getPreviewTerminalSessionId } from "./ide-types";
 
 export interface PreviewPanelProps {
   onSyncPreviewBounds: (reload?: boolean) => void;
@@ -45,12 +29,8 @@ const PreviewViewport = ({
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const terminalStatus = useIdeStore((s) => s.terminalStatus);
   const previewLoading = useIdeStore((s) => s.previewLoading);
-  const outputPanelOpen = useIdeStore((s) => s.outputPanelOpen);
-  const setOutputPanelOpen = useIdeStore((s) => s.setOutputPanelOpen);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
   const updateProject = useIdeStore((s) => s.updateProject);
-  const startRunner = useIdeStore((s) => s.startRunner);
-  const stopRunner = useIdeStore((s) => s.stopRunner);
 
   const previewTerminalSessionId = activeProject
     ? getPreviewTerminalSessionId(activeProject.id)
@@ -224,127 +204,27 @@ const PreviewViewport = ({
             </div>
           ) : null}
         </div>
-
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                aria-label={isPreviewRunning ? "Stop" : "Run"}
-                className="h-7 w-7"
-                disabled={!activeProject}
-                onClick={
-                  isPreviewRunning
-                    ? () => {
-                        void stopRunner().then(() => onSyncPreviewBounds(true));
-                      }
-                    : () => void startRunner()
-                }
-                size="icon"
-                variant="ghost"
-              />
-            }
-          >
-            {isPreviewRunning ? (
-              <Square className="size-3.5" />
-            ) : (
-              <Play className="size-3.5" />
-            )}
-          </TooltipTrigger>
-          <TooltipContent>
-            {isPreviewRunning ? "Stop runner" : "Start runner"}
-          </TooltipContent>
-        </Tooltip>
       </div>
 
-      {/* ── Preview + Output ────────────────────────────────────────────── */}
-      <div className="flex min-h-0 flex-1 flex-col">
-        <Group
-          className="min-h-0 flex-1"
-          id="ide-preview-output"
-          orientation="vertical"
-        >
-          <Panel
-            defaultSize={outputPanelOpen ? 70 : 100}
-            id="ide-preview"
-            minSize={30}
-          >
-            <div className="relative h-full" ref={previewContainerRef}>
-              {activeProject && isPreviewRunning ? (
-                <div
-                  className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
-                  ref={previewHostRef}
-                />
-              ) : null}
-              {!activeProject ? (
-                <div className="absolute inset-0 p-3">
-                  <AppShellPlaceholder message="Add a project and click Run to start a live preview." />
-                </div>
-              ) : !isPreviewRunning ? (
-                <div className="absolute inset-0 p-3">
-                  <AppShellPlaceholder message="Run the project to show the live preview." />
-                </div>
-              ) : null}
-            </div>
-          </Panel>
-
-          {outputPanelOpen ? (
-            <>
-              <ResizeHandle className="h-2" id="ide-output-handle" />
-              <Panel
-                defaultSize={30}
-                id="ide-output"
-                minSize={`${TERMINAL_MIN_HEIGHT_PX}px`}
-              >
-                {activeProject && previewTerminalSessionId ? (
-                  <div className="flex h-full min-h-0 flex-col">
-                    {/* Output header bar */}
-                    <div className="flex items-center gap-2 border-t border-foreground/10 bg-muted/30 px-3 py-1.5">
-                      <div className="ml-auto flex items-center gap-3">
-                        <button
-                          className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          onClick={() => setOutputPanelOpen(false)}
-                          type="button"
-                        >
-                          <ChevronDown className="size-4" />
-                        </button>
-                      </div>
-                    </div>
-                    {/* Terminal */}
-                    <div className="min-h-0 flex-1">
-                      <TerminalPanel
-                        bordered={false}
-                        onClose={() => setOutputPanelOpen(false)}
-                        sessionId={previewTerminalSessionId}
-                        showHeader={false}
-                        stopOnClose={false}
-                        subtitle={activeProject.runCommand}
-                        title="Run Output"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="flex h-full min-h-0 items-center justify-center px-3 text-muted-foreground text-sm"
-                    style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
-                  >
-                    Select a project to view its run output.
-                  </div>
-                )}
-              </Panel>
-            </>
+      {/* ── Preview ─────────────────────────────────────────────────────── */}
+      <div className="min-h-0 flex-1">
+        <div className="relative h-full" ref={previewContainerRef}>
+          {activeProject && isPreviewRunning ? (
+            <div
+              className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
+              ref={previewHostRef}
+            />
           ) : null}
-        </Group>
-
-        {/* Collapsed output toggle bar */}
-        {!outputPanelOpen ? (
-          <button
-            className="flex w-full items-center justify-center border-t border-foreground/10 bg-muted/30 py-1 transition-colors hover:bg-muted/50"
-            onClick={() => setOutputPanelOpen(true)}
-            type="button"
-          >
-            <ChevronUp className="size-4 text-muted-foreground" />
-          </button>
-        ) : null}
+          {!activeProject ? (
+            <div className="absolute inset-0 p-3">
+              <AppShellPlaceholder message="Add a project to start a live preview." />
+            </div>
+          ) : !isPreviewRunning ? (
+            <div className="absolute inset-0 p-3">
+              <AppShellPlaceholder message="Run the project to show the live preview." />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
