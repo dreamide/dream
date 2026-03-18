@@ -320,7 +320,7 @@ export const FileExplorerPanel = () => {
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
         <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2 text-sm font-medium">
           <FolderIcon className="size-4 text-muted-foreground" />
-          <span>File Explorer</span>
+          <span></span>
         </div>
         <div className="min-h-0 flex-1 p-3">
           <AppShellPlaceholder message="Add a project to browse its files." />
@@ -334,7 +334,7 @@ export const FileExplorerPanel = () => {
       <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2">
         <FolderIcon className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">File Explorer</div>
+          <div className="truncate text-sm font-medium"></div>
           <div className="truncate text-muted-foreground text-xs">
             {activeProject.path}
           </div>
