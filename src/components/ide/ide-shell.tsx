@@ -1,9 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import {
-  Group,
-  type GroupImperativeHandle,
-  Panel,
-} from "react-resizable-panels";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -16,10 +11,11 @@ import {
   useModalPreviewHidden,
 } from "@/lib/modal-visibility";
 import { useUiStore } from "@/lib/ui-store";
+import { cn } from "@/lib/utils";
 import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
 import { IdeFooter, IdeHeader } from "./ide-header";
-import { AppShellPlaceholder, ResizeHandle } from "./ide-helpers";
+import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
@@ -31,12 +27,15 @@ import { ProjectTerminalTabsPanel } from "./terminal-panel";
 const PROJECT_SIDEBAR_WIDTH_PX = 240;
 const PROJECT_SIDEBAR_MIN_WIDTH_PX = 200;
 const PROJECT_SIDEBAR_MAX_WIDTH_PX = 400;
-const CHAT_PANEL_DEFAULT_WIDTH_PX = 760;
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
 const CHAT_PANEL_MIN_HEIGHT_PX = 180;
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
+
+/** Duration (ms) for panel slide animations. */
+const PANEL_TRANSITION_MS = 200;
+const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -75,8 +74,6 @@ export const IdeShell = () => {
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Refs ─────────────────────────────────────────────────────────────
-  const mainGroupRef = useRef<GroupImperativeHandle | null>(null);
-  const savedLayoutRef = useRef<Record<string, Record<string, number>>>({});
   const previewHostRef = useRef<HTMLDivElement | null>(null);
   const providerCredentialsRef = useRef({
     anthropicAccessToken: settings.anthropicAccessToken,
@@ -88,6 +85,89 @@ export const IdeShell = () => {
     openAiApiKey: settings.openAiApiKey,
     openAiAuthMode: settings.openAiAuthMode,
   });
+
+  // Track whether panels have been rendered at least once (for delayed unmounting).
+  const [leftRendered, setLeftRendered] = useState(panelVisibility.left);
+  const [rightRendered, setRightRendered] = useState(panelVisibility.right);
+
+  useEffect(() => {
+    if (panelVisibility.left) {
+      setLeftRendered(true);
+    } else {
+      const timer = setTimeout(
+        () => setLeftRendered(false),
+        PANEL_TRANSITION_MS,
+      );
+      return () => clearTimeout(timer);
+    }
+  }, [panelVisibility.left]);
+
+  useEffect(() => {
+    if (panelVisibility.right) {
+      setRightRendered(true);
+    } else {
+      const timer = setTimeout(
+        () => setRightRendered(false),
+        PANEL_TRANSITION_MS,
+      );
+      return () => clearTimeout(timer);
+    }
+  }, [panelVisibility.right]);
+
+  // ── Resize state ────────────────────────────────────────────────────
+  // Widths live in refs so drag handlers can mutate the DOM directly
+  // without triggering React re-renders on every pointer-move.
+  const leftWidthRef = useRef(PROJECT_SIDEBAR_WIDTH_PX);
+  const rightWidthRef = useRef(PREVIEW_PANEL_DEFAULT_WIDTH_PX);
+  const leftPanelRef = useRef<HTMLDivElement | null>(null);
+  const rightPanelRef = useRef<HTMLDivElement | null>(null);
+  const isDraggingRef = useRef(false);
+
+  // Snapshot the width at drag-start so delta is always relative to that.
+  const widthAtDragStart = useRef(0);
+
+  const handleLeftResizeStart = useCallback(() => {
+    widthAtDragStart.current = leftWidthRef.current;
+    isDraggingRef.current = true;
+    const el = leftPanelRef.current;
+    if (el) el.style.transition = "none";
+  }, []);
+
+  const handleLeftResize = useCallback((deltaX: number) => {
+    const next = Math.min(
+      PROJECT_SIDEBAR_MAX_WIDTH_PX,
+      Math.max(PROJECT_SIDEBAR_MIN_WIDTH_PX, widthAtDragStart.current + deltaX),
+    );
+    leftWidthRef.current = next;
+    const el = leftPanelRef.current;
+    if (el) el.style.width = `${next}px`;
+  }, []);
+
+  const handleRightResizeStart = useCallback(() => {
+    widthAtDragStart.current = rightWidthRef.current;
+    isDraggingRef.current = true;
+    const el = rightPanelRef.current;
+    if (el) el.style.transition = "none";
+  }, []);
+
+  const handleRightResize = useCallback((deltaX: number) => {
+    const next = Math.max(
+      PREVIEW_PANEL_MIN_WIDTH_PX,
+      widthAtDragStart.current + deltaX,
+    );
+    rightWidthRef.current = next;
+    const el = rightPanelRef.current;
+    if (el) el.style.width = `${next}px`;
+  }, []);
+
+  const handleResizeEnd = useCallback(() => {
+    isDraggingRef.current = false;
+    // Re-enable transitions
+    const left = leftPanelRef.current;
+    if (left) left.style.transition = "";
+    const right = rightPanelRef.current;
+    if (right) right.style.transition = "";
+  }, []);
 
   // ── Effects ──────────────────────────────────────────────────────────
 
@@ -541,32 +621,6 @@ export const IdeShell = () => {
     : EMPTY_TERMINAL_SESSION_IDS;
   const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
 
-  // Save layout per visibility combination, restore when returning to one.
-  // Key is e.g. "1-1-1" for all visible, "1-0-1" for left+right only.
-  const visibilityKey = `${+leftVisible}-${+middleVisible}-${+rightVisible}`;
-  const prevVisKeyRef = useRef(visibilityKey);
-
-  useEffect(() => {
-    if (visibilityKey === prevVisKeyRef.current) return;
-    prevVisKeyRef.current = visibilityKey;
-
-    const group = mainGroupRef.current;
-    if (!group) return;
-    const saved = savedLayoutRef.current[visibilityKey];
-    if (!saved) return;
-
-    requestAnimationFrame(() => {
-      group.setLayout(saved);
-    });
-  }, [visibilityKey]);
-
-  const handleMainLayoutChanged = useCallback(
-    (layout: Record<string, number>) => {
-      savedLayoutRef.current[prevVisKeyRef.current] = layout;
-    },
-    [],
-  );
-
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="h-screen overflow-hidden text-foreground">
@@ -579,133 +633,139 @@ export const IdeShell = () => {
 
       <div className="h-[calc(100vh-88px)] overflow-hidden">
         {!stateHydrated ? null : (
-          <Group
-            className="h-full"
-            groupRef={mainGroupRef}
-            id="ide-root"
-            onLayoutChanged={handleMainLayoutChanged}
-            orientation="horizontal"
-            resizeTargetMinimumSize={{ coarse: 28, fine: 16 }}
-          >
+          <div className="flex h-full">
             {/* ─── LEFT: Projects sidebar ─── */}
-            <Panel
-              className={leftVisible ? "min-w-0 pl-2" : "!hidden"}
-              defaultSize={PROJECT_SIDEBAR_WIDTH_PX}
-              id="ide-left"
-              maxSize={
-                leftVisible && (middleVisible || rightVisible)
-                  ? PROJECT_SIDEBAR_MAX_WIDTH_PX
-                  : undefined
-              }
-              minSize={leftVisible ? PROJECT_SIDEBAR_MIN_WIDTH_PX : 0}
-            >
+            {(leftVisible || leftRendered) && (
               <div
-                className="h-full pb-2"
-                style={{ maxWidth: PROJECT_SIDEBAR_MAX_WIDTH_PX }}
+                className={cn(
+                  "shrink-0",
+                  !(leftVisible && leftRendered) && "overflow-hidden",
+                )}
+                ref={leftPanelRef}
+                style={{
+                  width: leftVisible ? leftWidthRef.current : 0,
+                  minWidth: leftVisible ? PROJECT_SIDEBAR_MIN_WIDTH_PX : 0,
+                  maxWidth: leftVisible ? PROJECT_SIDEBAR_MAX_WIDTH_PX : 0,
+                  opacity: leftVisible ? 1 : 0,
+                  paddingLeft: leftVisible ? 8 : 0,
+                  transition: PANEL_TRANSITION,
+                }}
               >
-                <ProjectSidebar />
-              </div>
-            </Panel>
-
-            <ResizeHandle
-              className="w-px"
-              disabled={!leftVisible || (!middleVisible && !rightVisible)}
-              id="ide-left-handle"
-            />
-
-            {/* ─── MIDDLE: Chat + Terminal ─── */}
-            <Panel
-              className={middleVisible ? "min-w-0" : "!hidden"}
-              defaultSize={CHAT_PANEL_DEFAULT_WIDTH_PX}
-              id="ide-middle"
-              maxSize={middleVisible ? undefined : 0}
-              minSize={middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0}
-            >
-              <div className="h-full">
-                <div className="flex h-full w-full flex-col rounded-lg">
-                  <Group
-                    className="h-full"
-                    id="ide-chat-term"
-                    orientation="vertical"
-                  >
-                    <Panel
-                      defaultSize={terminalPanelVisible ? 74 : 100}
-                      id="ide-chat"
-                      minSize={`${CHAT_PANEL_MIN_HEIGHT_PX}px`}
-                    >
-                      {activeProject ? (
-                        projectThreads.length > 0 ? (
-                          projectThreads.map((thread) => (
-                            <div
-                              key={thread.id}
-                              className={
-                                thread.id === activeThread?.id
-                                  ? "flex h-full min-h-0 flex-col"
-                                  : "hidden"
-                              }
-                            >
-                              <ChatPanel
-                                project={activeProject}
-                                thread={thread}
-                              />
-                            </div>
-                          ))
-                        ) : (
-                          <div className="h-full p-3">
-                            <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
-                          </div>
-                        )
-                      ) : (
-                        <div className="h-full p-3">
-                          <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
-                        </div>
-                      )}
-                    </Panel>
-
-                    {terminalPanelVisible && activeProject ? (
-                      <>
-                        <ResizeHandle className="h-2" id="ide-term-handle" />
-                        <Panel
-                          defaultSize={26}
-                          id="ide-terminal"
-                          minSize={`${TERMINAL_MIN_HEIGHT_PX + 16}px`}
-                        >
-                          <ProjectTerminalTabsPanel
-                            key={activeProject.id}
-                            projectId={activeProject.id}
-                          />
-                        </Panel>
-                      </>
-                    ) : null}
-                  </Group>
+                <div
+                  className="h-full pb-2"
+                  style={{ minWidth: PROJECT_SIDEBAR_MIN_WIDTH_PX }}
+                >
+                  <ProjectSidebar />
                 </div>
               </div>
-            </Panel>
+            )}
 
-            <ResizeHandle
-              className="w-px"
-              disabled={!rightVisible || (!middleVisible && !leftVisible)}
-              id="ide-middle-handle"
-            />
+            {/* Left resize handle */}
+            {leftVisible && (middleVisible || rightVisible) && (
+              <PanelResizeHandle
+                side="right"
+                onResizeStart={handleLeftResizeStart}
+                onResize={handleLeftResize}
+                onResizeEnd={handleResizeEnd}
+              />
+            )}
+
+            {/* ─── MIDDLE: Chat + Terminal ─── */}
+            {middleVisible && (
+              <div
+                className="min-w-0 flex-1"
+                style={{ minWidth: CHAT_PANEL_MIN_WIDTH_PX }}
+              >
+                <div className="flex h-full w-full flex-col rounded-lg">
+                  {/* Chat area */}
+                  <div
+                    className="min-h-0 flex-1"
+                    style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
+                  >
+                    {activeProject ? (
+                      projectThreads.length > 0 ? (
+                        projectThreads.map((thread) => (
+                          <div
+                            key={thread.id}
+                            className={
+                              thread.id === activeThread?.id
+                                ? "flex h-full min-h-0 flex-col"
+                                : "hidden"
+                            }
+                          >
+                            <ChatPanel
+                              project={activeProject}
+                              thread={thread}
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        <div className="h-full p-3">
+                          <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
+                        </div>
+                      )
+                    ) : (
+                      <div className="h-full p-3">
+                        <AppShellPlaceholder message="Select or add a project to start chatting with the AI assistant." />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Terminal area */}
+                  {terminalPanelVisible && activeProject ? (
+                    <div
+                      className="shrink-0"
+                      style={{ minHeight: TERMINAL_MIN_HEIGHT_PX + 16 }}
+                    >
+                      <ProjectTerminalTabsPanel
+                        key={activeProject.id}
+                        projectId={activeProject.id}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
+            {/* Right resize handle */}
+            {rightVisible && (middleVisible || leftVisible) && (
+              <PanelResizeHandle
+                side="left"
+                onResizeStart={handleRightResizeStart}
+                onResize={handleRightResize}
+                onResizeEnd={handleResizeEnd}
+              />
+            )}
 
             {/* ─── RIGHT: Preview / Explorer ─── */}
-            <Panel
-              className={rightVisible ? "min-w-0" : "!hidden"}
-              defaultSize={PREVIEW_PANEL_DEFAULT_WIDTH_PX}
-              id="ide-right"
-              maxSize={rightVisible ? undefined : 0}
-              minSize={rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0}
-            >
+            {(rightVisible || rightRendered) && (
               <div
-                className={`h-full pr-2 pb-2 ${!middleVisible ? "pl-2" : ""}`}
+                className={cn(
+                  "shrink-0",
+                  !(rightVisible && rightRendered) && "overflow-hidden",
+                )}
+                ref={rightPanelRef}
+                style={{
+                  width: rightVisible ? rightWidthRef.current : 0,
+                  minWidth: rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0,
+                  opacity: rightVisible ? 1 : 0,
+                  paddingRight: rightVisible ? 8 : 0,
+                  paddingLeft: rightVisible && !middleVisible ? 8 : 0,
+                  transition: PANEL_TRANSITION,
+                }}
               >
-                <PreviewPanel
-                  onSyncPreviewBounds={syncPreviewBounds}
-                  previewHostRef={previewHostRef}
-                />
+                <div
+                  className="h-full pb-2"
+                  style={{ minWidth: PREVIEW_PANEL_MIN_WIDTH_PX }}
+                >
+                  <PreviewPanel
+                    onSyncPreviewBounds={syncPreviewBounds}
+                    previewHostRef={previewHostRef}
+                  />
+                </div>
               </div>
-            </Panel>
-          </Group>
+            )}
+          </div>
         )}
       </div>
 
