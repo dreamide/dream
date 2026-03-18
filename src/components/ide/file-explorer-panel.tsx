@@ -1,5 +1,5 @@
 import { FileIcon, FolderIcon, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -17,10 +17,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { AppShellPlaceholder } from "./ide-helpers";
+import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
 const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
+const FILE_TREE_MIN_WIDTH_PX = 250;
+const FILE_TREE_DEFAULT_WIDTH_PERCENT = 35;
+const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
 
 type ProjectFilesListResponse = {
   count: number;
@@ -155,6 +158,10 @@ const readResponseText = async (response: Response): Promise<string> => {
 
 export const FileExplorerPanel = () => {
   const activeProject = useIdeStore((s) => s.getActiveProject());
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const treePaneRef = useRef<HTMLDivElement | null>(null);
+  const treeWidthRef = useRef<number | null>(null);
+  const treeWidthAtDragStart = useRef(0);
 
   const [fileListsByProject, setFileListsByProject] = useState<
     Record<string, string[]>
@@ -335,6 +342,30 @@ export const FileExplorerPanel = () => {
     });
   }, [root]);
 
+  const handleTreeResizeStart = useCallback(() => {
+    treeWidthAtDragStart.current =
+      treePaneRef.current?.getBoundingClientRect().width ??
+      FILE_TREE_MIN_WIDTH_PX;
+  }, []);
+
+  const handleTreeResize = useCallback((deltaX: number) => {
+    const containerWidth =
+      splitContainerRef.current?.getBoundingClientRect().width ?? 0;
+    const maxWidth = Math.max(
+      FILE_TREE_MIN_WIDTH_PX,
+      containerWidth * FILE_TREE_MAX_WIDTH_RATIO,
+    );
+    const nextWidth = Math.min(
+      maxWidth,
+      Math.max(FILE_TREE_MIN_WIDTH_PX, treeWidthAtDragStart.current + deltaX),
+    );
+
+    treeWidthRef.current = nextWidth;
+    if (treePaneRef.current) {
+      treePaneRef.current.style.width = `${nextWidth}px`;
+    }
+  }, []);
+
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
@@ -374,11 +405,18 @@ export const FileExplorerPanel = () => {
         </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div ref={splitContainerRef} className="flex min-h-0 flex-1">
         {/* File tree */}
         <div
+          ref={treePaneRef}
           className="shrink-0 overflow-hidden"
-          style={{ width: "35%", minWidth: 250, maxWidth: "50%" }}
+          style={{
+            width: treeWidthRef.current
+              ? `${treeWidthRef.current}px`
+              : `${FILE_TREE_DEFAULT_WIDTH_PERCENT}%`,
+            minWidth: FILE_TREE_MIN_WIDTH_PX,
+            maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
+          }}
         >
           <div className="h-full border-r border-foreground/10 bg-muted/20">
             <ScrollArea className="h-full">
@@ -428,6 +466,12 @@ export const FileExplorerPanel = () => {
             </ScrollArea>
           </div>
         </div>
+
+        <PanelResizeHandle
+          side="right"
+          onResize={handleTreeResize}
+          onResizeStart={handleTreeResizeStart}
+        />
 
         {/* File content */}
         <div className="min-w-0 flex-1 overflow-hidden">

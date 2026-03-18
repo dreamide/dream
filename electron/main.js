@@ -1477,7 +1477,7 @@ ipcMain.on("preview:update", (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
-  app.setName("Dream IDE");
+  app.setName("Dream");
 
   await startRendererServerIfNeeded();
   await createMainWindow();
