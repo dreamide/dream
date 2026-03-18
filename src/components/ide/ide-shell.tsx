@@ -727,8 +727,8 @@ export const IdeShell = () => {
               </div>
             )}
 
-            {/* Right resize handle */}
-            {rightVisible && (middleVisible || leftVisible) && (
+            {/* Right resize handle — only when middle panel separates them */}
+            {rightVisible && middleVisible && (
               <PanelResizeHandle
                 side="left"
                 onResizeStart={handleRightResizeStart}
@@ -741,12 +741,16 @@ export const IdeShell = () => {
             {(rightVisible || rightRendered) && (
               <div
                 className={cn(
-                  "shrink-0",
+                  // Fill remaining space when middle panel is hidden;
+                  // otherwise use a fixed width.
+                  middleVisible ? "shrink-0" : "min-w-0 flex-1",
                   !(rightVisible && rightRendered) && "overflow-hidden",
                 )}
                 ref={rightPanelRef}
                 style={{
-                  width: rightVisible ? rightWidthRef.current : 0,
+                  ...(middleVisible
+                    ? { width: rightVisible ? rightWidthRef.current : 0 }
+                    : {}),
                   minWidth: rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0,
                   opacity: rightVisible ? 1 : 0,
                   paddingRight: rightVisible ? 8 : 0,
