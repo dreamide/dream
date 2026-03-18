@@ -10,13 +10,8 @@ import {
   useRef,
   useState,
 } from "react";
-import type {
-  BundledLanguage,
-  BundledTheme,
-  HighlighterGeneric,
-  ThemedToken,
-} from "shiki";
-import { createHighlighter } from "shiki";
+import type { BundledLanguage, ThemedToken } from "shiki";
+import { getSingletonHighlighter } from "shiki";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -117,11 +112,12 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
   code: "",
 });
 
-// Highlighter cache (singleton per language)
-const highlighterCache = new Map<
-  string,
-  Promise<HighlighterGeneric<BundledLanguage, BundledTheme>>
->();
+// Returns the singleton highlighter with the requested language loaded
+const getHighlighter = (language: BundledLanguage) =>
+  getSingletonHighlighter({
+    langs: [language],
+    themes: ["github-light", "github-dark"],
+  });
 
 // Token cache
 const tokensCache = new Map<string, TokenizedCode>();
@@ -133,23 +129,6 @@ const getTokensCacheKey = (code: string, language: BundledLanguage) => {
   const start = code.slice(0, 100);
   const end = code.length > 100 ? code.slice(-100) : "";
   return `${language}:${code.length}:${start}:${end}`;
-};
-
-const getHighlighter = (
-  language: BundledLanguage,
-): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> => {
-  const cached = highlighterCache.get(language);
-  if (cached) {
-    return cached;
-  }
-
-  const highlighterPromise = createHighlighter({
-    langs: [language],
-    themes: ["github-light", "github-dark"],
-  });
-
-  highlighterCache.set(language, highlighterPromise);
-  return highlighterPromise;
 };
 
 // Create raw tokens for immediate display while highlighting loads

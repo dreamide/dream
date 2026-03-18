@@ -47,6 +47,7 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import {
   Source,
   Sources,
@@ -559,6 +560,57 @@ export const ChatPanel = ({
   );
 
   const isStreaming = status === "streaming";
+  const isProcessing = status === "submitted" || status === "streaming";
+
+  // Track elapsed thinking time, only shown during lulls (no new data)
+  const [thinkingSeconds, setThinkingSeconds] = useState(0);
+  const [showThinking, setShowThinking] = useState(false);
+  const lullStartRef = useRef<number | null>(null);
+  const lullTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Build a fingerprint that changes whenever new data arrives
+  const lastMessage = messages[messages.length - 1];
+  const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
+  const streamFingerprint = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
+    lastPart && "text" in lastPart ? (lastPart.text as string).length : 0
+  }`;
+
+  useEffect(() => {
+    if (!isProcessing) {
+      // Not processing — reset everything
+      setShowThinking(false);
+      setThinkingSeconds(0);
+      lullStartRef.current = null;
+      if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+
+    // Data changed while processing — hide and reset, wait for next lull
+    setShowThinking(false);
+    setThinkingSeconds(0);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
+
+    lullTimerRef.current = setTimeout(() => {
+      lullStartRef.current = Date.now();
+      setShowThinking(true);
+      setThinkingSeconds(1);
+      intervalRef.current = setInterval(() => {
+        if (lullStartRef.current !== null) {
+          setThinkingSeconds(
+            Math.floor((Date.now() - lullStartRef.current) / 1000) + 1,
+          );
+        }
+      }, 1000);
+    }, 1000);
+
+    return () => {
+      if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isProcessing, streamFingerprint]);
 
   const messageContent = useMemo(() => {
     return messages.map((message, messageIndex) => {
@@ -748,6 +800,13 @@ export const ChatPanel = ({
           ) : (
             messageContent
           )}
+          {isProcessing && showThinking ? (
+            <div className="py-2">
+              <Shimmer as="span" className="text-sm" duration={1.5}>
+                {`Thinking for ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
+              </Shimmer>
+            </div>
+          ) : null}
         </ConversationContent>
         <ConversationScrollMemory
           scrollPositionsRef={scrollPositionsRef}
@@ -875,7 +934,11 @@ export const ChatPanel = ({
                     </span>
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="text-xs" side="top">
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  className="text-xs"
+                  side="top"
+                >
                   {groupedModelOptions.map((group) => (
                     <SelectGroup key={group.provider}>
                       {connectedProviders.length > 1 && (
