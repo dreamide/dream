@@ -6,7 +6,6 @@ import {
   FilePenLine,
   MessageSquarePlus,
   Plus,
-  TerminalSquare,
   X,
 } from "lucide-react";
 import {
@@ -29,7 +28,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -51,16 +49,12 @@ type RenameTarget =
 const ProjectActionsMenu = ({
   label,
   onEdit,
-  onOpenTerminal,
-  onNewThread,
   onOpenChange,
   onRemove,
   open,
 }: {
   label: string;
   onEdit: () => void;
-  onOpenTerminal: () => void;
-  onNewThread: () => void;
   onOpenChange: (open: boolean) => void;
   onRemove: () => void;
   open: boolean;
@@ -88,15 +82,6 @@ const ProjectActionsMenu = ({
         <DropdownMenuItem onClick={onRemove}>
           <X className="size-4" />
           Remove
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onNewThread}>
-          <MessageSquarePlus className="size-4" />
-          New thread
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onOpenTerminal}>
-          <TerminalSquare className="size-4" />
-          Open terminal
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -159,7 +144,6 @@ export const ProjectSidebar = () => {
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
-  const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -326,7 +310,7 @@ export const ProjectSidebar = () => {
                         onClick={() => handleProjectClick(project.id)}
                         type="button"
                       >
-                        <div className="min-w-0 pr-6 text-left">
+                        <div className="min-w-0 pr-14 text-left">
                           <p className="truncate font-medium text-muted-foreground text-sm">
                             {project.name}
                           </p>
@@ -334,12 +318,29 @@ export const ProjectSidebar = () => {
                       </button>
                       <div
                         className={cn(
-                          "absolute top-1/2 right-1.5 -translate-y-1/2 transition-opacity",
+                          "absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5 transition-opacity",
                           isProjectMenuOpen
                             ? "opacity-100"
                             : "opacity-0 group-hover:opacity-100",
                         )}
                       >
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                aria-label="New thread"
+                                className="h-8 w-8 p-0"
+                                onClick={() => addThread(project.id)}
+                                size="icon-sm"
+                                type="button"
+                                variant="ghost"
+                              />
+                            }
+                          >
+                            <MessageSquarePlus className="size-4" />
+                          </TooltipTrigger>
+                          <TooltipContent>New thread</TooltipContent>
+                        </Tooltip>
                         <ProjectActionsMenu
                           label={project.name}
                           onEdit={() =>
@@ -349,11 +350,6 @@ export const ProjectSidebar = () => {
                               name: project.name,
                             })
                           }
-                          onOpenTerminal={() => {
-                            setActiveProjectId(project.id);
-                            void openProjectTerminal(project.id);
-                          }}
-                          onNewThread={() => addThread(project.id)}
                           onOpenChange={(open) =>
                             setOpenMenuId(open ? projectMenuId : null)
                           }

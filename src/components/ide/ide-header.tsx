@@ -7,6 +7,7 @@ import {
   PanelRight,
   Settings,
   Square,
+  TerminalSquare,
   X,
 } from "lucide-react";
 
@@ -107,9 +108,35 @@ export const IdeHeader = () => {
 
 export const IdeFooter = () => {
   const appReady = useIdeStore((s) => s.appReady);
+  const activeProject = useIdeStore((s) => s.getActiveProject());
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
+  const projectTerminalSessionIds = useIdeStore(
+    (s) => s.projectTerminalSessionIds,
+  );
+  const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
   const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
+
+  const terminalOpen = activeProject
+    ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
+    : false;
+
+  const handleOpenTerminal = useCallback(() => {
+    if (!activeProject) {
+      return;
+    }
+
+    if (!useIdeStore.getState().panelVisibility.middle) {
+      useIdeStore.setState((state) => ({
+        panelVisibility: {
+          ...state.panelVisibility,
+          middle: true,
+        },
+      }));
+    }
+
+    void openProjectTerminal(activeProject.id);
+  }, [activeProject, openProjectTerminal]);
 
   const handleRightPanelViewChange = useCallback(
     (value: string) => {
@@ -124,7 +151,32 @@ export const IdeFooter = () => {
 
   return (
     <footer className="relative flex h-11 items-center justify-between pl-3 pr-3 text-foreground">
-      <div />
+      <div className="flex items-center [-webkit-app-region:no-drag]">
+        {appReady ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Open terminal"
+                  className={cn(
+                    "h-8 w-8 p-0",
+                    terminalOpen
+                      ? "text-foreground hover:text-foreground"
+                      : "text-muted-foreground/50 hover:text-foreground",
+                  )}
+                  disabled={!activeProject}
+                  onClick={handleOpenTerminal}
+                  size="icon-sm"
+                  variant="ghost"
+                />
+              }
+            >
+              <TerminalSquare className="size-4 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>Open terminal</TooltipContent>
+          </Tooltip>
+        ) : null}
+      </div>
 
       {appReady && panelVisibility.right ? (
         <Tabs
@@ -159,7 +211,7 @@ export const IdeFooter = () => {
               >
                 <Folder className="size-4" />
               </TooltipTrigger>
-              <TooltipContent>File explorer</TooltipContent>
+              <TooltipContent>Files</TooltipContent>
             </Tooltip>
           </TabsList>
         </Tabs>

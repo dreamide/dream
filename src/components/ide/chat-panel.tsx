@@ -898,33 +898,32 @@ export const ChatPanel = ({
               </Select>
 
               {/* Reasoning effort selector */}
-              <Select
-                onValueChange={(value) => {
-                  updateThread(thread.id, (current) => ({
-                    ...current,
-                    reasoningEffort: value as ReasoningEffort,
-                  }));
-                }}
-                value={selectedReasoningEffort}
-              >
-                <SelectTrigger
-                  className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  disabled={reasoningEffortOptions.length === 0}
+              {reasoningEffortOptions.length > 0 && (
+                <Select
+                  onValueChange={(value) => {
+                    updateThread(thread.id, (current) => ({
+                      ...current,
+                      reasoningEffort: value as ReasoningEffort,
+                    }));
+                  }}
+                  value={selectedReasoningEffort}
                 >
-                  <span className="truncate">{selectedReasoningLabel}</span>
-                </SelectTrigger>
-                <SelectContent className="text-xs" side="top">
-                  {reasoningEffortOptions.map((option) => (
-                    <SelectItem
-                      className="text-xs"
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                    <span className="truncate">{selectedReasoningLabel}</span>
+                  </SelectTrigger>
+                  <SelectContent className="text-xs" side="top">
+                    {reasoningEffortOptions.map((option) => (
+                      <SelectItem
+                        className="text-xs"
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               {/* Auto-accept edits toggle */}
               <Tooltip>

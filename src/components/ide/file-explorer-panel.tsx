@@ -22,7 +22,6 @@ import { useIdeStore } from "./ide-store";
 
 const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
 const FILE_TREE_MIN_WIDTH_PX = 250;
-const FILE_TREE_DEFAULT_WIDTH_PERCENT = 35;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
 
 type ProjectFilesListResponse = {
@@ -411,9 +410,7 @@ export const FileExplorerPanel = () => {
           ref={treePaneRef}
           className="shrink-0 overflow-hidden"
           style={{
-            width: treeWidthRef.current
-              ? `${treeWidthRef.current}px`
-              : `${FILE_TREE_DEFAULT_WIDTH_PERCENT}%`,
+            width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
             minWidth: FILE_TREE_MIN_WIDTH_PX,
             maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
           }}
