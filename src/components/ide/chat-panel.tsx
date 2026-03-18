@@ -54,6 +54,7 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
+import { GlowBorder } from "@/components/ui/glow-border";
 import {
   Select,
   SelectContent,
@@ -858,16 +859,18 @@ export const ChatPanel = ({
                     </PromptInputActionMenuContent>
                   </PromptInputActionMenu>
                 </PromptInputTools>
-                <PromptInputSubmit
-                  className="size-8 rounded-md"
-                  disabled={
-                    !isProviderConnected ||
-                    !hasProviderCredential ||
-                    selectedModel === ""
-                  }
-                  onStop={stop}
-                  status={status}
-                />
+                <GlowBorder variant="glow" className="rounded-md">
+                  <PromptInputSubmit
+                    className="size-8 rounded-md"
+                    disabled={
+                      !isProviderConnected ||
+                      !hasProviderCredential ||
+                      selectedModel === ""
+                    }
+                    onStop={stop}
+                    status={status}
+                  />
+                </GlowBorder>
               </PromptInputFooter>
             </PromptInput>
 

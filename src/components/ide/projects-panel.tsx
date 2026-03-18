@@ -30,6 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { GlowBorder } from "@/components/ui/glow-border";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -367,12 +368,12 @@ export const ProjectSidebar = () => {
                           const threadMenuId = `thread:${thread.id}`;
                           const isThreadMenuOpen = openMenuId === threadMenuId;
 
-                          return (
+                          const threadItem = (
                             <div
                               className={cn(
-                                "group relative rounded-md transition-colors",
+                                "group relative min-w-0 rounded-md transition-colors",
                                 isActiveThread
-                                  ? "bg-muted/70"
+                                  ? "bg-background"
                                   : "hover:bg-muted/20",
                               )}
                               key={thread.id}
@@ -416,6 +417,19 @@ export const ProjectSidebar = () => {
                                 />
                               </div>
                             </div>
+                          );
+
+                          return isActiveThread ? (
+                            <GlowBorder
+                              key={thread.id}
+                              variant="glow"
+                              className="rounded-md"
+                              colors={["orange", "yellow", "orange"]}
+                            >
+                              {threadItem}
+                            </GlowBorder>
+                          ) : (
+                            threadItem
                           );
                         })}
                       </div>
