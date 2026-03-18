@@ -13,6 +13,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { serve } from "@hono/node-server";
 import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
@@ -979,8 +980,6 @@ Never attempt to access files outside the active project root.
 Important: Always explain your reasoning and findings in text before and after making tool calls. Briefly describe what you are looking for, what you found, and what you plan to do next. Do not make sequences of tool calls without any explanatory text in between.`;
 
 const OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
-const GEMINI_OPENAI_BASE_URL =
-  "https://generativelanguage.googleapis.com/v1beta/openai";
 const DEFAULT_TOOL_STEP_LIMIT = 8;
 const REASONING_TOOL_STEP_LIMIT = 50;
 
@@ -1205,10 +1204,8 @@ app.post("/api/chat", async (c) => {
           })
         : createAnthropic({ apiKey: credential })
       : provider === "gemini"
-        ? createOpenAI({
+        ? createGoogleGenerativeAI({
             apiKey: credential,
-            baseURL: GEMINI_OPENAI_BASE_URL,
-            name: "gemini",
           })
         : createOpenAI({
             apiKey: credential,
@@ -1237,10 +1234,7 @@ app.post("/api/chat", async (c) => {
 
   const usesReasoningModel =
     getModelReasoningEfforts(provider, model).length > 0;
-  const languageModel =
-    provider === "gemini"
-      ? providerFactory.chat(model)
-      : providerFactory(model);
+  const languageModel = providerFactory(model);
 
   const providerOptions = {
     ...(openAiProviderOptions ? { openai: openAiProviderOptions } : {}),
