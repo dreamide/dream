@@ -9,6 +9,7 @@ import {
   Square,
   X,
 } from "lucide-react";
+
 import { useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,6 +29,13 @@ export const IdeHeader = () => {
   const isElectron = useIdeStore((s) => s.isElectron);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const togglePanel = useIdeStore((s) => s.togglePanel);
+  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
+  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+
+  const handleOpenSettings = useCallback(() => {
+    setSettingsSection("appearance");
+    setSettingsOpen(true);
+  }, [setSettingsOpen, setSettingsSection]);
 
   return (
     <header
@@ -48,6 +56,22 @@ export const IdeHeader = () => {
           >
             <PanelLeft className="size-4" />
           </ToggleButton>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Settings"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={handleOpenSettings}
+                  size="icon-sm"
+                  variant="ghost"
+                />
+              }
+            >
+              <Settings className="size-4 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>Settings</TooltipContent>
+          </Tooltip>
         </div>
       ) : null}
 
@@ -86,13 +110,6 @@ export const IdeFooter = () => {
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-
-  const handleOpenSettings = useCallback(() => {
-    setSettingsSection("appearance");
-    setSettingsOpen(true);
-  }, [setSettingsOpen, setSettingsSection]);
 
   const handleRightPanelViewChange = useCallback(
     (value: string) => {
@@ -107,28 +124,7 @@ export const IdeFooter = () => {
 
   return (
     <footer className="relative flex h-11 items-center justify-between pl-3 pr-3 text-foreground">
-      {appReady ? (
-        <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label="Settings"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  onClick={handleOpenSettings}
-                  size="icon-sm"
-                  variant="ghost"
-                />
-              }
-            >
-              <Settings className="size-4 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
-          </Tooltip>
-        </div>
-      ) : (
-        <div />
-      )}
+      <div />
 
       {appReady && panelVisibility.right ? (
         <Tabs
