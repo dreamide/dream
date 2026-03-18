@@ -21,6 +21,7 @@ import { startApiServer } from "./api-server.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const appIconPath = path.join(__dirname, "..", "public", "icon.png");
 
 const isDevelopment = process.env.NODE_ENV === "development";
 const internalRendererPort = Number(process.env.ELECTRON_INTERNAL_PORT ?? 3210);
@@ -979,6 +980,10 @@ async function createMainWindow() {
     height: 1080,
     minHeight: 720,
     minWidth: 1180,
+    icon:
+      process.platform === "darwin" || !existsSync(appIconPath)
+        ? undefined
+        : appIconPath,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     ...(process.platform !== "darwin" && { frame: false }),
     trafficLightPosition:
