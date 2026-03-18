@@ -210,10 +210,7 @@ const PreviewViewport = ({
       <div className="min-h-0 flex-1">
         <div className="relative h-full" ref={previewContainerRef}>
           {activeProject && isPreviewRunning ? (
-            <div
-              className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
-              ref={previewHostRef}
-            />
+            <div className="absolute inset-0" ref={previewHostRef} />
           ) : null}
           {!activeProject ? (
             <div className="absolute inset-0 p-3">

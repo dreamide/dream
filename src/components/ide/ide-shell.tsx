@@ -325,12 +325,7 @@ export const IdeShell = () => {
     }
 
     syncPreviewBounds();
-  }, [
-    activeProject,
-    panelVisibility.right,
-    rightPanelView,
-    syncPreviewBounds,
-  ]);
+  }, [activeProject, panelVisibility.right, rightPanelView, syncPreviewBounds]);
 
   // Keep the preview hidden while any modal is open or finishing its exit animation.
   useEffect(() => {
@@ -606,10 +601,17 @@ export const IdeShell = () => {
               className={leftVisible ? "min-w-0 pl-2" : "!hidden"}
               defaultSize={PROJECT_SIDEBAR_WIDTH_PX}
               id="ide-left"
-              maxSize={leftVisible ? PROJECT_SIDEBAR_MAX_WIDTH_PX : 0}
+              maxSize={
+                leftVisible && (middleVisible || rightVisible)
+                  ? PROJECT_SIDEBAR_MAX_WIDTH_PX
+                  : undefined
+              }
               minSize={leftVisible ? PROJECT_SIDEBAR_MIN_WIDTH_PX : 0}
             >
-              <div className="h-full pb-2">
+              <div
+                className="h-full pb-2"
+                style={{ maxWidth: PROJECT_SIDEBAR_MAX_WIDTH_PX }}
+              >
                 <ProjectSidebar />
               </div>
             </Panel>
