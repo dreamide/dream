@@ -621,10 +621,7 @@ export const IdeShell = () => {
                 willChange: "width, opacity, padding",
               }}
             >
-              <div
-                className="h-full pb-2"
-                style={{ minWidth: PROJECT_SIDEBAR_MIN_WIDTH_PX }}
-              >
+              <div className="h-full pb-2">
                 <ProjectSidebar />
               </div>
             </div>

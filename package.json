@@ -85,7 +85,7 @@
   "main": "electron/main.js",
   "build": {
     "appId": "com.mikecao.dream",
-    "productName": "Dream IDE",
+    "productName": "Dream",
     "directories": {
       "output": "release"
     },
