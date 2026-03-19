@@ -63,6 +63,7 @@ interface IdeState {
   autoAcceptEdits: boolean;
   previewError: string | null;
   previewLoading: Record<string, boolean>;
+  pendingThreadSelection: { projectId: string; threadId: string | null } | null;
   rightPanelView: RightPanelView;
   stateHydrated: boolean;
   isMacOs: boolean;
@@ -155,6 +156,9 @@ interface IdeState {
   setThreadStreaming: (threadId: string, streaming: boolean) => void;
   setPreviewError: (error: string | null) => void;
   setPreviewLoading: (projectId: string, loading: boolean) => void;
+  setPendingThreadSelection: (
+    selection: { projectId: string; threadId: string | null } | null,
+  ) => void;
   setIsMacOs: (value: boolean) => void;
   setIsElectron: (value: boolean) => void;
   setAppReady: (value: boolean) => void;
@@ -253,6 +257,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   autoAcceptEdits: false,
   previewError: null,
   previewLoading: {},
+  pendingThreadSelection: null,
   rightPanelView: "explorer",
   stateHydrated: false,
   isMacOs: false,
@@ -957,6 +962,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       previewLoading: { ...state.previewLoading, [projectId]: loading },
     }));
   },
+  setPendingThreadSelection: (selection) =>
+    set({ pendingThreadSelection: selection }),
   setIsMacOs: (value) => set({ isMacOs: value }),
   setIsElectron: (value) => set({ isElectron: value }),
   setAppReady: (value) => set({ appReady: value }),
