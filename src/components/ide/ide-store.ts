@@ -279,8 +279,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   getThreadsForProject: (projectId) => {
-    const { threadSort, threads } = get();
-    return getThreadsForProject(threads, projectId, threadSort);
+    const { threads } = get();
+    return getThreadsForProject(threads, projectId);
   },
 
   getActiveThread: () => {
