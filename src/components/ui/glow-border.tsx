@@ -26,11 +26,14 @@ interface GlowBorderProps extends ComponentProps<"div"> {
    * Overrides the default gradient for the variant.
    */
   colors?: string[]
+  /** When true, hides the glow animation but keeps the DOM structure stable. */
+  disabled?: boolean
 }
 
 function GlowBorder({
   variant = "gradient",
   colors,
+  disabled,
   className,
   style,
   children,
@@ -40,7 +43,6 @@ function GlowBorder({
 
   if (colors && colors.length > 0) {
     const angle = variant === "gradient" ? "90deg" : "45deg"
-
     customStyle["--glow-border-gradient"] =
       `linear-gradient(${angle}, ${colors.join(", ")})`
   }
@@ -48,7 +50,10 @@ function GlowBorder({
   return (
     <div
       data-slot="glow-border"
-      className={cn(glowBorderVariants({ variant }), className)}
+      className={cn(
+        disabled ? "glow-border-disabled" : glowBorderVariants({ variant }),
+        className,
+      )}
       style={{ ...style, ...customStyle } as React.CSSProperties}
       {...props}
     >

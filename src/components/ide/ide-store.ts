@@ -52,6 +52,7 @@ interface IdeState {
   chats: Record<string, UIMessage[]>;
 
   // Runtime state
+  streamingThreadIds: Record<string, boolean>;
   terminalOutput: Record<string, string>;
   terminalStatus: Record<string, "running" | "stopped">;
   terminalTransport: Record<string, "pty" | "pipe">;
@@ -151,6 +152,7 @@ interface IdeState {
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
   setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
   setTerminalShell: (projectId: string, shell: string) => void;
+  setThreadStreaming: (threadId: string, streaming: boolean) => void;
   setPreviewError: (error: string | null) => void;
   setPreviewLoading: (projectId: string, loading: boolean) => void;
   setIsMacOs: (value: boolean) => void;
@@ -240,6 +242,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   chats: {},
 
   // ── Runtime state ───────────────────────────────────────────────────
+  streamingThreadIds: {},
   terminalOutput: {},
   terminalStatus: {},
   terminalTransport: {},
@@ -294,7 +297,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Actions: projects ───────────────────────────────────────────────
   setProjects: (projects) => {
     set((state) => {
-      const nextActiveProjectId = ensureActiveProject(projects, state.activeProjectId);
+      const nextActiveProjectId = ensureActiveProject(
+        projects,
+        state.activeProjectId,
+      );
       const nextActiveThreadIdByProject = Object.fromEntries(
         projects.map((project) => [
           project.id,
@@ -343,8 +349,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   closeProject: (projectId) => {
     set((state) => {
-      const nextProjects = state.projects.filter((project) => project.id !== projectId);
-      const nextThreads = state.threads.filter((thread) => thread.projectId !== projectId);
+      const nextProjects = state.projects.filter(
+        (project) => project.id !== projectId,
+      );
+      const nextThreads = state.threads.filter(
+        (thread) => thread.projectId !== projectId,
+      );
       const nextChats = Object.fromEntries(
         Object.entries(state.chats).filter(([threadId]) =>
           nextThreads.some((thread) => thread.id === threadId),
@@ -943,6 +953,16 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }));
   },
 
+  setThreadStreaming: (threadId, streaming) =>
+    set((state) => {
+      const next = { ...state.streamingThreadIds };
+      if (streaming) {
+        next[threadId] = true;
+      } else {
+        delete next[threadId];
+      }
+      return { streamingThreadIds: next };
+    }),
   setPreviewError: (error) => set({ previewError: error }),
   setPreviewLoading: (projectId, loading) => {
     set((state) => ({

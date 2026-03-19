@@ -447,6 +447,10 @@
 
 /* ── Glow Border ── */
 
+.glow-border-disabled > * {
+  margin: 2px;
+}
+
 @keyframes glow-border-rotate {
   from {
     transform: rotate(0);
@@ -497,7 +501,7 @@
   height: 500px;
   width: 500px;
   position: absolute;
-  animation: glow-border-rotate 3s linear infinite;
+  animation: glow-border-rotate 2s linear infinite;
   z-index: 0;
 }
 

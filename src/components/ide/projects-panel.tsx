@@ -30,9 +30,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GlowBorder } from "@/components/ui/glow-border";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -136,7 +136,6 @@ export const ProjectSidebar = () => {
   const allThreads = useIdeStore((s) => s.threads);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const activeThreadIdByProject = useIdeStore((s) => s.activeThreadIdByProject);
-  const threadSort = useIdeStore((s) => s.threadSort);
   const addThread = useIdeStore((s) => s.addThread);
   const addProject = useIdeStore((s) => s.addProject);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
@@ -145,6 +144,7 @@ export const ProjectSidebar = () => {
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
+  const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -168,10 +168,10 @@ export const ProjectSidebar = () => {
     return Object.fromEntries(
       projects.map((project) => [
         project.id,
-        getThreadsForProject(allThreads, project.id, threadSort),
+        getThreadsForProject(allThreads, project.id),
       ]),
     );
-  }, [allThreads, projects, threadSort]);
+  }, [allThreads, projects]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -361,20 +361,22 @@ export const ProjectSidebar = () => {
                     </div>
 
                     {!isCollapsed ? (
-                      <div className="mt-1 ml-2 space-y-1 border-l border-border pl-3">
+                      <div className="mt-1 ml-2 space-y-1 border-l border-border pl-3 pr-2">
                         {projectThreads.map((thread) => {
                           const isActiveThread =
                             isActive && thread.id === activeThreadId;
                           const threadMenuId = `thread:${thread.id}`;
                           const isThreadMenuOpen = openMenuId === threadMenuId;
 
-                          const threadItem = (
+                          const isStreaming = !!streamingThreadIds[thread.id];
+
+                          return (
                             <div
                               className={cn(
                                 "group relative min-w-0 rounded-md transition-colors",
                                 isActiveThread
-                                  ? "bg-background"
-                                  : "hover:bg-muted/20",
+                                  ? "border-2 border-border bg-muted/30"
+                                  : "border-2 border-transparent hover:bg-muted/20",
                               )}
                               key={thread.id}
                             >
@@ -386,7 +388,10 @@ export const ProjectSidebar = () => {
                                 }}
                                 type="button"
                               >
-                                <div className="min-w-0 pr-6">
+                                <div className="flex min-w-0 items-center gap-1.5 pr-6">
+                                  {isStreaming && (
+                                    <Spinner className="size-3 shrink-0" />
+                                  )}
                                   <p className="truncate text-sm">
                                     {thread.title}
                                   </p>
@@ -417,19 +422,6 @@ export const ProjectSidebar = () => {
                                 />
                               </div>
                             </div>
-                          );
-
-                          return isActiveThread ? (
-                            <GlowBorder
-                              key={thread.id}
-                              variant="glow"
-                              className="rounded-md"
-                              colors={["orange", "yellow", "orange"]}
-                            >
-                              {threadItem}
-                            </GlowBorder>
-                          ) : (
-                            threadItem
                           );
                         })}
                       </div>

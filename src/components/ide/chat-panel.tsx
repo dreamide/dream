@@ -524,24 +524,30 @@ export const ChatPanel = ({
         }));
       }
 
-      await sendMessage(
-        {
-          files: prompt.files,
-          text: prompt.text,
-        },
-        {
-          body: {
-            authMode: activeProviderAuthMode,
-            anthropicOAuth,
-            chatMode: selectedChatMode,
-            credential: requestCredential,
-            model: activeModel,
-            projectPath: project.path,
-            provider: activeProvider,
-            reasoningEffort: selectedReasoningEffort,
+      const submittedThreadId = thread.id;
+      useIdeStore.getState().setThreadStreaming(submittedThreadId, true);
+      try {
+        await sendMessage(
+          {
+            files: prompt.files,
+            text: prompt.text,
           },
-        },
-      );
+          {
+            body: {
+              authMode: activeProviderAuthMode,
+              anthropicOAuth,
+              chatMode: selectedChatMode,
+              credential: requestCredential,
+              model: activeModel,
+              projectPath: project.path,
+              provider: activeProvider,
+              reasoningEffort: selectedReasoningEffort,
+            },
+          },
+        );
+      } finally {
+        useIdeStore.getState().setThreadStreaming(submittedThreadId, false);
+      }
     },
     [
       allModelOptions,
@@ -859,7 +865,11 @@ export const ChatPanel = ({
                     </PromptInputActionMenuContent>
                   </PromptInputActionMenu>
                 </PromptInputTools>
-                <GlowBorder variant="glow" className="rounded-md">
+                <GlowBorder
+                  variant="glow"
+                  className="rounded-md"
+                  disabled={!isProcessing}
+                >
                   <PromptInputSubmit
                     className="size-8 rounded-md"
                     disabled={
