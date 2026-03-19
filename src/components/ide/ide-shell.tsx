@@ -16,6 +16,7 @@ import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
 import { IdeFooter, IdeHeader } from "./ide-header";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
+import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
@@ -62,13 +63,24 @@ export const IdeShell = () => {
   const deferredActiveThreadId = useDeferredValue(activeThread?.id ?? null);
   const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
 
+  // Mount all threads for the active project so the DOM preserves scroll
+  // positions across thread switches. During cross-project transitions the
+  // previously displayed thread is also kept mounted until the deferred
+  // value catches up.
   const mountedThreads = useMemo(() => {
     const mountedThreadIds = new Set<string>();
     const nextThreads = [] as typeof threads;
+    const currentProjectId = activeProject?.id;
 
-    // Mount the displayed thread (lags behind during transitions so old
-    // content stays visible while the new chat panel renders in background).
-    if (deferredActiveThreadId) {
+    if (currentProjectId) {
+      for (const thread of getThreadsForProject(threads, currentProjectId)) {
+        mountedThreadIds.add(thread.id);
+        nextThreads.push(thread);
+      }
+    }
+
+    // Keep the previously displayed thread during cross-project transitions.
+    if (deferredActiveThreadId && !mountedThreadIds.has(deferredActiveThreadId)) {
       const deferredThread = threads.find(
         (t) => t.id === deferredActiveThreadId,
       );
@@ -89,7 +101,7 @@ export const IdeShell = () => {
     }
 
     return nextThreads;
-  }, [deferredActiveThreadId, streamingThreadIds, threads]);
+  }, [activeProject?.id, deferredActiveThreadId, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
