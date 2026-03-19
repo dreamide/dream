@@ -1,14 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { AlertCircle, CheckCheck, X } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
   Context,
@@ -113,10 +106,15 @@ const PROVIDER_LABELS: Record<AiProvider, string> = {
   gemini: "Gemini",
 };
 
+const MESSAGE_RENDER_STYLE = {
+  containIntrinsicSize: "240px",
+  contentVisibility: "auto",
+} as const;
+
 const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
   const { scrollRef, scrollToBottom, stopScroll } = useStickToBottomContext();
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!isActive) {
       return;
     }
@@ -602,7 +600,7 @@ export const ChatPanel = ({
     return messages.map((message, messageIndex) => {
       if (message.role === "user") {
         return (
-          <Message from="user" key={message.id}>
+          <Message from="user" key={message.id} style={MESSAGE_RENDER_STYLE}>
             <MessageContent>
               <MessageResponse>
                 {renderUserMessageText(message)}
@@ -623,7 +621,11 @@ export const ChatPanel = ({
       );
 
       return (
-        <Message from={message.role} key={message.id}>
+        <Message
+          from={message.role}
+          key={message.id}
+          style={MESSAGE_RENDER_STYLE}
+        >
           {sourceParts.length > 0 ? (
             <Sources>
               <SourcesTrigger count={sourceParts.length} />
