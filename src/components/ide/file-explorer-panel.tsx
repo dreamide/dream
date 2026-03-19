@@ -114,7 +114,11 @@ const buildFileTree = (
         });
       }
 
-      current = current.children.get(part)!;
+      const nextNode = current.children.get(part);
+      if (!nextNode) {
+        continue;
+      }
+      current = nextNode;
     }
   }
 

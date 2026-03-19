@@ -417,9 +417,9 @@
 
 /* Hide native scrollbar arrow buttons */
 *::-webkit-scrollbar-button {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* Scrollbars: styled to match Base UI ScrollArea (thin rounded, border-colored thumb). */

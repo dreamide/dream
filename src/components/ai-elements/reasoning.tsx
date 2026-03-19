@@ -211,20 +211,25 @@ export type ReasoningContentProps = ComponentProps<
 const streamdownPlugins = { cjk, code, math, mermaid };
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
+  ({ className, children, ...props }: ReasoningContentProps) => {
+    const { dir, ...contentProps } = props;
+
+    return (
+      <CollapsibleContent
       className={cn(
         "mt-4 text-sm",
         "data-[closed]:fade-out-0 data-[closed]:slide-out-to-top-2 data-[open]:slide-in-from-top-2 text-muted-foreground outline-none data-[closed]:animate-out data-[open]:animate-in",
         className,
       )}
-      {...props}
+      dir={dir}
+      {...contentProps}
     >
-      <Streamdown plugins={streamdownPlugins} {...props}>
+      <Streamdown plugins={streamdownPlugins}>
         {children}
       </Streamdown>
     </CollapsibleContent>
-  ),
+    );
+  },
 );
 
 Reasoning.displayName = "Reasoning";

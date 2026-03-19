@@ -17,7 +17,7 @@ function applyBaseColor(color: BaseColor) {
   }
 }
 
-export const useUiStore = create<UiState>((set, get) => ({
+export const useUiStore = create<UiState>((set, _get) => ({
   baseColor: "neutral",
 
   setBaseColor: (color) => {
