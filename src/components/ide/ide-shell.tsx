@@ -51,6 +51,7 @@ export const IdeShell = () => {
   const projects = useIdeStore((s) => s.projects);
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeThread = useIdeStore((s) => s.getActiveThread());
+  const pendingThreadSelection = useIdeStore((s) => s.pendingThreadSelection);
   const threads = useIdeStore((s) => s.threads);
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
   const projectsById = useMemo(
@@ -78,6 +79,10 @@ export const IdeShell = () => {
     return nextThreads;
   }, [activeThread, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
+  const isThreadSelectionPending =
+    pendingThreadSelection !== null &&
+    (pendingThreadSelection.projectId !== activeProject?.id ||
+      pendingThreadSelection.threadId !== activeThread?.id);
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
@@ -704,7 +709,12 @@ export const IdeShell = () => {
                   className="min-h-0 flex-1"
                   style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
                 >
-                  {activeProject ? (
+                  {isThreadSelectionPending ? (
+                    <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+                      <Spinner className="size-4" />
+                      <span>Loading thread...</span>
+                    </div>
+                  ) : activeProject ? (
                     mountedThreads.length > 0 ? (
                       mountedThreads.map((thread) => {
                         const project = projectsById.get(thread.projectId);
