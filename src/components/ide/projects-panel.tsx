@@ -13,10 +13,8 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -91,8 +89,6 @@ const ProjectActionsMenu = ({
   );
 };
 
-const THREAD_SELECTION_DEFER_MS = 48;
-
 const ThreadActionsMenu = ({
   label,
   onArchive,
@@ -149,10 +145,6 @@ export const ProjectSidebar = () => {
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
-  const pendingThreadSelection = useIdeStore((s) => s.pendingThreadSelection);
-  const setPendingThreadSelection = useIdeStore(
-    (s) => s.setPendingThreadSelection,
-  );
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -171,9 +163,6 @@ export const ProjectSidebar = () => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const pendingSelectionTimeoutRef = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
 
   const threadsByProject = useMemo(() => {
     return Object.fromEntries(
@@ -201,33 +190,6 @@ export const ProjectSidebar = () => {
     });
   }, [activeProjectId]);
 
-  useEffect(() => {
-    if (!pendingThreadSelection) {
-      return;
-    }
-
-    if (
-      activeProjectId === pendingThreadSelection.projectId &&
-      (activeThreadIdByProject[pendingThreadSelection.projectId] ?? null) ===
-        pendingThreadSelection.threadId
-    ) {
-      setPendingThreadSelection(null);
-    }
-  }, [
-    activeProjectId,
-    activeThreadIdByProject,
-    pendingThreadSelection,
-    setPendingThreadSelection,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      if (pendingSelectionTimeoutRef.current !== null) {
-        clearTimeout(pendingSelectionTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const toggleProjectCollapsed = (projectId: string) => {
     setCollapsedProjects((current) => ({
       ...current,
@@ -236,34 +198,17 @@ export const ProjectSidebar = () => {
   };
 
   const handleProjectClick = (projectId: string) => {
-    flushSync(() => {
-      setPendingThreadSelection({
-        projectId,
-        threadId: activeThreadIdByProject[projectId] ?? null,
-      });
-    });
-    if (pendingSelectionTimeoutRef.current !== null) {
-      clearTimeout(pendingSelectionTimeoutRef.current);
-    }
-    pendingSelectionTimeoutRef.current = setTimeout(() => {
-      pendingSelectionTimeoutRef.current = null;
-      setActiveProjectId(projectId);
-    }, THREAD_SELECTION_DEFER_MS);
     toggleProjectCollapsed(projectId);
+    if (projectId !== activeProjectId) {
+      setActiveProjectId(projectId);
+    }
   };
 
   const handleThreadClick = (projectId: string, threadId: string) => {
-    flushSync(() => {
-      setPendingThreadSelection({ projectId, threadId });
-    });
-    if (pendingSelectionTimeoutRef.current !== null) {
-      clearTimeout(pendingSelectionTimeoutRef.current);
-    }
-    pendingSelectionTimeoutRef.current = setTimeout(() => {
-      pendingSelectionTimeoutRef.current = null;
+    if (projectId !== activeProjectId) {
       setActiveProjectId(projectId);
-      setActiveThreadId(projectId, threadId);
-    }, THREAD_SELECTION_DEFER_MS);
+    }
+    setActiveThreadId(projectId, threadId);
   };
 
   const openRenameDialog = (target: RenameTarget) => {
@@ -333,14 +278,10 @@ export const ProjectSidebar = () => {
               </p>
             ) : (
               projects.map((project) => {
-                const effectiveActiveProjectId =
-                  pendingThreadSelection?.projectId ?? activeProjectId;
-                const isActive = project.id === effectiveActiveProjectId;
+                const isActive = project.id === activeProjectId;
                 const isCollapsed = collapsedProjects[project.id] ?? false;
                 const activeThreadId =
-                  pendingThreadSelection?.projectId === project.id
-                    ? pendingThreadSelection.threadId
-                    : (activeThreadIdByProject[project.id] ?? null);
+                  activeThreadIdByProject[project.id] ?? null;
                 const projectThreads = threadsByProject[project.id] ?? [];
                 const projectMenuId = `project:${project.id}`;
                 const isProjectMenuOpen = openMenuId === projectMenuId;
