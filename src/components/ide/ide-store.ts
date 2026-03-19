@@ -253,7 +253,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   autoAcceptEdits: false,
   previewError: null,
   previewLoading: {},
-  rightPanelView: "preview",
+  rightPanelView: "explorer",
   stateHydrated: false,
   isMacOs: false,
   isElectron: false,

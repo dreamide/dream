@@ -189,20 +189,6 @@ export const IdeFooter = () => {
               <TooltipTrigger
                 render={
                   <TabsTrigger
-                    aria-label="Show preview"
-                    className="h-6 w-8 px-0 data-[active]:bg-background"
-                    value="preview"
-                  />
-                }
-              >
-                <Monitor className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Preview</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <TabsTrigger
                     aria-label="Show file explorer"
                     className="h-6 w-8 px-0 data-[active]:bg-background"
                     value="explorer"
@@ -212,6 +198,20 @@ export const IdeFooter = () => {
                 <Folder className="size-4" />
               </TooltipTrigger>
               <TooltipContent>Files</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <TabsTrigger
+                    aria-label="Show preview"
+                    className="h-6 w-8 px-0 data-[active]:bg-background"
+                    value="preview"
+                  />
+                }
+              >
+                <Monitor className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>Preview</TooltipContent>
             </Tooltip>
           </TabsList>
         </Tabs>
