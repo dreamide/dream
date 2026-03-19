@@ -1,7 +1,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { AlertCircle, CheckCheck, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
   Context,
@@ -112,7 +112,7 @@ const MESSAGE_RENDER_STYLE = {
 } as const;
 
 const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
-  const { scrollRef, scrollToBottom, stopScroll } = useStickToBottomContext();
+  const { scrollRef, stopScroll } = useStickToBottomContext();
 
   useEffect(() => {
     if (!isActive) {
@@ -124,13 +124,13 @@ const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
       if (!element) return;
 
       stopScroll();
-      void scrollToBottom("instant");
+      element.scrollTop = element.scrollHeight;
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [isActive, scrollRef, scrollToBottom, stopScroll]);
+  }, [isActive, scrollRef, stopScroll]);
 
   return null;
 };
@@ -160,6 +160,194 @@ const getMessagePartKey = (
 
   return `${messageId}-${part.type ?? "part"}-${index}`;
 };
+
+type ToolApprovalResponder = (response: {
+  id: string;
+  approved: boolean;
+}) => void;
+
+type ThreadMessageProps = {
+  addToolApprovalResponse: ToolApprovalResponder;
+  isLastMessage: boolean;
+  isStreaming: boolean;
+  message: UIMessage;
+  selectedChatMode: ChatMode;
+};
+
+const ThreadMessage = memo(
+  ({
+    addToolApprovalResponse,
+    isLastMessage,
+    isStreaming,
+    message,
+    selectedChatMode,
+  }: ThreadMessageProps) => {
+    if (message.role === "user") {
+      return (
+        <Message from="user" style={MESSAGE_RENDER_STYLE}>
+          <MessageContent>
+            <MessageResponse>{renderUserMessageText(message)}</MessageResponse>
+          </MessageContent>
+        </Message>
+      );
+    }
+
+    const sourceParts = message.parts.filter(
+      (part) => part.type === "source-url" || part.type === "source-document",
+    );
+    const nonSourceParts = message.parts.filter(
+      (part) => part.type !== "source-url" && part.type !== "source-document",
+    );
+
+    return (
+      <Message from={message.role} style={MESSAGE_RENDER_STYLE}>
+        {sourceParts.length > 0 ? (
+          <Sources>
+            <SourcesTrigger count={sourceParts.length} />
+            <SourcesContent>
+              {sourceParts.map((part) => {
+                if (part.type === "source-url") {
+                  return (
+                    <Source
+                      href={part.url}
+                      key={`${message.id}-source-url-${part.url}`}
+                      title={part.url}
+                    />
+                  );
+                }
+                if (part.type === "source-document") {
+                  const title = part.title ?? part.filename ?? "Document";
+                  return (
+                    <Source
+                      key={`${message.id}-source-document-${title}`}
+                      title={title}
+                    />
+                  );
+                }
+                return null;
+              })}
+            </SourcesContent>
+          </Sources>
+        ) : null}
+        <MessageContent className="gap-3">
+          {(() => {
+            const elements: React.ReactNode[] = [];
+            let chipGroup: {
+              part: (typeof nonSourceParts)[number];
+              index: number;
+            }[] = [];
+
+            const flushChipGroup = () => {
+              if (chipGroup.length === 0) return;
+              const group = chipGroup;
+              elements.push(
+                <div
+                  className="flex flex-wrap items-start gap-2"
+                  key={`chip-group-${group[0].index}`}
+                >
+                  {group.map(({ part: chipPart, index: chipIndex }) => {
+                    const toolType = chipPart.type as string;
+                    const toolName = toolType.startsWith("tool-")
+                      ? toolType.slice(5)
+                      : "";
+                    const key = getMessagePartKey(
+                      message.id,
+                      chipPart as Record<string, unknown>,
+                      chipIndex,
+                    );
+                    const chipPart_ = chipPart as Parameters<
+                      typeof ReadFileChip
+                    >[0]["part"];
+                    if (toolName === "readFile") {
+                      return <ReadFileChip key={key} part={chipPart_} />;
+                    }
+                    if (toolName === "listFiles") {
+                      return <ListFilesChip key={key} part={chipPart_} />;
+                    }
+                    if (toolName === "writeFile") {
+                      return (
+                        <WriteFileChip
+                          key={key}
+                          onToolApproval={addToolApprovalResponse}
+                          part={chipPart_}
+                        />
+                      );
+                    }
+                    return <SearchInFilesChip key={key} part={chipPart_} />;
+                  })}
+                </div>,
+              );
+              chipGroup = [];
+            };
+
+            const isInvisiblePart = (
+              part: (typeof nonSourceParts)[number],
+              partIndex: number,
+            ) => {
+              if (part.type === "step-start") return true;
+              if (
+                part.type === "reasoning" &&
+                "text" in part &&
+                typeof part.text === "string" &&
+                part.text.trim().length === 0 &&
+                !(
+                  isStreaming &&
+                  isLastMessage &&
+                  partIndex === nonSourceParts.length - 1
+                )
+              )
+                return true;
+              if (
+                part.type === "text" &&
+                "text" in part &&
+                typeof part.text === "string" &&
+                part.text.trim().length === 0
+              )
+                return true;
+              return false;
+            };
+
+            for (let i = 0; i < nonSourceParts.length; i++) {
+              const part = nonSourceParts[i];
+              if (isChipToolPart(part)) {
+                chipGroup.push({ part, index: i });
+              } else if (isInvisiblePart(part, i)) {
+              } else {
+                flushChipGroup();
+                const isLastPart = i === nonSourceParts.length - 1;
+                const isPartStreaming =
+                  isStreaming && isLastMessage && isLastPart;
+                elements.push(
+                  <AssistantMessagePart
+                    chatMode={selectedChatMode}
+                    key={getMessagePartKey(
+                      message.id,
+                      part as Record<string, unknown>,
+                      i,
+                    )}
+                    isStreaming={isPartStreaming}
+                    part={part}
+                  />,
+                );
+              }
+            }
+
+            flushChipGroup();
+            return elements;
+          })()}
+        </MessageContent>
+      </Message>
+    );
+  },
+  (prev: ThreadMessageProps, next: ThreadMessageProps) =>
+    prev.message === next.message &&
+    prev.isLastMessage === next.isLastMessage &&
+    prev.isStreaming === next.isStreaming &&
+    prev.selectedChatMode === next.selectedChatMode &&
+    prev.addToolApprovalResponse === next.addToolApprovalResponse,
+);
+
+ThreadMessage.displayName = "ThreadMessage";
 
 export const ChatPanel = ({
   isActive,
@@ -596,178 +784,6 @@ export const ChatPanel = ({
     };
   }, [isProcessing, streamFingerprint]);
 
-  const messageContent = useMemo(() => {
-    return messages.map((message, messageIndex) => {
-      if (message.role === "user") {
-        return (
-          <Message from="user" key={message.id} style={MESSAGE_RENDER_STYLE}>
-            <MessageContent>
-              <MessageResponse>
-                {renderUserMessageText(message)}
-              </MessageResponse>
-            </MessageContent>
-          </Message>
-        );
-      }
-
-      const isLastMessage = messageIndex === messages.length - 1;
-
-      // Group source parts for collapsible Sources display
-      const sourceParts = message.parts.filter(
-        (part) => part.type === "source-url" || part.type === "source-document",
-      );
-      const nonSourceParts = message.parts.filter(
-        (part) => part.type !== "source-url" && part.type !== "source-document",
-      );
-
-      return (
-        <Message
-          from={message.role}
-          key={message.id}
-          style={MESSAGE_RENDER_STYLE}
-        >
-          {sourceParts.length > 0 ? (
-            <Sources>
-              <SourcesTrigger count={sourceParts.length} />
-              <SourcesContent>
-                {sourceParts.map((part) => {
-                  if (part.type === "source-url") {
-                    return (
-                      <Source
-                        href={part.url}
-                        key={`${message.id}-source-url-${part.url}`}
-                        title={part.url}
-                      />
-                    );
-                  }
-                  if (part.type === "source-document") {
-                    const title = part.title ?? part.filename ?? "Document";
-                    return (
-                      <Source
-                        key={`${message.id}-source-document-${title}`}
-                        title={title}
-                      />
-                    );
-                  }
-                  return null;
-                })}
-              </SourcesContent>
-            </Sources>
-          ) : null}
-          <MessageContent className="gap-3">
-            {(() => {
-              // Group consecutive chip-eligible parts into flex-wrap rows
-              const elements: React.ReactNode[] = [];
-              let chipGroup: {
-                part: (typeof nonSourceParts)[number];
-                index: number;
-              }[] = [];
-
-              const flushChipGroup = () => {
-                if (chipGroup.length === 0) return;
-                const group = chipGroup;
-                elements.push(
-                  <div
-                    className="flex flex-wrap items-start gap-2"
-                    key={`chip-group-${group[0].index}`}
-                  >
-                    {group.map(({ part: chipPart, index: chipIndex }) => {
-                      const toolType = chipPart.type as string;
-                      const toolName = toolType.startsWith("tool-")
-                        ? toolType.slice(5)
-                        : "";
-                      const key = getMessagePartKey(
-                        message.id,
-                        chipPart as Record<string, unknown>,
-                        chipIndex,
-                      );
-                      const chipPart_ = chipPart as Parameters<
-                        typeof ReadFileChip
-                      >[0]["part"];
-                      if (toolName === "readFile") {
-                        return <ReadFileChip key={key} part={chipPart_} />;
-                      }
-                      if (toolName === "listFiles") {
-                        return <ListFilesChip key={key} part={chipPart_} />;
-                      }
-                      if (toolName === "writeFile") {
-                        return (
-                          <WriteFileChip
-                            key={key}
-                            onToolApproval={addToolApprovalResponse}
-                            part={chipPart_}
-                          />
-                        );
-                      }
-                      return <SearchInFilesChip key={key} part={chipPart_} />;
-                    })}
-                  </div>,
-                );
-                chipGroup = [];
-              };
-
-              // Check if a part renders as invisible (null) and should
-              // be skipped so it doesn't break chip group continuity
-              const isInvisiblePart = (
-                part: (typeof nonSourceParts)[number],
-                partIndex: number,
-              ) => {
-                if (part.type === "step-start") return true;
-                if (
-                  part.type === "reasoning" &&
-                  "text" in part &&
-                  typeof part.text === "string" &&
-                  part.text.trim().length === 0 &&
-                  !(
-                    isStreaming &&
-                    isLastMessage &&
-                    partIndex === nonSourceParts.length - 1
-                  )
-                )
-                  return true;
-                if (
-                  part.type === "text" &&
-                  "text" in part &&
-                  typeof part.text === "string" &&
-                  part.text.trim().length === 0
-                )
-                  return true;
-                return false;
-              };
-
-              for (let i = 0; i < nonSourceParts.length; i++) {
-                const part = nonSourceParts[i];
-                if (isChipToolPart(part)) {
-                  chipGroup.push({ part, index: i });
-                } else if (isInvisiblePart(part, i)) {
-                } else {
-                  flushChipGroup();
-                  const isLastPart = i === nonSourceParts.length - 1;
-                  const isPartStreaming =
-                    isStreaming && isLastMessage && isLastPart;
-                  elements.push(
-                    <AssistantMessagePart
-                      chatMode={selectedChatMode}
-                      key={getMessagePartKey(
-                        message.id,
-                        part as Record<string, unknown>,
-                        i,
-                      )}
-                      isStreaming={isPartStreaming}
-                      part={part}
-                    />,
-                  );
-                }
-              }
-              flushChipGroup();
-              return elements;
-            })()}
-          </MessageContent>
-        </Message>
-      );
-    });
-  }, [messages, isStreaming, addToolApprovalResponse, selectedChatMode]);
-
   return (
     <div id="chat-panel" className="flex h-full min-h-0 flex-col">
       <Conversation
@@ -787,7 +803,16 @@ export const ChatPanel = ({
               />
             </div>
           ) : (
-            messageContent
+            messages.map((message, messageIndex) => (
+              <ThreadMessage
+                addToolApprovalResponse={addToolApprovalResponse}
+                isLastMessage={messageIndex === messages.length - 1}
+                isStreaming={isStreaming}
+                key={message.id}
+                message={message}
+                selectedChatMode={selectedChatMode}
+              />
+            ))
           )}
           {isProcessing && showThinking ? (
             <div className="py-2">

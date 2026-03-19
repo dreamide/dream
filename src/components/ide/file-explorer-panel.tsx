@@ -508,7 +508,7 @@ export const FileExplorerPanel = () => {
                 showLineNumbers
                 style={{ contentVisibility: "visible" }}
               >
-                <CodeBlockHeader className="shrink-0">
+                <CodeBlockHeader className="shrink-0 border-0 bg-transparent">
                   <CodeBlockTitle>
                     <FileIcon size={14} />
                     <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
