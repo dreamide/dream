@@ -499,28 +499,16 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       if (!thread) {
         return state;
       }
-
-      const nextActiveThreadIdByProject = {
-        ...state.activeThreadIdByProject,
-        [thread.projectId]: threadId,
-      };
       const messagesChanged = !areMessagesEqual(
         state.chats[threadId],
         messages,
       );
 
       if (!messagesChanged) {
-        if (state.activeThreadIdByProject[thread.projectId] === threadId) {
-          return state;
-        }
-
-        return {
-          activeThreadIdByProject: nextActiveThreadIdByProject,
-        };
+        return state;
       }
 
       return {
-        activeThreadIdByProject: nextActiveThreadIdByProject,
         chats: { ...state.chats, [threadId]: messages },
         threads: state.threads.map((item) =>
           item.id === threadId
