@@ -16,7 +16,6 @@ import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
 import { IdeFooter, IdeHeader } from "./ide-header";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
-import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
@@ -54,29 +53,30 @@ export const IdeShell = () => {
   const activeThread = useIdeStore((s) => s.getActiveThread());
   const threads = useIdeStore((s) => s.threads);
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
-  const projectThreads = useMemo(
-    () =>
-      activeProject ? getThreadsForProject(threads, activeProject.id) : [],
-    [threads, activeProject],
-  );
   const projectsById = useMemo(
     () => new Map(projects.map((project) => [project.id, project])),
     [projects],
   );
   const mountedThreads = useMemo(() => {
-    const activeProjectThreadIds = new Set(
-      projectThreads.map((thread) => thread.id),
-    );
+    const mountedThreadIds = new Set<string>();
+    const nextThreads = [] as typeof threads;
 
-    return [
-      ...projectThreads,
-      ...threads.filter(
-        (thread) =>
-          streamingThreadIds[thread.id] &&
-          !activeProjectThreadIds.has(thread.id),
-      ),
-    ];
-  }, [projectThreads, streamingThreadIds, threads]);
+    if (activeThread && !mountedThreadIds.has(activeThread.id)) {
+      mountedThreadIds.add(activeThread.id);
+      nextThreads.push(activeThread);
+    }
+
+    for (const thread of threads) {
+      if (!streamingThreadIds[thread.id] || mountedThreadIds.has(thread.id)) {
+        continue;
+      }
+
+      mountedThreadIds.add(thread.id);
+      nextThreads.push(thread);
+    }
+
+    return nextThreads;
+  }, [activeThread, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
@@ -705,7 +705,7 @@ export const IdeShell = () => {
                   style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
                 >
                   {activeProject ? (
-                    projectThreads.length > 0 ? (
+                    mountedThreads.length > 0 ? (
                       mountedThreads.map((thread) => {
                         const project = projectsById.get(thread.projectId);
                         if (!project) {
