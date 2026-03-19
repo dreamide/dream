@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -51,22 +51,34 @@ export const IdeShell = () => {
   const projects = useIdeStore((s) => s.projects);
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeThread = useIdeStore((s) => s.getActiveThread());
-  const pendingThreadSelection = useIdeStore((s) => s.pendingThreadSelection);
   const threads = useIdeStore((s) => s.threads);
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
   const projectsById = useMemo(
     () => new Map(projects.map((project) => [project.id, project])),
     [projects],
   );
+  // Defer the active thread ID so the sidebar highlights immediately while
+  // the expensive chat panel re-render happens as a low-priority transition.
+  const deferredActiveThreadId = useDeferredValue(activeThread?.id ?? null);
+  const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
+
   const mountedThreads = useMemo(() => {
     const mountedThreadIds = new Set<string>();
     const nextThreads = [] as typeof threads;
 
-    if (activeThread && !mountedThreadIds.has(activeThread.id)) {
-      mountedThreadIds.add(activeThread.id);
-      nextThreads.push(activeThread);
+    // Mount the displayed thread (lags behind during transitions so old
+    // content stays visible while the new chat panel renders in background).
+    if (deferredActiveThreadId) {
+      const deferredThread = threads.find(
+        (t) => t.id === deferredActiveThreadId,
+      );
+      if (deferredThread) {
+        mountedThreadIds.add(deferredThread.id);
+        nextThreads.push(deferredThread);
+      }
     }
 
+    // Keep streaming threads mounted across switches.
     for (const thread of threads) {
       if (!streamingThreadIds[thread.id] || mountedThreadIds.has(thread.id)) {
         continue;
@@ -77,12 +89,8 @@ export const IdeShell = () => {
     }
 
     return nextThreads;
-  }, [activeThread, streamingThreadIds, threads]);
+  }, [deferredActiveThreadId, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
-  const isThreadSelectionPending =
-    pendingThreadSelection !== null &&
-    (pendingThreadSelection.projectId !== activeProject?.id ||
-      pendingThreadSelection.threadId !== activeThread?.id);
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
@@ -709,12 +717,7 @@ export const IdeShell = () => {
                   className="min-h-0 flex-1"
                   style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
                 >
-                  {isThreadSelectionPending ? (
-                    <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
-                      <Spinner className="size-4" />
-                      <span>Loading thread...</span>
-                    </div>
-                  ) : activeProject ? (
+                  {activeProject ? (
                     mountedThreads.length > 0 ? (
                       mountedThreads.map((thread) => {
                         const project = projectsById.get(thread.projectId);
@@ -723,8 +726,8 @@ export const IdeShell = () => {
                         }
 
                         const isVisible =
-                          thread.id === activeThread?.id &&
-                          thread.projectId === activeProject.id;
+                          thread.id === deferredActiveThreadId &&
+                          thread.projectId === deferredActiveProjectId;
 
                         return (
                           <div
