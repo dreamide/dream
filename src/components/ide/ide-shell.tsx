@@ -46,18 +46,37 @@ export const IdeShell = () => {
   const setAppReady = useIdeStore((s) => s.setAppReady);
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
-  const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
+  const projects = useIdeStore((s) => s.projects);
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeThread = useIdeStore((s) => s.getActiveThread());
   const threads = useIdeStore((s) => s.threads);
+  const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
   const projectThreads = useMemo(
     () =>
       activeProject ? getThreadsForProject(threads, activeProject.id) : [],
     [threads, activeProject],
   );
+  const projectsById = useMemo(
+    () => new Map(projects.map((project) => [project.id, project])),
+    [projects],
+  );
+  const mountedThreads = useMemo(() => {
+    const activeProjectThreadIds = new Set(
+      projectThreads.map((thread) => thread.id),
+    );
+
+    return [
+      ...projectThreads,
+      ...threads.filter(
+        (thread) =>
+          streamingThreadIds[thread.id] &&
+          !activeProjectThreadIds.has(thread.id),
+      ),
+    ];
+  }, [projectThreads, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
@@ -400,7 +419,7 @@ export const IdeShell = () => {
     }
 
     syncPreviewBounds();
-  }, [activeProject, panelVisibility.right, rightPanelView, syncPreviewBounds]);
+  }, [activeProject, panelVisibility.right, syncPreviewBounds]);
 
   // Keep the preview hidden while any modal is open or finishing its exit animation.
   useEffect(() => {
@@ -410,7 +429,7 @@ export const IdeShell = () => {
     }
 
     syncPreviewBounds();
-  }, [modalPreviewHidden, rightPanelView, syncPreviewBounds]);
+  }, [modalPreviewHidden, syncPreviewBounds]);
 
   // Preview cleanup on unmount
   useEffect(() => {
@@ -687,22 +706,33 @@ export const IdeShell = () => {
                 >
                   {activeProject ? (
                     projectThreads.length > 0 ? (
-                      projectThreads.map((thread) => (
-                        <div
-                          key={thread.id}
-                          className={
-                            thread.id === activeThread?.id
-                              ? "flex h-full min-h-0 flex-col"
-                              : "hidden"
-                          }
-                        >
-                          <ChatPanel
-                            isActive={thread.id === activeThread?.id}
-                            project={activeProject}
-                            thread={thread}
-                          />
-                        </div>
-                      ))
+                      mountedThreads.map((thread) => {
+                        const project = projectsById.get(thread.projectId);
+                        if (!project) {
+                          return null;
+                        }
+
+                        const isVisible =
+                          thread.id === activeThread?.id &&
+                          thread.projectId === activeProject.id;
+
+                        return (
+                          <div
+                            key={thread.id}
+                            className={
+                              isVisible
+                                ? "flex h-full min-h-0 flex-col"
+                                : "hidden"
+                            }
+                          >
+                            <ChatPanel
+                              isActive={isVisible}
+                              project={project}
+                              thread={thread}
+                            />
+                          </div>
+                        );
+                      })
                     ) : (
                       <div className="h-full p-3">
                         <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />

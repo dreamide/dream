@@ -558,6 +558,8 @@ export const ChatPanel = ({
   }`;
 
   useEffect(() => {
+    void streamFingerprint;
+
     if (!isProcessing) {
       // Not processing — reset everything
       setShowThinking(false);
@@ -575,13 +577,16 @@ export const ChatPanel = ({
     if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
 
     lullTimerRef.current = setTimeout(() => {
-      lullStartRef.current = Date.now();
+      lullStartRef.current = performance.now();
       setShowThinking(true);
       setThinkingSeconds(1);
       intervalRef.current = setInterval(() => {
         if (lullStartRef.current !== null) {
           setThinkingSeconds(
-            Math.floor((Date.now() - lullStartRef.current) / 1000) + 1,
+            Math.max(
+              1,
+              Math.floor((performance.now() - lullStartRef.current) / 1000) + 1,
+            ),
           );
         }
       }, 1000);
@@ -623,21 +628,22 @@ export const ChatPanel = ({
             <Sources>
               <SourcesTrigger count={sourceParts.length} />
               <SourcesContent>
-                {sourceParts.map((part, index) => {
+                {sourceParts.map((part) => {
                   if (part.type === "source-url") {
                     return (
                       <Source
                         href={part.url}
-                        key={`${message.id}-source-${index}`}
+                        key={`${message.id}-source-url-${part.url}`}
                         title={part.url}
                       />
                     );
                   }
                   if (part.type === "source-document") {
+                    const title = part.title ?? part.filename ?? "Document";
                     return (
                       <Source
-                        key={`${message.id}-source-${index}`}
-                        title={part.title ?? part.filename ?? "Document"}
+                        key={`${message.id}-source-document-${title}`}
+                        title={title}
                       />
                     );
                   }

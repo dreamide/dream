@@ -1,6 +1,5 @@
 import type { UIMessage } from "ai";
 import {
-  BrainIcon,
   CheckIcon,
   EyeIcon,
   FileIcon,
@@ -205,7 +204,11 @@ const buildFileTree = (
         });
       }
 
-      current = current.children.get(part)!;
+      const nextNode = current.children.get(part);
+      if (!nextNode) {
+        continue;
+      }
+      current = nextNode;
     }
   }
 
@@ -325,7 +328,6 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
   const end =
     hasOutput && typeof output.endLine === "number" ? output.endLine : null;
   const filename = filePath?.split(/[\\/]/).pop() ?? "file";
-  const lineRange = start && end ? `L${start}-${end}` : null;
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
@@ -503,6 +505,7 @@ export const WriteFileChip = ({
       ? output.bytesWritten
       : null;
   const hasOutput = isRecord(output) && isString(output.status);
+  const approvalId = part.approval?.id;
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -533,7 +536,7 @@ export const WriteFileChip = ({
       {expanded ? (
         <div className="mt-2 space-y-2">
           {/* Approval UI */}
-          {part.approval && onToolApproval ? (
+          {approvalId && part.approval && onToolApproval ? (
             <Confirmation
               approval={
                 part.approval as Parameters<typeof Confirmation>[0]["approval"]
@@ -566,7 +569,7 @@ export const WriteFileChip = ({
                   variant="outline"
                   onClick={() =>
                     onToolApproval({
-                      id: part.approval!.id,
+                      id: approvalId,
                       approved: false,
                     })
                   }
@@ -577,7 +580,7 @@ export const WriteFileChip = ({
                   variant="default"
                   onClick={() =>
                     onToolApproval({
-                      id: part.approval!.id,
+                      id: approvalId,
                       approved: true,
                     })
                   }
@@ -624,7 +627,6 @@ export const WriteFileChip = ({
 };
 
 const renderToolOutput = (part: ToolLikePart) => {
-  const toolName = getToolName(part);
   const hasError = isString(part.errorText) && part.errorText.length > 0;
 
   if (hasError) {

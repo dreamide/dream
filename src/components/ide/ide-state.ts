@@ -33,6 +33,7 @@ export const emptyState: PersistedIdeState = {
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
+  threadSort: "recent",
   threads: [],
 };
 
@@ -263,6 +264,12 @@ export const mergePersistedState = (
     },
     projects,
     settings: mergedSettings,
+    threadSort:
+      state.threadSort === "createdDesc" ||
+      state.threadSort === "createdAsc" ||
+      state.threadSort === "titleAsc"
+        ? state.threadSort
+        : "recent",
     threads,
   };
 };
