@@ -53,13 +53,10 @@ export const IdeShell = () => {
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeThread = useIdeStore((s) => s.getActiveThread());
   const threads = useIdeStore((s) => s.threads);
-  const threadSort = useIdeStore((s) => s.threadSort);
   const projectThreads = useMemo(
     () =>
-      activeProject
-        ? getThreadsForProject(threads, activeProject.id, threadSort)
-        : [],
-    [threads, activeProject, threadSort],
+      activeProject ? getThreadsForProject(threads, activeProject.id) : [],
+    [threads, activeProject],
   );
   const modalPreviewHidden = useModalPreviewHidden();
 
@@ -699,7 +696,11 @@ export const IdeShell = () => {
                               : "hidden"
                           }
                         >
-                          <ChatPanel project={activeProject} thread={thread} />
+                          <ChatPanel
+                            isActive={thread.id === activeThread?.id}
+                            project={activeProject}
+                            thread={thread}
+                          />
                         </div>
                       ))
                     ) : (

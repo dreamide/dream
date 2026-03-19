@@ -113,52 +113,26 @@ const PROVIDER_LABELS: Record<AiProvider, string> = {
   gemini: "Gemini",
 };
 
-const ConversationScrollMemory = ({
-  scrollPositionsRef,
-  threadId,
-}: {
-  scrollPositionsRef: React.MutableRefObject<Record<string, number>>;
-  threadId: string;
-}) => {
+const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
   const { scrollRef, scrollToBottom, stopScroll } = useStickToBottomContext();
 
-  useEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-
-    const saveScroll = () => {
-      scrollPositionsRef.current[threadId] = element.scrollTop;
-    };
-
-    saveScroll();
-    element.addEventListener("scroll", saveScroll, { passive: true });
-
-    return () => {
-      saveScroll();
-      element.removeEventListener("scroll", saveScroll);
-    };
-  }, [scrollPositionsRef, scrollRef, threadId]);
-
   useLayoutEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
     const frame = window.requestAnimationFrame(() => {
       const element = scrollRef.current;
       if (!element) return;
 
       stopScroll();
-      const savedScroll = scrollPositionsRef.current[threadId];
-
-      if (typeof savedScroll === "number") {
-        element.scrollTop = savedScroll;
-        return;
-      }
-
       void scrollToBottom("instant");
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [scrollPositionsRef, scrollRef, scrollToBottom, stopScroll, threadId]);
+  }, [isActive, scrollRef, scrollToBottom, stopScroll]);
 
   return null;
 };
@@ -190,9 +164,11 @@ const getMessagePartKey = (
 };
 
 export const ChatPanel = ({
+  isActive,
   project,
   thread,
 }: {
+  isActive: boolean;
   project: ProjectConfig;
   thread: ThreadConfig;
 }) => {
@@ -206,8 +182,6 @@ export const ChatPanel = ({
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const setSettings = useIdeStore((s) => s.setSettings);
   const updateThread = useIdeStore((s) => s.updateThread);
-  const scrollPositionsRef = useRef<Record<string, number>>({});
-
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo(() => {
     return connectedProviders.flatMap((provider) =>
@@ -815,10 +789,7 @@ export const ChatPanel = ({
             </div>
           ) : null}
         </ConversationContent>
-        <ConversationScrollMemory
-          scrollPositionsRef={scrollPositionsRef}
-          threadId={thread.id}
-        />
+        <ConversationScrollMemory isActive={isActive} />
         <ConversationScrollButton />
       </Conversation>
 
