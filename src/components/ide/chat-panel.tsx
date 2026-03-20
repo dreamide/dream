@@ -111,31 +111,13 @@ const MESSAGE_RENDER_STYLE = {
   contentVisibility: "auto",
 } as const;
 
-// Track threads that have already been scrolled to bottom on first view.
-const initializedThreads = new Set<string>();
-
-const ConversationScrollMemory = ({
-  isActive,
-  threadId,
-}: {
-  isActive: boolean;
-  threadId: string;
-}) => {
+const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
   const { scrollRef, stopScroll } = useStickToBottomContext();
 
   useEffect(() => {
     if (!isActive) {
       return;
     }
-
-    // On first activation scroll to the latest message. On subsequent
-    // activations the DOM already holds the correct scroll position
-    // because all project threads stay mounted.
-    if (initializedThreads.has(threadId)) {
-      stopScroll();
-      return;
-    }
-    initializedThreads.add(threadId);
 
     const frame = window.requestAnimationFrame(() => {
       const element = scrollRef.current;
@@ -148,7 +130,7 @@ const ConversationScrollMemory = ({
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [isActive, scrollRef, stopScroll, threadId]);
+  }, [isActive, scrollRef, stopScroll]);
 
   return null;
 };
@@ -840,7 +822,7 @@ export const ChatPanel = ({
             </div>
           ) : null}
         </ConversationContent>
-        <ConversationScrollMemory isActive={isActive} threadId={thread.id} />
+        <ConversationScrollMemory isActive={isActive} />
         <ConversationScrollButton />
       </Conversation>
 
