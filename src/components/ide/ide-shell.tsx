@@ -63,30 +63,20 @@ export const IdeShell = () => {
   const deferredActiveThreadId = useDeferredValue(activeThread?.id ?? null);
   const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
 
-  // Mount all threads for the active project so the DOM preserves scroll
-  // positions across thread switches. During cross-project transitions the
-  // previously displayed thread is also kept mounted until the deferred
-  // value catches up.
+  // Mount all threads for the deferred project so that cross-project
+  // switches keep the old content visible while the new project's threads
+  // render in a background transition — matching within-project speed.
   const mountedThreads = useMemo(() => {
     const mountedThreadIds = new Set<string>();
     const nextThreads = [] as typeof threads;
-    const currentProjectId = activeProject?.id;
 
-    if (currentProjectId) {
-      for (const thread of getThreadsForProject(threads, currentProjectId)) {
+    if (deferredActiveProjectId) {
+      for (const thread of getThreadsForProject(
+        threads,
+        deferredActiveProjectId,
+      )) {
         mountedThreadIds.add(thread.id);
         nextThreads.push(thread);
-      }
-    }
-
-    // Keep the previously displayed thread during cross-project transitions.
-    if (deferredActiveThreadId && !mountedThreadIds.has(deferredActiveThreadId)) {
-      const deferredThread = threads.find(
-        (t) => t.id === deferredActiveThreadId,
-      );
-      if (deferredThread) {
-        mountedThreadIds.add(deferredThread.id);
-        nextThreads.push(deferredThread);
       }
     }
 
@@ -101,7 +91,7 @@ export const IdeShell = () => {
     }
 
     return nextThreads;
-  }, [activeProject?.id, deferredActiveThreadId, streamingThreadIds, threads]);
+  }, [deferredActiveProjectId, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);

@@ -370,7 +370,7 @@ export const ProjectSidebar = () => {
                     </div>
 
                     {!isCollapsed ? (
-                      <div className="mt-1 ml-2 space-y-1 border-l border-border pl-3 pr-2">
+                      <div className="mt-1 ml-2 border-l border-border pl-3 pr-2">
                         {projectThreads.map((thread) => {
                           const isActiveThread =
                             isActive && thread.id === activeThreadId;
