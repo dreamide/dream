@@ -16,7 +16,6 @@ import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
 import { IdeFooter, IdeHeader } from "./ide-header";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
-import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
@@ -39,6 +38,7 @@ const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 /** Duration (ms) for panel slide animations. */
 const PANEL_TRANSITION_MS = 200;
 const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+const RIGHT_PANEL_TRANSITION = `${PANEL_TRANSITION}, flex-basis ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-grow ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-shrink ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -63,24 +63,22 @@ export const IdeShell = () => {
   const deferredActiveThreadId = useDeferredValue(activeThread?.id ?? null);
   const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
 
-  // Mount all threads for the deferred project so that cross-project
-  // switches keep the old content visible while the new project's threads
-  // render in a background transition — matching within-project speed.
+  // Only mount the displayed thread (deferred so old content stays visible
+  // during transitions) plus any streaming threads.
   const mountedThreads = useMemo(() => {
     const mountedThreadIds = new Set<string>();
     const nextThreads = [] as typeof threads;
 
-    if (deferredActiveProjectId) {
-      for (const thread of getThreadsForProject(
-        threads,
-        deferredActiveProjectId,
-      )) {
-        mountedThreadIds.add(thread.id);
-        nextThreads.push(thread);
+    if (deferredActiveThreadId) {
+      const deferredThread = threads.find(
+        (t) => t.id === deferredActiveThreadId,
+      );
+      if (deferredThread) {
+        mountedThreadIds.add(deferredThread.id);
+        nextThreads.push(deferredThread);
       }
     }
 
-    // Keep streaming threads mounted across switches.
     for (const thread of threads) {
       if (!streamingThreadIds[thread.id] || mountedThreadIds.has(thread.id)) {
         continue;
@@ -91,7 +89,7 @@ export const IdeShell = () => {
     }
 
     return nextThreads;
-  }, [deferredActiveProjectId, streamingThreadIds, threads]);
+  }, [deferredActiveThreadId, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
@@ -172,11 +170,12 @@ export const IdeShell = () => {
 
   const handleResizeEnd = useCallback(() => {
     isDraggingRef.current = false;
-    // Re-enable transitions
+    // Restore transitions (must match the React style prop exactly so that
+    // React's reconciler stays in sync with the DOM).
     const left = leftPanelRef.current;
-    if (left) left.style.transition = "";
+    if (left) left.style.transition = PANEL_TRANSITION;
     const right = rightPanelRef.current;
-    if (right) right.style.transition = "";
+    if (right) right.style.transition = RIGHT_PANEL_TRANSITION;
   }, []);
 
   const handleTerminalResizeStart = useCallback(() => {
@@ -818,7 +817,7 @@ export const IdeShell = () => {
                 paddingRight: rightVisible ? 8 : 0,
                 paddingLeft: rightVisible && !middleVisible ? 8 : 0,
                 pointerEvents: rightVisible ? "auto" : "none",
-                transition: `${PANEL_TRANSITION}, flex-basis ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-grow ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-shrink ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                transition: RIGHT_PANEL_TRANSITION,
                 willChange: middleVisible
                   ? "width, opacity, padding"
                   : "flex-basis, opacity, padding",
