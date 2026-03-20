@@ -63,22 +63,40 @@ export const IdeShell = () => {
   const deferredActiveThreadId = useDeferredValue(activeThread?.id ?? null);
   const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
 
-  // Only mount the displayed thread (deferred so old content stays visible
-  // during transitions) plus any streaming threads.
+  // Track the last N visited threads so they stay mounted for instant switching.
+  const recentThreadIdsRef = useRef<string[]>([]);
+  const recentThreadIds = useMemo(() => {
+    if (
+      !deferredActiveThreadId ||
+      recentThreadIdsRef.current[0] === deferredActiveThreadId
+    ) {
+      return recentThreadIdsRef.current;
+    }
+
+    const next = [
+      deferredActiveThreadId,
+      ...recentThreadIdsRef.current.filter(
+        (id) => id !== deferredActiveThreadId,
+      ),
+    ].slice(0, 10);
+    recentThreadIdsRef.current = next;
+    return next;
+  }, [deferredActiveThreadId]);
+
   const mountedThreads = useMemo(() => {
     const mountedThreadIds = new Set<string>();
     const nextThreads = [] as typeof threads;
 
-    if (deferredActiveThreadId) {
-      const deferredThread = threads.find(
-        (t) => t.id === deferredActiveThreadId,
-      );
-      if (deferredThread) {
-        mountedThreadIds.add(deferredThread.id);
-        nextThreads.push(deferredThread);
+    // Mount recently visited threads (capped at 10).
+    for (const id of recentThreadIds) {
+      const thread = threads.find((t) => t.id === id);
+      if (thread && !mountedThreadIds.has(thread.id)) {
+        mountedThreadIds.add(thread.id);
+        nextThreads.push(thread);
       }
     }
 
+    // Keep streaming threads mounted.
     for (const thread of threads) {
       if (!streamingThreadIds[thread.id] || mountedThreadIds.has(thread.id)) {
         continue;
@@ -89,7 +107,7 @@ export const IdeShell = () => {
     }
 
     return nextThreads;
-  }, [deferredActiveThreadId, streamingThreadIds, threads]);
+  }, [recentThreadIds, streamingThreadIds, threads]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
