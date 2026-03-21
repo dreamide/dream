@@ -290,7 +290,7 @@ export const ProjectSidebar = () => {
                   <div className="rounded-md" key={project.id}>
                     <div
                       className={cn(
-                        "group relative flex items-center gap-1 rounded-md transition-colors",
+                        "group relative flex items-center gap-1 rounded-md pr-2 transition-colors",
                         isActive
                           ? "bg-muted"
                           : "bg-transparent hover:bg-muted/20",
