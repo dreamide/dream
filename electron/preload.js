@@ -36,4 +36,7 @@ contextBridge.exposeInMainWorld("dream", {
   updatePreview: (payload) => ipcRenderer.send("preview:update", payload),
   onPreviewError: (listener) => subscribe("preview:error", listener),
   onPreviewStatus: (listener) => subscribe("preview:status", listener),
+
+  detectEditors: () => ipcRenderer.invoke("editors:detect"),
+  openInEditor: (payload) => ipcRenderer.invoke("editors:open", payload),
 });

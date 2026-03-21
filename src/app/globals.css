@@ -451,6 +451,15 @@
   margin: 2px;
 }
 
+@keyframes chip-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes glow-border-rotate {
   from {
     transform: rotate(0);
