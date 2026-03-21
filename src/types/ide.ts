@@ -163,4 +163,18 @@ export interface DreamDesktopApi {
   onPreviewStatus: (
     listener: (event: PreviewStatusEvent) => void,
   ) => () => void;
+
+  detectEditors: () => Promise<DetectedEditor[]>;
+  openInEditor: (payload: {
+    projectPath: string;
+    editorId: string;
+  }) => Promise<boolean>;
+}
+
+export interface DetectedEditor {
+  id: string;
+  name: string;
+  executable: string;
+  isFileExplorer: boolean;
+  isTerminal: boolean;
 }

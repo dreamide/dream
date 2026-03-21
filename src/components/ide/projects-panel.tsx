@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   Ellipsis,
+  ExternalLink,
   FilePenLine,
   MessageSquarePlus,
   Plus,
@@ -28,6 +29,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -40,6 +44,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
+import type { DetectedEditor } from "@/types/ide";
 import { getThreadsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 
@@ -47,16 +52,32 @@ type RenameTarget =
   | { id: string; kind: "project"; name: string }
   | { id: string; kind: "thread"; name: string };
 
+const useDetectedEditors = () => {
+  const [editors, setEditors] = useState<DetectedEditor[]>([]);
+
+  useEffect(() => {
+    const api = getDesktopApi();
+    if (!api) return;
+    void api.detectEditors().then(setEditors);
+  }, []);
+
+  return editors;
+};
+
 const ProjectActionsMenu = ({
+  editors,
   label,
   onEdit,
   onOpenChange,
+  onOpenIn,
   onRemove,
   open,
 }: {
+  editors: DetectedEditor[];
   label: string;
   onEdit: () => void;
   onOpenChange: (open: boolean) => void;
+  onOpenIn: (editorId: string) => void;
   onRemove: () => void;
   open: boolean;
 }) => {
@@ -75,11 +96,29 @@ const ProjectActionsMenu = ({
       >
         <Ellipsis className="size-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-36">
+      <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuItem onClick={onEdit}>
           <FilePenLine className="size-4" />
           Edit
         </DropdownMenuItem>
+        {editors.length > 0 ? (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <ExternalLink className="size-4" />
+              Open in
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {editors.map((editor) => (
+                <DropdownMenuItem
+                  key={editor.id}
+                  onClick={() => onOpenIn(editor.id)}
+                >
+                  {editor.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        ) : null}
         <DropdownMenuItem onClick={onRemove}>
           <X className="size-4" />
           Remove
@@ -145,6 +184,7 @@ export const ProjectSidebar = () => {
   const archiveThread = useIdeStore((s) => s.archiveThread);
   const closeProject = useIdeStore((s) => s.closeProject);
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
+  const detectedEditors = useDetectedEditors();
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -290,7 +330,7 @@ export const ProjectSidebar = () => {
                   <div className="rounded-md" key={project.id}>
                     <div
                       className={cn(
-                        "group relative flex items-center gap-1 rounded-md transition-colors",
+                        "group relative flex items-center gap-1 rounded-md pr-2 transition-colors",
                         isActive
                           ? "bg-muted"
                           : "bg-transparent hover:bg-muted/20",
@@ -352,6 +392,7 @@ export const ProjectSidebar = () => {
                           <TooltipContent>New thread</TooltipContent>
                         </Tooltip>
                         <ProjectActionsMenu
+                          editors={detectedEditors}
                           label={project.name}
                           onEdit={() =>
                             openRenameDialog({
@@ -363,6 +404,15 @@ export const ProjectSidebar = () => {
                           onOpenChange={(open) =>
                             setOpenMenuId(open ? projectMenuId : null)
                           }
+                          onOpenIn={(editorId) => {
+                            const api = getDesktopApi();
+                            if (api) {
+                              void api.openInEditor({
+                                projectPath: project.path,
+                                editorId,
+                              });
+                            }
+                          }}
                           onRemove={() => closeProject(project.id)}
                           open={isProjectMenuOpen}
                         />

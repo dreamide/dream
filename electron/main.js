@@ -1062,6 +1062,225 @@ ipcMain.handle("shell:open-external", (_event, { url }) => {
   return true;
 });
 
+// ── Open-in-editor detection ─────────────────────────────────────────
+
+const KNOWN_EDITORS = [
+  // IDEs & editors
+  {
+    id: "vscode",
+    name: "VS Code",
+    win: ["code.cmd", "code.exe"],
+    mac: [
+      "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+    ],
+    linux: ["code"],
+    args: (p) => [p],
+  },
+  {
+    id: "cursor",
+    name: "Cursor",
+    win: ["cursor.cmd", "cursor.exe"],
+    mac: ["/Applications/Cursor.app/Contents/Resources/app/bin/cursor"],
+    linux: ["cursor"],
+    args: (p) => [p],
+  },
+  {
+    id: "windsurf",
+    name: "Windsurf",
+    win: ["windsurf.cmd", "windsurf.exe"],
+    mac: ["/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf"],
+    linux: ["windsurf"],
+    args: (p) => [p],
+  },
+  {
+    id: "zed",
+    name: "Zed",
+    win: ["zed.exe"],
+    mac: ["/Applications/Zed.app/Contents/MacOS/cli"],
+    linux: ["zed"],
+    args: (p) => [p],
+  },
+  {
+    id: "webstorm",
+    name: "WebStorm",
+    win: ["webstorm64.exe", "webstorm.cmd"],
+    mac: ["/Applications/WebStorm.app/Contents/MacOS/webstorm"],
+    linux: ["webstorm"],
+    args: (p) => [p],
+  },
+  {
+    id: "phpstorm",
+    name: "PhpStorm",
+    win: ["phpstorm64.exe", "phpstorm.cmd"],
+    mac: ["/Applications/PhpStorm.app/Contents/MacOS/phpstorm"],
+    linux: ["phpstorm"],
+    args: (p) => [p],
+  },
+  {
+    id: "pycharm",
+    name: "PyCharm",
+    win: ["pycharm64.exe", "pycharm.cmd"],
+    mac: ["/Applications/PyCharm.app/Contents/MacOS/pycharm"],
+    linux: ["pycharm"],
+    args: (p) => [p],
+  },
+  {
+    id: "idea",
+    name: "IntelliJ IDEA",
+    win: ["idea64.exe", "idea.cmd"],
+    mac: ["/Applications/IntelliJ IDEA.app/Contents/MacOS/idea"],
+    linux: ["idea"],
+    args: (p) => [p],
+  },
+  {
+    id: "sublime",
+    name: "Sublime Text",
+    win: [
+      "C:\\Program Files\\Sublime Text\\subl.exe",
+      "C:\\Program Files\\Sublime Text 3\\subl.exe",
+    ],
+    mac: ["/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl"],
+    linux: ["subl"],
+    args: (p) => [p],
+  },
+  {
+    id: "vim",
+    name: "Vim",
+    win: [],
+    mac: ["vim"],
+    linux: ["vim"],
+    args: (p) => [p],
+  },
+  {
+    id: "neovim",
+    name: "Neovim",
+    win: ["nvim.exe"],
+    mac: ["nvim"],
+    linux: ["nvim"],
+    args: (p) => [p],
+  },
+  // File explorers (shown as default "open folder" option)
+  {
+    id: "file-explorer",
+    name:
+      process.platform === "win32"
+        ? "File Explorer"
+        : process.platform === "darwin"
+          ? "Finder"
+          : "Files",
+    win: ["explorer.exe"],
+    mac: ["open"],
+    linux: ["xdg-open"],
+    args: (p) => [p],
+    isFileExplorer: true,
+  },
+  // Terminal
+  {
+    id: "terminal",
+    name: "Terminal",
+    win: ["wt.exe", "cmd.exe"],
+    mac: ["open", "/Applications/iTerm.app"],
+    linux: ["x-terminal-emulator", "gnome-terminal", "konsole"],
+    args: (p) =>
+      process.platform === "darwin" ? ["-a", "Terminal", p] : [p],
+    isTerminal: true,
+  },
+];
+
+function resolveExecutable(name) {
+  // Absolute path — check directly
+  if (path.isAbsolute(name)) {
+    return existsSync(name) ? name : null;
+  }
+
+  // Search PATH
+  const pathEnv = process.env.PATH || "";
+  const sep = process.platform === "win32" ? ";" : ":";
+  const dirs = pathEnv.split(sep);
+
+  for (const dir of dirs) {
+    const full = path.join(dir, name);
+    try {
+      if (existsSync(full) && statSync(full).isFile()) {
+        return full;
+      }
+    } catch {
+      // skip
+    }
+  }
+
+  return null;
+}
+
+let cachedEditors = null;
+let cachedEditorsTimestamp = 0;
+const EDITOR_CACHE_TTL_MS = 30_000;
+
+function detectAvailableEditors() {
+  const now = Date.now();
+  if (cachedEditors && now - cachedEditorsTimestamp < EDITOR_CACHE_TTL_MS) {
+    return cachedEditors;
+  }
+
+  const platformKey =
+    process.platform === "win32"
+      ? "win"
+      : process.platform === "darwin"
+        ? "mac"
+        : "linux";
+
+  const results = [];
+
+  for (const editor of KNOWN_EDITORS) {
+    const candidates = editor[platformKey] || [];
+    for (const candidate of candidates) {
+      const resolved = resolveExecutable(candidate);
+      if (resolved) {
+        results.push({
+          id: editor.id,
+          name: editor.name,
+          executable: resolved,
+          isFileExplorer: editor.isFileExplorer || false,
+          isTerminal: editor.isTerminal || false,
+        });
+        break;
+      }
+    }
+  }
+
+  cachedEditors = results;
+  cachedEditorsTimestamp = now;
+  return results;
+}
+
+ipcMain.handle("editors:detect", () => {
+  return detectAvailableEditors();
+});
+
+ipcMain.handle("editors:open", (_event, { projectPath, editorId }) => {
+  if (!projectPath || typeof projectPath !== "string") {
+    return false;
+  }
+
+  const editors = detectAvailableEditors();
+  const editor = editors.find((e) => e.id === editorId);
+  if (!editor) {
+    // Fallback: open folder in system file explorer
+    shell.openPath(projectPath);
+    return true;
+  }
+
+  const editorDef = KNOWN_EDITORS.find((e) => e.id === editorId);
+  const args = editorDef ? editorDef.args(projectPath) : [projectPath];
+
+  spawnProcess(editor.executable, args, {
+    detached: true,
+    stdio: "ignore",
+  }).unref();
+
+  return true;
+});
+
 ipcMain.handle(
   "runner:start",
   (_event, { command, cwd, projectId, projectName }) => {

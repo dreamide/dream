@@ -286,7 +286,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
     <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
           hasError && "border-destructive/30 text-destructive",
           isRunning && "animate-pulse",
@@ -336,7 +336,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
     <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
           hasError && "border-destructive/30 text-destructive",
           isRunning && "animate-pulse",
@@ -402,7 +402,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
     <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
           hasError && "border-destructive/30 text-destructive",
           isRunning && "animate-pulse",
@@ -511,7 +511,7 @@ export const WriteFileChip = ({
     <div className={expanded ? "mb-3 w-full" : undefined}>
       <button
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
           hasError && "border-destructive/30 text-destructive",
           isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
@@ -745,9 +745,9 @@ export const AssistantMessagePart = ({
   if (part.type === "reasoning") {
     const hasReasoningText = part.text.trim().length > 0;
 
-    if (!hasReasoningText && !isStreaming) {
-      // No reasoning text available (e.g. OpenAI o-series models hide chain-of-thought)
-      // Hide empty thinking blocks entirely — they provide no useful info
+    // Hide when there's no content to show — the lull indicator in
+    // ChatPanel already signals "working" during streaming.
+    if (!hasReasoningText) {
       return null;
     }
 
