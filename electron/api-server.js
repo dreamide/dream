@@ -16,6 +16,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { serve } from "@hono/node-server";
+import { claudeCode } from "ai-sdk-provider-claude-code";
 import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -213,6 +214,9 @@ const getModelReasoningEfforts = (provider, modelId) => {
   }
 
   if (provider === "anthropic") {
+    if (["opus", "sonnet", "haiku"].includes(id)) {
+      return ["low", "medium", "high"];
+    }
     const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
     if (newFormat) {
       const major = Number(newFormat[1]);
@@ -222,8 +226,9 @@ const getModelReasoningEfforts = (provider, modelId) => {
     if (oldFormat) {
       const major = Number(oldFormat[1]);
       const minor = Number(oldFormat[2]);
-      if (major > 3 || (major === 3 && minor >= 7))
+      if (major > 3 || (major === 3 && minor >= 7)) {
         return ["low", "medium", "high"];
+      }
     }
     if (/^claude-(\d+)(?!\d)/.test(id)) {
       const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
@@ -307,6 +312,12 @@ const formatModelIdLabel = (provider, modelId) => {
       .join(" ");
     return rest ? `Claude ${rest}` : "Claude";
   }
+  if (
+    provider === "anthropic" &&
+    ["opus", "sonnet", "haiku"].includes(parts[0]?.toLowerCase() ?? "")
+  ) {
+    return `Claude ${formatToken(provider, parts[0], true)}`;
+  }
   if (provider === "gemini" && parts[0]?.toLowerCase() === "gemini") {
     const rest = parts
       .slice(1)
@@ -337,55 +348,138 @@ const dedupeModelOptions = (models) => {
   return Array.from(seen.values());
 };
 
+const CLAUDE_CODE_MODEL_LABELS = {
+  haiku: "Claude Haiku",
+  opus: "Claude Opus",
+  sonnet: "Claude Sonnet",
+};
+
+const CLAUDE_CODE_MODEL_OPTIONS = [
+  createModelOption("anthropic", "sonnet", CLAUDE_CODE_MODEL_LABELS.sonnet),
+  createModelOption("anthropic", "opus", CLAUDE_CODE_MODEL_LABELS.opus),
+  createModelOption("anthropic", "haiku", CLAUDE_CODE_MODEL_LABELS.haiku),
+];
+
+const normalizeClaudeCodeModel = (modelId) => {
+  const trimmed = modelId.trim().toLowerCase();
+  if (!trimmed) return "sonnet";
+  if (trimmed.includes("opus")) return "opus";
+  if (trimmed.includes("haiku")) return "haiku";
+  if (trimmed.includes("sonnet")) return "sonnet";
+  return trimmed;
+};
+
+const CLAUDE_MODELS_OVERVIEW_URL =
+  "https://platform.claude.com/docs/en/about-claude/models/overview";
+const CLAUDE_CODE_MODELS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+let claudeCodeModelOptionsCache = {
+  expiresAt: 0,
+  models: CLAUDE_CODE_MODEL_OPTIONS,
+};
+const CLAUDE_CODE_MODEL_ORDER = { sonnet: 0, opus: 1, haiku: 2 };
+
+const decodeHtmlEntities = (value) => {
+  return value
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+};
+
+const stripHtml = (value) => {
+  return decodeHtmlEntities(value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+};
+
+const parseClaudeCodeModelOptionsFromDocs = (html) => {
+  const headerMatches = Array.from(
+    html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi),
+    (match) => stripHtml(match[1]).trim(),
+  ).filter(Boolean);
+  const modelHeaders = headerMatches.filter((header) =>
+    /^Claude (Opus|Sonnet|Haiku)\b/i.test(header),
+  );
+
+  if (modelHeaders.length < 3) {
+    return [];
+  }
+
+  return modelHeaders.flatMap((header) => {
+    const variant = header.match(/^Claude (Opus|Sonnet|Haiku)\b/i)?.[1];
+    if (!variant) return [];
+    return [createModelOption("anthropic", variant.toLowerCase(), header)];
+  });
+};
+
+const fetchClaudeCodeModelOptionsFromDocs = async () => {
+  if (Date.now() < claudeCodeModelOptionsCache.expiresAt) {
+    return claudeCodeModelOptionsCache.models;
+  }
+
+  try {
+    const response = await fetch(CLAUDE_MODELS_OVERVIEW_URL, { method: "GET" });
+    if (!response.ok) {
+      throw new Error(`Anthropic docs request failed (${response.status}).`);
+    }
+
+    const html = await response.text();
+    const parsedModels = dedupeModelOptions(
+      parseClaudeCodeModelOptionsFromDocs(html),
+    ).sort((a, b) => {
+      const aOrder = CLAUDE_CODE_MODEL_ORDER[a.id] ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = CLAUDE_CODE_MODEL_ORDER[b.id] ?? Number.MAX_SAFE_INTEGER;
+      return aOrder - bOrder;
+    });
+    if (parsedModels.length < 3) {
+      throw new Error("Anthropic docs page did not contain Claude Code models.");
+    }
+
+    claudeCodeModelOptionsCache = {
+      expiresAt: Date.now() + CLAUDE_CODE_MODELS_CACHE_TTL_MS,
+      models: parsedModels,
+    };
+    return parsedModels;
+  } catch {
+    return CLAUDE_CODE_MODEL_OPTIONS;
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Error formatting
 // ---------------------------------------------------------------------------
 
-/**
- * Extract a human-readable message from a streaming error.
- *
- * Provider SDK errors (APICallError) carry statusCode, responseBody, data, and
- * cause. We try each source in turn so the user sees something actionable
- * rather than the bare word "Error".
- */
 const formatStreamError = (error) => {
   if (error == null) return "An unknown error occurred.";
   if (typeof error === "string") return error || "An unknown error occurred.";
-  if (typeof error !== "object")
+  if (typeof error !== "object") {
     return String(error) || "An unknown error occurred.";
+  }
 
   const details = [];
   const isGeneric = (s) =>
     !s || s === "Error" || s === "error" || s === "Unknown error";
 
-  // 1. Status code (e.g. 400, 401, 429, 529)
   const statusCode = error.statusCode ?? error.status;
   if (statusCode) details.push(`[${statusCode}]`);
 
-  // 2. Primary message
   const msg = error.message;
   if (!isGeneric(msg)) {
     details.push(msg);
   }
 
-  // 3. Structured `data` from provider SDKs
-  //    Anthropic: { type: "error", error: { type: "invalid_request_error", message: "..." } }
-  //    OpenAI:    { error: { message: "...", type: "...", code: "..." } }
   const errData = error.data?.error ?? error.data;
   if (errData && typeof errData === "object") {
-    // Error type/code (e.g. "invalid_request_error", "insufficient_quota")
     const errType = errData.type ?? errData.code;
     if (typeof errType === "string" && errType.length > 0) {
       details.push(errType.replaceAll("_", " "));
     }
-    // Message from the structured body (only if different from what we have)
     const errMsg = errData.message;
     if (typeof errMsg === "string" && !isGeneric(errMsg) && errMsg !== msg) {
       details.push(errMsg);
     }
   }
 
-  // 4. responseBody — raw text (fallback if data didn't help)
   if (
     details.length <= 1 &&
     typeof error.responseBody === "string" &&
@@ -414,7 +508,6 @@ const formatStreamError = (error) => {
     }
   }
 
-  // 5. Cause chain
   let cause = error.cause;
   const seen = new Set();
   while (cause && !seen.has(cause)) {
@@ -427,7 +520,7 @@ const formatStreamError = (error) => {
     cause = cause?.cause;
   }
 
-  if (details.length > 0) return details.join(" \u2014 ");
+  if (details.length > 0) return details.join(" — ");
 
   return "An unexpected error occurred. Check the server console for details.";
 };
@@ -438,14 +531,10 @@ const formatStreamError = (error) => {
 
 const app = new Hono();
 
-// ── /api/codex-auth ──────────────────────────────────────────────────────────
-
 app.get("/api/codex-auth", async (c) => {
   const status = await getCodexAuthStatus();
   return c.json(status);
 });
-
-// ── /api/anthropic-oauth/authorize ───────────────────────────────────────────
 
 app.post("/api/anthropic-oauth/authorize", async (c) => {
   let rawBody;
@@ -469,8 +558,6 @@ app.post("/api/anthropic-oauth/authorize", async (c) => {
 
   return c.json({ url, verifier });
 });
-
-// ── /api/anthropic-oauth/exchange ────────────────────────────────────────────
 
 app.post("/api/anthropic-oauth/exchange", async (c) => {
   let rawBody;
@@ -504,8 +591,6 @@ app.post("/api/anthropic-oauth/exchange", async (c) => {
     );
   }
 });
-
-// ── /api/anthropic-oauth/refresh ─────────────────────────────────────────────
 
 app.post("/api/anthropic-oauth/refresh", async (c) => {
   let rawBody;
@@ -774,8 +859,8 @@ const fetchAnthropicModelsWithOAuth = async (oauthInput) => {
 };
 
 const fetchAnthropicModels = async (authMode, anthropicApiKey, oauthInput) => {
-  if (authMode === "claudeProMax") {
-    return fetchAnthropicModelsWithOAuth(oauthInput);
+  if (authMode === "claudeCode") {
+    return { models: await fetchClaudeCodeModelOptionsFromDocs(), source: "api" };
   }
 
   if (!anthropicApiKey) {
@@ -847,7 +932,6 @@ const fetchGeminiModels = async (geminiApiKey) => {
     const payload = await response.json();
     const modelIds = (payload.models ?? [])
       .flatMap((entry) => {
-        // Native API returns name like "models/gemini-2.0-flash"
         let name = entry.name?.trim() ?? "";
         if (name.toLowerCase().startsWith("models/")) {
           name = name.slice("models/".length);
@@ -889,7 +973,7 @@ app.post("/api/provider-models", async (c) => {
   const requestBodySchema = z.object({
     anthropicAccessToken: z.string().optional(),
     anthropicAccessTokenExpiresAt: z.number().nullable().optional(),
-    anthropicAuthMode: z.enum(["apiKey", "claudeProMax"]).default("apiKey"),
+    anthropicAuthMode: z.enum(["apiKey", "claudeCode"]).default("apiKey"),
     anthropicApiKey: z.string().optional(),
     anthropicRefreshToken: z.string().optional(),
     geminiApiKey: z.string().optional(),
@@ -933,14 +1017,7 @@ app.post("/api/provider-models", async (c) => {
 // ── /api/chat ────────────────────────────────────────────────────────────────
 
 const chatRequestBodySchema = z.object({
-  anthropicOAuth: z
-    .object({
-      accessToken: z.string().optional(),
-      expiresAt: z.number().optional(),
-      refreshToken: z.string().optional(),
-    })
-    .optional(),
-  authMode: z.enum(["apiKey", "codex", "claudeProMax"]).default("apiKey"),
+  authMode: z.enum(["apiKey", "codex", "claudeCode"]).default("apiKey"),
   chatMode: z.enum(["plan", "build"]).default("build"),
   credential: z.string().optional(),
   messages: z.array(z.unknown()),
@@ -1075,7 +1152,6 @@ app.post("/api/chat", async (c) => {
   }
 
   const {
-    anthropicOAuth,
     authMode,
     chatMode,
     model,
@@ -1111,97 +1187,16 @@ app.post("/api/chat", async (c) => {
     useChatgptCodexEndpoint = codexCredential.source === "chatgpt";
   }
 
-  if (provider === "anthropic" && authMode === "claudeProMax") {
-    const refreshToken = anthropicOAuth?.refreshToken?.trim() ?? "";
-    const oauthAccessToken = anthropicOAuth?.accessToken?.trim() ?? "";
-    const oauthExpiresAt =
-      typeof anthropicOAuth?.expiresAt === "number"
-        ? anthropicOAuth.expiresAt
-        : null;
+  const usesClaudeCode = provider === "anthropic" && authMode === "claudeCode";
 
-    if (!refreshToken) {
-      return c.text(
-        "Claude Pro/Max session is missing. Reconnect Anthropic in Settings.",
-        401,
-      );
-    }
-
-    const needsRefresh =
-      !oauthAccessToken ||
-      (oauthExpiresAt !== null && oauthExpiresAt <= Date.now() + 15_000);
-
-    if (needsRefresh) {
-      const refreshed = await refreshAnthropicAccessToken(refreshToken);
-      credential = refreshed.accessToken;
-    } else {
-      credential = oauthAccessToken;
-    }
-  }
-
-  if (!credential) {
+  if (!credential && !usesClaudeCode) {
     return c.text("Missing provider credential.", 400);
   }
 
-  const anthropicOauthFetch = async (input, init) => {
-    const requestHeaders = new Headers();
-    if (input instanceof Request) {
-      input.headers.forEach((value, key) => {
-        requestHeaders.set(key, value);
-      });
-    }
-    if (init?.headers) {
-      const incoming = new Headers(init.headers);
-      incoming.forEach((value, key) => {
-        requestHeaders.set(key, value);
-      });
-    }
-    const incomingBeta = requestHeaders.get("anthropic-beta") ?? "";
-    const mergedBetas = Array.from(
-      new Set(
-        [
-          ...ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER.split(","),
-          ...incomingBeta.split(","),
-        ]
-          .map((beta) => beta.trim())
-          .filter(Boolean),
-      ),
-    ).join(",");
-    requestHeaders.set("anthropic-beta", mergedBetas);
-    requestHeaders.set("user-agent", "claude-cli/2.1.2 (external, cli)");
-
-    let requestInput = input;
-    try {
-      const inputUrl =
-        typeof input === "string" || input instanceof URL
-          ? new URL(input.toString())
-          : new URL(input.url);
-      if (
-        inputUrl.pathname === "/v1/messages" &&
-        !inputUrl.searchParams.has("beta")
-      ) {
-        inputUrl.searchParams.set("beta", "true");
-        requestInput =
-          input instanceof Request
-            ? new Request(inputUrl.toString(), input)
-            : inputUrl;
-      }
-    } catch {
-      // Ignore URL parsing failures
-    }
-    return fetch(requestInput, { ...init, headers: requestHeaders });
-  };
-
   const providerFactory =
     provider === "anthropic"
-      ? authMode === "claudeProMax"
-        ? createAnthropic({
-            authToken: credential,
-            fetch: anthropicOauthFetch,
-            headers: {
-              "anthropic-beta": ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER,
-              "user-agent": "claude-cli/2.1.2 (external, cli)",
-            },
-          })
+      ? authMode === "claudeCode"
+        ? (modelId) => claudeCode(normalizeClaudeCodeModel(modelId))
         : createAnthropic({ apiKey: credential })
       : provider === "gemini"
         ? createGoogleGenerativeAI({
@@ -1224,7 +1219,7 @@ app.post("/api/chat", async (c) => {
         }
       : undefined;
   const anthropicProviderOptions =
-    provider === "anthropic"
+    provider === "anthropic" && authMode !== "claudeCode"
       ? getAnthropicThinkingOptions(provider, model, reasoningEffort)
       : undefined;
   const geminiProviderOptions =
@@ -1377,10 +1372,6 @@ app.post("/api/chat", async (c) => {
 // Exported start function
 // ---------------------------------------------------------------------------
 
-/**
- * Start the API server on the given port.
- * Returns the Node.js HTTP server instance.
- */
 export function startApiServer(port) {
   return new Promise((resolve) => {
     serve(

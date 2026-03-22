@@ -3,8 +3,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
+  getDefaultModelSelection,
   getDefaultModelForProvider,
   getModelsForProvider,
+  getPreferredDefaultModel,
+  normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
 import {
   isModalPreviewHidden,
@@ -529,32 +532,25 @@ export const IdeShell = () => {
 
     const safeConnectedProviders = getConnectedProviders(prev);
     const openAiSelectedModels = dedupeModels(prev.openAiSelectedModels);
-    const anthropicSelectedModels = dedupeModels(prev.anthropicSelectedModels);
+    const anthropicSelectedModels = dedupeModels(
+      prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
+    );
     const geminiSelectedModels = dedupeModels(prev.geminiSelectedModels);
-    const defaultOpenAiModel = openAiSelectedModels.includes(
-      prev.defaultOpenAiModel,
-    )
-      ? prev.defaultOpenAiModel
-      : (openAiSelectedModels[0] ?? "");
-    const defaultAnthropicModel = anthropicSelectedModels.includes(
-      prev.defaultAnthropicModel,
-    )
-      ? prev.defaultAnthropicModel
-      : (anthropicSelectedModels[0] ?? "");
-    const defaultGeminiModel = geminiSelectedModels.includes(
-      prev.defaultGeminiModel,
-    )
-      ? prev.defaultGeminiModel
-      : (geminiSelectedModels[0] ?? "");
+    const nextSettings = {
+      ...prev,
+      anthropicSelectedModels,
+      connectedProviders: safeConnectedProviders,
+      geminiSelectedModels,
+      openAiSelectedModels,
+    };
+    const defaultModel = getPreferredDefaultModel(nextSettings);
 
     const changed =
       safeConnectedProviders.length !== prev.connectedProviders.length ||
       !safeConnectedProviders.every(
         (p, i) => prev.connectedProviders[i] === p,
       ) ||
-      defaultOpenAiModel !== prev.defaultOpenAiModel ||
-      defaultAnthropicModel !== prev.defaultAnthropicModel ||
-      defaultGeminiModel !== prev.defaultGeminiModel ||
+      defaultModel !== prev.defaultModel ||
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
       geminiSelectedModels.length !== prev.geminiSelectedModels.length ||
@@ -568,42 +564,39 @@ export const IdeShell = () => {
 
     if (changed) {
       store.setSettings({
-        ...prev,
-        anthropicSelectedModels,
-        connectedProviders: safeConnectedProviders,
-        defaultAnthropicModel,
-        defaultGeminiModel,
-        defaultOpenAiModel,
-        geminiSelectedModels,
-        openAiSelectedModels,
+        ...nextSettings,
+        defaultModel,
       });
     }
 
     // Fix projects whose provider/model is no longer valid
     const connectedProviders = safeConnectedProviders;
-    const fallbackProvider = connectedProviders[0] ?? null;
+    const effectiveSettings = { ...nextSettings, defaultModel };
+    const defaultSelection = getDefaultModelSelection(effectiveSettings);
     const { projects, threads } = store;
     let projectsChanged = false;
     let threadsChanged = false;
     const nextProjects = projects.map((project) => {
       let next = project;
 
-      if (!connectedProviders.includes(next.provider) && fallbackProvider) {
+      if (!connectedProviders.includes(next.provider) && connectedProviders.length > 0) {
         next = {
           ...next,
-          model: getDefaultModelForProvider(fallbackProvider, store.settings),
-          provider: fallbackProvider,
+          model:
+            defaultSelection.model ||
+            getDefaultModelForProvider(defaultSelection.provider, effectiveSettings),
+          provider: defaultSelection.provider,
         };
         projectsChanged = true;
       }
 
       const providerModels = getModelsForProvider(
         next.provider,
-        store.settings,
+        effectiveSettings,
       );
       const fallbackModel = getDefaultModelForProvider(
         next.provider,
-        store.settings,
+        effectiveSettings,
       );
 
       if (
@@ -623,28 +616,30 @@ export const IdeShell = () => {
 
     const nextThreads = threads.map((thread) => {
       let next = thread;
-      const project = projects.find((item) => item.id === thread.projectId);
+      const project = nextProjects.find((item) => item.id === thread.projectId);
 
       if (!project) {
         return next;
       }
 
-      if (!connectedProviders.includes(next.provider) && fallbackProvider) {
+      if (!connectedProviders.includes(next.provider) && connectedProviders.length > 0) {
         next = {
           ...next,
-          model: getDefaultModelForProvider(fallbackProvider, store.settings),
-          provider: fallbackProvider,
+          model:
+            defaultSelection.model ||
+            getDefaultModelForProvider(defaultSelection.provider, effectiveSettings),
+          provider: defaultSelection.provider,
         };
         threadsChanged = true;
       }
 
       const providerModels = getModelsForProvider(
         next.provider,
-        store.settings,
+        effectiveSettings,
       );
       const fallbackModel = getDefaultModelForProvider(
         next.provider,
-        store.settings,
+        effectiveSettings,
       );
 
       if (

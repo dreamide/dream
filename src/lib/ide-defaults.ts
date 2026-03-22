@@ -11,6 +11,28 @@ import type {
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
 const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "gemini"];
+export const CLAUDE_CODE_MODEL_IDS = {
+  haiku: "haiku",
+  opus: "opus",
+  sonnet: "sonnet",
+} as const;
+
+export const normalizeClaudeCodeModelId = (modelId: string): string => {
+  const trimmed = modelId.trim().toLowerCase();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.includes("opus")) {
+    return CLAUDE_CODE_MODEL_IDS.opus;
+  }
+  if (trimmed.includes("haiku")) {
+    return CLAUDE_CODE_MODEL_IDS.haiku;
+  }
+  if (trimmed.includes("sonnet")) {
+    return CLAUDE_CODE_MODEL_IDS.sonnet;
+  }
+  return trimmed;
+};
 
 export const DEFAULT_SETTINGS: AppSettings = {
   anthropicAccessToken: "",
@@ -20,9 +42,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   anthropicRefreshToken: "",
   anthropicSelectedModels: [],
   connectedProviders: [],
-  defaultAnthropicModel: "",
-  defaultGeminiModel: "",
-  defaultOpenAiModel: "",
+  defaultModel: "",
   geminiApiKey: "",
   geminiSelectedModels: [],
   openAiAuthMode: "apiKey",
@@ -53,16 +73,15 @@ export const createProjectConfig = (
   settings: AppSettings,
 ): ProjectConfig => {
   const name = path.split(/[\\/]/).filter(Boolean).pop() ?? "project";
-  const connectedProviders = getConnectedProviders(settings);
-  const provider = connectedProviders[0] ?? DEFAULT_PROVIDER;
+  const defaultSelection = getDefaultModelSelection(settings);
 
   return {
     id: crypto.randomUUID(),
-    model: getDefaultModelForProvider(provider, settings),
+    model: defaultSelection.model,
     name,
     path,
     previewUrl: "http://127.0.0.1:3000",
-    provider,
+    provider: defaultSelection.provider,
     reasoningEffort: "medium",
     runCommand: "pnpm dev",
   };
@@ -133,9 +152,7 @@ export const getProviderCredential = (
   }
 
   if (provider === "anthropic") {
-    return mode === "apiKey"
-      ? settings.anthropicApiKey
-      : settings.anthropicAccessToken;
+    return mode === "apiKey" ? settings.anthropicApiKey : "claude-code";
   }
 
   return settings.geminiApiKey;
@@ -145,25 +162,17 @@ export const getDefaultModelForProvider = (
   provider: AiProvider,
   settings: AppSettings,
 ): string => {
-  const openAiModels = getModelsForProvider("openai", settings);
-  const anthropicModels = getModelsForProvider("anthropic", settings);
-  const geminiModels = getModelsForProvider("gemini", settings);
+  const providerModels = getModelsForProvider(provider, settings);
+  const defaultSelection = getDefaultModelSelection(settings);
 
-  if (provider === "anthropic") {
-    return anthropicModels.includes(settings.defaultAnthropicModel)
-      ? settings.defaultAnthropicModel
-      : (anthropicModels[0] ?? "");
+  if (
+    defaultSelection.provider === provider &&
+    providerModels.includes(defaultSelection.model)
+  ) {
+    return defaultSelection.model;
   }
 
-  if (provider === "gemini") {
-    return geminiModels.includes(settings.defaultGeminiModel)
-      ? settings.defaultGeminiModel
-      : (geminiModels[0] ?? "");
-  }
-
-  return openAiModels.includes(settings.defaultOpenAiModel)
-    ? settings.defaultOpenAiModel
-    : (openAiModels[0] ?? "");
+  return providerModels[0] ?? "";
 };
 
 export const getModelsForProvider = (
@@ -189,6 +198,74 @@ export const getModelsForProvider = (
   }
 
   return clean(settings.openAiSelectedModels);
+};
+
+const getDefaultModelCandidates = (modelId: string): string[] => {
+  const trimmed = modelId.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  return Array.from(
+    new Set([trimmed, normalizeClaudeCodeModelId(trimmed)].filter(Boolean)),
+  );
+};
+
+const getFirstAvailableModel = (settings: AppSettings): string => {
+  for (const provider of getConnectedProviders(settings)) {
+    const model = getModelsForProvider(provider, settings)[0];
+    if (model) {
+      return model;
+    }
+  }
+
+  return "";
+};
+
+export const getProviderForModel = (
+  modelId: string,
+  settings: AppSettings,
+): AiProvider | null => {
+  const trimmed = modelId.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const anthropicModelId = normalizeClaudeCodeModelId(trimmed);
+
+  for (const provider of getConnectedProviders(settings)) {
+    const providerModels = getModelsForProvider(provider, settings);
+    const candidate = provider === "anthropic" ? anthropicModelId : trimmed;
+    if (providerModels.includes(candidate)) {
+      return provider;
+    }
+  }
+
+  return null;
+};
+
+export const getPreferredDefaultModel = (
+  settings: AppSettings,
+  preferredModel = settings.defaultModel,
+): string => {
+  for (const candidate of getDefaultModelCandidates(preferredModel)) {
+    if (getProviderForModel(candidate, settings)) {
+      return candidate;
+    }
+  }
+
+  return getFirstAvailableModel(settings);
+};
+
+export const getDefaultModelSelection = (
+  settings: AppSettings,
+): { model: string; provider: AiProvider } => {
+  const model = getPreferredDefaultModel(settings);
+  const provider =
+    getProviderForModel(model, settings) ??
+    (getConnectedProviders(settings)[0] ?? DEFAULT_PROVIDER);
+
+  return { model, provider };
 };
 
 export const getModelOptionsForProvider = (

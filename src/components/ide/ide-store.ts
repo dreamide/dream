@@ -6,7 +6,10 @@ import {
   createThreadConfig,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
+  getDefaultModelSelection,
   getConnectedProviders,
+  getPreferredDefaultModel,
+  normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
 import { dedupeModelOptions } from "@/lib/models";
 import type {
@@ -132,7 +135,7 @@ interface IdeState {
   refreshProviderModels: (creds: {
     anthropicAccessToken: string;
     anthropicAccessTokenExpiresAt: number | null;
-    anthropicAuthMode: "apiKey" | "claudeProMax";
+    anthropicAuthMode: "apiKey" | "claudeCode";
     anthropicApiKey: string;
     anthropicRefreshToken: string;
     geminiApiKey: string;
@@ -399,7 +402,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
 
-      const nextThread = createThreadConfig(project, { title });
+      const defaultSelection = getDefaultModelSelection(state.settings);
+      const nextThread = createThreadConfig(project, {
+        model: defaultSelection.model || project.model,
+        provider: defaultSelection.model
+          ? defaultSelection.provider
+          : project.provider,
+        title,
+      });
 
       return {
         activeProjectId: projectId,
@@ -568,32 +578,36 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const current = getConnectedProviders(state.settings);
       if (!current.includes(provider)) return state;
 
+      const baseSettings = {
+        ...state.settings,
+        connectedProviders: current.filter((p) => p !== provider),
+      };
+
+      let nextSettings = baseSettings;
       if (provider === "openai") {
-        return {
-          settings: {
-            ...state.settings,
-            connectedProviders: current.filter((p) => p !== provider),
-            defaultOpenAiModel: "",
-            openAiSelectedModels: [],
-          },
+        nextSettings = {
+          ...baseSettings,
+          openAiSelectedModels: [],
+        };
+      } else if (provider === "gemini") {
+        nextSettings = {
+          ...baseSettings,
+          geminiSelectedModels: [],
+        };
+      } else {
+        nextSettings = {
+          ...baseSettings,
+          anthropicAccessToken: "",
+          anthropicAccessTokenExpiresAt: null,
+          anthropicRefreshToken: "",
+          anthropicSelectedModels: [],
         };
       }
-      if (provider === "gemini") {
-        return {
-          settings: {
-            ...state.settings,
-            connectedProviders: current.filter((p) => p !== provider),
-            defaultGeminiModel: "",
-            geminiSelectedModels: [],
-          },
-        };
-      }
+
       return {
         settings: {
-          ...state.settings,
-          anthropicSelectedModels: [],
-          connectedProviders: current.filter((p) => p !== provider),
-          defaultAnthropicModel: "",
+          ...nextSettings,
+          defaultModel: getPreferredDefaultModel(nextSettings),
         },
       };
     });
@@ -607,13 +621,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const next = current.includes(model)
           ? current.filter((v) => v !== model)
           : [...current, model];
+        const nextSettings = {
+          ...prev,
+          openAiSelectedModels: next,
+        };
         return {
           settings: {
-            ...prev,
-            defaultOpenAiModel: next.includes(prev.defaultOpenAiModel)
-              ? prev.defaultOpenAiModel
-              : (next[0] ?? ""),
-            openAiSelectedModels: next,
+            ...nextSettings,
+            defaultModel: getPreferredDefaultModel(nextSettings),
           },
         };
       }
@@ -622,13 +637,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const next = current.includes(model)
           ? current.filter((v) => v !== model)
           : [...current, model];
+        const nextSettings = {
+          ...prev,
+          geminiSelectedModels: next,
+        };
         return {
           settings: {
-            ...prev,
-            defaultGeminiModel: next.includes(prev.defaultGeminiModel)
-              ? prev.defaultGeminiModel
-              : (next[0] ?? ""),
-            geminiSelectedModels: next,
+            ...nextSettings,
+            defaultModel: getPreferredDefaultModel(nextSettings),
           },
         };
       }
@@ -636,13 +652,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const next = current.includes(model)
         ? current.filter((v) => v !== model)
         : [...current, model];
+      const nextSettings = {
+        ...prev,
+        anthropicSelectedModels: next,
+      };
       return {
         settings: {
-          ...prev,
-          anthropicSelectedModels: next,
-          defaultAnthropicModel: next.includes(prev.defaultAnthropicModel)
-            ? prev.defaultAnthropicModel
-            : (next[0] ?? ""),
+          ...nextSettings,
+          defaultModel: getPreferredDefaultModel(nextSettings),
         },
       };
     });
@@ -784,26 +801,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         },
       });
 
-      if (payload.anthropic.oauth) {
-        set((state) => ({
-          settings: {
-            ...state.settings,
-            anthropicAccessToken: payload.anthropic.oauth?.accessToken ?? "",
-            anthropicAccessTokenExpiresAt:
-              payload.anthropic.oauth?.expiresAt ?? null,
-            anthropicRefreshToken: payload.anthropic.oauth?.refreshToken ?? "",
-          },
-        }));
-      }
-
       // Reconcile selected models
       set((state) => {
         const prev = state.settings;
         const currentOpenAiSelected = dedupeModels(
           prev.openAiSelectedModels,
         ).filter((m) => nextOpenAiModelIds.includes(m));
-        const currentAnthropicSelected = dedupeModels(
-          prev.anthropicSelectedModels,
+      const currentAnthropicSelected = dedupeModels(
+          prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
         ).filter((m) => nextAnthropicModelIds.includes(m));
         const currentGeminiSelected = dedupeModels(
           prev.geminiSelectedModels,
@@ -815,27 +820,16 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           currentAnthropicSelected.length > 0 ? currentAnthropicSelected : [];
         const geminiSelectedModels =
           currentGeminiSelected.length > 0 ? currentGeminiSelected : [];
-
-        const defaultOpenAiModel = openAiSelectedModels.includes(
-          prev.defaultOpenAiModel,
-        )
-          ? prev.defaultOpenAiModel
-          : (openAiSelectedModels[0] ?? "");
-        const defaultAnthropicModel = anthropicSelectedModels.includes(
-          prev.defaultAnthropicModel,
-        )
-          ? prev.defaultAnthropicModel
-          : (anthropicSelectedModels[0] ?? "");
-        const defaultGeminiModel = geminiSelectedModels.includes(
-          prev.defaultGeminiModel,
-        )
-          ? prev.defaultGeminiModel
-          : (geminiSelectedModels[0] ?? "");
+        const nextSettings = {
+          ...prev,
+          anthropicSelectedModels,
+          geminiSelectedModels,
+          openAiSelectedModels,
+        };
+        const defaultModel = getPreferredDefaultModel(nextSettings);
 
         if (
-          defaultOpenAiModel === prev.defaultOpenAiModel &&
-          defaultAnthropicModel === prev.defaultAnthropicModel &&
-          defaultGeminiModel === prev.defaultGeminiModel &&
+          defaultModel === prev.defaultModel &&
           openAiSelectedModels.length === prev.openAiSelectedModels.length &&
           anthropicSelectedModels.length ===
             prev.anthropicSelectedModels.length &&
@@ -855,13 +849,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
         return {
           settings: {
-            ...prev,
-            anthropicSelectedModels,
-            defaultAnthropicModel,
-            defaultGeminiModel,
-            defaultOpenAiModel,
-            geminiSelectedModels,
-            openAiSelectedModels,
+            ...nextSettings,
+            defaultModel,
           },
         };
       });
