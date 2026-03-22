@@ -12,6 +12,8 @@ import {
   createThreadConfig,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
+  getPreferredDefaultModel,
+  normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
 import type {
   AppSettings,
@@ -59,6 +61,18 @@ const normalizeThread = (
     typeof thread.updatedAt === "string" && thread.updatedAt.trim().length > 0
       ? thread.updatedAt
       : createdAt;
+  const provider =
+    thread.provider === "anthropic" ||
+    thread.provider === "gemini" ||
+    thread.provider === "openai"
+      ? thread.provider
+      : project.provider;
+  const model =
+    typeof thread.model === "string"
+      ? provider === "anthropic"
+        ? normalizeClaudeCodeModelId(thread.model)
+        : thread.model
+      : project.model;
 
   return {
     ...thread,
@@ -71,13 +85,8 @@ const normalizeThread = (
       (thread as unknown as Record<string, unknown>).chatMode,
     ),
     createdAt,
-    model: typeof thread.model === "string" ? thread.model : project.model,
-    provider:
-      thread.provider === "anthropic" ||
-      thread.provider === "gemini" ||
-      thread.provider === "openai"
-        ? thread.provider
-        : project.provider,
+    model,
+    provider,
     reasoningEffort: normalizeReasoningEffort(thread.reasoningEffort),
     remoteConversationId:
       typeof thread.remoteConversationId === "string" &&
@@ -106,6 +115,7 @@ export const mergePersistedState = (
     projects.map((project) => [project.id, project]),
   );
   const rawSettings = (state.settings ?? {}) as Partial<AppSettings>;
+  const rawSettingsRecord = rawSettings as Record<string, unknown>;
   const hasExplicitConnectedProviders = Object.hasOwn(
     rawSettings,
     "connectedProviders",
@@ -126,9 +136,13 @@ export const mergePersistedState = (
     mergedSettings.openAiAuthMode = "apiKey";
   }
 
+  if ((rawSettings.anthropicAuthMode as string) === "claudeProMax") {
+    mergedSettings.anthropicAuthMode = "claudeCode";
+  }
+
   if (
     mergedSettings.anthropicAuthMode !== "apiKey" &&
-    mergedSettings.anthropicAuthMode !== "claudeProMax"
+    mergedSettings.anthropicAuthMode !== "claudeCode"
   ) {
     mergedSettings.anthropicAuthMode = "apiKey";
   }
@@ -157,30 +171,12 @@ export const mergePersistedState = (
   );
   mergedSettings.openAiSelectedModels = openAiSelectedModels;
 
-  if (
-    !mergedSettings.openAiSelectedModels.includes(
-      mergedSettings.defaultOpenAiModel,
-    )
-  ) {
-    mergedSettings.defaultOpenAiModel =
-      mergedSettings.openAiSelectedModels[0] ?? "";
-  }
-
   const anthropicSelectedModels = dedupeModels(
     Array.isArray(mergedSettings.anthropicSelectedModels)
-      ? mergedSettings.anthropicSelectedModels
+      ? mergedSettings.anthropicSelectedModels.map(normalizeClaudeCodeModelId)
       : [],
   );
   mergedSettings.anthropicSelectedModels = anthropicSelectedModels;
-
-  if (
-    !mergedSettings.anthropicSelectedModels.includes(
-      mergedSettings.defaultAnthropicModel,
-    )
-  ) {
-    mergedSettings.defaultAnthropicModel =
-      mergedSettings.anthropicSelectedModels[0] ?? "";
-  }
 
   const geminiSelectedModels = dedupeModels(
     Array.isArray(mergedSettings.geminiSelectedModels)
@@ -189,18 +185,39 @@ export const mergePersistedState = (
   );
   mergedSettings.geminiSelectedModels = geminiSelectedModels;
 
-  if (
-    !mergedSettings.geminiSelectedModels.includes(
-      mergedSettings.defaultGeminiModel,
-    )
-  ) {
-    mergedSettings.defaultGeminiModel =
-      mergedSettings.geminiSelectedModels[0] ?? "";
-  }
-
   mergedSettings.connectedProviders = inferConnectedProviders(
     mergedSettings,
     hasExplicitConnectedProviders,
+  );
+
+  const legacyDefaultModelCandidates = [
+    typeof rawSettingsRecord.defaultModel === "string"
+      ? rawSettingsRecord.defaultModel
+      : "",
+    ...mergedSettings.connectedProviders.map((provider) => {
+      if (provider === "anthropic") {
+        return typeof rawSettingsRecord.defaultAnthropicModel === "string"
+          ? normalizeClaudeCodeModelId(rawSettingsRecord.defaultAnthropicModel)
+          : "";
+      }
+
+      if (provider === "gemini") {
+        return typeof rawSettingsRecord.defaultGeminiModel === "string"
+          ? rawSettingsRecord.defaultGeminiModel
+          : "";
+      }
+
+      return typeof rawSettingsRecord.defaultOpenAiModel === "string"
+        ? rawSettingsRecord.defaultOpenAiModel
+        : "";
+    }),
+  ];
+
+  mergedSettings.defaultModel = getPreferredDefaultModel(
+    mergedSettings,
+    legacyDefaultModelCandidates.find(
+      (model): model is string => typeof model === "string" && model.length > 0,
+    ) ?? "",
   );
 
   const rawThreads = Array.isArray(state.threads) ? state.threads : [];

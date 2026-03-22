@@ -111,6 +111,13 @@ export const formatModelIdLabel = (
     return rest ? `Claude ${rest}` : "Claude";
   }
 
+  if (
+    provider === "anthropic" &&
+    ["opus", "sonnet", "haiku"].includes(parts[0]?.toLowerCase() ?? "")
+  ) {
+    return `Claude ${formatToken(provider, parts[0], true)}`;
+  }
+
   if (provider === "gemini" && parts[0]?.toLowerCase() === "gemini") {
     const rest = parts
       .slice(1)
@@ -176,7 +183,10 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
  */
 const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
   // Anthropic
-  [/^claude-(sonnet|opus|haiku)-4/, 200_000],
+  [/^(sonnet|opus)$/, 1_000_000],
+  [/^haiku$/, 200_000],
+  [/^claude-(sonnet|opus)-4/, 1_000_000],
+  [/^claude-haiku-4/, 200_000],
   [/^claude-3[.-]7/, 200_000],
   [/^claude-3[.-]5/, 200_000],
   [/^claude-3/, 200_000],
@@ -242,6 +252,10 @@ export const getModelReasoningEfforts = (
 
   // --- Anthropic models with extended thinking (claude-3.7+, claude-4+) --
   if (provider === "anthropic") {
+    if (["opus", "sonnet", "haiku"].includes(id)) {
+      return ["low", "medium", "high"];
+    }
+
     // New format: claude-{variant}-{major} e.g. claude-sonnet-4-20250514,
     // claude-opus-4-20250514
     const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);

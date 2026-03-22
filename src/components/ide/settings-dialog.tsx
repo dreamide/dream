@@ -21,7 +21,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -29,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   getConnectedProviders,
+  getPreferredDefaultModel,
   getModelOptionsForProvider,
   getModelsForProvider,
 } from "@/lib/ide-defaults";
@@ -84,40 +87,23 @@ export const SettingsDialog = () => {
     () => getModelsForProvider("gemini", settings),
     [settings],
   );
-
-  const selectedDefaultOpenAiModel = openAiModels.includes(
-    settings.defaultOpenAiModel,
-  )
-    ? settings.defaultOpenAiModel
-    : (openAiModels[0] ?? "");
-  const selectedDefaultAnthropicModel = anthropicModels.includes(
-    settings.defaultAnthropicModel,
-  )
-    ? settings.defaultAnthropicModel
-    : (anthropicModels[0] ?? "");
-  const selectedDefaultGeminiModel = geminiModels.includes(
-    settings.defaultGeminiModel,
-  )
-    ? settings.defaultGeminiModel
-    : (geminiModels[0] ?? "");
   const isOpenAiConnected = connectedProviders.includes("openai");
   const isAnthropicConnected = connectedProviders.includes("anthropic");
   const isGeminiConnected = connectedProviders.includes("gemini");
   const openAiAuthModeLabel =
     settings.openAiAuthMode === "codex" ? "Codex Login" : "API Key";
   const anthropicAuthModeLabel =
-    settings.anthropicAuthMode === "claudeProMax"
-      ? "Claude Pro/Max Subscription"
+    settings.anthropicAuthMode === "claudeCode"
+      ? "Claude Code Login"
       : "API Key";
   const canConnectOpenAi =
     settings.openAiAuthMode === "codex"
       ? codexLoginStatus.loggedIn
       : settings.openAiApiKey.trim().length > 0;
-  const isAnthropicProMaxMode = settings.anthropicAuthMode === "claudeProMax";
-  const hasAnthropicOauthSession =
-    settings.anthropicRefreshToken.trim().length > 0;
-  const canConnectAnthropic = isAnthropicProMaxMode
-    ? hasAnthropicOauthSession
+  const isAnthropicClaudeCodeMode =
+    settings.anthropicAuthMode === "claudeCode";
+  const canConnectAnthropic = isAnthropicClaudeCodeMode
+    ? true
     : settings.anthropicApiKey.trim().length > 0;
   const canConnectGemini = settings.geminiApiKey.trim().length > 0;
   const availableOpenAiModels = providerModels.openai.models;
@@ -139,6 +125,40 @@ export const SettingsDialog = () => {
   const geminiModelOptions = useMemo(
     () => getModelOptionsForProvider("gemini", settings, availableGeminiModels),
     [availableGeminiModels, settings],
+  );
+  const groupedDefaultModelOptions = useMemo(
+    () =>
+      [
+        {
+          models: openAiModelOptions,
+          provider: "openai" as const,
+        },
+        {
+          models: anthropicModelOptions,
+          provider: "anthropic" as const,
+        },
+        {
+          models: geminiModelOptions,
+          provider: "gemini" as const,
+        },
+      ].filter((group) => group.models.length > 0),
+    [anthropicModelOptions, geminiModelOptions, openAiModelOptions],
+  );
+  const selectedDefaultModel = useMemo(() => {
+    const preferred = getPreferredDefaultModel(settings);
+    return groupedDefaultModelOptions.some((group) =>
+      group.models.some((model) => model.id === preferred),
+    )
+      ? preferred
+      : (groupedDefaultModelOptions[0]?.models[0]?.id ?? "");
+  }, [groupedDefaultModelOptions, settings]);
+  const selectedDefaultModelLabel = useMemo(
+    () =>
+      groupedDefaultModelOptions
+        .flatMap((group) => group.models)
+        .find((model) => model.id === selectedDefaultModel)?.label ??
+      selectedDefaultModel,
+    [groupedDefaultModelOptions, selectedDefaultModel],
   );
   const normalizedModelSearchQuery = modelSearchQuery.trim().toLowerCase();
   const filteredOpenAiModels = availableOpenAiModels.filter(
@@ -166,13 +186,6 @@ export const SettingsDialog = () => {
       ),
     [connectedProviders],
   );
-  const [anthropicOauthCode, setAnthropicOauthCode] = useState("");
-  const [anthropicOauthError, setAnthropicOauthError] = useState<string | null>(
-    null,
-  );
-  const [anthropicOauthPending, setAnthropicOauthPending] = useState(false);
-  const [anthropicOauthUrl, setAnthropicOauthUrl] = useState("");
-  const [anthropicOauthVerifier, setAnthropicOauthVerifier] = useState("");
   const [themeMounted, setThemeMounted] = useState(false);
 
   useEffect(() => {
@@ -202,131 +215,6 @@ export const SettingsDialog = () => {
       openAiApiKey: next.openAiApiKey,
       openAiAuthMode: next.openAiAuthMode,
     });
-  };
-
-  const beginAnthropicProMaxAuth = async (openLink: boolean) => {
-    setAnthropicOauthError(null);
-    setAnthropicOauthPending(true);
-
-    try {
-      const response = await fetch("/api/anthropic-oauth/authorize", {
-        body: JSON.stringify({ mode: "max" }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to create authorization link (${response.status}).`,
-        );
-      }
-
-      const payload = (await response.json()) as {
-        url?: string;
-        verifier?: string;
-      };
-
-      const nextUrl = payload.url?.trim() ?? "";
-      const nextVerifier = payload.verifier?.trim() ?? "";
-
-      if (!nextUrl || !nextVerifier) {
-        throw new Error(
-          "Authorization link response is missing required fields.",
-        );
-      }
-
-      setAnthropicOauthUrl(nextUrl);
-      setAnthropicOauthVerifier(nextVerifier);
-
-      if (openLink) {
-        openExternalUrl(nextUrl);
-      }
-    } catch (error) {
-      setAnthropicOauthError(
-        error instanceof Error
-          ? error.message
-          : "Unable to start Claude Pro/Max authorization.",
-      );
-    } finally {
-      setAnthropicOauthPending(false);
-    }
-  };
-
-  const submitAnthropicProMaxCode = async () => {
-    const code = anthropicOauthCode.trim();
-    const verifier = anthropicOauthVerifier.trim();
-
-    if (!code) {
-      setAnthropicOauthError("Authorization code is required.");
-      return;
-    }
-
-    if (!verifier) {
-      setAnthropicOauthError("Generate an authorization link first.");
-      return;
-    }
-
-    setAnthropicOauthError(null);
-    setAnthropicOauthPending(true);
-
-    try {
-      const response = await fetch("/api/anthropic-oauth/exchange", {
-        body: JSON.stringify({ code, verifier }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(
-          message || `Authorization failed (${response.status}).`,
-        );
-      }
-
-      const payload = (await response.json()) as {
-        accessToken?: string;
-        expiresAt?: number;
-        refreshToken?: string;
-      };
-
-      const accessToken = payload.accessToken?.trim() ?? "";
-      const refreshToken = payload.refreshToken?.trim() ?? "";
-      const expiresAt =
-        typeof payload.expiresAt === "number" ? payload.expiresAt : null;
-
-      if (!accessToken || !refreshToken || !expiresAt) {
-        throw new Error("Authorization response is missing token fields.");
-      }
-
-      setSettings((previous) => ({
-        ...previous,
-        anthropicAccessToken: accessToken,
-        anthropicAccessTokenExpiresAt: expiresAt,
-        anthropicApiKey: "",
-        anthropicAuthMode: "claudeProMax",
-        anthropicRefreshToken: refreshToken,
-      }));
-
-      refreshModels({
-        anthropicAccessToken: accessToken,
-        anthropicAccessTokenExpiresAt: expiresAt,
-        anthropicApiKey: "",
-        anthropicAuthMode: "claudeProMax",
-        anthropicRefreshToken: refreshToken,
-        geminiApiKey: settings.geminiApiKey,
-        openAiApiKey: settings.openAiApiKey,
-        openAiAuthMode: settings.openAiAuthMode,
-      });
-
-      submitProviderSetup("anthropic");
-      setAnthropicOauthCode("");
-    } catch (error) {
-      setAnthropicOauthError(
-        error instanceof Error ? error.message : "Invalid authorization code.",
-      );
-    } finally {
-      setAnthropicOauthPending(false);
-    }
   };
 
   return (
@@ -518,7 +406,6 @@ export const SettingsDialog = () => {
 
                               setSettings((previous) => ({
                                 ...previous,
-                                defaultOpenAiModel: "",
                                 openAiAuthMode: nextMode,
                                 openAiSelectedModels: [],
                               }));
@@ -677,8 +564,8 @@ export const SettingsDialog = () => {
                       <div className="mx-auto max-w-3xl space-y-5">
                         <div className="space-y-2">
                           <h3 className="font-semibold text-2xl">
-                            {settings.anthropicAuthMode === "claudeProMax"
-                              ? "Login with Claude Pro/Max"
+                            {settings.anthropicAuthMode === "claudeCode"
+                              ? "Connect Claude Code"
                               : "Connect Anthropic"}
                           </h3>
                           <p className="text-muted-foreground">
@@ -695,34 +582,19 @@ export const SettingsDialog = () => {
                             onValueChange={(value) => {
                               const nextMode = value as
                                 | "apiKey"
-                                | "claudeProMax";
+                                | "claudeCode";
                               const nextAnthropicSettings = {
-                                anthropicAccessToken:
-                                  nextMode === "claudeProMax"
-                                    ? settings.anthropicAccessToken
-                                    : "",
-                                anthropicAccessTokenExpiresAt:
-                                  nextMode === "claudeProMax"
-                                    ? settings.anthropicAccessTokenExpiresAt
-                                    : null,
-                                anthropicApiKey:
-                                  nextMode === "apiKey"
-                                    ? settings.anthropicApiKey
-                                    : "",
+                                anthropicAccessToken: "",
+                                anthropicAccessTokenExpiresAt: null,
+                                anthropicApiKey: settings.anthropicApiKey,
                                 anthropicAuthMode: nextMode,
-                                anthropicRefreshToken:
-                                  nextMode === "claudeProMax"
-                                    ? settings.anthropicRefreshToken
-                                    : "",
+                                anthropicRefreshToken: "",
                               } as const;
-
-                              setAnthropicOauthError(null);
 
                               setSettings((previous) => ({
                                 ...previous,
                                 ...nextAnthropicSettings,
                                 anthropicSelectedModels: [],
-                                defaultAnthropicModel: "",
                               }));
 
                               setProviderModels((previous) => ({
@@ -741,15 +613,6 @@ export const SettingsDialog = () => {
                                 openAiApiKey: settings.openAiApiKey,
                                 openAiAuthMode: settings.openAiAuthMode,
                               });
-
-                              if (
-                                nextMode === "claudeProMax" &&
-                                settings.anthropicRefreshToken.trim().length ===
-                                  0 &&
-                                anthropicOauthVerifier.trim().length === 0
-                              ) {
-                                void beginAnthropicProMaxAuth(true);
-                              }
                             }}
                             value={settings.anthropicAuthMode}
                           >
@@ -763,8 +626,8 @@ export const SettingsDialog = () => {
                             </SelectTrigger>
                             <SelectContent className="w-auto min-w-[320px]">
                               <SelectItem value="apiKey">API Key</SelectItem>
-                              <SelectItem value="claudeProMax">
-                                Claude Pro/Max Subscription
+                              <SelectItem value="claudeCode">
+                                Claude Code Login
                               </SelectItem>
                             </SelectContent>
                           </Select>
@@ -826,89 +689,34 @@ export const SettingsDialog = () => {
                           </>
                         ) : (
                           <>
-                            <p className="text-muted-foreground">
-                              Visit{" "}
-                              {anthropicOauthUrl ? (
-                                <button
-                                  className="font-medium text-foreground underline"
-                                  onClick={() =>
-                                    openExternalUrl(anthropicOauthUrl)
-                                  }
-                                  type="button"
-                                >
-                                  this link
-                                </button>
-                              ) : (
-                                <span className="font-medium text-foreground">
-                                  this link
-                                </span>
-                              )}{" "}
-                              to collect your authorization code to connect your
-                              account and use Anthropic models.
-                            </p>
-
-                            <div className="flex items-center gap-2">
-                              <Button
-                                disabled={anthropicOauthPending}
-                                onClick={() =>
-                                  void beginAnthropicProMaxAuth(true)
-                                }
-                                size="sm"
-                                type="button"
-                                variant="outline"
-                              >
-                                {anthropicOauthUrl
-                                  ? "Open authorization link"
-                                  : "Generate authorization link"}
-                              </Button>
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <Label htmlFor="anthropic-pro-max-code">
-                                Claude Pro/Max authorization code
-                              </Label>
-                              <Input
-                                id="anthropic-pro-max-code"
-                                onChange={(event) =>
-                                  setAnthropicOauthCode(
-                                    event.currentTarget.value,
-                                  )
-                                }
-                                placeholder="Paste authorization code"
-                                value={anthropicOauthCode}
-                              />
-                            </div>
-
-                            {anthropicOauthError ? (
-                              <p className="text-amber-700 text-sm">
-                                {anthropicOauthError}
+                            <div className="space-y-2 rounded-md p-3">
+                              <p className="font-medium text-sm">
+                                Claude Code Login
                               </p>
-                            ) : null}
+                              <p className="text-muted-foreground text-sm">
+                                Uses your local Claude Code CLI session instead
+                                of browser OAuth.
+                              </p>
+                              <p className="text-muted-foreground text-sm">
+                                Run <code>claude login</code> in your terminal
+                                if you have not signed in yet, then connect and
+                                choose which Claude models to enable.
+                              </p>
+                            </div>
+
                             {providerModels.anthropic.error ? (
                               <p className="text-amber-700 text-sm">
                                 {providerModels.anthropic.error}
                               </p>
                             ) : null}
-                            {hasAnthropicOauthSession &&
-                            !anthropicOauthError &&
-                            !providerModels.anthropic.error ? (
-                              <p className="text-emerald-700 text-sm">
-                                Claude Pro/Max subscription is connected.
-                              </p>
-                            ) : null}
 
                             <div className="flex items-center gap-2 pt-1">
                               <Button
-                                disabled={
-                                  anthropicOauthPending ||
-                                  anthropicOauthCode.trim().length === 0
-                                }
-                                onClick={() => void submitAnthropicProMaxCode()}
+                                disabled={!canConnectAnthropic}
+                                onClick={() => submitProviderSetup("anthropic")}
                                 type="button"
                               >
-                                {anthropicOauthPending
-                                  ? "Submitting..."
-                                  : "Submit"}
+                                {isAnthropicConnected ? "Save" : "Connect"}
                               </Button>
                               {isAnthropicConnected ? (
                                 <Button
@@ -1157,41 +965,6 @@ export const SettingsDialog = () => {
                           )}
                         </div>
                       </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="openai-model">
-                          Default OpenAI Model
-                        </Label>
-                        <Select
-                          onValueChange={(value) =>
-                            setSettings((previous) => ({
-                              ...previous,
-                              defaultOpenAiModel: value as string,
-                            }))
-                          }
-                          value={selectedDefaultOpenAiModel}
-                        >
-                          <SelectTrigger
-                            className="w-56 max-w-full"
-                            disabled={openAiModels.length === 0}
-                            id="openai-model"
-                          >
-                            <SelectValue placeholder="Select model">
-                              {openAiModelOptions.find(
-                                (model) =>
-                                  model.id === selectedDefaultOpenAiModel,
-                              )?.label ?? selectedDefaultOpenAiModel}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="min-w-56">
-                            {openAiModelOptions.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
                     </div>
                   ) : null}
 
@@ -1248,41 +1021,6 @@ export const SettingsDialog = () => {
                           )}
                         </div>
                       </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="anthropic-model">
-                          Default Anthropic Model
-                        </Label>
-                        <Select
-                          onValueChange={(value) =>
-                            setSettings((previous) => ({
-                              ...previous,
-                              defaultAnthropicModel: value as string,
-                            }))
-                          }
-                          value={selectedDefaultAnthropicModel}
-                        >
-                          <SelectTrigger
-                            className="w-56 max-w-full"
-                            disabled={anthropicModels.length === 0}
-                            id="anthropic-model"
-                          >
-                            <SelectValue placeholder="Select model">
-                              {anthropicModelOptions.find(
-                                (model) =>
-                                  model.id === selectedDefaultAnthropicModel,
-                              )?.label ?? selectedDefaultAnthropicModel}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="min-w-56">
-                            {anthropicModelOptions.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
                     </div>
                   ) : null}
 
@@ -1336,37 +1074,51 @@ export const SettingsDialog = () => {
                           )}
                         </div>
                       </div>
+                    </div>
+                  ) : null}
 
+                  {connectedProviders.length > 0 ? (
+                    <div className="space-y-3 rounded-lg p-4">
+                      <div className="space-y-1">
+                        <p className="font-medium text-sm">
+                          Default model for new threads
+                        </p>
+                        <p className="text-muted-foreground text-sm">
+                          New threads start on this model regardless of provider.
+                        </p>
+                      </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="gemini-model">
-                          Default Gemini Model
-                        </Label>
+                        <Label htmlFor="default-model">Default model</Label>
                         <Select
                           onValueChange={(value) =>
                             setSettings((previous) => ({
                               ...previous,
-                              defaultGeminiModel: value as string,
+                              defaultModel: value as string,
                             }))
                           }
-                          value={selectedDefaultGeminiModel}
+                          value={selectedDefaultModel}
                         >
                           <SelectTrigger
-                            className="w-56 max-w-full"
-                            disabled={geminiModels.length === 0}
-                            id="gemini-model"
+                            className="w-72 max-w-full"
+                            disabled={groupedDefaultModelOptions.length === 0}
+                            id="default-model"
                           >
-                            <SelectValue placeholder="Select model">
-                              {geminiModelOptions.find(
-                                (model) =>
-                                  model.id === selectedDefaultGeminiModel,
-                              )?.label ?? selectedDefaultGeminiModel}
+                            <SelectValue placeholder="Enable a model first">
+                              {selectedDefaultModelLabel}
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="min-w-56">
-                            {geminiModelOptions.map((model) => (
-                              <SelectItem key={model.id} value={model.id}>
-                                {model.label}
-                              </SelectItem>
+                          <SelectContent className="min-w-72">
+                            {groupedDefaultModelOptions.map((group) => (
+                              <SelectGroup key={group.provider}>
+                                {groupedDefaultModelOptions.length > 1 ? (
+                                  <SelectLabel>{getProviderLabel(group.provider)}</SelectLabel>
+                                ) : null}
+                                {group.models.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
                             ))}
                           </SelectContent>
                         </Select>
