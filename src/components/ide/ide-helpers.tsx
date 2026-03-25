@@ -36,15 +36,15 @@ export const PanelResizeHandle = ({
   side: "left" | "right" | "top" | "bottom";
 }) => {
   const draggingRef = useRef(false);
-  const startXRef = useRef(0);
-  const startYRef = useRef(0);
+  const lastXRef = useRef(0);
+  const lastYRef = useRef(0);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
       draggingRef.current = true;
-      startXRef.current = e.clientX;
-      startYRef.current = e.clientY;
+      lastXRef.current = e.clientX;
+      lastYRef.current = e.clientY;
       onResizeStart?.();
 
       // Capture pointer so we get events even if cursor leaves the handle
@@ -57,12 +57,14 @@ export const PanelResizeHandle = ({
     (e: React.PointerEvent) => {
       if (!draggingRef.current) return;
       if (side === "left" || side === "right") {
-        const delta = e.clientX - startXRef.current;
+        const delta = e.clientX - lastXRef.current;
+        lastXRef.current = e.clientX;
         onResize(side === "right" ? delta : -delta);
         return;
       }
 
-      const delta = e.clientY - startYRef.current;
+      const delta = e.clientY - lastYRef.current;
+      lastYRef.current = e.clientY;
       onResize(side === "bottom" ? delta : -delta);
     },
     [onResize, side],
