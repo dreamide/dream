@@ -164,7 +164,6 @@ export const FileExplorerPanel = () => {
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const treePaneRef = useRef<HTMLDivElement | null>(null);
   const treeWidthRef = useRef<number | null>(null);
-  const treeWidthAtDragStart = useRef(0);
 
   const [fileListsByProject, setFileListsByProject] = useState<
     Record<string, string[]>
@@ -346,7 +345,7 @@ export const FileExplorerPanel = () => {
   }, [root]);
 
   const handleTreeResizeStart = useCallback(() => {
-    treeWidthAtDragStart.current =
+    treeWidthRef.current =
       treePaneRef.current?.getBoundingClientRect().width ??
       FILE_TREE_MIN_WIDTH_PX;
   }, []);
@@ -360,7 +359,10 @@ export const FileExplorerPanel = () => {
     );
     const nextWidth = Math.min(
       maxWidth,
-      Math.max(FILE_TREE_MIN_WIDTH_PX, treeWidthAtDragStart.current + deltaX),
+      Math.max(
+        FILE_TREE_MIN_WIDTH_PX,
+        (treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX) + deltaX,
+      ),
     );
 
     treeWidthRef.current = nextWidth;

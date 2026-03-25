@@ -42,6 +42,7 @@ const CHAT_PANEL_MIN_HEIGHT_PX = 180;
 const TERMINAL_PANEL_DEFAULT_HEIGHT_PX = 260;
 const TERMINAL_PANEL_MIN_HEIGHT_PX = TERMINAL_MIN_HEIGHT_PX + 16;
 const PANEL_RESIZE_HANDLE_SIZE_PX = 1;
+const PANEL_EDGE_PADDING_PX = 8;
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 
 /** Duration (ms) for panel slide animations. */
@@ -149,6 +150,19 @@ export const IdeShell = () => {
   const updatePreviewTab = useIdeStore((s) => s.updatePreviewTab);
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
+  const projectTerminalSessionIds = useIdeStore(
+    (s) => s.projectTerminalSessionIds,
+  );
+
+  // ── Derived values ──────────────────────────────────────────────────
+  const leftVisible = panelVisibility.left;
+  const middleVisible = panelVisibility.middle;
+  const rightVisible = panelVisibility.right;
+  const activeProjectTerminalSessionIds = activeProject
+    ? (projectTerminalSessionIds[activeProject.id] ??
+      EMPTY_TERMINAL_SESSION_IDS)
+    : EMPTY_TERMINAL_SESSION_IDS;
+  const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const previewHostRef = useRef<HTMLDivElement | null>(null);
@@ -169,49 +183,148 @@ export const IdeShell = () => {
   const leftWidthRef = useRef(PROJECT_SIDEBAR_WIDTH_PX);
   const rightWidthRef = useRef(PREVIEW_PANEL_DEFAULT_WIDTH_PX);
   const terminalHeightRef = useRef(TERMINAL_PANEL_DEFAULT_HEIGHT_PX);
+  const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const middlePanelRef = useRef<HTMLDivElement | null>(null);
   const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
 
-  // Snapshot the width at drag-start so delta is always relative to that.
-  const widthAtDragStart = useRef(0);
-  const heightAtDragStart = useRef(0);
+  const getHorizontalChromeWidth = useCallback(() => {
+    const leftHandleWidth =
+      leftVisible && (middleVisible || rightVisible)
+        ? PANEL_RESIZE_HANDLE_SIZE_PX
+        : 0;
+    const rightHandleWidth =
+      rightVisible && middleVisible ? PANEL_RESIZE_HANDLE_SIZE_PX : 0;
+    const leftPadding = leftVisible ? PANEL_EDGE_PADDING_PX : 0;
+    const rightPadding = rightVisible ? PANEL_EDGE_PADDING_PX : 0;
+
+    return leftHandleWidth + rightHandleWidth + leftPadding + rightPadding;
+  }, [leftVisible, middleVisible, rightVisible]);
+
+  const getRightPanelMaxWidth = useCallback(() => {
+    if (!rightVisible || !middleVisible) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    const containerWidth =
+      horizontalPanelsRef.current?.getBoundingClientRect().width ?? 0;
+    const availableWidth =
+      containerWidth -
+      getHorizontalChromeWidth() -
+      (leftVisible ? leftWidthRef.current : 0) -
+      CHAT_PANEL_MIN_WIDTH_PX;
+
+    return Math.max(PREVIEW_PANEL_MIN_WIDTH_PX, availableWidth);
+  }, [getHorizontalChromeWidth, leftVisible, middleVisible, rightVisible]);
+
+  const getLeftPanelMaxWidth = useCallback(() => {
+    if (!leftVisible) {
+      return 0;
+    }
+
+    const containerWidth =
+      horizontalPanelsRef.current?.getBoundingClientRect().width ?? 0;
+    const rightWidth =
+      rightVisible && middleVisible
+        ? rightWidthRef.current
+        : rightVisible
+          ? PREVIEW_PANEL_MIN_WIDTH_PX
+          : 0;
+    const middleMinWidth = middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0;
+    const availableWidth =
+      containerWidth - getHorizontalChromeWidth() - rightWidth - middleMinWidth;
+
+    return Math.max(
+      PROJECT_SIDEBAR_MIN_WIDTH_PX,
+      Math.min(PROJECT_SIDEBAR_MAX_WIDTH_PX, availableWidth),
+    );
+  }, [getHorizontalChromeWidth, leftVisible, middleVisible, rightVisible]);
+
+  const syncHorizontalPanelWidths = useCallback(() => {
+    if (rightVisible && middleVisible) {
+      const maxRightWidth = getRightPanelMaxWidth();
+      const nextRightWidth = Math.min(
+        maxRightWidth,
+        Math.max(PREVIEW_PANEL_MIN_WIDTH_PX, rightWidthRef.current),
+      );
+      rightWidthRef.current = nextRightWidth;
+
+      const rightPanel = rightPanelRef.current;
+      if (rightPanel) {
+        rightPanel.style.width = `${nextRightWidth}px`;
+        rightPanel.style.maxWidth = `${maxRightWidth}px`;
+      }
+    }
+
+    if (leftVisible) {
+      const maxLeftWidth = getLeftPanelMaxWidth();
+      const nextLeftWidth = Math.min(
+        maxLeftWidth,
+        Math.max(PROJECT_SIDEBAR_MIN_WIDTH_PX, leftWidthRef.current),
+      );
+      leftWidthRef.current = nextLeftWidth;
+
+      const leftPanel = leftPanelRef.current;
+      if (leftPanel) {
+        leftPanel.style.width = `${nextLeftWidth}px`;
+        leftPanel.style.maxWidth = `${maxLeftWidth}px`;
+      }
+    }
+  }, [
+    getLeftPanelMaxWidth,
+    getRightPanelMaxWidth,
+    leftVisible,
+    middleVisible,
+    rightVisible,
+  ]);
 
   const handleLeftResizeStart = useCallback(() => {
-    widthAtDragStart.current = leftWidthRef.current;
     isDraggingRef.current = true;
     const el = leftPanelRef.current;
     if (el) el.style.transition = "none";
   }, []);
 
-  const handleLeftResize = useCallback((deltaX: number) => {
-    const next = Math.min(
-      PROJECT_SIDEBAR_MAX_WIDTH_PX,
-      Math.max(PROJECT_SIDEBAR_MIN_WIDTH_PX, widthAtDragStart.current + deltaX),
-    );
-    leftWidthRef.current = next;
-    const el = leftPanelRef.current;
-    if (el) el.style.width = `${next}px`;
-  }, []);
+  const handleLeftResize = useCallback(
+    (deltaX: number) => {
+      const maxLeftWidth = getLeftPanelMaxWidth();
+      const next = Math.min(
+        maxLeftWidth,
+        Math.max(PROJECT_SIDEBAR_MIN_WIDTH_PX, leftWidthRef.current + deltaX),
+      );
+      leftWidthRef.current = next;
+      const el = leftPanelRef.current;
+      if (el) {
+        el.style.width = `${next}px`;
+        el.style.maxWidth = `${maxLeftWidth}px`;
+      }
+    },
+    [getLeftPanelMaxWidth],
+  );
 
   const handleRightResizeStart = useCallback(() => {
-    widthAtDragStart.current = rightWidthRef.current;
     isDraggingRef.current = true;
     const el = rightPanelRef.current;
     if (el) el.style.transition = "none";
   }, []);
 
-  const handleRightResize = useCallback((deltaX: number) => {
-    const next = Math.max(
-      PREVIEW_PANEL_MIN_WIDTH_PX,
-      widthAtDragStart.current + deltaX,
-    );
-    rightWidthRef.current = next;
-    const el = rightPanelRef.current;
-    if (el) el.style.width = `${next}px`;
-  }, []);
+  const handleRightResize = useCallback(
+    (deltaX: number) => {
+      const maxRightWidth = getRightPanelMaxWidth();
+      const next = Math.max(
+        PREVIEW_PANEL_MIN_WIDTH_PX,
+        Math.min(maxRightWidth, rightWidthRef.current + deltaX),
+      );
+      rightWidthRef.current = next;
+      const el = rightPanelRef.current;
+      if (el) {
+        el.style.width = `${next}px`;
+        el.style.maxWidth = `${maxRightWidth}px`;
+      }
+    },
+    [getRightPanelMaxWidth],
+  );
 
   const handleResizeEnd = useCallback(() => {
     isDraggingRef.current = false;
@@ -224,9 +337,12 @@ export const IdeShell = () => {
   }, []);
 
   const handleTerminalResizeStart = useCallback(() => {
-    heightAtDragStart.current =
-      terminalPanelRef.current?.getBoundingClientRect().height ??
-      terminalHeightRef.current;
+    const el = terminalPanelRef.current;
+    if (!el) {
+      return;
+    }
+
+    terminalHeightRef.current = el.getBoundingClientRect().height;
   }, []);
 
   const handleTerminalResize = useCallback((deltaY: number) => {
@@ -240,7 +356,7 @@ export const IdeShell = () => {
       maxHeight,
       Math.max(
         TERMINAL_PANEL_MIN_HEIGHT_PX,
-        heightAtDragStart.current + deltaY,
+        terminalHeightRef.current + deltaY,
       ),
     );
 
@@ -522,6 +638,24 @@ export const IdeShell = () => {
     };
   }, [syncPreviewBounds]);
 
+  useEffect(() => {
+    const update = () => syncHorizontalPanelWidths();
+    const observer = new ResizeObserver(update);
+    const host = horizontalPanelsRef.current;
+    if (host) {
+      observer.observe(host);
+    }
+
+    window.addEventListener("resize", update);
+    const frame = window.requestAnimationFrame(update);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [syncHorizontalPanelWidths]);
+
   // Sync preview bounds when project or panel visibility changes
   useEffect(() => {
     void activeProject;
@@ -753,19 +887,6 @@ export const IdeShell = () => {
     }
   }, [settings]);
 
-  // ── Derived values ──────────────────────────────────────────────────
-  const leftVisible = panelVisibility.left;
-  const middleVisible = panelVisibility.middle;
-  const rightVisible = panelVisibility.right;
-  const projectTerminalSessionIds = useIdeStore(
-    (s) => s.projectTerminalSessionIds,
-  );
-  const activeProjectTerminalSessionIds = activeProject
-    ? (projectTerminalSessionIds[activeProject.id] ??
-      EMPTY_TERMINAL_SESSION_IDS)
-    : EMPTY_TERMINAL_SESSION_IDS;
-  const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
-
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="h-screen overflow-hidden text-foreground">
@@ -778,7 +899,7 @@ export const IdeShell = () => {
 
       <div className="h-[calc(100vh-88px)] overflow-hidden">
         {!stateHydrated ? null : (
-          <div className="flex h-full">
+          <div className="flex h-full" ref={horizontalPanelsRef}>
             {/* ─── LEFT: Projects sidebar ─── */}
             <div
               className="shrink-0 overflow-hidden"
@@ -786,7 +907,7 @@ export const IdeShell = () => {
               style={{
                 width: leftVisible ? leftWidthRef.current : 0,
                 minWidth: leftVisible ? PROJECT_SIDEBAR_MIN_WIDTH_PX : 0,
-                maxWidth: leftVisible ? PROJECT_SIDEBAR_MAX_WIDTH_PX : 0,
+                maxWidth: leftVisible ? getLeftPanelMaxWidth() : 0,
                 opacity: leftVisible ? 1 : 0,
                 paddingLeft: leftVisible ? 8 : 0,
                 pointerEvents: leftVisible ? "auto" : "none",
@@ -915,6 +1036,7 @@ export const IdeShell = () => {
                   ? {
                       width: rightVisible ? rightWidthRef.current : 0,
                       minWidth: rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0,
+                      maxWidth: rightVisible ? getRightPanelMaxWidth() : 0,
                       flex: rightVisible ? "0 0 auto" : "0 0 0px",
                     }
                   : {
