@@ -2,8 +2,9 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { Plus, TerminalSquare, X } from "lucide-react";
-import { type HTMLAttributes, useEffect, useRef } from "react";
+import { type HTMLAttributes, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
@@ -16,6 +17,7 @@ const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 const TERMINAL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
 const TERMINAL_HOST_CLASS = "h-full w-full overflow-hidden";
+const getDefaultTerminalName = (index: number) => `Terminal ${index + 1}`;
 
 /**
  * Wrapper that forces a dark color-scheme on the terminal panel, preserving
@@ -236,6 +238,8 @@ export const ProjectTerminalTabsPanel = ({
 }: {
   projectId: string;
 }) => {
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
@@ -249,6 +253,8 @@ export const ProjectTerminalTabsPanel = ({
   );
   const addProjectTerminal = useIdeStore((s) => s.addProjectTerminal);
   const closeProjectTerminal = useIdeStore((s) => s.closeProjectTerminal);
+  const terminalSessionNames = useIdeStore((s) => s.terminalSessionNames);
+  const setTerminalSessionName = useIdeStore((s) => s.setTerminalSessionName);
   const setActiveProjectTerminalId = useIdeStore(
     (s) => s.setActiveProjectTerminalId,
   );
@@ -260,6 +266,29 @@ export const ProjectTerminalTabsPanel = ({
   const activeTabIndex = resolvedActiveSessionId
     ? sessionIds.indexOf(resolvedActiveSessionId)
     : -1;
+
+  const resolveTerminalName = (sessionId: string, index: number) =>
+    terminalSessionNames[sessionId]?.trim() || getDefaultTerminalName(index);
+
+  const commitTerminalName = (sessionId: string, index: number) => {
+    const trimmed = editingName.trim();
+    setTerminalSessionName(
+      sessionId,
+      trimmed || resolveTerminalName(sessionId, index),
+    );
+    setEditingSessionId(null);
+    setEditingName("");
+  };
+
+  useEffect(() => {
+    for (const [index, sessionId] of sessionIds.entries()) {
+      if (terminalSessionNames[sessionId]?.trim()) {
+        continue;
+      }
+
+      setTerminalSessionName(sessionId, getDefaultTerminalName(index));
+    }
+  }, [sessionIds, setTerminalSessionName, terminalSessionNames]);
 
   if (!resolvedActiveSessionId) {
     return null;
@@ -284,18 +313,56 @@ export const ProjectTerminalTabsPanel = ({
               <TabsList className="h-8 max-w-full justify-start overflow-x-auto bg-muted/60">
                 {sessionIds.map((sessionId, index) => (
                   <div className="relative shrink-0" key={sessionId}>
-                    <TabsTrigger
-                      className="h-6 shrink-0 px-2 pr-9 text-muted-foreground text-xs hover:text-foreground data-[active]:bg-background data-[active]:text-foreground"
-                      value={sessionId}
-                    >
-                      <span className="truncate">Terminal {index + 1}</span>
-                    </TabsTrigger>
+                    {editingSessionId === sessionId ? (
+                      <div className="flex h-6 items-center rounded-md border border-border bg-background px-2 pr-9">
+                        <Input
+                          autoFocus
+                          className="h-5 w-28 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+                          onBlur={() => commitTerminalName(sessionId, index)}
+                          onChange={(event) =>
+                            setEditingName(event.currentTarget.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              commitTerminalName(sessionId, index);
+                            }
+
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              setEditingSessionId(null);
+                              setEditingName("");
+                            }
+                          }}
+                          value={editingName}
+                        />
+                      </div>
+                    ) : (
+                      <TabsTrigger
+                        className="h-6 shrink-0 px-2 pr-9 text-muted-foreground text-xs hover:text-foreground data-[active]:bg-background data-[active]:text-foreground"
+                        onDoubleClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setEditingSessionId(sessionId);
+                          setEditingName(resolveTerminalName(sessionId, index));
+                        }}
+                        value={sessionId}
+                      >
+                        <span className="truncate">
+                          {resolveTerminalName(sessionId, index)}
+                        </span>
+                      </TabsTrigger>
+                    )}
                     <button
-                      aria-label={`Close terminal ${index + 1}`}
+                      aria-label={`Close ${resolveTerminalName(sessionId, index).toLowerCase()}`}
                       className="-translate-y-1/2 absolute top-1/2 right-1.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
+                        if (editingSessionId === sessionId) {
+                          setEditingSessionId(null);
+                          setEditingName("");
+                        }
                         void closeProjectTerminal(projectId, sessionId);
                       }}
                       onMouseDown={(event) => {
@@ -337,7 +404,7 @@ export const ProjectTerminalTabsPanel = ({
             subtitle={terminalShell}
             title={
               activeTabIndex >= 0
-                ? `Terminal ${activeTabIndex + 1}`
+                ? resolveTerminalName(resolvedActiveSessionId, activeTabIndex)
                 : "Terminal"
             }
           />
