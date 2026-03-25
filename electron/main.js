@@ -222,8 +222,8 @@ function loadPersistedState() {
 }
 
 let mainWindow = null;
-let activePreviewProjectId = null;
-const previewSessions = new Map();
+let activePreviewTabId = null;
+const previewSessions = new Map(); // keyed by tabId
 
 let rendererUrl = developmentRendererUrl;
 let viteDevProcess = null;
@@ -237,6 +237,7 @@ const terminalShells = new Map();
 const previewState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
   projectId: null,
+  tabId: null,
   reload: false,
   visible: false,
   url: "about:blank",
@@ -305,6 +306,37 @@ function isRendererNavigation(url) {
   }
 
   return targetOrigin === rendererOrigin;
+}
+
+function getPreviewPageState(session) {
+  if (!session) {
+    return null;
+  }
+
+  const { webContents } = session.view;
+  const currentUrl =
+    webContents.getURL() ||
+    session.currentLoadedUrl ||
+    session.currentRequestedUrl ||
+    "about:blank";
+
+  return {
+    canGoBack: webContents.canGoBack(),
+    canGoForward: webContents.canGoForward(),
+    projectId: session.projectId,
+    tabId: session.tabId,
+    title: webContents.getTitle() || session.title || "New Tab",
+    url: currentUrl,
+  };
+}
+
+function sendPreviewPageState(session) {
+  const pageState = getPreviewPageState(session);
+  if (!pageState) {
+    return;
+  }
+
+  sendToRenderer("preview:page-state", pageState);
 }
 
 function parseCommandParts(value) {
@@ -456,7 +488,7 @@ async function configureRendererProxy(webContents) {
   }
 }
 
-function createPreviewSession(projectId) {
+function createPreviewSession(tabId, projectId) {
   const view = new WebContentsView({
     webPreferences: {
       contextIsolation: true,
@@ -473,29 +505,76 @@ function createPreviewSession(projectId) {
     sendToRenderer("preview:status", {
       loading: true,
       projectId,
+      tabId,
     });
   });
 
   view.webContents.on("did-finish-load", () => {
-    const session = previewSessions.get(projectId);
+    const session = previewSessions.get(tabId);
     if (session) {
       session.loadingRequestedUrl = null;
       session.currentLoadedUrl =
         session.view.webContents.getURL() || "about:blank";
+      session.currentRequestedUrl = session.currentLoadedUrl;
+      session.title = session.view.webContents.getTitle() || session.title;
     }
+
+    sendPreviewPageState(previewSessions.get(tabId));
   });
 
   view.webContents.on("did-stop-loading", () => {
-    const session = previewSessions.get(projectId);
+    const session = previewSessions.get(tabId);
     if (session && session.view.webContents.getURL() !== "about:blank") {
       session.loadingRequestedUrl = null;
       session.currentLoadedUrl = session.view.webContents.getURL();
+      session.currentRequestedUrl = session.currentLoadedUrl;
+      session.title = session.view.webContents.getTitle() || session.title;
     }
 
     sendToRenderer("preview:status", {
       loading: false,
       projectId,
+      tabId,
     });
+    sendPreviewPageState(previewSessions.get(tabId));
+  });
+
+  view.webContents.on("did-navigate", (_event, url) => {
+    const session = previewSessions.get(tabId);
+    if (!session) {
+      return;
+    }
+
+    session.currentLoadedUrl = url || session.currentLoadedUrl;
+    session.currentRequestedUrl = session.currentLoadedUrl;
+    session.title = session.view.webContents.getTitle() || session.title;
+    sendPreviewPageState(session);
+  });
+
+  view.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
+    if (!isMainFrame) {
+      return;
+    }
+
+    const session = previewSessions.get(tabId);
+    if (!session) {
+      return;
+    }
+
+    session.currentLoadedUrl = url || session.currentLoadedUrl;
+    session.currentRequestedUrl = session.currentLoadedUrl;
+    session.title = session.view.webContents.getTitle() || session.title;
+    sendPreviewPageState(session);
+  });
+
+  view.webContents.on("page-title-updated", (_event, title) => {
+    const session = previewSessions.get(tabId);
+    if (!session) {
+      return;
+    }
+
+    session.title = title || session.title;
+    sendPreviewPageState(session);
   });
 
   view.webContents.on(
@@ -505,15 +584,17 @@ function createPreviewSession(projectId) {
         return;
       }
 
-      const session = previewSessions.get(projectId);
+      const session = previewSessions.get(tabId);
       if (session) {
         session.currentLoadedUrl = "about:blank";
         session.loadingRequestedUrl = null;
+        session.title = "New Tab";
       }
 
       view.webContents.loadURL("about:blank").catch(() => {});
+      sendPreviewPageState(previewSessions.get(tabId));
 
-      if (previewState.projectId !== projectId) {
+      if (previewState.tabId !== tabId) {
         return;
       }
 
@@ -528,27 +609,34 @@ function createPreviewSession(projectId) {
     attached: false,
     currentLoadedUrl: "about:blank",
     currentRequestedUrl: "about:blank",
+    lastBounds: null,
     loadRequestId: 0,
     loadingRequestedUrl: null,
     projectId,
+    tabId,
+    title: "New Tab",
     view,
   };
 }
 
-function getPreviewSession(projectId) {
+function getPreviewSession(tabId, projectId) {
+  const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
   const normalizedProjectId =
     typeof projectId === "string" ? projectId.trim() : "";
-  if (!normalizedProjectId) {
+  if (!normalizedTabId) {
     return null;
   }
 
-  const existing = previewSessions.get(normalizedProjectId);
+  const existing = previewSessions.get(normalizedTabId);
   if (existing) {
+    if (normalizedProjectId) {
+      existing.projectId = normalizedProjectId;
+    }
     return existing;
   }
 
-  const created = createPreviewSession(normalizedProjectId);
-  previewSessions.set(normalizedProjectId, created);
+  const created = createPreviewSession(normalizedTabId, normalizedProjectId);
+  previewSessions.set(normalizedTabId, created);
   return created;
 }
 
@@ -557,12 +645,10 @@ function attachPreviewSession(session) {
     return;
   }
 
-  if (session.attached) {
-    return;
-  }
-
   mainWindow.contentView.addChildView(session.view);
-  session.attached = true;
+  if (!session.attached) {
+    session.attached = true;
+  }
 }
 
 function detachPreviewSession(session) {
@@ -585,8 +671,8 @@ function detachAllPreviewSessions() {
   }
 }
 
-function stopPreviewNavigation(projectId) {
-  const session = getPreviewSession(projectId);
+function stopPreviewNavigation(tabId, projectId) {
+  const session = getPreviewSession(tabId, projectId);
   if (!session) {
     return;
   }
@@ -604,7 +690,30 @@ function stopPreviewNavigation(projectId) {
   sendToRenderer("preview:status", {
     loading: false,
     projectId: session.projectId,
+    tabId: session.tabId,
   });
+}
+
+function navigatePreviewHistory(tabId, projectId, direction) {
+  const session = getPreviewSession(tabId, projectId);
+  if (!session) {
+    return;
+  }
+
+  try {
+    if (direction === "back" && session.view.webContents.canGoBack()) {
+      session.view.webContents.goBack();
+    } else if (
+      direction === "forward" &&
+      session.view.webContents.canGoForward()
+    ) {
+      session.view.webContents.goForward();
+    }
+  } catch {
+    // ignore history navigation failures
+  }
+
+  sendPreviewPageState(session);
 }
 
 function applyPreviewState() {
@@ -612,56 +721,66 @@ function applyPreviewState() {
     return;
   }
 
-  const { bounds, projectId, url, visible } = previewState;
+  const { bounds, projectId, tabId, url, visible } = previewState;
   const canRender =
     visible &&
     typeof projectId === "string" &&
     projectId.trim().length > 0 &&
+    typeof tabId === "string" &&
+    tabId.trim().length > 0 &&
     bounds.width > 0 &&
     bounds.height > 0 &&
     isHttpUrl(url);
 
   if (!canRender) {
-    if (activePreviewProjectId) {
-      const activeSession = previewSessions.get(activePreviewProjectId);
-      if (activeSession) {
-        detachPreviewSession(activeSession);
-      }
-    }
-    if (typeof projectId === "string" && projectId.trim().length > 0) {
+    detachAllPreviewSessions();
+    if (typeof tabId === "string" && tabId.trim().length > 0) {
       sendToRenderer("preview:status", {
         loading: false,
         projectId,
+        tabId,
       });
     }
-    activePreviewProjectId = null;
+    activePreviewTabId = null;
     return;
   }
 
-  const nextSession = getPreviewSession(projectId);
+  const nextSession = getPreviewSession(tabId, projectId);
   if (!nextSession) {
     return;
   }
 
-  if (
-    activePreviewProjectId &&
-    activePreviewProjectId !== nextSession.projectId
-  ) {
-    const previousSession = previewSessions.get(activePreviewProjectId);
-    if (previousSession) {
-      detachPreviewSession(previousSession);
-    }
-  }
-
-  activePreviewProjectId = nextSession.projectId;
-  attachPreviewSession(nextSession);
-
-  nextSession.view.setBounds({
+  const roundedBounds = {
     height: Math.round(bounds.height),
     width: Math.round(bounds.width),
     x: Math.round(bounds.x),
     y: Math.round(bounds.y),
-  });
+  };
+  const currentProjectSessions = [];
+
+  for (const session of previewSessions.values()) {
+    if (session.projectId === projectId) {
+      currentProjectSessions.push(session);
+      continue;
+    }
+
+    detachPreviewSession(session);
+  }
+
+  for (const session of currentProjectSessions) {
+    if (session.tabId === nextSession.tabId) {
+      continue;
+    }
+
+    attachPreviewSession(session);
+    session.view.setBounds(roundedBounds);
+    session.lastBounds = roundedBounds;
+  }
+
+  attachPreviewSession(nextSession);
+  nextSession.view.setBounds(roundedBounds);
+  nextSession.lastBounds = roundedBounds;
+  activePreviewTabId = nextSession.tabId;
 
   const forceReload = previewState.reload;
   previewState.reload = false;
@@ -692,6 +811,7 @@ function applyPreviewState() {
       sendToRenderer("preview:status", {
         loading: false,
         projectId: nextSession.projectId,
+        tabId: nextSession.tabId,
       });
     }
 
@@ -717,9 +837,11 @@ function applyPreviewState() {
       nextSession.loadingRequestedUrl = null;
       nextSession.currentRequestedUrl = "about:blank";
       nextSession.currentLoadedUrl = "about:blank";
+      nextSession.title = "New Tab";
       nextSession.view.webContents.loadURL("about:blank").catch(() => {});
+      sendPreviewPageState(nextSession);
 
-      if (previewState.projectId === nextSession.projectId) {
+      if (previewState.tabId === nextSession.tabId) {
         sendToRenderer("preview:error", {
           code: "LOAD_URL_FAILED",
           description: "Failed to load preview URL.",
@@ -737,7 +859,11 @@ function applyPreviewState() {
       }
 
       nextSession.loadingRequestedUrl = null;
+      nextSession.currentRequestedUrl = candidate;
       nextSession.currentLoadedUrl = candidate;
+      nextSession.title =
+        nextSession.view.webContents.getTitle() || nextSession.title;
+      sendPreviewPageState(nextSession);
     } catch (error) {
       if (requestId !== nextSession.loadRequestId) {
         return;
@@ -751,9 +877,11 @@ function applyPreviewState() {
       nextSession.loadingRequestedUrl = null;
       nextSession.currentRequestedUrl = "about:blank";
       nextSession.currentLoadedUrl = "about:blank";
+      nextSession.title = "New Tab";
       nextSession.view.webContents.loadURL("about:blank").catch(() => {});
+      sendPreviewPageState(nextSession);
 
-      if (previewState.projectId === nextSession.projectId) {
+      if (previewState.tabId === nextSession.tabId) {
         sendToRenderer("preview:error", {
           code: "LOAD_URL_FAILED",
           description: error instanceof Error ? error.message : "Unknown error",
@@ -763,6 +891,33 @@ function applyPreviewState() {
   };
 
   void loadCandidate();
+}
+
+function destroyPreviewTab(tabId) {
+  const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
+  if (!normalizedTabId) return;
+
+  const session = previewSessions.get(normalizedTabId);
+  if (!session) return;
+
+  detachPreviewSession(session);
+
+  try {
+    session.view.webContents.close();
+  } catch {
+    // ignore close failures
+  }
+
+  previewSessions.delete(normalizedTabId);
+
+  if (activePreviewTabId === normalizedTabId) {
+    activePreviewTabId = null;
+  }
+
+  if (previewState.tabId === normalizedTabId) {
+    previewState.tabId = null;
+    previewState.url = "about:blank";
+  }
 }
 
 function stopChildProcess(child) {
@@ -1022,8 +1177,9 @@ async function createMainWindow() {
 
   mainWindow.on("closed", () => {
     detachAllPreviewSessions();
-    activePreviewProjectId = null;
+    activePreviewTabId = null;
     previewState.projectId = null;
+    previewState.tabId = null;
     mainWindow = null;
   });
 
@@ -1182,8 +1338,7 @@ const KNOWN_EDITORS = [
     win: ["wt.exe", "cmd.exe"],
     mac: ["open", "/Applications/iTerm.app"],
     linux: ["x-terminal-emulator", "gnome-terminal", "konsole"],
-    args: (p) =>
-      process.platform === "darwin" ? ["-a", "Terminal", p] : [p],
+    args: (p) => (process.platform === "darwin" ? ["-a", "Terminal", p] : [p]),
     isTerminal: true,
   },
 ];
@@ -1666,8 +1821,31 @@ ipcMain.on("preview:update", (_event, payload) => {
     previewState.projectId = payload.projectId.trim();
   }
 
+  if (typeof payload.tabId === "string" && payload.tabId.trim().length > 0) {
+    previewState.tabId = payload.tabId.trim();
+  }
+
+  if (typeof payload.destroyTab === "string") {
+    destroyPreviewTab(payload.destroyTab);
+    return;
+  }
+
+  if (payload.goBack === true) {
+    navigatePreviewHistory(previewState.tabId, previewState.projectId, "back");
+    return;
+  }
+
+  if (payload.goForward === true) {
+    navigatePreviewHistory(
+      previewState.tabId,
+      previewState.projectId,
+      "forward",
+    );
+    return;
+  }
+
   if (payload.stop === true) {
-    stopPreviewNavigation(previewState.projectId);
+    stopPreviewNavigation(previewState.tabId, previewState.projectId);
     return;
   }
 

@@ -6,8 +6,8 @@ import {
   createThreadConfig,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
-  getDefaultModelSelection,
   getConnectedProviders,
+  getDefaultModelSelection,
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
@@ -17,6 +17,7 @@ import type {
   AppSettings,
   PanelVisibility,
   PersistedIdeState,
+  PreviewTabState,
   ProjectConfig,
   ThreadConfig,
   ThreadSortOrder,
@@ -66,6 +67,8 @@ interface IdeState {
   autoAcceptEdits: boolean;
   previewError: string | null;
   previewLoading: Record<string, boolean>;
+  previewTabsByProject: Record<string, PreviewTabState[]>;
+  activePreviewTabIdByProject: Record<string, string | null>;
   rightPanelView: RightPanelView;
   stateHydrated: boolean;
   isMacOs: boolean;
@@ -89,6 +92,8 @@ interface IdeState {
   getActiveProject: () => ProjectConfig | null;
   getThreadsForProject: (projectId: string) => ThreadConfig[];
   getActiveThread: () => ThreadConfig | null;
+  getPreviewTabs: (projectId: string | null | undefined) => PreviewTabState[];
+  getActivePreviewTab: (projectId?: string | null) => PreviewTabState | null;
 
   // Actions – projects
   setProjects: (projects: ProjectConfig[]) => void;
@@ -157,7 +162,16 @@ interface IdeState {
   setTerminalShell: (projectId: string, shell: string) => void;
   setThreadStreaming: (threadId: string, streaming: boolean) => void;
   setPreviewError: (error: string | null) => void;
-  setPreviewLoading: (projectId: string, loading: boolean) => void;
+  setPreviewLoading: (id: string, loading: boolean) => void;
+  ensurePreviewTabs: (projectId: string, initialUrl?: string) => void;
+  createPreviewTab: (projectId: string, initialUrl?: string) => string | null;
+  updatePreviewTab: (
+    projectId: string,
+    tabId: string,
+    updater: (tab: PreviewTabState) => PreviewTabState,
+  ) => void;
+  closePreviewTab: (projectId: string, tabId: string) => string | null;
+  setActivePreviewTab: (projectId: string, tabId: string | null) => void;
   setIsMacOs: (value: boolean) => void;
   setIsElectron: (value: boolean) => void;
   setAppReady: (value: boolean) => void;
@@ -233,6 +247,71 @@ const areMessagesEqual = (
   return true;
 };
 
+const PREVIEW_TAB_ID_PREFIX = "preview-tab";
+
+const createPreviewTabId = () => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return `${PREVIEW_TAB_ID_PREFIX}-${crypto.randomUUID()}`;
+  }
+
+  return `${PREVIEW_TAB_ID_PREFIX}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 10)}`;
+};
+
+const getPreviewTabTitle = (url: string) => {
+  const trimmed = typeof url === "string" ? url.trim() : "";
+  if (!trimmed) {
+    return "New Tab";
+  }
+
+  try {
+    return new URL(trimmed).hostname || "New Tab";
+  } catch {
+    return trimmed.replace(/^https?:\/\//i, "").split("/")[0] || "New Tab";
+  }
+};
+
+const createPreviewTabState = (url = ""): PreviewTabState => ({
+  canGoBack: false,
+  canGoForward: false,
+  id: createPreviewTabId(),
+  title: getPreviewTabTitle(url),
+  url,
+});
+
+const getPreviewTabsForProject = (
+  previewTabsByProject: Record<string, PreviewTabState[]>,
+  projectId: string | null | undefined,
+) => {
+  if (!projectId) {
+    return [];
+  }
+
+  return previewTabsByProject[projectId] ?? [];
+};
+
+const resolveActivePreviewTab = (
+  tabs: PreviewTabState[],
+  activeTabId: string | null | undefined,
+) => {
+  if (tabs.length === 0) {
+    return null;
+  }
+
+  if (activeTabId) {
+    const activeTab = tabs.find((tab) => tab.id === activeTabId);
+    if (activeTab) {
+      return activeTab;
+    }
+  }
+
+  return tabs[0] ?? null;
+};
+
 export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Persisted state ─────────────────────────────────────────────────
   projects: [],
@@ -256,6 +335,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   autoAcceptEdits: false,
   previewError: null,
   previewLoading: {},
+  previewTabsByProject: {},
+  activePreviewTabIdByProject: {},
   rightPanelView: "explorer",
   stateHydrated: false,
   isMacOs: false,
@@ -295,6 +376,24 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const activeThreadId = activeThreadIdByProject[project.id] ?? null;
     return threads.find((thread) => thread.id === activeThreadId) ?? null;
+  },
+
+  getPreviewTabs: (projectId) => {
+    const { previewTabsByProject } = get();
+    return getPreviewTabsForProject(previewTabsByProject, projectId);
+  },
+
+  getActivePreviewTab: (projectId) => {
+    const state = get();
+    const targetProjectId = projectId ?? state.getActiveProject()?.id ?? null;
+    const tabs = getPreviewTabsForProject(
+      state.previewTabsByProject,
+      targetProjectId,
+    );
+    const activeTabId = targetProjectId
+      ? state.activePreviewTabIdByProject[targetProjectId]
+      : null;
+    return resolveActivePreviewTab(tabs, activeTabId);
   },
 
   // ── Actions: projects ───────────────────────────────────────────────
@@ -351,6 +450,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   closeProject: (projectId) => {
+    const previewTabs = get().previewTabsByProject[projectId] ?? [];
+    const desktopApi = getDesktopApi();
+    for (const tab of previewTabs) {
+      desktopApi?.updatePreview({ destroyTab: tab.id });
+    }
+
     set((state) => {
       const nextProjects = state.projects.filter(
         (project) => project.id !== projectId,
@@ -367,6 +472,17 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         nextProjects,
         state.activeProjectId === projectId ? null : state.activeProjectId,
       );
+      const nextPreviewTabsByProject = { ...state.previewTabsByProject };
+      const nextActivePreviewTabIdByProject = {
+        ...state.activePreviewTabIdByProject,
+      };
+      const nextPreviewLoading = { ...state.previewLoading };
+
+      delete nextPreviewTabsByProject[projectId];
+      delete nextActivePreviewTabIdByProject[projectId];
+      for (const tab of previewTabs) {
+        delete nextPreviewLoading[tab.id];
+      }
 
       return {
         activeProjectId: nextActiveProjectId,
@@ -381,6 +497,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ]),
         ),
         chats: nextChats,
+        previewLoading: nextPreviewLoading,
+        previewTabsByProject: nextPreviewTabsByProject,
+        activePreviewTabIdByProject: nextActivePreviewTabIdByProject,
         projects: nextProjects,
         threads: nextThreads,
       };
@@ -807,7 +926,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const currentOpenAiSelected = dedupeModels(
           prev.openAiSelectedModels,
         ).filter((m) => nextOpenAiModelIds.includes(m));
-      const currentAnthropicSelected = dedupeModels(
+        const currentAnthropicSelected = dedupeModels(
           prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
         ).filter((m) => nextAnthropicModelIds.includes(m));
         const currentGeminiSelected = dedupeModels(
@@ -941,10 +1060,188 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       return { streamingThreadIds: next };
     }),
   setPreviewError: (error) => set({ previewError: error }),
-  setPreviewLoading: (projectId, loading) => {
+  setPreviewLoading: (id, loading) => {
     set((state) => ({
-      previewLoading: { ...state.previewLoading, [projectId]: loading },
+      previewLoading: { ...state.previewLoading, [id]: loading },
     }));
+  },
+  ensurePreviewTabs: (projectId, initialUrl = "") => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (!normalizedProjectId) {
+      return;
+    }
+
+    set((state) => {
+      const existingTabs =
+        state.previewTabsByProject[normalizedProjectId] ?? [];
+      if (existingTabs.length > 0) {
+        const activeTabId =
+          state.activePreviewTabIdByProject[normalizedProjectId] ?? null;
+        if (activeTabId && existingTabs.some((tab) => tab.id === activeTabId)) {
+          return state;
+        }
+
+        return {
+          activePreviewTabIdByProject: {
+            ...state.activePreviewTabIdByProject,
+            [normalizedProjectId]: existingTabs[0]?.id ?? null,
+          },
+        };
+      }
+
+      const initialTab = createPreviewTabState(initialUrl);
+      return {
+        previewTabsByProject: {
+          ...state.previewTabsByProject,
+          [normalizedProjectId]: [initialTab],
+        },
+        activePreviewTabIdByProject: {
+          ...state.activePreviewTabIdByProject,
+          [normalizedProjectId]: initialTab.id,
+        },
+      };
+    });
+  },
+  createPreviewTab: (projectId, initialUrl = "") => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (!normalizedProjectId) {
+      return null;
+    }
+
+    const nextTab = createPreviewTabState(initialUrl);
+    set((state) => ({
+      previewTabsByProject: {
+        ...state.previewTabsByProject,
+        [normalizedProjectId]: [
+          ...(state.previewTabsByProject[normalizedProjectId] ?? []),
+          nextTab,
+        ],
+      },
+      activePreviewTabIdByProject: {
+        ...state.activePreviewTabIdByProject,
+        [normalizedProjectId]: nextTab.id,
+      },
+    }));
+
+    return nextTab.id;
+  },
+  updatePreviewTab: (projectId, tabId, updater) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
+    if (!normalizedProjectId || !normalizedTabId) {
+      return;
+    }
+
+    set((state) => {
+      const tabs = state.previewTabsByProject[normalizedProjectId] ?? [];
+      let changed = false;
+      const nextTabs = tabs.map((tab) => {
+        if (tab.id !== normalizedTabId) {
+          return tab;
+        }
+
+        const updatedTab = updater(tab);
+        changed = changed || updatedTab !== tab;
+        return updatedTab;
+      });
+
+      if (!changed) {
+        return state;
+      }
+
+      return {
+        previewTabsByProject: {
+          ...state.previewTabsByProject,
+          [normalizedProjectId]: nextTabs,
+        },
+      };
+    });
+  },
+  closePreviewTab: (projectId, tabId) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
+    if (!normalizedProjectId || !normalizedTabId) {
+      return null;
+    }
+
+    const existingTabs = get().previewTabsByProject[normalizedProjectId] ?? [];
+    if (existingTabs.length <= 1) {
+      return (
+        resolveActivePreviewTab(
+          existingTabs,
+          get().activePreviewTabIdByProject[normalizedProjectId],
+        )?.id ?? null
+      );
+    }
+
+    const closingIndex = existingTabs.findIndex(
+      (tab) => tab.id === normalizedTabId,
+    );
+    if (closingIndex === -1) {
+      return (
+        resolveActivePreviewTab(
+          existingTabs,
+          get().activePreviewTabIdByProject[normalizedProjectId],
+        )?.id ?? null
+      );
+    }
+
+    const remainingTabs = existingTabs.filter(
+      (tab) => tab.id !== normalizedTabId,
+    );
+    const currentActiveTabId =
+      get().activePreviewTabIdByProject[normalizedProjectId] ?? null;
+    const nextActiveTab =
+      currentActiveTabId === normalizedTabId
+        ? (remainingTabs[Math.min(closingIndex, remainingTabs.length - 1)] ??
+          null)
+        : resolveActivePreviewTab(remainingTabs, currentActiveTabId);
+    const nextActiveTabId = nextActiveTab?.id ?? null;
+
+    set((state) => {
+      const nextPreviewLoading = { ...state.previewLoading };
+      delete nextPreviewLoading[normalizedTabId];
+
+      return {
+        previewLoading: nextPreviewLoading,
+        previewTabsByProject: {
+          ...state.previewTabsByProject,
+          [normalizedProjectId]: remainingTabs,
+        },
+        activePreviewTabIdByProject: {
+          ...state.activePreviewTabIdByProject,
+          [normalizedProjectId]: nextActiveTabId,
+        },
+      };
+    });
+
+    return nextActiveTabId;
+  },
+  setActivePreviewTab: (projectId, tabId) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (!normalizedProjectId) {
+      return;
+    }
+
+    set((state) => {
+      const tabs = state.previewTabsByProject[normalizedProjectId] ?? [];
+      const nextActiveTabId =
+        tabId && tabs.some((tab) => tab.id === tabId)
+          ? tabId
+          : (tabs[0]?.id ?? null);
+
+      return {
+        activePreviewTabIdByProject: {
+          ...state.activePreviewTabIdByProject,
+          [normalizedProjectId]: nextActiveTabId,
+        },
+      };
+    });
   },
   setIsMacOs: (value) => set({ isMacOs: value }),
   setIsElectron: (value) => set({ isElectron: value }),
