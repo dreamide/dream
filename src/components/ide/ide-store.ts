@@ -61,6 +61,8 @@ interface IdeState {
   terminalStatus: Record<string, "running" | "stopped">;
   terminalTransport: Record<string, "pty" | "pipe">;
   terminalShell: Record<string, string>;
+  terminalSessionNames: Record<string, string>;
+  nextTerminalOrdinalByProject: Record<string, number>;
   projectTerminalSessionIds: Record<string, string[]>;
   activeTerminalSessionIdByProject: Record<string, string | null>;
   outputPanelOpen: boolean;
@@ -160,6 +162,7 @@ interface IdeState {
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
   setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
   setTerminalShell: (projectId: string, shell: string) => void;
+  setTerminalSessionName: (sessionId: string, name: string) => void;
   setThreadStreaming: (threadId: string, streaming: boolean) => void;
   setPreviewError: (error: string | null) => void;
   setPreviewLoading: (id: string, loading: boolean) => void;
@@ -312,6 +315,19 @@ const resolveActivePreviewTab = (
   return tabs[0] ?? null;
 };
 
+const getDefaultTerminalSessionName = (ordinal: number) =>
+  `Terminal ${ordinal}`;
+
+const getTerminalOrdinalFromName = (name: string) => {
+  const match = /^Terminal (\d+)$/.exec(name.trim());
+  if (!match) {
+    return null;
+  }
+
+  const ordinal = Number.parseInt(match[1] ?? "", 10);
+  return Number.isFinite(ordinal) ? ordinal : null;
+};
+
 export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Persisted state ─────────────────────────────────────────────────
   projects: [],
@@ -329,6 +345,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   terminalStatus: {},
   terminalTransport: {},
   terminalShell: {},
+  terminalSessionNames: {},
+  nextTerminalOrdinalByProject: {},
   projectTerminalSessionIds: {},
   activeTerminalSessionIdByProject: {},
   outputPanelOpen: false,
@@ -476,10 +494,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextActivePreviewTabIdByProject = {
         ...state.activePreviewTabIdByProject,
       };
+      const nextTerminalOrdinalByProject = {
+        ...state.nextTerminalOrdinalByProject,
+      };
       const nextPreviewLoading = { ...state.previewLoading };
 
       delete nextPreviewTabsByProject[projectId];
       delete nextActivePreviewTabIdByProject[projectId];
+      delete nextTerminalOrdinalByProject[projectId];
       for (const tab of previewTabs) {
         delete nextPreviewLoading[tab.id];
       }
@@ -497,6 +519,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ]),
         ),
         chats: nextChats,
+        nextTerminalOrdinalByProject,
         previewLoading: nextPreviewLoading,
         previewTabsByProject: nextPreviewTabsByProject,
         activePreviewTabIdByProject: nextActivePreviewTabIdByProject,
@@ -1048,6 +1071,28 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       terminalShell: { ...state.terminalShell, [projectId]: shell },
     }));
   },
+  setTerminalSessionName: (sessionId, name) => {
+    const normalizedSessionId =
+      typeof sessionId === "string" ? sessionId.trim() : "";
+    if (!normalizedSessionId) {
+      return;
+    }
+
+    const normalizedName = name.trim();
+    set((state) => {
+      const nextTerminalSessionNames = { ...state.terminalSessionNames };
+
+      if (normalizedName) {
+        nextTerminalSessionNames[normalizedSessionId] = normalizedName;
+      } else {
+        delete nextTerminalSessionNames[normalizedSessionId];
+      }
+
+      return {
+        terminalSessionNames: nextTerminalSessionNames,
+      };
+    });
+  },
 
   setThreadStreaming: (threadId, streaming) =>
     set((state) => {
@@ -1331,28 +1376,54 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const sessionId = createProjectTerminalSessionId(projectId);
 
-    set((state) => ({
-      activeProjectId: projectId,
-      projectTerminalSessionIds: {
-        ...state.projectTerminalSessionIds,
-        [projectId]: [
-          ...(state.projectTerminalSessionIds[projectId] ?? []),
-          sessionId,
-        ],
-      },
-      activeTerminalSessionIdByProject: {
-        ...state.activeTerminalSessionIdByProject,
-        [projectId]: sessionId,
-      },
-      terminalOutput: {
-        ...state.terminalOutput,
-        [sessionId]: "",
-      },
-      terminalStatus: {
-        ...state.terminalStatus,
-        [sessionId]: "running",
-      },
-    }));
+    set((state) => {
+      const existingSessionIds =
+        state.projectTerminalSessionIds[projectId] ?? [];
+      const highestNamedOrdinal = existingSessionIds.reduce(
+        (maxOrdinal, existingSessionId) => {
+          const name = state.terminalSessionNames[existingSessionId] ?? "";
+          const ordinal = getTerminalOrdinalFromName(name);
+          return ordinal ? Math.max(maxOrdinal, ordinal) : maxOrdinal;
+        },
+        0,
+      );
+      const existingOrdinal = Math.max(
+        state.nextTerminalOrdinalByProject[projectId] ?? 0,
+        highestNamedOrdinal,
+      );
+      const nextOrdinal = existingOrdinal + 1;
+
+      return {
+        activeProjectId: projectId,
+        projectTerminalSessionIds: {
+          ...state.projectTerminalSessionIds,
+          [projectId]: [
+            ...(state.projectTerminalSessionIds[projectId] ?? []),
+            sessionId,
+          ],
+        },
+        activeTerminalSessionIdByProject: {
+          ...state.activeTerminalSessionIdByProject,
+          [projectId]: sessionId,
+        },
+        terminalOutput: {
+          ...state.terminalOutput,
+          [sessionId]: "",
+        },
+        terminalSessionNames: {
+          ...state.terminalSessionNames,
+          [sessionId]: getDefaultTerminalSessionName(nextOrdinal),
+        },
+        terminalStatus: {
+          ...state.terminalStatus,
+          [sessionId]: "running",
+        },
+        nextTerminalOrdinalByProject: {
+          ...state.nextTerminalOrdinalByProject,
+          [projectId]: nextOrdinal,
+        },
+      };
+    });
 
     await desktopApi.startTerminal({
       cwd: project.path,
@@ -1402,17 +1473,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextTerminalStatus = { ...state.terminalStatus };
       const nextTerminalTransport = { ...state.terminalTransport };
       const nextTerminalShell = { ...state.terminalShell };
+      const nextTerminalSessionNames = { ...state.terminalSessionNames };
 
       delete nextTerminalOutput[sessionId];
       delete nextTerminalStatus[sessionId];
       delete nextTerminalTransport[sessionId];
       delete nextTerminalShell[sessionId];
+      delete nextTerminalSessionNames[sessionId];
 
       return {
         terminalOutput: nextTerminalOutput,
         terminalStatus: nextTerminalStatus,
         terminalTransport: nextTerminalTransport,
         terminalShell: nextTerminalShell,
+        terminalSessionNames: nextTerminalSessionNames,
         projectTerminalSessionIds: {
           ...state.projectTerminalSessionIds,
           [projectId]: nextSessionIds,
