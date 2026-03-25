@@ -106,6 +106,24 @@ export interface PreviewErrorEvent {
 export interface PreviewStatusEvent {
   loading: boolean;
   projectId: string;
+  tabId?: string;
+}
+
+export interface PreviewTabState {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  id: string;
+  title: string;
+  url: string;
+}
+
+export interface PreviewPageStateEvent {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  projectId: string;
+  tabId: string;
+  title: string;
+  url: string;
 }
 
 export interface StartTerminalPayload {
@@ -122,11 +140,15 @@ export interface TerminalInputPayload {
 
 export interface PreviewUpdatePayload {
   bounds?: PreviewBounds;
+  goBack?: boolean;
+  goForward?: boolean;
   projectId?: string;
+  tabId?: string;
   reload?: boolean;
   stop?: boolean;
   visible?: boolean;
   url?: string;
+  destroyTab?: string;
 }
 
 export interface DreamDesktopApi {
@@ -158,6 +180,9 @@ export interface DreamDesktopApi {
 
   updatePreview: (payload: PreviewUpdatePayload) => void;
   onPreviewError: (listener: (event: PreviewErrorEvent) => void) => () => void;
+  onPreviewPageState: (
+    listener: (event: PreviewPageStateEvent) => void,
+  ) => () => void;
   onPreviewStatus: (
     listener: (event: PreviewStatusEvent) => void,
   ) => () => void;

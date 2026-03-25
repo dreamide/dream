@@ -1,10 +1,16 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
-  getDefaultModelSelection,
   getDefaultModelForProvider,
+  getDefaultModelSelection,
   getModelsForProvider,
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
@@ -49,6 +55,7 @@ export const IdeShell = () => {
   const setAppReady = useIdeStore((s) => s.setAppReady);
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
+  const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -57,6 +64,10 @@ export const IdeShell = () => {
   const activeThread = useIdeStore((s) => s.getActiveThread());
   const threads = useIdeStore((s) => s.threads);
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
+  const previewTabsByProject = useIdeStore((s) => s.previewTabsByProject);
+  const activePreviewTabIdByProject = useIdeStore(
+    (s) => s.activePreviewTabIdByProject,
+  );
   const projectsById = useMemo(
     () => new Map(projects.map((project) => [project.id, project])),
     [projects],
@@ -65,6 +76,18 @@ export const IdeShell = () => {
   // the expensive chat panel re-render happens as a low-priority transition.
   const deferredActiveThreadId = useDeferredValue(activeThread?.id ?? null);
   const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
+  const activePreviewTab =
+    activeProject?.id != null
+      ? ((previewTabsByProject[activeProject.id] ?? []).find(
+          (tab) =>
+            tab.id ===
+            (activePreviewTabIdByProject[activeProject.id] ??
+              previewTabsByProject[activeProject.id]?.[0]?.id ??
+              null),
+        ) ??
+        (previewTabsByProject[activeProject.id] ?? [])[0] ??
+        null)
+      : null;
 
   // Track the last N visited threads so they stay mounted for instant switching.
   const recentThreadIdsRef = useRef<string[]>([]);
@@ -123,6 +146,7 @@ export const IdeShell = () => {
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
   const setPreviewLoading = useIdeStore((s) => s.setPreviewLoading);
+  const updatePreviewTab = useIdeStore((s) => s.updatePreviewTab);
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
@@ -351,7 +375,7 @@ export const IdeShell = () => {
     });
 
     const removePreviewStatus = desktopApi.onPreviewStatus((event) => {
-      setPreviewLoading(event.projectId, event.loading);
+      setPreviewLoading(event.tabId ?? event.projectId, event.loading);
       if (!event.loading) {
         return;
       }
@@ -359,10 +383,40 @@ export const IdeShell = () => {
       setPreviewError(null);
     });
 
+    const removePreviewPageState = desktopApi.onPreviewPageState((event) => {
+      updatePreviewTab(event.projectId, event.tabId, (tab) => ({
+        ...tab,
+        canGoBack: event.canGoBack,
+        canGoForward: event.canGoForward,
+        title: event.title || tab.title,
+        url: event.url || tab.url,
+      }));
+
+      const state = useIdeStore.getState();
+      const activeTabId =
+        state.activePreviewTabIdByProject[event.projectId] ?? null;
+      if (activeTabId !== event.tabId || !event.url) {
+        return;
+      }
+
+      const project = state.projects.find(
+        (item) => item.id === event.projectId,
+      );
+      if (!project || project.previewUrl === event.url) {
+        return;
+      }
+
+      state.updateProject(event.projectId, (currentProject) => ({
+        ...currentProject,
+        previewUrl: event.url,
+      }));
+    });
+
     return () => {
       removeTerminalData();
       removeTerminalStatus();
       removePreviewError();
+      removePreviewPageState();
       removePreviewStatus();
     };
   }, [
@@ -372,26 +426,34 @@ export const IdeShell = () => {
     setTerminalShell,
     setPreviewError,
     setPreviewLoading,
+    updatePreviewTab,
   ]);
 
   // Preview bounds sync
+  const lastSentPreviewUrlRef = useRef<string | null>(null);
+  const lastSentPreviewTabIdRef = useRef<string | null>(null);
   const syncPreviewBounds = useCallback((reload = false) => {
     const desktopApi = getDesktopApi();
-    const project = useIdeStore.getState().getActiveProject();
-    const pv = useIdeStore.getState().panelVisibility;
-    const currentRightPanelView = useIdeStore.getState().rightPanelView;
+    const state = useIdeStore.getState();
+    const project = state.getActiveProject();
+    const pv = state.panelVisibility;
+    const currentRightPanelView = state.rightPanelView;
+    const activeTab = project ? state.getActivePreviewTab(project.id) : null;
 
     if (!desktopApi) return;
 
     if (
       !project ||
-      !project.previewUrl ||
+      !activeTab?.url ||
       !pv.right ||
       currentRightPanelView !== "preview" ||
       isModalPreviewHidden()
     ) {
+      lastSentPreviewUrlRef.current = null;
+      lastSentPreviewTabIdRef.current = null;
       desktopApi.updatePreview({
         projectId: project?.id,
+        tabId: activeTab?.id,
         visible: false,
       });
       return;
@@ -404,6 +466,7 @@ export const IdeShell = () => {
     if (rect.width <= 0 || rect.height <= 0) {
       desktopApi.updatePreview({
         projectId: project.id,
+        tabId: activeTab.id,
         visible: false,
       });
       return;
@@ -416,11 +479,23 @@ export const IdeShell = () => {
       y: rect.y,
     };
 
+    // Send the URL when it changed, when the tab changed, or on explicit
+    // reload.  This prevents ResizeObserver / effect-driven calls from
+    // causing redundant navigations in the Electron BrowserView.
+    const urlChanged = activeTab.url !== lastSentPreviewUrlRef.current;
+    const tabChanged = activeTab.id !== lastSentPreviewTabIdRef.current;
+    const sendUrl = reload || urlChanged || tabChanged;
+    if (sendUrl) {
+      lastSentPreviewUrlRef.current = activeTab.url;
+      lastSentPreviewTabIdRef.current = activeTab.id;
+    }
+
     desktopApi.updatePreview({
       bounds,
       projectId: project.id,
-      reload,
-      url: project.previewUrl,
+      tabId: activeTab.id,
+      ...(reload ? { reload: true } : {}),
+      ...(sendUrl ? { url: activeTab.url } : {}),
       visible: true,
     });
   }, []);
@@ -432,8 +507,9 @@ export const IdeShell = () => {
 
     const update = () => syncPreviewBounds();
     const observer = new ResizeObserver(update);
-    if (previewHostRef.current) {
-      observer.observe(previewHostRef.current);
+    const host = previewHostRef.current;
+    if (host) {
+      observer.observe(host);
     }
 
     window.addEventListener("resize", update);
@@ -448,13 +524,20 @@ export const IdeShell = () => {
 
   // Sync preview bounds when project or panel visibility changes
   useEffect(() => {
-    if (!panelVisibility.right && !activeProject) {
-      syncPreviewBounds();
-      return;
-    }
-
+    void activeProject;
+    void panelVisibility.right;
+    void rightPanelView;
+    void activePreviewTab?.id;
+    void activePreviewTab?.url;
     syncPreviewBounds();
-  }, [activeProject, panelVisibility.right, syncPreviewBounds]);
+  }, [
+    activePreviewTab?.id,
+    activePreviewTab?.url,
+    activeProject,
+    panelVisibility.right,
+    rightPanelView,
+    syncPreviewBounds,
+  ]);
 
   // Keep the preview hidden while any modal is open or finishing its exit animation.
   useEffect(() => {
@@ -579,12 +662,18 @@ export const IdeShell = () => {
     const nextProjects = projects.map((project) => {
       let next = project;
 
-      if (!connectedProviders.includes(next.provider) && connectedProviders.length > 0) {
+      if (
+        !connectedProviders.includes(next.provider) &&
+        connectedProviders.length > 0
+      ) {
         next = {
           ...next,
           model:
             defaultSelection.model ||
-            getDefaultModelForProvider(defaultSelection.provider, effectiveSettings),
+            getDefaultModelForProvider(
+              defaultSelection.provider,
+              effectiveSettings,
+            ),
           provider: defaultSelection.provider,
         };
         projectsChanged = true;
@@ -622,12 +711,18 @@ export const IdeShell = () => {
         return next;
       }
 
-      if (!connectedProviders.includes(next.provider) && connectedProviders.length > 0) {
+      if (
+        !connectedProviders.includes(next.provider) &&
+        connectedProviders.length > 0
+      ) {
         next = {
           ...next,
           model:
             defaultSelection.model ||
-            getDefaultModelForProvider(defaultSelection.provider, effectiveSettings),
+            getDefaultModelForProvider(
+              defaultSelection.provider,
+              effectiveSettings,
+            ),
           provider: defaultSelection.provider,
         };
         threadsChanged = true;
