@@ -1,5 +1,6 @@
 import {
   Folder,
+  GitCompareArrows,
   MessageSquare,
   Minus,
   Monitor,
@@ -140,7 +141,7 @@ export const IdeFooter = () => {
 
   const handleRightPanelViewChange = useCallback(
     (value: string) => {
-      if (value !== "preview" && value !== "explorer") {
+      if (value !== "preview" && value !== "explorer" && value !== "changes") {
         return;
       }
 
@@ -198,6 +199,20 @@ export const IdeFooter = () => {
                 <Folder className="size-4" />
               </TooltipTrigger>
               <TooltipContent>Files</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <TabsTrigger
+                    aria-label="Show changes"
+                    className="h-6 w-8 px-0 data-[active]:bg-background"
+                    value="changes"
+                  />
+                }
+              >
+                <GitCompareArrows className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>Changes</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger

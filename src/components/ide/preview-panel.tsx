@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
+import { ChangesPanel } from "./changes-panel";
 import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
@@ -484,6 +485,10 @@ export const PreviewPanel = (props: PreviewPanelProps) => {
 
   if (rightPanelView === "explorer") {
     return <FileExplorerPanel />;
+  }
+
+  if (rightPanelView === "changes") {
+    return <ChangesPanel />;
   }
 
   return <PreviewViewport {...props} />;

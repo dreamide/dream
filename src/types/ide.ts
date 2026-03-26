@@ -126,6 +126,35 @@ export interface PreviewPageStateEvent {
   url: string;
 }
 
+export type ProjectGitChangeStatus =
+  | "modified"
+  | "added"
+  | "renamed"
+  | "copied"
+  | "deleted"
+  | "untracked";
+
+export interface ProjectGitStatusEntry {
+  path: string;
+  previousPath: string | null;
+  status: ProjectGitChangeStatus;
+}
+
+export interface ProjectGitStatusResponse {
+  branch: string | null;
+  changes: ProjectGitStatusEntry[];
+  isRepo: boolean;
+  repoRoot: string | null;
+}
+
+export interface ProjectGitDiffResponse {
+  branch: string | null;
+  diff: string;
+  filePath: string;
+  previousPath: string | null;
+  status: ProjectGitChangeStatus;
+}
+
 export interface StartTerminalPayload {
   projectId: string;
   cwd: string;

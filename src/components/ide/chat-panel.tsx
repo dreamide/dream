@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { AlertCircle, CheckCheck, X } from "lucide-react";
+import { AlertCircle, CheckCheck, GitBranch, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
@@ -47,6 +47,7 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
+import { Badge } from "@/components/ui/badge";
 import { GlowBorder } from "@/components/ui/glow-border";
 import {
   Select,
@@ -62,6 +63,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
   getModelOptionsForProvider,
@@ -368,6 +370,7 @@ export const ChatPanel = ({
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const setSettings = useIdeStore((s) => s.setSettings);
   const updateThread = useIdeStore((s) => s.updateThread);
+  const { branch } = useProjectGitStatus(project.path);
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo(() => {
     return connectedProviders.flatMap((provider) =>
@@ -1031,23 +1034,34 @@ export const ChatPanel = ({
               </Tooltip>
 
               {/* Context usage indicator */}
-              <Context
-                maxTokens={contextWindow}
-                modelId={modelId}
-                usedTokens={estimatedUsedTokens}
-              >
-                <ContextTrigger className="ml-auto h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
-                <ContextContent side="top" align="end">
-                  <ContextContentHeader />
-                  <ContextContentBody className="space-y-1.5">
-                    <ContextInputUsage />
-                    <ContextOutputUsage />
-                    <ContextReasoningUsage />
-                    <ContextCacheUsage />
-                  </ContextContentBody>
-                  <ContextContentFooter />
-                </ContextContent>
-              </Context>
+              <div className="ml-auto flex items-center gap-1">
+                {branch ? (
+                  <Badge
+                    className="gap-1 border-foreground/15 bg-transparent text-muted-foreground"
+                    variant="outline"
+                  >
+                    <GitBranch className="size-3" />
+                    {branch}
+                  </Badge>
+                ) : null}
+                <Context
+                  maxTokens={contextWindow}
+                  modelId={modelId}
+                  usedTokens={estimatedUsedTokens}
+                >
+                  <ContextTrigger className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
+                  <ContextContent side="top" align="end">
+                    <ContextContentHeader />
+                    <ContextContentBody className="space-y-1.5">
+                      <ContextInputUsage />
+                      <ContextOutputUsage />
+                      <ContextReasoningUsage />
+                      <ContextCacheUsage />
+                    </ContextContentBody>
+                    <ContextContentFooter />
+                  </ContextContent>
+                </Context>
+              </div>
             </div>
           </div>
         </div>

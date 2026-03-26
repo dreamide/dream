@@ -8,16 +8,18 @@
  * This file is loaded by the Electron main process at startup.
  */
 
+import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { serve } from "@hono/node-server";
-import { claudeCode } from "ai-sdk-provider-claude-code";
 import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
+import { claudeCode } from "ai-sdk-provider-claude-code";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -33,6 +35,7 @@ const ANTHROPIC_OAUTH_TOKEN_URL =
   "https://console.anthropic.com/v1/oauth/token";
 const ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER =
   "oauth-2025-04-20,interleaved-thinking-2025-05-14";
+const execFileAsync = promisify(execFile);
 
 const toBase64Url = (input) => {
   return input
@@ -389,7 +392,9 @@ const decodeHtmlEntities = (value) => {
 };
 
 const stripHtml = (value) => {
-  return decodeHtmlEntities(value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  return decodeHtmlEntities(
+    value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "),
+  );
 };
 
 const parseClaudeCodeModelOptionsFromDocs = (html) => {
@@ -432,7 +437,9 @@ const fetchClaudeCodeModelOptionsFromDocs = async () => {
       return aOrder - bOrder;
     });
     if (parsedModels.length < 3) {
-      throw new Error("Anthropic docs page did not contain Claude Code models.");
+      throw new Error(
+        "Anthropic docs page did not contain Claude Code models.",
+      );
     }
 
     claudeCodeModelOptionsCache = {
@@ -779,7 +786,7 @@ const isAnthropicTokenExpired = (expiresAt) => {
   return expiresAt <= Date.now() + 15_000;
 };
 
-const fetchAnthropicModelsWithOAuth = async (oauthInput) => {
+const _fetchAnthropicModelsWithOAuth = async (oauthInput) => {
   const refreshToken = oauthInput.refreshToken.trim();
   if (!refreshToken) {
     return {
@@ -858,9 +865,12 @@ const fetchAnthropicModelsWithOAuth = async (oauthInput) => {
   }
 };
 
-const fetchAnthropicModels = async (authMode, anthropicApiKey, oauthInput) => {
+const fetchAnthropicModels = async (authMode, anthropicApiKey, _oauthInput) => {
   if (authMode === "claudeCode") {
-    return { models: await fetchClaudeCodeModelOptionsFromDocs(), source: "api" };
+    return {
+      models: await fetchClaudeCodeModelOptionsFromDocs(),
+      source: "api",
+    };
   }
 
   if (!anthropicApiKey) {
@@ -1151,14 +1161,8 @@ app.post("/api/chat", async (c) => {
     return c.text(parsed.error.message, 400);
   }
 
-  const {
-    authMode,
-    chatMode,
-    model,
-    projectPath,
-    provider,
-    reasoningEffort,
-  } = parsed.data;
+  const { authMode, chatMode, model, projectPath, provider, reasoningEffort } =
+    parsed.data;
   const isPlanMode = chatMode === "plan";
   const systemPrompt = isPlanMode ? SYSTEM_PROMPT_PLAN : SYSTEM_PROMPT_BUILD;
   let credential = parsed.data.credential?.trim() ?? "";
@@ -1403,6 +1407,361 @@ const projectFileRequestSchema = z.object({
   startLine: z.number().int().min(1).optional(),
 });
 
+const projectGitStatusRequestSchema = z.object({
+  projectPath: z.string().min(1),
+});
+
+const projectGitDiffRequestSchema = z.object({
+  filePath: z.string().min(1),
+  projectPath: z.string().min(1),
+});
+
+const EMPTY_GIT_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+const GIT_EXEC_MAX_BUFFER = 16 * 1024 * 1024;
+
+const getGitCommandErrorMessage = (error) => {
+  if (error?.code === "ENOENT") {
+    return "Git is not available on PATH.";
+  }
+
+  const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
+  const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
+
+  return stderr || stdout || "Git command failed.";
+};
+
+const runGitCommand = async (cwd, args, { allowFailure = false } = {}) => {
+  try {
+    const result = await execFileAsync("git", args, {
+      cwd,
+      encoding: "utf8",
+      maxBuffer: GIT_EXEC_MAX_BUFFER,
+      windowsHide: true,
+    });
+    return {
+      ok: true,
+      stderr: result.stderr,
+      stdout: result.stdout,
+    };
+  } catch (error) {
+    if (allowFailure) {
+      return {
+        error,
+        ok: false,
+        stderr: typeof error?.stderr === "string" ? error.stderr : "",
+        stdout: typeof error?.stdout === "string" ? error.stdout : "",
+      };
+    }
+
+    throw new Error(getGitCommandErrorMessage(error));
+  }
+};
+
+const isGitRepositoryError = (result) => {
+  if (result.ok) {
+    return false;
+  }
+
+  const message = `${result.stderr}\n${result.stdout}`.toLowerCase();
+  return (
+    message.includes("not a git repository") ||
+    message.includes("outside repository")
+  );
+};
+
+const isBinaryBuffer = (buffer) => {
+  for (const byte of buffer) {
+    if (byte === 0) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const toProjectRelativeGitPath = (projectPath, repoRoot, gitPath) => {
+  const absolutePath = path.resolve(repoRoot, gitPath);
+  const projectRoot = path.resolve(projectPath);
+
+  if (
+    absolutePath !== projectRoot &&
+    !absolutePath.startsWith(`${projectRoot}${path.sep}`)
+  ) {
+    return null;
+  }
+
+  return normalizePath(path.relative(projectRoot, absolutePath));
+};
+
+const getGitRepositoryInfo = async (projectPath) => {
+  const repoResult = await runGitCommand(
+    projectPath,
+    ["rev-parse", "--show-toplevel"],
+    { allowFailure: true },
+  );
+
+  if (!repoResult.ok) {
+    if (isGitRepositoryError(repoResult)) {
+      return {
+        branch: null,
+        isRepo: false,
+        repoRoot: null,
+      };
+    }
+
+    throw new Error(getGitCommandErrorMessage(repoResult.error));
+  }
+
+  const repoRoot = repoResult.stdout.trim();
+  const branchResult = await runGitCommand(
+    repoRoot,
+    ["branch", "--show-current"],
+    { allowFailure: true },
+  );
+  let branch = branchResult.ok ? branchResult.stdout.trim() : "";
+
+  if (!branch) {
+    const detachedHeadResult = await runGitCommand(
+      repoRoot,
+      ["rev-parse", "--short", "HEAD"],
+      { allowFailure: true },
+    );
+    if (detachedHeadResult.ok) {
+      const revision = detachedHeadResult.stdout.trim();
+      branch = revision ? `HEAD ${revision}` : "";
+    }
+  }
+
+  return {
+    branch: branch || null,
+    isRepo: true,
+    repoRoot,
+  };
+};
+
+const mapGitChangeStatus = (xy, fallbackCode = "") => {
+  const codes = [fallbackCode, ...(xy ?? "")]
+    .map((value) => value.trim())
+    .filter((value) => value && value !== ".");
+
+  if (codes.includes("R")) {
+    return "renamed";
+  }
+
+  if (codes.includes("C")) {
+    return "copied";
+  }
+
+  if (codes.includes("A")) {
+    return "added";
+  }
+
+  if (codes.includes("D")) {
+    return "deleted";
+  }
+
+  return "modified";
+};
+
+const listProjectGitChanges = async (projectPath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    return {
+      branch: repoInfo.branch,
+      changes: [],
+      isRepo: false,
+      repoRoot: null,
+    };
+  }
+
+  const statusResult = await runGitCommand(repoInfo.repoRoot, [
+    "status",
+    "--porcelain=v2",
+    "-z",
+    "--untracked-files=all",
+  ]);
+  const entries = statusResult.stdout.split("\0").filter(Boolean);
+  const changes = [];
+
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+
+    if (entry.startsWith("? ")) {
+      const projectRelativePath = toProjectRelativeGitPath(
+        projectPath,
+        repoInfo.repoRoot,
+        entry.slice(2),
+      );
+
+      if (!projectRelativePath) {
+        continue;
+      }
+
+      changes.push({
+        path: projectRelativePath,
+        previousPath: null,
+        status: "untracked",
+      });
+      continue;
+    }
+
+    if (entry.startsWith("1 ")) {
+      const fields = entry.split(" ");
+      const projectRelativePath = toProjectRelativeGitPath(
+        projectPath,
+        repoInfo.repoRoot,
+        fields.slice(8).join(" "),
+      );
+
+      if (!projectRelativePath) {
+        continue;
+      }
+
+      changes.push({
+        path: projectRelativePath,
+        previousPath: null,
+        status: mapGitChangeStatus(fields[1] ?? ""),
+      });
+      continue;
+    }
+
+    if (entry.startsWith("2 ")) {
+      const fields = entry.split(" ");
+      const currentPath = fields.slice(9).join(" ");
+      const previousPath = entries[index + 1] ?? "";
+      index += 1;
+
+      const projectRelativePath = toProjectRelativeGitPath(
+        projectPath,
+        repoInfo.repoRoot,
+        currentPath,
+      );
+
+      if (!projectRelativePath) {
+        continue;
+      }
+
+      const previousProjectRelativePath = toProjectRelativeGitPath(
+        projectPath,
+        repoInfo.repoRoot,
+        previousPath,
+      );
+
+      changes.push({
+        path: projectRelativePath,
+        previousPath: previousProjectRelativePath,
+        status: mapGitChangeStatus(fields[1] ?? "", fields[8]?.[0] ?? ""),
+      });
+    }
+  }
+
+  changes.sort((left, right) => left.path.localeCompare(right.path));
+
+  return {
+    branch: repoInfo.branch,
+    changes,
+    isRepo: true,
+    repoRoot: repoInfo.repoRoot,
+  };
+};
+
+const getGitDiffBaseRef = async (repoRoot) => {
+  const headResult = await runGitCommand(
+    repoRoot,
+    ["rev-parse", "--verify", "HEAD"],
+    { allowFailure: true },
+  );
+  return headResult.ok ? headResult.stdout.trim() : EMPTY_GIT_TREE_HASH;
+};
+
+const buildUntrackedFileDiff = async (projectPath, filePath) => {
+  const absolutePath = resolveProjectPath(projectPath, filePath);
+  const contents = await fs.readFile(absolutePath);
+
+  if (isBinaryBuffer(contents)) {
+    return [
+      `diff --git a/${filePath} b/${filePath}`,
+      "new file mode 100644",
+      `Binary files /dev/null and b/${filePath} differ`,
+    ].join("\n");
+  }
+
+  const text = contents.toString("utf8");
+  if (!text) {
+    return [
+      `diff --git a/${filePath} b/${filePath}`,
+      "new file mode 100644",
+      "--- /dev/null",
+      `+++ b/${filePath}`,
+    ].join("\n");
+  }
+
+  const lines = text.split(/\r?\n/);
+  const endsWithNewline = text.endsWith("\n");
+  const payloadLines = endsWithNewline ? lines.slice(0, -1) : lines;
+
+  return [
+    `diff --git a/${filePath} b/${filePath}`,
+    "new file mode 100644",
+    "--- /dev/null",
+    `+++ b/${filePath}`,
+    `@@ -0,0 +1,${payloadLines.length} @@`,
+    ...payloadLines.map((line) => `+${line}`),
+    ...(endsWithNewline ? [] : ["\\ No newline at end of file"]),
+  ].join("\n");
+};
+
+const getProjectGitDiff = async (projectPath, filePath) => {
+  const gitStatus = await listProjectGitChanges(projectPath);
+  if (!gitStatus.isRepo || !gitStatus.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const normalizedFilePath = normalizePath(filePath);
+  const change =
+    gitStatus.changes.find((entry) => entry.path === normalizedFilePath) ??
+    null;
+
+  if (!change) {
+    throw new Error("File does not have Git changes.");
+  }
+
+  if (change.status === "untracked") {
+    return {
+      branch: gitStatus.branch,
+      diff: await buildUntrackedFileDiff(projectPath, normalizedFilePath),
+      filePath: normalizedFilePath,
+      previousPath: change.previousPath,
+      status: change.status,
+    };
+  }
+
+  const repoRelativePath = normalizePath(
+    path.relative(
+      gitStatus.repoRoot,
+      resolveProjectPath(projectPath, normalizedFilePath),
+    ),
+  );
+  const baseRef = await getGitDiffBaseRef(gitStatus.repoRoot);
+  const diffResult = await runGitCommand(gitStatus.repoRoot, [
+    "diff",
+    "--find-renames",
+    "--no-ext-diff",
+    "--submodule=diff",
+    baseRef,
+    "--",
+    repoRelativePath,
+  ]);
+
+  return {
+    branch: gitStatus.branch,
+    diff: diffResult.stdout,
+    filePath: normalizedFilePath,
+    previousPath: change.previousPath,
+    status: change.status,
+  };
+};
+
 const ensureProjectDirectory = async (projectPath) => {
   const stats = await fs.stat(projectPath);
   if (!stats.isDirectory()) {
@@ -1481,6 +1840,56 @@ app.post("/api/project-file", async (c) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to read file.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-status", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitStatusRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { projectPath } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(await listProjectGitChanges(projectPath));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to read Git status.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-diff", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitDiffRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { filePath, projectPath } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(await getProjectGitDiff(projectPath, filePath));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to read Git diff.";
     return c.text(message, 400);
   }
 });
