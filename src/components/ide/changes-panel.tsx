@@ -1,5 +1,11 @@
-import { GitBranch, GitCompareArrows, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Columns2,
+  FileIcon,
+  GitCompareArrows,
+  RefreshCw,
+  Rows3,
+} from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileTree,
   FileTreeFile,
@@ -7,10 +13,14 @@ import {
   FileTreeIcon,
   FileTreeName,
 } from "@/components/ai-elements/file-tree";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import type {
@@ -520,7 +530,7 @@ const FileTreeNodeView = ({
   );
 };
 
-export const ChangesPanel = () => {
+const ChangesPanelImpl = () => {
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const treePaneRef = useRef<HTMLDivElement | null>(null);
@@ -543,7 +553,6 @@ export const ChangesPanel = () => {
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
   const {
-    branch,
     changes,
     error: statusError,
     isRepo,
@@ -747,48 +756,45 @@ export const ChangesPanel = () => {
       <div className="flex items-center gap-3 border-b border-foreground/10 px-3 py-2">
         <GitCompareArrows className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="truncate text-sm font-medium">Changes</div>
-            {branch ? (
-              <Badge
-                className="gap-1 border-foreground/15 bg-transparent text-muted-foreground"
-                variant="outline"
-              >
-                <GitBranch className="size-3" />
-                {branch}
-              </Badge>
-            ) : null}
-          </div>
+          <div className="truncate text-sm font-medium">Changes</div>
           <div className="truncate text-muted-foreground text-xs">
             {activeProject.path}
           </div>
         </div>
 
-        <div className="flex overflow-hidden rounded-md border border-foreground/10 bg-muted/30">
-          <button
-            className={cn(
-              "px-3 py-1.5 text-xs transition-colors",
-              diffViewMode === "unified"
-                ? "bg-background font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-            onClick={() => handleSetDiffViewMode("unified")}
-            type="button"
-          >
-            Unified
-          </button>
-          <button
-            className={cn(
-              "border-l border-foreground/10 px-3 py-1.5 text-xs transition-colors",
-              diffViewMode === "split"
-                ? "bg-background font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-            )}
-            onClick={() => handleSetDiffViewMode("split")}
-            type="button"
-          >
-            Split
-          </button>
+        <div className="flex overflow-hidden rounded-md border border-foreground/10 bg-muted/30 p-0.5">
+          <Tooltip>
+            <TooltipTrigger
+              aria-label="Unified diff"
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+                diffViewMode === "unified"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "hover:bg-muted/60 hover:text-foreground",
+              )}
+              onClick={() => handleSetDiffViewMode("unified")}
+              type="button"
+            >
+              <Rows3 className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent>Unified diff</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              aria-label="Split diff"
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+                diffViewMode === "split"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "hover:bg-muted/60 hover:text-foreground",
+              )}
+              onClick={() => handleSetDiffViewMode("split")}
+              type="button"
+            >
+              <Columns2 className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent>Split diff</TooltipContent>
+          </Tooltip>
         </div>
 
         <Button
@@ -914,3 +920,6 @@ export const ChangesPanel = () => {
     </div>
   );
 };
+
+export const ChangesPanel = memo(ChangesPanelImpl);
+ChangesPanel.displayName = "ChangesPanel";

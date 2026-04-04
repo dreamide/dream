@@ -1,5 +1,5 @@
 import { FileIcon, FolderIcon, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -159,7 +159,7 @@ const readResponseText = async (response: Response): Promise<string> => {
   return text.trim() || `Request failed (${response.status}).`;
 };
 
-export const FileExplorerPanel = () => {
+const FileExplorerPanelImpl = () => {
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const treePaneRef = useRef<HTMLDivElement | null>(null);
@@ -376,7 +376,7 @@ export const FileExplorerPanel = () => {
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
         <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2 text-sm font-medium">
           <FolderIcon className="size-4 text-muted-foreground" />
-          <span></span>
+          <span>Files</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
           <AppShellPlaceholder message="Add a project to browse its files." />
@@ -390,7 +390,7 @@ export const FileExplorerPanel = () => {
       <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2">
         <FolderIcon className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium"></div>
+          <div className="truncate text-sm font-medium">Files</div>
           <div className="truncate text-muted-foreground text-xs">
             {activeProject.path}
           </div>
@@ -527,3 +527,6 @@ export const FileExplorerPanel = () => {
     </div>
   );
 };
+
+export const FileExplorerPanel = memo(FileExplorerPanelImpl);
+FileExplorerPanel.displayName = "FileExplorerPanel";
