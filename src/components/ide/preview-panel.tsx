@@ -1,6 +1,13 @@
 import { ArrowLeft, ArrowRight, Plus, RotateCw, X } from "lucide-react";
-import type { RefObject } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -480,16 +487,29 @@ const PreviewViewport = ({
   );
 };
 
+const MemoizedPreviewViewport = memo(PreviewViewport);
+MemoizedPreviewViewport.displayName = "PreviewViewport";
+
 export const PreviewPanel = (props: PreviewPanelProps) => {
   const rightPanelView = useIdeStore((state) => state.rightPanelView);
 
-  if (rightPanelView === "explorer") {
-    return <FileExplorerPanel />;
-  }
-
-  if (rightPanelView === "changes") {
-    return <ChangesPanel />;
-  }
-
-  return <PreviewViewport {...props} />;
+  return (
+    <div className="h-full">
+      <div
+        className={cn("h-full", rightPanelView === "explorer" ? "" : "hidden")}
+      >
+        <FileExplorerPanel />
+      </div>
+      <div
+        className={cn("h-full", rightPanelView === "changes" ? "" : "hidden")}
+      >
+        <ChangesPanel />
+      </div>
+      <div
+        className={cn("h-full", rightPanelView === "preview" ? "" : "hidden")}
+      >
+        <MemoizedPreviewViewport {...props} />
+      </div>
+    </div>
+  );
 };
