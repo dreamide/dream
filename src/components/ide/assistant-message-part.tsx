@@ -85,6 +85,13 @@ const isToolLikePart = (part: MessagePart): part is ToolLikePart =>
   typeof part.type === "string" &&
   (part.type.startsWith("tool-") || part.type === "dynamic-tool");
 
+const ANSI_ESCAPE_SEQUENCE =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matches ANSI control sequences in command output
+  /[\u001B\u009B][[\]()#;?]*(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-ntqry=><~]|(?:[^\u001B\u009B]*)(?:\u0007))/g;
+
+const stripAnsiSequences = (value: string) =>
+  value.replaceAll(ANSI_ESCAPE_SEQUENCE, "");
+
 const formatToolName = (name: string): string =>
   name
     .replace(/[-_]/g, " ")
@@ -597,8 +604,13 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
     isRecord(output) && typeof output.exitCode === "number"
       ? output.exitCode
       : null;
-  const commandOutput =
-    isRecord(output) && isString(output.output) ? output.output : null;
+  const commandOutput = useMemo(() => {
+    if (!isRecord(output) || !isString(output.output)) {
+      return null;
+    }
+
+    return stripAnsiSequences(output.output);
+  }, [output]);
   const status =
     isRecord(output) && isString(output.status) ? output.status : null;
   const hasRawOutput = output !== undefined;
@@ -667,6 +679,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
           ) : null}
           {command ? (
             <CodeBlock
+              className="[&_pre]:text-xs"
               code={command}
               language="bash"
               style={{ contentVisibility: "visible" }}
@@ -689,7 +702,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
           ) : null}
           {commandOutput ? (
             <CodeBlock
-              className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+              className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&_pre]:text-xs"
               code={commandOutput}
               language="log"
               style={{ contentVisibility: "visible" }}
