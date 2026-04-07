@@ -640,7 +640,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
               language="bash"
               style={{ contentVisibility: "visible" }}
             >
-              <CodeBlockHeader>
+              <CodeBlockHeader className="border-0 bg-transparent px-3 py-2 text-[11px]">
                 <CodeBlockTitle>
                   <TerminalIcon size={14} />
                   <CodeBlockFilename>Command</CodeBlockFilename>
@@ -651,7 +651,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
                   ) : null}
                 </CodeBlockTitle>
                 <CodeBlockActions>
-                  <CodeBlockCopyButton />
+                  <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
                 </CodeBlockActions>
               </CodeBlockHeader>
             </CodeBlock>
@@ -663,13 +663,13 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
               language="log"
               style={{ contentVisibility: "visible" }}
             >
-              <CodeBlockHeader className="shrink-0">
+              <CodeBlockHeader className="shrink-0 border-0 bg-transparent px-3 py-2 text-[11px]">
                 <CodeBlockTitle>
                   <TerminalIcon size={14} />
                   <CodeBlockFilename>Output</CodeBlockFilename>
                 </CodeBlockTitle>
                 <CodeBlockActions>
-                  <CodeBlockCopyButton />
+                  <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
                 </CodeBlockActions>
               </CodeBlockHeader>
             </CodeBlock>
