@@ -1,5 +1,6 @@
 {
   "name": "dream",
+  "productName": "Dream",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -88,6 +89,7 @@
   "build": {
     "appId": "com.mikecao.dream",
     "productName": "Dream",
+    "executableName": "Dream",
     "directories": {
       "output": "release"
     },
@@ -100,6 +102,7 @@
     ],
     "icon": "public/icon.png",
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"
