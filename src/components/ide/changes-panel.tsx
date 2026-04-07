@@ -1,4 +1,6 @@
 import {
+  ChevronDown,
+  ChevronRight,
   Columns2,
   FileIcon,
   GitCompareArrows,
@@ -6,15 +8,7 @@ import {
   Rows3,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  FileTree,
-  FileTreeFile,
-  FileTreeFolder,
-  FileTreeIcon,
-  FileTreeName,
-} from "@/components/ai-elements/file-tree";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
@@ -28,21 +22,10 @@ import type {
   ProjectGitDiffResponse,
   ProjectGitStatusEntry,
 } from "@/types/ide";
-import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
+import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
-const FILE_TREE_MIN_WIDTH_PX = 250;
-const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
-const INITIAL_DIFF_PREFETCH_COUNT = 4;
-
 type DiffViewMode = "unified" | "split";
-
-interface FileTreeNode {
-  name: string;
-  path: string;
-  children: Map<string, FileTreeNode>;
-  isFile: boolean;
-}
 
 interface ParsedDiffLine {
   kind: "context" | "add" | "remove" | "meta";
@@ -65,51 +48,10 @@ const CHANGE_STATUS_ICON_CLASSNAMES: Record<ProjectGitChangeStatus, string> = {
   untracked: "text-emerald-600",
 };
 
-const buildFileTree = (
-  paths: string[],
-): { root: FileTreeNode; defaultExpanded: Set<string> } => {
-  const root: FileTreeNode = {
-    children: new Map(),
-    isFile: false,
-    name: "",
-    path: "",
-  };
-
-  for (const filePath of paths) {
-    const parts = filePath.split(/[\\/]/).filter(Boolean);
-    let current = root;
-
-    for (let index = 0; index < parts.length; index++) {
-      const part = parts[index];
-      const currentPath = parts.slice(0, index + 1).join("/");
-      const isLast = index === parts.length - 1;
-
-      if (!current.children.has(part)) {
-        current.children.set(part, {
-          children: new Map(),
-          isFile: isLast,
-          name: part,
-          path: currentPath,
-        });
-      }
-
-      const nextNode = current.children.get(part);
-      if (!nextNode) {
-        continue;
-      }
-
-      current = nextNode;
-    }
-  }
-
-  const defaultExpanded = new Set<string>();
-  for (const child of root.children.values()) {
-    if (!child.isFile) {
-      defaultExpanded.add(child.path);
-    }
-  }
-
-  return { defaultExpanded, root };
+const CHANGE_STATUS_LABELS: Partial<Record<ProjectGitChangeStatus, string>> = {
+  deleted: "Removed",
+  renamed: "Renamed",
+  untracked: "New",
 };
 
 const readResponseText = async (response: Response): Promise<string> => {
@@ -141,10 +83,7 @@ const parseUnifiedDiff = (
   for (const line of diff.split("\n")) {
     const hunkHeader = parseHunkHeader(line);
     if (hunkHeader) {
-      currentHunk = {
-        header: line,
-        lines: [],
-      };
+      currentHunk = { header: line, lines: [] };
       hunks.push(currentHunk);
       oldNumber = hunkHeader.oldStart;
       newNumber = hunkHeader.newStart;
@@ -254,20 +193,32 @@ const getDiffLineTone = (
   return "bg-background";
 };
 
-const getUnifiedDiffLineTone = (kind: ParsedDiffLine["kind"]) => {
+const getUnifiedDiffBorderTone = (kind: ParsedDiffLine["kind"]) => {
   if (kind === "add") {
-    return "bg-emerald-500/10";
+    return "border-l-emerald-500";
   }
 
   if (kind === "remove") {
-    return "bg-rose-500/10";
+    return "border-l-rose-500";
+  }
+
+  return "border-l-transparent";
+};
+
+const getUnifiedDiffTextTone = (kind: ParsedDiffLine["kind"]) => {
+  if (kind === "add") {
+    return "text-emerald-700";
+  }
+
+  if (kind === "remove") {
+    return "text-rose-700";
   }
 
   if (kind === "meta") {
-    return "bg-muted/25";
+    return "text-muted-foreground";
   }
 
-  return "bg-background";
+  return "text-foreground";
 };
 
 const DiffFallbackView = ({ diff }: { diff: string }) => {
@@ -284,29 +235,31 @@ const DiffFallbackView = ({ diff }: { diff: string }) => {
 const UnifiedDiffRow = ({ line }: { line: ParsedDiffLine }) => {
   if (line.kind === "meta") {
     return (
-      <div className="border-b border-foreground/5 bg-muted/25 px-3 py-1 font-mono text-[11px] text-muted-foreground italic">
-        {line.text}
+      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] border-b border-foreground/5 border-l-2 border-l-transparent font-mono text-[11px] italic leading-5">
+        <div className="border-r border-foreground/10 bg-muted/15 px-2 py-1 text-right text-muted-foreground/70 tabular-nums" />
+        <div className="px-3 py-1 text-muted-foreground">{line.text}</div>
       </div>
     );
   }
 
+  const lineNumber = line.newNumber ?? line.oldNumber ?? "";
+
   return (
     <div
       className={cn(
-        "grid grid-cols-[3rem_3rem_1.5rem_minmax(0,1fr)] border-b border-foreground/5 font-mono text-xs leading-5",
-        getUnifiedDiffLineTone(line.kind),
+        "grid grid-cols-[3.25rem_minmax(0,1fr)] border-b border-foreground/5 border-l-2 font-mono text-xs leading-5",
+        getUnifiedDiffBorderTone(line.kind),
       )}
     >
-      <div className="border-r border-foreground/10 px-2 py-1 text-right text-[11px] text-muted-foreground/80 tabular-nums">
-        {line.oldNumber ?? ""}
+      <div className="border-r border-foreground/10 bg-muted/15 px-2 py-1 text-right text-[11px] text-muted-foreground/80 tabular-nums">
+        {lineNumber}
       </div>
-      <div className="border-r border-foreground/10 px-2 py-1 text-right text-[11px] text-muted-foreground/80 tabular-nums">
-        {line.newNumber ?? ""}
-      </div>
-      <div className="border-r border-foreground/10 px-2 py-1 text-center text-muted-foreground">
-        {line.kind === "add" ? "+" : line.kind === "remove" ? "-" : ""}
-      </div>
-      <pre className="overflow-x-auto px-3 py-1 whitespace-pre">
+      <pre
+        className={cn(
+          "overflow-x-auto px-3 py-1 whitespace-pre",
+          getUnifiedDiffTextTone(line.kind),
+        )}
+      >
         {line.text || " "}
       </pre>
     </div>
@@ -408,10 +361,8 @@ const SplitDiffView = ({ diff }: { diff: string }) => {
           key: string;
           left?: ParsedDiffLine | null;
           right?: ParsedDiffLine | null;
-          header?: string;
         }> = [
           {
-            header: hunk.header,
             key: `${hunk.header}-header`,
             kind: "hunk",
           },
@@ -478,27 +429,49 @@ const SplitDiffView = ({ diff }: { diff: string }) => {
   );
 };
 
-const getDiffSectionId = (filePath: string) =>
-  `changes-diff-${filePath.replaceAll(/[^a-zA-Z0-9_-]/g, "-")}`;
-
-const DiffSection = ({
+const ExpandedDiffBody = ({
+  change,
   diff,
-  filePath,
+  diffError,
+  diffLoading,
   mode,
 }: {
-  diff: ProjectGitDiffResponse;
-  filePath: string;
+  change: ProjectGitStatusEntry;
+  diff: ProjectGitDiffResponse | null;
+  diffError: string | null;
+  diffLoading: boolean;
   mode: DiffViewMode;
 }) => {
-  return (
-    <section
-      className="scroll-mt-3 border-b border-foreground/10 last:border-b-0"
-      id={getDiffSectionId(filePath)}
-    >
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-foreground/10 bg-background/95 px-4 py-2 backdrop-blur-sm">
-        <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 truncate font-medium text-sm">{filePath}</div>
+  if (diffLoading) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
+        <Spinner className="size-4" />
+        <span>Loading diff…</span>
       </div>
+    );
+  }
+
+  if (diffError) {
+    return (
+      <div className="px-4 py-4">
+        <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+          {diffError}
+        </div>
+      </div>
+    );
+  }
+
+  if (!diff) {
+    return null;
+  }
+
+  return (
+    <div className="border-t border-foreground/10 bg-background">
+      {change.previousPath ? (
+        <div className="border-b border-foreground/10 px-4 py-2 text-muted-foreground text-xs">
+          {`${change.previousPath} -> ${change.path}`}
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         {mode === "split" ? (
           <SplitDiffView diff={diff.diff} />
@@ -506,183 +479,117 @@ const DiffSection = ({
           <UnifiedDiffView diff={diff.diff} />
         )}
       </div>
-    </section>
-  );
-};
-
-const DiffSectionSkeleton = ({ filePath }: { filePath: string }) => {
-  return (
-    <section
-      className="scroll-mt-3 border-b border-foreground/10 last:border-b-0"
-      id={getDiffSectionId(filePath)}
-    >
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-foreground/10 bg-background/95 px-4 py-2 backdrop-blur-sm">
-        <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 truncate font-medium text-sm">{filePath}</div>
-      </div>
-      <div className="flex items-center gap-2 px-4 py-6 text-muted-foreground text-sm">
-        <Spinner className="size-4" />
-        <span>Loading diff…</span>
-      </div>
-    </section>
-  );
-};
-
-const DiffSectionError = ({
-  error,
-  filePath,
-}: {
-  error: string;
-  filePath: string;
-}) => {
-  return (
-    <section
-      className="scroll-mt-3 border-b border-foreground/10 last:border-b-0"
-      id={getDiffSectionId(filePath)}
-    >
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-foreground/10 bg-background/95 px-4 py-2 backdrop-blur-sm">
-        <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0 truncate font-medium text-sm">{filePath}</div>
-      </div>
-      <div className="p-4">
-        <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
-          {error}
-        </div>
-      </div>
-    </section>
-  );
-};
-
-const LazyDiffSection = ({
-  diff,
-  diffError,
-  diffLoading,
-  filePath,
-  mode,
-  onRegisterRef,
-  onVisible,
-}: {
-  diff: ProjectGitDiffResponse | null;
-  diffError: string | null;
-  diffLoading: boolean;
-  filePath: string;
-  mode: DiffViewMode;
-  onRegisterRef: (filePath: string, node: HTMLDivElement | null) => void;
-  onVisible: (filePath: string) => void;
-}) => {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-
-  const handleSectionRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      sectionRef.current = node;
-      onRegisterRef(filePath, node);
-    },
-    [filePath, onRegisterRef],
-  );
-
-  useEffect(() => {
-    if (diff || diffError || diffLoading) {
-      return;
-    }
-
-    const node = sectionRef.current;
-    if (!node) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const isVisible = entries.some(
-          (entry) => entry.isIntersecting || entry.intersectionRatio > 0,
-        );
-        if (!isVisible) {
-          return;
-        }
-
-        onVisible(filePath);
-        observer.disconnect();
-      },
-      { rootMargin: "500px 0px" },
-    );
-
-    observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [diff, diffError, diffLoading, filePath, onVisible]);
-
-  return (
-    <div ref={handleSectionRef}>
-      {diff ? (
-        <DiffSection diff={diff} filePath={filePath} mode={mode} />
-      ) : diffError ? (
-        <DiffSectionError error={diffError} filePath={filePath} />
-      ) : (
-        <DiffSectionSkeleton filePath={filePath} />
-      )}
     </div>
   );
 };
 
-const FileTreeNodeView = ({
-  changeByPath,
-  node,
+const formatChangeCount = (value: number, prefix: "+" | "-") =>
+  `${prefix}${value}`;
+
+const ChangesRow = ({
+  change,
+  diff,
+  diffError,
+  diffLoading,
+  expanded,
+  mode,
+  onToggle,
 }: {
-  changeByPath: Map<string, ProjectGitStatusEntry>;
-  node: FileTreeNode;
+  change: ProjectGitStatusEntry;
+  diff: ProjectGitDiffResponse | null;
+  diffError: string | null;
+  diffLoading: boolean;
+  expanded: boolean;
+  mode: DiffViewMode;
+  onToggle: () => void;
 }) => {
-  const sortedChildren = [...node.children.values()].sort((left, right) => {
-    if (left.isFile !== right.isFile) {
-      return left.isFile ? 1 : -1;
-    }
-
-    return left.name.localeCompare(right.name);
-  });
-
-  if (node.isFile) {
-    const change = changeByPath.get(node.path);
-    const status = change?.status ?? "modified";
-
-    return (
-      <FileTreeFile name={node.name} path={node.path}>
-        <span className="size-4" />
-        <FileTreeIcon>
-          <FileIcon
-            className={cn("size-4", CHANGE_STATUS_ICON_CLASSNAMES[status])}
-          />
-        </FileTreeIcon>
-        <FileTreeName>{node.name}</FileTreeName>
-      </FileTreeFile>
-    );
-  }
+  const statusLabel = CHANGE_STATUS_LABELS[change.status] ?? null;
+  const hasAddedLines = typeof change.addedLines === "number";
+  const hasRemovedLines = typeof change.removedLines === "number";
 
   return (
-    <FileTreeFolder name={node.name} path={node.path}>
-      {sortedChildren.map((child) => (
-        <FileTreeNodeView
-          changeByPath={changeByPath}
-          key={child.path}
-          node={child}
+    <div className="overflow-hidden rounded-lg border border-foreground/10 bg-background">
+      <button
+        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30"
+        onClick={onToggle}
+        type="button"
+      >
+        {expanded ? (
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        )}
+
+        <FileIcon
+          className={cn(
+            "size-4 shrink-0",
+            CHANGE_STATUS_ICON_CLASSNAMES[change.status],
+          )}
         />
-      ))}
-    </FileTreeFolder>
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm">{change.path}</div>
+        </div>
+
+        <div className="ml-auto flex items-center gap-3 text-sm tabular-nums">
+          {statusLabel ? (
+            <span
+              className={cn(
+                "font-medium",
+                change.status === "deleted"
+                  ? "text-rose-600"
+                  : "text-muted-foreground",
+              )}
+            >
+              {statusLabel}
+            </span>
+          ) : null}
+          {hasAddedLines ? (
+            <span className="font-medium text-emerald-600">
+              {formatChangeCount(change.addedLines, "+")}
+            </span>
+          ) : null}
+          {hasRemovedLines ? (
+            <span className="font-medium text-rose-600">
+              {formatChangeCount(change.removedLines, "-")}
+            </span>
+          ) : null}
+        </div>
+      </button>
+
+      {expanded ? (
+        <ExpandedDiffBody
+          change={change}
+          diff={diff}
+          diffError={diffError}
+          diffLoading={diffLoading}
+          mode={mode}
+        />
+      ) : null}
+    </div>
   );
+};
+
+const getExpandedPaths = (
+  expandedPathsByProject: Record<string, string[]>,
+  projectId: string | null,
+) => {
+  if (!projectId) {
+    return [];
+  }
+
+  return expandedPathsByProject[projectId] ?? [];
 };
 
 const ChangesPanelImpl = () => {
   const activeProject = useIdeStore((s) => s.getActiveProject());
-  const diffSectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const diffLoadQueueRef = useRef<string[]>([]);
   const diffLoadQueuedPathsRef = useRef(new Set<string>());
   const diffLoadProcessingRef = useRef(false);
   const queuedProjectIdRef = useRef<string | null>(null);
-  const splitContainerRef = useRef<HTMLDivElement | null>(null);
-  const treePaneRef = useRef<HTMLDivElement | null>(null);
-  const treeWidthRef = useRef<number | null>(null);
 
-  const [selectedFileByProject, setSelectedFileByProject] = useState<
-    Record<string, string | null>
+  const [expandedPathsByProject, setExpandedPathsByProject] = useState<
+    Record<string, string[]>
   >({});
   const [diffsByProject, setDiffsByProject] = useState<
     Record<string, Record<string, ProjectGitDiffResponse>>
@@ -706,66 +613,17 @@ const ChangesPanelImpl = () => {
     loading: statusLoading,
     refresh: refreshStatus,
   } = useProjectGitStatus(projectPath);
-  const selectedFilePath = projectId
-    ? (selectedFileByProject[projectId] ?? null)
-    : null;
+
+  const expandedPaths = getExpandedPaths(expandedPathsByProject, projectId);
+  const expandedPathSet = useMemo(() => new Set(expandedPaths), [expandedPaths]);
   const diffViewMode = projectId
     ? (diffViewModeByProject[projectId] ?? "unified")
     : "unified";
   const projectDiffs = projectId ? (diffsByProject[projectId] ?? {}) : {};
-  const projectDiffErrors = projectId
-    ? (diffErrorsByProject[projectId] ?? {})
-    : {};
-  const projectDiffLoading = projectId
-    ? (diffLoadingByProject[projectId] ?? {})
-    : {};
-
-  const changeByPath = useMemo(() => {
-    return new Map(changes.map((change) => [change.path, change]));
-  }, [changes]);
-
-  const { defaultExpanded, root } = useMemo(() => {
-    if (changes.length === 0) {
-      return { defaultExpanded: new Set<string>(), root: null };
-    }
-
-    return buildFileTree(changes.map((change) => change.path));
-  }, [changes]);
-
-  const sortedChildren = useMemo(() => {
-    if (!root) {
-      return [];
-    }
-
-    return [...root.children.values()].sort((left, right) => {
-      if (left.isFile !== right.isFile) {
-        return left.isFile ? 1 : -1;
-      }
-
-      return left.name.localeCompare(right.name);
-    });
-  }, [root]);
-
-  useEffect(() => {
-    if (!projectId) {
-      return;
-    }
-
-    setSelectedFileByProject((current) => {
-      const existingSelection = current[projectId] ?? null;
-      if (
-        existingSelection &&
-        changes.some((change) => change.path === existingSelection)
-      ) {
-        return current;
-      }
-
-      return {
-        ...current,
-        [projectId]: changes[0]?.path ?? null,
-      };
-    });
-  }, [changes, projectId]);
+  const projectDiffErrors = projectId ? (diffErrorsByProject[projectId] ?? {}) : {};
+  const projectDiffLoading = projectId ? (diffLoadingByProject[projectId] ?? {}) : {};
+  const allExpanded =
+    changes.length > 0 && changes.every((change) => expandedPathSet.has(change.path));
 
   useEffect(() => {
     queuedProjectIdRef.current = projectId;
@@ -868,7 +726,7 @@ const ChangesPanelImpl = () => {
   }, [projectId, projectPath]);
 
   const queueDiffLoad = useCallback(
-    (filePath: string) => {
+    (filePath: string, priority = false) => {
       if (!projectId || !projectPath) {
         return;
       }
@@ -883,7 +741,11 @@ const ChangesPanelImpl = () => {
       }
 
       diffLoadQueuedPathsRef.current.add(filePath);
-      diffLoadQueueRef.current.push(filePath);
+      if (priority) {
+        diffLoadQueueRef.current.unshift(filePath);
+      } else {
+        diffLoadQueueRef.current.push(filePath);
+      }
 
       setDiffLoadingByProject((current) => ({
         ...current,
@@ -906,48 +768,14 @@ const ChangesPanelImpl = () => {
   );
 
   useEffect(() => {
-    if (!projectId || !projectPath || changes.length === 0) {
+    if (!projectId) {
       return;
     }
 
-    const initialPaths = [
-      ...(selectedFilePath ? [selectedFilePath] : []),
-      ...changes
-        .slice(0, INITIAL_DIFF_PREFETCH_COUNT)
-        .map((change) => change.path),
-    ];
-
-    for (const filePath of new Set(initialPaths)) {
+    for (const filePath of expandedPaths) {
       queueDiffLoad(filePath);
     }
-  }, [changes, projectId, projectPath, queueDiffLoad, selectedFilePath]);
-
-  const handleTreeResizeStart = useCallback(() => {
-    treeWidthRef.current =
-      treePaneRef.current?.getBoundingClientRect().width ??
-      FILE_TREE_MIN_WIDTH_PX;
-  }, []);
-
-  const handleTreeResize = useCallback((deltaX: number) => {
-    const containerWidth =
-      splitContainerRef.current?.getBoundingClientRect().width ?? 0;
-    const maxWidth = Math.max(
-      FILE_TREE_MIN_WIDTH_PX,
-      containerWidth * FILE_TREE_MAX_WIDTH_RATIO,
-    );
-    const nextWidth = Math.min(
-      maxWidth,
-      Math.max(
-        FILE_TREE_MIN_WIDTH_PX,
-        (treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX) + deltaX,
-      ),
-    );
-
-    treeWidthRef.current = nextWidth;
-    if (treePaneRef.current) {
-      treePaneRef.current.style.width = `${nextWidth}px`;
-    }
-  }, []);
+  }, [expandedPaths, projectId, queueDiffLoad]);
 
   const handleRefresh = useCallback(() => {
     if (!projectId) {
@@ -972,32 +800,55 @@ const ChangesPanelImpl = () => {
     void refreshStatus();
   }, [projectId, refreshStatus]);
 
-  const registerDiffSectionRef = useCallback(
-    (filePath: string, node: HTMLDivElement | null) => {
-      diffSectionRefs.current[filePath] = node;
-    },
-    [],
-  );
-
-  const handleSelectFile = useCallback(
+  const handleTogglePath = useCallback(
     (filePath: string) => {
-      if (!projectId || !changeByPath.has(filePath)) {
+      if (!projectId) {
         return;
       }
 
-      setSelectedFileByProject((current) => ({
-        ...current,
-        [projectId]: filePath,
-      }));
-      queueDiffLoad(filePath);
+      let nextExpanded = false;
+      setExpandedPathsByProject((current) => {
+        const currentPaths = current[projectId] ?? [];
+        const isExpanded = currentPaths.includes(filePath);
+        nextExpanded = !isExpanded;
 
-      const section = diffSectionRefs.current[filePath];
-      if (section) {
-        section.scrollIntoView({ behavior: "auto", block: "start" });
+        return {
+          ...current,
+          [projectId]: isExpanded
+            ? currentPaths.filter((path) => path !== filePath)
+            : [...currentPaths, filePath],
+        };
+      });
+
+      if (nextExpanded) {
+        queueDiffLoad(filePath, true);
       }
     },
-    [changeByPath, projectId, queueDiffLoad],
+    [projectId, queueDiffLoad],
   );
+
+  const handleToggleExpandAll = useCallback(() => {
+    if (!projectId) {
+      return;
+    }
+
+    if (allExpanded) {
+      setExpandedPathsByProject((current) => ({
+        ...current,
+        [projectId]: [],
+      }));
+      return;
+    }
+
+    const nextPaths = changes.map((change) => change.path);
+    setExpandedPathsByProject((current) => ({
+      ...current,
+      [projectId]: nextPaths,
+    }));
+    for (const filePath of nextPaths) {
+      queueDiffLoad(filePath);
+    }
+  }, [allExpanded, changes, projectId, queueDiffLoad]);
 
   const handleSetDiffViewMode = useCallback(
     (nextMode: DiffViewMode) => {
@@ -1018,7 +869,7 @@ const ChangesPanelImpl = () => {
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
         <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2 text-sm font-medium">
           <GitCompareArrows className="size-4 text-muted-foreground" />
-          <span></span>
+          <span>Changes</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
           <AppShellPlaceholder message="Add a project to inspect its Git changes." />
@@ -1074,6 +925,15 @@ const ChangesPanelImpl = () => {
         </div>
 
         <Button
+          className="h-7 gap-1.5 px-2 text-xs"
+          onClick={handleToggleExpandAll}
+          type="button"
+          variant="outline"
+        >
+          {allExpanded ? "Collapse all" : "Expand all"}
+        </Button>
+
+        <Button
           className="h-7 w-7 text-muted-foreground hover:text-foreground"
           onClick={handleRefresh}
           size="icon-sm"
@@ -1088,102 +948,44 @@ const ChangesPanelImpl = () => {
         </Button>
       </div>
 
-      <div ref={splitContainerRef} className="flex min-h-0 flex-1">
-        <div
-          ref={treePaneRef}
-          className="shrink-0 overflow-hidden"
-          style={{
-            width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
-            minWidth: FILE_TREE_MIN_WIDTH_PX,
-            maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
-          }}
-        >
-          <div className="h-full border-r border-foreground/10 bg-muted/20">
-            <ScrollArea className="h-full">
-              <div className="p-3">
-                {statusError ? (
-                  <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
-                    {statusError}
-                  </div>
-                ) : null}
-
-                {!statusError && !statusLoading && !isRepo ? (
-                  <div className="text-muted-foreground text-sm">
-                    This project is not inside a Git repository.
-                  </div>
-                ) : null}
-
-                {!statusError && statusLoading && changes.length === 0 ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                    <Spinner className="size-4" />
-                    <span>Loading Git changes…</span>
-                  </div>
-                ) : null}
-
-                {!statusError &&
-                !statusLoading &&
-                isRepo &&
-                changes.length === 0 ? (
-                  <div className="text-muted-foreground text-sm">
-                    Working tree is clean.
-                  </div>
-                ) : null}
-
-                {root ? (
-                  <FileTree
-                    className="border-0 bg-transparent p-0 text-xs shadow-none"
-                    defaultExpanded={defaultExpanded}
-                    onSelect={handleSelectFile}
-                    selectedPath={selectedFilePath ?? undefined}
-                  >
-                    {sortedChildren.map((child) => (
-                      <FileTreeNodeView
-                        changeByPath={changeByPath}
-                        key={child.path}
-                        node={child}
-                      />
-                    ))}
-                  </FileTree>
-                ) : null}
-              </div>
-            </ScrollArea>
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        {statusError ? (
+          <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+            {statusError}
           </div>
-        </div>
+        ) : null}
 
-        <PanelResizeHandle
-          side="right"
-          onResize={handleTreeResize}
-          onResizeStart={handleTreeResizeStart}
-        />
+        {!statusError && !statusLoading && !isRepo ? (
+          <AppShellPlaceholder message="This project is not inside a Git repository." />
+        ) : null}
 
-        <div className="min-w-0 flex-1 overflow-hidden">
-          {!changes.length && !statusLoading && !statusError ? (
-            <div className="h-full p-3">
-              <AppShellPlaceholder message="No changed files to inspect." />
-            </div>
-          ) : (
-            <div className="h-full overflow-auto">
-              {changes.map((change) => {
-                const diff = projectDiffs[change.path] ?? null;
-                const diffError = projectDiffErrors[change.path] ?? null;
-                const diffLoading = projectDiffLoading[change.path] ?? false;
+        {!statusError && statusLoading && changes.length === 0 ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Spinner className="size-4" />
+            <span>Loading Git changes…</span>
+          </div>
+        ) : null}
 
-                return (
-                  <LazyDiffSection
-                    diff={diff}
-                    diffError={diffError}
-                    diffLoading={diffLoading}
-                    filePath={change.path}
-                    key={change.path}
-                    mode={diffViewMode}
-                    onRegisterRef={registerDiffSectionRef}
-                    onVisible={queueDiffLoad}
-                  />
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {!statusError && !statusLoading && isRepo && changes.length === 0 ? (
+          <AppShellPlaceholder message="Working tree is clean." />
+        ) : null}
+
+        {!statusError && changes.length > 0 ? (
+          <div className="space-y-2">
+            {changes.map((change) => (
+              <ChangesRow
+                change={change}
+                diff={projectDiffs[change.path] ?? null}
+                diffError={projectDiffErrors[change.path] ?? null}
+                diffLoading={projectDiffLoading[change.path] ?? false}
+                expanded={expandedPathSet.has(change.path)}
+                key={change.path}
+                mode={diffViewMode}
+                onToggle={() => handleTogglePath(change.path)}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
