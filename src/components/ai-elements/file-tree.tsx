@@ -147,7 +147,7 @@ export const FileTreeFolder = ({
             render={
               <button
                 className={cn(
-                  "flex w-full items-center gap-1 rounded px-2 py-1 text-left transition-colors hover:bg-muted/50",
+                  "flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left transition-colors hover:bg-muted/50",
                   isSelected && "bg-muted",
                 )}
                 onClick={handleSelect}
@@ -225,7 +225,7 @@ export const FileTreeFile = ({
     <FileTreeFileContext.Provider value={fileContextValue}>
       <div
         className={cn(
-          "flex cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-muted/50",
+          "flex min-w-0 cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-muted/50",
           isSelected && "bg-muted",
           className,
         )}
@@ -237,7 +237,7 @@ export const FileTreeFile = ({
       >
         {children ?? (
           <>
-            <span className="size-4" />
+            <span className="size-4 shrink-0" />
             <FileTreeIcon>
               {icon ?? <FileIcon className="size-4 text-muted-foreground" />}
             </FileTreeIcon>
@@ -256,7 +256,10 @@ export const FileTreeIcon = ({
   children,
   ...props
 }: FileTreeIconProps) => (
-  <span className={cn("shrink-0", className)} {...props}>
+  <span
+    className={cn("inline-flex size-4 shrink-0 items-center justify-center", className)}
+    {...props}
+  >
     {children}
   </span>
 );
@@ -268,7 +271,7 @@ export const FileTreeName = ({
   children,
   ...props
 }: FileTreeNameProps) => (
-  <span className={cn("truncate", className)} {...props}>
+  <span className={cn("min-w-0 flex-1 truncate", className)} {...props}>
     {children}
   </span>
 );
