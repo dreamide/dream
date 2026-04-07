@@ -603,6 +603,37 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
     isRecord(output) && isString(output.status) ? output.status : null;
   const hasRawOutput = output !== undefined;
   const canExpand = hasError || hasRawOutput || command !== null;
+  const displayCommand = useMemo(() => {
+    if (!command) {
+      return null;
+    }
+
+    const match = command.match(
+      /^(?:"([^"]+)"|'([^']+)'|(\S+))\s+-Command\s+([\s\S]+)$/i,
+    );
+    if (!match) {
+      return command;
+    }
+
+    const executable = match[1] ?? match[2] ?? match[3] ?? "";
+    if (!/(^|[\\/])(pwsh|powershell)(?:\.exe)?$/i.test(executable)) {
+      return command;
+    }
+
+    const innerCommand = match[4]?.trim();
+    if (!innerCommand) {
+      return command;
+    }
+
+    if (
+      (innerCommand.startsWith('"') && innerCommand.endsWith('"')) ||
+      (innerCommand.startsWith("'") && innerCommand.endsWith("'"))
+    ) {
+      return innerCommand.slice(1, -1);
+    }
+
+    return innerCommand;
+  }, [command]);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -619,7 +650,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
       >
         <TerminalIcon className="size-3.5 shrink-0" />
         <span className="max-w-64 truncate font-medium">
-          {command ?? "Command"}
+          {displayCommand ?? "Command"}
         </span>
         {exitCode !== null ? (
           <span className="opacity-70">exit {exitCode}</span>
