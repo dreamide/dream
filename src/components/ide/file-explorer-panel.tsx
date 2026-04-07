@@ -159,6 +159,9 @@ const readResponseText = async (response: Response): Promise<string> => {
   return text.trim() || `Request failed (${response.status}).`;
 };
 
+const isMissingPathError = (message: string | null) =>
+  Boolean(message && /ENOENT|no such file or directory/i.test(message));
+
 const FileExplorerPanelImpl = () => {
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
@@ -189,6 +192,7 @@ const FileExplorerPanelImpl = () => {
     projectId && selectedFilePath
       ? (fileContentsByProject[projectId]?.[selectedFilePath] ?? null)
       : null;
+  const isMissingProjectPath = isMissingPathError(filesError);
 
   const loadProjectFiles = useCallback(async () => {
     if (!projectId || !projectPath) {
@@ -425,9 +429,22 @@ const FileExplorerPanelImpl = () => {
             <ScrollArea className="h-full">
               <div className="p-3">
                 {filesError ? (
-                  <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
-                    {filesError}
-                  </div>
+                  isMissingProjectPath ? (
+                    <div className="rounded-md border border-foreground/10 bg-background px-3 py-3">
+                      <div className="font-medium text-foreground text-sm">
+                        Project folder not found.
+                      </div>
+                      {projectPath ? (
+                        <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                          {projectPath}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
+                      {filesError}
+                    </div>
+                  )
                 ) : null}
 
                 {!filesError && filesLoading && files.length === 0 ? (
