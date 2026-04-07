@@ -1560,10 +1560,26 @@ const listProjectGitChanges = async (projectPath) => {
   }
 
   changes.sort((left, right) => left.path.localeCompare(right.path));
+  const statsByPath = await getProjectGitChangeStats(
+    projectPath,
+    repoInfo.repoRoot,
+    changes,
+  );
 
   return {
     branch: repoInfo.branch,
-    changes,
+    changes: changes.map((change) => {
+      const stats = statsByPath.get(change.path) ?? {
+        addedLines: 0,
+        removedLines: 0,
+      };
+
+      return {
+        ...change,
+        addedLines: stats.addedLines,
+        removedLines: stats.removedLines,
+      };
+    }),
     isRepo: true,
     repoRoot: repoInfo.repoRoot,
   };
@@ -1576,6 +1592,100 @@ const getGitDiffBaseRef = async (repoRoot) => {
     { allowFailure: true },
   );
   return headResult.ok ? headResult.stdout.trim() : EMPTY_GIT_TREE_HASH;
+};
+
+const countUntrackedFileLines = async (projectPath, filePath) => {
+  const absolutePath = resolveProjectPath(projectPath, filePath);
+  const contents = await fs.readFile(absolutePath);
+
+  if (isBinaryBuffer(contents)) {
+    return { addedLines: 0, removedLines: 0 };
+  }
+
+  const text = contents.toString("utf8");
+  if (!text) {
+    return { addedLines: 0, removedLines: 0 };
+  }
+
+  const lines = text.split(/\r?\n/);
+  return {
+    addedLines: text.endsWith("\n") ? lines.length - 1 : lines.length,
+    removedLines: 0,
+  };
+};
+
+const parseNumstatValue = (value) => {
+  return value === "-" ? 0 : Number.parseInt(value, 10) || 0;
+};
+
+const getProjectGitChangeStats = async (projectPath, repoRoot, changes) => {
+  const statsByPath = new Map();
+  const trackedPaths = changes
+    .filter((change) => change.status !== "untracked")
+    .map((change) =>
+      normalizePath(
+        path.relative(repoRoot, resolveProjectPath(projectPath, change.path)),
+      ),
+    );
+
+  if (trackedPaths.length > 0) {
+    const baseRef = await getGitDiffBaseRef(repoRoot);
+    const diffResult = await runGitCommand(repoRoot, [
+      "diff",
+      "--numstat",
+      "--find-renames",
+      "--no-ext-diff",
+      "--submodule=diff",
+      baseRef,
+      "--",
+      ...trackedPaths,
+    ]);
+
+    for (const line of diffResult.stdout.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+
+      const [added = "0", removed = "0", ...pathParts] = trimmed.split("\t");
+      const repoRelativePath = pathParts.join("\t").trim();
+      if (!repoRelativePath) {
+        continue;
+      }
+
+      const projectRelativePath = toProjectRelativeGitPath(
+        projectPath,
+        repoRoot,
+        repoRelativePath,
+      );
+      if (!projectRelativePath) {
+        continue;
+      }
+
+      statsByPath.set(projectRelativePath, {
+        addedLines: parseNumstatValue(added),
+        removedLines: parseNumstatValue(removed),
+      });
+    }
+  }
+
+  for (const change of changes) {
+    if (statsByPath.has(change.path)) {
+      continue;
+    }
+
+    if (change.status === "untracked") {
+      statsByPath.set(
+        change.path,
+        await countUntrackedFileLines(projectPath, change.path),
+      );
+      continue;
+    }
+
+    statsByPath.set(change.path, { addedLines: 0, removedLines: 0 });
+  }
+
+  return statsByPath;
 };
 
 const buildUntrackedFileDiff = async (projectPath, filePath) => {

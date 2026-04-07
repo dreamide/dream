@@ -125,8 +125,10 @@ export type ProjectGitChangeStatus =
   | "untracked";
 
 export interface ProjectGitStatusEntry {
+  addedLines: number;
   path: string;
   previousPath: string | null;
+  removedLines: number;
   status: ProjectGitChangeStatus;
 }
 
