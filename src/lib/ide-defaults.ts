@@ -6,12 +6,11 @@ import type {
   PanelVisibility,
   PersistedIdeState,
   ProjectConfig,
-  ProviderAuthMode,
   ThreadConfig,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
-const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "gemini"];
+export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
 export const CLAUDE_CODE_MODEL_IDS = {
   haiku: "haiku",
   opus: "opus",
@@ -36,18 +35,8 @@ export const normalizeClaudeCodeModelId = (modelId: string): string => {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  anthropicAccessToken: "",
-  anthropicAccessTokenExpiresAt: null,
-  anthropicAuthMode: "apiKey",
-  anthropicApiKey: "",
-  anthropicRefreshToken: "",
   anthropicSelectedModels: [],
-  connectedProviders: [],
   defaultModel: "",
-  geminiApiKey: "",
-  geminiSelectedModels: [],
-  openAiAuthMode: "apiKey",
-  openAiApiKey: "",
   openAiSelectedModels: [],
   shellPath: "",
 };
@@ -122,48 +111,9 @@ export const createThreadConfig = (
 };
 
 export const getConnectedProviders = (settings: AppSettings): AiProvider[] => {
-  return Array.from(
-    new Set(
-      (Array.isArray(settings.connectedProviders)
-        ? settings.connectedProviders
-        : []
-      ).filter((provider): provider is AiProvider =>
-        ALL_PROVIDERS.includes(provider as AiProvider),
-      ),
-    ),
+  return ALL_PROVIDERS.filter(
+    (provider) => getModelsForProvider(provider, settings).length > 0,
   );
-};
-
-export const getProviderAuthMode = (
-  provider: AiProvider,
-  settings: AppSettings,
-): ProviderAuthMode => {
-  if (provider === "openai") {
-    return settings.openAiAuthMode;
-  }
-
-  if (provider === "anthropic") {
-    return settings.anthropicAuthMode;
-  }
-
-  return "apiKey";
-};
-
-export const getProviderCredential = (
-  provider: AiProvider,
-  settings: AppSettings,
-): string => {
-  const mode = getProviderAuthMode(provider, settings);
-
-  if (provider === "openai") {
-    return mode === "apiKey" ? settings.openAiApiKey : "";
-  }
-
-  if (provider === "anthropic") {
-    return mode === "apiKey" ? settings.anthropicApiKey : "claude-code";
-  }
-
-  return settings.geminiApiKey;
 };
 
 export const getDefaultModelForProvider = (
@@ -187,10 +137,6 @@ export const getModelsForProvider = (
   provider: AiProvider,
   settings: AppSettings,
 ): string[] => {
-  if (!getConnectedProviders(settings).includes(provider)) {
-    return [];
-  }
-
   const clean = (models: string[]): string[] => {
     return Array.from(
       new Set(models.map((model) => model.trim()).filter(Boolean)),
@@ -198,11 +144,7 @@ export const getModelsForProvider = (
   };
 
   if (provider === "anthropic") {
-    return clean(settings.anthropicSelectedModels);
-  }
-
-  if (provider === "gemini") {
-    return clean(settings.geminiSelectedModels);
+    return clean(settings.anthropicSelectedModels.map(normalizeClaudeCodeModelId));
   }
 
   return clean(settings.openAiSelectedModels);

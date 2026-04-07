@@ -27,16 +27,6 @@ const ANTHROPIC_TOKEN_LABELS: Record<string, string> = {
   sonnet: "Sonnet",
 };
 
-const GEMINI_TOKEN_LABELS: Record<string, string> = {
-  exp: "Experimental",
-  flash: "Flash",
-  gemini: "Gemini",
-  lite: "Lite",
-  preview: "Preview",
-  pro: "Pro",
-  thinking: "Thinking",
-};
-
 const formatToken = (
   provider: AiProvider,
   token: string,
@@ -57,9 +47,7 @@ const formatToken = (
   const labels =
     provider === "openai"
       ? OPENAI_TOKEN_LABELS
-      : provider === "anthropic"
-        ? ANTHROPIC_TOKEN_LABELS
-        : GEMINI_TOKEN_LABELS;
+      : ANTHROPIC_TOKEN_LABELS;
   const normalized = token.toLowerCase();
   const mapped = labels[normalized];
 
@@ -116,14 +104,6 @@ export const formatModelIdLabel = (
     ["opus", "sonnet", "haiku"].includes(parts[0]?.toLowerCase() ?? "")
   ) {
     return `Claude ${formatToken(provider, parts[0], true)}`;
-  }
-
-  if (provider === "gemini" && parts[0]?.toLowerCase() === "gemini") {
-    const rest = parts
-      .slice(1)
-      .map((part, index) => formatToken(provider, part, index === 0))
-      .join(" ");
-    return rest ? `Gemini ${rest}` : "Gemini";
   }
 
   return parts
@@ -199,12 +179,6 @@ const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
   [/^gpt-4-turbo/, 128_000],
   [/^gpt-4/, 128_000],
   [/^codex-/, 200_000],
-
-  // Gemini
-  [/^gemini-2/, 1_000_000],
-  [/^gemini-1[.-]5-pro/, 2_000_000],
-  [/^gemini-1[.-]5-flash/, 1_000_000],
-  [/^gemini-/, 1_000_000],
 ];
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
@@ -283,15 +257,6 @@ export const getModelReasoningEfforts = (
       if (majorOnly >= 4) {
         return ["low", "medium", "high"];
       }
-    }
-
-    return [];
-  }
-
-  // --- Gemini thinking models ------------------------------------------
-  if (provider === "gemini") {
-    if (id.includes("thinking")) {
-      return ["low", "medium", "high"];
     }
 
     return [];

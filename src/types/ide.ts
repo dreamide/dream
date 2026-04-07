@@ -1,13 +1,6 @@
 import type { UIMessage } from "ai";
 
-export type AiProvider = "openai" | "anthropic" | "gemini";
-export type OpenAiAuthMode = "apiKey" | "codex";
-export type AnthropicAuthMode = "apiKey" | "claudeCode";
-export type GeminiAuthMode = "apiKey";
-export type ProviderAuthMode =
-  | OpenAiAuthMode
-  | AnthropicAuthMode
-  | GeminiAuthMode;
+export type AiProvider = "openai" | "anthropic";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 export type ChatMode = "plan" | "build";
@@ -43,19 +36,9 @@ export interface ProjectConfig {
 }
 
 export interface AppSettings {
-  connectedProviders: AiProvider[];
-  openAiAuthMode: OpenAiAuthMode;
-  openAiApiKey: string;
-  anthropicAuthMode: AnthropicAuthMode;
-  anthropicApiKey: string;
-  anthropicAccessToken: string;
-  anthropicRefreshToken: string;
-  anthropicAccessTokenExpiresAt: number | null;
-  geminiApiKey: string;
   defaultModel: string;
   openAiSelectedModels: string[];
   anthropicSelectedModels: string[];
-  geminiSelectedModels: string[];
   shellPath: string;
 }
 

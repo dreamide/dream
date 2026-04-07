@@ -67,8 +67,6 @@ import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
   getModelOptionsForProvider,
-  getProviderAuthMode,
-  getProviderCredential,
 } from "@/lib/ide-defaults";
 import {
   estimateTokenCount,
@@ -107,7 +105,6 @@ const EMPTY_MESSAGES: UIMessage[] = [];
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
-  gemini: "Gemini",
 };
 
 const MESSAGE_RENDER_STYLE = {
@@ -372,7 +369,6 @@ export const ChatPanel = ({
   const autoAcceptEdits = useIdeStore((s) => s.autoAcceptEdits);
   const setAutoAcceptEdits = useIdeStore((s) => s.setAutoAcceptEdits);
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
-  const setSettings = useIdeStore((s) => s.setSettings);
   const updateThread = useIdeStore((s) => s.updateThread);
   const { branch } = useProjectGitStatus(project.path);
   const connectedProviders = getConnectedProviders(settings);
@@ -411,18 +407,7 @@ export const ChatPanel = ({
         option.provider === thread.provider && option.id === thread.model,
     ) ?? allModelOptions[0];
   const selectedProvider = selectedModelOption?.provider ?? thread.provider;
-  const isProviderConnected = connectedProviders.includes(selectedProvider);
-  const providerAuthMode = getProviderAuthMode(selectedProvider, settings);
-  const providerCredential = getProviderCredential(selectedProvider, settings);
-  const usesCodexLogin =
-    selectedProvider === "openai" && providerAuthMode === "codex";
-  const usesAnthropicProMax =
-    selectedProvider === "anthropic" && providerAuthMode === "claudeProMax";
-  const hasProviderCredential = usesCodexLogin
-    ? true
-    : usesAnthropicProMax
-      ? settings.anthropicRefreshToken.trim().length > 0
-      : providerCredential.trim().length > 0;
+  const isProviderInstalled = providerModels[selectedProvider]?.installed ?? false;
   const [localError, setLocalError] = useState<string | null>(null);
 
   const transport = useMemo(
@@ -549,9 +534,7 @@ export const ChatPanel = ({
   const modelId =
     selectedProvider === "anthropic"
       ? `anthropic:${selectedModel}`
-      : selectedProvider === "openai"
-        ? `openai:${selectedModel}`
-        : `google:${selectedModel}`;
+      : `openai:${selectedModel}`;
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -565,118 +548,18 @@ export const ChatPanel = ({
         ) ?? allModelOptions[0];
       const activeProvider = activeOption?.provider ?? selectedProvider;
       const activeModel = activeOption?.id ?? "";
-      const activeProviderAuthMode = getProviderAuthMode(
-        activeProvider,
-        settings,
-      );
-      const activeProviderCredential = getProviderCredential(
-        activeProvider,
-        settings,
-      );
-      const activeUsesCodexLogin =
-        activeProvider === "openai" && activeProviderAuthMode === "codex";
-      const activeUsesAnthropicProMax =
-        activeProvider === "anthropic" &&
-        activeProviderAuthMode === "claudeProMax";
-      const activeProviderConnected =
-        connectedProviders.includes(activeProvider);
-      let requestCredential = activeProviderCredential;
-      let anthropicOAuth:
-        | {
-            accessToken: string;
-            expiresAt: number;
-            refreshToken: string;
-          }
-        | undefined;
+      const activeProviderInstalled =
+        providerModels[activeProvider]?.installed ?? false;
 
-      if (!activeProviderConnected) {
+      if (!activeProviderInstalled) {
         setLocalError(
-          "Connect a provider in Settings before sending a prompt.",
+          `${PROVIDER_LABELS[activeProvider]} CLI is not available. Check Settings > Providers.`,
         );
         return;
       }
 
       if (!activeModel) {
         setLocalError("Enable at least one model in Settings first.");
-        return;
-      }
-
-      if (
-        activeUsesAnthropicProMax &&
-        settings.anthropicRefreshToken.trim().length === 0
-      ) {
-        setLocalError(
-          "Complete Claude Pro/Max login in Settings before sending a prompt.",
-        );
-        return;
-      }
-
-      if (activeUsesAnthropicProMax) {
-        let nextAccessToken = settings.anthropicAccessToken.trim();
-        let nextRefreshToken = settings.anthropicRefreshToken.trim();
-        let nextExpiresAt =
-          typeof settings.anthropicAccessTokenExpiresAt === "number"
-            ? settings.anthropicAccessTokenExpiresAt
-            : Date.now() - 1;
-
-        const needsRefresh =
-          !nextAccessToken || nextExpiresAt <= Date.now() + 15_000;
-
-        if (needsRefresh) {
-          const refreshResponse = await fetch("/api/anthropic-oauth/refresh", {
-            body: JSON.stringify({ refreshToken: nextRefreshToken }),
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          });
-
-          if (!refreshResponse.ok) {
-            const message = await refreshResponse.text();
-            setLocalError(
-              message || "Unable to refresh Claude Pro/Max access token.",
-            );
-            return;
-          }
-
-          const refreshed = (await refreshResponse.json()) as {
-            accessToken?: string;
-            expiresAt?: number;
-            refreshToken?: string;
-          };
-
-          nextAccessToken = refreshed.accessToken?.trim() ?? "";
-          nextRefreshToken = refreshed.refreshToken?.trim() ?? "";
-          nextExpiresAt =
-            typeof refreshed.expiresAt === "number"
-              ? refreshed.expiresAt
-              : Date.now() - 1;
-
-          setSettings((previous) => ({
-            ...previous,
-            anthropicAccessToken: nextAccessToken,
-            anthropicAccessTokenExpiresAt: nextExpiresAt,
-            anthropicRefreshToken: nextRefreshToken,
-          }));
-        }
-
-        if (!nextAccessToken || !nextRefreshToken) {
-          setLocalError(
-            "Complete Claude Pro/Max login in Settings before sending a prompt.",
-          );
-          return;
-        }
-
-        requestCredential = nextAccessToken;
-        anthropicOAuth = {
-          accessToken: nextAccessToken,
-          expiresAt: nextExpiresAt,
-          refreshToken: nextRefreshToken,
-        };
-      }
-
-      if (!requestCredential && !activeUsesCodexLogin) {
-        setLocalError(
-          `Add a ${activeProvider === "anthropic" ? "Anthropic" : activeProvider === "gemini" ? "Gemini" : "OpenAI"} credential in Settings first.`,
-        );
         return;
       }
 
@@ -701,10 +584,7 @@ export const ChatPanel = ({
           },
           {
             body: {
-              authMode: activeProviderAuthMode,
-              anthropicOAuth,
               chatMode: selectedChatMode,
-              credential: requestCredential,
               model: activeModel,
               projectPath: project.path,
               provider: activeProvider,
@@ -722,14 +602,12 @@ export const ChatPanel = ({
       allModelOptions,
       clearError,
       threadMessages,
-      connectedProviders,
+      providerModels,
       project.path,
       selectedChatMode,
       selectedProvider,
       selectedReasoningEffort,
       sendMessage,
-      setSettings,
-      settings,
       thread,
       updateThread,
     ],
@@ -886,8 +764,7 @@ export const ChatPanel = ({
                   <PromptInputSubmit
                     className="size-8 rounded-md"
                     disabled={
-                      !isProviderConnected ||
-                      !hasProviderCredential ||
+                      !isProviderInstalled ||
                       selectedModel === ""
                     }
                     onStop={stop}
@@ -967,7 +844,7 @@ export const ChatPanel = ({
                 >
                   {groupedModelOptions.map((group) => (
                     <SelectGroup key={group.provider}>
-                      {connectedProviders.length > 1 && (
+                      {groupedModelOptions.length > 1 && (
                         <SelectLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                           {group.label}
                         </SelectLabel>

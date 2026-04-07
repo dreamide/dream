@@ -13,6 +13,7 @@ import {
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
+  DEFAULT_PROVIDER,
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
@@ -22,12 +23,7 @@ import type {
   ProjectConfig,
   ThreadConfig,
 } from "@/types/ide";
-import {
-  dedupeModels,
-  inferConnectedProviders,
-  normalizeChatMode,
-  normalizeReasoningEffort,
-} from "./ide-types";
+import { dedupeModels, normalizeChatMode, normalizeReasoningEffort } from "./ide-types";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
@@ -54,6 +50,31 @@ const normalizePanelSize = (
     ? value
     : fallback;
 
+const normalizeProvider = (value: unknown): "openai" | "anthropic" => {
+  return value === "anthropic" ? "anthropic" : DEFAULT_PROVIDER;
+};
+
+const normalizeProject = (
+  project: ProjectConfig,
+  settings: AppSettings,
+): ProjectConfig => {
+  const provider = normalizeProvider(project.provider);
+  const model =
+    typeof project.model === "string"
+      ? provider === "anthropic"
+        ? normalizeClaudeCodeModelId(project.model)
+        : project.model.trim()
+      : "";
+  const defaultModel = getPreferredDefaultModel(settings);
+
+  return {
+    ...project,
+    model: model || defaultModel,
+    provider,
+    reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
+  };
+};
+
 const normalizeThread = (
   thread: ThreadConfig,
   projectsById: Map<string, ProjectConfig>,
@@ -72,17 +93,12 @@ const normalizeThread = (
     typeof thread.updatedAt === "string" && thread.updatedAt.trim().length > 0
       ? thread.updatedAt
       : createdAt;
-  const provider =
-    thread.provider === "anthropic" ||
-    thread.provider === "gemini" ||
-    thread.provider === "openai"
-      ? thread.provider
-      : project.provider;
+  const provider = normalizeProvider(thread.provider);
   const model =
     typeof thread.model === "string"
       ? provider === "anthropic"
         ? normalizeClaudeCodeModelId(thread.model)
-        : thread.model
+        : thread.model.trim()
       : project.model;
 
   return {
@@ -96,7 +112,7 @@ const normalizeThread = (
       (thread as unknown as Record<string, unknown>).chatMode,
     ),
     createdAt,
-    model,
+    model: model || project.model,
     provider,
     reasoningEffort: normalizeReasoningEffort(thread.reasoningEffort),
     remoteConversationId:
@@ -116,119 +132,49 @@ export const mergePersistedState = (
     return emptyState;
   }
 
-  const projects = (Array.isArray(state.projects) ? state.projects : []).map(
-    (project) => ({
-      ...project,
-      reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
-    }),
-  );
-  const projectsById = new Map(
-    projects.map((project) => [project.id, project]),
-  );
-  const rawSettings = (state.settings ?? {}) as Partial<AppSettings>;
-  const rawSettingsRecord = rawSettings as Record<string, unknown>;
-  const hasExplicitConnectedProviders = Object.hasOwn(
-    rawSettings,
-    "connectedProviders",
-  );
+  const rawSettings = (state.settings ?? {}) as Partial<AppSettings> &
+    Record<string, unknown>;
+
   const mergedSettings: AppSettings = {
     ...DEFAULT_SETTINGS,
-    ...rawSettings,
+    anthropicSelectedModels: dedupeModels(
+      Array.isArray(rawSettings.anthropicSelectedModels)
+        ? rawSettings.anthropicSelectedModels.map(normalizeClaudeCodeModelId)
+        : [],
+    ),
+    defaultModel:
+      typeof rawSettings.defaultModel === "string"
+        ? rawSettings.defaultModel
+        : "",
+    openAiSelectedModels: dedupeModels(
+      Array.isArray(rawSettings.openAiSelectedModels)
+        ? rawSettings.openAiSelectedModels
+        : [],
+    ),
+    shellPath:
+      typeof rawSettings.shellPath === "string" ? rawSettings.shellPath : "",
   };
 
-  if ((mergedSettings.openAiAuthMode as string) === "oauth") {
-    mergedSettings.openAiAuthMode = "codex";
-  }
-
-  if (
-    mergedSettings.openAiAuthMode !== "apiKey" &&
-    mergedSettings.openAiAuthMode !== "codex"
-  ) {
-    mergedSettings.openAiAuthMode = "apiKey";
-  }
-
-  if ((rawSettings.anthropicAuthMode as string) === "claudeProMax") {
-    mergedSettings.anthropicAuthMode = "claudeCode";
-  }
-
-  if (
-    mergedSettings.anthropicAuthMode !== "apiKey" &&
-    mergedSettings.anthropicAuthMode !== "claudeCode"
-  ) {
-    mergedSettings.anthropicAuthMode = "apiKey";
-  }
-
-  mergedSettings.anthropicAccessToken =
-    typeof mergedSettings.anthropicAccessToken === "string"
-      ? mergedSettings.anthropicAccessToken
-      : "";
-  mergedSettings.anthropicRefreshToken =
-    typeof mergedSettings.anthropicRefreshToken === "string"
-      ? mergedSettings.anthropicRefreshToken
-      : "";
-  mergedSettings.anthropicAccessTokenExpiresAt =
-    typeof mergedSettings.anthropicAccessTokenExpiresAt === "number"
-      ? mergedSettings.anthropicAccessTokenExpiresAt
-      : null;
-  mergedSettings.geminiApiKey =
-    typeof mergedSettings.geminiApiKey === "string"
-      ? mergedSettings.geminiApiKey
-      : "";
-
-  const openAiSelectedModels = dedupeModels(
-    Array.isArray(mergedSettings.openAiSelectedModels)
-      ? mergedSettings.openAiSelectedModels
-      : [],
-  );
-  mergedSettings.openAiSelectedModels = openAiSelectedModels;
-
-  const anthropicSelectedModels = dedupeModels(
-    Array.isArray(mergedSettings.anthropicSelectedModels)
-      ? mergedSettings.anthropicSelectedModels.map(normalizeClaudeCodeModelId)
-      : [],
-  );
-  mergedSettings.anthropicSelectedModels = anthropicSelectedModels;
-
-  const geminiSelectedModels = dedupeModels(
-    Array.isArray(mergedSettings.geminiSelectedModels)
-      ? mergedSettings.geminiSelectedModels
-      : [],
-  );
-  mergedSettings.geminiSelectedModels = geminiSelectedModels;
-
-  mergedSettings.connectedProviders = inferConnectedProviders(
-    mergedSettings,
-    hasExplicitConnectedProviders,
-  );
-
-  const legacyDefaultModelCandidates = [
-    typeof rawSettingsRecord.defaultModel === "string"
-      ? rawSettingsRecord.defaultModel
+  const legacyDefaultCandidates = [
+    mergedSettings.defaultModel,
+    typeof rawSettings.defaultOpenAiModel === "string"
+      ? rawSettings.defaultOpenAiModel
       : "",
-    ...mergedSettings.connectedProviders.map((provider) => {
-      if (provider === "anthropic") {
-        return typeof rawSettingsRecord.defaultAnthropicModel === "string"
-          ? normalizeClaudeCodeModelId(rawSettingsRecord.defaultAnthropicModel)
-          : "";
-      }
-
-      if (provider === "gemini") {
-        return typeof rawSettingsRecord.defaultGeminiModel === "string"
-          ? rawSettingsRecord.defaultGeminiModel
-          : "";
-      }
-
-      return typeof rawSettingsRecord.defaultOpenAiModel === "string"
-        ? rawSettingsRecord.defaultOpenAiModel
-        : "";
-    }),
-  ];
+    typeof rawSettings.defaultAnthropicModel === "string"
+      ? normalizeClaudeCodeModelId(rawSettings.defaultAnthropicModel)
+      : "",
+  ].filter((model): model is string => typeof model === "string" && model.length > 0);
 
   mergedSettings.defaultModel = getPreferredDefaultModel(
     mergedSettings,
-    legacyDefaultModelCandidates.find(
-      (model): model is string => typeof model === "string" && model.length > 0,
-    ) ?? "",
+    legacyDefaultCandidates[0] ?? "",
+  );
+
+  const projects = (Array.isArray(state.projects) ? state.projects : []).map(
+    (project) => normalizeProject(project, mergedSettings),
+  );
+  const projectsById = new Map(
+    projects.map((project) => [project.id, project]),
   );
 
   const rawThreads = Array.isArray(state.threads) ? state.threads : [];
@@ -322,42 +268,20 @@ export const mergePersistedState = (
 export const ensureActiveProject = (
   projects: ProjectConfig[],
   activeProjectId: string | null,
-): string | null => {
-  if (projects.length === 0) {
-    return null;
-  }
-
-  if (
-    activeProjectId &&
-    projects.some((project) => project.id === activeProjectId)
-  ) {
+) => {
+  if (activeProjectId && projects.some((project) => project.id === activeProjectId)) {
     return activeProjectId;
   }
 
   return projects[0]?.id ?? null;
 };
 
-export const getThreadsForProject = (
-  threads: ThreadConfig[],
-  projectId: string,
-): ThreadConfig[] => {
-  const projectThreads = threads.filter(
-    (thread) => thread.projectId === projectId && thread.archivedAt === null,
-  );
-
-  return projectThreads.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-};
-
 export const ensureActiveThreadForProject = (
   threads: ThreadConfig[],
   projectId: string,
   activeThreadId: string | null,
-): string | null => {
-  const projectThreads = getThreadsForProject(threads, projectId);
-  if (projectThreads.length === 0) {
-    return null;
-  }
-
+) => {
+  const projectThreads = threads.filter((thread) => thread.projectId === projectId);
   if (
     activeThreadId &&
     projectThreads.some((thread) => thread.id === activeThreadId)
@@ -368,33 +292,55 @@ export const ensureActiveThreadForProject = (
   return projectThreads[0]?.id ?? null;
 };
 
-export const renderUserMessageText = (message: UIMessage): string => {
-  return message.parts
-    .flatMap((part) => {
-      if (part.type !== "text") {
-        return [];
-      }
+export const getThreadsForProject = (
+  threads: ThreadConfig[],
+  projectId: string,
+) => threads.filter((thread) => thread.projectId === projectId);
 
-      return [part.text];
-    })
-    .join("\n")
-    .trim();
+export const renderUserMessageText = (message: UIMessage): string => {
+  const parts = Array.isArray(message.parts) ? message.parts : [];
+  const sections: string[] = [];
+
+  for (const part of parts) {
+    if (!part || typeof part !== "object") {
+      continue;
+    }
+
+    if (part.type === "text" && typeof part.text === "string") {
+      const text = part.text.trim();
+      if (text) {
+        sections.push(text);
+      }
+      continue;
+    }
+
+    if (part.type === "file") {
+      const label =
+        (typeof part.filename === "string" && part.filename.trim()) ||
+        (typeof part.mediaType === "string" && part.mediaType.trim()) ||
+        "attachment";
+      sections.push(`[Attached file: ${label}]`);
+    }
+  }
+
+  return sections.join("\n\n");
 };
 
 export const stringifyPart = (
-  part:
-    | unknown
+  value:
+    | UIMessage
+    | TextUIPart
+    | ReasoningUIPart
+    | ToolUIPart
     | DynamicToolUIPart
     | FileUIPart
-    | ReasoningUIPart
-    | SourceDocumentUIPart
     | SourceUrlUIPart
-    | TextUIPart
-    | ToolUIPart,
-): string => {
+    | SourceDocumentUIPart
+    | unknown,
+) => {
   try {
-    return JSON.stringify(part, null, 2);
+    return JSON.stringify(value, null, 2);
   } catch {
-    return "[unserializable part]";
+    return String(value);
   }
 };

@@ -35,24 +35,10 @@ export const AnthropicIcon = ({ className, ...props }: IconProps) => (
   </svg>
 );
 
-export const GeminiIcon = ({ className, ...props }: IconProps) => (
-  <svg
-    className={cn("size-3.5", className)}
-    fill="currentColor"
-    role="img"
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
-    <path d="M12 0C12 6.6274 6.6274 12 0 12c6.6274 0 12 5.3726 12 12 0-6.6274 5.3726-12 12-12-6.6274 0-12-5.3726-12-12z" />
-  </svg>
-);
-
 export const ProviderIcon = ({
   provider,
   ...props
 }: IconProps & { provider: AiProvider }) => {
   if (provider === "anthropic") return <AnthropicIcon {...props} />;
-  if (provider === "gemini") return <GeminiIcon {...props} />;
   return <OpenAiIcon {...props} />;
 };

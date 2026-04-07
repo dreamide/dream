@@ -9,14 +9,10 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { serve } from "@hono/node-server";
 import {
   convertToModelMessages,
@@ -30,123 +26,7 @@ import { claudeCode } from "ai-sdk-provider-claude-code";
 import { Hono } from "hono";
 import { z } from "zod";
 
-// ---------------------------------------------------------------------------
-// Anthropic OAuth helpers (was src/lib/anthropic-oauth.ts)
-// ---------------------------------------------------------------------------
-
-const ANTHROPIC_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-const ANTHROPIC_OAUTH_REDIRECT_URI =
-  "https://console.anthropic.com/oauth/code/callback";
-const ANTHROPIC_OAUTH_SCOPE = "org:create_api_key user:profile user:inference";
-const ANTHROPIC_OAUTH_TOKEN_URL =
-  "https://console.anthropic.com/v1/oauth/token";
-const ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER =
-  "oauth-2025-04-20,interleaved-thinking-2025-05-14";
 const execFileAsync = promisify(execFile);
-
-const toBase64Url = (input) => {
-  return input
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-};
-
-const generateAnthropicPkceVerifier = () => {
-  return toBase64Url(randomBytes(48));
-};
-
-const getPkceChallenge = (verifier) => {
-  return toBase64Url(createHash("sha256").update(verifier).digest());
-};
-
-const createAnthropicAuthorizationUrl = (mode, verifier) => {
-  const url = new URL(
-    `https://${mode === "console" ? "console.anthropic.com" : "claude.ai"}/oauth/authorize`,
-  );
-  url.searchParams.set("code", "true");
-  url.searchParams.set("client_id", ANTHROPIC_OAUTH_CLIENT_ID);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("redirect_uri", ANTHROPIC_OAUTH_REDIRECT_URI);
-  url.searchParams.set("scope", ANTHROPIC_OAUTH_SCOPE);
-  url.searchParams.set("code_challenge", getPkceChallenge(verifier));
-  url.searchParams.set("code_challenge_method", "S256");
-  url.searchParams.set("state", verifier);
-  return url.toString();
-};
-
-const parseAnthropicCode = (codeInput) => {
-  const [code = "", state] = codeInput.trim().split("#");
-  return { code, state };
-};
-
-const parseOAuthTokenResponse = async (response) => {
-  if (!response.ok) {
-    throw new Error(`Anthropic OAuth request failed (${response.status}).`);
-  }
-
-  const payload = await response.json();
-  const accessToken = payload.access_token?.trim() ?? "";
-  const refreshToken = payload.refresh_token?.trim() ?? "";
-  const expiresIn = payload.expires_in ?? 0;
-
-  if (!accessToken || !refreshToken || !expiresIn) {
-    throw new Error(
-      "Anthropic OAuth response is missing required token fields.",
-    );
-  }
-
-  return {
-    accessToken,
-    expiresAt: Date.now() + expiresIn * 1000,
-    refreshToken,
-  };
-};
-
-const exchangeAnthropicAuthorizationCode = async (codeInput, verifier) => {
-  const { code, state } = parseAnthropicCode(codeInput);
-  if (!code) {
-    throw new Error("Authorization code is required.");
-  }
-
-  const response = await fetch(ANTHROPIC_OAUTH_TOKEN_URL, {
-    body: JSON.stringify({
-      client_id: ANTHROPIC_OAUTH_CLIENT_ID,
-      code,
-      code_verifier: verifier,
-      grant_type: "authorization_code",
-      redirect_uri: ANTHROPIC_OAUTH_REDIRECT_URI,
-      state,
-    }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-
-  return parseOAuthTokenResponse(response);
-};
-
-const refreshAnthropicAccessToken = async (refreshToken) => {
-  const token = refreshToken.trim();
-  if (!token) {
-    throw new Error("Refresh token is required.");
-  }
-
-  const response = await fetch(ANTHROPIC_OAUTH_TOKEN_URL, {
-    body: JSON.stringify({
-      client_id: ANTHROPIC_OAUTH_CLIENT_ID,
-      grant_type: "refresh_token",
-      refresh_token: token,
-    }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-
-  return parseOAuthTokenResponse(response);
-};
-
-// ---------------------------------------------------------------------------
-// Codex Auth helpers (was src/lib/codex-auth.ts)
-// ---------------------------------------------------------------------------
 
 const CODEX_AUTH_FILE = path.join(os.homedir(), ".codex", "auth.json");
 
@@ -159,50 +39,14 @@ const readCodexAuthFile = async () => {
   }
 };
 
-const readCodexCredential = async () => {
+const readCodexAccessToken = async () => {
   const authData = await readCodexAuthFile();
 
   if (!authData) {
-    return { authMode: "unknown", credential: null, source: "none" };
+    return null;
   }
 
-  const authMode = authData.auth_mode ?? "unknown";
-  const accessToken = authData.tokens?.access_token?.trim();
-
-  if (accessToken) {
-    return { authMode, credential: accessToken, source: "chatgpt" };
-  }
-
-  const apiKey = authData.OPENAI_API_KEY?.trim();
-  if (apiKey) {
-    return { authMode, credential: apiKey, source: "apiKey" };
-  }
-
-  return { authMode, credential: null, source: "none" };
-};
-
-const getCodexAuthStatus = async () => {
-  const credential = await readCodexCredential();
-
-  if (!credential.credential) {
-    return {
-      authMode: credential.authMode,
-      loggedIn: false,
-      message:
-        credential.authMode === "unknown"
-          ? "Not logged in. Run `codex login` in your terminal."
-          : "Codex auth file found, but no usable credential is available.",
-    };
-  }
-
-  return {
-    authMode: credential.authMode,
-    loggedIn: true,
-    message:
-      credential.source === "chatgpt"
-        ? `Logged in with ChatGPT via Codex (${credential.authMode}).`
-        : `Logged in with API key via Codex (${credential.authMode}).`,
-  };
+  return authData.tokens?.access_token?.trim() || null;
 };
 
 // ---------------------------------------------------------------------------
@@ -247,10 +91,6 @@ const getModelReasoningEfforts = (provider, modelId) => {
     return [];
   }
 
-  if (provider === "gemini") {
-    return id.includes("thinking") ? ["low", "medium", "high"] : [];
-  }
-
   return [];
 };
 
@@ -276,16 +116,6 @@ const ANTHROPIC_TOKEN_LABELS = {
   sonnet: "Sonnet",
 };
 
-const GEMINI_TOKEN_LABELS = {
-  exp: "Experimental",
-  flash: "Flash",
-  gemini: "Gemini",
-  lite: "Lite",
-  preview: "Preview",
-  pro: "Pro",
-  thinking: "Thinking",
-};
-
 const formatToken = (provider, token, isFirstToken) => {
   if (!token) return "";
   if (/^\d+(\.\d+)*$/.test(token)) return token;
@@ -293,9 +123,7 @@ const formatToken = (provider, token, isFirstToken) => {
   const labels =
     provider === "openai"
       ? OPENAI_TOKEN_LABELS
-      : provider === "anthropic"
-        ? ANTHROPIC_TOKEN_LABELS
-        : GEMINI_TOKEN_LABELS;
+      : ANTHROPIC_TOKEN_LABELS;
   const normalized = token.toLowerCase();
   const mapped = labels[normalized];
   if (mapped) return mapped;
@@ -327,13 +155,6 @@ const formatModelIdLabel = (provider, modelId) => {
     ["opus", "sonnet", "haiku"].includes(parts[0]?.toLowerCase() ?? "")
   ) {
     return `Claude ${formatToken(provider, parts[0], true)}`;
-  }
-  if (provider === "gemini" && parts[0]?.toLowerCase() === "gemini") {
-    const rest = parts
-      .slice(1)
-      .map((p, i) => formatToken(provider, p, i === 0))
-      .join(" ");
-    return rest ? `Gemini ${rest}` : "Gemini";
   }
   return parts.map((p, i) => formatToken(provider, p, i === 0)).join(" ");
 };
@@ -545,102 +366,10 @@ const formatStreamError = (error) => {
 
 const app = new Hono();
 
-app.get("/api/codex-auth", async (c) => {
-  const status = await getCodexAuthStatus();
-  return c.json(status);
-});
-
-app.post("/api/anthropic-oauth/authorize", async (c) => {
-  let rawBody;
-  try {
-    rawBody = await c.req.json();
-  } catch {
-    return c.text("Invalid JSON payload.", 400);
-  }
-
-  const requestBodySchema = z.object({
-    mode: z.enum(["max", "console"]).default("max"),
-  });
-  const parsed = requestBodySchema.safeParse(rawBody);
-  if (!parsed.success) {
-    return c.text(parsed.error.message, 400);
-  }
-
-  const mode = parsed.data.mode;
-  const verifier = generateAnthropicPkceVerifier();
-  const url = createAnthropicAuthorizationUrl(mode, verifier);
-
-  return c.json({ url, verifier });
-});
-
-app.post("/api/anthropic-oauth/exchange", async (c) => {
-  let rawBody;
-  try {
-    rawBody = await c.req.json();
-  } catch {
-    return c.text("Invalid JSON payload.", 400);
-  }
-
-  const requestBodySchema = z.object({
-    code: z.string().min(1),
-    verifier: z.string().min(1),
-  });
-  const parsed = requestBodySchema.safeParse(rawBody);
-  if (!parsed.success) {
-    return c.text(parsed.error.message, 400);
-  }
-
-  try {
-    const tokens = await exchangeAnthropicAuthorizationCode(
-      parsed.data.code,
-      parsed.data.verifier,
-    );
-    return c.json(tokens);
-  } catch (error) {
-    return c.text(
-      error instanceof Error
-        ? error.message
-        : "Unable to exchange Anthropic authorization code.",
-      400,
-    );
-  }
-});
-
-app.post("/api/anthropic-oauth/refresh", async (c) => {
-  let rawBody;
-  try {
-    rawBody = await c.req.json();
-  } catch {
-    return c.text("Invalid JSON payload.", 400);
-  }
-
-  const requestBodySchema = z.object({
-    refreshToken: z.string().min(1),
-  });
-  const parsed = requestBodySchema.safeParse(rawBody);
-  if (!parsed.success) {
-    return c.text(parsed.error.message, 400);
-  }
-
-  try {
-    const tokens = await refreshAnthropicAccessToken(parsed.data.refreshToken);
-    return c.json(tokens);
-  } catch (error) {
-    return c.text(
-      error instanceof Error
-        ? error.message
-        : "Unable to refresh Anthropic access token.",
-      400,
-    );
-  }
-});
-
 // ── /api/provider-models ─────────────────────────────────────────────────────
 
-const OPENAI_MODELS_URL = "https://api.openai.com/v1/models";
 const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
-const ANTHROPIC_MODELS_URL = "https://api.anthropic.com/v1/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
 
 const dedupeAndSort = (models) => {
@@ -651,30 +380,6 @@ const dedupeAndSort = (models) => {
 
 const isOpenAiChatModel = (model) => {
   return model.startsWith("gpt-") || /^o\d/.test(model);
-};
-
-const fetchOpenAiModelsWithApiKey = async (apiKey) => {
-  const response = await fetch(OPENAI_MODELS_URL, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    method: "GET",
-  });
-  if (!response.ok) {
-    throw new Error(`OpenAI request failed (${response.status}).`);
-  }
-  const payload = await response.json();
-  const modelIds = (payload.data ?? []).flatMap((entry) => {
-    const id = entry.id?.trim() ?? "";
-    return id ? [id] : [];
-  });
-  const chatModels = modelIds.filter((model) => isOpenAiChatModel(model));
-  return dedupeAndSort(
-    (chatModels.length > 0 ? chatModels : modelIds).map((id) =>
-      createModelOption("openai", id),
-    ),
-  );
 };
 
 const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
@@ -699,280 +404,113 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
   return dedupeAndSort(modelIds);
 };
 
-const fetchOpenAiModels = async (authMode, openAiApiKey) => {
-  if (authMode === "apiKey") {
-    if (!openAiApiKey) {
-      return {
-        error: "Add an OpenAI API key to fetch the latest model list.",
-        models: [],
-        source: "unavailable",
-      };
+const isCliCommandAvailable = async (commandName) => {
+  try {
+    if (process.platform === "win32") {
+      await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-Command",
+          `(Get-Command ${commandName} -ErrorAction Stop).Path`,
+        ],
+        {
+          encoding: "utf8",
+          windowsHide: true,
+        },
+      );
+      return true;
     }
-    try {
-      const models = await fetchOpenAiModelsWithApiKey(openAiApiKey);
-      if (models.length === 0) {
-        return {
-          error: "OpenAI returned no models.",
-          models: [],
-          source: "unavailable",
-        };
-      }
-      return { models, source: "api" };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to fetch OpenAI models.",
-        models: [],
-        source: "unavailable",
-      };
-    }
+
+    await execFileAsync("which", [commandName], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const fetchOpenAiModels = async () => {
+  const installed = await isCliCommandAvailable("codex");
+  if (!installed) {
+    return {
+      error: "Codex CLI is not installed or not available on PATH.",
+      installed: false,
+      models: [],
+      source: "unavailable",
+    };
   }
 
-  const codexCredential = await readCodexCredential();
-  if (!codexCredential.credential) {
+  const accessToken = await readCodexAccessToken();
+  if (!accessToken) {
     return {
       error: "Run `codex login` to fetch Codex models.",
+      installed: true,
       models: [],
       source: "unavailable",
     };
   }
 
-  if (codexCredential.source === "chatgpt") {
-    try {
-      const models = await fetchOpenAiModelsWithCodexChatgpt(
-        codexCredential.credential,
-      );
-      if (models.length === 0) {
-        return {
-          error: "Codex returned no models.",
-          models: [],
-          source: "unavailable",
-        };
-      }
-      return { models, source: "api" };
-    } catch (error) {
-      return {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to fetch Codex models.",
-        models: [],
-        source: "unavailable",
-      };
-    }
-  }
-
   try {
-    const models = await fetchOpenAiModelsWithApiKey(
-      codexCredential.credential,
-    );
+    const models = await fetchOpenAiModelsWithCodexChatgpt(accessToken);
     if (models.length === 0) {
       return {
-        error: "OpenAI returned no models.",
+        error: "Codex returned no models.",
+        installed: true,
         models: [],
         source: "unavailable",
       };
     }
-    return { models, source: "api" };
+
+    return { installed: true, models, source: "cli" };
   } catch (error) {
     return {
       error:
         error instanceof Error
           ? error.message
-          : "Unable to fetch OpenAI models.",
+          : "Unable to fetch Codex models.",
+      installed: true,
       models: [],
       source: "unavailable",
     };
   }
 };
-
-const isAnthropicTokenExpired = (expiresAt) => {
-  if (typeof expiresAt !== "number") return true;
-  return expiresAt <= Date.now() + 15_000;
-};
-
-const _fetchAnthropicModelsWithOAuth = async (oauthInput) => {
-  const refreshToken = oauthInput.refreshToken.trim();
-  if (!refreshToken) {
+const fetchAnthropicModels = async () => {
+  const installed = await isCliCommandAvailable("claude");
+  if (!installed) {
     return {
-      error: "Log in with Claude Pro/Max before fetching models.",
+      error: "Claude Code CLI is not installed or not available on PATH.",
+      installed: false,
       models: [],
       source: "unavailable",
     };
   }
-
-  let tokens = {
-    accessToken: oauthInput.accessToken.trim(),
-    expiresAt: oauthInput.expiresAt,
-    refreshToken,
-  };
 
   try {
-    if (!tokens.accessToken || isAnthropicTokenExpired(tokens.expiresAt)) {
-      const refreshed = await refreshAnthropicAccessToken(tokens.refreshToken);
-      tokens = {
-        accessToken: refreshed.accessToken,
-        expiresAt: refreshed.expiresAt,
-        refreshToken: refreshed.refreshToken,
-      };
-    }
-
-    const requestModels = async (accessToken) => {
-      const response = await fetch(ANTHROPIC_MODELS_URL, {
-        headers: {
-          "anthropic-beta": ANTHROPIC_OAUTH_REQUIRED_BETA_HEADER,
-          "anthropic-version": "2023-06-01",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        method: "GET",
-      });
-      if (!response.ok) {
-        throw new Error(`Anthropic request failed (${response.status}).`);
-      }
-      const payload = await response.json();
-      return dedupeAndSort(
-        (payload.data ?? []).flatMap((entry) => {
-          const id = entry.id?.trim() ?? "";
-          return id
-            ? [createModelOption("anthropic", id, entry.display_name)]
-            : [];
-        }),
-      );
-    };
-
-    const models = await requestModels(tokens.accessToken);
+    const models = await fetchClaudeCodeModelOptionsFromDocs();
     if (models.length === 0) {
       return {
-        error: "Anthropic returned no models.",
+        error: "Claude Code returned no supported models.",
+        installed: true,
         models: [],
         source: "unavailable",
       };
     }
 
     return {
+      installed: true,
       models,
-      oauth: {
-        accessToken: tokens.accessToken,
-        expiresAt: tokens.expiresAt ?? Date.now() + 15 * 60 * 1000,
-        refreshToken: tokens.refreshToken,
-      },
-      source: "api",
+      source: "cli",
     };
   } catch (error) {
     return {
       error:
         error instanceof Error
           ? error.message
-          : "Unable to fetch Anthropic models.",
-      models: [],
-      source: "unavailable",
-    };
-  }
-};
-
-const fetchAnthropicModels = async (authMode, anthropicApiKey, _oauthInput) => {
-  if (authMode === "claudeCode") {
-    return {
-      models: await fetchClaudeCodeModelOptionsFromDocs(),
-      source: "api",
-    };
-  }
-
-  if (!anthropicApiKey) {
-    return {
-      error: "Add an Anthropic API key to fetch the latest model list.",
-      models: [],
-      source: "unavailable",
-    };
-  }
-
-  try {
-    const response = await fetch(ANTHROPIC_MODELS_URL, {
-      headers: {
-        "anthropic-version": "2023-06-01",
-        "x-api-key": anthropicApiKey,
-      },
-      method: "GET",
-    });
-    if (!response.ok) {
-      throw new Error(`Anthropic request failed (${response.status}).`);
-    }
-    const payload = await response.json();
-    const models = dedupeAndSort(
-      (payload.data ?? []).flatMap((entry) => {
-        const id = entry.id?.trim() ?? "";
-        return id
-          ? [createModelOption("anthropic", id, entry.display_name)]
-          : [];
-      }),
-    );
-    if (models.length === 0) {
-      return {
-        error: "Anthropic returned no models.",
-        models: [],
-        source: "unavailable",
-      };
-    }
-    return { models, source: "api" };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Anthropic models.",
-      models: [],
-      source: "unavailable",
-    };
-  }
-};
-
-const GEMINI_NATIVE_MODELS_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models";
-
-const fetchGeminiModels = async (geminiApiKey) => {
-  if (!geminiApiKey) {
-    return {
-      error: "Add a Gemini API key to fetch the latest model list.",
-      models: [],
-      source: "unavailable",
-    };
-  }
-
-  try {
-    const url = `${GEMINI_NATIVE_MODELS_URL}?key=${encodeURIComponent(geminiApiKey)}&pageSize=1000`;
-    const response = await fetch(url, { method: "GET" });
-    if (!response.ok) {
-      throw new Error(`Gemini request failed (${response.status}).`);
-    }
-    const payload = await response.json();
-    const modelIds = (payload.models ?? [])
-      .flatMap((entry) => {
-        let name = entry.name?.trim() ?? "";
-        if (name.toLowerCase().startsWith("models/")) {
-          name = name.slice("models/".length);
-        }
-        return name ? [name] : [];
-      })
-      .filter((id) => id.toLowerCase().startsWith("gemini"));
-    const models = dedupeAndSort(
-      modelIds.map((id) => createModelOption("gemini", id)),
-    );
-    if (models.length === 0) {
-      return {
-        error: "Gemini returned no models.",
-        models: [],
-        source: "unavailable",
-      };
-    }
-    return { models, source: "api" };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Gemini models.",
+          : "Unable to fetch Claude Code models.",
+      installed: true,
       models: [],
       source: "unavailable",
     };
@@ -980,53 +518,14 @@ const fetchGeminiModels = async (geminiApiKey) => {
 };
 
 app.post("/api/provider-models", async (c) => {
-  let rawBody;
-  try {
-    rawBody = await c.req.json();
-  } catch {
-    return c.text("Invalid JSON payload.", 400);
-  }
-
-  const requestBodySchema = z.object({
-    anthropicAccessToken: z.string().optional(),
-    anthropicAccessTokenExpiresAt: z.number().nullable().optional(),
-    anthropicAuthMode: z.enum(["apiKey", "claudeCode"]).default("apiKey"),
-    anthropicApiKey: z.string().optional(),
-    anthropicRefreshToken: z.string().optional(),
-    geminiApiKey: z.string().optional(),
-    openAiApiKey: z.string().optional(),
-    openAiAuthMode: z.enum(["apiKey", "codex"]).default("apiKey"),
-  });
-  const parsed = requestBodySchema.safeParse(rawBody);
-  if (!parsed.success) {
-    return c.text(parsed.error.message, 400);
-  }
-
-  const openAiApiKey = parsed.data.openAiApiKey?.trim() ?? "";
-  const anthropicApiKey = parsed.data.anthropicApiKey?.trim() ?? "";
-  const geminiApiKey = parsed.data.geminiApiKey?.trim() ?? "";
-  const openAiAuthMode = parsed.data.openAiAuthMode;
-  const anthropicAuthMode = parsed.data.anthropicAuthMode;
-  const anthropicOAuthInput = {
-    accessToken: parsed.data.anthropicAccessToken?.trim() ?? "",
-    expiresAt: parsed.data.anthropicAccessTokenExpiresAt ?? null,
-    refreshToken: parsed.data.anthropicRefreshToken?.trim() ?? "",
-  };
-
-  const [openai, anthropic, gemini] = await Promise.all([
-    fetchOpenAiModels(openAiAuthMode, openAiApiKey),
-    fetchAnthropicModels(
-      anthropicAuthMode,
-      anthropicApiKey,
-      anthropicOAuthInput,
-    ),
-    fetchGeminiModels(geminiApiKey),
+  const [openai, anthropic] = await Promise.all([
+    fetchOpenAiModels(),
+    fetchAnthropicModels(),
   ]);
 
   return c.json({
     anthropic,
     fetchedAt: new Date().toISOString(),
-    gemini,
     openai,
   });
 });
@@ -1034,13 +533,11 @@ app.post("/api/provider-models", async (c) => {
 // ── /api/chat ────────────────────────────────────────────────────────────────
 
 const chatRequestBodySchema = z.object({
-  authMode: z.enum(["apiKey", "codex", "claudeCode"]).default("apiKey"),
   chatMode: z.enum(["plan", "build"]).default("build"),
-  credential: z.string().optional(),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
   projectPath: z.string().min(1),
-  provider: z.enum(["openai", "anthropic", "gemini"]),
+  provider: z.enum(["openai", "anthropic"]),
   remoteConversationId: z.string().nullable().optional(),
   reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
   threadId: z.string().min(1).optional(),
@@ -1138,20 +635,6 @@ const resolveCodexCliLaunch = async () => {
   } catch {
     return { argsPrefix: [], command: "codex" };
   }
-};
-
-const getAnthropicThinkingOptions = (provider, modelId, effort) => {
-  const efforts = getModelReasoningEfforts(provider, modelId);
-  if (efforts.length === 0) return undefined;
-  const budgetMap = { low: 2048, medium: 8192, high: 32768, xhigh: 65536 };
-  return { thinking: { type: "enabled", budgetTokens: budgetMap[effort] } };
-};
-
-const getGeminiThinkingOptions = (provider, modelId, effort) => {
-  const efforts = getModelReasoningEfforts(provider, modelId);
-  if (efforts.length === 0) return undefined;
-  const budgetMap = { low: 1024, medium: 8192, high: 24576, xhigh: 24576 };
-  return { thinkingConfig: { thinkingBudget: budgetMap[effort] } };
 };
 
 const resolveProjectPath = (projectRoot, filePath) => {
@@ -1604,7 +1087,6 @@ app.post("/api/chat", async (c) => {
   }
 
   const {
-    authMode,
     chatMode,
     model,
     projectPath,
@@ -1615,7 +1097,6 @@ app.post("/api/chat", async (c) => {
   } = parsed.data;
   const isPlanMode = chatMode === "plan";
   const systemPrompt = isPlanMode ? SYSTEM_PROMPT_PLAN : SYSTEM_PROMPT_BUILD;
-  let credential = parsed.data.credential?.trim() ?? "";
   const messages = parsed.data.messages;
 
   try {
@@ -1627,11 +1108,17 @@ app.post("/api/chat", async (c) => {
     return c.text("Project path does not exist.", 400);
   }
 
-  let useChatgptCodexEndpoint = false;
+  if (provider === "openai") {
+    const codexInstalled = await isCliCommandAvailable("codex");
+    if (!codexInstalled) {
+      return c.text(
+        "Codex CLI is not installed or not available on PATH.",
+        400,
+      );
+    }
 
-  if (provider === "openai" && authMode === "codex") {
-    const codexCredential = await readCodexCredential();
-    if (!codexCredential.credential) {
+    const accessToken = await readCodexAccessToken();
+    if (!accessToken) {
       return c.text(
         "Codex login not found. Run `codex login` and try again.",
         401,
@@ -1650,58 +1137,20 @@ app.post("/api/chat", async (c) => {
     });
   }
 
-  const usesClaudeCode = provider === "anthropic" && authMode === "claudeCode";
-
-  if (!credential && !usesClaudeCode) {
-    return c.text("Missing provider credential.", 400);
+  const claudeInstalled = await isCliCommandAvailable("claude");
+  if (!claudeInstalled) {
+    return c.text(
+      "Claude Code CLI is not installed or not available on PATH.",
+      400,
+    );
   }
 
-  const providerFactory =
-    provider === "anthropic"
-      ? authMode === "claudeCode"
-        ? (modelId) => claudeCode(normalizeClaudeCodeModel(modelId))
-        : createAnthropic({ apiKey: credential })
-      : provider === "gemini"
-        ? createGoogleGenerativeAI({
-            apiKey: credential,
-          })
-        : createOpenAI({
-            apiKey: credential,
-            ...(useChatgptCodexEndpoint
-              ? { baseURL: OPENAI_CODEX_CHATGPT_BASE_URL }
-              : {}),
-          });
-
-  const openAiProviderOptions =
-    provider === "openai"
-      ? {
-          ...(useChatgptCodexEndpoint
-            ? { instructions: systemPrompt, store: false }
-            : {}),
-          reasoningEffort,
-        }
-      : undefined;
-  const anthropicProviderOptions =
-    provider === "anthropic" && authMode !== "claudeCode"
-      ? getAnthropicThinkingOptions(provider, model, reasoningEffort)
-      : undefined;
-  const geminiProviderOptions =
-    provider === "gemini"
-      ? getGeminiThinkingOptions(provider, model, reasoningEffort)
-      : undefined;
+  const providerFactory = (modelId) =>
+    claudeCode(normalizeClaudeCodeModel(modelId));
 
   const usesReasoningModel =
     getModelReasoningEfforts(provider, model).length > 0;
   const languageModel = providerFactory(model);
-
-  const providerOptions = {
-    ...(openAiProviderOptions ? { openai: openAiProviderOptions } : {}),
-    ...(anthropicProviderOptions
-      ? { anthropic: anthropicProviderOptions }
-      : {}),
-    ...(geminiProviderOptions ? { google: geminiProviderOptions } : {}),
-  };
-  const hasProviderOptions = Object.keys(providerOptions).length > 0;
 
   let modelMessages;
   try {
@@ -1716,14 +1165,10 @@ app.post("/api/chat", async (c) => {
   const textResult = streamText({
     messages: modelMessages,
     model: languageModel,
-    ...(hasProviderOptions ? { providerOptions } : {}),
     stopWhen: stepCountIs(
       usesReasoningModel ? REASONING_TOOL_STEP_LIMIT : DEFAULT_TOOL_STEP_LIMIT,
     ),
-    system:
-      provider === "openai" && useChatgptCodexEndpoint
-        ? undefined
-        : systemPrompt,
+    system: systemPrompt,
     ...(usesReasoningModel ? {} : { temperature: 0.2 }),
     tools: {
       listFiles: tool({

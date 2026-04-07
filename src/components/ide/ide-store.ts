@@ -7,7 +7,6 @@ import {
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
-  getConnectedProviders,
   getDefaultModelSelection,
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
@@ -31,7 +30,6 @@ import {
   mergePersistedState,
 } from "./ide-state";
 import {
-  type CodexLoginStatus,
   createProjectTerminalSessionId,
   dedupeModels,
   getPreviewTerminalSessionId,
@@ -83,13 +81,10 @@ interface IdeState {
   // Settings dialog state
   settingsOpen: boolean;
   settingsSection: SettingsSection;
-  providerSetupTarget: AiProvider | null;
   modelSearchQuery: string;
-  codexLoginStatus: CodexLoginStatus;
   providerModels: {
     openai: ProviderModelState;
     anthropic: ProviderModelState;
-    gemini: ProviderModelState;
     fetchedAt: string | null;
   };
 
@@ -135,32 +130,16 @@ interface IdeState {
   ) => void;
   setSettingsOpen: (open: boolean) => void;
   setSettingsSection: (section: SettingsSection) => void;
-  setProviderSetupTarget: (target: AiProvider | null) => void;
   setModelSearchQuery: (query: string) => void;
 
   // Actions – provider management
-  connectProvider: (provider: AiProvider) => void;
-  disconnectProvider: (provider: AiProvider) => void;
   toggleProviderModel: (provider: AiProvider, model: string) => void;
-  openProviderSetup: (provider: AiProvider) => void;
-  submitProviderSetup: (provider: AiProvider) => void;
-  refreshCodexLoginStatus: () => Promise<void>;
-  refreshProviderModels: (creds: {
-    anthropicAccessToken: string;
-    anthropicAccessTokenExpiresAt: number | null;
-    anthropicAuthMode: "apiKey" | "claudeCode";
-    anthropicApiKey: string;
-    anthropicRefreshToken: string;
-    geminiApiKey: string;
-    openAiApiKey: string;
-    openAiAuthMode: "apiKey" | "codex";
-  }) => Promise<void>;
+  refreshProviderModels: () => Promise<void>;
   setProviderModels: (
     updater:
       | IdeState["providerModels"]
       | ((prev: IdeState["providerModels"]) => IdeState["providerModels"]),
   ) => void;
-  setCodexLoginStatus: (status: CodexLoginStatus) => void;
 
   // Actions – runtime
   appendTerminalOutput: (projectId: string, chunk: string) => void;
@@ -209,10 +188,21 @@ interface IdeState {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
-  anthropic: { error: null, loading: false, models: [], source: "unavailable" },
+  anthropic: {
+    error: null,
+    installed: false,
+    loading: false,
+    models: [],
+    source: "unavailable",
+  },
   fetchedAt: null,
-  gemini: { error: null, loading: false, models: [], source: "unavailable" },
-  openai: { error: null, loading: false, models: [], source: "unavailable" },
+  openai: {
+    error: null,
+    installed: false,
+    loading: false,
+    models: [],
+    source: "unavailable",
+  },
 };
 
 const areMessagesEqual = (
@@ -371,14 +361,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Settings dialog state ───────────────────────────────────────────
   settingsOpen: false,
   settingsSection: "appearance",
-  providerSetupTarget: null,
   modelSearchQuery: "",
-  codexLoginStatus: {
-    authMode: "unknown",
-    loading: false,
-    loggedIn: false,
-    message: "",
-  },
   providerModels: DEFAULT_PROVIDER_MODELS,
 
   // ── Getters ─────────────────────────────────────────────────────────
@@ -711,63 +694,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setSettingsSection: (section) => set({ settingsSection: section }),
-  setProviderSetupTarget: (target) => set({ providerSetupTarget: target }),
   setModelSearchQuery: (query) => set({ modelSearchQuery: query }),
 
   // ── Actions: provider management ────────────────────────────────────
-  connectProvider: (provider) => {
-    set((state) => {
-      const current = getConnectedProviders(state.settings);
-      if (current.includes(provider)) return state;
-      return {
-        settings: {
-          ...state.settings,
-          connectedProviders: [...current, provider],
-        },
-      };
-    });
-  },
-
-  disconnectProvider: (provider) => {
-    set((state) => {
-      const current = getConnectedProviders(state.settings);
-      if (!current.includes(provider)) return state;
-
-      const baseSettings = {
-        ...state.settings,
-        connectedProviders: current.filter((p) => p !== provider),
-      };
-
-      let nextSettings = baseSettings;
-      if (provider === "openai") {
-        nextSettings = {
-          ...baseSettings,
-          openAiSelectedModels: [],
-        };
-      } else if (provider === "gemini") {
-        nextSettings = {
-          ...baseSettings,
-          geminiSelectedModels: [],
-        };
-      } else {
-        nextSettings = {
-          ...baseSettings,
-          anthropicAccessToken: "",
-          anthropicAccessTokenExpiresAt: null,
-          anthropicRefreshToken: "",
-          anthropicSelectedModels: [],
-        };
-      }
-
-      return {
-        settings: {
-          ...nextSettings,
-          defaultModel: getPreferredDefaultModel(nextSettings),
-        },
-      };
-    });
-  },
-
   toggleProviderModel: (provider, model) => {
     set((state) => {
       const prev = state.settings;
@@ -779,22 +708,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const nextSettings = {
           ...prev,
           openAiSelectedModels: next,
-        };
-        return {
-          settings: {
-            ...nextSettings,
-            defaultModel: getPreferredDefaultModel(nextSettings),
-          },
-        };
-      }
-      if (provider === "gemini") {
-        const current = dedupeModels(prev.geminiSelectedModels);
-        const next = current.includes(model)
-          ? current.filter((v) => v !== model)
-          : [...current, model];
-        const nextSettings = {
-          ...prev,
-          geminiSelectedModels: next,
         };
         return {
           settings: {
@@ -820,76 +733,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     });
   },
 
-  openProviderSetup: (provider) => {
-    set({ providerSetupTarget: provider });
-    const { settings } = get();
-    if (provider === "openai" && settings.openAiAuthMode === "codex") {
-      void get().refreshCodexLoginStatus();
-    }
-  },
-
-  submitProviderSetup: (provider) => {
-    const { connectProvider: connect, refreshProviderModels, settings } = get();
-    connect(provider);
-    void refreshProviderModels({
-      anthropicAccessToken: settings.anthropicAccessToken,
-      anthropicAccessTokenExpiresAt: settings.anthropicAccessTokenExpiresAt,
-      anthropicAuthMode: settings.anthropicAuthMode,
-      anthropicApiKey: settings.anthropicApiKey,
-      anthropicRefreshToken: settings.anthropicRefreshToken,
-      geminiApiKey: settings.geminiApiKey,
-      openAiApiKey: settings.openAiApiKey,
-      openAiAuthMode: settings.openAiAuthMode,
-    });
-    set({ providerSetupTarget: null });
-  },
-
-  refreshCodexLoginStatus: async () => {
-    set((state) => ({
-      codexLoginStatus: { ...state.codexLoginStatus, loading: true },
-    }));
-
-    try {
-      const response = await fetch("/api/codex-auth");
-      if (!response.ok)
-        throw new Error(`Status check failed (${response.status})`);
-
-      const payload = (await response.json()) as {
-        authMode: string;
-        loggedIn: boolean;
-        message: string;
-      };
-
-      set({
-        codexLoginStatus: {
-          authMode: payload.authMode ?? "unknown",
-          loading: false,
-          loggedIn: Boolean(payload.loggedIn),
-          message: payload.message ?? "",
-        },
-      });
-    } catch {
-      set({
-        codexLoginStatus: {
-          authMode: "unknown",
-          loading: false,
-          loggedIn: false,
-          message: "Unable to read Codex login status.",
-        },
-      });
-    }
-  },
-
-  refreshProviderModels: async ({
-    anthropicAccessToken,
-    anthropicAccessTokenExpiresAt,
-    anthropicAuthMode,
-    anthropicApiKey,
-    anthropicRefreshToken,
-    geminiApiKey,
-    openAiApiKey,
-    openAiAuthMode,
-  }) => {
+  refreshProviderModels: async () => {
     set((state) => ({
       providerModels: {
         ...state.providerModels,
@@ -898,26 +742,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           error: null,
           loading: true,
         },
-        gemini: { ...state.providerModels.gemini, error: null, loading: true },
         openai: { ...state.providerModels.openai, error: null, loading: true },
       },
     }));
 
     try {
-      const response = await fetch("/api/provider-models", {
-        body: JSON.stringify({
-          anthropicAccessToken,
-          anthropicAccessTokenExpiresAt,
-          anthropicAuthMode,
-          anthropicApiKey,
-          anthropicRefreshToken,
-          geminiApiKey,
-          openAiApiKey,
-          openAiAuthMode,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
+      const response = await fetch("/api/provider-models", { method: "POST" });
 
       if (!response.ok)
         throw new Error(`Model fetch failed (${response.status}).`);
@@ -925,30 +755,24 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const payload = (await response.json()) as ProviderModelsResponse;
       const nextOpenAiModels = dedupeModelOptions(payload.openai.models);
       const nextAnthropicModels = dedupeModelOptions(payload.anthropic.models);
-      const nextGeminiModels = dedupeModelOptions(payload.gemini.models);
       const nextOpenAiModelIds = nextOpenAiModels.map((model) => model.id);
       const nextAnthropicModelIds = nextAnthropicModels.map(
         (model) => model.id,
       );
-      const nextGeminiModelIds = nextGeminiModels.map((model) => model.id);
 
       set({
         providerModels: {
           anthropic: {
             error: payload.anthropic.error ?? null,
+            installed: payload.anthropic.installed,
             loading: false,
             models: nextAnthropicModels,
             source: payload.anthropic.source,
           },
           fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
-          gemini: {
-            error: payload.gemini.error ?? null,
-            loading: false,
-            models: nextGeminiModels,
-            source: payload.gemini.source,
-          },
           openai: {
             error: payload.openai.error ?? null,
+            installed: payload.openai.installed,
             loading: false,
             models: nextOpenAiModels,
             source: payload.openai.source,
@@ -965,20 +789,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const currentAnthropicSelected = dedupeModels(
           prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
         ).filter((m) => nextAnthropicModelIds.includes(m));
-        const currentGeminiSelected = dedupeModels(
-          prev.geminiSelectedModels,
-        ).filter((m) => nextGeminiModelIds.includes(m));
 
         const openAiSelectedModels =
           currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
         const anthropicSelectedModels =
           currentAnthropicSelected.length > 0 ? currentAnthropicSelected : [];
-        const geminiSelectedModels =
-          currentGeminiSelected.length > 0 ? currentGeminiSelected : [];
         const nextSettings = {
           ...prev,
           anthropicSelectedModels,
-          geminiSelectedModels,
           openAiSelectedModels,
         };
         const defaultModel = getPreferredDefaultModel(nextSettings);
@@ -988,15 +806,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           openAiSelectedModels.length === prev.openAiSelectedModels.length &&
           anthropicSelectedModels.length ===
             prev.anthropicSelectedModels.length &&
-          geminiSelectedModels.length === prev.geminiSelectedModels.length &&
           openAiSelectedModels.every(
             (m, i) => prev.openAiSelectedModels[i] === m,
           ) &&
           anthropicSelectedModels.every(
             (m, i) => prev.anthropicSelectedModels[i] === m,
-          ) &&
-          geminiSelectedModels.every(
-            (m, i) => prev.geminiSelectedModels[i] === m,
           )
         ) {
           return state;
@@ -1016,19 +830,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         providerModels: {
           anthropic: {
             error: message,
+            installed: state.providerModels.anthropic.installed,
             loading: false,
             models: state.providerModels.anthropic.models,
             source: state.providerModels.anthropic.source,
           },
           fetchedAt: state.providerModels.fetchedAt,
-          gemini: {
-            error: message,
-            loading: false,
-            models: state.providerModels.gemini.models,
-            source: state.providerModels.gemini.source,
-          },
           openai: {
             error: message,
+            installed: state.providerModels.openai.installed,
             loading: false,
             models: state.providerModels.openai.models,
             source: state.providerModels.openai.source,
@@ -1044,8 +854,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         typeof updater === "function" ? updater(state.providerModels) : updater,
     }));
   },
-
-  setCodexLoginStatus: (status) => set({ codexLoginStatus: status }),
 
   // ── Actions: runtime ────────────────────────────────────────────────
   appendTerminalOutput: (projectId, chunk) => {
