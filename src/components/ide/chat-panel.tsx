@@ -89,6 +89,7 @@ import {
   isChipToolPart,
   ListFilesChip,
   ReadFileChip,
+  RunCommandChip,
   SearchInFilesChip,
   WriteFileChip,
 } from "./assistant-message-part";
@@ -259,6 +260,9 @@ const ThreadMessage = memo(
                     >[0]["part"];
                     const chipToolKind = getChipToolKind(chipPart_);
 
+                    if (chipToolKind === "command") {
+                      return <RunCommandChip key={key} part={chipPart_} />;
+                    }
                     if (chipToolKind === "read") {
                       return <ReadFileChip key={key} part={chipPart_} />;
                     }

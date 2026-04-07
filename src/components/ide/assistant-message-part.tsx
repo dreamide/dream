@@ -6,6 +6,7 @@ import {
   FolderIcon,
   PenLineIcon,
   SearchIcon,
+  TerminalIcon,
   XIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -107,6 +108,7 @@ const normalizeToolName = (name: string): string =>
     .toLowerCase();
 
 const CHIP_TOOL_NAME_ALIASES = {
+  command: new Set(["run-command", "runcommand", "command", "exec-command"]),
   list: new Set(["glob", "list-files"]),
   read: new Set(["read", "read-file"]),
   search: new Set(["grep", "search-in-files"]),
@@ -122,6 +124,9 @@ export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
 
   const toolName = normalizeToolName(getToolName(part));
 
+  if (CHIP_TOOL_NAME_ALIASES.command.has(toolName)) {
+    return "command";
+  }
   if (CHIP_TOOL_NAME_ALIASES.read.has(toolName)) {
     return "read";
   }
@@ -567,6 +572,107 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
                 })
               )}
             </div>
+          ) : hasRawOutput ? (
+            <JsonBlock value={output} />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
+  const [expanded, setExpanded] = useState(false);
+  const output = part.output;
+  const isRunning =
+    part.state === "input-available" || part.state === "input-streaming";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const command =
+    isRecord(part.input) && isString(part.input.command)
+      ? part.input.command
+      : isRecord(output) && isString(output.command)
+        ? output.command
+        : null;
+  const exitCode =
+    isRecord(output) && typeof output.exitCode === "number"
+      ? output.exitCode
+      : null;
+  const commandOutput =
+    isRecord(output) && isString(output.output) ? output.output : null;
+  const status =
+    isRecord(output) && isString(output.status) ? output.status : null;
+  const hasRawOutput = output !== undefined;
+  const canExpand = hasError || hasRawOutput || command !== null;
+
+  return (
+    <div className={expanded ? "mb-3 w-full" : undefined}>
+      <button
+        className={cn(
+          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
+          hasError && "border-destructive/30 text-destructive",
+          canExpand && "cursor-pointer",
+          isRunning && "animate-pulse",
+        )}
+        onClick={() => canExpand && setExpanded(!expanded)}
+        type="button"
+      >
+        <TerminalIcon className="size-3.5 shrink-0" />
+        <span className="max-w-64 truncate font-medium">
+          {command ?? "Command"}
+        </span>
+        {exitCode !== null ? (
+          <span className="opacity-70">exit {exitCode}</span>
+        ) : null}
+        {status === "running" ? <span className="opacity-70">running</span> : null}
+        {hasError ? <span className="text-destructive">error</span> : null}
+      </button>
+      {expanded ? (
+        <div className="mt-2 space-y-2">
+          {hasError ? (
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+              {part.errorText}
+            </pre>
+          ) : null}
+          {command ? (
+            <CodeBlock
+              code={command}
+              language="bash"
+              style={{ contentVisibility: "visible" }}
+            >
+              <CodeBlockHeader>
+                <CodeBlockTitle>
+                  <TerminalIcon size={14} />
+                  <CodeBlockFilename>Command</CodeBlockFilename>
+                  {exitCode !== null ? (
+                    <Badge variant="secondary" className="ml-1 text-[10px]">
+                      Exit {exitCode}
+                    </Badge>
+                  ) : null}
+                </CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+            </CodeBlock>
+          ) : null}
+          {commandOutput ? (
+            <CodeBlock
+              className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+              code={commandOutput}
+              language="log"
+              style={{ contentVisibility: "visible" }}
+            >
+              <CodeBlockHeader className="shrink-0">
+                <CodeBlockTitle>
+                  <TerminalIcon size={14} />
+                  <CodeBlockFilename>Output</CodeBlockFilename>
+                </CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+            </CodeBlock>
           ) : hasRawOutput ? (
             <JsonBlock value={output} />
           ) : null}
