@@ -10,6 +10,7 @@ import type {
 } from "ai";
 import {
   createThreadConfig,
+  DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
   getPreferredDefaultModel,
@@ -32,6 +33,7 @@ export const emptyState: PersistedIdeState = {
   activeProjectId: null,
   activeThreadIdByProject: {},
   chats: {},
+  panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
@@ -42,6 +44,15 @@ export const emptyState: PersistedIdeState = {
 const isUiMessageArray = (value: unknown): value is UIMessage[] => {
   return Array.isArray(value);
 };
+
+const normalizePanelSize = (
+  value: unknown,
+  fallback: number,
+  minimum: number,
+): number =>
+  typeof value === "number" && Number.isFinite(value) && value >= minimum
+    ? value
+    : fallback;
 
 const normalizeThread = (
   thread: ThreadConfig,
@@ -275,6 +286,23 @@ export const mergePersistedState = (
       typeof state.activeProjectId === "string" ? state.activeProjectId : null,
     activeThreadIdByProject,
     chats,
+    panelSizes: {
+      leftSidebarWidth: normalizePanelSize(
+        state.panelSizes?.leftSidebarWidth,
+        DEFAULT_PANEL_SIZES.leftSidebarWidth,
+        160,
+      ),
+      rightPanelWidth: normalizePanelSize(
+        state.panelSizes?.rightPanelWidth,
+        DEFAULT_PANEL_SIZES.rightPanelWidth,
+        200,
+      ),
+      terminalHeight: normalizePanelSize(
+        state.panelSizes?.terminalHeight,
+        DEFAULT_PANEL_SIZES.terminalHeight,
+        120,
+      ),
+    },
     panelVisibility: {
       ...DEFAULT_PANEL_VISIBILITY,
       ...(state.panelVisibility ?? {}),
