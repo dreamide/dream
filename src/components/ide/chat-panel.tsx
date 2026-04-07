@@ -85,6 +85,7 @@ import type {
 } from "@/types/ide";
 import {
   AssistantMessagePart,
+  getChipToolKind,
   isChipToolPart,
   ListFilesChip,
   ReadFileChip,
@@ -248,10 +249,6 @@ const ThreadMessage = memo(
                   key={`chip-group-${group[0].index}`}
                 >
                   {group.map(({ part: chipPart, index: chipIndex }) => {
-                    const toolType = chipPart.type as string;
-                    const toolName = toolType.startsWith("tool-")
-                      ? toolType.slice(5)
-                      : "";
                     const key = getMessagePartKey(
                       message.id,
                       chipPart as Record<string, unknown>,
@@ -260,13 +257,15 @@ const ThreadMessage = memo(
                     const chipPart_ = chipPart as Parameters<
                       typeof ReadFileChip
                     >[0]["part"];
-                    if (toolName === "readFile") {
+                    const chipToolKind = getChipToolKind(chipPart_);
+
+                    if (chipToolKind === "read") {
                       return <ReadFileChip key={key} part={chipPart_} />;
                     }
-                    if (toolName === "listFiles") {
+                    if (chipToolKind === "list") {
                       return <ListFilesChip key={key} part={chipPart_} />;
                     }
-                    if (toolName === "writeFile") {
+                    if (chipToolKind === "write") {
                       return (
                         <WriteFileChip
                           key={key}
@@ -275,6 +274,7 @@ const ThreadMessage = memo(
                         />
                       );
                     }
+
                     return <SearchInFilesChip key={key} part={chipPart_} />;
                   })}
                 </div>,

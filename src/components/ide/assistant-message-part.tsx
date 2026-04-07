@@ -100,6 +100,44 @@ const getToolName = (part: ToolLikePart): string => {
   return part.type.startsWith("tool-") ? part.type.slice(5) : part.type;
 };
 
+const normalizeToolName = (name: string): string =>
+  name
+    .replace(/([a-z])([A-Z])/g, "$1-$2")
+    .replace(/[\s_]+/g, "-")
+    .toLowerCase();
+
+const CHIP_TOOL_NAME_ALIASES = {
+  list: new Set(["glob", "list-files"]),
+  read: new Set(["read", "read-file"]),
+  search: new Set(["grep", "search-in-files"]),
+  write: new Set(["edit", "write", "write-file"]),
+} as const;
+
+export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
+
+export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
+  if (!isToolLikePart(part)) {
+    return null;
+  }
+
+  const toolName = normalizeToolName(getToolName(part));
+
+  if (CHIP_TOOL_NAME_ALIASES.read.has(toolName)) {
+    return "read";
+  }
+  if (CHIP_TOOL_NAME_ALIASES.search.has(toolName)) {
+    return "search";
+  }
+  if (CHIP_TOOL_NAME_ALIASES.list.has(toolName)) {
+    return "list";
+  }
+  if (CHIP_TOOL_NAME_ALIASES.write.has(toolName)) {
+    return "write";
+  }
+
+  return null;
+};
+
 const extToLanguage: Record<string, BundledLanguage> = {
   astro: "astro",
   bash: "bash",
@@ -250,10 +288,35 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
   const hasError = isString(part.errorText) && part.errorText.length > 0;
 
   const { files, count } = useMemo(() => {
-    if (!isRecord(output) || !Array.isArray(output.files)) {
+    if (!isRecord(output)) {
       return { files: null, count: 0 };
     }
-    const filtered = output.files.filter(isString);
+    const candidates = [
+      output.files,
+      output.matches,
+      output.paths,
+      output.results,
+    ].find(Array.isArray);
+
+    if (!Array.isArray(candidates)) {
+      return { files: null, count: 0 };
+    }
+
+    const filtered = candidates
+      .map((item) => {
+        if (isString(item)) {
+          return item;
+        }
+        if (isRecord(item) && isString(item.path)) {
+          return item.path;
+        }
+        if (isRecord(item) && isString(item.file)) {
+          return item.file;
+        }
+        return null;
+      })
+      .filter((item): item is string => item !== null);
+
     return {
       files: filtered,
       count: typeof output.count === "number" ? output.count : filtered.length,
@@ -266,13 +329,23 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
   }, [files]);
 
   const hasOutput = files !== null && root !== null;
+  const hasRawOutput = output !== undefined;
+  const canExpand = hasError || hasRawOutput;
   const projectPath = useIdeStore((s) => s.getActiveProject()?.path ?? null);
   const rawDirectory =
     isRecord(part.input) && isString(part.input.directory)
       ? part.input.directory
+      : isRecord(part.input) && isString(part.input.path)
+        ? part.input.path
+      : null;
+  const pattern =
+    isRecord(part.input) && isString(part.input.pattern)
+      ? part.input.pattern
       : null;
   const directory =
     rawDirectory === "." && projectPath ? projectPath : rawDirectory;
+  const label = pattern ?? directory ?? "files";
+  const Icon = pattern ? SearchIcon : FolderIcon;
 
   const sortedChildren = useMemo(() => {
     if (!root) return [];
@@ -289,13 +362,14 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
           hasError && "border-destructive/30 text-destructive",
+          canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
-        onClick={() => hasOutput && setExpanded(!expanded)}
+        onClick={() => canExpand && setExpanded(!expanded)}
         type="button"
       >
-        <FolderIcon className="size-3.5 shrink-0" />
-        <span className="font-medium">{directory ?? "files"}</span>
+        <Icon className="size-3.5 shrink-0" />
+        <span className="max-w-56 truncate font-medium">{label}</span>
         {hasOutput ? (
           <span className="opacity-70">
             {count} {count === 1 ? "file" : "files"}
@@ -303,12 +377,23 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
         ) : null}
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
-      {expanded && hasOutput ? (
-        <FileTree className="mt-2 text-xs" defaultExpanded={defaultExpanded}>
-          {sortedChildren.map((child) => (
-            <FileTreeNodeView key={child.path} node={child} />
-          ))}
-        </FileTree>
+      {expanded ? (
+        <div className="mt-2 space-y-2">
+          {hasError ? (
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+              {part.errorText}
+            </pre>
+          ) : null}
+          {hasOutput ? (
+            <FileTree className="text-xs" defaultExpanded={defaultExpanded}>
+              {sortedChildren.map((child) => (
+                <FileTreeNodeView key={child.path} node={child} />
+              ))}
+            </FileTree>
+          ) : hasRawOutput ? (
+            <JsonBlock value={output} />
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -381,22 +466,34 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
 export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
   const [expanded, setExpanded] = useState(false);
   const output = part.output;
-  const hasOutput = isRecord(output) && Array.isArray(output.matches);
-  const matches = hasOutput
-    ? (output.matches as Record<string, unknown>[]).filter(isRecord)
+  const rawMatches =
+    isRecord(output) && Array.isArray(output.matches)
+      ? output.matches
+      : isRecord(output) && Array.isArray(output.results)
+        ? output.results
+        : null;
+  const matches = Array.isArray(rawMatches)
+    ? rawMatches.filter(isRecord)
     : [];
-  const count = hasOutput
-    ? typeof output.count === "number"
+  const hasOutput = rawMatches !== null;
+  const count =
+    isRecord(output) && typeof output.count === "number"
       ? output.count
-      : matches.length
-    : 0;
+      : Array.isArray(rawMatches)
+        ? rawMatches.length
+        : 0;
   const query =
     isRecord(part.input) && isString(part.input.query)
       ? part.input.query
-      : null;
+      : isRecord(part.input) && isString(part.input.pattern)
+        ? part.input.pattern
+        : null;
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const hasRawOutput = output !== undefined;
+  const canExpand = hasError || hasRawOutput;
+  const label = query ?? "Search";
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -405,15 +502,16 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
           hasError && "border-destructive/30 text-destructive",
+          canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
-        onClick={() => hasOutput && setExpanded(!expanded)}
+        onClick={() => canExpand && setExpanded(!expanded)}
         type="button"
       >
         <SearchIcon className="size-3.5 shrink-0" />
         {query ? (
           <span className="max-w-48 truncate font-medium">
-            &ldquo;{query}&rdquo;
+            {label}
           </span>
         ) : (
           <span className="font-medium">Search</span>
@@ -425,30 +523,53 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         ) : null}
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
-      {expanded && hasOutput ? (
-        <div className="mt-2 max-h-80 space-y-1 overflow-auto rounded-md border bg-muted/30 p-2">
-          {matches.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No matches found.</p>
-          ) : (
-            matches.map((match) => {
-              const file = isString(match.file) ? match.file : "unknown";
-              const line = typeof match.line === "number" ? match.line : "?";
-              const text = isString(match.text) ? match.text : "";
-              const key = `${file}:${line}:${text}`;
+      {expanded ? (
+        <div className="mt-2 space-y-2">
+          {hasError ? (
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+              {part.errorText}
+            </pre>
+          ) : null}
+          {hasOutput ? (
+            <div className="max-h-80 space-y-1 overflow-auto rounded-md border bg-muted/30 p-2">
+              {matches.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No matches found.</p>
+              ) : (
+                matches.map((match) => {
+                  const file =
+                    (isString(match.file) && match.file) ||
+                    (isString(match.path) && match.path) ||
+                    "unknown";
+                  const line =
+                    typeof match.line === "number"
+                      ? match.line
+                      : typeof match.line_number === "number"
+                        ? match.line_number
+                        : "?";
+                  const text =
+                    (isString(match.text) && match.text) ||
+                    (isString(match.preview) && match.preview) ||
+                    (isString(match.lineText) && match.lineText) ||
+                    "";
+                  const key = `${file}:${line}:${text}`;
 
-              return (
-                <div
-                  className="rounded-sm px-2 py-1.5 hover:bg-muted/40"
-                  key={key}
-                >
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    {file}:{line}
-                  </p>
-                  <p className="font-mono text-xs">{text || "(empty line)"}</p>
-                </div>
-              );
-            })
-          )}
+                  return (
+                    <div
+                      className="rounded-sm px-2 py-1.5 hover:bg-muted/40"
+                      key={key}
+                    >
+                      <p className="font-mono text-[11px] text-muted-foreground">
+                        {file}:{line}
+                      </p>
+                      <p className="font-mono text-xs">{text || "(empty line)"}</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : hasRawOutput ? (
+            <JsonBlock value={output} />
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -457,14 +578,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
 
 /** Check if a tool part should render as an inline chip */
 export const isChipToolPart = (part: MessagePart): boolean => {
-  if (!isToolLikePart(part)) return false;
-  const toolName = getToolName(part);
-  return (
-    toolName === "readFile" ||
-    toolName === "searchInFiles" ||
-    toolName === "listFiles" ||
-    toolName === "writeFile"
-  );
+  return getChipToolKind(part) !== null;
 };
 
 export const WriteFileChip = ({
