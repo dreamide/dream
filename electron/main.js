@@ -33,6 +33,7 @@ const rendererStartupTimeoutMs = Number(
   process.env.VITE_READY_TIMEOUT_MS ?? 45000,
 );
 const rendererProbeIntervalMs = 300;
+const APP_NAME = "Dream";
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
@@ -1145,6 +1146,7 @@ async function createMainWindow() {
       process.platform === "darwin" || !existsSync(appIconPath)
         ? undefined
         : appIconPath,
+    title: APP_NAME,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     ...(process.platform !== "darwin" && { frame: false }),
     trafficLightPosition:
@@ -1879,8 +1881,12 @@ ipcMain.on("preview:update", (_event, payload) => {
   applyPreviewState();
 });
 
+app.setName(APP_NAME);
+
 app.whenReady().then(async () => {
-  app.setName("Dream");
+  if (process.platform === "darwin" && existsSync(appIconPath)) {
+    app.dock?.setIcon(appIconPath);
+  }
 
   await startRendererServerIfNeeded();
   await createMainWindow();

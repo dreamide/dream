@@ -8,7 +8,7 @@
  * This file is loaded by the Electron main process at startup.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -18,7 +18,14 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { serve } from "@hono/node-server";
-import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  stepCountIs,
+  streamText,
+  tool,
+} from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -1034,7 +1041,9 @@ const chatRequestBodySchema = z.object({
   model: z.string().min(1),
   projectPath: z.string().min(1),
   provider: z.enum(["openai", "anthropic", "gemini"]),
+  remoteConversationId: z.string().nullable().optional(),
   reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
+  threadId: z.string().min(1).optional(),
 });
 
 const BLOCKED_DIRECTORIES = new Set([
@@ -1148,6 +1157,361 @@ const searchInProjectFiles = async (projectRoot, query, maxResults) => {
   return matches;
 };
 
+const codexSessionIdsByThreadId = new Map();
+
+const stringifyCodexValue = (value) => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+};
+
+const serializeCodexMessage = (message) => {
+  if (!message || typeof message !== "object") {
+    return "";
+  }
+
+  const role =
+    typeof message.role === "string" && message.role.trim()
+      ? message.role.trim()
+      : "unknown";
+  const parts = Array.isArray(message.parts) ? message.parts : [];
+  const sections = [];
+
+  for (const part of parts) {
+    if (!part || typeof part !== "object") {
+      continue;
+    }
+
+    if (part.type === "text" && typeof part.text === "string") {
+      const text = part.text.trim();
+      if (text) {
+        sections.push(text);
+      }
+      continue;
+    }
+
+    if (part.type === "file") {
+      const label =
+        (typeof part.filename === "string" && part.filename.trim()) ||
+        (typeof part.mediaType === "string" && part.mediaType.trim()) ||
+        "attachment";
+      sections.push(`[Attached file: ${label}]`);
+      continue;
+    }
+
+    if (
+      typeof part.type === "string" &&
+      (part.type.startsWith("tool-") || part.type === "dynamic-tool")
+    ) {
+      const toolName =
+        part.type === "dynamic-tool"
+          ? typeof part.toolName === "string" && part.toolName.trim()
+            ? part.toolName.trim()
+            : "tool"
+          : part.type.slice(5);
+      const toolSummary = [
+        `[Tool ${toolName}]`,
+        part.input !== undefined
+          ? `input:\n${stringifyCodexValue(part.input)}`
+          : null,
+        part.output !== undefined
+          ? `output:\n${stringifyCodexValue(part.output)}`
+          : null,
+        typeof part.errorText === "string" && part.errorText.trim()
+          ? `error:\n${part.errorText.trim()}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      if (toolSummary) {
+        sections.push(toolSummary);
+      }
+    }
+  }
+
+  if (sections.length === 0) {
+    return "";
+  }
+
+  return `${role.toUpperCase()}:\n${sections.join("\n\n")}`;
+};
+
+const buildCodexConversationPrompt = ({
+  messages,
+  projectPath,
+  systemPrompt,
+}) => {
+  const transcript = messages
+    .map(serializeCodexMessage)
+    .filter(Boolean)
+    .join("\n\n");
+
+  return [
+    systemPrompt,
+    `Active project: ${projectPath}`,
+    "You are running through the real Codex CLI with native shell and git access.",
+    transcript ? `Conversation transcript:\n\n${transcript}` : null,
+    "Continue the conversation naturally and complete the user's latest request.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+};
+
+const getLatestUserPrompt = (messages) => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (!message || message.role !== "user") {
+      continue;
+    }
+
+    const serialized = serializeCodexMessage(message);
+    if (serialized) {
+      return serialized;
+    }
+  }
+
+  return "";
+};
+
+const writeCodexTextPart = (writer, id, text, type) => {
+  if (!text) {
+    return;
+  }
+
+  writer.write({ type: `${type}-start`, id });
+  writer.write({ type: `${type}-delta`, delta: text, id });
+  writer.write({ type: `${type}-end`, id });
+};
+
+const streamCodexCliResponse = ({
+  abortSignal,
+  chatMode,
+  messages,
+  model,
+  projectPath,
+  systemPrompt,
+  threadId,
+  remoteConversationId,
+}) => {
+  const existingSessionId =
+    (threadId ? codexSessionIdsByThreadId.get(threadId) : null) ??
+    (typeof remoteConversationId === "string" &&
+    remoteConversationId.trim().length > 0
+      ? remoteConversationId.trim()
+      : null);
+  const prompt = existingSessionId
+    ? getLatestUserPrompt(messages) ||
+      buildCodexConversationPrompt({
+        messages,
+        projectPath,
+        systemPrompt,
+      })
+    : buildCodexConversationPrompt({
+        messages,
+        projectPath,
+        systemPrompt,
+      });
+
+  const stream = createUIMessageStream({
+    originalMessages: messages,
+    onError: (error) =>
+      error instanceof Error ? error.message : "Codex CLI request failed.",
+    execute: ({ writer }) =>
+      new Promise((resolve, reject) => {
+        const args = existingSessionId
+          ? [
+              "exec",
+              "resume",
+              "--json",
+              "--skip-git-repo-check",
+              ...(model ? ["--model", model] : []),
+              existingSessionId,
+              "-",
+            ]
+          : [
+              "exec",
+              "--json",
+              "--cd",
+              projectPath,
+              "--skip-git-repo-check",
+              "--sandbox",
+              chatMode === "plan" ? "read-only" : "workspace-write",
+              ...(model ? ["--model", model] : []),
+              "-",
+            ];
+        const child = spawn("codex", args, {
+          env: process.env,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        const startedToolCalls = new Set();
+        let stdoutBuffer = "";
+        let stderrBuffer = "";
+        let finished = false;
+
+        const finish = (callback) => {
+          if (finished) return;
+          finished = true;
+          callback();
+        };
+
+        const ensureCommandToolStarted = (item) => {
+          if (!item?.id || startedToolCalls.has(item.id)) {
+            return;
+          }
+
+          startedToolCalls.add(item.id);
+          writer.write({
+            type: "tool-input-start",
+            dynamic: true,
+            title: "Command",
+            toolCallId: item.id,
+            toolName: "runCommand",
+          });
+          writer.write({
+            type: "tool-input-available",
+            dynamic: true,
+            input: {
+              command: item.command ?? "",
+            },
+            title: "Command",
+            toolCallId: item.id,
+            toolName: "runCommand",
+          });
+        };
+
+        const handleEvent = (event) => {
+          if (!event || typeof event !== "object") {
+            return;
+          }
+
+          if (
+            event.type === "thread.started" &&
+            typeof event.thread_id === "string" &&
+            threadId
+          ) {
+            codexSessionIdsByThreadId.set(threadId, event.thread_id);
+            return;
+          }
+
+          if (event.type === "item.started" && event.item?.type === "command_execution") {
+            ensureCommandToolStarted(event.item);
+            return;
+          }
+
+          if (event.type !== "item.completed" || !event.item) {
+            return;
+          }
+
+          const item = event.item;
+          if (item.type === "agent_message" && typeof item.text === "string") {
+            writeCodexTextPart(writer, item.id ?? `text-${Date.now()}`, item.text, "text");
+            return;
+          }
+
+          if (item.type === "reasoning" && typeof item.text === "string") {
+            writeCodexTextPart(
+              writer,
+              item.id ?? `reasoning-${Date.now()}`,
+              item.text,
+              "reasoning",
+            );
+            return;
+          }
+
+          if (item.type === "command_execution") {
+            ensureCommandToolStarted(item);
+            writer.write({
+              type: "tool-output-available",
+              dynamic: true,
+              output: {
+                command: item.command ?? "",
+                exitCode:
+                  typeof item.exit_code === "number" ? item.exit_code : null,
+                output: item.aggregated_output ?? "",
+                status: item.status ?? "completed",
+              },
+              toolCallId: item.id,
+            });
+            return;
+          }
+
+          if (typeof item.text === "string" && item.text.trim()) {
+            writeCodexTextPart(writer, item.id ?? `text-${Date.now()}`, item.text, "text");
+          }
+        };
+
+        const handleStdoutChunk = (chunk) => {
+          stdoutBuffer += chunk.toString();
+          const lines = stdoutBuffer.split(/\r?\n/);
+          stdoutBuffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              continue;
+            }
+
+            try {
+              handleEvent(JSON.parse(trimmed));
+            } catch {
+              stderrBuffer += `${trimmed}\n`;
+            }
+          }
+        };
+
+        const handleAbort = () => {
+          child.kill("SIGTERM");
+          finish(resolve);
+        };
+
+        abortSignal?.addEventListener("abort", handleAbort, { once: true });
+
+        child.stdout.on("data", handleStdoutChunk);
+        child.stderr.on("data", (chunk) => {
+          stderrBuffer += chunk.toString();
+        });
+        child.on("error", (error) => {
+          abortSignal?.removeEventListener("abort", handleAbort);
+          finish(() => reject(error));
+        });
+        child.on("close", (code) => {
+          abortSignal?.removeEventListener("abort", handleAbort);
+
+          const trimmed = stdoutBuffer.trim();
+          if (trimmed) {
+            try {
+              handleEvent(JSON.parse(trimmed));
+            } catch {
+              stderrBuffer += `${trimmed}\n`;
+            }
+          }
+
+          finish(() => {
+            if (code === 0 || abortSignal?.aborted) {
+              resolve();
+              return;
+            }
+
+            const detail =
+              stderrBuffer.trim() || `Codex CLI exited with code ${code}.`;
+            reject(new Error(detail));
+          });
+        });
+
+        child.stdin.end(prompt);
+      }),
+  });
+
+  return createUIMessageStreamResponse({ stream });
+};
+
 app.post("/api/chat", async (c) => {
   let rawBody;
   try {
@@ -1161,8 +1525,16 @@ app.post("/api/chat", async (c) => {
     return c.text(parsed.error.message, 400);
   }
 
-  const { authMode, chatMode, model, projectPath, provider, reasoningEffort } =
-    parsed.data;
+  const {
+    authMode,
+    chatMode,
+    model,
+    projectPath,
+    provider,
+    reasoningEffort,
+    remoteConversationId,
+    threadId,
+  } = parsed.data;
   const isPlanMode = chatMode === "plan";
   const systemPrompt = isPlanMode ? SYSTEM_PROMPT_PLAN : SYSTEM_PROMPT_BUILD;
   let credential = parsed.data.credential?.trim() ?? "";
@@ -1187,8 +1559,17 @@ app.post("/api/chat", async (c) => {
         401,
       );
     }
-    credential = codexCredential.credential;
-    useChatgptCodexEndpoint = codexCredential.source === "chatgpt";
+
+    return streamCodexCliResponse({
+      abortSignal: c.req.raw.signal,
+      chatMode,
+      messages,
+      model,
+      projectPath,
+      remoteConversationId,
+      systemPrompt,
+      threadId,
+    });
   }
 
   const usesClaudeCode = provider === "anthropic" && authMode === "claudeCode";

@@ -705,6 +705,8 @@ export const ChatPanel = ({
               projectPath: project.path,
               provider: activeProvider,
               reasoningEffort: selectedReasoningEffort,
+              remoteConversationId: thread.remoteConversationId,
+              threadId: thread.id,
             },
           },
         );
