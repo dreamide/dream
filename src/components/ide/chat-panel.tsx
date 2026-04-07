@@ -82,6 +82,7 @@ import type {
   ThreadConfig,
 } from "@/types/ide";
 import {
+  AgentChip,
   AssistantMessagePart,
   getChipToolKind,
   isChipToolPart,
@@ -260,6 +261,9 @@ const ThreadMessage = memo(
                     if (chipToolKind === "command") {
                       return <RunCommandChip key={key} part={chipPart_} />;
                     }
+                    if (chipToolKind === "agent") {
+                      return <AgentChip key={key} part={chipPart_} />;
+                    }
                     if (chipToolKind === "read") {
                       return <ReadFileChip key={key} part={chipPart_} />;
                     }
@@ -407,7 +411,8 @@ export const ChatPanel = ({
         option.provider === thread.provider && option.id === thread.model,
     ) ?? allModelOptions[0];
   const selectedProvider = selectedModelOption?.provider ?? thread.provider;
-  const isProviderInstalled = providerModels[selectedProvider]?.installed ?? false;
+  const isProviderInstalled =
+    providerModels[selectedProvider]?.installed ?? false;
   const [localError, setLocalError] = useState<string | null>(null);
 
   const transport = useMemo(
@@ -763,10 +768,7 @@ export const ChatPanel = ({
                 >
                   <PromptInputSubmit
                     className="size-8 rounded-md"
-                    disabled={
-                      !isProviderInstalled ||
-                      selectedModel === ""
-                    }
+                    disabled={!isProviderInstalled || selectedModel === ""}
                     onStop={stop}
                     status={status}
                   />
