@@ -1081,6 +1081,65 @@ const REASONING_TOOL_STEP_LIMIT = 50;
 
 const normalizePath = (value) => value.replace(/\\/g, "/");
 
+const getCodexCliSpawnErrorMessage = (error) => {
+  if (error?.code === "ENOENT") {
+    return "Codex CLI not found. Install it or add it to PATH, then restart Dream.";
+  }
+
+  return error instanceof Error ? error.message : "Codex CLI request failed.";
+};
+
+const resolveCodexCliLaunch = async () => {
+  if (process.platform !== "win32") {
+    return { argsPrefix: [], command: "codex" };
+  }
+
+  try {
+    const result = await execFileAsync(
+      "powershell.exe",
+      ["-NoProfile", "-Command", "(Get-Command codex -ErrorAction Stop).Path"],
+      {
+        encoding: "utf8",
+        windowsHide: true,
+      },
+    );
+    const resolvedPath = result.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find(Boolean);
+
+    if (!resolvedPath) {
+      return { argsPrefix: [], command: "codex" };
+    }
+
+    const lowerResolvedPath = resolvedPath.toLowerCase();
+    if (
+      lowerResolvedPath.endsWith(".ps1") ||
+      lowerResolvedPath.endsWith(".cmd")
+    ) {
+      const basedir = path.dirname(resolvedPath);
+      const nodeExecutable = path.join(basedir, "node.exe");
+      const codexEntrypoint = path.join(
+        basedir,
+        "node_modules",
+        "@openai",
+        "codex",
+        "bin",
+        "codex.js",
+      );
+
+      return {
+        argsPrefix: [codexEntrypoint],
+        command: nodeExecutable,
+      };
+    }
+
+    return { argsPrefix: [], command: resolvedPath };
+  } catch {
+    return { argsPrefix: [], command: "codex" };
+  }
+};
+
 const getAnthropicThinkingOptions = (provider, modelId, effort) => {
   const efforts = getModelReasoningEfforts(provider, modelId);
   if (efforts.length === 0) return undefined;
@@ -1346,14 +1405,11 @@ const streamCodexCliResponse = ({
               ...(model ? ["--model", model] : []),
               "-",
             ];
-        const child = spawn("codex", args, {
-          env: process.env,
-          stdio: ["pipe", "pipe", "pipe"],
-        });
         const startedToolCalls = new Set();
         let stdoutBuffer = "";
         let stderrBuffer = "";
         let finished = false;
+        let child;
 
         const finish = (callback) => {
           if (finished) return;
@@ -1467,45 +1523,67 @@ const streamCodexCliResponse = ({
         };
 
         const handleAbort = () => {
-          child.kill("SIGTERM");
+          child?.kill("SIGTERM");
           finish(resolve);
         };
 
         abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
-        child.stdout.on("data", handleStdoutChunk);
-        child.stderr.on("data", (chunk) => {
-          stderrBuffer += chunk.toString();
-        });
-        child.on("error", (error) => {
-          abortSignal?.removeEventListener("abort", handleAbort);
-          finish(() => reject(error));
-        });
-        child.on("close", (code) => {
-          abortSignal?.removeEventListener("abort", handleAbort);
+        void resolveCodexCliLaunch()
+          .then((launch) => {
+            child = spawn(launch.command, [...launch.argsPrefix, ...args], {
+              env: process.env,
+              stdio: ["pipe", "pipe", "pipe"],
+            });
 
-          const trimmed = stdoutBuffer.trim();
-          if (trimmed) {
-            try {
-              handleEvent(JSON.parse(trimmed));
-            } catch {
-              stderrBuffer += `${trimmed}\n`;
-            }
-          }
+            child.stdout.on("data", handleStdoutChunk);
+            child.stderr.on("data", (chunk) => {
+              stderrBuffer += chunk.toString();
+            });
+            child.on("error", (error) => {
+              abortSignal?.removeEventListener("abort", handleAbort);
+              finish(() =>
+                reject(new Error(getCodexCliSpawnErrorMessage(error))),
+              );
+            });
+            child.on("close", (code) => {
+              abortSignal?.removeEventListener("abort", handleAbort);
 
-          finish(() => {
-            if (code === 0 || abortSignal?.aborted) {
-              resolve();
-              return;
-            }
+              const trimmed = stdoutBuffer.trim();
+              if (trimmed) {
+                try {
+                  handleEvent(JSON.parse(trimmed));
+                } catch {
+                  stderrBuffer += `${trimmed}\n`;
+                }
+              }
 
-            const detail =
-              stderrBuffer.trim() || `Codex CLI exited with code ${code}.`;
-            reject(new Error(detail));
+              finish(() => {
+                if (code === 0 || abortSignal?.aborted) {
+                  resolve();
+                  return;
+                }
+
+                const detail =
+                  stderrBuffer.trim() || `Codex CLI exited with code ${code}.`;
+                reject(new Error(detail));
+              });
+            });
+
+            child.stdin.end(prompt);
+          })
+          .catch((error) => {
+            abortSignal?.removeEventListener("abort", handleAbort);
+            finish(() =>
+              reject(
+                new Error(
+                  error instanceof Error
+                    ? error.message
+                    : "Codex CLI request failed.",
+                ),
+              ),
+            );
           });
-        });
-
-        child.stdin.end(prompt);
       }),
   });
 
