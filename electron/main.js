@@ -320,6 +320,7 @@ function getPreviewPageState(session) {
   }
 
   const { webContents } = session.view;
+  const navigationHistory = webContents.navigationHistory;
   const currentUrl =
     webContents.getURL() ||
     session.currentLoadedUrl ||
@@ -327,8 +328,8 @@ function getPreviewPageState(session) {
     "about:blank";
 
   return {
-    canGoBack: webContents.canGoBack(),
-    canGoForward: webContents.canGoForward(),
+    canGoBack: navigationHistory?.canGoBack() ?? false,
+    canGoForward: navigationHistory?.canGoForward() ?? false,
     projectId: session.projectId,
     tabId: session.tabId,
     title: webContents.getTitle() || session.title || "New Tab",
@@ -343,6 +344,37 @@ function sendPreviewPageState(session) {
   }
 
   sendToRenderer("preview:page-state", pageState);
+}
+
+function settlePreviewLoadFailure(session, failedUrl) {
+  if (!session) {
+    return;
+  }
+
+  const nextRequestedUrl =
+    (typeof session.loadingRequestedUrl === "string" &&
+    session.loadingRequestedUrl.trim().length > 0
+      ? session.loadingRequestedUrl.trim()
+      : null) ||
+    (typeof session.currentRequestedUrl === "string" &&
+    session.currentRequestedUrl.trim().length > 0
+      ? session.currentRequestedUrl.trim()
+      : null) ||
+    (typeof failedUrl === "string" && failedUrl.trim().length > 0
+      ? failedUrl.trim()
+      : null) ||
+    session.currentLoadedUrl ||
+    "about:blank";
+
+  session.loadingRequestedUrl = null;
+  session.currentRequestedUrl = nextRequestedUrl;
+
+  if (
+    typeof session.currentLoadedUrl !== "string" ||
+    session.currentLoadedUrl.trim().length === 0
+  ) {
+    session.currentLoadedUrl = "about:blank";
+  }
 }
 
 function parseCommandParts(value) {
@@ -585,20 +617,18 @@ function createPreviewSession(tabId, projectId) {
 
   view.webContents.on(
     "did-fail-load",
-    (_event, code, description, _validatedUrl, isMainFrame) => {
+    (_event, code, description, validatedUrl, isMainFrame) => {
       if (!isMainFrame) {
         return;
       }
 
-      const session = previewSessions.get(tabId);
-      if (session) {
-        session.currentLoadedUrl = "about:blank";
-        session.loadingRequestedUrl = null;
-        session.title = "New Tab";
+      if (code === -3) {
+        return;
       }
 
-      view.webContents.loadURL("about:blank").catch(() => {});
-      sendPreviewPageState(previewSessions.get(tabId));
+      const session = previewSessions.get(tabId);
+      settlePreviewLoadFailure(session, validatedUrl);
+      sendPreviewPageState(session);
 
       if (previewState.tabId !== tabId) {
         return;
@@ -707,12 +737,11 @@ function navigatePreviewHistory(tabId, projectId, direction) {
   }
 
   try {
-    if (direction === "back" && session.view.webContents.canGoBack()) {
+    const navigationHistory = session.view.webContents.navigationHistory;
+
+    if (direction === "back" && navigationHistory?.canGoBack()) {
       session.view.webContents.goBack();
-    } else if (
-      direction === "forward" &&
-      session.view.webContents.canGoForward()
-    ) {
+    } else if (direction === "forward" && navigationHistory?.canGoForward()) {
       session.view.webContents.goForward();
     }
   } catch {
@@ -840,11 +869,7 @@ function applyPreviewState() {
         return;
       }
 
-      nextSession.loadingRequestedUrl = null;
-      nextSession.currentRequestedUrl = "about:blank";
-      nextSession.currentLoadedUrl = "about:blank";
-      nextSession.title = "New Tab";
-      nextSession.view.webContents.loadURL("about:blank").catch(() => {});
+      settlePreviewLoadFailure(nextSession, url);
       sendPreviewPageState(nextSession);
 
       if (previewState.tabId === nextSession.tabId) {
@@ -880,11 +905,7 @@ function applyPreviewState() {
         return;
       }
 
-      nextSession.loadingRequestedUrl = null;
-      nextSession.currentRequestedUrl = "about:blank";
-      nextSession.currentLoadedUrl = "about:blank";
-      nextSession.title = "New Tab";
-      nextSession.view.webContents.loadURL("about:blank").catch(() => {});
+      settlePreviewLoadFailure(nextSession, url);
       sendPreviewPageState(nextSession);
 
       if (previewState.tabId === nextSession.tabId) {
