@@ -322,6 +322,7 @@ function getPreviewPageState(session) {
   const { webContents } = session.view;
   const navigationHistory = webContents.navigationHistory;
   const currentUrl =
+    session.failedRequestedUrl ||
     webContents.getURL() ||
     session.currentLoadedUrl ||
     session.currentRequestedUrl ||
@@ -368,6 +369,7 @@ function settlePreviewLoadFailure(session, failedUrl) {
 
   session.loadingRequestedUrl = null;
   session.currentRequestedUrl = nextRequestedUrl;
+  session.failedRequestedUrl = nextRequestedUrl;
 
   if (
     typeof session.currentLoadedUrl !== "string" ||
@@ -554,6 +556,7 @@ function createPreviewSession(tabId, projectId) {
       session.currentLoadedUrl =
         session.view.webContents.getURL() || "about:blank";
       session.currentRequestedUrl = session.currentLoadedUrl;
+      session.failedRequestedUrl = null;
       session.title = session.view.webContents.getTitle() || session.title;
     }
 
@@ -566,6 +569,7 @@ function createPreviewSession(tabId, projectId) {
       session.loadingRequestedUrl = null;
       session.currentLoadedUrl = session.view.webContents.getURL();
       session.currentRequestedUrl = session.currentLoadedUrl;
+      session.failedRequestedUrl = null;
       session.title = session.view.webContents.getTitle() || session.title;
     }
 
@@ -585,6 +589,7 @@ function createPreviewSession(tabId, projectId) {
 
     session.currentLoadedUrl = url || session.currentLoadedUrl;
     session.currentRequestedUrl = session.currentLoadedUrl;
+    session.failedRequestedUrl = null;
     session.title = session.view.webContents.getTitle() || session.title;
     sendPreviewPageState(session);
   });
@@ -601,6 +606,7 @@ function createPreviewSession(tabId, projectId) {
 
     session.currentLoadedUrl = url || session.currentLoadedUrl;
     session.currentRequestedUrl = session.currentLoadedUrl;
+    session.failedRequestedUrl = null;
     session.title = session.view.webContents.getTitle() || session.title;
     sendPreviewPageState(session);
   });
@@ -645,6 +651,7 @@ function createPreviewSession(tabId, projectId) {
     attached: false,
     currentLoadedUrl: "about:blank",
     currentRequestedUrl: "about:blank",
+    failedRequestedUrl: null,
     lastBounds: null,
     loadRequestId: 0,
     loadingRequestedUrl: null,
@@ -821,6 +828,7 @@ function applyPreviewState() {
   previewState.reload = false;
 
   if (
+    (!forceReload && nextSession.failedRequestedUrl === url) ||
     (!forceReload && nextSession.currentRequestedUrl === url) ||
     nextSession.loadingRequestedUrl === url
   ) {
@@ -855,6 +863,7 @@ function applyPreviewState() {
 
   nextSession.currentRequestedUrl = url;
   nextSession.loadingRequestedUrl = url;
+  nextSession.failedRequestedUrl = null;
   const requestId = ++nextSession.loadRequestId;
   const candidates = getPreviewLoadCandidates(url);
 
