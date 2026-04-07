@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import {
+  BotIcon,
   CheckIcon,
   EyeIcon,
   FileIcon,
@@ -115,6 +116,7 @@ const normalizeToolName = (name: string): string =>
     .toLowerCase();
 
 const CHIP_TOOL_NAME_ALIASES = {
+  agent: new Set(["agent"]),
   command: new Set(["run-command", "runcommand", "command", "exec-command"]),
   list: new Set(["glob", "list-files"]),
   read: new Set(["read", "read-file"]),
@@ -136,6 +138,9 @@ export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
 
   if (CHIP_TOOL_NAME_ALIASES.command.has(toolName)) {
     return "command";
+  }
+  if (CHIP_TOOL_NAME_ALIASES.agent.has(toolName)) {
+    return "agent";
   }
   if (CHIP_TOOL_NAME_ALIASES.read.has(toolName)) {
     return "read";
@@ -342,6 +347,21 @@ const normalizeEmbeddedLineNumbers = (
   };
 };
 
+const getAgentOutputText = (output: unknown): string | null => {
+  if (!isString(output) || output.length === 0) {
+    return null;
+  }
+
+  const withoutUsage = output.replace(/\n*<usage>[\s\S]*?<\/usage>\s*$/i, "");
+  const withoutAgentId = withoutUsage.replace(
+    /\n*agentId:[^\n]*(?:\n|$)/i,
+    "\n",
+  );
+  const trimmed = withoutAgentId.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 const JsonBlock = ({ value }: { value: unknown }) => (
   <CodeBlock code={stringifyPart(value)} language="json" />
 );
@@ -539,6 +559,85 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
 };
 
 // ── Chip-based tool components ─────────────────────────────────────────
+
+export const AgentChip = ({ part }: { part: ToolLikePart }) => {
+  const [expanded, setExpanded] = useState(false);
+  const state = (part.state ?? "input-streaming") as ToolPart["state"];
+  const isRunning = state === "input-available" || state === "input-streaming";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const outputText = getAgentOutputText(part.output);
+  const hasRawOutput = part.output !== undefined;
+  const canExpand = hasError || hasRawOutput;
+  const description =
+    getStringFromPaths(part.input, [["description"]]) ?? "Agent";
+  const subagentType = getStringFromPaths(part.input, [
+    ["subagent_type"],
+    ["subagentType"],
+    ["type"],
+  ]);
+
+  return (
+    <div className={expanded ? "mb-3 w-full" : undefined}>
+      <button
+        className={cn(
+          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300",
+          hasError && CHIP_ERROR_CLASSES,
+          canExpand && "cursor-pointer",
+          isRunning && "animate-pulse",
+        )}
+        onClick={() => canExpand && setExpanded(!expanded)}
+        type="button"
+      >
+        <BotIcon className="size-3.5 shrink-0" />
+        <span className="max-w-56 truncate font-medium">{description}</span>
+        {subagentType ? (
+          <span className="opacity-70">{subagentType}</span>
+        ) : null}
+        <span className="opacity-70">{formatToolName(state)}</span>
+        {hasError ? <span className="text-destructive">error</span> : null}
+      </button>
+      {expanded ? (
+        <div className="mt-2 space-y-2">
+          {isRecord(part.input) ? (
+            <div className="space-y-2 rounded-md bg-muted/20 p-3">
+              <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                Parameters
+              </h4>
+              <div className="rounded-md bg-muted/50">
+                <CodeBlock
+                  code={JSON.stringify(part.input, null, 2)}
+                  language="json"
+                />
+              </div>
+            </div>
+          ) : null}
+          {hasError ? (
+            <div className="space-y-2 rounded-md bg-destructive/5 p-3">
+              <h4 className="font-medium text-destructive text-xs uppercase tracking-wide">
+                Result
+              </h4>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-destructive text-xs">
+                {part.errorText}
+              </pre>
+            </div>
+          ) : outputText ? (
+            <div className="space-y-2 rounded-md bg-muted/20 p-3">
+              <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                Result
+              </h4>
+              <div className="rounded-md border bg-background p-3 text-foreground">
+                <MessageResponse>{outputText}</MessageResponse>
+              </div>
+            </div>
+          ) : hasRawOutput ? (
+            <JsonBlock value={part.output} />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
   const [expanded, setExpanded] = useState(false);
