@@ -142,7 +142,6 @@ export const IdeShell = () => {
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
   const setIsElectron = useIdeStore((s) => s.setIsElectron);
-  const setProviderSetupTarget = useIdeStore((s) => s.setProviderSetupTarget);
   const appendTerminalOutput = useIdeStore((s) => s.appendTerminalOutput);
   const setTerminalStatus = useIdeStore((s) => s.setTerminalStatus);
   const setTerminalTransport = useIdeStore((s) => s.setTerminalTransport);
@@ -150,7 +149,6 @@ export const IdeShell = () => {
   const setPreviewError = useIdeStore((s) => s.setPreviewError);
   const setPreviewLoading = useIdeStore((s) => s.setPreviewLoading);
   const updatePreviewTab = useIdeStore((s) => s.updatePreviewTab);
-  const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const setPanelSizes = useIdeStore((s) => s.setPanelSizes);
   const projectTerminalSessionIds = useIdeStore(
@@ -169,17 +167,6 @@ export const IdeShell = () => {
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const previewHostRef = useRef<HTMLDivElement | null>(null);
-  const providerCredentialsRef = useRef({
-    anthropicAccessToken: settings.anthropicAccessToken,
-    anthropicAccessTokenExpiresAt: settings.anthropicAccessTokenExpiresAt,
-    anthropicAuthMode: settings.anthropicAuthMode,
-    anthropicApiKey: settings.anthropicApiKey,
-    anthropicRefreshToken: settings.anthropicRefreshToken,
-    geminiApiKey: settings.geminiApiKey,
-    openAiApiKey: settings.openAiApiKey,
-    openAiAuthMode: settings.openAiAuthMode,
-  });
-
   // ── Resize state ────────────────────────────────────────────────────
   // Widths live in refs so drag handlers can mutate the DOM directly
   // without triggering React re-renders on every pointer-move.
@@ -405,27 +392,9 @@ export const IdeShell = () => {
   // Mark app ready once hydration completes, and auto-refresh models
   useEffect(() => {
     if (!stateHydrated) return;
-    const { settings: s } = useIdeStore.getState();
-    void refreshProviderModels({
-      anthropicAccessToken: s.anthropicAccessToken,
-      anthropicAccessTokenExpiresAt: s.anthropicAccessTokenExpiresAt,
-      anthropicAuthMode: s.anthropicAuthMode,
-      anthropicApiKey: s.anthropicApiKey,
-      anthropicRefreshToken: s.anthropicRefreshToken,
-      geminiApiKey: s.geminiApiKey,
-      openAiApiKey: s.openAiApiKey,
-      openAiAuthMode: s.openAiAuthMode,
-    });
-    if (s.openAiAuthMode === "codex") {
-      void refreshCodexLoginStatus();
-    }
+    void refreshProviderModels();
     setAppReady(true);
-  }, [
-    stateHydrated,
-    setAppReady,
-    refreshProviderModels,
-    refreshCodexLoginStatus,
-  ]);
+  }, [stateHydrated, setAppReady, refreshProviderModels]);
 
   // Subscribe to persisted state changes for auto-persistence (debounced)
   useEffect(() => {
@@ -716,92 +685,44 @@ export const IdeShell = () => {
     };
   }, []);
 
-  // Keep credentials ref in sync
-  useEffect(() => {
-    providerCredentialsRef.current = {
-      anthropicAccessToken: settings.anthropicAccessToken,
-      anthropicAccessTokenExpiresAt: settings.anthropicAccessTokenExpiresAt,
-      anthropicAuthMode: settings.anthropicAuthMode,
-      anthropicApiKey: settings.anthropicApiKey,
-      anthropicRefreshToken: settings.anthropicRefreshToken,
-      geminiApiKey: settings.geminiApiKey,
-      openAiApiKey: settings.openAiApiKey,
-      openAiAuthMode: settings.openAiAuthMode,
-    };
-  }, [
-    settings.anthropicAccessToken,
-    settings.anthropicAccessTokenExpiresAt,
-    settings.anthropicAuthMode,
-    settings.anthropicApiKey,
-    settings.anthropicRefreshToken,
-    settings.geminiApiKey,
-    settings.openAiApiKey,
-    settings.openAiAuthMode,
-  ]);
-
   // Auto-refresh models when settings panel opens
   useEffect(() => {
     if (
       !settingsOpen ||
-      (settingsSection !== "providers" && settingsSection !== "models")
+      settingsSection !== "providers"
     ) {
       return;
     }
-    const creds = providerCredentialsRef.current;
-    void refreshProviderModels(creds);
-    if (creds.openAiAuthMode === "codex") {
-      void refreshCodexLoginStatus();
-    }
-  }, [
-    refreshCodexLoginStatus,
-    refreshProviderModels,
-    settingsOpen,
-    settingsSection,
-  ]);
-
-  // Reset provider setup target when leaving providers section
-  useEffect(() => {
-    if (!settingsOpen || settingsSection !== "providers") {
-      setProviderSetupTarget(null);
-    }
-  }, [settingsOpen, settingsSection, setProviderSetupTarget]);
+    void refreshProviderModels();
+  }, [refreshProviderModels, settingsOpen, settingsSection]);
 
   // Sync settings integrity (dedupe models, fix connected providers)
   useEffect(() => {
     const store = useIdeStore.getState();
     const prev = settings;
 
-    const safeConnectedProviders = getConnectedProviders(prev);
     const openAiSelectedModels = dedupeModels(prev.openAiSelectedModels);
     const anthropicSelectedModels = dedupeModels(
       prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
     );
-    const geminiSelectedModels = dedupeModels(prev.geminiSelectedModels);
     const nextSettings = {
       ...prev,
       anthropicSelectedModels,
-      connectedProviders: safeConnectedProviders,
-      geminiSelectedModels,
       openAiSelectedModels,
     };
     const defaultModel = getPreferredDefaultModel(nextSettings);
+    const enabledProviders = getConnectedProviders(nextSettings);
 
     const changed =
-      safeConnectedProviders.length !== prev.connectedProviders.length ||
-      !safeConnectedProviders.every(
-        (p, i) => prev.connectedProviders[i] === p,
-      ) ||
       defaultModel !== prev.defaultModel ||
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
-      geminiSelectedModels.length !== prev.geminiSelectedModels.length ||
       !openAiSelectedModels.every(
         (m, i) => prev.openAiSelectedModels[i] === m,
       ) ||
       !anthropicSelectedModels.every(
         (m, i) => prev.anthropicSelectedModels[i] === m,
-      ) ||
-      !geminiSelectedModels.every((m, i) => prev.geminiSelectedModels[i] === m);
+      );
 
     if (changed) {
       store.setSettings({
@@ -811,7 +732,6 @@ export const IdeShell = () => {
     }
 
     // Fix projects whose provider/model is no longer valid
-    const connectedProviders = safeConnectedProviders;
     const effectiveSettings = { ...nextSettings, defaultModel };
     const defaultSelection = getDefaultModelSelection(effectiveSettings);
     const { projects, threads } = store;
@@ -821,8 +741,8 @@ export const IdeShell = () => {
       let next = project;
 
       if (
-        !connectedProviders.includes(next.provider) &&
-        connectedProviders.length > 0
+        !enabledProviders.includes(next.provider) &&
+        enabledProviders.length > 0
       ) {
         next = {
           ...next,
@@ -870,8 +790,8 @@ export const IdeShell = () => {
       }
 
       if (
-        !connectedProviders.includes(next.provider) &&
-        connectedProviders.length > 0
+        !enabledProviders.includes(next.provider) &&
+        enabledProviders.length > 0
       ) {
         next = {
           ...next,

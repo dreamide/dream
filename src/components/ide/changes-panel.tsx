@@ -993,7 +993,7 @@ const ChangesPanelImpl = () => {
 
       const section = diffSectionRefs.current[filePath];
       if (section) {
-        section.scrollIntoView({ behavior: "smooth", block: "start" });
+        section.scrollIntoView({ behavior: "auto", block: "start" });
       }
     },
     [changeByPath, projectId, queueDiffLoad],
