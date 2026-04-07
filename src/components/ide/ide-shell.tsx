@@ -8,6 +8,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
+  DEFAULT_PANEL_SIZES,
   getConnectedProviders,
   getDefaultModelForProvider,
   getDefaultModelSelection,
@@ -32,14 +33,14 @@ import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
-const PROJECT_SIDEBAR_WIDTH_PX = 240;
+const PROJECT_SIDEBAR_WIDTH_PX = DEFAULT_PANEL_SIZES.leftSidebarWidth;
 const PROJECT_SIDEBAR_MIN_WIDTH_PX = 200;
 const PROJECT_SIDEBAR_MAX_WIDTH_PX = 600;
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
-const PREVIEW_PANEL_DEFAULT_WIDTH_PX = 520;
+const PREVIEW_PANEL_DEFAULT_WIDTH_PX = DEFAULT_PANEL_SIZES.rightPanelWidth;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
 const CHAT_PANEL_MIN_HEIGHT_PX = 180;
-const TERMINAL_PANEL_DEFAULT_HEIGHT_PX = 260;
+const TERMINAL_PANEL_DEFAULT_HEIGHT_PX = DEFAULT_PANEL_SIZES.terminalHeight;
 const TERMINAL_PANEL_MIN_HEIGHT_PX = TERMINAL_MIN_HEIGHT_PX + 16;
 const PANEL_RESIZE_HANDLE_SIZE_PX = 1;
 const PANEL_EDGE_PADDING_PX = 8;
@@ -56,6 +57,7 @@ export const IdeShell = () => {
   const setAppReady = useIdeStore((s) => s.setAppReady);
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
+  const panelSizes = useIdeStore((s) => s.panelSizes);
   const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
@@ -150,6 +152,7 @@ export const IdeShell = () => {
   const updatePreviewTab = useIdeStore((s) => s.updatePreviewTab);
   const refreshCodexLoginStatus = useIdeStore((s) => s.refreshCodexLoginStatus);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
+  const setPanelSizes = useIdeStore((s) => s.setPanelSizes);
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
@@ -189,6 +192,12 @@ export const IdeShell = () => {
   const middlePanelRef = useRef<HTMLDivElement | null>(null);
   const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
+
+  if (!isDraggingRef.current) {
+    leftWidthRef.current = panelSizes.leftSidebarWidth;
+    rightWidthRef.current = panelSizes.rightPanelWidth;
+    terminalHeightRef.current = panelSizes.terminalHeight;
+  }
 
   const getHorizontalChromeWidth = useCallback(() => {
     const leftHandleWidth =
@@ -334,7 +343,12 @@ export const IdeShell = () => {
     if (left) left.style.transition = PANEL_TRANSITION;
     const right = rightPanelRef.current;
     if (right) right.style.transition = RIGHT_PANEL_TRANSITION;
-  }, []);
+    setPanelSizes((current) => ({
+      ...current,
+      leftSidebarWidth: leftWidthRef.current,
+      rightPanelWidth: rightWidthRef.current,
+    }));
+  }, [setPanelSizes]);
 
   const handleTerminalResizeStart = useCallback(() => {
     const el = terminalPanelRef.current;
@@ -366,6 +380,13 @@ export const IdeShell = () => {
       el.style.height = `${next}px`;
     }
   }, []);
+
+  const handleTerminalResizeEnd = useCallback(() => {
+    setPanelSizes((current) => ({
+      ...current,
+      terminalHeight: terminalHeightRef.current,
+    }));
+  }, [setPanelSizes]);
 
   // ── Effects ──────────────────────────────────────────────────────────
 
@@ -412,6 +433,7 @@ export const IdeShell = () => {
       activeProjectId: useIdeStore.getState().activeProjectId,
       activeThreadIdByProject: useIdeStore.getState().activeThreadIdByProject,
       chats: useIdeStore.getState().chats,
+      panelSizes: useIdeStore.getState().panelSizes,
       panelVisibility: useIdeStore.getState().panelVisibility,
       projects: useIdeStore.getState().projects,
       settings: useIdeStore.getState().settings,
@@ -425,6 +447,7 @@ export const IdeShell = () => {
         activeProjectId: state.activeProjectId,
         activeThreadIdByProject: state.activeThreadIdByProject,
         chats: state.chats,
+        panelSizes: state.panelSizes,
         panelVisibility: state.panelVisibility,
         projects: state.projects,
         settings: state.settings,
@@ -436,6 +459,7 @@ export const IdeShell = () => {
         next.activeProjectId !== prev.activeProjectId ||
         next.activeThreadIdByProject !== prev.activeThreadIdByProject ||
         next.chats !== prev.chats ||
+        next.panelSizes !== prev.panelSizes ||
         next.panelVisibility !== prev.panelVisibility ||
         next.projects !== prev.projects ||
         next.settings !== prev.settings ||
@@ -993,6 +1017,7 @@ export const IdeShell = () => {
                   <>
                     <PanelResizeHandle
                       onResize={handleTerminalResize}
+                      onResizeEnd={handleTerminalResizeEnd}
                       onResizeStart={handleTerminalResizeStart}
                       side="top"
                     />

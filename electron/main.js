@@ -38,6 +38,11 @@ const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
   activeThreadIdByProject: {},
   chats: {},
+  panelSizes: {
+    leftSidebarWidth: 240,
+    rightPanelWidth: 520,
+    terminalHeight: 260,
+  },
   panelVisibility: {
     left: true,
     middle: true,

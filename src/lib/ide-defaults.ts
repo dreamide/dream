@@ -2,6 +2,7 @@ import { createModelOption, type ModelOption } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
+  PanelSizes,
   PanelVisibility,
   PersistedIdeState,
   ProjectConfig,
@@ -57,10 +58,17 @@ export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
   right: true,
 };
 
+export const DEFAULT_PANEL_SIZES: PanelSizes = {
+  leftSidebarWidth: 240,
+  rightPanelWidth: 520,
+  terminalHeight: 260,
+};
+
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
   activeThreadIdByProject: {},
   chats: {},
+  panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,

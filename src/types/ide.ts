@@ -65,10 +65,17 @@ export interface PanelVisibility {
   right: boolean;
 }
 
+export interface PanelSizes {
+  leftSidebarWidth: number;
+  rightPanelWidth: number;
+  terminalHeight: number;
+}
+
 export interface PersistedIdeState {
   projects: ProjectConfig[];
   activeProjectId: string | null;
   panelVisibility: PanelVisibility;
+  panelSizes: PanelSizes;
   settings: AppSettings;
   threads: ThreadConfig[];
   activeThreadIdByProject: Record<string, string | null>;

@@ -4,6 +4,7 @@ import { getDesktopApi } from "@/lib/electron";
 import {
   createProjectConfig,
   createThreadConfig,
+  DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
   getConnectedProviders,
@@ -15,6 +16,7 @@ import { dedupeModelOptions } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
+  PanelSizes,
   PanelVisibility,
   PersistedIdeState,
   PreviewTabState,
@@ -52,6 +54,7 @@ interface IdeState {
   activeThreadIdByProject: Record<string, string | null>;
   threadSort: ThreadSortOrder;
   panelVisibility: PanelVisibility;
+  panelSizes: PanelSizes;
   settings: AppSettings;
   chats: Record<string, UIMessage[]>;
 
@@ -119,6 +122,9 @@ interface IdeState {
 
   // Actions – panels
   togglePanel: (panel: keyof PanelVisibility) => void;
+  setPanelSizes: (
+    updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
+  ) => void;
   setOutputPanelOpen: (open: boolean) => void;
   setAutoAcceptEdits: (value: boolean) => void;
   setRightPanelView: (view: RightPanelView) => void;
@@ -336,6 +342,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   activeThreadIdByProject: {},
   threadSort: "recent",
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
+  panelSizes: DEFAULT_PANEL_SIZES,
   settings: DEFAULT_SETTINGS,
   chats: {},
 
@@ -683,6 +690,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ...state.panelVisibility,
         [panel]: !state.panelVisibility[panel],
       },
+    }));
+  },
+  setPanelSizes: (updater) => {
+    set((state) => ({
+      panelSizes:
+        typeof updater === "function" ? updater(state.panelSizes) : updater,
     }));
   },
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
@@ -1514,6 +1527,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           activeProjectId: null,
           activeThreadIdByProject: {},
           chats: {},
+          panelSizes: DEFAULT_PANEL_SIZES,
           panelVisibility: DEFAULT_PANEL_VISIBILITY,
           projects: [],
           settings: DEFAULT_SETTINGS,
@@ -1530,6 +1544,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             activeProjectId: null,
             activeThreadIdByProject: {},
             chats: {},
+            panelSizes: DEFAULT_PANEL_SIZES,
             panelVisibility: DEFAULT_PANEL_VISIBILITY,
             projects: [],
             settings: DEFAULT_SETTINGS,
@@ -1559,6 +1574,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ),
         ]),
       ),
+      panelSizes: loaded.panelSizes,
       panelVisibility: loaded.panelVisibility,
       settings: loaded.settings,
       threadSort: loaded.threadSort,
@@ -1574,6 +1590,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       threads,
       activeThreadIdByProject,
       threadSort,
+      panelSizes,
       panelVisibility,
       settings,
       chats,
@@ -1594,6 +1611,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ]),
       ),
       chats,
+      panelSizes,
       panelVisibility,
       projects,
       settings,
