@@ -122,6 +122,9 @@ const CHIP_TOOL_NAME_ALIASES = {
   write: new Set(["edit", "write", "write-file"]),
 } as const;
 
+const CHIP_ERROR_CLASSES =
+  "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10";
+
 export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
 
 export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
@@ -213,6 +216,130 @@ const extToLanguage: Record<string, BundledLanguage> = {
 const inferLanguage = (filePath: string): BundledLanguage => {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
   return extToLanguage[ext] ?? "log";
+};
+
+const getNestedValue = (value: unknown, path: readonly string[]): unknown => {
+  let current = value;
+
+  for (const key of path) {
+    if (!isRecord(current)) {
+      return undefined;
+    }
+    current = current[key];
+  }
+
+  return current;
+};
+
+const getStringFromPaths = (
+  value: unknown,
+  paths: ReadonlyArray<readonly string[]>,
+  options?: { allowEmpty?: boolean },
+): string | null => {
+  for (const path of paths) {
+    const candidate = path.length === 0 ? value : getNestedValue(value, path);
+
+    if (!isString(candidate)) {
+      continue;
+    }
+    if (options?.allowEmpty || candidate.length > 0) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
+
+const getNumberFromPaths = (
+  value: unknown,
+  paths: ReadonlyArray<readonly string[]>,
+): number | null => {
+  for (const path of paths) {
+    const candidate = path.length === 0 ? value : getNestedValue(value, path);
+
+    if (typeof candidate === "number") {
+      return candidate;
+    }
+  }
+
+  return null;
+};
+
+const normalizeEmbeddedLineNumbers = (
+  content: string,
+  startLine?: number | null,
+): {
+  code: string;
+  hadEmbeddedLineNumbers: boolean;
+  startingLineNumber: number;
+} => {
+  const sanitizedContent = content
+    .replace(/\r\n/g, "\n")
+    .replace(/\n*<system-reminder>[\s\S]*?<\/system-reminder>\s*$/i, "");
+  const lines = sanitizedContent.split("\n");
+  if (lines.length < 2) {
+    return {
+      code: sanitizedContent,
+      hadEmbeddedLineNumbers: false,
+      startingLineNumber: startLine ?? 1,
+    };
+  }
+
+  let expected = startLine ?? null;
+  let detectedStart = startLine ?? null;
+  let matchedCount = 0;
+  const strippedLines: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\s*(\d+)\s*(?:\||:|->|→|›)\s?(.*)$/);
+    if (!match) {
+      return {
+        code: sanitizedContent,
+        hadEmbeddedLineNumbers: false,
+        startingLineNumber: startLine ?? 1,
+      };
+    }
+
+    const lineNumber = Number(match[1]);
+    if (!Number.isFinite(lineNumber)) {
+      return {
+        code: sanitizedContent,
+        hadEmbeddedLineNumbers: false,
+        startingLineNumber: startLine ?? 1,
+      };
+    }
+
+    if (expected === null) {
+      expected = lineNumber;
+      detectedStart = lineNumber;
+    }
+
+    if (lineNumber !== expected) {
+      return {
+        code: sanitizedContent,
+        hadEmbeddedLineNumbers: false,
+        startingLineNumber: startLine ?? 1,
+      };
+    }
+
+    strippedLines.push(match[2] ?? "");
+    expected += 1;
+    matchedCount += 1;
+  }
+
+  if (matchedCount < 2) {
+    return {
+      code: sanitizedContent,
+      hadEmbeddedLineNumbers: false,
+      startingLineNumber: startLine ?? 1,
+    };
+  }
+
+  return {
+    code: strippedLines.join("\n"),
+    hadEmbeddedLineNumbers: true,
+    startingLineNumber: detectedStart ?? startLine ?? 1,
+  };
 };
 
 const JsonBlock = ({ value }: { value: unknown }) => (
@@ -349,7 +476,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
       ? part.input.directory
       : isRecord(part.input) && isString(part.input.path)
         ? part.input.path
-      : null;
+        : null;
   const pattern =
     isRecord(part.input) && isString(part.input.pattern)
       ? part.input.pattern
@@ -373,7 +500,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
-          hasError && "border-destructive/30 text-destructive",
+          hasError && CHIP_ERROR_CLASSES,
           canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
@@ -416,18 +543,63 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
 export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
   const [expanded, setExpanded] = useState(false);
   const output = part.output;
-  const hasOutput =
-    isRecord(output) && isString(output.filePath) && isString(output.content);
-  const filePath = hasOutput ? (output.filePath as string) : null;
-  const content = hasOutput ? (output.content as string) : null;
-  const start =
-    hasOutput && typeof output.startLine === "number" ? output.startLine : null;
-  const end =
-    hasOutput && typeof output.endLine === "number" ? output.endLine : null;
-  const filename = filePath?.split(/[\\/]/).pop() ?? "file";
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const filePath =
+    getStringFromPaths(part.input, [
+      ["filePath"],
+      ["path"],
+      ["file_path"],
+      ["file", "path"],
+      ["file", "filePath"],
+    ]) ??
+    getStringFromPaths(output, [
+      ["filePath"],
+      ["path"],
+      ["file_path"],
+      ["file"],
+      ["file", "path"],
+      ["file", "filePath"],
+    ]);
+  const content =
+    getStringFromPaths(
+      output,
+      [
+        [],
+        ["content"],
+        ["text"],
+        ["contents"],
+        ["file", "content"],
+        ["file", "text"],
+      ],
+      { allowEmpty: true },
+    ) ??
+    getStringFromPaths(part.input, [["content"], ["text"]], {
+      allowEmpty: true,
+    });
+  const start =
+    getNumberFromPaths(output, [["startLine"], ["start_line"]]) ??
+    getNumberFromPaths(part.input, [["startLine"], ["start_line"]]);
+  const end =
+    getNumberFromPaths(output, [["endLine"], ["end_line"]]) ??
+    getNumberFromPaths(part.input, [["endLine"], ["end_line"]]);
+  const filename =
+    filePath?.split(/[\\/]/).pop() ??
+    getStringFromPaths(part.input, [
+      ["filename"],
+      ["name"],
+      ["file", "name"],
+    ]) ??
+    getStringFromPaths(output, [["filename"], ["name"], ["file", "name"]]) ??
+    "file";
+  const normalizedContent =
+    content !== null ? normalizeEmbeddedLineNumbers(content, start) : null;
+  const hasRawOutput = output !== undefined;
+  const canExpand = hasError || content !== null || hasRawOutput;
+  const previewLanguage = inferLanguage(filePath ?? filename);
+  const previewCode = normalizedContent?.code ?? content ?? "";
+  const previewStartLine = normalizedContent?.startingLineNumber ?? start ?? 1;
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -435,40 +607,51 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
-          hasError && "border-destructive/30 text-destructive",
+          hasError && CHIP_ERROR_CLASSES,
+          canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
-        onClick={() => hasOutput && setExpanded(!expanded)}
+        onClick={() => canExpand && setExpanded(!expanded)}
         type="button"
       >
         <EyeIcon className="size-3.5 shrink-0" />
         <span className="max-w-48 truncate font-medium">{filename}</span>
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
-      {expanded && content && filePath ? (
-        <div className="mt-2">
-          <CodeBlock
-            className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-            code={content}
-            language={inferLanguage(filePath)}
-            showLineNumbers
-            style={{ contentVisibility: "visible" }}
-          >
-            <CodeBlockHeader className="shrink-0">
-              <CodeBlockTitle>
-                <FileIcon size={14} />
-                <CodeBlockFilename>{filename}</CodeBlockFilename>
-                {start && end ? (
-                  <Badge variant="secondary" className="ml-1 text-[10px]">
-                    Lines {start}-{end}
-                  </Badge>
-                ) : null}
-              </CodeBlockTitle>
-              <CodeBlockActions>
-                <CodeBlockCopyButton />
-              </CodeBlockActions>
-            </CodeBlockHeader>
-          </CodeBlock>
+      {expanded ? (
+        <div className="mt-2 space-y-2">
+          {hasError ? (
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+              {part.errorText}
+            </pre>
+          ) : null}
+          {content !== null ? (
+            <CodeBlock
+              className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+              code={previewCode}
+              language={previewLanguage}
+              showLineNumbers
+              startingLineNumber={previewStartLine}
+              style={{ contentVisibility: "visible" }}
+            >
+              <CodeBlockHeader className="shrink-0">
+                <CodeBlockTitle>
+                  <FileIcon size={14} />
+                  <CodeBlockFilename>{filename}</CodeBlockFilename>
+                  {start !== null && end !== null ? (
+                    <Badge variant="secondary" className="ml-1 text-[10px]">
+                      Lines {start}-{end}
+                    </Badge>
+                  ) : null}
+                </CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+            </CodeBlock>
+          ) : hasRawOutput ? (
+            <JsonBlock value={output} />
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -484,9 +667,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
       : isRecord(output) && Array.isArray(output.results)
         ? output.results
         : null;
-  const matches = Array.isArray(rawMatches)
-    ? rawMatches.filter(isRecord)
-    : [];
+  const matches = Array.isArray(rawMatches) ? rawMatches.filter(isRecord) : [];
   const hasOutput = rawMatches !== null;
   const count =
     isRecord(output) && typeof output.count === "number"
@@ -513,7 +694,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
-          hasError && "border-destructive/30 text-destructive",
+          hasError && CHIP_ERROR_CLASSES,
           canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
@@ -522,9 +703,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
       >
         <SearchIcon className="size-3.5 shrink-0" />
         {query ? (
-          <span className="max-w-48 truncate font-medium">
-            {label}
-          </span>
+          <span className="max-w-48 truncate font-medium">{label}</span>
         ) : (
           <span className="font-medium">Search</span>
         )}
@@ -545,7 +724,9 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
           {hasOutput ? (
             <div className="max-h-80 space-y-1 overflow-auto rounded-md border bg-muted/30 p-2">
               {matches.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No matches found.</p>
+                <p className="text-muted-foreground text-sm">
+                  No matches found.
+                </p>
               ) : (
                 matches.map((match) => {
                   const file =
@@ -573,7 +754,9 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
                       <p className="font-mono text-[11px] text-muted-foreground">
                         {file}:{line}
                       </p>
-                      <p className="font-mono text-xs">{text || "(empty line)"}</p>
+                      <p className="font-mono text-xs">
+                        {text || "(empty line)"}
+                      </p>
                     </div>
                   );
                 })
@@ -653,7 +836,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
-          hasError && "border-destructive/30 text-destructive",
+          hasError && CHIP_ERROR_CLASSES,
           canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
@@ -667,7 +850,9 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
         {exitCode !== null ? (
           <span className="opacity-70">exit {exitCode}</span>
         ) : null}
-        {status === "running" ? <span className="opacity-70">running</span> : null}
+        {status === "running" ? (
+          <span className="opacity-70">running</span>
+        ) : null}
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
@@ -777,7 +962,7 @@ export const WriteFileChip = ({
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
-          hasError && "border-destructive/30 text-destructive",
+          hasError && CHIP_ERROR_CLASSES,
           isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
           isRunning && "animate-pulse",
         )}

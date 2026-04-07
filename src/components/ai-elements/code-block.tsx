@@ -95,6 +95,7 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   code: string;
   language: BundledLanguage;
   showLineNumbers?: boolean;
+  startingLineNumber?: number;
 };
 
 interface TokenizedCode {
@@ -230,10 +231,12 @@ const CodeBlockBody = memo(
   ({
     tokenized,
     showLineNumbers,
+    startingLineNumber,
     className,
   }: {
     tokenized: TokenizedCode;
     showLineNumbers: boolean;
+    startingLineNumber: number;
     className?: string;
   }) => {
     const preStyle = useMemo(
@@ -260,9 +263,12 @@ const CodeBlockBody = memo(
         <code
           className={cn(
             "font-mono text-sm",
-            showLineNumbers &&
-              "[counter-increment:line_0] [counter-reset:line]",
           )}
+          style={
+            showLineNumbers
+              ? { counterReset: `line ${Math.max(0, startingLineNumber - 1)}` }
+              : undefined
+          }
         >
           {keyedLines.map((keyedLine) => (
             <LineSpan
@@ -278,6 +284,7 @@ const CodeBlockBody = memo(
   (prevProps, nextProps) =>
     prevProps.tokenized === nextProps.tokenized &&
     prevProps.showLineNumbers === nextProps.showLineNumbers &&
+    prevProps.startingLineNumber === nextProps.startingLineNumber &&
     prevProps.className === nextProps.className,
 );
 
@@ -357,10 +364,12 @@ export const CodeBlockContent = ({
   code,
   language,
   showLineNumbers = false,
+  startingLineNumber = 1,
 }: {
   code: string;
   language: BundledLanguage;
   showLineNumbers?: boolean;
+  startingLineNumber?: number;
 }) => {
   // Memoized raw tokens for immediate display
   const rawTokens = useMemo(() => createRawTokens(code), [code]);
@@ -390,7 +399,11 @@ export const CodeBlockContent = ({
 
   return (
     <div className="relative overflow-auto">
-      <CodeBlockBody showLineNumbers={showLineNumbers} tokenized={tokenized} />
+      <CodeBlockBody
+        showLineNumbers={showLineNumbers}
+        startingLineNumber={startingLineNumber}
+        tokenized={tokenized}
+      />
     </div>
   );
 };
@@ -399,6 +412,7 @@ export const CodeBlock = ({
   code,
   language,
   showLineNumbers = false,
+  startingLineNumber = 1,
   className,
   children,
   ...props
@@ -413,6 +427,7 @@ export const CodeBlock = ({
           code={code}
           language={language}
           showLineNumbers={showLineNumbers}
+          startingLineNumber={startingLineNumber}
         />
       </CodeBlockContainer>
     </CodeBlockContext.Provider>
