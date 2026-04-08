@@ -126,6 +126,8 @@ const CHIP_TOOL_NAME_ALIASES = {
 
 const CHIP_ERROR_CLASSES =
   "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10";
+const CHIP_DETAIL_HEADER_CLASSES =
+  "shrink-0 border-0 bg-transparent px-3 py-2 text-[11px]";
 
 export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
 
@@ -733,7 +735,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
               startingLineNumber={previewStartLine}
               style={{ contentVisibility: "visible" }}
             >
-              <CodeBlockHeader className="shrink-0">
+              <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
                 <CodeBlockTitle>
                   <FileIcon size={14} />
                   <CodeBlockFilename>{filename}</CodeBlockFilename>
@@ -968,7 +970,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
               language="bash"
               style={{ contentVisibility: "visible" }}
             >
-              <CodeBlockHeader className="border-0 bg-transparent px-3 py-2 text-[11px]">
+              <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
                 <CodeBlockTitle>
                   <TerminalIcon size={14} />
                   <CodeBlockFilename>Command</CodeBlockFilename>
@@ -991,7 +993,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
               language="log"
               style={{ contentVisibility: "visible" }}
             >
-              <CodeBlockHeader className="shrink-0 border-0 bg-transparent px-3 py-2 text-[11px]">
+              <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
                 <CodeBlockTitle>
                   <TerminalIcon size={14} />
                   <CodeBlockFilename>Output</CodeBlockFilename>
@@ -1154,7 +1156,7 @@ export const WriteFileChip = ({
                 showLineNumbers
                 style={{ contentVisibility: "visible" }}
               >
-                <CodeBlockHeader className="shrink-0">
+                <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
                   <CodeBlockTitle>
                     <FileIcon size={14} />
                     <CodeBlockFilename>{filename}</CodeBlockFilename>
