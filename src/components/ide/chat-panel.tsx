@@ -8,7 +8,6 @@ import {
   ContextCacheUsage,
   ContextContent,
   ContextContentBody,
-  ContextContentFooter,
   ContextContentHeader,
   ContextInputUsage,
   ContextOutputUsage,
@@ -943,7 +942,6 @@ export const ChatPanel = ({
                       <ContextReasoningUsage />
                       <ContextCacheUsage />
                     </ContextContentBody>
-                    <ContextContentFooter />
                   </ContextContent>
                 </Context>
               </div>

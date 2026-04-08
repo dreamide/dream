@@ -1,11 +1,4 @@
-import {
-  Monitor,
-  Moon,
-  Plug,
-  RefreshCw,
-  Sun,
-  Terminal,
-} from "lucide-react";
+import { Monitor, Moon, Plug, RefreshCw, Sun, Terminal } from "lucide-react";
 import { useTheme } from "next-themes";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -101,13 +94,11 @@ export const SettingsDialog = () => {
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
-  const modelSearchQuery = useIdeStore((s) => s.modelSearchQuery);
   const providerModels = useIdeStore((s) => s.providerModels);
 
   const setSettings = useIdeStore((s) => s.setSettings);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-  const setModelSearchQuery = useIdeStore((s) => s.setModelSearchQuery);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
@@ -167,18 +158,12 @@ export const SettingsDialog = () => {
     return enabledModelIds[0] ?? "";
   }, [groupedDefaultModelOptions, settings.defaultModel]);
 
-  const normalizedModelSearchQuery = modelSearchQuery.trim().toLowerCase();
-  const filteredOpenAiModels = availableOpenAiModels.filter(
-    (model) =>
-      normalizedModelSearchQuery.length === 0 ||
-      model.id.toLowerCase().includes(normalizedModelSearchQuery) ||
-      model.label.toLowerCase().includes(normalizedModelSearchQuery),
-  );
-  const filteredAnthropicModels = availableAnthropicModels.filter(
-    (model) =>
-      normalizedModelSearchQuery.length === 0 ||
-      model.id.toLowerCase().includes(normalizedModelSearchQuery) ||
-      model.label.toLowerCase().includes(normalizedModelSearchQuery),
+  const selectedDefaultModelOption = useMemo(
+    () =>
+      groupedDefaultModelOptions
+        .flatMap((group) => group.models)
+        .find((model) => model.id === selectedDefaultModel) ?? null,
+    [groupedDefaultModelOptions, selectedDefaultModel],
   );
 
   const installedProviderCount = ALL_PROVIDERS.filter(
@@ -263,7 +248,10 @@ export const SettingsDialog = () => {
                       }}
                       value={themeMounted ? (theme ?? "system") : "system"}
                     >
-                      <TabsList className="w-full justify-start" id="theme-tabs">
+                      <TabsList
+                        className="w-full justify-start"
+                        id="theme-tabs"
+                      >
                         <TabsTrigger value="system">
                           <Monitor className="size-4" />
                           System
@@ -329,7 +317,8 @@ export const SettingsDialog = () => {
                       </p>
                       {providerModels.fetchedAt ? (
                         <p className="text-muted-foreground text-xs">
-                          Last checked {new Date(providerModels.fetchedAt).toLocaleString()}
+                          Last checked{" "}
+                          {new Date(providerModels.fetchedAt).toLocaleString()}
                         </p>
                       ) : null}
                     </div>
@@ -342,16 +331,6 @@ export const SettingsDialog = () => {
                       <RefreshCw className="size-4" />
                       Refresh
                     </Button>
-                  </div>
-
-                  <div className="max-w-sm">
-                    <Input
-                      onChange={(event) =>
-                        setModelSearchQuery(event.currentTarget.value)
-                      }
-                      placeholder="Search models"
-                      value={modelSearchQuery}
-                    />
                   </div>
 
                   {installedProviderCount === 0 ? (
@@ -382,12 +361,8 @@ export const SettingsDialog = () => {
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             No CLI models available yet. Refresh Providers.
                           </p>
-                        ) : filteredOpenAiModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            No models match this search.
-                          </p>
                         ) : (
-                          filteredOpenAiModels.map((model) => {
+                          availableOpenAiModels.map((model) => {
                             const isSelected = openAiModels.includes(model.id);
 
                             return (
@@ -439,13 +414,11 @@ export const SettingsDialog = () => {
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             No CLI models available yet. Refresh Providers.
                           </p>
-                        ) : filteredAnthropicModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            No models match this search.
-                          </p>
                         ) : (
-                          filteredAnthropicModels.map((model) => {
-                            const isSelected = anthropicModels.includes(model.id);
+                          availableAnthropicModels.map((model) => {
+                            const isSelected = anthropicModels.includes(
+                              model.id,
+                            );
 
                             return (
                               <div
@@ -506,7 +479,9 @@ export const SettingsDialog = () => {
                           disabled={groupedDefaultModelOptions.length === 0}
                           id="default-model"
                         >
-                          <SelectValue placeholder="Enable a model first" />
+                          <SelectValue placeholder="Enable a model first">
+                            {selectedDefaultModelOption?.label}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent className="min-w-72">
                           {groupedDefaultModelOptions.map((group) => (

@@ -121,9 +121,7 @@ const formatToken = (provider, token, isFirstToken) => {
   if (/^\d+(\.\d+)*$/.test(token)) return token;
   if (/^o\d/i.test(token)) return token.toLowerCase();
   const labels =
-    provider === "openai"
-      ? OPENAI_TOKEN_LABELS
-      : ANTHROPIC_TOKEN_LABELS;
+    provider === "openai" ? OPENAI_TOKEN_LABELS : ANTHROPIC_TOKEN_LABELS;
   const normalized = token.toLowerCase();
   const mapped = labels[normalized];
   if (mapped) return mapped;
@@ -699,7 +697,28 @@ const searchInProjectFiles = async (projectRoot, query, maxResults) => {
   return matches;
 };
 
-const codexSessionIdsByThreadId = new Map();
+const codexSessionsByThreadId = new Map();
+
+const getCodexSessionId = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+};
+
+const isCodexResumeFailure = (detail) => {
+  if (typeof detail !== "string") {
+    return false;
+  }
+
+  const normalized = detail.toLowerCase();
+  return (
+    normalized.includes("thread/resume failed") ||
+    normalized.includes("no rollout found for thread id")
+  );
+};
 
 const stringifyCodexValue = (value) => {
   if (typeof value === "string") {
@@ -822,14 +841,40 @@ const getLatestUserPrompt = (messages) => {
   return "";
 };
 
-const writeCodexTextPart = (writer, id, text, type) => {
+const writeCodexTextPart = (writeEvent, id, text, type) => {
   if (!text) {
     return;
   }
 
-  writer.write({ type: `${type}-start`, id });
-  writer.write({ type: `${type}-delta`, delta: text, id });
-  writer.write({ type: `${type}-end`, id });
+  writeEvent({ type: `${type}-start`, id });
+  writeEvent({ type: `${type}-delta`, delta: text, id });
+  writeEvent({ type: `${type}-end`, id });
+};
+
+const buildCodexExecArgs = ({ chatMode, model, projectPath, sessionId }) => {
+  if (sessionId) {
+    return [
+      "exec",
+      "resume",
+      "--json",
+      "--skip-git-repo-check",
+      ...(model ? ["--model", model] : []),
+      sessionId,
+      "-",
+    ];
+  }
+
+  return [
+    "exec",
+    "--json",
+    "--cd",
+    projectPath,
+    "--skip-git-repo-check",
+    "--sandbox",
+    chatMode === "plan" ? "read-only" : "workspace-write",
+    ...(model ? ["--model", model] : []),
+    "-",
+  ];
 };
 
 const streamCodexCliResponse = ({
@@ -842,24 +887,25 @@ const streamCodexCliResponse = ({
   threadId,
   remoteConversationId,
 }) => {
-  const existingSessionId =
-    (threadId ? codexSessionIdsByThreadId.get(threadId) : null) ??
-    (typeof remoteConversationId === "string" &&
-    remoteConversationId.trim().length > 0
-      ? remoteConversationId.trim()
-      : null);
-  const prompt = existingSessionId
-    ? getLatestUserPrompt(messages) ||
-      buildCodexConversationPrompt({
-        messages,
-        projectPath,
-        systemPrompt,
-      })
-    : buildCodexConversationPrompt({
-        messages,
-        projectPath,
-        systemPrompt,
-      });
+  const storedSession = threadId
+    ? (codexSessionsByThreadId.get(threadId) ?? null)
+    : null;
+  const persistedSessionId = getCodexSessionId(remoteConversationId);
+  const canResumeStoredSession = storedSession?.model === model;
+  if (threadId && storedSession && !canResumeStoredSession) {
+    codexSessionsByThreadId.delete(threadId);
+  }
+  const initialSessionId = canResumeStoredSession
+    ? (storedSession?.sessionId ?? null)
+    : !storedSession
+      ? persistedSessionId
+      : null;
+  const fullPrompt = buildCodexConversationPrompt({
+    messages,
+    projectPath,
+    systemPrompt,
+  });
+  const latestUserPrompt = getLatestUserPrompt(messages);
 
   const stream = createUIMessageStream({
     originalMessages: messages,
@@ -867,37 +913,24 @@ const streamCodexCliResponse = ({
       error instanceof Error ? error.message : "Codex CLI request failed.",
     execute: ({ writer }) =>
       new Promise((resolve, reject) => {
-        const args = existingSessionId
-          ? [
-              "exec",
-              "resume",
-              "--json",
-              "--skip-git-repo-check",
-              ...(model ? ["--model", model] : []),
-              existingSessionId,
-              "-",
-            ]
-          : [
-              "exec",
-              "--json",
-              "--cd",
-              projectPath,
-              "--skip-git-repo-check",
-              "--sandbox",
-              chatMode === "plan" ? "read-only" : "workspace-write",
-              ...(model ? ["--model", model] : []),
-              "-",
-            ];
         const startedToolCalls = new Set();
         let stdoutBuffer = "";
         let stderrBuffer = "";
         let finished = false;
+        let hasStreamedOutput = false;
+        let resumedRetryAttempted = false;
         let child;
 
         const finish = (callback) => {
           if (finished) return;
           finished = true;
+          abortSignal?.removeEventListener("abort", handleAbort);
           callback();
+        };
+
+        const writeEvent = (event) => {
+          hasStreamedOutput = true;
+          writer.write(event);
         };
 
         const ensureCommandToolStarted = (item) => {
@@ -906,14 +939,14 @@ const streamCodexCliResponse = ({
           }
 
           startedToolCalls.add(item.id);
-          writer.write({
+          writeEvent({
             type: "tool-input-start",
             dynamic: true,
             title: "Command",
             toolCallId: item.id,
             toolName: "runCommand",
           });
-          writer.write({
+          writeEvent({
             type: "tool-input-available",
             dynamic: true,
             input: {
@@ -935,11 +968,17 @@ const streamCodexCliResponse = ({
             typeof event.thread_id === "string" &&
             threadId
           ) {
-            codexSessionIdsByThreadId.set(threadId, event.thread_id);
+            codexSessionsByThreadId.set(threadId, {
+              model,
+              sessionId: event.thread_id,
+            });
             return;
           }
 
-          if (event.type === "item.started" && event.item?.type === "command_execution") {
+          if (
+            event.type === "item.started" &&
+            event.item?.type === "command_execution"
+          ) {
             ensureCommandToolStarted(event.item);
             return;
           }
@@ -950,13 +989,18 @@ const streamCodexCliResponse = ({
 
           const item = event.item;
           if (item.type === "agent_message" && typeof item.text === "string") {
-            writeCodexTextPart(writer, item.id ?? `text-${Date.now()}`, item.text, "text");
+            writeCodexTextPart(
+              writeEvent,
+              item.id ?? `text-${Date.now()}`,
+              item.text,
+              "text",
+            );
             return;
           }
 
           if (item.type === "reasoning" && typeof item.text === "string") {
             writeCodexTextPart(
-              writer,
+              writeEvent,
               item.id ?? `reasoning-${Date.now()}`,
               item.text,
               "reasoning",
@@ -966,7 +1010,7 @@ const streamCodexCliResponse = ({
 
           if (item.type === "command_execution") {
             ensureCommandToolStarted(item);
-            writer.write({
+            writeEvent({
               type: "tool-output-available",
               dynamic: true,
               output: {
@@ -982,7 +1026,12 @@ const streamCodexCliResponse = ({
           }
 
           if (typeof item.text === "string" && item.text.trim()) {
-            writeCodexTextPart(writer, item.id ?? `text-${Date.now()}`, item.text, "text");
+            writeCodexTextPart(
+              writeEvent,
+              item.id ?? `text-${Date.now()}`,
+              item.text,
+              "text",
+            );
           }
         };
 
@@ -1012,61 +1061,91 @@ const streamCodexCliResponse = ({
 
         abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
-        void resolveCodexCliLaunch()
-          .then((launch) => {
-            child = spawn(launch.command, [...launch.argsPrefix, ...args], {
-              env: process.env,
-              stdio: ["pipe", "pipe", "pipe"],
-            });
+        const runAttempt = (sessionId) => {
+          stdoutBuffer = "";
+          stderrBuffer = "";
+          startedToolCalls.clear();
+          hasStreamedOutput = false;
 
-            child.stdout.on("data", handleStdoutChunk);
-            child.stderr.on("data", (chunk) => {
-              stderrBuffer += chunk.toString();
-            });
-            child.on("error", (error) => {
-              abortSignal?.removeEventListener("abort", handleAbort);
-              finish(() =>
-                reject(new Error(getCodexCliSpawnErrorMessage(error))),
-              );
-            });
-            child.on("close", (code) => {
-              abortSignal?.removeEventListener("abort", handleAbort);
+          const prompt = sessionId
+            ? latestUserPrompt || fullPrompt
+            : fullPrompt;
+          const args = buildCodexExecArgs({
+            chatMode,
+            model,
+            projectPath,
+            sessionId,
+          });
 
-              const trimmed = stdoutBuffer.trim();
-              if (trimmed) {
-                try {
-                  handleEvent(JSON.parse(trimmed));
-                } catch {
-                  stderrBuffer += `${trimmed}\n`;
+          void resolveCodexCliLaunch()
+            .then((launch) => {
+              child = spawn(launch.command, [...launch.argsPrefix, ...args], {
+                env: process.env,
+                stdio: ["pipe", "pipe", "pipe"],
+              });
+
+              child.stdout.on("data", handleStdoutChunk);
+              child.stderr.on("data", (chunk) => {
+                stderrBuffer += chunk.toString();
+              });
+              child.on("error", (error) => {
+                finish(() =>
+                  reject(new Error(getCodexCliSpawnErrorMessage(error))),
+                );
+              });
+              child.on("close", (code) => {
+                const trimmed = stdoutBuffer.trim();
+                if (trimmed) {
+                  try {
+                    handleEvent(JSON.parse(trimmed));
+                  } catch {
+                    stderrBuffer += `${trimmed}\n`;
+                  }
                 }
-              }
 
-              finish(() => {
                 if (code === 0 || abortSignal?.aborted) {
-                  resolve();
+                  finish(resolve);
                   return;
                 }
 
                 const detail =
                   stderrBuffer.trim() || `Codex CLI exited with code ${code}.`;
-                reject(new Error(detail));
-              });
-            });
 
-            child.stdin.end(prompt);
-          })
-          .catch((error) => {
-            abortSignal?.removeEventListener("abort", handleAbort);
-            finish(() =>
-              reject(
-                new Error(
-                  error instanceof Error
-                    ? error.message
-                    : "Codex CLI request failed.",
+                // If Codex lost the rollout backing this session, rebuild context and
+                // continue from a fresh exec instead of surfacing a hard thread error.
+                if (
+                  sessionId &&
+                  !resumedRetryAttempted &&
+                  !hasStreamedOutput &&
+                  isCodexResumeFailure(detail)
+                ) {
+                  resumedRetryAttempted = true;
+                  if (threadId) {
+                    codexSessionsByThreadId.delete(threadId);
+                  }
+                  runAttempt(null);
+                  return;
+                }
+
+                finish(() => reject(new Error(detail)));
+              });
+
+              child.stdin.end(prompt);
+            })
+            .catch((error) => {
+              finish(() =>
+                reject(
+                  new Error(
+                    error instanceof Error
+                      ? error.message
+                      : "Codex CLI request failed.",
+                  ),
                 ),
-              ),
-            );
-          });
+              );
+            });
+        };
+
+        runAttempt(initialSessionId);
       }),
   });
 

@@ -19,6 +19,45 @@ const TERMINAL_SURFACE_CLASSES =
 const TERMINAL_HOST_CLASS = "h-full w-full overflow-hidden";
 const getDefaultTerminalName = (index: number) => `Terminal ${index + 1}`;
 
+const formatTerminalShellLabel = (value?: string) => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return "system shell";
+  }
+
+  const executable = trimmed
+    .split(/\s+/)[0]
+    ?.split(/[\\/]/)
+    .pop()
+    ?.toLowerCase();
+
+  if (executable === "pwsh" || executable === "pwsh.exe") {
+    return "PowerShell";
+  }
+
+  if (executable === "powershell" || executable === "powershell.exe") {
+    return "PowerShell";
+  }
+
+  if (executable === "cmd" || executable === "cmd.exe") {
+    return "Command Prompt";
+  }
+
+  if (executable === "bash") {
+    return "bash";
+  }
+
+  if (executable === "zsh") {
+    return "zsh";
+  }
+
+  if (executable === "sh") {
+    return "sh";
+  }
+
+  return executable || trimmed;
+};
+
 /**
  * Wrapper that forces a dark color-scheme on the terminal panel, preserving
  * the active base-color so that tinted dark palettes (slate, zinc, …) still
@@ -184,7 +223,7 @@ export const TerminalPanel = ({
     };
   }, [autoStart, onStart, sessionId]);
 
-  const shellLabel = subtitle ?? terminalShell ?? "system shell";
+  const shellLabel = formatTerminalShellLabel(subtitle ?? terminalShell);
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", bordered ? "pt-2" : "")}>
@@ -389,7 +428,7 @@ export const ProjectTerminalTabsPanel = ({
             </Tabs>
           </div>
           <span className="truncate text-muted-foreground text-xs">
-            {terminalShell ?? "system shell"}
+            {formatTerminalShellLabel(terminalShell)}
           </span>
         </div>
         <div className="min-h-0 flex-1">
