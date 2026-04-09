@@ -385,6 +385,7 @@ export const ChatPanel = ({
         id: model.id,
         label: model.label,
         provider,
+        reasoningEfforts: model.reasoningEfforts,
       })),
     );
   }, [connectedProviders, providerModels, settings]);
@@ -487,16 +488,24 @@ export const ChatPanel = ({
   const selectedModel = selectedModelOption?.id ?? "";
   const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
   const selectedModelValue = selectedModelOption?.id;
-  const availableReasoningEfforts = getModelReasoningEfforts(
-    selectedProvider,
-    selectedModel,
-  );
+  const availableReasoningEfforts = selectedModelOption?.reasoningEfforts
+    ?.length
+    ? selectedModelOption.reasoningEfforts
+    : getModelReasoningEfforts(selectedProvider, selectedModel);
   const reasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter((option) =>
     availableReasoningEfforts.includes(option.value),
   );
-  const selectedReasoningEffort = normalizeReasoningEffort(
+  const normalizedThreadReasoningEffort = normalizeReasoningEffort(
     thread.reasoningEffort,
   );
+  const selectedReasoningEffort =
+    availableReasoningEfforts.length === 0
+      ? normalizedThreadReasoningEffort
+      : availableReasoningEfforts.includes(normalizedThreadReasoningEffort)
+        ? normalizedThreadReasoningEffort
+        : availableReasoningEfforts.includes("medium")
+          ? "medium"
+          : availableReasoningEfforts[0];
   const selectedReasoningLabel =
     reasoningEffortOptions.find(
       (option) => option.value === selectedReasoningEffort,

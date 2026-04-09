@@ -29,6 +29,18 @@ import { z } from "zod";
 const execFileAsync = promisify(execFile);
 
 const CODEX_AUTH_FILE = path.join(os.homedir(), ".codex", "auth.json");
+const CODEX_MODELS_CACHE_FILE = path.join(
+  os.homedir(),
+  ".codex",
+  "models_cache.json",
+);
+const VALID_REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
+const CLAUDE_REASONING_EFFORT_MAP = {
+  high: "high",
+  low: "low",
+  medium: "medium",
+  xhigh: "max",
+};
 
 const readCodexAuthFile = async () => {
   try {
@@ -49,6 +61,40 @@ const readCodexAccessToken = async () => {
   return authData.tokens?.access_token?.trim() || null;
 };
 
+const normalizeReasoningEfforts = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const efforts = [];
+  for (const entry of value) {
+    const effort =
+      typeof entry === "string"
+        ? entry
+        : typeof entry?.effort === "string"
+          ? entry.effort
+          : null;
+    if (!effort || !VALID_REASONING_EFFORTS.has(effort)) {
+      continue;
+    }
+    if (!efforts.includes(effort)) {
+      efforts.push(effort);
+    }
+  }
+
+  return efforts;
+};
+
+const readCodexModelsCache = async () => {
+  try {
+    const contents = await fs.readFile(CODEX_MODELS_CACHE_FILE, "utf8");
+    const parsed = JSON.parse(contents);
+    return Array.isArray(parsed.models) ? parsed.models : [];
+  } catch {
+    return [];
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Model helpers (was src/lib/models.ts — only the parts used server‑side)
 // ---------------------------------------------------------------------------
@@ -64,29 +110,29 @@ const getModelReasoningEfforts = (provider, modelId) => {
         id.startsWith(`${prefix}-`) ||
         id.startsWith(`${prefix}.`),
     );
-    return isReasoning ? ["low", "medium", "high"] : [];
+    return isReasoning ? ["low", "medium", "high", "xhigh"] : [];
   }
 
   if (provider === "anthropic") {
     if (["opus", "sonnet", "haiku"].includes(id)) {
-      return ["low", "medium", "high"];
+      return ["low", "medium", "high", "xhigh"];
     }
     const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
     if (newFormat) {
       const major = Number(newFormat[1]);
-      if (major >= 4) return ["low", "medium", "high"];
+      if (major >= 4) return ["low", "medium", "high", "xhigh"];
     }
     const oldFormat = id.match(/^claude-(\d+)[-.](\d+)/);
     if (oldFormat) {
       const major = Number(oldFormat[1]);
       const minor = Number(oldFormat[2]);
       if (major > 3 || (major === 3 && minor >= 7)) {
-        return ["low", "medium", "high"];
+        return ["low", "medium", "high", "xhigh"];
       }
     }
     if (/^claude-(\d+)(?!\d)/.test(id)) {
       const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
-      if (majorOnly >= 4) return ["low", "medium", "high"];
+      if (majorOnly >= 4) return ["low", "medium", "high", "xhigh"];
     }
     return [];
   }
@@ -157,12 +203,17 @@ const formatModelIdLabel = (provider, modelId) => {
   return parts.map((p, i) => formatToken(provider, p, i === 0)).join(" ");
 };
 
-const createModelOption = (provider, id, label) => {
+const createModelOption = (provider, id, label, reasoningEfforts = []) => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
+  const normalizedReasoningEfforts =
+    normalizeReasoningEfforts(reasoningEfforts);
   return {
     id: trimmedId,
     label: trimmedLabel || formatModelIdLabel(provider, trimmedId),
+    ...(normalizedReasoningEfforts.length > 0
+      ? { reasoningEfforts: normalizedReasoningEfforts }
+      : {}),
   };
 };
 
@@ -172,7 +223,30 @@ const dedupeModelOptions = (models) => {
     const id = model.id.trim();
     if (!id) continue;
     const label = model.label.trim() || id;
-    if (!seen.has(id)) seen.set(id, { id, label });
+    const reasoningEfforts = normalizeReasoningEfforts(model.reasoningEfforts);
+    const existing = seen.get(id);
+    if (!existing) {
+      seen.set(id, {
+        id,
+        label,
+        ...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+      });
+      continue;
+    }
+    seen.set(id, {
+      id,
+      label: existing.label || label,
+      ...(existing.reasoningEfforts?.length || reasoningEfforts.length
+        ? {
+            reasoningEfforts: Array.from(
+              new Set([
+                ...(existing.reasoningEfforts ?? []),
+                ...reasoningEfforts,
+              ]),
+            ),
+          }
+        : {}),
+    });
   }
   return Array.from(seen.values());
 };
@@ -376,11 +450,20 @@ const dedupeAndSort = (models) => {
     .reverse();
 };
 
-const isOpenAiChatModel = (model) => {
+const _isOpenAiChatModel = (model) => {
   return model.startsWith("gpt-") || /^o\d/.test(model);
 };
 
 const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
+  const cachedModels = await readCodexModelsCache();
+  const cachedModelsById = new Map(
+    cachedModels
+      .map((entry) => [
+        typeof entry?.slug === "string" ? entry.slug.trim() : "",
+        entry,
+      ])
+      .filter(([id]) => id),
+  );
   const url = new URL(OPENAI_CODEX_CHATGPT_MODELS_URL);
   url.searchParams.set("client_version", CODEX_CLIENT_VERSION);
   const response = await fetch(url.toString(), {
@@ -397,7 +480,27 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
   const modelIds = (payload.models ?? []).flatMap((entry) => {
     const id = entry.slug?.trim() ?? "";
     if (!id) return [];
-    return [createModelOption("openai", id)];
+    const cachedEntry = cachedModelsById.get(id);
+    const entryReasoningEfforts = normalizeReasoningEfforts(
+      entry.supported_reasoning_levels,
+    );
+    const cachedReasoningEfforts = normalizeReasoningEfforts(
+      cachedEntry?.supported_reasoning_levels,
+    );
+    const reasoningEfforts =
+      entryReasoningEfforts.length > 0
+        ? entryReasoningEfforts
+        : cachedReasoningEfforts;
+    return [
+      createModelOption(
+        "openai",
+        id,
+        entry.display_name ?? cachedEntry?.display_name,
+        reasoningEfforts.length > 0
+          ? reasoningEfforts
+          : getModelReasoningEfforts("openai", id),
+      ),
+    ];
   });
   return dedupeAndSort(modelIds);
 };
@@ -570,7 +673,7 @@ Never attempt to access files outside the active project root.
 
 Important: Always explain your reasoning and findings in text before and after making tool calls. Briefly describe what you are looking for, what you found, and what you plan to do next. Do not make sequences of tool calls without any explanatory text in between.`;
 
-const OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
+const _OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_TOOL_STEP_LIMIT = 8;
 const REASONING_TOOL_STEP_LIMIT = 50;
 
@@ -851,7 +954,16 @@ const writeCodexTextPart = (writeEvent, id, text, type) => {
   writeEvent({ type: `${type}-end`, id });
 };
 
-const buildCodexExecArgs = ({ chatMode, model, projectPath, sessionId }) => {
+const buildCodexExecArgs = ({
+  chatMode,
+  model,
+  projectPath,
+  reasoningEffort,
+  sessionId,
+}) => {
+  const reasoningConfig = reasoningEffort
+    ? ["-c", `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
+    : [];
   if (sessionId) {
     return [
       "exec",
@@ -859,6 +971,7 @@ const buildCodexExecArgs = ({ chatMode, model, projectPath, sessionId }) => {
       "--json",
       "--skip-git-repo-check",
       ...(model ? ["--model", model] : []),
+      ...reasoningConfig,
       sessionId,
       "-",
     ];
@@ -873,6 +986,7 @@ const buildCodexExecArgs = ({ chatMode, model, projectPath, sessionId }) => {
     "--sandbox",
     chatMode === "plan" ? "read-only" : "workspace-write",
     ...(model ? ["--model", model] : []),
+    ...reasoningConfig,
     "-",
   ];
 };
@@ -883,6 +997,7 @@ const streamCodexCliResponse = ({
   messages,
   model,
   projectPath,
+  reasoningEffort,
   systemPrompt,
   threadId,
   remoteConversationId,
@@ -1074,6 +1189,7 @@ const streamCodexCliResponse = ({
             chatMode,
             model,
             projectPath,
+            reasoningEffort,
             sessionId,
           });
 
@@ -1210,6 +1326,7 @@ app.post("/api/chat", async (c) => {
       messages,
       model,
       projectPath,
+      reasoningEffort,
       remoteConversationId,
       systemPrompt,
       threadId,
@@ -1224,11 +1341,14 @@ app.post("/api/chat", async (c) => {
     );
   }
 
-  const providerFactory = (modelId) =>
-    claudeCode(normalizeClaudeCodeModel(modelId));
-
   const usesReasoningModel =
     getModelReasoningEfforts(provider, model).length > 0;
+  const providerFactory = (modelId) =>
+    claudeCode(normalizeClaudeCodeModel(modelId), {
+      ...(usesReasoningModel
+        ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort] }
+        : {}),
+    });
   const languageModel = providerFactory(model);
 
   let modelMessages;
