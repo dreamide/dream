@@ -35,15 +35,6 @@ import {
 } from "@/components/ai-elements/file-tree";
 import { MessageResponse } from "@/components/ai-elements/message";
 import {
-  Plan,
-  PlanAction,
-  PlanContent,
-  PlanDescription,
-  PlanHeader,
-  PlanTitle,
-  PlanTrigger,
-} from "@/components/ai-elements/plan";
-import {
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
@@ -1238,57 +1229,14 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
   );
 };
 
-const extractPlanTitle = (
-  text: string,
-): { title: string; description: string } => {
-  const lines = text.split("\n");
-  const firstLine = lines[0]?.trim() ?? "";
-
-  // Extract title from markdown heading
-  const headingMatch = firstLine.match(/^#{1,3}\s+(.+)/);
-  if (headingMatch) {
-    const remaining = lines.slice(1).join("\n").trim();
-    // Extract description from first non-empty paragraph
-    const descLines = remaining.split("\n");
-    const description =
-      descLines.find((l) => l.trim().length > 0)?.trim() ?? "";
-    return { title: headingMatch[1], description };
-  }
-
-  return { title: "Execution Plan", description: firstLine };
-};
-
 export const AssistantMessagePart = ({
   part,
-  chatMode,
   isStreaming = false,
 }: {
   part: MessagePart;
-  chatMode?: string;
   isStreaming?: boolean;
 }) => {
   if (part.type === "text") {
-    if (chatMode === "plan" && part.text.trim().length > 0) {
-      const { title, description } = extractPlanTitle(part.text);
-      return (
-        <Plan isStreaming={isStreaming} defaultOpen>
-          <PlanHeader>
-            <div>
-              <PlanTitle>{title}</PlanTitle>
-              {description ? (
-                <PlanDescription>{description}</PlanDescription>
-              ) : null}
-            </div>
-            <PlanAction>
-              <PlanTrigger />
-            </PlanAction>
-          </PlanHeader>
-          <PlanContent>
-            <MessageResponse>{part.text}</MessageResponse>
-          </PlanContent>
-        </Plan>
-      );
-    }
     return <MessageResponse>{part.text}</MessageResponse>;
   }
 

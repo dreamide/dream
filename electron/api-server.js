@@ -634,12 +634,13 @@ app.post("/api/provider-models", async (c) => {
 // ── /api/chat ────────────────────────────────────────────────────────────────
 
 const chatRequestBodySchema = z.object({
-  chatMode: z.enum(["plan", "build"]).default("build"),
+  autoAcceptEdits: z.boolean().default(false),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
   projectPath: z.string().min(1),
   provider: z.enum(["openai", "anthropic"]),
   remoteConversationId: z.string().nullable().optional(),
+  remoteConversationModel: z.string().nullable().optional(),
   reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
   threadId: z.string().min(1).optional(),
 });
@@ -653,22 +654,12 @@ const BLOCKED_DIRECTORIES = new Set([
   "node_modules",
 ]);
 
-const SYSTEM_PROMPT_BUILD = `You are an expert coding copilot embedded in a desktop IDE.
+const SYSTEM_PROMPT = `You are an expert coding copilot embedded in a desktop IDE.
 
 Your primary responsibility is to safely edit files inside the active project.
 Use the available tools to inspect files before proposing changes.
 Always reference concrete files and exact updates.
 When writing files, prefer complete and correct output over partial snippets.
-Never attempt to access files outside the active project root.
-
-Important: Always explain your reasoning and findings in text before and after making tool calls. Briefly describe what you are looking for, what you found, and what you plan to do next. Do not make sequences of tool calls without any explanatory text in between.`;
-
-const SYSTEM_PROMPT_PLAN = `You are an expert coding copilot embedded in a desktop IDE.
-
-Your role is to analyze code and create detailed plans without making any changes.
-Use the available tools to read and search files to understand the codebase.
-Provide concrete, actionable plans that reference specific files and line numbers.
-Describe exactly what changes should be made and why, but do NOT write or modify any files.
 Never attempt to access files outside the active project root.
 
 Important: Always explain your reasoning and findings in text before and after making tool calls. Briefly describe what you are looking for, what you found, and what you plan to do next. Do not make sequences of tool calls without any explanatory text in between.`;
@@ -955,12 +946,18 @@ const writeCodexTextPart = (writeEvent, id, text, type) => {
 };
 
 const buildCodexExecArgs = ({
-  chatMode,
+  autoAcceptEdits,
   model,
   projectPath,
   reasoningEffort,
   sessionId,
 }) => {
+  const approvalConfig = [
+    "-c",
+    `approval_policy=${JSON.stringify(
+      autoAcceptEdits ? "never" : "on-request",
+    )}`,
+  ];
   const reasoningConfig = reasoningEffort
     ? ["-c", `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
     : [];
@@ -971,6 +968,7 @@ const buildCodexExecArgs = ({
       "--json",
       "--skip-git-repo-check",
       ...(model ? ["--model", model] : []),
+      ...approvalConfig,
       ...reasoningConfig,
       sessionId,
       "-",
@@ -984,8 +982,9 @@ const buildCodexExecArgs = ({
     projectPath,
     "--skip-git-repo-check",
     "--sandbox",
-    chatMode === "plan" ? "read-only" : "workspace-write",
+    "workspace-write",
     ...(model ? ["--model", model] : []),
+    ...approvalConfig,
     ...reasoningConfig,
     "-",
   ];
@@ -993,7 +992,7 @@ const buildCodexExecArgs = ({
 
 const streamCodexCliResponse = ({
   abortSignal,
-  chatMode,
+  autoAcceptEdits,
   messages,
   model,
   projectPath,
@@ -1001,11 +1000,15 @@ const streamCodexCliResponse = ({
   systemPrompt,
   threadId,
   remoteConversationId,
+  remoteConversationModel,
 }) => {
   const storedSession = threadId
     ? (codexSessionsByThreadId.get(threadId) ?? null)
     : null;
-  const persistedSessionId = getCodexSessionId(remoteConversationId);
+  const persistedSessionId =
+    remoteConversationModel === model
+      ? getCodexSessionId(remoteConversationId)
+      : null;
   const canResumeStoredSession = storedSession?.model === model;
   if (threadId && storedSession && !canResumeStoredSession) {
     codexSessionsByThreadId.delete(threadId);
@@ -1086,6 +1089,13 @@ const streamCodexCliResponse = ({
             codexSessionsByThreadId.set(threadId, {
               model,
               sessionId: event.thread_id,
+            });
+            writer.write({
+              messageMetadata: {
+                remoteConversationId: event.thread_id,
+                remoteConversationModel: model,
+              },
+              type: "message-metadata",
             });
             return;
           }
@@ -1186,7 +1196,7 @@ const streamCodexCliResponse = ({
             ? latestUserPrompt || fullPrompt
             : fullPrompt;
           const args = buildCodexExecArgs({
-            chatMode,
+            autoAcceptEdits,
             model,
             projectPath,
             reasoningEffort,
@@ -1282,16 +1292,15 @@ app.post("/api/chat", async (c) => {
   }
 
   const {
-    chatMode,
+    autoAcceptEdits,
     model,
     projectPath,
     provider,
     reasoningEffort,
     remoteConversationId,
+    remoteConversationModel,
     threadId,
   } = parsed.data;
-  const isPlanMode = chatMode === "plan";
-  const systemPrompt = isPlanMode ? SYSTEM_PROMPT_PLAN : SYSTEM_PROMPT_BUILD;
   const messages = parsed.data.messages;
 
   try {
@@ -1322,13 +1331,14 @@ app.post("/api/chat", async (c) => {
 
     return streamCodexCliResponse({
       abortSignal: c.req.raw.signal,
-      chatMode,
+      autoAcceptEdits,
       messages,
       model,
       projectPath,
       reasoningEffort,
       remoteConversationId,
-      systemPrompt,
+      remoteConversationModel,
+      systemPrompt: SYSTEM_PROMPT,
       threadId,
     });
   }
@@ -1367,13 +1377,12 @@ app.post("/api/chat", async (c) => {
     stopWhen: stepCountIs(
       usesReasoningModel ? REASONING_TOOL_STEP_LIMIT : DEFAULT_TOOL_STEP_LIMIT,
     ),
-    system: systemPrompt,
+    system: SYSTEM_PROMPT,
     ...(usesReasoningModel ? {} : { temperature: 0.2 }),
     tools: {
       listFiles: tool({
-        description: isPlanMode
-          ? "List project files recursively. Use this to explore the project structure."
-          : "List project files recursively. Use this before reading or editing unfamiliar areas.",
+        description:
+          "List project files recursively. Use this before reading or editing unfamiliar areas.",
         inputSchema: z.object({
           directory: z.string().default("."),
           maxResults: z.number().int().min(1).max(400).default(200),
@@ -1411,43 +1420,39 @@ app.post("/api/chat", async (c) => {
           return { filePath, content, endLine: safeEnd, startLine: safeStart };
         },
       }),
-      ...(isPlanMode
-        ? {}
-        : {
-            writeFile: tool({
-              description:
-                "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
-              inputSchema: z.object({
-                content: z.string(),
-                filePath: z.string().min(1),
-                mode: z.enum(["overwrite", "append"]).default("overwrite"),
-              }),
-              requireApproval: true,
-              execute: async ({ content, filePath, mode }) => {
-                const absolutePath = resolveProjectPath(projectPath, filePath);
-                let previousContent;
-                try {
-                  previousContent = await fs.readFile(absolutePath, "utf8");
-                } catch {
-                  // File doesn't exist yet
-                }
-                await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-                if (mode === "append") {
-                  await fs.appendFile(absolutePath, content, "utf8");
-                } else {
-                  await fs.writeFile(absolutePath, content, "utf8");
-                }
-                return {
-                  bytesWritten: Buffer.byteLength(content, "utf8"),
-                  filePath,
-                  mode,
-                  status: "ok",
-                  ...(previousContent !== undefined ? { previousContent } : {}),
-                  content,
-                };
-              },
-            }),
-          }),
+      writeFile: tool({
+        description:
+          "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
+        inputSchema: z.object({
+          content: z.string(),
+          filePath: z.string().min(1),
+          mode: z.enum(["overwrite", "append"]).default("overwrite"),
+        }),
+        requireApproval: true,
+        execute: async ({ content, filePath, mode }) => {
+          const absolutePath = resolveProjectPath(projectPath, filePath);
+          let previousContent;
+          try {
+            previousContent = await fs.readFile(absolutePath, "utf8");
+          } catch {
+            // File doesn't exist yet
+          }
+          await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+          if (mode === "append") {
+            await fs.appendFile(absolutePath, content, "utf8");
+          } else {
+            await fs.writeFile(absolutePath, content, "utf8");
+          }
+          return {
+            bytesWritten: Buffer.byteLength(content, "utf8"),
+            filePath,
+            mode,
+            status: "ok",
+            ...(previousContent !== undefined ? { previousContent } : {}),
+            content,
+          };
+        },
+      }),
       searchInFiles: tool({
         description:
           "Search text across project files and return matching file/line snippets.",

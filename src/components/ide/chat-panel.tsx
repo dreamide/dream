@@ -75,7 +75,6 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   AiProvider,
-  ChatMode,
   ProjectConfig,
   ReasoningEffort,
   ThreadConfig,
@@ -94,8 +93,6 @@ import {
 import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
-  CHAT_MODE_OPTIONS,
-  normalizeChatMode,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
@@ -105,6 +102,11 @@ const EMPTY_MESSAGES: UIMessage[] = [];
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
+};
+
+type ChatMessageMetadata = {
+  remoteConversationId?: string;
+  remoteConversationModel?: string;
 };
 
 const MESSAGE_RENDER_STYLE = {
@@ -172,7 +174,6 @@ type ThreadMessageProps = {
   isLastMessage: boolean;
   isStreaming: boolean;
   message: UIMessage;
-  selectedChatMode: ChatMode;
 };
 
 const ThreadMessage = memo(
@@ -181,7 +182,6 @@ const ThreadMessage = memo(
     isLastMessage,
     isStreaming,
     message,
-    selectedChatMode,
   }: ThreadMessageProps) => {
     if (message.role === "user") {
       return (
@@ -325,7 +325,6 @@ const ThreadMessage = memo(
                   isStreaming && isLastMessage && isLastPart;
                 elements.push(
                   <AssistantMessagePart
-                    chatMode={selectedChatMode}
                     key={getMessagePartKey(
                       message.id,
                       part as Record<string, unknown>,
@@ -349,7 +348,6 @@ const ThreadMessage = memo(
     prev.message === next.message &&
     prev.isLastMessage === next.isLastMessage &&
     prev.isStreaming === next.isStreaming &&
-    prev.selectedChatMode === next.selectedChatMode &&
     prev.addToolApprovalResponse === next.addToolApprovalResponse,
 );
 
@@ -452,6 +450,21 @@ export const ChatPanel = ({
         "An unexpected error occurred. Check the developer console for details.",
       );
     },
+    onFinish: ({ message }) => {
+      const metadata = message.metadata as ChatMessageMetadata | undefined;
+      const remoteConversationId = metadata?.remoteConversationId?.trim();
+
+      if (!remoteConversationId) {
+        return;
+      }
+
+      updateThread(thread.id, (current) => ({
+        ...current,
+        remoteConversationId,
+        remoteConversationModel:
+          metadata?.remoteConversationModel ?? current.model,
+      }));
+    },
     transport,
   });
 
@@ -514,10 +527,6 @@ export const ChatPanel = ({
       (option) => option.value === selectedReasoningEffort,
     )?.label ??
     "Reasoning";
-  const selectedChatMode = normalizeChatMode(thread.chatMode);
-  const selectedChatModeLabel =
-    CHAT_MODE_OPTIONS.find((option) => option.value === selectedChatMode)
-      ?.label ?? "Build";
 
   const contextWindow = getModelContextWindow(selectedModel);
   const estimatedUsedTokens = useMemo(() => {
@@ -580,6 +589,13 @@ export const ChatPanel = ({
         return;
       }
 
+      if (activeProvider === "openai" && prompt.files.length > 0) {
+        setLocalError(
+          "File attachments are not wired into the Codex CLI path yet.",
+        );
+        return;
+      }
+
       if (threadMessages.length === 0) {
         updateThread(thread.id, (current) => ({
           ...current,
@@ -597,12 +613,13 @@ export const ChatPanel = ({
           },
           {
             body: {
-              chatMode: selectedChatMode,
+              autoAcceptEdits,
               model: activeModel,
               projectPath: project.path,
               provider: activeProvider,
               reasoningEffort: selectedReasoningEffort,
               remoteConversationId: thread.remoteConversationId,
+              remoteConversationModel: thread.remoteConversationModel,
               threadId: thread.id,
             },
           },
@@ -613,11 +630,11 @@ export const ChatPanel = ({
     },
     [
       allModelOptions,
+      autoAcceptEdits,
       clearError,
       threadMessages,
       providerModels,
       project.path,
-      selectedChatMode,
       selectedProvider,
       selectedReasoningEffort,
       sendMessage,
@@ -710,7 +727,6 @@ export const ChatPanel = ({
                 isStreaming={isStreaming}
                 key={message.id}
                 message={message}
-                selectedChatMode={selectedChatMode}
               />
             ))
           )}
@@ -762,12 +778,14 @@ export const ChatPanel = ({
               </PromptInputBody>
               <PromptInputFooter className="items-center">
                 <PromptInputTools>
-                  <PromptInputActionMenu>
-                    <PromptInputActionMenuTrigger tooltip="Attach file" />
-                    <PromptInputActionMenuContent>
-                      <PromptInputActionAddAttachments />
-                    </PromptInputActionMenuContent>
-                  </PromptInputActionMenu>
+                  {selectedProvider !== "openai" ? (
+                    <PromptInputActionMenu>
+                      <PromptInputActionMenuTrigger tooltip="Attach file" />
+                      <PromptInputActionMenuContent>
+                        <PromptInputActionAddAttachments />
+                      </PromptInputActionMenuContent>
+                    </PromptInputActionMenu>
+                  ) : null}
                 </PromptInputTools>
                 <GlowBorder
                   variant="glow"
@@ -786,32 +804,6 @@ export const ChatPanel = ({
 
             {/* ── Options Row ───────────────────────────────────────── */}
             <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
-              {/* Plan / Build selector */}
-              <Select
-                onValueChange={(value) => {
-                  updateThread(thread.id, (current) => ({
-                    ...current,
-                    chatMode: value as ChatMode,
-                  }));
-                }}
-                value={selectedChatMode}
-              >
-                <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                  <SelectValue>{selectedChatModeLabel}</SelectValue>
-                </SelectTrigger>
-                <SelectContent className="text-xs" side="top">
-                  {CHAT_MODE_OPTIONS.map((option) => (
-                    <SelectItem
-                      className="text-xs"
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
               {/* Model selector */}
               <Select
                 onValueChange={(value) => {
@@ -829,6 +821,8 @@ export const ChatPanel = ({
                     ...current,
                     model: nextOption.id,
                     provider: nextOption.provider,
+                    remoteConversationId: null,
+                    remoteConversationModel: null,
                   }));
                 }}
                 value={selectedModelValue}
