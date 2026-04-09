@@ -3,6 +3,7 @@ import type { AiProvider, ReasoningEffort } from "@/types/ide";
 export interface ModelOption {
   id: string;
   label: string;
+  reasoningEfforts?: ReasoningEffort[];
 }
 
 const OPENAI_TOKEN_LABELS: Record<string, string> = {
@@ -45,9 +46,7 @@ const formatToken = (
   }
 
   const labels =
-    provider === "openai"
-      ? OPENAI_TOKEN_LABELS
-      : ANTHROPIC_TOKEN_LABELS;
+    provider === "openai" ? OPENAI_TOKEN_LABELS : ANTHROPIC_TOKEN_LABELS;
   const normalized = token.toLowerCase();
   const mapped = labels[normalized];
 
@@ -115,13 +114,24 @@ export const createModelOption = (
   provider: AiProvider,
   id: string,
   label?: string | null,
+  reasoningEfforts: ReasoningEffort[] = [],
 ): ModelOption => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
+  const normalizedReasoningEfforts = Array.from(
+    new Set(
+      reasoningEfforts.filter((effort): effort is ReasoningEffort =>
+        ["low", "medium", "high", "xhigh"].includes(effort),
+      ),
+    ),
+  );
 
   return {
     id: trimmedId,
     label: trimmedLabel || formatModelIdLabel(provider, trimmedId),
+    ...(normalizedReasoningEfforts.length > 0
+      ? { reasoningEfforts: normalizedReasoningEfforts }
+      : {}),
   };
 };
 
@@ -135,9 +145,36 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
     }
 
     const label = model.label.trim() || id;
-    if (!seen.has(id)) {
-      seen.set(id, { id, label });
+    const reasoningEfforts = Array.from(
+      new Set(model.reasoningEfforts ?? []),
+    ).filter((effort): effort is ReasoningEffort =>
+      ["low", "medium", "high", "xhigh"].includes(effort),
+    );
+    const existing = seen.get(id);
+
+    if (!existing) {
+      seen.set(id, {
+        id,
+        label,
+        ...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+      });
+      continue;
     }
+
+    seen.set(id, {
+      id,
+      label: existing.label || label,
+      ...(existing.reasoningEfforts?.length || reasoningEfforts.length
+        ? {
+            reasoningEfforts: Array.from(
+              new Set([
+                ...(existing.reasoningEfforts ?? []),
+                ...reasoningEfforts,
+              ]),
+            ),
+          }
+        : {}),
+    });
   }
 
   return Array.from(seen.values());
@@ -217,7 +254,7 @@ export const getModelReasoningEfforts = (
     );
 
     if (isReasoning) {
-      return ["low", "medium", "high"];
+      return ["low", "medium", "high", "xhigh"];
     }
 
     // Non-reasoning OpenAI models (gpt-4o, gpt-4, etc.) – no effort knob
@@ -227,7 +264,7 @@ export const getModelReasoningEfforts = (
   // --- Anthropic models with extended thinking (claude-3.7+, claude-4+) --
   if (provider === "anthropic") {
     if (["opus", "sonnet", "haiku"].includes(id)) {
-      return ["low", "medium", "high"];
+      return ["low", "medium", "high", "xhigh"];
     }
 
     // New format: claude-{variant}-{major} e.g. claude-sonnet-4-20250514,
@@ -236,7 +273,7 @@ export const getModelReasoningEfforts = (
     if (newFormat) {
       const major = Number(newFormat[1]);
       if (major >= 4) {
-        return ["low", "medium", "high"];
+        return ["low", "medium", "high", "xhigh"];
       }
     }
 
@@ -247,7 +284,7 @@ export const getModelReasoningEfforts = (
       const major = Number(oldFormat[1]);
       const minor = Number(oldFormat[2]);
       if (major > 3 || (major === 3 && minor >= 7)) {
-        return ["low", "medium", "high"];
+        return ["low", "medium", "high", "xhigh"];
       }
     }
 
@@ -255,7 +292,7 @@ export const getModelReasoningEfforts = (
     if (/^claude-(\d+)(?!\d)/.test(id)) {
       const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
       if (majorOnly >= 4) {
-        return ["low", "medium", "high"];
+        return ["low", "medium", "high", "xhigh"];
       }
     }
 
