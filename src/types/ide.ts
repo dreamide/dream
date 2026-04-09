@@ -3,7 +3,6 @@ import type { UIMessage } from "ai";
 export type AiProvider = "openai" | "anthropic";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
-export type ChatMode = "plan" | "build";
 export type ThreadSortOrder =
   | "recent"
   | "createdDesc"
@@ -17,11 +16,11 @@ export interface ThreadConfig {
   provider: AiProvider;
   model: string;
   reasoningEffort: ReasoningEffort;
-  chatMode: ChatMode;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
   remoteConversationId: string | null;
+  remoteConversationModel: string | null;
 }
 
 export interface ProjectConfig {

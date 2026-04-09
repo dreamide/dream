@@ -87,17 +87,13 @@ export const createProjectConfig = (
 export const createThreadConfig = (
   project: ProjectConfig,
   overrides?: Partial<
-    Pick<
-      ThreadConfig,
-      "chatMode" | "model" | "provider" | "reasoningEffort" | "title"
-    >
+    Pick<ThreadConfig, "model" | "provider" | "reasoningEffort" | "title">
   >,
 ): ThreadConfig => {
   const timestamp = new Date().toISOString();
 
   return {
     archivedAt: null,
-    chatMode: overrides?.chatMode ?? "build",
     createdAt: timestamp,
     id: crypto.randomUUID(),
     model: overrides?.model ?? project.model,
@@ -105,6 +101,7 @@ export const createThreadConfig = (
     provider: overrides?.provider ?? project.provider,
     reasoningEffort: overrides?.reasoningEffort ?? project.reasoningEffort,
     remoteConversationId: null,
+    remoteConversationModel: null,
     title: overrides?.title?.trim() || "New thread",
     updatedAt: timestamp,
   };
@@ -144,7 +141,9 @@ export const getModelsForProvider = (
   };
 
   if (provider === "anthropic") {
-    return clean(settings.anthropicSelectedModels.map(normalizeClaudeCodeModelId));
+    return clean(
+      settings.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
+    );
   }
 
   return clean(settings.openAiSelectedModels);
@@ -213,7 +212,8 @@ export const getDefaultModelSelection = (
   const model = getPreferredDefaultModel(settings);
   const provider =
     getProviderForModel(model, settings) ??
-    (getConnectedProviders(settings)[0] ?? DEFAULT_PROVIDER);
+    getConnectedProviders(settings)[0] ??
+    DEFAULT_PROVIDER;
 
   return { model, provider };
 };

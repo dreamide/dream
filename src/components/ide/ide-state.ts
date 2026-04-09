@@ -12,8 +12,8 @@ import {
   createThreadConfig,
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
-  DEFAULT_SETTINGS,
   DEFAULT_PROVIDER,
+  DEFAULT_SETTINGS,
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
@@ -23,7 +23,7 @@ import type {
   ProjectConfig,
   ThreadConfig,
 } from "@/types/ide";
-import { dedupeModels, normalizeChatMode, normalizeReasoningEffort } from "./ide-types";
+import { dedupeModels, normalizeReasoningEffort } from "./ide-types";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
@@ -100,17 +100,22 @@ const normalizeThread = (
         ? normalizeClaudeCodeModelId(thread.model)
         : thread.model.trim()
       : project.model;
+  const {
+    chatMode: _legacyChatMode,
+    remoteConversationChatMode: _legacyRemoteConversationChatMode,
+    ...threadWithoutLegacyModeFields
+  } = thread as ThreadConfig & {
+    chatMode?: unknown;
+    remoteConversationChatMode?: unknown;
+  };
 
   return {
-    ...thread,
+    ...threadWithoutLegacyModeFields,
     archivedAt:
       typeof thread.archivedAt === "string" &&
       thread.archivedAt.trim().length > 0
         ? thread.archivedAt
         : null,
-    chatMode: normalizeChatMode(
-      (thread as unknown as Record<string, unknown>).chatMode,
-    ),
     createdAt,
     model: model || project.model,
     provider,
@@ -119,6 +124,11 @@ const normalizeThread = (
       typeof thread.remoteConversationId === "string" &&
       thread.remoteConversationId.trim().length > 0
         ? thread.remoteConversationId
+        : null,
+    remoteConversationModel:
+      typeof thread.remoteConversationModel === "string" &&
+      thread.remoteConversationModel.trim().length > 0
+        ? thread.remoteConversationModel
         : null,
     title: title || "New thread",
     updatedAt,
@@ -163,7 +173,9 @@ export const mergePersistedState = (
     typeof rawSettings.defaultAnthropicModel === "string"
       ? normalizeClaudeCodeModelId(rawSettings.defaultAnthropicModel)
       : "",
-  ].filter((model): model is string => typeof model === "string" && model.length > 0);
+  ].filter(
+    (model): model is string => typeof model === "string" && model.length > 0,
+  );
 
   mergedSettings.defaultModel = getPreferredDefaultModel(
     mergedSettings,
@@ -269,7 +281,10 @@ export const ensureActiveProject = (
   projects: ProjectConfig[],
   activeProjectId: string | null,
 ) => {
-  if (activeProjectId && projects.some((project) => project.id === activeProjectId)) {
+  if (
+    activeProjectId &&
+    projects.some((project) => project.id === activeProjectId)
+  ) {
     return activeProjectId;
   }
 
@@ -281,7 +296,9 @@ export const ensureActiveThreadForProject = (
   projectId: string,
   activeThreadId: string | null,
 ) => {
-  const projectThreads = threads.filter((thread) => thread.projectId === projectId);
+  const projectThreads = threads.filter(
+    (thread) => thread.projectId === projectId,
+  );
   if (
     activeThreadId &&
     projectThreads.some((thread) => thread.id === activeThreadId)
