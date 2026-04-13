@@ -138,6 +138,22 @@ export interface ProjectGitStatusResponse {
   repoRoot: string | null;
 }
 
+export interface ProjectGitBranchEntry {
+  current: boolean;
+  name: string;
+}
+
+export interface ProjectGitBranchesResponse {
+  branches: ProjectGitBranchEntry[];
+  currentBranch: string | null;
+  isRepo: boolean;
+  repoRoot: string | null;
+}
+
+export interface ProjectGitCheckoutResponse extends ProjectGitBranchesResponse {
+  created: boolean;
+}
+
 export interface ProjectGitDiffResponse {
   branch: string | null;
   diff: string;

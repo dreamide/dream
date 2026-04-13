@@ -72,6 +72,7 @@ interface IdeState {
   previewLoading: Record<string, boolean>;
   previewTabsByProject: Record<string, PreviewTabState[]>;
   activePreviewTabIdByProject: Record<string, string | null>;
+  projectGitRefreshKeys: Record<string, number>;
   rightPanelView: RightPanelView;
   stateHydrated: boolean;
   isMacOs: boolean;
@@ -149,6 +150,7 @@ interface IdeState {
   setTerminalShell: (projectId: string, shell: string) => void;
   setTerminalSessionName: (sessionId: string, name: string) => void;
   setThreadStreaming: (threadId: string, streaming: boolean) => void;
+  bumpProjectGitRefreshKey: (projectId: string) => void;
   setPreviewError: (error: string | null) => void;
   setPreviewLoading: (id: string, loading: boolean) => void;
   ensurePreviewTabs: (projectId: string, initialUrl?: string) => void;
@@ -352,6 +354,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   previewLoading: {},
   previewTabsByProject: {},
   activePreviewTabIdByProject: {},
+  projectGitRefreshKeys: {},
   rightPanelView: "explorer",
   stateHydrated: false,
   isMacOs: false,
@@ -484,6 +487,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextActivePreviewTabIdByProject = {
         ...state.activePreviewTabIdByProject,
       };
+      const nextProjectGitRefreshKeys = { ...state.projectGitRefreshKeys };
       const nextTerminalOrdinalByProject = {
         ...state.nextTerminalOrdinalByProject,
       };
@@ -491,6 +495,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       delete nextPreviewTabsByProject[projectId];
       delete nextActivePreviewTabIdByProject[projectId];
+      delete nextProjectGitRefreshKeys[projectId];
       delete nextTerminalOrdinalByProject[projectId];
       for (const tab of previewTabs) {
         delete nextPreviewLoading[tab.id];
@@ -513,6 +518,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         previewLoading: nextPreviewLoading,
         previewTabsByProject: nextPreviewTabsByProject,
         activePreviewTabIdByProject: nextActivePreviewTabIdByProject,
+        projectGitRefreshKeys: nextProjectGitRefreshKeys,
         projects: nextProjects,
         threads: nextThreads,
       };
@@ -925,6 +931,21 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       }
       return { streamingThreadIds: next };
     }),
+  bumpProjectGitRefreshKey: (projectId) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (!normalizedProjectId) {
+      return;
+    }
+
+    set((state) => ({
+      projectGitRefreshKeys: {
+        ...state.projectGitRefreshKeys,
+        [normalizedProjectId]:
+          (state.projectGitRefreshKeys[normalizedProjectId] ?? 0) + 1,
+      },
+    }));
+  },
   setPreviewError: (error) => set({ previewError: error }),
   setPreviewLoading: (id, loading) => {
     set((state) => ({

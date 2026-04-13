@@ -371,7 +371,10 @@ export const ChatPanel = ({
   const setAutoAcceptEdits = useIdeStore((s) => s.setAutoAcceptEdits);
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const updateThread = useIdeStore((s) => s.updateThread);
-  const { branch } = useProjectGitStatus(project.path);
+  const gitRefreshKey = useIdeStore(
+    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
+  );
+  const { branch } = useProjectGitStatus(project.path, gitRefreshKey);
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo(() => {
     return connectedProviders.flatMap((provider) =>

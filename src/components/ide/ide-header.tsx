@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
+import { BranchSwitcher } from "./branch-switcher";
 import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
@@ -179,58 +180,66 @@ export const IdeFooter = () => {
         ) : null}
       </div>
 
-      {appReady && panelVisibility.right ? (
-        <Tabs
-          className="ml-auto"
-          onValueChange={handleRightPanelViewChange}
-          value={rightPanelView}
-        >
-          <TabsList className="h-8 bg-muted/60">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <TabsTrigger
-                    aria-label="Show file explorer"
-                    className="h-6 w-8 px-0 data-[active]:bg-background"
-                    value="explorer"
-                  />
-                }
-              >
-                <Folder className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Files</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <TabsTrigger
-                    aria-label="Show changes"
-                    className="h-6 w-8 px-0 data-[active]:bg-background"
-                    value="changes"
-                  />
-                }
-              >
-                <GitCompareArrows className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Changes</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <TabsTrigger
-                    aria-label="Show preview"
-                    className="h-6 w-8 px-0 data-[active]:bg-background"
-                    value="preview"
-                  />
-                }
-              >
-                <Monitor className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Preview</TooltipContent>
-            </Tooltip>
-          </TabsList>
-        </Tabs>
-      ) : null}
+      <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
+        {appReady && panelVisibility.right ? (
+          <Tabs
+            onValueChange={handleRightPanelViewChange}
+            value={rightPanelView}
+          >
+            <TabsList className="h-8 bg-muted/60">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <TabsTrigger
+                      aria-label="Show file explorer"
+                      className="h-6 w-8 px-0 data-[active]:bg-background"
+                      value="explorer"
+                    />
+                  }
+                >
+                  <Folder className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Files</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <TabsTrigger
+                      aria-label="Show changes"
+                      className="h-6 w-8 px-0 data-[active]:bg-background"
+                      value="changes"
+                    />
+                  }
+                >
+                  <GitCompareArrows className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Changes</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <TabsTrigger
+                      aria-label="Show preview"
+                      className="h-6 w-8 px-0 data-[active]:bg-background"
+                      value="preview"
+                    />
+                  }
+                >
+                  <Monitor className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>Preview</TooltipContent>
+              </Tooltip>
+            </TabsList>
+          </Tabs>
+        ) : null}
+
+        {appReady && activeProject ? (
+          <BranchSwitcher
+            projectId={activeProject.id}
+            projectPath={activeProject.path}
+          />
+        ) : null}
+      </div>
     </footer>
   );
 };

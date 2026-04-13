@@ -110,6 +110,32 @@ export const formatModelIdLabel = (
     .join(" ");
 };
 
+const getModelDisplayLabel = (
+  provider: AiProvider,
+  id: string,
+  label?: string | null,
+): string => {
+  const trimmedId = id.trim();
+  const trimmedLabel = label?.trim() ?? "";
+  if (!trimmedLabel || trimmedLabel.toLowerCase() === trimmedId.toLowerCase()) {
+    return formatModelIdLabel(provider, trimmedId);
+  }
+
+  return trimmedLabel;
+};
+
+const inferProviderForModelLabel = (id: string): AiProvider => {
+  const normalizedId = id.trim().toLowerCase();
+  if (
+    normalizedId.startsWith("claude-") ||
+    ["haiku", "opus", "sonnet"].includes(normalizedId)
+  ) {
+    return "anthropic";
+  }
+
+  return "openai";
+};
+
 export const createModelOption = (
   provider: AiProvider,
   id: string,
@@ -128,7 +154,7 @@ export const createModelOption = (
 
   return {
     id: trimmedId,
-    label: trimmedLabel || formatModelIdLabel(provider, trimmedId),
+    label: getModelDisplayLabel(provider, trimmedId, trimmedLabel),
     ...(normalizedReasoningEfforts.length > 0
       ? { reasoningEfforts: normalizedReasoningEfforts }
       : {}),
@@ -144,7 +170,11 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
       continue;
     }
 
-    const label = model.label.trim() || id;
+    const label = getModelDisplayLabel(
+      inferProviderForModelLabel(id),
+      id,
+      model.label,
+    );
     const reasoningEfforts = Array.from(
       new Set(model.reasoningEfforts ?? []),
     ).filter((effort): effort is ReasoningEffort =>

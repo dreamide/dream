@@ -6,7 +6,11 @@ const readResponseText = async (response: Response): Promise<string> => {
   return text.trim() || `Request failed (${response.status}).`;
 };
 
-export const useProjectGitStatus = (projectPath: string | null | undefined) => {
+export const useProjectGitStatus = (
+  projectPath: string | null | undefined,
+  refreshKey?: number,
+) => {
+  const refreshToken = refreshKey ?? 0;
   const [status, setStatus] = useState<ProjectGitStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,12 +59,13 @@ export const useProjectGitStatus = (projectPath: string | null | undefined) => {
   );
 
   useEffect(() => {
+    void refreshToken;
     const controller = new AbortController();
     void refresh(controller.signal);
     return () => {
       controller.abort();
     };
-  }, [refresh]);
+  }, [refresh, refreshToken]);
 
   return {
     branch: status?.branch ?? null,

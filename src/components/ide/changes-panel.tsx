@@ -840,13 +840,16 @@ const ChangesPanelImpl = () => {
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
+  const gitRefreshKey = useIdeStore((s) =>
+    projectId ? (s.projectGitRefreshKeys[projectId] ?? 0) : 0,
+  );
   const {
     changes,
     error: statusError,
     isRepo,
     loading: statusLoading,
     refresh: refreshStatus,
-  } = useProjectGitStatus(projectPath);
+  } = useProjectGitStatus(projectPath, gitRefreshKey);
 
   const expandedPaths = getExpandedPaths(expandedPathsByProject, projectId);
   const expandedPathSet = useMemo(
@@ -873,6 +876,33 @@ const ChangesPanelImpl = () => {
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
   }, [projectId]);
+
+  useEffect(() => {
+    void gitRefreshKey;
+    if (!projectId) {
+      return;
+    }
+
+    diffLoadQueueRef.current = [];
+    diffLoadQueuedPathsRef.current.clear();
+    diffLoadProcessingRef.current = false;
+    setExpandedPathsByProject((current) => ({
+      ...current,
+      [projectId]: [],
+    }));
+    setDiffsByProject((current) => ({
+      ...current,
+      [projectId]: {},
+    }));
+    setDiffErrorsByProject((current) => ({
+      ...current,
+      [projectId]: {},
+    }));
+    setDiffLoadingByProject((current) => ({
+      ...current,
+      [projectId]: {},
+    }));
+  }, [gitRefreshKey, projectId]);
 
   const processQueuedDiffLoads = useCallback(async () => {
     if (

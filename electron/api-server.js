@@ -203,6 +203,28 @@ const formatModelIdLabel = (provider, modelId) => {
   return parts.map((p, i) => formatToken(provider, p, i === 0)).join(" ");
 };
 
+const getModelDisplayLabel = (provider, id, label) => {
+  const trimmedId = id.trim();
+  const trimmedLabel = label?.trim() ?? "";
+  if (!trimmedLabel || trimmedLabel.toLowerCase() === trimmedId.toLowerCase()) {
+    return formatModelIdLabel(provider, trimmedId);
+  }
+
+  return trimmedLabel;
+};
+
+const inferProviderForModelLabel = (id) => {
+  const normalizedId = id.trim().toLowerCase();
+  if (
+    normalizedId.startsWith("claude-") ||
+    ["haiku", "opus", "sonnet"].includes(normalizedId)
+  ) {
+    return "anthropic";
+  }
+
+  return "openai";
+};
+
 const createModelOption = (provider, id, label, reasoningEfforts = []) => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
@@ -210,7 +232,7 @@ const createModelOption = (provider, id, label, reasoningEfforts = []) => {
     normalizeReasoningEfforts(reasoningEfforts);
   return {
     id: trimmedId,
-    label: trimmedLabel || formatModelIdLabel(provider, trimmedId),
+    label: getModelDisplayLabel(provider, trimmedId, trimmedLabel),
     ...(normalizedReasoningEfforts.length > 0
       ? { reasoningEfforts: normalizedReasoningEfforts }
       : {}),
@@ -222,7 +244,11 @@ const dedupeModelOptions = (models) => {
   for (const model of models) {
     const id = model.id.trim();
     if (!id) continue;
-    const label = model.label.trim() || id;
+    const label = getModelDisplayLabel(
+      inferProviderForModelLabel(id),
+      id,
+      model.label,
+    );
     const reasoningEfforts = normalizeReasoningEfforts(model.reasoningEfforts);
     const existing = seen.get(id);
     if (!existing) {
@@ -1519,6 +1545,16 @@ const projectGitStatusRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
 
+const projectGitBranchesRequestSchema = z.object({
+  projectPath: z.string().min(1),
+});
+
+const projectGitCheckoutRequestSchema = z.object({
+  branchName: z.string().min(1),
+  create: z.boolean().default(false),
+  projectPath: z.string().min(1),
+});
+
 const projectGitDiffRequestSchema = z.object({
   filePath: z.string().min(1),
   projectPath: z.string().min(1),
@@ -1786,6 +1822,108 @@ const listProjectGitChanges = async (projectPath) => {
     }),
     isRepo: true,
     repoRoot: repoInfo.repoRoot,
+  };
+};
+
+const listProjectGitBranches = async (projectPath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    return {
+      branches: [],
+      currentBranch: repoInfo.branch,
+      isRepo: false,
+      repoRoot: null,
+    };
+  }
+
+  const branchResult = await runGitCommand(repoInfo.repoRoot, [
+    "for-each-ref",
+    "--format=%(refname:short)",
+    "refs/heads",
+  ]);
+  const currentBranch = repoInfo.branch;
+  const branchNames = branchResult.stdout
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left === currentBranch) {
+        return -1;
+      }
+
+      if (right === currentBranch) {
+        return 1;
+      }
+
+      return left.localeCompare(right);
+    });
+
+  return {
+    branches: branchNames.map((name) => ({
+      current: name === currentBranch,
+      name,
+    })),
+    currentBranch,
+    isRepo: true,
+    repoRoot: repoInfo.repoRoot,
+  };
+};
+
+const validateProjectGitBranchName = async (repoRoot, branchName) => {
+  const normalizedBranchName = branchName.trim();
+  if (!normalizedBranchName) {
+    throw new Error("Branch name is required.");
+  }
+
+  const validationResult = await runGitCommand(
+    repoRoot,
+    ["check-ref-format", "--branch", normalizedBranchName],
+    { allowFailure: true },
+  );
+  if (!validationResult.ok) {
+    throw new Error(
+      validationResult.stderr.trim() ||
+        validationResult.stdout.trim() ||
+        "Invalid Git branch name.",
+    );
+  }
+
+  return normalizedBranchName;
+};
+
+const checkoutProjectGitBranch = async (projectPath, branchName, create) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const normalizedBranchName = await validateProjectGitBranchName(
+    repoInfo.repoRoot,
+    branchName,
+  );
+  const branchesInfo = await listProjectGitBranches(projectPath);
+  const branchExists = branchesInfo.branches.some(
+    (entry) => entry.name === normalizedBranchName,
+  );
+
+  if (create && branchExists) {
+    throw new Error(`Branch "${normalizedBranchName}" already exists.`);
+  }
+
+  if (!create && !branchExists) {
+    throw new Error(`Branch "${normalizedBranchName}" does not exist.`);
+  }
+
+  await runGitCommand(
+    repoInfo.repoRoot,
+    create
+      ? ["checkout", "-b", normalizedBranchName]
+      : ["checkout", normalizedBranchName],
+  );
+
+  return {
+    ...(await listProjectGitBranches(projectPath)),
+    created: create,
   };
 };
 
@@ -2083,6 +2221,58 @@ app.post("/api/project-git-status", async (c) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to read Git status.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-branches", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitBranchesRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { projectPath } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(await listProjectGitBranches(projectPath));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to read Git branches.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-checkout", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitCheckoutRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { branchName, create, projectPath } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(
+      await checkoutProjectGitBranch(projectPath, branchName, create),
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to switch Git branches.";
     return c.text(message, 400);
   }
 });
