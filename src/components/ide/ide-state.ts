@@ -297,7 +297,7 @@ export const ensureActiveThreadForProject = (
   activeThreadId: string | null,
 ) => {
   const projectThreads = threads.filter(
-    (thread) => thread.projectId === projectId,
+    (thread) => thread.projectId === projectId && thread.archivedAt === null,
   );
   if (
     activeThreadId &&
@@ -312,7 +312,10 @@ export const ensureActiveThreadForProject = (
 export const getThreadsForProject = (
   threads: ThreadConfig[],
   projectId: string,
-) => threads.filter((thread) => thread.projectId === projectId);
+) =>
+  threads.filter(
+    (thread) => thread.projectId === projectId && thread.archivedAt === null,
+  );
 
 export const renderUserMessageText = (message: UIMessage): string => {
   const parts = Array.isArray(message.parts) ? message.parts : [];

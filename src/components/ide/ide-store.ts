@@ -386,7 +386,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }
 
     const activeThreadId = activeThreadIdByProject[project.id] ?? null;
-    return threads.find((thread) => thread.id === activeThreadId) ?? null;
+    return (
+      getThreadsForProject(threads, project.id).find(
+        (thread) => thread.id === activeThreadId,
+      ) ?? null
+    );
   },
 
   getPreviewTabs: (projectId) => {
