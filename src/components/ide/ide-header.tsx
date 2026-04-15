@@ -32,9 +32,11 @@ export const IdeHeader = () => {
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
+  const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const togglePanel = useIdeStore((s) => s.togglePanel);
+  const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const closeProject = useIdeStore((s) => s.closeProject);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
@@ -86,6 +88,17 @@ export const IdeHeader = () => {
 
     void openProjectTerminal(activeProject.id);
   }, [activeProject, openProjectTerminal]);
+
+  const handleRightPanelViewChange = useCallback(
+    (value: string) => {
+      if (value !== "preview" && value !== "explorer" && value !== "changes") {
+        return;
+      }
+
+      setRightPanelView(value);
+    },
+    [setRightPanelView],
+  );
 
   return (
     <header
@@ -237,94 +250,68 @@ export const IdeHeader = () => {
           >
             <PanelRight className="size-4" />
           </ToggleButton>
+
+          <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
+            <Tabs
+              onValueChange={handleRightPanelViewChange}
+              value={rightPanelView}
+            >
+              <TabsList className="h-8 bg-muted/60">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <TabsTrigger
+                        aria-label="Show file explorer"
+                        className="h-6 w-8 px-0 data-[active]:bg-background"
+                        value="explorer"
+                      />
+                    }
+                  >
+                    <Folder className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent>Files</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <TabsTrigger
+                        aria-label="Show changes"
+                        className="h-6 w-8 px-0 data-[active]:bg-background"
+                        value="changes"
+                      />
+                    }
+                  >
+                    <GitCompareArrows className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent>Changes</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <TabsTrigger
+                        aria-label="Show preview"
+                        className="h-6 w-8 px-0 data-[active]:bg-background"
+                        value="preview"
+                      />
+                    }
+                  >
+                    <Monitor className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent>Preview</TooltipContent>
+                </Tooltip>
+              </TabsList>
+            </Tabs>
+
+            {activeProject ? (
+              <BranchSwitcher
+                projectId={activeProject.id}
+                projectPath={activeProject.path}
+              />
+            ) : null}
+          </div>
         </div>
       ) : null}
     </header>
-  );
-};
-
-export const IdeFooter = () => {
-  const appReady = useIdeStore((s) => s.appReady);
-  const activeProject = useIdeStore((s) => s.getActiveProject());
-  const rightPanelView = useIdeStore((s) => s.rightPanelView);
-  const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
-
-  const handleRightPanelViewChange = useCallback(
-    (value: string) => {
-      if (value !== "preview" && value !== "explorer" && value !== "changes") {
-        return;
-      }
-
-      setRightPanelView(value);
-    },
-    [setRightPanelView],
-  );
-
-  return (
-    <footer className="relative flex h-11 items-center justify-between pl-3 pr-3 text-foreground">
-      <div />
-
-      <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
-        {appReady ? (
-          <Tabs
-            onValueChange={handleRightPanelViewChange}
-            value={rightPanelView}
-          >
-            <TabsList className="h-8 bg-muted/60">
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <TabsTrigger
-                      aria-label="Show file explorer"
-                      className="h-6 w-8 px-0 data-[active]:bg-background"
-                      value="explorer"
-                    />
-                  }
-                >
-                  <Folder className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Files</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <TabsTrigger
-                      aria-label="Show changes"
-                      className="h-6 w-8 px-0 data-[active]:bg-background"
-                      value="changes"
-                    />
-                  }
-                >
-                  <GitCompareArrows className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Changes</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <TabsTrigger
-                      aria-label="Show preview"
-                      className="h-6 w-8 px-0 data-[active]:bg-background"
-                      value="preview"
-                    />
-                  }
-                >
-                  <Monitor className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>Preview</TooltipContent>
-              </Tooltip>
-            </TabsList>
-          </Tabs>
-        ) : null}
-
-        {appReady && activeProject ? (
-          <BranchSwitcher
-            projectId={activeProject.id}
-            projectPath={activeProject.path}
-          />
-        ) : null}
-      </div>
-    </footer>
   );
 };
 

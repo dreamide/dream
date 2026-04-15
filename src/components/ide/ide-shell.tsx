@@ -24,7 +24,7 @@ import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { PreviewBounds } from "@/types/ide";
 import { ChatPanel } from "./chat-panel";
-import { IdeFooter, IdeHeader } from "./ide-header";
+import { IdeHeader } from "./ide-header";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
@@ -1009,7 +1009,6 @@ export const IdeShell = () => {
         )}
       </div>
 
-      <IdeFooter />
       <SettingsDialog />
     </div>
   );
