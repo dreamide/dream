@@ -687,10 +687,7 @@ export const IdeShell = () => {
 
   // Auto-refresh models when settings panel opens
   useEffect(() => {
-    if (
-      !settingsOpen ||
-      settingsSection !== "providers"
-    ) {
+    if (!settingsOpen || settingsSection !== "providers") {
       return;
     }
     void refreshProviderModels();
@@ -833,7 +830,7 @@ export const IdeShell = () => {
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="h-screen overflow-hidden text-foreground">
+    <div className="flex h-screen flex-col overflow-hidden text-foreground">
       {!appReady && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <Spinner className="size-6 text-muted-foreground" />
@@ -841,7 +838,7 @@ export const IdeShell = () => {
       )}
       <IdeHeader />
 
-      <div className="h-[calc(100vh-88px)] overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {!stateHydrated ? null : (
           <div className="flex h-full" ref={horizontalPanelsRef}>
             {/* ─── LEFT: Projects sidebar ─── */}

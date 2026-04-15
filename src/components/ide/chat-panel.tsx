@@ -3,7 +3,6 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   AlertCircle,
   CheckCheck,
-  GitBranch,
   PaperclipIcon,
   Shield,
   X,
@@ -472,7 +471,7 @@ export const ChatPanel = ({
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  const { branch } = useProjectGitStatus(project.path, gitRefreshKey);
+  useProjectGitStatus(project.path, gitRefreshKey);
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo(() => {
     return connectedProviders.flatMap((provider) =>
@@ -1043,15 +1042,6 @@ export const ChatPanel = ({
 
               {/* Context usage indicator */}
               <div className="ml-auto flex items-center gap-1">
-                {branch ? (
-                  <Badge
-                    className="gap-1 border-foreground/15 bg-transparent text-muted-foreground"
-                    variant="outline"
-                  >
-                    <GitBranch className="size-3" />
-                    {branch}
-                  </Badge>
-                ) : null}
                 <Context
                   maxTokens={contextWindow}
                   modelId={modelId}

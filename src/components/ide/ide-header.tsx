@@ -6,6 +6,7 @@ import {
   Monitor,
   PanelLeft,
   PanelRight,
+  Plus,
   Settings,
   Square,
   TerminalSquare,
@@ -31,97 +32,43 @@ export const IdeHeader = () => {
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
+  const projects = useIdeStore((s) => s.projects);
+  const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const togglePanel = useIdeStore((s) => s.togglePanel);
+  const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
+  const closeProject = useIdeStore((s) => s.closeProject);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+  const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
+  const projectTerminalSessionIds = useIdeStore(
+    (s) => s.projectTerminalSessionIds,
+  );
+
+  const activeProject =
+    projects.find((project) => project.id === activeProjectId) ?? null;
+  const terminalOpen = activeProject
+    ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
+    : false;
 
   const handleOpenSettings = useCallback(() => {
     setSettingsSection("appearance");
     setSettingsOpen(true);
   }, [setSettingsOpen, setSettingsSection]);
 
-  return (
-    <header
-      id="app-titlebar"
-      className={cn(
-        "relative flex h-11 items-center pl-3 text-foreground [-webkit-app-region:drag]",
-        isMacOs && "pr-3",
-      )}
-    >
-      <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-0")} />
+  const handleAddProject = useCallback(async () => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi) {
+      window.alert("Open this app inside Electron to add project folders.");
+      return;
+    }
 
-      {appReady ? (
-        <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-          <ToggleButton
-            active={panelVisibility.left}
-            onClick={() => togglePanel("left")}
-            title="Toggle projects panel"
-          >
-            <PanelLeft className="size-4" />
-          </ToggleButton>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label="Settings"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  onClick={handleOpenSettings}
-                  size="icon-sm"
-                  variant="ghost"
-                />
-              }
-            >
-              <Settings className="size-4 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent>Settings</TooltipContent>
-          </Tooltip>
-        </div>
-      ) : null}
+    const selectedPath = await desktopApi.pickProjectDirectory();
+    if (!selectedPath) {
+      return;
+    }
 
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <span className="text-muted-foreground text-xs tracking-widest">
-          DREAM
-        </span>
-      </div>
-
-      {appReady ? (
-        <div className="ml-auto flex items-center gap-1 [-webkit-app-region:no-drag]">
-          <ToggleButton
-            active={panelVisibility.middle}
-            onClick={() => togglePanel("middle")}
-            title="Toggle chat panel"
-          >
-            <MessageSquare className="size-4" />
-          </ToggleButton>
-          <ToggleButton
-            active={panelVisibility.right}
-            onClick={() => togglePanel("right")}
-            title="Toggle right panel"
-          >
-            <PanelRight className="size-4" />
-          </ToggleButton>
-        </div>
-      ) : null}
-
-      {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
-    </header>
-  );
-};
-
-export const IdeFooter = () => {
-  const appReady = useIdeStore((s) => s.appReady);
-  const activeProject = useIdeStore((s) => s.getActiveProject());
-  const panelVisibility = useIdeStore((s) => s.panelVisibility);
-  const projectTerminalSessionIds = useIdeStore(
-    (s) => s.projectTerminalSessionIds,
-  );
-  const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
-  const rightPanelView = useIdeStore((s) => s.rightPanelView);
-  const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
-
-  const terminalOpen = activeProject
-    ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
-    : false;
+    useIdeStore.getState().addProject(selectedPath);
+  }, []);
 
   const handleOpenTerminal = useCallback(() => {
     if (!activeProject) {
@@ -140,6 +87,168 @@ export const IdeFooter = () => {
     void openProjectTerminal(activeProject.id);
   }, [activeProject, openProjectTerminal]);
 
+  return (
+    <header
+      id="app-titlebar"
+      className={cn(
+        "flex shrink-0 flex-col bg-background/95 text-foreground backdrop-blur-sm [-webkit-app-region:drag]",
+        isMacOs ? "pr-3" : "pr-0",
+      )}
+    >
+      <div className="flex h-11 items-end gap-2 pl-3">
+        <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-0")} />
+
+        <div className="min-w-0 flex-1 pb-0.5">
+          {appReady ? (
+            <div className="flex items-end">
+              <div className="min-w-0 flex-1 overflow-x-auto pb-px">
+                <div className="flex min-w-max items-end gap-1 pr-1">
+                  {projects.map((project) => {
+                    const isActive = project.id === activeProjectId;
+
+                    return (
+                      <div className="group relative" key={project.id}>
+                        <button
+                          className={cn(
+                            "flex h-8 max-w-64 items-center rounded-lg border px-3 pr-8 text-sm transition-colors [-webkit-app-region:no-drag]",
+                            isActive
+                              ? "border-border bg-background text-foreground shadow-sm"
+                              : "border-transparent bg-muted/55 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                          )}
+                          onClick={() => setActiveProjectId(project.id)}
+                          type="button"
+                        >
+                          <span className="truncate">{project.name}</span>
+                        </button>
+                        <button
+                          className={cn(
+                            "absolute top-1/2 right-2 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground [-webkit-app-region:no-drag]",
+                            isActive
+                              ? "opacity-100"
+                              : "opacity-0 group-hover:opacity-100",
+                          )}
+                          aria-label={`Close ${project.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            closeProject(project.id);
+                          }}
+                          type="button"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          aria-label="Add project"
+                          className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                          onClick={() => void handleAddProject()}
+                          size="icon-sm"
+                          variant="ghost"
+                        />
+                      }
+                    >
+                      <Plus className="size-4 shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent>Add project</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="pointer-events-none flex h-full items-center justify-center pb-2">
+              <span className="text-muted-foreground text-xs tracking-widest">
+                DREAM
+              </span>
+            </div>
+          )}
+        </div>
+
+        {appReady ? (
+          <div className="flex items-center gap-1 pb-1">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label="Settings"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                    onClick={handleOpenSettings}
+                    size="icon-sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                <Settings className="size-4 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : null}
+
+        {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
+      </div>
+
+      {appReady ? (
+        <div className="flex h-11 items-center gap-1 px-3">
+          <ToggleButton
+            active={panelVisibility.left}
+            onClick={() => togglePanel("left")}
+            title="Toggle threads panel"
+          >
+            <PanelLeft className="size-4" />
+          </ToggleButton>
+          <ToggleButton
+            active={panelVisibility.middle}
+            onClick={() => togglePanel("middle")}
+            title="Toggle chat panel"
+          >
+            <MessageSquare className="size-4" />
+          </ToggleButton>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  aria-label="Open terminal"
+                  className={cn(
+                    "size-8 p-0 [-webkit-app-region:no-drag]",
+                    terminalOpen
+                      ? "text-foreground hover:text-foreground"
+                      : "text-muted-foreground/50 hover:text-foreground",
+                  )}
+                  disabled={!activeProject}
+                  onClick={handleOpenTerminal}
+                  size="icon"
+                  variant="ghost"
+                />
+              }
+            >
+              <TerminalSquare className="size-4 shrink-0" />
+            </TooltipTrigger>
+            <TooltipContent>Open terminal</TooltipContent>
+          </Tooltip>
+          <ToggleButton
+            active={panelVisibility.right}
+            onClick={() => togglePanel("right")}
+            title="Toggle right panel"
+          >
+            <PanelRight className="size-4" />
+          </ToggleButton>
+        </div>
+      ) : null}
+    </header>
+  );
+};
+
+export const IdeFooter = () => {
+  const appReady = useIdeStore((s) => s.appReady);
+  const activeProject = useIdeStore((s) => s.getActiveProject());
+  const rightPanelView = useIdeStore((s) => s.rightPanelView);
+  const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
+
   const handleRightPanelViewChange = useCallback(
     (value: string) => {
       if (value !== "preview" && value !== "explorer" && value !== "changes") {
@@ -153,35 +262,10 @@ export const IdeFooter = () => {
 
   return (
     <footer className="relative flex h-11 items-center justify-between pl-3 pr-3 text-foreground">
-      <div className="flex items-center [-webkit-app-region:no-drag]">
-        {appReady ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label="Open terminal"
-                  className={cn(
-                    "h-8 w-8 p-0",
-                    terminalOpen
-                      ? "text-foreground hover:text-foreground"
-                      : "text-muted-foreground/50 hover:text-foreground",
-                  )}
-                  disabled={!activeProject}
-                  onClick={handleOpenTerminal}
-                  size="icon-sm"
-                  variant="ghost"
-                />
-              }
-            >
-              <TerminalSquare className="size-4 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent>Open terminal</TooltipContent>
-          </Tooltip>
-        ) : null}
-      </div>
+      <div />
 
       <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
-        {appReady && panelVisibility.right ? (
+        {appReady ? (
           <Tabs
             onValueChange={handleRightPanelViewChange}
             value={rightPanelView}

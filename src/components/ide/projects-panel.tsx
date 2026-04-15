@@ -1,21 +1,12 @@
 import {
   Archive,
-  ChevronDown,
-  ChevronRight,
   Ellipsis,
   ExternalLink,
   FilePenLine,
   MessageSquarePlus,
-  Plus,
   X,
 } from "lucide-react";
-import {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -173,11 +164,9 @@ const ThreadActionsMenu = ({
 export const ProjectSidebar = () => {
   const projects = useIdeStore((s) => s.projects);
   const allThreads = useIdeStore((s) => s.threads);
-  const activeProjectId = useIdeStore((s) => s.activeProjectId);
+  const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeThreadIdByProject = useIdeStore((s) => s.activeThreadIdByProject);
   const addThread = useIdeStore((s) => s.addThread);
-  const addProject = useIdeStore((s) => s.addProject);
-  const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setActiveThreadId = useIdeStore((s) => s.setActiveThreadId);
   const updateProject = useIdeStore((s) => s.updateProject);
   const updateThread = useIdeStore((s) => s.updateThread);
@@ -186,70 +175,19 @@ export const ProjectSidebar = () => {
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
   const detectedEditors = useDetectedEditors();
 
-  const handleAddProject = useCallback(async () => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi) {
-      window.alert("Open this app inside Electron to add project folders.");
-      return;
-    }
-    const selectedPath = await desktopApi.pickProjectDirectory();
-    if (!selectedPath) return;
-    addProject(selectedPath);
-  }, [addProject]);
-
-  const [collapsedProjects, setCollapsedProjects] = useState<
-    Record<string, boolean>
-  >({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const threadsByProject = useMemo(() => {
-    return Object.fromEntries(
-      projects.map((project) => [
-        project.id,
-        getThreadsForProject(allThreads, project.id),
-      ]),
-    );
-  }, [allThreads, projects]);
+  const activeProjectThreads = useMemo(
+    () =>
+      activeProject ? getThreadsForProject(allThreads, activeProject.id) : [],
+    [activeProject, allThreads],
+  );
 
-  useEffect(() => {
-    if (!activeProjectId) {
-      return;
-    }
-
-    setCollapsedProjects((current) => {
-      if (!current[activeProjectId]) {
-        return current;
-      }
-
-      return {
-        ...current,
-        [activeProjectId]: false,
-      };
-    });
-  }, [activeProjectId]);
-
-  const toggleProjectCollapsed = (projectId: string) => {
-    setCollapsedProjects((current) => ({
-      ...current,
-      [projectId]: !current[projectId],
-    }));
-  };
-
-  const handleProjectClick = (projectId: string) => {
-    toggleProjectCollapsed(projectId);
-    if (projectId !== activeProjectId) {
-      setActiveProjectId(projectId);
-    }
-  };
-
-  const handleThreadClick = (projectId: string, threadId: string) => {
-    if (projectId !== activeProjectId) {
-      setActiveProjectId(projectId);
-    }
-    setActiveThreadId(projectId, threadId);
-  };
+  const activeThreadId = activeProject
+    ? (activeThreadIdByProject[activeProject.id] ?? null)
+    : null;
 
   const openRenameDialog = (target: RenameTarget) => {
     setRenameTarget(target);
@@ -290,24 +228,62 @@ export const ProjectSidebar = () => {
         id="projects-panel"
         className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
       >
-        <div className="flex items-center justify-between gap-2 px-2 py-2">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label="Add project"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                  onClick={() => void handleAddProject()}
-                  size="icon-sm"
-                  variant="ghost"
-                />
-              }
-            >
-              <Plus className="size-4 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent>Add project</TooltipContent>
-          </Tooltip>
-        </div>
+        {activeProject ? (
+          <div className="flex items-center justify-between gap-2 border-b border-border/70 px-2 py-2">
+            <div className="min-w-0 px-1">
+              <p className="truncate font-medium text-sm">
+                {activeProject.name}
+              </p>
+              <p className="truncate text-muted-foreground text-xs">Threads</p>
+            </div>
+
+            <div className="flex items-center gap-0.5">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      aria-label="New thread"
+                      className="h-8 w-8 p-0"
+                      onClick={() => addThread(activeProject.id)}
+                      size="icon-sm"
+                      type="button"
+                      variant="ghost"
+                    />
+                  }
+                >
+                  <MessageSquarePlus className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent>New thread</TooltipContent>
+              </Tooltip>
+
+              <ProjectActionsMenu
+                editors={detectedEditors}
+                label={activeProject.name}
+                onEdit={() =>
+                  openRenameDialog({
+                    id: activeProject.id,
+                    kind: "project",
+                    name: activeProject.name,
+                  })
+                }
+                onOpenChange={(open) =>
+                  setOpenMenuId(open ? `project:${activeProject.id}` : null)
+                }
+                onOpenIn={(editorId) => {
+                  const api = getDesktopApi();
+                  if (api) {
+                    void api.openInEditor({
+                      projectPath: activeProject.path,
+                      editorId,
+                    });
+                  }
+                }}
+                onRemove={() => closeProject(activeProject.id)}
+                open={openMenuId === `project:${activeProject.id}`}
+              />
+            </div>
+          </div>
+        ) : null}
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-1 px-2 pb-3">
@@ -316,174 +292,63 @@ export const ProjectSidebar = () => {
                 Add a folder to start working on multiple projects in one
                 workspace.
               </p>
+            ) : !activeProject ? (
+              <p className="rounded-md p-3 text-muted-foreground text-xs">
+                Select a project tab to view its threads.
+              </p>
             ) : (
-              projects.map((project) => {
-                const isActive = project.id === activeProjectId;
-                const isCollapsed = collapsedProjects[project.id] ?? false;
-                const activeThreadId =
-                  activeThreadIdByProject[project.id] ?? null;
-                const projectThreads = threadsByProject[project.id] ?? [];
-                const projectMenuId = `project:${project.id}`;
-                const isProjectMenuOpen = openMenuId === projectMenuId;
+              activeProjectThreads.map((thread) => {
+                const isActiveThread = thread.id === activeThreadId;
+                const threadMenuId = `thread:${thread.id}`;
+                const isThreadMenuOpen = openMenuId === threadMenuId;
+                const isStreaming = !!streamingThreadIds[thread.id];
 
                 return (
-                  <div className="rounded-md" key={project.id}>
+                  <div
+                    className={cn(
+                      "group relative min-w-0 rounded-md transition-colors",
+                      isActiveThread
+                        ? "border-2 border-border bg-muted/30"
+                        : "border-2 border-transparent hover:bg-muted/30",
+                    )}
+                    key={thread.id}
+                  >
+                    <button
+                      className="w-full rounded-[inherit] px-2 py-1.5 text-left"
+                      onClick={() =>
+                        setActiveThreadId(activeProject.id, thread.id)
+                      }
+                      type="button"
+                    >
+                      <div className="flex min-w-0 items-center gap-1.5 pr-6">
+                        {isStreaming && <Spinner className="size-3 shrink-0" />}
+                        <p className="truncate text-sm">{thread.title}</p>
+                      </div>
+                    </button>
                     <div
                       className={cn(
-                        "group relative flex items-center gap-1 rounded-md pr-2 transition-colors",
-                        isActive
-                          ? "bg-muted"
-                          : "bg-transparent hover:bg-muted/20",
+                        "absolute top-1/2 right-1.5 -translate-y-1/2 transition-opacity",
+                        isThreadMenuOpen
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-100",
                       )}
                     >
-                      <button
-                        aria-label={
-                          isCollapsed
-                            ? "Expand project threads"
-                            : "Collapse project threads"
+                      <ThreadActionsMenu
+                        label={thread.title}
+                        onArchive={() => archiveThread(thread.id)}
+                        onEdit={() =>
+                          openRenameDialog({
+                            id: thread.id,
+                            kind: "thread",
+                            name: thread.title,
+                          })
                         }
-                        className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleProjectCollapsed(project.id);
-                        }}
-                        type="button"
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="size-3.5" />
-                        ) : (
-                          <ChevronDown className="size-3.5" />
-                        )}
-                      </button>
-                      <button
-                        className="min-w-0 flex-1 rounded-[inherit] px-1 py-2 text-left"
-                        onClick={() => handleProjectClick(project.id)}
-                        type="button"
-                      >
-                        <div className="min-w-0 pr-14 text-left">
-                          <p className="truncate font-medium text-muted-foreground text-sm">
-                            {project.name}
-                          </p>
-                        </div>
-                      </button>
-                      <div
-                        className={cn(
-                          "absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5 transition-opacity",
-                          isProjectMenuOpen
-                            ? "opacity-100"
-                            : "opacity-0 group-hover:opacity-100",
-                        )}
-                      >
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                aria-label="New thread"
-                                className="h-8 w-8 p-0"
-                                onClick={() => addThread(project.id)}
-                                size="icon-sm"
-                                type="button"
-                                variant="ghost"
-                              />
-                            }
-                          >
-                            <MessageSquarePlus className="size-4" />
-                          </TooltipTrigger>
-                          <TooltipContent>New thread</TooltipContent>
-                        </Tooltip>
-                        <ProjectActionsMenu
-                          editors={detectedEditors}
-                          label={project.name}
-                          onEdit={() =>
-                            openRenameDialog({
-                              id: project.id,
-                              kind: "project",
-                              name: project.name,
-                            })
-                          }
-                          onOpenChange={(open) =>
-                            setOpenMenuId(open ? projectMenuId : null)
-                          }
-                          onOpenIn={(editorId) => {
-                            const api = getDesktopApi();
-                            if (api) {
-                              void api.openInEditor({
-                                projectPath: project.path,
-                                editorId,
-                              });
-                            }
-                          }}
-                          onRemove={() => closeProject(project.id)}
-                          open={isProjectMenuOpen}
-                        />
-                      </div>
+                        onOpenChange={(open) =>
+                          setOpenMenuId(open ? threadMenuId : null)
+                        }
+                        open={isThreadMenuOpen}
+                      />
                     </div>
-
-                    {!isCollapsed ? (
-                      <div className="mt-1 ml-2 border-l border-border pl-3 pr-2">
-                        {projectThreads.map((thread) => {
-                          const isActiveThread =
-                            isActive && thread.id === activeThreadId;
-                          const threadMenuId = `thread:${thread.id}`;
-                          const isThreadMenuOpen = openMenuId === threadMenuId;
-
-                          const isStreaming = !!streamingThreadIds[thread.id];
-
-                          return (
-                            <div
-                              className={cn(
-                                "group relative min-w-0 rounded-md transition-colors",
-                                isActiveThread
-                                  ? "border-2 border-border bg-muted/30"
-                                  : "border-2 border-transparent hover:bg-muted/30",
-                              )}
-                              key={thread.id}
-                            >
-                              <button
-                                className="w-full rounded-[inherit] px-2 py-1.5 text-left"
-                                onClick={() =>
-                                  handleThreadClick(project.id, thread.id)
-                                }
-                                type="button"
-                              >
-                                <div className="flex min-w-0 items-center gap-1.5 pr-6">
-                                  {isStreaming && (
-                                    <Spinner className="size-3 shrink-0" />
-                                  )}
-                                  <p className="truncate text-sm">
-                                    {thread.title}
-                                  </p>
-                                </div>
-                              </button>
-                              <div
-                                className={cn(
-                                  "absolute top-1/2 right-1.5 -translate-y-1/2 transition-opacity",
-                                  isThreadMenuOpen
-                                    ? "opacity-100"
-                                    : "opacity-0 group-hover:opacity-100",
-                                )}
-                              >
-                                <ThreadActionsMenu
-                                  label={thread.title}
-                                  onArchive={() => archiveThread(thread.id)}
-                                  onEdit={() =>
-                                    openRenameDialog({
-                                      id: thread.id,
-                                      kind: "thread",
-                                      name: thread.title,
-                                    })
-                                  }
-                                  onOpenChange={(open) =>
-                                    setOpenMenuId(open ? threadMenuId : null)
-                                  }
-                                  open={isThreadMenuOpen}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : null}
                   </div>
                 );
               })
