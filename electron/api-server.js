@@ -855,6 +855,268 @@ const stringifyCodexValue = (value) => {
   }
 };
 
+const CODEX_IMAGE_MEDIA_TYPES = new Set([
+  "image/avif",
+  "image/bmp",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+const TEXT_ATTACHMENT_CHAR_LIMIT = 60_000;
+const TEXT_ATTACHMENT_MEDIA_TYPES = new Set([
+  "application/javascript",
+  "application/json",
+  "application/ld+json",
+  "application/sql",
+  "application/toml",
+  "application/typescript",
+  "application/x-httpd-php",
+  "application/x-sh",
+  "application/xml",
+  "application/yaml",
+]);
+
+const getCodexAttachmentLabel = (part) => {
+  return (
+    (typeof part.filename === "string" && part.filename.trim()) ||
+    (typeof part.mediaType === "string" && part.mediaType.trim()) ||
+    "attachment"
+  );
+};
+
+const parseCodexDataUrl = (value) => {
+  if (typeof value !== "string" || !value.startsWith("data:")) {
+    return null;
+  }
+
+  const commaIndex = value.indexOf(",");
+  if (commaIndex < 0) {
+    return null;
+  }
+
+  const metadata = value.slice(5, commaIndex);
+  const payload = value.slice(commaIndex + 1);
+  const segments = metadata.split(";").filter(Boolean);
+  const isBase64 = segments.includes("base64");
+  const mediaType = segments.find((segment) => segment !== "base64") || null;
+
+  try {
+    return {
+      buffer: isBase64
+        ? Buffer.from(payload, "base64")
+        : Buffer.from(decodeURIComponent(payload), "utf8"),
+      mediaType,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const getAttachmentExtensionFromMediaType = (mediaType) => {
+  switch (mediaType) {
+    case "application/javascript":
+      return ".js";
+    case "application/json":
+    case "application/ld+json":
+      return ".json";
+    case "application/sql":
+      return ".sql";
+    case "application/toml":
+      return ".toml";
+    case "application/typescript":
+      return ".ts";
+    case "application/x-httpd-php":
+      return ".php";
+    case "application/x-sh":
+      return ".sh";
+    case "application/xml":
+      return ".xml";
+    case "application/yaml":
+      return ".yaml";
+    case "image/avif":
+      return ".avif";
+    case "image/bmp":
+      return ".bmp";
+    case "image/gif":
+      return ".gif";
+    case "image/jpeg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    case "image/svg+xml":
+      return ".svg";
+    case "image/webp":
+      return ".webp";
+    case "text/css":
+      return ".css";
+    case "text/html":
+      return ".html";
+    case "text/javascript":
+      return ".js";
+    case "text/markdown":
+      return ".md";
+    case "text/plain":
+      return ".txt";
+    case "text/typescript":
+      return ".ts";
+    case "text/x-python":
+      return ".py";
+    case "text/xml":
+      return ".xml";
+    case "text/yaml":
+      return ".yaml";
+    default:
+      return "";
+  }
+};
+
+const sanitizeCodexAttachmentFilename = (filename, fallback) => {
+  const basename = path.basename(
+    typeof filename === "string" && filename.trim()
+      ? filename.trim()
+      : fallback,
+  );
+  const sanitized = basename
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return sanitized || fallback;
+};
+
+const isCodexImageAttachment = (mediaType, filename) => {
+  if (typeof mediaType === "string" && CODEX_IMAGE_MEDIA_TYPES.has(mediaType)) {
+    return true;
+  }
+
+  return /\.(?:avif|bmp|gif|jpe?g|png|webp)$/i.test(filename || "");
+};
+
+const isCodexTextAttachment = (mediaType, filename) => {
+  if (typeof mediaType === "string") {
+    if (mediaType.startsWith("text/")) {
+      return true;
+    }
+
+    if (TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType)) {
+      return true;
+    }
+  }
+
+  return /\.(?:c|cc|cpp|css|go|html?|java|js|json|jsx|md|mjs|php|py|rb|rs|sh|sql|svg|toml|ts|tsx|txt|xml|ya?ml)$/i.test(
+    filename || "",
+  );
+};
+
+const buildCodexFilePartSummary = (part) => {
+  const label = getCodexAttachmentLabel(part);
+  const parsedDataUrl = parseCodexDataUrl(part.url);
+  const mediaType =
+    (typeof part.mediaType === "string" && part.mediaType.trim()) ||
+    parsedDataUrl?.mediaType ||
+    null;
+
+  if (isCodexImageAttachment(mediaType, part.filename)) {
+    return `[Attached image: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
+  }
+
+  if (parsedDataUrl && isCodexTextAttachment(mediaType, part.filename)) {
+    const text = parsedDataUrl.buffer.toString("utf8");
+    const truncated = text.length > TEXT_ATTACHMENT_CHAR_LIMIT;
+    const content = truncated
+      ? text.slice(0, TEXT_ATTACHMENT_CHAR_LIMIT)
+      : text;
+
+    return [
+      `[Attached file: ${label}${mediaType ? ` (${mediaType})` : ""}]`,
+      "Attached file contents:",
+      "```text",
+      content,
+      "```",
+      truncated ? "[File content truncated for prompt size.]" : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return `[Attached file: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
+};
+
+const getCodexMessageFileParts = (message) => {
+  if (!message || typeof message !== "object") {
+    return [];
+  }
+
+  return (Array.isArray(message.parts) ? message.parts : []).filter(
+    (part) => part && typeof part === "object" && part.type === "file",
+  );
+};
+
+const getLatestUserMessage = (messages) => {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.role === "user") {
+      return message;
+    }
+  }
+
+  return null;
+};
+
+const prepareCodexPromptAttachments = async (message) => {
+  const fileParts = getCodexMessageFileParts(message);
+  if (fileParts.length === 0) {
+    return null;
+  }
+
+  const tempDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "dream-codex-attachments-"),
+  );
+  const imagePaths = [];
+  const promptLines = ["Current turn attachments:"];
+
+  for (const [index, part] of fileParts.entries()) {
+    const label = getCodexAttachmentLabel(part);
+    const parsedDataUrl = parseCodexDataUrl(part.url);
+    const mediaType =
+      (typeof part.mediaType === "string" && part.mediaType.trim()) ||
+      parsedDataUrl?.mediaType ||
+      null;
+
+    if (!parsedDataUrl) {
+      promptLines.push(
+        `- ${label}${mediaType ? ` (${mediaType})` : ""}: attachment payload unavailable in the Codex bridge.`,
+      );
+      continue;
+    }
+
+    const fallbackName = `attachment-${index + 1}${getAttachmentExtensionFromMediaType(mediaType)}`;
+    const filename = sanitizeCodexAttachmentFilename(
+      part.filename,
+      fallbackName,
+    );
+    const filePath = path.join(tempDir, `${index + 1}-${filename}`);
+    await fs.writeFile(filePath, parsedDataUrl.buffer);
+
+    const isImage = isCodexImageAttachment(mediaType, filePath);
+    if (isImage) {
+      imagePaths.push(filePath);
+    }
+
+    promptLines.push(
+      `- ${label}${mediaType ? ` (${mediaType})` : ""}: ${filePath}${isImage ? " [also passed via --image]" : ""}`,
+    );
+  }
+
+  return {
+    addDirs: [tempDir],
+    cleanup: () => {
+      void fs.rm(tempDir, { force: true, recursive: true }).catch(() => {});
+    },
+    imagePaths,
+    promptText: promptLines.join("\n"),
+  };
+};
+
 const serializeCodexMessage = (message) => {
   if (!message || typeof message !== "object") {
     return "";
@@ -881,11 +1143,7 @@ const serializeCodexMessage = (message) => {
     }
 
     if (part.type === "file") {
-      const label =
-        (typeof part.filename === "string" && part.filename.trim()) ||
-        (typeof part.mediaType === "string" && part.mediaType.trim()) ||
-        "attachment";
-      sections.push(`[Attached file: ${label}]`);
+      sections.push(buildCodexFilePartSummary(part));
       continue;
     }
 
@@ -928,6 +1186,7 @@ const serializeCodexMessage = (message) => {
 };
 
 const buildCodexConversationPrompt = ({
+  currentTurnAttachments,
   messages,
   projectPath,
   systemPrompt,
@@ -942,26 +1201,21 @@ const buildCodexConversationPrompt = ({
     `Active project: ${projectPath}`,
     "You are running through the real Codex CLI with native shell and git access.",
     transcript ? `Conversation transcript:\n\n${transcript}` : null,
+    currentTurnAttachments,
     "Continue the conversation naturally and complete the user's latest request.",
   ]
     .filter(Boolean)
     .join("\n\n");
 };
 
-const getLatestUserPrompt = (messages) => {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (!message || message.role !== "user") {
-      continue;
-    }
-
-    const serialized = serializeCodexMessage(message);
-    if (serialized) {
-      return serialized;
-    }
+const getLatestUserPrompt = (messages, currentTurnAttachments = null) => {
+  const latestUserMessage = getLatestUserMessage(messages);
+  if (!latestUserMessage) {
+    return currentTurnAttachments || "";
   }
 
-  return "";
+  const serialized = serializeCodexMessage(latestUserMessage);
+  return [serialized, currentTurnAttachments].filter(Boolean).join("\n\n");
 };
 
 const writeCodexTextPart = (writeEvent, id, text, type) => {
@@ -975,7 +1229,9 @@ const writeCodexTextPart = (writeEvent, id, text, type) => {
 };
 
 const buildCodexExecArgs = ({
+  addDirs = [],
   codexPermissionMode,
+  imagePaths = [],
   model,
   projectPath,
   reasoningEffort,
@@ -992,6 +1248,8 @@ const buildCodexExecArgs = ({
     "-c",
     `approval_policy=${JSON.stringify(approvalPolicy)}`,
   ];
+  const addDirConfig = addDirs.flatMap((dir) => ["--add-dir", dir]);
+  const imageConfig = imagePaths.flatMap((imagePath) => ["--image", imagePath]);
   const reasoningConfig = reasoningEffort
     ? ["-c", `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
     : [];
@@ -1002,6 +1260,8 @@ const buildCodexExecArgs = ({
       "--json",
       "--skip-git-repo-check",
       ...(model ? ["--model", model] : []),
+      ...addDirConfig,
+      ...imageConfig,
       ...sandboxConfig,
       ...approvalConfig,
       ...reasoningConfig,
@@ -1017,6 +1277,8 @@ const buildCodexExecArgs = ({
     projectPath,
     "--skip-git-repo-check",
     ...(model ? ["--model", model] : []),
+    ...addDirConfig,
+    ...imageConfig,
     ...sandboxConfig,
     ...approvalConfig,
     ...reasoningConfig,
@@ -1052,12 +1314,6 @@ const streamCodexCliResponse = ({
     : !storedSession
       ? persistedSessionId
       : null;
-  const fullPrompt = buildCodexConversationPrompt({
-    messages,
-    projectPath,
-    systemPrompt,
-  });
-  const latestUserPrompt = getLatestUserPrompt(messages);
 
   const stream = createUIMessageStream({
     originalMessages: messages,
@@ -1070,13 +1326,17 @@ const streamCodexCliResponse = ({
         let stderrBuffer = "";
         let finished = false;
         let hasStreamedOutput = false;
+        let latestUserPrompt = "";
+        let preparedAttachments = null;
         let resumedRetryAttempted = false;
+        let fullPrompt = "";
         let child;
 
         const finish = (callback) => {
           if (finished) return;
           finished = true;
           abortSignal?.removeEventListener("abort", handleAbort);
+          preparedAttachments?.cleanup?.();
           callback();
         };
 
@@ -1230,7 +1490,9 @@ const streamCodexCliResponse = ({
             ? latestUserPrompt || fullPrompt
             : fullPrompt;
           const args = buildCodexExecArgs({
+            addDirs: preparedAttachments?.addDirs ?? [],
             codexPermissionMode,
+            imagePaths: preparedAttachments?.imagePaths ?? [],
             model,
             projectPath,
             reasoningEffort,
@@ -1305,7 +1567,32 @@ const streamCodexCliResponse = ({
             });
         };
 
-        runAttempt(initialSessionId);
+        void prepareCodexPromptAttachments(getLatestUserMessage(messages))
+          .then((attachments) => {
+            preparedAttachments = attachments;
+            fullPrompt = buildCodexConversationPrompt({
+              currentTurnAttachments: attachments?.promptText ?? null,
+              messages,
+              projectPath,
+              systemPrompt,
+            });
+            latestUserPrompt = getLatestUserPrompt(
+              messages,
+              attachments?.promptText ?? null,
+            );
+            runAttempt(initialSessionId);
+          })
+          .catch((error) => {
+            finish(() =>
+              reject(
+                new Error(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to prepare Codex attachments.",
+                ),
+              ),
+            );
+          });
       }),
   });
 

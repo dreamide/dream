@@ -1,4 +1,4 @@
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, DownloadIcon } from "lucide-react";
 import type { ComponentProps, CSSProperties, HTMLAttributes } from "react";
 import {
   createContext,
@@ -11,8 +11,9 @@ import {
   useState,
 } from "react";
 import type { BundledLanguage, ThemedToken } from "shiki";
-import { getSingletonHighlighter } from "shiki";
+import { bundledLanguages, getSingletonHighlighter } from "shiki";
 import { Button } from "@/components/ui/button";
+import { getDesktopApi } from "@/lib/electron";
 import {
   Select,
   SelectContent,
@@ -108,6 +109,26 @@ interface CodeBlockContextType {
   code: string;
 }
 
+const CODE_BLOCK_DOWNLOAD_EXTENSIONS: Record<string, string> = {
+  bash: "sh",
+  html: "html",
+  javascript: "js",
+  js: "js",
+  json: "json",
+  markdown: "md",
+  md: "md",
+  plaintext: "txt",
+  python: "py",
+  shell: "sh",
+  text: "txt",
+  ts: "ts",
+  tsx: "tsx",
+  typescript: "ts",
+  xml: "xml",
+  yaml: "yaml",
+  yml: "yml",
+};
+
 // Context
 const CodeBlockContext = createContext<CodeBlockContextType>({
   code: "",
@@ -119,6 +140,60 @@ const getHighlighter = (language: BundledLanguage) =>
     langs: [language],
     themes: ["github-light", "github-dark"],
   });
+
+const copyTextToClipboard = async (value: string) => {
+  const desktopApi = getDesktopApi();
+  if (desktopApi) {
+    const copied = await desktopApi.writeClipboardText(value);
+    if (!copied) {
+      throw new Error("Clipboard copy failed");
+    }
+    return;
+  }
+
+  if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+    throw new Error("Clipboard API not available");
+  }
+
+  await navigator.clipboard.writeText(value);
+};
+
+const downloadTextFile = async (filename: string, contents: string) => {
+  const desktopApi = getDesktopApi();
+  if (desktopApi) {
+    await desktopApi.saveTextFile({
+      contents,
+      defaultPath: filename,
+      title: "Save code block",
+    });
+    return;
+  }
+
+  const blob = new Blob([contents], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+export const resolveBundledLanguage = (language: string): BundledLanguage => {
+  const normalized = language.trim().toLowerCase();
+  if (normalized && Object.hasOwn(bundledLanguages, normalized)) {
+    return normalized as BundledLanguage;
+  }
+
+  return "log";
+};
+
+const getCodeBlockDownloadFilename = (language: string) => {
+  const normalized = language.trim().toLowerCase();
+  const extension = CODE_BLOCK_DOWNLOAD_EXTENSIONS[normalized] || "txt";
+  return `file.${extension}`;
+};
 
 // Token cache
 const tokensCache = new Map<string, TokenizedCode>();
@@ -255,7 +330,7 @@ const CodeBlockBody = memo(
     return (
       <pre
         className={cn(
-          "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 p-4 text-sm",
+          "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 text-sm",
           className,
         )}
         style={preStyle}
@@ -318,7 +393,7 @@ export const CodeBlockHeader = ({
 }: HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex items-center justify-between border-b bg-muted/80 px-3 py-2 text-muted-foreground text-xs",
+      "flex min-h-9 items-center justify-between px-3 py-1.5 text-muted-foreground text-xs",
       className,
     )}
     {...props}
@@ -353,7 +428,7 @@ export const CodeBlockActions = ({
   ...props
 }: HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("-my-1 -mr-1 flex items-center gap-2", className)}
+    className={cn("-mr-1 flex items-center gap-1.5", className)}
     {...props}
   >
     {children}
@@ -453,14 +528,9 @@ export const CodeBlockCopyButton = ({
   const { code } = useContext(CodeBlockContext);
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
-      onError?.(new Error("Clipboard API not available"));
-      return;
-    }
-
     try {
       if (!isCopied) {
-        await navigator.clipboard.writeText(code);
+        await copyTextToClipboard(code);
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(
@@ -486,11 +556,54 @@ export const CodeBlockCopyButton = ({
     <Button
       className={cn("shrink-0", className)}
       onClick={copyToClipboard}
-      size="icon"
+      size="icon-xs"
       variant="ghost"
       {...props}
     >
-      {children ?? <Icon size={14} />}
+      {children ?? <Icon className="size-4" />}
+    </Button>
+  );
+};
+
+export type CodeBlockDownloadButtonProps = ComponentProps<typeof Button> & {
+  filename?: string;
+  language?: string;
+  onDownload?: () => void;
+  onError?: (error: Error) => void;
+};
+
+export const CodeBlockDownloadButton = ({
+  filename,
+  language = "text",
+  onDownload,
+  onError,
+  children,
+  className,
+  ...props
+}: CodeBlockDownloadButtonProps) => {
+  const { code } = useContext(CodeBlockContext);
+
+  const handleDownload = useCallback(async () => {
+    try {
+      await downloadTextFile(
+        filename || getCodeBlockDownloadFilename(language),
+        code,
+      );
+      onDownload?.();
+    } catch (error) {
+      onError?.(error as Error);
+    }
+  }, [code, filename, language, onDownload, onError]);
+
+  return (
+    <Button
+      className={cn("shrink-0", className)}
+      onClick={handleDownload}
+      size="icon-xs"
+      variant="ghost"
+      {...props}
+    >
+      {children ?? <DownloadIcon className="size-4" />}
     </Button>
   );
 };

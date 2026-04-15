@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld("dream", {
   isElectron: true,
 
   openExternal: (url) => ipcRenderer.invoke("shell:open-external", { url }),
+  writeClipboardText: (text) =>
+    ipcRenderer.invoke("clipboard:write-text", { text }),
+  saveTextFile: (payload) => ipcRenderer.invoke("files:save-text", payload),
 
   windowMinimize: () => ipcRenderer.invoke("window:minimize"),
   windowMaximize: () => ipcRenderer.invoke("window:maximize"),

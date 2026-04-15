@@ -191,6 +191,12 @@ export interface DreamDesktopApi {
   isElectron: true;
 
   openExternal: (url: string) => Promise<boolean>;
+  writeClipboardText: (text: string) => Promise<boolean>;
+  saveTextFile: (payload: {
+    contents: string;
+    defaultPath?: string;
+    title?: string;
+  }) => Promise<boolean>;
 
   windowMinimize: () => Promise<void>;
   windowMaximize: () => Promise<void>;

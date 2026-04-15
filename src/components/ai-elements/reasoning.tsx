@@ -1,8 +1,4 @@
 import { useControllableState } from "@/hooks/use-controllable-state";
-import { cjk } from "@streamdown/cjk";
-import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
-import { mermaid } from "@streamdown/mermaid";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 import {
@@ -21,6 +17,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
 import { cn } from "@/lib/utils";
 
 import { Shimmer } from "./shimmer";
@@ -207,8 +204,6 @@ export type ReasoningContentProps = ComponentProps<
 > & {
   children: string;
 };
-
-const streamdownPlugins = { cjk, code, math, mermaid };
 
 export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => {

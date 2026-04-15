@@ -341,19 +341,15 @@ export const PromptInputActionAddAttachments = ({
 }: PromptInputActionAddAttachmentsProps) => {
   const attachments = usePromptInputAttachments();
 
-  const handleSelect = useCallback(
-    (e: { preventDefault: () => void }) => {
-      e.preventDefault();
-      attachments.openFileDialog();
-    },
-    [attachments],
-  );
+  const handleClick = useCallback(() => {
+    attachments.openFileDialog();
+  }, [attachments]);
 
   return (
     <DropdownMenuItem
       className={cn("min-w-44 whitespace-nowrap text-xs", className)}
       {...props}
-      onSelect={handleSelect}
+      onClick={handleClick}
     >
       <ImageIcon className="mr-2 size-3.5 shrink-0" />
       <span className="truncate">{label}</span>

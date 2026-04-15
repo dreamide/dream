@@ -1,8 +1,22 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { AlertCircle, CheckCheck, GitBranch, Shield, X } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCheck,
+  GitBranch,
+  PaperclipIcon,
+  Shield,
+  X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
+import {
+  Attachment,
+  AttachmentInfo,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+} from "@/components/ai-elements/attachments";
 import {
   Context,
   ContextCacheUsage,
@@ -37,6 +51,7 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Shimmer } from "@/components/ai-elements/shimmer";
@@ -90,14 +105,13 @@ import {
   SearchInFilesChip,
   WriteFileChip,
 } from "./assistant-message-part";
-import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
   CODEX_PERMISSION_MODE_OPTIONS,
+  type CodexPermissionMode,
   getCodexPermissionModeLabel,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
-  type CodexPermissionMode,
 } from "./ide-types";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
@@ -150,6 +164,85 @@ const inferThreadTitle = (promptText: string): string => {
   return collapsed.slice(0, 60);
 };
 
+const PromptAttachments = () => {
+  const attachments = usePromptInputAttachments();
+
+  if (attachments.files.length === 0) {
+    return null;
+  }
+
+  return (
+    <Attachments className="w-full px-3 pt-3" variant="inline">
+      {attachments.files.map((file) => (
+        <Attachment
+          data={file}
+          key={file.id}
+          onRemove={() => attachments.remove(file.id)}
+        >
+          <AttachmentPreview />
+          <AttachmentInfo />
+          <AttachmentRemove />
+        </Attachment>
+      ))}
+    </Attachments>
+  );
+};
+
+const UserMessageContent = ({ message }: { message: UIMessage }) => {
+  const parts = Array.isArray(message.parts) ? message.parts : [];
+  const attachments = parts.flatMap((part) => {
+    if (!part || typeof part !== "object" || part.type !== "file") {
+      return [];
+    }
+
+    const label =
+      (typeof part.filename === "string" && part.filename.trim()) ||
+      (typeof part.mediaType === "string" && part.mediaType.trim()) ||
+      "attachment";
+
+    return [
+      {
+        key:
+          (typeof part.url === "string" && part.url) ||
+          `${label}-${typeof part.mediaType === "string" ? part.mediaType : "file"}`,
+        label,
+      },
+    ];
+  });
+  const text = parts
+    .flatMap((part) => {
+      if (!part || typeof part !== "object" || part.type !== "text") {
+        return [];
+      }
+
+      const value = typeof part.text === "string" ? part.text.trim() : "";
+      return value ? [value] : [];
+    })
+    .join("\n\n");
+
+  return (
+    <>
+      {attachments.length > 0 ? (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {attachments.map(({ key, label }) => (
+            <Badge
+              className="max-w-full gap-1.5 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground"
+              key={key}
+              variant="secondary"
+            >
+              <PaperclipIcon className="size-3 shrink-0" />
+              <span className="truncate font-mono text-[11px]">
+                Attached file: {label}
+              </span>
+            </Badge>
+          ))}
+        </div>
+      ) : null}
+      {text ? <MessageResponse>{text}</MessageResponse> : null}
+    </>
+  );
+};
+
 const getMessagePartKey = (
   messageId: string,
   part: Record<string, unknown>,
@@ -190,7 +283,7 @@ const ThreadMessage = memo(
       return (
         <Message from="user" style={MESSAGE_RENDER_STYLE}>
           <MessageContent>
-            <MessageResponse>{renderUserMessageText(message)}</MessageResponse>
+            <UserMessageContent message={message} />
           </MessageContent>
         </Message>
       );
@@ -597,13 +690,6 @@ export const ChatPanel = ({
         return;
       }
 
-      if (activeProvider === "openai" && prompt.files.length > 0) {
-        setLocalError(
-          "File attachments are not wired into the Codex CLI path yet.",
-        );
-        return;
-      }
-
       if (threadMessages.length === 0) {
         updateThread(thread.id, (current) => ({
           ...current,
@@ -781,6 +867,7 @@ export const ChatPanel = ({
               onSubmit={handleSubmit}
             >
               <PromptInputBody>
+                <PromptAttachments />
                 <PromptInputTextarea
                   className="min-h-[80px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
                   placeholder="Ask anything..."
@@ -788,14 +875,12 @@ export const ChatPanel = ({
               </PromptInputBody>
               <PromptInputFooter className="items-center">
                 <PromptInputTools>
-                  {selectedProvider !== "openai" ? (
-                    <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger tooltip="Attach file" />
-                      <PromptInputActionMenuContent>
-                        <PromptInputActionAddAttachments />
-                      </PromptInputActionMenuContent>
-                    </PromptInputActionMenu>
-                  ) : null}
+                  <PromptInputActionMenu>
+                    <PromptInputActionMenuTrigger tooltip="Attach file" />
+                    <PromptInputActionMenuContent>
+                      <PromptInputActionAddAttachments />
+                    </PromptInputActionMenuContent>
+                  </PromptInputActionMenu>
                 </PromptInputTools>
                 <GlowBorder
                   variant="glow"

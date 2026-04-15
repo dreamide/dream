@@ -1,5 +1,6 @@
 import { spawn as spawnProcess } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -8,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   shell,
@@ -1245,6 +1247,39 @@ ipcMain.handle("shell:open-external", (_event, { url }) => {
   shell.openExternal(url);
   return true;
 });
+
+ipcMain.handle("clipboard:write-text", (_event, { text }) => {
+  if (typeof text !== "string") {
+    return false;
+  }
+
+  clipboard.writeText(text);
+  return true;
+});
+
+ipcMain.handle(
+  "files:save-text",
+  async (_event, { contents, defaultPath, title = "Save file" }) => {
+    if (typeof contents !== "string") {
+      return false;
+    }
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath:
+        typeof defaultPath === "string" && defaultPath.trim()
+          ? defaultPath.trim()
+          : undefined,
+      title,
+    });
+
+    if (result.canceled || !result.filePath) {
+      return false;
+    }
+
+    await writeFile(result.filePath, contents, "utf8");
+    return true;
+  },
+);
 
 // ── Open-in-editor detection ─────────────────────────────────────────
 
