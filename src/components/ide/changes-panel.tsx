@@ -856,6 +856,10 @@ const ChangesPanelImpl = () => {
     () => new Set(expandedPaths),
     [expandedPaths],
   );
+  const changesByPath = useMemo(
+    () => new Map(changes.map((change) => [change.path, change])),
+    [changes],
+  );
   const diffViewMode = projectId
     ? (diffViewModeByProject[projectId] ?? "unified")
     : "unified";
@@ -922,10 +926,17 @@ const ChangesPanelImpl = () => {
     diffLoadProcessingRef.current = true;
 
     try {
+      const change = changesByPath.get(nextFilePath);
+      if (!change) {
+        throw new Error("File does not have Git changes.");
+      }
+
       const response = await fetch("/api/project-git-diff", {
         body: JSON.stringify({
           filePath: nextFilePath,
+          previousPath: change.previousPath,
           projectPath,
+          status: change.status,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -995,7 +1006,7 @@ const ChangesPanelImpl = () => {
         void processQueuedDiffLoads();
       }
     }
-  }, [projectId, projectPath]);
+  }, [changesByPath, projectId, projectPath]);
 
   const queueDiffLoad = useCallback(
     (filePath: string, priority = false) => {

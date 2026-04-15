@@ -1557,7 +1557,16 @@ const projectGitCheckoutRequestSchema = z.object({
 
 const projectGitDiffRequestSchema = z.object({
   filePath: z.string().min(1),
+  previousPath: z.string().min(1).nullable(),
   projectPath: z.string().min(1),
+  status: z.enum([
+    "modified",
+    "added",
+    "renamed",
+    "copied",
+    "deleted",
+    "untracked",
+  ]),
 });
 
 const EMPTY_GIT_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
@@ -2067,39 +2076,36 @@ const buildUntrackedFileDiff = async (projectPath, filePath) => {
   ].join("\n");
 };
 
-const getProjectGitDiff = async (projectPath, filePath) => {
-  const gitStatus = await listProjectGitChanges(projectPath);
-  if (!gitStatus.isRepo || !gitStatus.repoRoot) {
+const getProjectGitDiff = async (
+  projectPath,
+  filePath,
+  { previousPath = null, status },
+) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
     throw new Error("Project is not a Git repository.");
   }
 
   const normalizedFilePath = normalizePath(filePath);
-  const change =
-    gitStatus.changes.find((entry) => entry.path === normalizedFilePath) ??
-    null;
 
-  if (!change) {
-    throw new Error("File does not have Git changes.");
-  }
-
-  if (change.status === "untracked") {
+  if (status === "untracked") {
     return {
-      branch: gitStatus.branch,
+      branch: repoInfo.branch,
       diff: await buildUntrackedFileDiff(projectPath, normalizedFilePath),
       filePath: normalizedFilePath,
-      previousPath: change.previousPath,
-      status: change.status,
+      previousPath,
+      status,
     };
   }
 
   const repoRelativePath = normalizePath(
     path.relative(
-      gitStatus.repoRoot,
+      repoInfo.repoRoot,
       resolveProjectPath(projectPath, normalizedFilePath),
     ),
   );
-  const baseRef = await getGitDiffBaseRef(gitStatus.repoRoot);
-  const diffResult = await runGitCommand(gitStatus.repoRoot, [
+  const baseRef = await getGitDiffBaseRef(repoInfo.repoRoot);
+  const diffResult = await runGitCommand(repoInfo.repoRoot, [
     "diff",
     "--find-renames",
     "--no-ext-diff",
@@ -2110,11 +2116,11 @@ const getProjectGitDiff = async (projectPath, filePath) => {
   ]);
 
   return {
-    branch: gitStatus.branch,
+    branch: repoInfo.branch,
     diff: diffResult.stdout,
     filePath: normalizedFilePath,
-    previousPath: change.previousPath,
-    status: change.status,
+    previousPath,
+    status,
   };
 };
 
@@ -2290,11 +2296,13 @@ app.post("/api/project-git-diff", async (c) => {
     return c.text(parsed.error.message, 400);
   }
 
-  const { filePath, projectPath } = parsed.data;
+  const { filePath, previousPath, projectPath, status } = parsed.data;
 
   try {
     await ensureProjectDirectory(projectPath);
-    return c.json(await getProjectGitDiff(projectPath, filePath));
+    return c.json(
+      await getProjectGitDiff(projectPath, filePath, { previousPath, status }),
+    );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to read Git diff.";
