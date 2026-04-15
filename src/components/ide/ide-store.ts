@@ -30,6 +30,7 @@ import {
   mergePersistedState,
 } from "./ide-state";
 import {
+  type CodexPermissionMode,
   createProjectTerminalSessionId,
   dedupeModels,
   getPreviewTerminalSessionId,
@@ -68,6 +69,7 @@ interface IdeState {
   activeTerminalSessionIdByProject: Record<string, string | null>;
   outputPanelOpen: boolean;
   autoAcceptEdits: boolean;
+  codexPermissionMode: CodexPermissionMode;
   previewError: string | null;
   previewLoading: Record<string, boolean>;
   previewTabsByProject: Record<string, PreviewTabState[]>;
@@ -123,6 +125,7 @@ interface IdeState {
   ) => void;
   setOutputPanelOpen: (open: boolean) => void;
   setAutoAcceptEdits: (value: boolean) => void;
+  setCodexPermissionMode: (value: CodexPermissionMode) => void;
   setRightPanelView: (view: RightPanelView) => void;
 
   // Actions – settings
@@ -350,6 +353,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   activeTerminalSessionIdByProject: {},
   outputPanelOpen: false,
   autoAcceptEdits: false,
+  codexPermissionMode: "default",
   previewError: null,
   previewLoading: {},
   previewTabsByProject: {},
@@ -693,6 +697,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
   setAutoAcceptEdits: (value) => set({ autoAcceptEdits: value }),
+  setCodexPermissionMode: (value) => set({ codexPermissionMode: value }),
   setRightPanelView: (view) => set({ rightPanelView: view }),
 
   // ── Actions: settings ───────────────────────────────────────────────

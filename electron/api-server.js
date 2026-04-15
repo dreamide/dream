@@ -661,6 +661,9 @@ app.post("/api/provider-models", async (c) => {
 
 const chatRequestBodySchema = z.object({
   autoAcceptEdits: z.boolean().default(false),
+  codexPermissionMode: z
+    .enum(["default", "auto-accept-edits", "full-access"])
+    .default("default"),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
   projectPath: z.string().min(1),
@@ -972,17 +975,22 @@ const writeCodexTextPart = (writeEvent, id, text, type) => {
 };
 
 const buildCodexExecArgs = ({
-  autoAcceptEdits,
+  codexPermissionMode,
   model,
   projectPath,
   reasoningEffort,
   sessionId,
 }) => {
+  const sandboxMode =
+    codexPermissionMode === "full-access"
+      ? "danger-full-access"
+      : "workspace-write";
+  const approvalPolicy =
+    codexPermissionMode === "default" ? "on-request" : "never";
+  const sandboxConfig = ["-c", `sandbox_mode=${JSON.stringify(sandboxMode)}`];
   const approvalConfig = [
     "-c",
-    `approval_policy=${JSON.stringify(
-      autoAcceptEdits ? "never" : "on-request",
-    )}`,
+    `approval_policy=${JSON.stringify(approvalPolicy)}`,
   ];
   const reasoningConfig = reasoningEffort
     ? ["-c", `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
@@ -994,6 +1002,7 @@ const buildCodexExecArgs = ({
       "--json",
       "--skip-git-repo-check",
       ...(model ? ["--model", model] : []),
+      ...sandboxConfig,
       ...approvalConfig,
       ...reasoningConfig,
       sessionId,
@@ -1007,9 +1016,8 @@ const buildCodexExecArgs = ({
     "--cd",
     projectPath,
     "--skip-git-repo-check",
-    "--sandbox",
-    "workspace-write",
     ...(model ? ["--model", model] : []),
+    ...sandboxConfig,
     ...approvalConfig,
     ...reasoningConfig,
     "-",
@@ -1018,7 +1026,7 @@ const buildCodexExecArgs = ({
 
 const streamCodexCliResponse = ({
   abortSignal,
-  autoAcceptEdits,
+  codexPermissionMode,
   messages,
   model,
   projectPath,
@@ -1222,7 +1230,7 @@ const streamCodexCliResponse = ({
             ? latestUserPrompt || fullPrompt
             : fullPrompt;
           const args = buildCodexExecArgs({
-            autoAcceptEdits,
+            codexPermissionMode,
             model,
             projectPath,
             reasoningEffort,
@@ -1318,7 +1326,7 @@ app.post("/api/chat", async (c) => {
   }
 
   const {
-    autoAcceptEdits,
+    codexPermissionMode,
     model,
     projectPath,
     provider,
@@ -1357,7 +1365,7 @@ app.post("/api/chat", async (c) => {
 
     return streamCodexCliResponse({
       abortSignal: c.req.raw.signal,
-      autoAcceptEdits,
+      codexPermissionMode,
       messages,
       model,
       projectPath,

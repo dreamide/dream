@@ -1,6 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { AlertCircle, CheckCheck, GitBranch, X } from "lucide-react";
+import { AlertCircle, CheckCheck, GitBranch, Shield, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
@@ -93,8 +93,11 @@ import {
 import { renderUserMessageText } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import {
+  CODEX_PERMISSION_MODE_OPTIONS,
+  getCodexPermissionModeLabel,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
+  type CodexPermissionMode,
 } from "./ide-types";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
@@ -369,6 +372,8 @@ export const ChatPanel = ({
   const providerModels = useIdeStore((s) => s.providerModels);
   const autoAcceptEdits = useIdeStore((s) => s.autoAcceptEdits);
   const setAutoAcceptEdits = useIdeStore((s) => s.setAutoAcceptEdits);
+  const codexPermissionMode = useIdeStore((s) => s.codexPermissionMode);
+  const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const updateThread = useIdeStore((s) => s.updateThread);
   const gitRefreshKey = useIdeStore(
@@ -475,7 +480,7 @@ export const ChatPanel = ({
     setMessagesForThread(thread.id, messages);
   }, [messages, setMessagesForThread, thread.id]);
 
-  // Auto-approve writeFile tool calls when autoAcceptEdits is enabled
+  // Auto-approve Claude writeFile tool calls when auto-accept is enabled.
   useEffect(() => {
     if (!autoAcceptEdits) return;
     for (const message of messages) {
@@ -617,6 +622,7 @@ export const ChatPanel = ({
           {
             body: {
               autoAcceptEdits,
+              codexPermissionMode,
               model: activeModel,
               projectPath: project.path,
               provider: activeProvider,
@@ -634,6 +640,7 @@ export const ChatPanel = ({
     [
       allModelOptions,
       autoAcceptEdits,
+      codexPermissionMode,
       clearError,
       threadMessages,
       providerModels,
@@ -898,30 +905,56 @@ export const ChatPanel = ({
                 </Select>
               )}
 
-              {/* Auto-accept edits toggle */}
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <button
-                      className={cn(
-                        "rounded p-1 transition-colors",
-                        autoAcceptEdits
-                          ? "text-green-500 hover:text-green-600"
-                          : "text-muted-foreground/40 hover:text-muted-foreground",
-                      )}
-                      onClick={() => setAutoAcceptEdits(!autoAcceptEdits)}
-                      type="button"
-                    />
-                  }
+              {selectedProvider === "openai" ? (
+                <Select
+                  onValueChange={(value) => {
+                    setCodexPermissionMode(value as CodexPermissionMode);
+                  }}
+                  value={codexPermissionMode}
                 >
-                  <CheckCheck className="size-4" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  {autoAcceptEdits
-                    ? "Auto-accept edits (on)"
-                    : "Auto-accept edits (off)"}
-                </TooltipContent>
-              </Tooltip>
+                  <SelectTrigger className="h-7 w-auto max-w-44 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                    <Shield className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      {getCodexPermissionModeLabel(codexPermissionMode)}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent className="text-xs" side="top">
+                    {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
+                      <SelectItem
+                        className="text-xs"
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        className={cn(
+                          "rounded p-1 transition-colors",
+                          autoAcceptEdits
+                            ? "text-green-500 hover:text-green-600"
+                            : "text-muted-foreground/40 hover:text-muted-foreground",
+                        )}
+                        onClick={() => setAutoAcceptEdits(!autoAcceptEdits)}
+                        type="button"
+                      />
+                    }
+                  >
+                    <CheckCheck className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {autoAcceptEdits
+                      ? "Auto-accept Claude edits (on)"
+                      : "Auto-accept Claude edits (off)"}
+                  </TooltipContent>
+                </Tooltip>
+              )}
 
               {/* Context usage indicator */}
               <div className="ml-auto flex items-center gap-1">

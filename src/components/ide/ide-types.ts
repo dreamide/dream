@@ -8,6 +8,10 @@ export type SettingsSection = "appearance" | "providers" | "terminal";
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
 export type RightPanelView = "preview" | "explorer" | "changes";
+export type CodexPermissionMode =
+  | "default"
+  | "auto-accept-edits"
+  | "full-access";
 
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>
@@ -54,6 +58,37 @@ export const REASONING_EFFORT_OPTIONS: Array<{
   { label: "High", value: "high" },
   { label: "Extra High", value: "xhigh" },
 ];
+
+export const CODEX_PERMISSION_MODE_OPTIONS: Array<{
+  description: string;
+  label: string;
+  value: CodexPermissionMode;
+}> = [
+  {
+    description: "Ask before running actions.",
+    label: "Ask",
+    value: "default",
+  },
+  {
+    description: "Edit files without asking.",
+    label: "Edit",
+    value: "auto-accept-edits",
+  },
+  {
+    description: "Unsandboxed access without asking.",
+    label: "Full access",
+    value: "full-access",
+  },
+];
+
+export const getCodexPermissionModeLabel = (
+  value: CodexPermissionMode,
+): string => {
+  return (
+    CODEX_PERMISSION_MODE_OPTIONS.find((option) => option.value === value)
+      ?.label ?? "Ask"
+  );
+};
 
 export const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {
   return REASONING_EFFORT_OPTIONS.some((option) => option.value === value)
