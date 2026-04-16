@@ -30,6 +30,7 @@ import {
   mergePersistedState,
 } from "./ide-state";
 import {
+  type ClaudePermissionMode,
   type CodexPermissionMode,
   createProjectTerminalSessionId,
   dedupeModels,
@@ -68,7 +69,7 @@ interface IdeState {
   projectTerminalSessionIds: Record<string, string[]>;
   activeTerminalSessionIdByProject: Record<string, string | null>;
   outputPanelOpen: boolean;
-  autoAcceptEdits: boolean;
+  claudePermissionMode: ClaudePermissionMode;
   codexPermissionMode: CodexPermissionMode;
   previewError: string | null;
   previewLoading: Record<string, boolean>;
@@ -124,7 +125,7 @@ interface IdeState {
     updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
   ) => void;
   setOutputPanelOpen: (open: boolean) => void;
-  setAutoAcceptEdits: (value: boolean) => void;
+  setClaudePermissionMode: (value: ClaudePermissionMode) => void;
   setCodexPermissionMode: (value: CodexPermissionMode) => void;
   setRightPanelView: (view: RightPanelView) => void;
 
@@ -352,7 +353,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   projectTerminalSessionIds: {},
   activeTerminalSessionIdByProject: {},
   outputPanelOpen: false,
-  autoAcceptEdits: false,
+  claudePermissionMode: "ask-permissions",
   codexPermissionMode: "default",
   previewError: null,
   previewLoading: {},
@@ -696,7 +697,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }));
   },
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
-  setAutoAcceptEdits: (value) => set({ autoAcceptEdits: value }),
+  setClaudePermissionMode: (value) => set({ claudePermissionMode: value }),
   setCodexPermissionMode: (value) => set({ codexPermissionMode: value }),
   setRightPanelView: (view) => set({ rightPanelView: view }),
 

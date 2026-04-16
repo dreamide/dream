@@ -12,6 +12,11 @@ export type CodexPermissionMode =
   | "default"
   | "auto-accept-edits"
   | "full-access";
+export type ClaudePermissionMode =
+  | "ask-permissions"
+  | "accept-edits"
+  | "plan-mode"
+  | "bypass-permissions";
 
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>
@@ -81,12 +86,48 @@ export const CODEX_PERMISSION_MODE_OPTIONS: Array<{
   },
 ];
 
+export const CLAUDE_PERMISSION_MODE_OPTIONS: Array<{
+  description: string;
+  label: string;
+  value: ClaudePermissionMode;
+}> = [
+  {
+    description: "Ask before making file edits.",
+    label: "Ask permissions",
+    value: "ask-permissions",
+  },
+  {
+    description: "Apply file edits without asking.",
+    label: "Accept edits",
+    value: "accept-edits",
+  },
+  {
+    description: "Inspect and plan without making file edits.",
+    label: "Plan mode",
+    value: "plan-mode",
+  },
+  {
+    description: "Apply edits without approval prompts.",
+    label: "Bypass permissions",
+    value: "bypass-permissions",
+  },
+];
+
 export const getCodexPermissionModeLabel = (
   value: CodexPermissionMode,
 ): string => {
   return (
     CODEX_PERMISSION_MODE_OPTIONS.find((option) => option.value === value)
       ?.label ?? "Ask"
+  );
+};
+
+export const getClaudePermissionModeLabel = (
+  value: ClaudePermissionMode,
+): string => {
+  return (
+    CLAUDE_PERMISSION_MODE_OPTIONS.find((option) => option.value === value)
+      ?.label ?? "Ask permissions"
   );
 };
 

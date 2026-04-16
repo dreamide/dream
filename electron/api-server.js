@@ -660,7 +660,14 @@ app.post("/api/provider-models", async (c) => {
 // ── /api/chat ────────────────────────────────────────────────────────────────
 
 const chatRequestBodySchema = z.object({
-  autoAcceptEdits: z.boolean().default(false),
+  claudePermissionMode: z
+    .enum([
+      "ask-permissions",
+      "accept-edits",
+      "plan-mode",
+      "bypass-permissions",
+    ])
+    .default("ask-permissions"),
   codexPermissionMode: z
     .enum(["default", "auto-accept-edits", "full-access"])
     .default("default"),
@@ -1613,6 +1620,7 @@ app.post("/api/chat", async (c) => {
   }
 
   const {
+    claudePermissionMode,
     codexPermissionMode,
     model,
     projectPath,
@@ -1741,39 +1749,6 @@ app.post("/api/chat", async (c) => {
           return { filePath, content, endLine: safeEnd, startLine: safeStart };
         },
       }),
-      writeFile: tool({
-        description:
-          "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
-        inputSchema: z.object({
-          content: z.string(),
-          filePath: z.string().min(1),
-          mode: z.enum(["overwrite", "append"]).default("overwrite"),
-        }),
-        requireApproval: true,
-        execute: async ({ content, filePath, mode }) => {
-          const absolutePath = resolveProjectPath(projectPath, filePath);
-          let previousContent;
-          try {
-            previousContent = await fs.readFile(absolutePath, "utf8");
-          } catch {
-            // File doesn't exist yet
-          }
-          await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-          if (mode === "append") {
-            await fs.appendFile(absolutePath, content, "utf8");
-          } else {
-            await fs.writeFile(absolutePath, content, "utf8");
-          }
-          return {
-            bytesWritten: Buffer.byteLength(content, "utf8"),
-            filePath,
-            mode,
-            status: "ok",
-            ...(previousContent !== undefined ? { previousContent } : {}),
-            content,
-          };
-        },
-      }),
       searchInFiles: tool({
         description:
           "Search text across project files and return matching file/line snippets.",
@@ -1790,6 +1765,43 @@ app.post("/api/chat", async (c) => {
           return { count: matches.length, matches };
         },
       }),
+      ...(claudePermissionMode === "plan-mode"
+        ? {}
+        : {
+            writeFile: tool({
+              description:
+                "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
+              inputSchema: z.object({
+                content: z.string(),
+                filePath: z.string().min(1),
+                mode: z.enum(["overwrite", "append"]).default("overwrite"),
+              }),
+              requireApproval: claudePermissionMode === "ask-permissions",
+              execute: async ({ content, filePath, mode }) => {
+                const absolutePath = resolveProjectPath(projectPath, filePath);
+                let previousContent;
+                try {
+                  previousContent = await fs.readFile(absolutePath, "utf8");
+                } catch {
+                  // File doesn't exist yet
+                }
+                await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+                if (mode === "append") {
+                  await fs.appendFile(absolutePath, content, "utf8");
+                } else {
+                  await fs.writeFile(absolutePath, content, "utf8");
+                }
+                return {
+                  bytesWritten: Buffer.byteLength(content, "utf8"),
+                  filePath,
+                  mode,
+                  status: "ok",
+                  ...(previousContent !== undefined ? { previousContent } : {}),
+                  content,
+                };
+              },
+            }),
+          }),
     },
   });
 

@@ -1,12 +1,6 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import {
-  AlertCircle,
-  CheckCheck,
-  PaperclipIcon,
-  Shield,
-  X,
-} from "lucide-react";
+import { AlertCircle, PaperclipIcon, Shield, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
@@ -71,11 +65,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
@@ -86,7 +75,6 @@ import {
   getModelContextWindow,
   getModelReasoningEfforts,
 } from "@/lib/models";
-import { cn } from "@/lib/utils";
 import type {
   AiProvider,
   ProjectConfig,
@@ -106,8 +94,11 @@ import {
 } from "./assistant-message-part";
 import { useIdeStore } from "./ide-store";
 import {
+  CLAUDE_PERMISSION_MODE_OPTIONS,
+  type ClaudePermissionMode,
   CODEX_PERMISSION_MODE_OPTIONS,
   type CodexPermissionMode,
+  getClaudePermissionModeLabel,
   getCodexPermissionModeLabel,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
@@ -462,8 +453,8 @@ export const ChatPanel = ({
     (s) => s.chats[thread.id] ?? EMPTY_MESSAGES,
   );
   const providerModels = useIdeStore((s) => s.providerModels);
-  const autoAcceptEdits = useIdeStore((s) => s.autoAcceptEdits);
-  const setAutoAcceptEdits = useIdeStore((s) => s.setAutoAcceptEdits);
+  const claudePermissionMode = useIdeStore((s) => s.claudePermissionMode);
+  const setClaudePermissionMode = useIdeStore((s) => s.setClaudePermissionMode);
   const codexPermissionMode = useIdeStore((s) => s.codexPermissionMode);
   const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
@@ -572,9 +563,14 @@ export const ChatPanel = ({
     setMessagesForThread(thread.id, messages);
   }, [messages, setMessagesForThread, thread.id]);
 
-  // Auto-approve writeFile tool calls when auto-accept is enabled.
+  // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
   useEffect(() => {
-    if (!autoAcceptEdits) return;
+    if (
+      claudePermissionMode !== "accept-edits" &&
+      claudePermissionMode !== "bypass-permissions"
+    ) {
+      return;
+    }
     for (const message of messages) {
       if (message.role !== "assistant") continue;
       for (const part of message.parts) {
@@ -596,7 +592,7 @@ export const ChatPanel = ({
         }
       }
     }
-  }, [messages, autoAcceptEdits, addToolApprovalResponse]);
+  }, [messages, claudePermissionMode, addToolApprovalResponse]);
 
   const selectedModel = selectedModelOption?.id ?? "";
   const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
@@ -706,7 +702,7 @@ export const ChatPanel = ({
           },
           {
             body: {
-              autoAcceptEdits,
+              claudePermissionMode,
               codexPermissionMode,
               model: activeModel,
               projectPath: project.path,
@@ -724,7 +720,7 @@ export const ChatPanel = ({
     },
     [
       allModelOptions,
-      autoAcceptEdits,
+      claudePermissionMode,
       codexPermissionMode,
       clearError,
       threadMessages,
@@ -996,7 +992,7 @@ export const ChatPanel = ({
                   }}
                   value={codexPermissionMode}
                 >
-                  <SelectTrigger className="h-7 w-auto max-w-44 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                  <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
                     <Shield className="size-3.5 shrink-0" />
                     <span className="truncate">
                       {getCodexPermissionModeLabel(codexPermissionMode)}
@@ -1014,27 +1010,32 @@ export const ChatPanel = ({
                     ))}
                   </SelectContent>
                 </Select>
-              ) : (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        className={cn(
-                          "rounded p-1 transition-colors",
-                          autoAcceptEdits
-                            ? "text-green-500 hover:text-green-600"
-                            : "text-muted-foreground/40 hover:text-muted-foreground",
-                        )}
-                        onClick={() => setAutoAcceptEdits(!autoAcceptEdits)}
-                        type="button"
-                      />
-                    }
-                  >
-                    <CheckCheck className="size-4" />
-                  </TooltipTrigger>
-                  <TooltipContent>Auto-accept file edits</TooltipContent>
-                </Tooltip>
-              )}
+              ) : selectedProvider === "anthropic" ? (
+                <Select
+                  onValueChange={(value) => {
+                    setClaudePermissionMode(value as ClaudePermissionMode);
+                  }}
+                  value={claudePermissionMode}
+                >
+                  <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                    <Shield className="size-3.5 shrink-0" />
+                    <span className="truncate">
+                      {getClaudePermissionModeLabel(claudePermissionMode)}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent className="text-xs" side="top">
+                    {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
+                      <SelectItem
+                        className="text-xs"
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
 
               {/* Context usage indicator */}
               <div className="ml-auto flex items-center gap-1">
