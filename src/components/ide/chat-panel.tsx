@@ -572,7 +572,7 @@ export const ChatPanel = ({
     setMessagesForThread(thread.id, messages);
   }, [messages, setMessagesForThread, thread.id]);
 
-  // Auto-approve Claude writeFile tool calls when auto-accept is enabled.
+  // Auto-approve writeFile tool calls when auto-accept is enabled.
   useEffect(() => {
     if (!autoAcceptEdits) return;
     for (const message of messages) {
@@ -1032,11 +1032,7 @@ export const ChatPanel = ({
                   >
                     <CheckCheck className="size-4" />
                   </TooltipTrigger>
-                  <TooltipContent>
-                    {autoAcceptEdits
-                      ? "Auto-accept Claude edits (on)"
-                      : "Auto-accept Claude edits (off)"}
-                  </TooltipContent>
+                  <TooltipContent>Auto-accept file edits</TooltipContent>
                 </Tooltip>
               )}
 
