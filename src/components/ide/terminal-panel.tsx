@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { Plus, TerminalSquare, X } from "lucide-react";
+import { useTheme } from "next-themes";
 import { type HTMLAttributes, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,11 +59,6 @@ const formatTerminalShellLabel = (value?: string) => {
   return executable || trimmed;
 };
 
-/**
- * Wrapper that forces a dark color-scheme on the terminal panel, preserving
- * the active base-color so that tinted dark palettes (slate, zinc, …) still
- * apply correctly.
- */
 const TerminalSurface = ({
   className,
   ...props
@@ -71,26 +67,73 @@ const TerminalSurface = ({
 
   return (
     <div
-      className={cn("dark", TERMINAL_SURFACE_CLASSES, className)}
+      className={cn(TERMINAL_SURFACE_CLASSES, className)}
       data-base-color={baseColor === "neutral" ? undefined : baseColor}
       {...props}
     />
   );
 };
 
-const resolveTerminalTheme = (host: HTMLElement) => {
+const resolveTerminalTheme = (host: HTMLElement, resolvedTheme?: string) => {
   const style = getComputedStyle(host);
   const bg = style.getPropertyValue("--background").trim();
   const fg = style.getPropertyValue("--foreground").trim();
   const accent = style.getPropertyValue("--ring").trim();
+  const primary = style.getPropertyValue("--primary").trim();
+  const destructive = style.getPropertyValue("--destructive").trim();
+  const muted = style.getPropertyValue("--muted").trim();
+  const mutedForeground = style.getPropertyValue("--muted-foreground").trim();
+  const chart1 = style.getPropertyValue("--chart-1").trim();
+  const chart2 = style.getPropertyValue("--chart-2").trim();
+  const chart3 = style.getPropertyValue("--chart-3").trim();
+  const chart4 = style.getPropertyValue("--chart-4").trim();
+  const chart5 = style.getPropertyValue("--chart-5").trim();
+  const isDark = resolvedTheme === "dark";
+
+  const ansi = isDark
+    ? {
+        black: muted || "#1f2937",
+        red: destructive || "#f87171",
+        green: chart2 || "#4ade80",
+        yellow: chart3 || "#fbbf24",
+        blue: primary || chart1 || "#60a5fa",
+        magenta: chart4 || "#c084fc",
+        cyan: chart5 || "#22d3ee",
+        white: fg || "#e5e7eb",
+        brightBlack: mutedForeground || "#9ca3af",
+        brightRed: destructive || "#fca5a5",
+        brightGreen: chart2 || "#86efac",
+        brightYellow: chart3 || "#fcd34d",
+        brightBlue: primary || chart1 || "#93c5fd",
+        brightMagenta: chart4 || "#d8b4fe",
+        brightCyan: chart5 || "#67e8f9",
+        brightWhite: "#ffffff",
+      }
+    : {
+        black: fg || "#111827",
+        red: destructive || "#b91c1c",
+        green: chart2 || "#166534",
+        yellow: chart3 || "#92400e",
+        blue: primary || chart1 || "#1d4ed8",
+        magenta: chart4 || "#7e22ce",
+        cyan: chart5 || "#155e75",
+        white: muted || "#d1d5db",
+        brightBlack: mutedForeground || "#4b5563",
+        brightRed: destructive || "#dc2626",
+        brightGreen: chart2 || "#15803d",
+        brightYellow: chart3 || "#a16207",
+        brightBlue: primary || chart1 || "#2563eb",
+        brightMagenta: chart4 || "#9333ea",
+        brightCyan: chart5 || "#0f766e",
+        brightWhite: bg || "#f9fafb",
+      };
 
   return {
-    background: bg ? `oklch(${bg})` : "#0a0f1d",
-    cursor: fg ? `oklch(${fg})` : "#f8fafc",
-    foreground: fg ? `oklch(${fg})` : "#e2e8f0",
-    selectionBackground: accent
-      ? `oklch(${accent} / 30%)`
-      : "rgba(96, 165, 250, 0.3)",
+    background: bg || "#0a0f1d",
+    cursor: fg || "#f8fafc",
+    foreground: fg || "#e2e8f0",
+    selectionBackground: accent || "rgba(96, 165, 250, 0.3)",
+    ...ansi,
   };
 };
 
@@ -119,6 +162,7 @@ export const TerminalPanel = ({
   onStop,
   stopOnClose = true,
 }: TerminalPanelProps) => {
+  const { resolvedTheme } = useTheme();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalInstanceRef = useRef<Terminal | null>(null);
   const transportRef = useRef(
@@ -157,7 +201,7 @@ export const TerminalPanel = ({
       fontFamily:
         "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 12,
-      theme: resolveTerminalTheme(host),
+      theme: resolveTerminalTheme(host, resolvedTheme),
     });
     terminalInstanceRef.current = terminal;
 
@@ -221,7 +265,28 @@ export const TerminalPanel = ({
       terminalInstanceRef.current = null;
       terminal.dispose();
     };
-  }, [autoStart, onStart, sessionId]);
+  }, [autoStart, onStart, resolvedTheme, sessionId]);
+
+  useEffect(() => {
+    if (!resolvedTheme) {
+      return;
+    }
+
+    const host = hostRef.current;
+    const terminal = terminalInstanceRef.current;
+    if (!host || !terminal) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      terminal.options.theme = resolveTerminalTheme(host, resolvedTheme);
+      terminal.refresh(0, terminal.rows - 1);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [resolvedTheme]);
 
   const shellLabel = formatTerminalShellLabel(subtitle ?? terminalShell);
 
