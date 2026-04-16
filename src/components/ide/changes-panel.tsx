@@ -1,3 +1,4 @@
+import { PatchDiff, type PatchDiffProps } from "@pierre/diffs/react";
 import {
   ChevronDown,
   ChevronRight,
@@ -7,10 +8,8 @@ import {
   RefreshCw,
   Rows3,
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useTheme } from "next-themes";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { BundledLanguage, ThemedToken } from "shiki";
-import { highlightCode } from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -30,20 +29,6 @@ import { useIdeStore } from "./ide-store";
 
 type DiffViewMode = "unified" | "split";
 
-interface ParsedDiffLine {
-  kind: "context" | "add" | "remove" | "meta";
-  newNumber: number | null;
-  oldNumber: number | null;
-  text: string;
-}
-
-interface ParsedDiffHunk {
-  header: string;
-  lines: ParsedDiffLine[];
-}
-
-type HighlightResult = Exclude<ReturnType<typeof highlightCode>, null>;
-
 const CHANGE_STATUS_ICON_CLASSNAMES: Record<ProjectGitChangeStatus, string> = {
   added: "text-emerald-600",
   copied: "text-sky-600",
@@ -59,157 +44,15 @@ const CHANGE_STATUS_LABELS: Partial<Record<ProjectGitChangeStatus, string>> = {
   untracked: "New",
 };
 
-const DIFF_LANGUAGE_BY_EXTENSION: Record<string, BundledLanguage> = {
-  astro: "astro",
-  bash: "bash",
-  c: "c",
-  coffee: "coffee",
-  cpp: "cpp",
-  cs: "csharp",
-  css: "css",
-  dart: "dart",
-  dockerfile: "dockerfile",
-  env: "dotenv",
-  go: "go",
-  gql: "graphql",
-  graphql: "graphql",
-  h: "c",
-  hbs: "handlebars",
-  hpp: "cpp",
-  html: "html",
-  ini: "ini",
-  java: "java",
-  js: "javascript",
-  json: "json",
-  json5: "json5",
-  jsonc: "jsonc",
-  jsx: "jsx",
-  kt: "kotlin",
-  less: "less",
-  lua: "lua",
-  md: "markdown",
-  mdx: "mdx",
-  mjs: "javascript",
-  mts: "typescript",
-  php: "php",
-  prisma: "prisma",
-  proto: "proto",
-  ps1: "powershell",
-  py: "python",
-  rb: "ruby",
-  rs: "rust",
-  sass: "sass",
-  scala: "scala",
-  scss: "scss",
-  sh: "bash",
-  sql: "sql",
-  svelte: "svelte",
-  swift: "swift",
-  toml: "toml",
-  ts: "typescript",
-  tsx: "tsx",
-  txt: "log",
-  vue: "vue",
-  xml: "xml",
-  yaml: "yaml",
-  yml: "yaml",
-  zig: "zig",
-  zsh: "bash",
-};
-
-const inferDiffLanguage = (filePath: string): BundledLanguage => {
-  const normalized = filePath.replaceAll("\\", "/");
-  const basename = normalized.split("/").pop()?.toLowerCase() ?? "";
-
-  if (basename === "dockerfile") {
-    return "dockerfile";
+const DiffEmptyState = ({ diff }: { diff: string }) => {
+  if (diff.trim().length > 0) {
+    return null;
   }
 
-  const extension = basename.split(".").pop()?.toLowerCase() ?? "";
-  return DIFF_LANGUAGE_BY_EXTENSION[extension] ?? "log";
-};
-
-const createRawHighlightResult = (text: string): HighlightResult => ({
-  bg: "transparent",
-  fg: "inherit",
-  tokens: [
-    text === ""
-      ? []
-      : [
-          {
-            color: "inherit",
-            content: text,
-          } as ThemedToken,
-        ],
-  ],
-});
-
-const DiffToken = ({ token }: { token: ThemedToken }) => (
-  <span
-    className="dark:!text-[var(--shiki-dark)]"
-    style={
-      {
-        color: token.color,
-        fontStyle:
-          typeof token.fontStyle === "number" && token.fontStyle & 1
-            ? "italic"
-            : undefined,
-        fontWeight:
-          typeof token.fontStyle === "number" && token.fontStyle & 2
-            ? "bold"
-            : undefined,
-        textDecoration:
-          typeof token.fontStyle === "number" && token.fontStyle & 4
-            ? "underline"
-            : undefined,
-        ...token.htmlStyle,
-      } as CSSProperties
-    }
-  >
-    {token.content}
-  </span>
-);
-
-const HighlightedDiffText = ({
-  language,
-  text,
-}: {
-  language: BundledLanguage;
-  text: string;
-}) => {
-  const rawTokens = useMemo(() => createRawHighlightResult(text), [text]);
-  const [tokenized, setTokenized] = useState<HighlightResult>(
-    () => highlightCode(text, language) ?? rawTokens,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    setTokenized(highlightCode(text, language) ?? rawTokens);
-    highlightCode(text, language, (result) => {
-      if (!cancelled) {
-        setTokenized(result);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [language, rawTokens, text]);
-
-  const tokens = tokenized.tokens[0] ?? [];
-  let tokenOffset = 0;
-
   return (
-    <span className="block whitespace-pre">
-      {tokens.length === 0
-        ? " "
-        : tokens.map((token) => {
-            const key = `${tokenOffset}-${token.content}-${token.color ?? "inherit"}`;
-            tokenOffset += token.content.length;
-            return <DiffToken key={key} token={token} />;
-          })}
-    </span>
+    <pre className="p-4 font-mono text-xs leading-5 whitespace-pre-wrap">
+      No diff output available.
+    </pre>
   );
 };
 
@@ -218,448 +61,7 @@ const readResponseText = async (response: Response): Promise<string> => {
   return text.trim() || `Request failed (${response.status}).`;
 };
 
-const parseHunkHeader = (line: string) => {
-  const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-  if (!match) {
-    return null;
-  }
-
-  return {
-    newStart: Number(match[3]),
-    oldStart: Number(match[1]),
-  };
-};
-
-const parseUnifiedDiff = (
-  diff: string,
-): { hunks: ParsedDiffHunk[]; metadata: string[] } => {
-  const hunks: ParsedDiffHunk[] = [];
-  const metadata: string[] = [];
-  let currentHunk: ParsedDiffHunk | null = null;
-  let oldNumber = 0;
-  let newNumber = 0;
-
-  for (const line of diff.split("\n")) {
-    const hunkHeader = parseHunkHeader(line);
-    if (hunkHeader) {
-      currentHunk = { header: line, lines: [] };
-      hunks.push(currentHunk);
-      oldNumber = hunkHeader.oldStart;
-      newNumber = hunkHeader.newStart;
-      continue;
-    }
-
-    if (!currentHunk) {
-      metadata.push(line);
-      continue;
-    }
-
-    if (line.startsWith("\\ ")) {
-      currentHunk.lines.push({
-        kind: "meta",
-        newNumber: null,
-        oldNumber: null,
-        text: line,
-      });
-      continue;
-    }
-
-    if (line.startsWith("+")) {
-      currentHunk.lines.push({
-        kind: "add",
-        newNumber,
-        oldNumber: null,
-        text: line.slice(1),
-      });
-      newNumber += 1;
-      continue;
-    }
-
-    if (line.startsWith("-")) {
-      currentHunk.lines.push({
-        kind: "remove",
-        newNumber: null,
-        oldNumber,
-        text: line.slice(1),
-      });
-      oldNumber += 1;
-      continue;
-    }
-
-    if (line.startsWith(" ")) {
-      currentHunk.lines.push({
-        kind: "context",
-        newNumber,
-        oldNumber,
-        text: line.slice(1),
-      });
-      oldNumber += 1;
-      newNumber += 1;
-      continue;
-    }
-
-    currentHunk.lines.push({
-      kind: "meta",
-      newNumber: null,
-      oldNumber: null,
-      text: line,
-    });
-  }
-
-  return { hunks, metadata };
-};
-
-const DIFF_METADATA_PREFIXES = [
-  "diff --git ",
-  "index ",
-  "--- ",
-  "+++ ",
-  "new file mode ",
-  "deleted file mode ",
-  "similarity index ",
-  "rename from ",
-  "rename to ",
-];
-
-const getDisplayMetadata = (metadata: string[]) => {
-  return metadata.filter(
-    (line) =>
-      line.trim().length > 0 &&
-      !DIFF_METADATA_PREFIXES.some((prefix) => line.startsWith(prefix)),
-  );
-};
-
-const getParsedDiffLineKey = (line: ParsedDiffLine) => {
-  return `${line.kind}-${line.oldNumber ?? "x"}-${line.newNumber ?? "y"}-${line.text}`;
-};
-
-const getDiffLineTone = (
-  kind: ParsedDiffLine["kind"],
-  side: "left" | "right",
-) => {
-  if (kind === "add") {
-    return side === "right"
-      ? "bg-emerald-500/8 dark:bg-emerald-400/10"
-      : "bg-muted/15";
-  }
-
-  if (kind === "remove") {
-    return side === "left"
-      ? "bg-rose-500/8 dark:bg-rose-400/10"
-      : "bg-muted/15";
-  }
-
-  if (kind === "meta") {
-    return "bg-muted/40 text-muted-foreground";
-  }
-
-  return "bg-background";
-};
-
-const getDiffLineNumberTone = (kind: ParsedDiffLine["kind"] | null) => {
-  if (kind === "add") {
-    return "bg-emerald-500/14 text-emerald-700 dark:bg-emerald-400/18 dark:text-emerald-300";
-  }
-
-  if (kind === "remove") {
-    return "bg-rose-500/14 text-rose-700 dark:bg-rose-400/18 dark:text-rose-300";
-  }
-
-  if (kind === "meta") {
-    return "bg-muted/20 text-muted-foreground/70";
-  }
-
-  return "bg-muted/15 text-muted-foreground/80";
-};
-
-const getUnifiedDiffBorderTone = (kind: ParsedDiffLine["kind"]) => {
-  if (kind === "add") {
-    return "border-l-emerald-500";
-  }
-
-  if (kind === "remove") {
-    return "border-l-rose-500";
-  }
-
-  return "border-l-transparent";
-};
-
-const getUnifiedDiffRowTone = (kind: ParsedDiffLine["kind"]) => {
-  if (kind === "add") {
-    return "bg-emerald-500/7 dark:bg-emerald-400/9";
-  }
-
-  if (kind === "remove") {
-    return "bg-rose-500/7 dark:bg-rose-400/9";
-  }
-
-  if (kind === "meta") {
-    return "bg-muted/25";
-  }
-
-  return "bg-background";
-};
-
-const getUnifiedDiffTextTone = (kind: ParsedDiffLine["kind"]) => {
-  if (kind === "add") {
-    return "text-emerald-700";
-  }
-
-  if (kind === "remove") {
-    return "text-rose-700";
-  }
-
-  if (kind === "meta") {
-    return "text-muted-foreground";
-  }
-
-  return "text-foreground";
-};
-
-const DiffFallbackView = ({ diff }: { diff: string }) => {
-  const { metadata } = useMemo(() => parseUnifiedDiff(diff), [diff]);
-  const displayLines = getDisplayMetadata(metadata);
-
-  return (
-    <pre className="p-4 font-mono text-xs leading-5 whitespace-pre-wrap">
-      {displayLines.join("\n") || "No diff output available."}
-    </pre>
-  );
-};
-
-const UnifiedDiffRow = ({
-  language,
-  line,
-}: {
-  language: BundledLanguage;
-  line: ParsedDiffLine;
-}) => {
-  if (line.kind === "meta") {
-    return (
-      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] border-b border-foreground/5 border-l-2 border-l-transparent font-mono text-[11px] italic leading-5">
-        <div className="border-r border-foreground/10 bg-muted/15 px-2 py-1 text-right text-muted-foreground/70 tabular-nums" />
-        <div className="px-3 py-1 text-muted-foreground">{line.text}</div>
-      </div>
-    );
-  }
-
-  const lineNumber = line.newNumber ?? line.oldNumber ?? "";
-
-  return (
-    <div
-      className={cn(
-        "grid grid-cols-[3.25rem_minmax(0,1fr)] border-b border-foreground/5 border-l-2 font-mono text-xs leading-5",
-        getUnifiedDiffBorderTone(line.kind),
-        getUnifiedDiffRowTone(line.kind),
-      )}
-    >
-      <div
-        className={cn(
-          "border-r border-foreground/10 px-2 py-1 text-right text-[11px] tabular-nums",
-          getDiffLineNumberTone(line.kind),
-        )}
-      >
-        {lineNumber}
-      </div>
-      <pre
-        className={cn(
-          "overflow-x-auto px-3 py-1 whitespace-pre",
-          getUnifiedDiffTextTone(line.kind),
-        )}
-      >
-        <HighlightedDiffText language={language} text={line.text} />
-      </pre>
-    </div>
-  );
-};
-
-const UnifiedDiffView = ({
-  diff,
-  language,
-}: {
-  diff: string;
-  language: BundledLanguage;
-}) => {
-  const { hunks } = useMemo(() => parseUnifiedDiff(diff), [diff]);
-
-  if (hunks.length === 0) {
-    return <DiffFallbackView diff={diff} />;
-  }
-
-  return (
-    <div className="min-w-[760px]">
-      {hunks.map((hunk, hunkIndex) => (
-        <div key={`${hunk.header}-${hunk.lines.length}`}>
-          {hunkIndex > 0 ? (
-            <div className="h-3 border-y border-foreground/10 bg-muted/20" />
-          ) : null}
-          {hunk.lines.map((line) => (
-            <UnifiedDiffRow
-              key={getParsedDiffLineKey(line)}
-              language={language}
-              line={line}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const SplitDiffRow = ({
-  language,
-  left,
-  right,
-}: {
-  language: BundledLanguage;
-  left: ParsedDiffLine | null;
-  right: ParsedDiffLine | null;
-}) => {
-  const renderCell = (
-    line: ParsedDiffLine | null,
-    side: "left" | "right",
-    sibling: ParsedDiffLine | null,
-  ) => {
-    if (line?.kind === "meta") {
-      return (
-        <div className="border-r border-foreground/10 bg-muted/25 px-3 py-1 font-mono text-[11px] text-muted-foreground italic last:border-r-0">
-          {line.text}
-        </div>
-      );
-    }
-
-    const lineNumber = side === "left" ? line?.oldNumber : line?.newNumber;
-    const tone = getDiffLineTone(
-      line?.kind ?? sibling?.kind ?? "context",
-      side,
-    );
-    const lineNumberTone = getDiffLineNumberTone(line?.kind ?? null);
-
-    return (
-      <div
-        className={cn(
-          "grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] border-r border-foreground/10",
-          tone,
-          side === "right" && "border-r-0",
-        )}
-      >
-        <div
-          className={cn(
-            "border-r border-foreground/10 px-2 py-1 text-right text-[11px] tabular-nums",
-            lineNumberTone,
-          )}
-        >
-          {lineNumber ?? ""}
-        </div>
-        <pre className="overflow-x-auto px-3 py-1 whitespace-pre">
-          <HighlightedDiffText language={language} text={line?.text ?? ""} />
-        </pre>
-      </div>
-    );
-  };
-
-  return (
-    <div className="grid grid-cols-2 border-b border-foreground/5 font-mono text-xs leading-5">
-      {renderCell(left, "left", right)}
-      {renderCell(right, "right", left)}
-    </div>
-  );
-};
-
-const SplitDiffView = ({
-  diff,
-  language,
-}: {
-  diff: string;
-  language: BundledLanguage;
-}) => {
-  const { hunks } = useMemo(() => parseUnifiedDiff(diff), [diff]);
-
-  if (hunks.length === 0) {
-    return <DiffFallbackView diff={diff} />;
-  }
-
-  return (
-    <div className="min-w-[720px]">
-      <div className="grid grid-cols-2 border-b border-foreground/10 bg-muted/25 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-        <div className="border-r border-foreground/10 px-3 py-2">Original</div>
-        <div className="px-3 py-2">Current</div>
-      </div>
-
-      {hunks.map((hunk, hunkIndex) => {
-        const rows: Array<{
-          kind: "hunk" | "line";
-          key: string;
-          left?: ParsedDiffLine | null;
-          right?: ParsedDiffLine | null;
-        }> = [
-          {
-            key: `${hunk.header}-header`,
-            kind: "hunk",
-          },
-        ];
-
-        for (let index = 0; index < hunk.lines.length; ) {
-          const line = hunk.lines[index];
-
-          if (line.kind === "context" || line.kind === "meta") {
-            rows.push({
-              key: `${hunk.header}-context-${index}`,
-              kind: "line",
-              left: line,
-              right: line,
-            });
-            index += 1;
-            continue;
-          }
-
-          const removed: ParsedDiffLine[] = [];
-          const added: ParsedDiffLine[] = [];
-
-          while (hunk.lines[index]?.kind === "remove") {
-            removed.push(hunk.lines[index]);
-            index += 1;
-          }
-
-          while (hunk.lines[index]?.kind === "add") {
-            added.push(hunk.lines[index]);
-            index += 1;
-          }
-
-          const pairCount = Math.max(removed.length, added.length);
-          for (let pairIndex = 0; pairIndex < pairCount; pairIndex++) {
-            rows.push({
-              key: `${hunk.header}-pair-${index}-${pairIndex}`,
-              kind: "line",
-              left: removed[pairIndex] ?? null,
-              right: added[pairIndex] ?? null,
-            });
-          }
-        }
-
-        return (
-          <div key={`${hunk.header}-${rows.length}`}>
-            {hunkIndex > 0 ? (
-              <div className="h-3 border-y border-foreground/10 bg-muted/20" />
-            ) : null}
-            {rows.map((row) =>
-              row.kind === "hunk" ? (
-                <div key={row.key} />
-              ) : (
-                <SplitDiffRow
-                  key={row.key}
-                  language={language}
-                  left={row.left ?? null}
-                  right={row.right ?? null}
-                />
-              ),
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
+type PierreDiffOptions = NonNullable<PatchDiffProps<undefined>["options"]>;
 
 const ExpandedDiffBody = ({
   change,
@@ -674,6 +76,22 @@ const ExpandedDiffBody = ({
   diffLoading: boolean;
   mode: DiffViewMode;
 }) => {
+  const { resolvedTheme } = useTheme();
+  const diffOptions = useMemo<PierreDiffOptions>(
+    () => ({
+      diffIndicators: "bars",
+      diffStyle: mode,
+      disableFileHeader: true,
+      hunkSeparators: "line-info",
+      theme: {
+        dark: "github-dark",
+        light: "github-light",
+      },
+      themeType: resolvedTheme === "dark" ? "dark" : "light",
+    }),
+    [mode, resolvedTheme],
+  );
+
   if (diffLoading) {
     return (
       <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
@@ -697,8 +115,6 @@ const ExpandedDiffBody = ({
     return null;
   }
 
-  const language = inferDiffLanguage(change.path);
-
   return (
     <div className="border-t border-foreground/10 bg-background">
       {change.previousPath ? (
@@ -706,12 +122,16 @@ const ExpandedDiffBody = ({
           {`${change.previousPath} -> ${change.path}`}
         </div>
       ) : null}
-      <div className="overflow-x-auto">
-        {mode === "split" ? (
-          <SplitDiffView diff={diff.diff} language={language} />
-        ) : (
-          <UnifiedDiffView diff={diff.diff} language={language} />
-        )}
+      <div className="overflow-x-auto px-3 py-3 text-xs">
+        <DiffEmptyState diff={diff.diff} />
+        {diff.diff.trim().length > 0 ? (
+          <PatchDiff
+            className="min-w-[720px]"
+            disableWorkerPool
+            options={diffOptions}
+            patch={diff.diff}
+          />
+        ) : null}
       </div>
     </div>
   );
