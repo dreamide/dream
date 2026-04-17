@@ -1,5 +1,5 @@
 import { spawn as spawnProcess } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -36,6 +36,14 @@ const rendererStartupTimeoutMs = Number(
 );
 const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
+const APP_USER_DATA_PATH = path.join(app.getPath("appData"), APP_NAME);
+const SHARED_ELECTRON_USER_DATA_PATH = path.join(
+  app.getPath("appData"),
+  "Electron",
+);
+
+app.setName(APP_NAME);
+app.setPath("userData", APP_USER_DATA_PATH);
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
@@ -64,6 +72,14 @@ const DEFAULT_PERSISTED_STATE = {
 const PERSISTED_STATE_KEY = "ide-state";
 const LEGACY_STORE_FILENAME = "dream-settings.json";
 const SQLITE_STATE_FILENAME = "dream.sqlite";
+const SHARED_LEGACY_STORE_PATH = path.join(
+  SHARED_ELECTRON_USER_DATA_PATH,
+  LEGACY_STORE_FILENAME,
+);
+const SHARED_SQLITE_STATE_PATH = path.join(
+  SHARED_ELECTRON_USER_DATA_PATH,
+  SQLITE_STATE_FILENAME,
+);
 
 const legacyStore = new Store({
   defaults: DEFAULT_PERSISTED_STATE,
@@ -146,6 +162,58 @@ function readLegacyPersistedState() {
   return cloneDefaultPersistedState();
 }
 
+function readPersistedStateFromFile(filePath) {
+  try {
+    if (!existsSync(filePath)) {
+      return null;
+    }
+
+    const rawState = readFileSync(filePath, "utf8");
+    if (!rawState.trim()) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawState);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function readPersistedStateFromDatabaseFile(databasePath) {
+  try {
+    if (!existsSync(databasePath)) {
+      return null;
+    }
+
+    const database = new DatabaseSync(databasePath);
+    const row = database
+      .prepare("SELECT value FROM app_state WHERE key = ?")
+      .get(PERSISTED_STATE_KEY);
+    database.close?.();
+
+    if (typeof row?.value !== "string" || !row.value.trim()) {
+      return null;
+    }
+
+    const parsed = JSON.parse(row.value);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadSharedElectronPersistedState() {
+  if (APP_USER_DATA_PATH === SHARED_ELECTRON_USER_DATA_PATH) {
+    return null;
+  }
+
+  return (
+    readPersistedStateFromDatabaseFile(SHARED_SQLITE_STATE_PATH) ??
+    readPersistedStateFromFile(SHARED_LEGACY_STORE_PATH)
+  );
+}
+
 function getLegacyStoreUpdatedAt() {
   try {
     const legacyStorePath = getLegacyStorePath();
@@ -214,6 +282,17 @@ function loadPersistedState() {
     } catch {
       // ignore invalid sqlite payloads and fall through to migration
     }
+  }
+
+  const sharedPersistedState = loadSharedElectronPersistedState();
+  if (sharedPersistedState) {
+    savePersistedState(sharedPersistedState);
+    writeAppMeta(
+      database,
+      "shared_electron_migrated_at",
+      new Date().toISOString(),
+    );
+    return sharedPersistedState;
   }
 
   return syncLegacyPersistedState(database);
@@ -1935,8 +2014,6 @@ ipcMain.on("preview:update", (_event, payload) => {
 
   applyPreviewState();
 });
-
-app.setName(APP_NAME);
 
 app.whenReady().then(async () => {
   if (process.platform === "darwin" && existsSync(appIconPath)) {

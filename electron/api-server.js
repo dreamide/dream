@@ -681,6 +681,13 @@ const chatRequestBodySchema = z.object({
   threadId: z.string().min(1).optional(),
 });
 
+const CLAUDE_PERMISSION_MODE_MAP = {
+  "ask-permissions": "default",
+  "accept-edits": "acceptEdits",
+  "plan-mode": "plan",
+  "bypass-permissions": "bypassPermissions",
+};
+
 const BLOCKED_DIRECTORIES = new Set([
   ".git",
   ".next",
@@ -1684,6 +1691,10 @@ app.post("/api/chat", async (c) => {
     getModelReasoningEfforts(provider, model).length > 0;
   const providerFactory = (modelId) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
+      permissionMode: CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
+      ...(claudePermissionMode === "bypass-permissions"
+        ? { allowDangerouslySkipPermissions: true }
+        : {}),
       ...(usesReasoningModel
         ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort] }
         : {}),
