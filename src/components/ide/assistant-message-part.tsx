@@ -1041,30 +1041,78 @@ export const WriteFileChip = ({
   const isApprovalRequested = state === "approval-requested";
 
   const filePath =
-    isRecord(part.input) && isString(part.input.filePath)
-      ? part.input.filePath
-      : isRecord(output) && isString(output.filePath)
-        ? output.filePath
-        : null;
-  const filename = filePath?.split(/[\\/]/).pop() ?? "file";
+    getStringFromPaths(part.input, [
+      ["filePath"],
+      ["path"],
+      ["file_path"],
+      ["filename"],
+      ["name"],
+      ["file", "path"],
+      ["file", "filePath"],
+      ["file", "filename"],
+      ["file", "name"],
+    ]) ??
+    getStringFromPaths(output, [
+      ["filePath"],
+      ["path"],
+      ["file_path"],
+      ["filename"],
+      ["name"],
+      ["file"],
+      ["file", "path"],
+      ["file", "filePath"],
+      ["file", "filename"],
+      ["file", "name"],
+    ]);
+  const filename =
+    filePath?.split(/[\\/]/).pop() ??
+    getStringFromPaths(part.input, [
+      ["filename"],
+      ["name"],
+      ["file", "name"],
+    ]) ??
+    getStringFromPaths(output, [["filename"], ["name"], ["file", "name"]]) ??
+    "file";
   const content =
-    isRecord(part.input) && isString(part.input.content)
-      ? part.input.content
-      : isRecord(output) && isString(output.content)
-        ? output.content
-        : null;
+    getStringFromPaths(
+      part.input,
+      [
+        ["content"],
+        ["contents"],
+        ["text"],
+        ["file", "content"],
+        ["file", "text"],
+      ],
+      { allowEmpty: true },
+    ) ??
+    getStringFromPaths(
+      output,
+      [
+        ["content"],
+        ["contents"],
+        ["text"],
+        ["file", "content"],
+        ["file", "text"],
+      ],
+      { allowEmpty: true },
+    );
   const mode =
-    isRecord(part.input) && isString(part.input.mode)
-      ? part.input.mode
-      : isRecord(output) && isString(output.mode)
-        ? output.mode
-        : null;
-  const bytesWritten =
-    isRecord(output) && typeof output.bytesWritten === "number"
-      ? output.bytesWritten
-      : null;
-  const hasOutput = isRecord(output) && isString(output.status);
+    getStringFromPaths(part.input, [
+      ["mode"],
+      ["writeMode"],
+      ["file", "mode"],
+    ]) ??
+    getStringFromPaths(output, [["mode"], ["writeMode"], ["file", "mode"]]);
+  const bytesWritten = getNumberFromPaths(output, [
+    ["bytesWritten"],
+    ["bytes"],
+    ["size"],
+  ]);
+  const hasOutput = output !== undefined;
   const approvalId = part.approval?.id;
+  const canExpand =
+    hasError || isApprovalRequested || content !== null || hasOutput;
+  const previewLanguage = inferLanguage(filePath ?? filename);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1074,9 +1122,10 @@ export const WriteFileChip = ({
           "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
           hasError && CHIP_ERROR_CLASSES,
           isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
+          canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => canExpand && setExpanded(!expanded)}
         type="button"
       >
         <PenLineIcon className="size-3.5 shrink-0" />
@@ -1161,7 +1210,7 @@ export const WriteFileChip = ({
               <CodeBlock
                 className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
                 code={content}
-                language={inferLanguage(filePath)}
+                language={previewLanguage}
                 showLineNumbers
                 style={{ contentVisibility: "visible" }}
               >

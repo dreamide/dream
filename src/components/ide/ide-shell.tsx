@@ -50,6 +50,7 @@ const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 const PANEL_TRANSITION_MS = 200;
 const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 const RIGHT_PANEL_TRANSITION = `${PANEL_TRANSITION}, flex-basis ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-grow ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-shrink ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+const TERMINAL_PANEL_TRANSITION = `height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -166,8 +167,10 @@ export const IdeShell = () => {
     ? (projectTerminalSessionIds[activeProject.id] ??
       EMPTY_TERMINAL_SESSION_IDS)
     : EMPTY_TERMINAL_SESSION_IDS;
+  const hasActiveProjectTerminalSessions =
+    activeProjectTerminalSessionIds.length > 0;
   const terminalPanelVisible =
-    projectTerminalPanelOpen && activeProjectTerminalSessionIds.length > 0;
+    projectTerminalPanelOpen && hasActiveProjectTerminalSessions;
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const previewHostRef = useRef<HTMLDivElement | null>(null);
@@ -181,6 +184,7 @@ export const IdeShell = () => {
   const leftPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const middlePanelRef = useRef<HTMLDivElement | null>(null);
+  const terminalPanelWrapperRef = useRef<HTMLDivElement | null>(null);
   const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
 
@@ -342,11 +346,17 @@ export const IdeShell = () => {
   }, [setPanelSizes]);
 
   const handleTerminalResizeStart = useCallback(() => {
+    const wrapper = terminalPanelWrapperRef.current;
+    if (wrapper) {
+      wrapper.style.transition = "none";
+    }
+
     const el = terminalPanelRef.current;
     if (!el) {
       return;
     }
 
+    el.style.transition = "none";
     terminalHeightRef.current = el.getBoundingClientRect().height;
   }, []);
 
@@ -366,6 +376,11 @@ export const IdeShell = () => {
     );
 
     terminalHeightRef.current = next;
+    const wrapper = terminalPanelWrapperRef.current;
+    if (wrapper) {
+      wrapper.style.height = `${next + PANEL_RESIZE_HANDLE_SIZE_PX}px`;
+    }
+
     const el = terminalPanelRef.current;
     if (el) {
       el.style.height = `${next}px`;
@@ -373,6 +388,16 @@ export const IdeShell = () => {
   }, []);
 
   const handleTerminalResizeEnd = useCallback(() => {
+    const wrapper = terminalPanelWrapperRef.current;
+    if (wrapper) {
+      wrapper.style.transition = TERMINAL_PANEL_TRANSITION;
+    }
+
+    const el = terminalPanelRef.current;
+    if (el) {
+      el.style.transition = TERMINAL_PANEL_TRANSITION;
+    }
+
     setPanelSizes((current) => ({
       ...current,
       terminalHeight: terminalHeightRef.current,
@@ -934,8 +959,22 @@ export const IdeShell = () => {
                 </div>
 
                 {/* Terminal area */}
-                {terminalPanelVisible && activeProject ? (
-                  <>
+                {activeProject && hasActiveProjectTerminalSessions ? (
+                  <div
+                    ref={terminalPanelWrapperRef}
+                    className="shrink-0 overflow-hidden"
+                    style={{
+                      height: terminalPanelVisible
+                        ? terminalHeightRef.current +
+                          PANEL_RESIZE_HANDLE_SIZE_PX
+                        : 0,
+                      maxHeight: `calc(100% - ${CHAT_PANEL_MIN_HEIGHT_PX}px)`,
+                      opacity: terminalPanelVisible ? 1 : 0,
+                      pointerEvents: terminalPanelVisible ? "auto" : "none",
+                      transition: TERMINAL_PANEL_TRANSITION,
+                      willChange: "height, opacity",
+                    }}
+                  >
                     <PanelResizeHandle
                       onResize={handleTerminalResize}
                       onResizeEnd={handleTerminalResizeEnd}
@@ -946,9 +985,15 @@ export const IdeShell = () => {
                       ref={terminalPanelRef}
                       className="shrink-0 overflow-hidden"
                       style={{
-                        height: terminalHeightRef.current,
-                        minHeight: TERMINAL_PANEL_MIN_HEIGHT_PX,
-                        maxHeight: `calc(100% - ${CHAT_PANEL_MIN_HEIGHT_PX + PANEL_RESIZE_HANDLE_SIZE_PX}px)`,
+                        height: terminalPanelVisible
+                          ? terminalHeightRef.current
+                          : 0,
+                        minHeight: terminalPanelVisible
+                          ? TERMINAL_PANEL_MIN_HEIGHT_PX
+                          : 0,
+                        maxHeight: `calc(100% - ${PANEL_RESIZE_HANDLE_SIZE_PX}px)`,
+                        transition: TERMINAL_PANEL_TRANSITION,
+                        willChange: "height, opacity",
                       }}
                     >
                       <ProjectTerminalTabsPanel
@@ -956,7 +1001,7 @@ export const IdeShell = () => {
                         projectId={activeProject.id}
                       />
                     </div>
-                  </>
+                  </div>
                 ) : null}
               </div>
             </div>

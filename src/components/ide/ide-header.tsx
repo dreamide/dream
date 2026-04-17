@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
-import { BranchSwitcher } from "./branch-switcher";
+
 import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
@@ -178,6 +178,44 @@ export const IdeHeader = () => {
 
         {appReady ? (
           <div className="flex items-center gap-1 pb-1">
+            <ToggleButton
+              active={panelVisibility.left}
+              onClick={() => togglePanel("left")}
+              title="Toggle threads panel"
+            >
+              <PanelLeft className="size-4" />
+            </ToggleButton>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label="Open terminal"
+                    className={cn(
+                      "h-8 w-8 p-0 [-webkit-app-region:no-drag]",
+                      terminalHiddenWithActiveSession
+                        ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                        : terminalOpen
+                          ? "text-foreground hover:text-foreground"
+                          : "text-muted-foreground/50 hover:text-foreground",
+                    )}
+                    disabled={!activeProject}
+                    onClick={handleOpenTerminal}
+                    size="icon-sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                <TerminalSquare className="size-4 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent>Open terminal</TooltipContent>
+            </Tooltip>
+            <ToggleButton
+              active={panelVisibility.right}
+              onClick={() => togglePanel("right")}
+              title="Toggle right panel"
+            >
+              <PanelRight className="size-4" />
+            </ToggleButton>
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -202,45 +240,6 @@ export const IdeHeader = () => {
 
       {appReady ? (
         <div className="flex h-11 items-center gap-1 px-3">
-          <ToggleButton
-            active={panelVisibility.left}
-            onClick={() => togglePanel("left")}
-            title="Toggle threads panel"
-          >
-            <PanelLeft className="size-4" />
-          </ToggleButton>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  aria-label="Open terminal"
-                  className={cn(
-                    "size-8 p-0 [-webkit-app-region:no-drag]",
-                    terminalHiddenWithActiveSession
-                      ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                      : terminalOpen
-                        ? "text-foreground hover:text-foreground"
-                        : "text-muted-foreground/50 hover:text-foreground",
-                  )}
-                  disabled={!activeProject}
-                  onClick={handleOpenTerminal}
-                  size="icon"
-                  variant="ghost"
-                />
-              }
-            >
-              <TerminalSquare className="size-4 shrink-0" />
-            </TooltipTrigger>
-            <TooltipContent>Open terminal</TooltipContent>
-          </Tooltip>
-          <ToggleButton
-            active={panelVisibility.right}
-            onClick={() => togglePanel("right")}
-            title="Toggle right panel"
-          >
-            <PanelRight className="size-4" />
-          </ToggleButton>
-
           <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
             {panelVisibility.right ? (
               <Tabs
@@ -292,13 +291,6 @@ export const IdeHeader = () => {
                   </Tooltip>
                 </TabsList>
               </Tabs>
-            ) : null}
-
-            {activeProject ? (
-              <BranchSwitcher
-                projectId={activeProject.id}
-                projectPath={activeProject.path}
-              />
             ) : null}
           </div>
         </div>

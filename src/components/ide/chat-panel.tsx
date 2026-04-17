@@ -92,6 +92,7 @@ import {
   SearchInFilesChip,
   WriteFileChip,
 } from "./assistant-message-part";
+import { BranchSwitcher } from "./branch-switcher";
 import { useIdeStore } from "./ide-store";
 import {
   CLAUDE_PERMISSION_MODE_OPTIONS,
@@ -877,18 +878,24 @@ export const ChatPanel = ({
                     </PromptInputActionMenuContent>
                   </PromptInputActionMenu>
                 </PromptInputTools>
-                <GlowBorder
-                  variant="glow"
-                  className="rounded-md"
-                  disabled={!isProcessing}
-                >
-                  <PromptInputSubmit
-                    className="size-8 rounded-md"
-                    disabled={!isProviderInstalled || selectedModel === ""}
-                    onStop={stop}
-                    status={status}
+                <div className="ml-auto flex items-center gap-2">
+                  <BranchSwitcher
+                    projectId={project.id}
+                    projectPath={project.path}
                   />
-                </GlowBorder>
+                  <GlowBorder
+                    variant="glow"
+                    className="rounded-md"
+                    disabled={!isProcessing}
+                  >
+                    <PromptInputSubmit
+                      className="size-8 rounded-md"
+                      disabled={!isProviderInstalled || selectedModel === ""}
+                      onStop={stop}
+                      status={status}
+                    />
+                  </GlowBorder>
+                </div>
               </PromptInputFooter>
             </PromptInput>
 
