@@ -68,6 +68,7 @@ interface IdeState {
   nextTerminalOrdinalByProject: Record<string, number>;
   projectTerminalSessionIds: Record<string, string[]>;
   activeTerminalSessionIdByProject: Record<string, string | null>;
+  projectTerminalPanelOpen: boolean;
   outputPanelOpen: boolean;
   claudePermissionMode: ClaudePermissionMode;
   codexPermissionMode: CodexPermissionMode;
@@ -352,6 +353,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   nextTerminalOrdinalByProject: {},
   projectTerminalSessionIds: {},
   activeTerminalSessionIdByProject: {},
+  projectTerminalPanelOpen: false,
   outputPanelOpen: false,
   claudePermissionMode: "ask-permissions",
   codexPermissionMode: "default",
@@ -683,10 +685,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Actions: panels ─────────────────────────────────────────────────
   togglePanel: (panel) => {
+    if (panel === "middle") {
+      return;
+    }
+
     set((state) => ({
       panelVisibility: {
         ...state.panelVisibility,
         [panel]: !state.panelVisibility[panel],
+        middle: true,
       },
     }));
   },
@@ -1198,20 +1205,25 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const existingSessionIds = get().projectTerminalSessionIds[projectId] ?? [];
 
     if (existingSessionIds.length > 0) {
+      const panelOpen = get().projectTerminalPanelOpen;
       const activeSessionId =
         get().activeTerminalSessionIdByProject[projectId] ??
         existingSessionIds[existingSessionIds.length - 1] ??
         null;
 
-      if (activeSessionId) {
+      if (!panelOpen) {
         set((state) => ({
           activeProjectId: projectId,
           activeTerminalSessionIdByProject: {
             ...state.activeTerminalSessionIdByProject,
             [projectId]: activeSessionId,
           },
+          projectTerminalPanelOpen: true,
         }));
+        return;
       }
+
+      set({ projectTerminalPanelOpen: false });
       return;
     }
 
@@ -1258,6 +1270,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ...state.activeTerminalSessionIdByProject,
           [projectId]: sessionId,
         },
+        projectTerminalPanelOpen: true,
         terminalOutput: {
           ...state.terminalOutput,
           [sessionId]: "",
@@ -1343,6 +1356,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ...state.projectTerminalSessionIds,
           [projectId]: nextSessionIds,
         },
+        projectTerminalPanelOpen:
+          nextSessionIds.length > 0 ? state.projectTerminalPanelOpen : false,
         activeTerminalSessionIdByProject: {
           ...state.activeTerminalSessionIdByProject,
           [projectId]: nextActiveSessionId,
@@ -1414,7 +1429,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ]),
       ),
       panelSizes: loaded.panelSizes,
-      panelVisibility: loaded.panelVisibility,
+      panelVisibility: {
+        ...loaded.panelVisibility,
+        middle: true,
+      },
       settings: loaded.settings,
       threadSort: loaded.threadSort,
       chats: loaded.chats,
@@ -1451,7 +1469,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       ),
       chats,
       panelSizes,
-      panelVisibility,
+      panelVisibility: {
+        ...panelVisibility,
+        middle: true,
+      },
       projects,
       settings,
       threadSort,

@@ -1,7 +1,6 @@
 import {
   Folder,
   GitCompareArrows,
-  MessageSquare,
   Minus,
   Monitor,
   PanelLeft,
@@ -45,12 +44,17 @@ export const IdeHeader = () => {
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
+  const projectTerminalPanelOpen = useIdeStore(
+    (s) => s.projectTerminalPanelOpen,
+  );
 
   const activeProject =
     projects.find((project) => project.id === activeProjectId) ?? null;
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
     : false;
+  const terminalHiddenWithActiveSession =
+    terminalOpen && !projectTerminalPanelOpen;
 
   const handleOpenSettings = useCallback(() => {
     setSettingsSection("appearance");
@@ -75,15 +79,6 @@ export const IdeHeader = () => {
   const handleOpenTerminal = useCallback(() => {
     if (!activeProject) {
       return;
-    }
-
-    if (!useIdeStore.getState().panelVisibility.middle) {
-      useIdeStore.setState((state) => ({
-        panelVisibility: {
-          ...state.panelVisibility,
-          middle: true,
-        },
-      }));
     }
 
     void openProjectTerminal(activeProject.id);
@@ -214,13 +209,6 @@ export const IdeHeader = () => {
           >
             <PanelLeft className="size-4" />
           </ToggleButton>
-          <ToggleButton
-            active={panelVisibility.middle}
-            onClick={() => togglePanel("middle")}
-            title="Toggle chat panel"
-          >
-            <MessageSquare className="size-4" />
-          </ToggleButton>
           <Tooltip>
             <TooltipTrigger
               render={
@@ -228,9 +216,11 @@ export const IdeHeader = () => {
                   aria-label="Open terminal"
                   className={cn(
                     "size-8 p-0 [-webkit-app-region:no-drag]",
-                    terminalOpen
-                      ? "text-foreground hover:text-foreground"
-                      : "text-muted-foreground/50 hover:text-foreground",
+                    terminalHiddenWithActiveSession
+                      ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                      : terminalOpen
+                        ? "text-foreground hover:text-foreground"
+                        : "text-muted-foreground/50 hover:text-foreground",
                   )}
                   disabled={!activeProject}
                   onClick={handleOpenTerminal}

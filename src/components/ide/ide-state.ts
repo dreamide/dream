@@ -264,6 +264,7 @@ export const mergePersistedState = (
     panelVisibility: {
       ...DEFAULT_PANEL_VISIBILITY,
       ...(state.panelVisibility ?? {}),
+      middle: true,
     },
     projects,
     settings: mergedSettings,

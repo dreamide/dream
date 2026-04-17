@@ -154,6 +154,9 @@ export const IdeShell = () => {
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
+  const projectTerminalPanelOpen = useIdeStore(
+    (s) => s.projectTerminalPanelOpen,
+  );
 
   // ── Derived values ──────────────────────────────────────────────────
   const leftVisible = panelVisibility.left;
@@ -163,7 +166,8 @@ export const IdeShell = () => {
     ? (projectTerminalSessionIds[activeProject.id] ??
       EMPTY_TERMINAL_SESSION_IDS)
     : EMPTY_TERMINAL_SESSION_IDS;
-  const terminalPanelVisible = activeProjectTerminalSessionIds.length > 0;
+  const terminalPanelVisible =
+    projectTerminalPanelOpen && activeProjectTerminalSessionIds.length > 0;
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const previewHostRef = useRef<HTMLDivElement | null>(null);
