@@ -255,7 +255,7 @@ export const TerminalContent = ({
   return (
     <div
       className={cn(
-        "max-h-96 overflow-auto p-4 font-mono text-sm leading-relaxed",
+        "max-h-96 overflow-auto p-4 font-mono text-xs leading-relaxed",
         className,
       )}
       ref={containerRef}

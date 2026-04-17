@@ -368,12 +368,26 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   html,
   body {
     @apply h-full;
   }
+
   body {
     @apply bg-background font-sans text-foreground overscroll-none;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  :where(.text-xs, .text-sm, .text-base) {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  :where(code, pre, kbd, samp, .font-mono) {
+    font-size: 0.75rem;
+    line-height: 1.5;
   }
 }
 
@@ -400,6 +414,14 @@
 }
 
 /* Use native OS scrollbars in xterm instead of xterm's custom overlay scrollbar. */
+.dream-diff-viewer {
+  --diffs-font-family: var(--font-jetbrains-mono);
+  --diffs-header-font-family: var(--font-jetbrains-mono);
+  font-family: var(--font-jetbrains-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .xterm .xterm-scrollable-element > .scrollbar,
 .xterm .xterm-scrollable-element > .shadow {
   display: none;

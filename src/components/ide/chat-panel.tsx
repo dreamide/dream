@@ -222,7 +222,7 @@ const UserMessageContent = ({ message }: { message: UIMessage }) => {
               variant="secondary"
             >
               <PaperclipIcon className="size-3 shrink-0" />
-              <span className="truncate font-mono text-[11px]">
+              <span className="truncate font-mono text-xs">
                 Attached file: {label}
               </span>
             </Badge>
@@ -946,7 +946,7 @@ export const ChatPanel = ({
                   {groupedModelOptions.map((group) => (
                     <SelectGroup key={group.provider}>
                       {groupedModelOptions.length > 1 && (
-                        <SelectLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                        <SelectLabel className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
                           {group.label}
                         </SelectLabel>
                       )}

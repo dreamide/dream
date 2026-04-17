@@ -227,7 +227,7 @@ export const WebPreviewConsole = ({
 
   return (
     <Collapsible
-      className={cn("border-t bg-muted/50 font-mono text-sm", className)}
+      className={cn("border-t bg-muted/50 font-mono text-xs", className)}
       onOpenChange={setConsoleOpen}
       open={consoleOpen}
       {...props}

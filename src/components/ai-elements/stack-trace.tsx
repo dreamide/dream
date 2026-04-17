@@ -194,7 +194,7 @@ export const StackTrace = memo(
       <StackTraceContext.Provider value={contextValue}>
         <div
           className={cn(
-            "not-prose w-full overflow-hidden rounded-lg border bg-background font-mono text-sm",
+            "not-prose w-full overflow-hidden rounded-lg border bg-background font-mono text-xs",
             className,
           )}
           {...props}

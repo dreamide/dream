@@ -435,7 +435,7 @@ const FileExplorerPanelImpl = () => {
                         Project folder not found.
                       </div>
                       {projectPath ? (
-                        <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                        <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
                           {projectPath}
                         </div>
                       ) : null}

@@ -328,16 +328,16 @@ const CodeBlockBody = memo(
     );
 
     return (
-      <pre
-        className={cn(
-          "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 text-sm",
-          className,
-        )}
+        <pre
+          className={cn(
+            "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 text-xs",
+            className,
+          )}
         style={preStyle}
       >
         <code
           className={cn(
-            "font-mono text-sm",
+            "font-mono text-xs",
           )}
           style={
             showLineNumbers
@@ -391,11 +391,11 @@ export const CodeBlockHeader = ({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn(
-      "flex min-h-9 items-center justify-between px-3 py-1.5 text-muted-foreground text-xs",
-      className,
-    )}
+    <div
+      className={cn(
+        "flex min-h-9 items-center justify-between px-3 py-1.5 text-muted-foreground text-sm",
+        className,
+      )}
     {...props}
   >
     {children}
@@ -622,11 +622,11 @@ export const CodeBlockLanguageSelectorTrigger = ({
   className,
   ...props
 }: CodeBlockLanguageSelectorTriggerProps) => (
-  <SelectTrigger
-    className={cn(
-      "h-7 border-none bg-transparent px-2 text-xs shadow-none",
-      className,
-    )}
+    <SelectTrigger
+      className={cn(
+        "h-7 border-none bg-transparent px-2 text-sm shadow-none",
+        className,
+      )}
     size="sm"
     {...props}
   />

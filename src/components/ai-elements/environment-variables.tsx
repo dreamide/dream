@@ -206,7 +206,7 @@ export const EnvironmentVariableName = ({
   const { name } = useContext(EnvironmentVariableContext);
 
   return (
-    <span className={cn("font-mono text-sm", className)} {...props}>
+    <span className={cn("font-mono text-xs", className)} {...props}>
       {children ?? name}
     </span>
   );
@@ -229,7 +229,7 @@ export const EnvironmentVariableValue = ({
   return (
     <span
       className={cn(
-        "font-mono text-muted-foreground text-sm",
+        "font-mono text-muted-foreground text-xs",
         !showValues && "select-none",
         className,
       )}

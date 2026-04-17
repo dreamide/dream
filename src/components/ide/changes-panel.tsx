@@ -126,7 +126,7 @@ const ExpandedDiffBody = ({
         <DiffEmptyState diff={diff.diff} />
         {diff.diff.trim().length > 0 ? (
           <PatchDiff
-            className="min-w-[720px]"
+            className="dream-diff-viewer min-w-[720px]"
             disableWorkerPool
             options={diffOptions}
             patch={diff.diff}

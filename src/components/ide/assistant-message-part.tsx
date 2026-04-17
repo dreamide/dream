@@ -124,7 +124,7 @@ const CHIP_TOOL_NAME_ALIASES = {
 const CHIP_ERROR_CLASSES =
   "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10";
 const CHIP_DETAIL_HEADER_CLASSES =
-  "shrink-0 border-0 bg-transparent px-3 py-2 text-[11px]";
+  "shrink-0 border-0 bg-transparent px-3 py-2 text-sm";
 
 export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
 
@@ -737,7 +737,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
                   <FileIcon size={14} />
                   <CodeBlockFilename>{filename}</CodeBlockFilename>
                   {start !== null && end !== null ? (
-                    <Badge variant="secondary" className="ml-1 text-[10px]">
+                    <Badge variant="secondary" className="ml-1 text-sm">
                       Lines {start}-{end}
                     </Badge>
                   ) : null}
@@ -849,7 +849,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
                       className="rounded-sm px-2 py-1.5 hover:bg-muted/40"
                       key={key}
                     >
-                      <p className="font-mono text-[11px] text-muted-foreground">
+                      <p className="font-mono text-xs text-muted-foreground">
                         {file}:{line}
                       </p>
                       <p className="font-mono text-xs">
@@ -984,7 +984,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
                   <TerminalIcon size={14} />
                   <CodeBlockFilename>Command</CodeBlockFilename>
                   {exitCode !== null ? (
-                    <Badge variant="secondary" className="ml-1 text-[10px]">
+                    <Badge variant="secondary" className="ml-1 text-sm">
                       Exit {exitCode}
                     </Badge>
                   ) : null}
