@@ -824,7 +824,7 @@ export const ChatPanel = ({
           {isProcessing && showThinking ? (
             <div className="py-2">
               <Shimmer as="span" className="text-sm" duration={1.5}>
-                {`Thinking for ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
+                {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
               </Shimmer>
             </div>
           ) : null}

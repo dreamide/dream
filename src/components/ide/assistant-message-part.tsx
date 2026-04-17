@@ -108,7 +108,13 @@ const normalizeToolName = (name: string): string =>
 
 const CHIP_TOOL_NAME_ALIASES = {
   agent: new Set(["agent"]),
-  command: new Set(["run-command", "runcommand", "command", "exec-command"]),
+  command: new Set([
+    "run-command",
+    "runcommand",
+    "command",
+    "exec-command",
+    "bash",
+  ]),
   list: new Set(["glob", "list-files"]),
   read: new Set(["read", "read-file"]),
   search: new Set(["grep", "search-in-files"]),
@@ -880,11 +886,23 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
       ? output.exitCode
       : null;
   const commandOutput = useMemo(() => {
-    if (!isRecord(output) || !isString(output.output)) {
+    if (isString(output)) {
+      return stripAnsiSequences(output);
+    }
+
+    if (!isRecord(output)) {
       return null;
     }
 
-    return stripAnsiSequences(output.output);
+    const combinedOutput = [output.stdout, output.stderr]
+      .filter(isString)
+      .join(output.stdout && output.stderr ? "\n" : "");
+    const textOutput =
+      (isString(output.output) && output.output) ||
+      combinedOutput ||
+      (isString(output.result) ? output.result : null);
+
+    return textOutput ? stripAnsiSequences(textOutput) : null;
   }, [output]);
   const status =
     isRecord(output) && isString(output.status) ? output.status : null;

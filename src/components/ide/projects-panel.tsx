@@ -4,7 +4,6 @@ import {
   ExternalLink,
   FilePenLine,
   MessageSquarePlus,
-  X,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -61,7 +60,6 @@ const ProjectActionsMenu = ({
   onEdit,
   onOpenChange,
   onOpenIn,
-  onRemove,
   open,
 }: {
   editors: DetectedEditor[];
@@ -69,7 +67,6 @@ const ProjectActionsMenu = ({
   onEdit: () => void;
   onOpenChange: (open: boolean) => void;
   onOpenIn: (editorId: string) => void;
-  onRemove: () => void;
   open: boolean;
 }) => {
   return (
@@ -110,10 +107,6 @@ const ProjectActionsMenu = ({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         ) : null}
-        <DropdownMenuItem onClick={onRemove}>
-          <X className="size-4" />
-          Remove
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -171,7 +164,6 @@ export const ProjectSidebar = () => {
   const updateProject = useIdeStore((s) => s.updateProject);
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
-  const closeProject = useIdeStore((s) => s.closeProject);
   const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
   const detectedEditors = useDetectedEditors();
 
@@ -280,7 +272,6 @@ export const ProjectSidebar = () => {
                     });
                   }
                 }}
-                onRemove={() => closeProject(activeProject.id)}
                 open={openMenuId === `project:${activeProject.id}`}
               />
             </div>
