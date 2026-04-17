@@ -252,20 +252,6 @@ export const IdeHeader = () => {
                     <TooltipTrigger
                       render={
                         <TabsTrigger
-                          aria-label="Show file explorer"
-                          className="h-6 w-8 px-0 data-[active]:bg-background"
-                          value="explorer"
-                        />
-                      }
-                    >
-                      <Folder className="size-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>Files</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <TabsTrigger
                           aria-label="Show changes"
                           className="h-6 w-8 px-0 data-[active]:bg-background"
                           value="changes"
@@ -275,6 +261,20 @@ export const IdeHeader = () => {
                       <GitCompareArrows className="size-4" />
                     </TooltipTrigger>
                     <TooltipContent>Changes</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <TabsTrigger
+                          aria-label="Show file explorer"
+                          className="h-6 w-8 px-0 data-[active]:bg-background"
+                          value="explorer"
+                        />
+                      }
+                    >
+                      <Folder className="size-4" />
+                    </TooltipTrigger>
+                    <TooltipContent>Files</TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger

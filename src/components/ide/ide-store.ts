@@ -362,7 +362,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   previewTabsByProject: {},
   activePreviewTabIdByProject: {},
   projectGitRefreshKeys: {},
-  rightPanelView: "explorer",
+  rightPanelView: "changes",
   stateHydrated: false,
   isMacOs: false,
   isElectron: false,
