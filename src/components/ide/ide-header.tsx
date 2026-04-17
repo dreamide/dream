@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -37,6 +37,7 @@ export const IdeHeader = () => {
   const togglePanel = useIdeStore((s) => s.togglePanel);
   const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
+  const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
@@ -50,6 +51,8 @@ export const IdeHeader = () => {
 
   const activeProject =
     projects.find((project) => project.id === activeProjectId) ?? null;
+  const dragProjectIdRef = useRef<string | null>(null);
+  const [dragProjectId, setDragProjectId] = useState<string | null>(null);
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
     : false;
@@ -95,6 +98,48 @@ export const IdeHeader = () => {
     [setRightPanelView],
   );
 
+  const handleProjectDragStart = useCallback((projectId: string) => {
+    dragProjectIdRef.current = projectId;
+    setDragProjectId(projectId);
+  }, []);
+
+  const handleProjectDragEnd = useCallback(() => {
+    dragProjectIdRef.current = null;
+    setDragProjectId(null);
+  }, []);
+
+  const handleProjectDrop = useCallback(
+    (targetProjectId: string) => {
+      const sourceProjectId = dragProjectIdRef.current;
+      dragProjectIdRef.current = null;
+      setDragProjectId(null);
+
+      if (!sourceProjectId || sourceProjectId === targetProjectId) {
+        return;
+      }
+
+      const sourceIndex = projects.findIndex(
+        (project) => project.id === sourceProjectId,
+      );
+      const targetIndex = projects.findIndex(
+        (project) => project.id === targetProjectId,
+      );
+      if (sourceIndex === -1 || targetIndex === -1) {
+        return;
+      }
+
+      const nextProjects = [...projects];
+      const [movedProject] = nextProjects.splice(sourceIndex, 1);
+      if (!movedProject) {
+        return;
+      }
+
+      nextProjects.splice(targetIndex, 0, movedProject);
+      setProjects(nextProjects);
+    },
+    [projects, setProjects],
+  );
+
   return (
     <header
       id="app-titlebar"
@@ -113,17 +158,37 @@ export const IdeHeader = () => {
                 <div className="flex min-w-max items-end gap-1 pr-1">
                   {projects.map((project) => {
                     const isActive = project.id === activeProjectId;
+                    const isDragging = project.id === dragProjectId;
 
                     return (
                       <div className="group relative" key={project.id}>
                         <button
                           className={cn(
-                            "flex h-8 max-w-64 items-center rounded-lg border px-3 pr-8 text-sm transition-colors [-webkit-app-region:no-drag]",
+                            "flex h-8 max-w-64 cursor-grab items-center rounded-lg border px-3 pr-8 text-sm transition-[opacity,transform,colors] active:cursor-grabbing [-webkit-app-region:no-drag]",
                             isActive
                               ? "border-border bg-background text-foreground shadow-sm"
                               : "border-transparent bg-muted/55 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                            isDragging && "scale-[0.98] opacity-60",
                           )}
+                          draggable
+                          onDragEnd={handleProjectDragEnd}
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData(
+                              "text/plain",
+                              project.id,
+                            );
+                            handleProjectDragStart(project.id);
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                          }}
                           onClick={() => setActiveProjectId(project.id)}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            handleProjectDrop(project.id);
+                          }}
                           type="button"
                         >
                           <span className="truncate">{project.name}</span>
@@ -140,6 +205,7 @@ export const IdeHeader = () => {
                             event.stopPropagation();
                             closeProject(project.id);
                           }}
+                          draggable={false}
                           type="button"
                         >
                           <X className="size-3" />
