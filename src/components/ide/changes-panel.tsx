@@ -1,4 +1,4 @@
-import { PatchDiff, type PatchDiffProps } from "@pierre/diffs/react";
+import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
 import {
   ChevronDown,
   ChevronRight,
@@ -10,6 +10,15 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { BundledLanguage } from "shiki";
+import {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+  CodeBlockFilename,
+  CodeBlockHeader,
+  CodeBlockTitle,
+} from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -56,12 +65,40 @@ const DiffEmptyState = ({ diff }: { diff: string }) => {
   );
 };
 
+const inferDiffPreviewLanguage = (filePath: string): BundledLanguage => {
+  const extension = filePath.split(".").pop()?.toLowerCase() ?? "";
+  const languages: Record<string, BundledLanguage> = {
+    c: "c",
+    cpp: "cpp",
+    css: "css",
+    go: "go",
+    html: "html",
+    java: "java",
+    js: "javascript",
+    json: "json",
+    jsx: "jsx",
+    md: "markdown",
+    mjs: "javascript",
+    py: "python",
+    rs: "rust",
+    sh: "bash",
+    sql: "sql",
+    ts: "typescript",
+    tsx: "tsx",
+    txt: "log",
+    yml: "yaml",
+    yaml: "yaml",
+  };
+
+  return languages[extension] ?? "log";
+};
+
 const readResponseText = async (response: Response): Promise<string> => {
   const text = await response.text();
   return text.trim() || `Request failed (${response.status}).`;
 };
 
-type PierreDiffOptions = NonNullable<PatchDiffProps<undefined>["options"]>;
+type PierreDiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
 
 const ExpandedDiffBody = ({
   change,
@@ -83,6 +120,7 @@ const ExpandedDiffBody = ({
       diffStyle: mode,
       disableFileHeader: true,
       hunkSeparators: "line-info",
+      lineDiffType: "none",
       theme: {
         dark: "github-dark",
         light: "github-light",
@@ -115,6 +153,15 @@ const ExpandedDiffBody = ({
     return null;
   }
 
+  const showAddedFileContents =
+    !!diff.parsedDiff &&
+    diff.parsedDiff.type === "new" &&
+    diff.parsedDiff.deletionLines.length === 0 &&
+    (change.status === "untracked" || change.status === "added");
+  const addedFileContents = showAddedFileContents
+    ? (diff.parsedDiff?.additionLines.join("") ?? "")
+    : null;
+
   return (
     <div className="border-t border-foreground/10 bg-background">
       {change.previousPath ? (
@@ -125,12 +172,34 @@ const ExpandedDiffBody = ({
       <div className="overflow-x-auto px-3 py-3 text-xs">
         <DiffEmptyState diff={diff.diff} />
         {diff.diff.trim().length > 0 ? (
-          <PatchDiff
-            className="dream-diff-viewer min-w-[720px]"
-            disableWorkerPool
-            options={diffOptions}
-            patch={diff.diff}
-          />
+          showAddedFileContents && addedFileContents !== null ? (
+            <CodeBlock
+              className="dream-diff-viewer w-full"
+              code={addedFileContents}
+              language={inferDiffPreviewLanguage(change.path)}
+              style={{ contentVisibility: "visible" }}
+            >
+              <CodeBlockHeader className="shrink-0 border-0 bg-transparent px-3 py-2">
+                <CodeBlockTitle>
+                  <FileIcon size={14} />
+                  <CodeBlockFilename>{change.path}</CodeBlockFilename>
+                </CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+            </CodeBlock>
+          ) : diff.parsedDiff ? (
+            <FileDiff
+              className="dream-diff-viewer min-w-[720px]"
+              fileDiff={diff.parsedDiff}
+              options={diffOptions}
+            />
+          ) : (
+            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap rounded-md border bg-muted/20 p-4 font-mono text-xs">
+              {diff.diff}
+            </pre>
+          )
         ) : null}
       </div>
     </div>

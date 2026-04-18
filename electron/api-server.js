@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { serve } from "@hono/node-server";
+import { parsePatchFiles } from "@pierre/diffs";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -2407,10 +2408,12 @@ const getProjectGitDiff = async (
   const normalizedFilePath = normalizePath(filePath);
 
   if (status === "untracked") {
+    const diff = await buildUntrackedFileDiff(projectPath, normalizedFilePath);
     return {
       branch: repoInfo.branch,
-      diff: await buildUntrackedFileDiff(projectPath, normalizedFilePath),
+      diff,
       filePath: normalizedFilePath,
+      parsedDiff: parseSingleFileDiff(diff),
       previousPath,
       status,
     };
@@ -2437,9 +2440,32 @@ const getProjectGitDiff = async (
     branch: repoInfo.branch,
     diff: diffResult.stdout,
     filePath: normalizedFilePath,
+    parsedDiff: parseSingleFileDiff(diffResult.stdout),
     previousPath,
     status,
   };
+};
+
+const parseSingleFileDiff = (patch) => {
+  if (typeof patch !== "string" || patch.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    const parsedPatches = parsePatchFiles(patch);
+    if (parsedPatches.length !== 1) {
+      return null;
+    }
+
+    const files = parsedPatches[0]?.files;
+    if (!Array.isArray(files) || files.length !== 1) {
+      return null;
+    }
+
+    return files[0] ?? null;
+  } catch {
+    return null;
+  }
 };
 
 const ensureProjectDirectory = async (projectPath) => {

@@ -1,3 +1,4 @@
+import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
 
 export type AiProvider = "openai" | "anthropic";
@@ -158,6 +159,7 @@ export interface ProjectGitDiffResponse {
   branch: string | null;
   diff: string;
   filePath: string;
+  parsedDiff: FileDiffMetadata | null;
   previousPath: string | null;
   status: ProjectGitChangeStatus;
 }

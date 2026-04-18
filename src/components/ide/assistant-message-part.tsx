@@ -984,7 +984,10 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
                   <TerminalIcon size={14} />
                   <CodeBlockFilename>Command</CodeBlockFilename>
                   {exitCode !== null ? (
-                    <Badge variant="secondary" className="ml-1 text-sm">
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 font-mono text-xs"
+                    >
                       Exit {exitCode}
                     </Badge>
                   ) : null}
