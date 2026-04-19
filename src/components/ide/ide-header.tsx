@@ -365,10 +365,10 @@ export const IdeHeader = () => {
           {appReady ? (
             <div className="flex items-end [-webkit-app-region:drag]">
               <div
-                className="min-w-0 flex-1 overflow-x-auto pb-px [-webkit-app-region:drag]"
+                className="min-w-0 w-fit max-w-full overflow-x-auto pb-px [-webkit-app-region:no-drag]"
                 ref={projectTabsScrollRef}
               >
-                <div className="flex min-w-max items-end gap-1 pr-1 [-webkit-app-region:drag]">
+                <div className="flex min-w-max items-end gap-1 pr-1 [-webkit-app-region:no-drag]">
                   {projects.map((project, projectIndex) => {
                     const isActive = project.id === activeProjectId;
                     const isDragging =
@@ -381,7 +381,7 @@ export const IdeHeader = () => {
 
                     return (
                       <div
-                        className="group relative shrink-0 transition-transform duration-150 ease-out [-webkit-app-region:no-drag]"
+                        className="group relative shrink-0 transition-transform duration-150 ease-out"
                         key={project.id}
                         style={{
                           transform: `translateX(${tabOffset}px)`,
@@ -391,7 +391,7 @@ export const IdeHeader = () => {
                       >
                         <button
                           className={cn(
-                            "flex h-8 w-full select-none items-center rounded-lg border px-3 pr-8 text-sm opacity-100 transition-[colors,box-shadow] [-webkit-app-region:no-drag]",
+                            "flex h-8 w-full select-none items-center rounded-lg border px-3 pr-8 text-sm opacity-100 transition-[colors,box-shadow]",
                             isActive
                               ? "border-border bg-background text-foreground shadow-sm"
                               : "border-transparent bg-muted/55 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
@@ -429,13 +429,11 @@ export const IdeHeader = () => {
                           }}
                           type="button"
                         >
-                          <span className="truncate [-webkit-app-region:no-drag]">
-                            {project.name}
-                          </span>
+                          <span className="truncate">{project.name}</span>
                         </button>
                         <button
                           className={cn(
-                            "absolute top-1/2 right-2 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground [-webkit-app-region:no-drag]",
+                            "absolute top-1/2 right-2 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground",
                             "opacity-0 group-hover:opacity-100",
                           )}
                           aria-label={`Close ${project.name}`}
@@ -460,7 +458,7 @@ export const IdeHeader = () => {
                       render={
                         <Button
                           aria-label="Add project"
-                          className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                          className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
                           onClick={() => void handleAddProject()}
                           ref={addProjectButtonRef}
                           size="icon-sm"
