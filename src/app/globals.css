@@ -496,7 +496,7 @@
 
 .glow-border-glow {
   position: relative;
-  padding: 2px;
+  padding: 0px;
   isolation: isolate;
 }
 

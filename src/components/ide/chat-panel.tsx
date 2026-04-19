@@ -883,7 +883,7 @@ export const ChatPanel = ({
                     projectId={project.id}
                     projectPath={project.path}
                   />
-                  <GlowBorder className="rounded-md" disabled={!!isProcessing}>
+                  <GlowBorder className="rounded-md" disabled={!isProcessing}>
                     <PromptInputSubmit
                       className="size-8 rounded-md"
                       disabled={!isProviderInstalled || selectedModel === ""}
