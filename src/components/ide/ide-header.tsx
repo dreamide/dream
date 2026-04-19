@@ -353,17 +353,22 @@ export const IdeHeader = () => {
         isMacOs ? "pr-3" : "pr-0",
       )}
     >
-      <div className="flex h-11 items-end gap-2 pl-3">
-        <div className={cn("h-8 shrink-0", isMacOs ? "w-24" : "w-0")} />
+      <div className="flex h-11 items-end gap-2 pl-3 [-webkit-app-region:drag]">
+        <div
+          className={cn(
+            "h-8 shrink-0 [-webkit-app-region:drag]",
+            isMacOs ? "w-24" : "w-0",
+          )}
+        />
 
-        <div className="min-w-0 flex-1 pb-0.5">
+        <div className="min-w-0 flex-1 pb-0.5 [-webkit-app-region:drag]">
           {appReady ? (
-            <div className="flex items-end">
+            <div className="flex items-end [-webkit-app-region:drag]">
               <div
-                className="min-w-0 flex-1 overflow-x-auto pb-px [-webkit-app-region:no-drag]"
+                className="min-w-0 flex-1 overflow-x-auto pb-px [-webkit-app-region:drag]"
                 ref={projectTabsScrollRef}
               >
-                <div className="flex min-w-max items-end gap-1 pr-1">
+                <div className="flex min-w-max items-end gap-1 pr-1 [-webkit-app-region:drag]">
                   {projects.map((project, projectIndex) => {
                     const isActive = project.id === activeProjectId;
                     const isDragging =
@@ -418,9 +423,15 @@ export const IdeHeader = () => {
                           onPointerUp={(event) =>
                             handleProjectPointerUp(event, project.id)
                           }
+                          draggable={false}
+                          onDragStart={(event) => {
+                            event.preventDefault();
+                          }}
                           type="button"
                         >
-                          <span className="truncate">{project.name}</span>
+                          <span className="truncate [-webkit-app-region:no-drag]">
+                            {project.name}
+                          </span>
                         </button>
                         <button
                           className={cn(
@@ -465,7 +476,7 @@ export const IdeHeader = () => {
               </div>
             </div>
           ) : (
-            <div className="pointer-events-none flex h-full items-center justify-center pb-2">
+            <div className="pointer-events-none flex h-full items-center justify-center pb-2 [-webkit-app-region:drag]">
               <span className="text-muted-foreground text-xs tracking-widest">
                 DREAM
               </span>
@@ -474,7 +485,7 @@ export const IdeHeader = () => {
         </div>
 
         {appReady ? (
-          <div className="flex items-center gap-1 pb-1">
+          <div className="flex items-center gap-1 pb-1 [-webkit-app-region:no-drag]">
             <ToggleButton
               active={panelVisibility.left}
               onClick={() => togglePanel("left")}
@@ -536,7 +547,8 @@ export const IdeHeader = () => {
       </div>
 
       {appReady ? (
-        <div className="flex h-11 items-center gap-1 px-3">
+        <div className="flex h-11 items-center gap-1 px-3 [-webkit-app-region:drag]">
+          <div className="min-w-0 flex-1 [-webkit-app-region:drag]" />
           <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
             {panelVisibility.right ? (
               <Tabs
