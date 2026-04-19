@@ -289,49 +289,75 @@ const normalizeEmbeddedLineNumbers = (
     };
   }
 
-  let expected = startLine ?? null;
-  let detectedStart = startLine ?? null;
-  let matchedCount = 0;
-  const strippedLines: string[] = [];
-
-  for (const line of lines) {
-    const match = line.match(/^\s*(\d+)\s*(?:\||:|->|→|›)\s?(.*)$/);
+  const parsedLines = lines.map((line) => {
+    const match = line.match(/^\s*(\d+)\s*(?:\||:|->|→|↦|›)\s?(.*)$/);
     if (!match) {
-      return {
-        code: sanitizedContent,
-        hadEmbeddedLineNumbers: false,
-        startingLineNumber: startLine ?? 1,
-      };
+      return null;
     }
 
     const lineNumber = Number(match[1]);
     if (!Number.isFinite(lineNumber)) {
-      return {
-        code: sanitizedContent,
-        hadEmbeddedLineNumbers: false,
-        startingLineNumber: startLine ?? 1,
+      return null;
+    }
+
+    return {
+      code: match[2] ?? "",
+      lineNumber,
+    };
+  });
+
+  let bestRun: {
+    lines: string[];
+    startingLineNumber: number;
+    startsAtRequestedLine: boolean;
+  } | null = null;
+
+  for (let index = 0; index < parsedLines.length; index += 1) {
+    const parsedLine = parsedLines[index];
+    if (!parsedLine) {
+      continue;
+    }
+
+    const runLines = [parsedLine.code];
+    const runStart = parsedLine.lineNumber;
+    let expected = parsedLine.lineNumber + 1;
+
+    for (
+      let nextIndex = index + 1;
+      nextIndex < parsedLines.length;
+      nextIndex += 1
+    ) {
+      const nextLine = parsedLines[nextIndex];
+      if (!nextLine || nextLine.lineNumber !== expected) {
+        break;
+      }
+
+      runLines.push(nextLine.code);
+      expected += 1;
+    }
+
+    if (runLines.length < 2) {
+      continue;
+    }
+
+    const startsAtRequestedLine =
+      startLine !== null && startLine !== undefined && runStart === startLine;
+
+    if (
+      !bestRun ||
+      (startsAtRequestedLine && !bestRun.startsAtRequestedLine) ||
+      (startsAtRequestedLine === bestRun.startsAtRequestedLine &&
+        runLines.length > bestRun.lines.length)
+    ) {
+      bestRun = {
+        lines: runLines,
+        startingLineNumber: runStart,
+        startsAtRequestedLine,
       };
     }
-
-    if (expected === null) {
-      expected = lineNumber;
-      detectedStart = lineNumber;
-    }
-
-    if (lineNumber !== expected) {
-      return {
-        code: sanitizedContent,
-        hadEmbeddedLineNumbers: false,
-        startingLineNumber: startLine ?? 1,
-      };
-    }
-
-    strippedLines.push(match[2] ?? "");
-    expected += 1;
-    matchedCount += 1;
   }
 
-  if (matchedCount < 2) {
+  if (!bestRun) {
     return {
       code: sanitizedContent,
       hadEmbeddedLineNumbers: false,
@@ -340,9 +366,9 @@ const normalizeEmbeddedLineNumbers = (
   }
 
   return {
-    code: strippedLines.join("\n"),
+    code: bestRun.lines.join("\n"),
     hadEmbeddedLineNumbers: true,
-    startingLineNumber: detectedStart ?? startLine ?? 1,
+    startingLineNumber: bestRun.startingLineNumber,
   };
 };
 
@@ -1116,6 +1142,10 @@ export const WriteFileChip = ({
   const canExpand =
     hasError || isApprovalRequested || content !== null || hasOutput;
   const previewLanguage = inferLanguage(filePath ?? filename);
+  const normalizedContent =
+    content !== null ? normalizeEmbeddedLineNumbers(content) : null;
+  const previewCode = normalizedContent?.code ?? content ?? "";
+  const previewStartLine = normalizedContent?.startingLineNumber ?? 1;
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1208,13 +1238,14 @@ export const WriteFileChip = ({
             </pre>
           ) : null}
           {/* Content preview */}
-          {content && filePath ? (
+          {content !== null && filePath ? (
             <div>
               <CodeBlock
                 className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                code={content}
+                code={previewCode}
                 language={previewLanguage}
                 showLineNumbers
+                startingLineNumber={previewStartLine}
                 style={{ contentVisibility: "visible" }}
               >
                 <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
