@@ -2,10 +2,7 @@ import {
   Ellipsis,
   ExternalLink,
   FilePenLine,
-  Folder,
-  GitCompareArrows,
   Minus,
-  Monitor,
   PanelLeft,
   PanelRight,
   Plus,
@@ -43,7 +40,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -98,11 +94,9 @@ export const IdeHeader = () => {
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
   const panelVisibility = useIdeStore((s) => s.panelVisibility);
-  const rightPanelView = useIdeStore((s) => s.rightPanelView);
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const togglePanel = useIdeStore((s) => s.togglePanel);
-  const setRightPanelView = useIdeStore((s) => s.setRightPanelView);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
@@ -167,17 +161,6 @@ export const IdeHeader = () => {
 
     void openProjectTerminal(activeProject.id);
   }, [activeProject, openProjectTerminal]);
-
-  const handleRightPanelViewChange = useCallback(
-    (value: string) => {
-      if (value !== "preview" && value !== "explorer" && value !== "changes") {
-        return;
-      }
-
-      setRightPanelView(value);
-    },
-    [setRightPanelView],
-  );
 
   useEffect(() => {
     const api = getDesktopApi();
@@ -680,65 +663,6 @@ export const IdeHeader = () => {
 
         {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
       </div>
-
-      {appReady ? (
-        <div className="flex h-11 items-center gap-1 px-3 [-webkit-app-region:drag]">
-          <div className="min-w-0 flex-1 [-webkit-app-region:drag]" />
-          <div className="ml-auto flex items-center gap-2 [-webkit-app-region:no-drag]">
-            {panelVisibility.right ? (
-              <Tabs
-                onValueChange={handleRightPanelViewChange}
-                value={rightPanelView}
-              >
-                <TabsList className="h-8 bg-muted/60">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <TabsTrigger
-                          aria-label="Show changes"
-                          className="h-6 w-8 px-0 data-[active]:bg-background"
-                          value="changes"
-                        />
-                      }
-                    >
-                      <GitCompareArrows className="size-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>Changes</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <TabsTrigger
-                          aria-label="Show file explorer"
-                          className="h-6 w-8 px-0 data-[active]:bg-background"
-                          value="explorer"
-                        />
-                      }
-                    >
-                      <Folder className="size-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>Files</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <TabsTrigger
-                          aria-label="Show preview"
-                          className="h-6 w-8 px-0 data-[active]:bg-background"
-                          value="preview"
-                        />
-                      }
-                    >
-                      <Monitor className="size-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>Preview</TooltipContent>
-                  </Tooltip>
-                </TabsList>
-              </Tabs>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
 
       <Dialog
         onOpenChange={(open) => {

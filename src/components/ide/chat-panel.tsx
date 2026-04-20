@@ -1,7 +1,24 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { AlertCircle, PaperclipIcon, Shield, X } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  Archive,
+  Ellipsis,
+  FilePenLine,
+  PaperclipIcon,
+  Shield,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  type FormEvent,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
   Attachment,
@@ -55,7 +72,24 @@ import {
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { GlowBorder } from "@/components/ui/glow-border";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -106,6 +140,11 @@ import {
 } from "./ide-types";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
+
+type RenameTarget = {
+  id: string;
+  name: string;
+};
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: "OpenAI",
@@ -460,6 +499,8 @@ export const ChatPanel = ({
   const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
   const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
   const updateThread = useIdeStore((s) => s.updateThread);
+  const closeThread = useIdeStore((s) => s.closeThread);
+  const archiveThread = useIdeStore((s) => s.archiveThread);
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -504,6 +545,9 @@ export const ChatPanel = ({
   const isProviderInstalled =
     providerModels[selectedProvider]?.installed ?? false;
   const [localError, setLocalError] = useState<string | null>(null);
+  const [threadMenuOpen, setThreadMenuOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -738,6 +782,34 @@ export const ChatPanel = ({
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
 
+  const closeRenameDialog = useCallback(() => {
+    setRenameTarget(null);
+    setRenameValue("");
+  }, []);
+
+  const handleRenameThread = useCallback(() => {
+    setRenameTarget({ id: thread.id, name: thread.title });
+    setRenameValue(thread.title);
+  }, [thread.id, thread.title]);
+
+  const handleRenameSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const nextName = renameValue.trim();
+      if (!renameTarget || !nextName) {
+        return;
+      }
+
+      updateThread(renameTarget.id, (current) => ({
+        ...current,
+        title: nextName,
+      }));
+      closeRenameDialog();
+    },
+    [closeRenameDialog, renameTarget, renameValue, updateThread],
+  );
+
   // Track elapsed thinking time, only shown during lulls (no new data)
   const [thinkingSeconds, setThinkingSeconds] = useState(0);
   const [showThinking, setShowThinking] = useState(false);
@@ -794,109 +866,171 @@ export const ChatPanel = ({
   }, [isProcessing, streamFingerprint]);
 
   return (
-    <div id="chat-panel" className="flex h-full min-h-0 flex-col">
-      <Conversation
-        id="chat-conversation"
-        className="min-h-0 flex-1"
-        initial={false}
-      >
-        <ConversationContent
-          id="chat-conversation-content"
-          className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-4"
-        >
-          {messages.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4">
-              <ConversationEmptyState
-                description="Ask the assistant to inspect, edit, or create files in the active project."
-                title="No chat messages yet"
-              />
+    <>
+      <div id="chat-panel" className="flex h-full min-h-0 flex-col">
+        <div className="shrink-0 px-2 pt-2">
+          <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 border-b border-foreground/10 pb-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-sm">{thread.title}</p>
             </div>
-          ) : (
-            messages.map((message, messageIndex) => (
-              <ThreadMessage
-                addToolApprovalResponse={addToolApprovalResponse}
-                isLastMessage={messageIndex === messages.length - 1}
-                isStreaming={isStreaming}
-                key={message.id}
-                message={message}
-              />
-            ))
-          )}
-          {isProcessing && showThinking ? (
-            <div className="py-2">
-              <Shimmer as="span" className="text-sm" duration={1.5}>
-                {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
-              </Shimmer>
-            </div>
-          ) : null}
-        </ConversationContent>
-        <ConversationScrollMemory isActive={isActive} />
-        <ConversationScrollButton />
-      </Conversation>
 
-      {localError ? (
-        <div className="shrink-0 px-2 pb-1">
-          <div className="mx-auto flex w-full max-w-[700px] items-start gap-2 rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-700">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <span className="min-w-0 flex-1 break-words">{localError}</span>
-            <button
-              type="button"
-              className="mt-0.5 shrink-0 rounded p-0.5 hover:bg-red-500/10"
-              onClick={() => {
-                setLocalError(null);
-                clearError();
-              }}
-            >
-              <X className="size-3.5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Context
+                maxTokens={contextWindow}
+                modelId={modelId}
+                usedTokens={estimatedUsedTokens}
+              >
+                <ContextTrigger className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
+                <ContextContent side="bottom" align="end">
+                  <ContextContentHeader />
+                  <ContextContentBody className="space-y-1.5">
+                    <ContextInputUsage />
+                    <ContextOutputUsage />
+                    <ContextReasoningUsage />
+                    <ContextCacheUsage />
+                  </ContextContentBody>
+                </ContextContent>
+              </Context>
+
+              <DropdownMenu onOpenChange={setThreadMenuOpen} open={threadMenuOpen}>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      aria-label={`${thread.title} actions`}
+                      className="h-8 w-8 p-0"
+                      size="icon-sm"
+                      type="button"
+                      variant="ghost"
+                    />
+                  }
+                >
+                  <Ellipsis className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={handleRenameThread}>
+                    <FilePenLine className="size-4" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => archiveThread(thread.id)}>
+                    <Archive className="size-4" />
+                    Archive
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => closeThread(thread.id)}
+                  >
+                    <Trash2 className="size-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
-      ) : null}
 
-      <div id="chat-prompt" className="shrink-0 px-2 pb-2">
-        <div className="mx-auto w-full max-w-[700px]">
-          <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
-            {/* ── Prompt Input ──────────────────────────────────────── */}
-            <PromptInput
-              id="chat-prompt-input"
-              className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
-              onSubmit={handleSubmit}
-            >
-              <PromptInputBody>
-                <PromptAttachments />
-                <PromptInputTextarea
-                  className="min-h-[80px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
-                  placeholder="Ask anything..."
+        <Conversation
+          id="chat-conversation"
+          className="min-h-0 flex-1"
+          initial={false}
+        >
+          <ConversationContent
+            id="chat-conversation-content"
+            className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-4"
+          >
+            {messages.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4">
+                <ConversationEmptyState
+                  description="Ask the assistant to inspect, edit, or create files in the active project."
+                  title="No chat messages yet"
                 />
-              </PromptInputBody>
-              <PromptInputFooter className="items-center">
-                <PromptInputTools>
-                  <PromptInputActionMenu>
-                    <PromptInputActionMenuTrigger tooltip="Attach file" />
-                    <PromptInputActionMenuContent>
-                      <PromptInputActionAddAttachments />
-                    </PromptInputActionMenuContent>
-                  </PromptInputActionMenu>
-                </PromptInputTools>
-                <div className="ml-auto flex items-center gap-2">
-                  <BranchSwitcher
-                    projectId={project.id}
-                    projectPath={project.path}
-                  />
-                  <GlowBorder className="rounded-md" disabled={!isProcessing}>
-                    <PromptInputSubmit
-                      className="size-8 rounded-md"
-                      disabled={!isProviderInstalled || selectedModel === ""}
-                      onStop={stop}
-                      status={status}
-                    />
-                  </GlowBorder>
-                </div>
-              </PromptInputFooter>
-            </PromptInput>
+              </div>
+            ) : (
+              messages.map((message, messageIndex) => (
+                <ThreadMessage
+                  addToolApprovalResponse={addToolApprovalResponse}
+                  isLastMessage={messageIndex === messages.length - 1}
+                  isStreaming={isStreaming}
+                  key={message.id}
+                  message={message}
+                />
+              ))
+            )}
+            {isProcessing && showThinking ? (
+              <div className="py-2">
+                <Shimmer as="span" className="text-sm" duration={1.5}>
+                  {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
+                </Shimmer>
+              </div>
+            ) : null}
+          </ConversationContent>
+          <ConversationScrollMemory isActive={isActive} />
+          <ConversationScrollButton />
+        </Conversation>
 
-            {/* ── Options Row ───────────────────────────────────────── */}
-            <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
+        {localError ? (
+          <div className="shrink-0 px-2 pb-1">
+            <div className="mx-auto flex w-full max-w-[700px] items-start gap-2 rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span className="min-w-0 flex-1 break-words">{localError}</span>
+              <button
+                type="button"
+                className="mt-0.5 shrink-0 rounded p-0.5 hover:bg-red-500/10"
+                onClick={() => {
+                  setLocalError(null);
+                  clearError();
+                }}
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div id="chat-prompt" className="shrink-0 px-2 pb-2">
+          <div className="mx-auto w-full max-w-[700px]">
+            <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
+              {/* ── Prompt Input ──────────────────────────────────────── */}
+              <PromptInput
+                id="chat-prompt-input"
+                className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
+                onSubmit={handleSubmit}
+              >
+                <PromptInputBody>
+                  <PromptAttachments />
+                  <PromptInputTextarea
+                    className="min-h-[80px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                    placeholder="Ask anything..."
+                  />
+                </PromptInputBody>
+                <PromptInputFooter className="items-center">
+                  <PromptInputTools>
+                    <PromptInputActionMenu>
+                      <PromptInputActionMenuTrigger tooltip="Attach file" />
+                      <PromptInputActionMenuContent>
+                        <PromptInputActionAddAttachments />
+                      </PromptInputActionMenuContent>
+                    </PromptInputActionMenu>
+                  </PromptInputTools>
+                  <div className="ml-auto flex items-center gap-2">
+                    <BranchSwitcher
+                      projectId={project.id}
+                      projectPath={project.path}
+                    />
+                    <GlowBorder className="rounded-md" disabled={!isProcessing}>
+                      <PromptInputSubmit
+                        className="size-8 rounded-md"
+                        disabled={!isProviderInstalled || selectedModel === ""}
+                        onStop={stop}
+                        status={status}
+                      />
+                    </GlowBorder>
+                  </div>
+                </PromptInputFooter>
+              </PromptInput>
+
+              {/* ── Options Row ───────────────────────────────────────── */}
+              <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
               {/* Model selector */}
               <Select
                 onValueChange={(value) => {
@@ -1040,29 +1174,45 @@ export const ChatPanel = ({
                 </Select>
               ) : null}
 
-              {/* Context usage indicator */}
-              <div className="ml-auto flex items-center gap-1">
-                <Context
-                  maxTokens={contextWindow}
-                  modelId={modelId}
-                  usedTokens={estimatedUsedTokens}
-                >
-                  <ContextTrigger className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
-                  <ContextContent side="top" align="end">
-                    <ContextContentHeader />
-                    <ContextContentBody className="space-y-1.5">
-                      <ContextInputUsage />
-                      <ContextOutputUsage />
-                      <ContextReasoningUsage />
-                      <ContextCacheUsage />
-                    </ContextContentBody>
-                  </ContextContent>
-                </Context>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            closeRenameDialog();
+          }
+        }}
+        open={renameTarget !== null}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <form className="space-y-4" onSubmit={handleRenameSubmit}>
+            <DialogHeader>
+              <DialogTitle>Rename thread</DialogTitle>
+              <DialogDescription>
+                Choose a new name for this thread.
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              autoFocus
+              onChange={(event) => setRenameValue(event.target.value)}
+              placeholder="Enter a name"
+              value={renameValue}
+            />
+            <DialogFooter>
+              <Button onClick={closeRenameDialog} type="button" variant="outline">
+                Cancel
+              </Button>
+              <Button disabled={renameValue.trim().length === 0} type="submit">
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

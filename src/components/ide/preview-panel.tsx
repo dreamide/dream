@@ -1,4 +1,13 @@
-import { ArrowLeft, ArrowRight, Plus, RotateCw, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Folder,
+  GitCompareArrows,
+  Monitor,
+  Plus,
+  RotateCw,
+  X,
+} from "lucide-react";
 import {
   memo,
   type RefObject,
@@ -10,6 +19,7 @@ import {
 } from "react";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -490,23 +500,100 @@ const PreviewViewport = ({
 const MemoizedPreviewViewport = memo(PreviewViewport);
 MemoizedPreviewViewport.displayName = "PreviewViewport";
 
+const RightPanelTabs = () => {
+  const rightPanelView = useIdeStore((state) => state.rightPanelView);
+  const setRightPanelView = useIdeStore((state) => state.setRightPanelView);
+
+  const handleValueChange = useCallback(
+    (value: string) => {
+      if (value !== "preview" && value !== "explorer" && value !== "changes") {
+        return;
+      }
+
+      setRightPanelView(value);
+    },
+    [setRightPanelView],
+  );
+
+  return (
+    <div className="border-b border-border/60 px-2 pb-2">
+      <Tabs onValueChange={handleValueChange} value={rightPanelView}>
+        <TabsList className="h-8 bg-muted/60">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <TabsTrigger
+                  aria-label="Show changes"
+                  className="h-6 w-8 px-0 data-[active]:bg-background"
+                  value="changes"
+                />
+              }
+            >
+              <GitCompareArrows className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent>Changes</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <TabsTrigger
+                  aria-label="Show file explorer"
+                  className="h-6 w-8 px-0 data-[active]:bg-background"
+                  value="explorer"
+                />
+              }
+            >
+              <Folder className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent>Files</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <TabsTrigger
+                  aria-label="Show preview"
+                  className="h-6 w-8 px-0 data-[active]:bg-background"
+                  value="preview"
+                />
+              }
+            >
+              <Monitor className="size-4" />
+            </TooltipTrigger>
+            <TooltipContent>Preview</TooltipContent>
+          </Tooltip>
+        </TabsList>
+      </Tabs>
+    </div>
+  );
+};
+
 export const PreviewPanel = (props: PreviewPanelProps) => {
   const rightPanelView = useIdeStore((state) => state.rightPanelView);
 
   return (
-    <div className="h-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <RightPanelTabs />
       <div
-        className={cn("h-full", rightPanelView === "explorer" ? "" : "hidden")}
+        className={cn(
+          "min-h-0 flex-1",
+          rightPanelView === "explorer" ? "" : "hidden",
+        )}
       >
         <FileExplorerPanel />
       </div>
       <div
-        className={cn("h-full", rightPanelView === "changes" ? "" : "hidden")}
+        className={cn(
+          "min-h-0 flex-1",
+          rightPanelView === "changes" ? "" : "hidden",
+        )}
       >
         <ChangesPanel />
       </div>
       <div
-        className={cn("h-full", rightPanelView === "preview" ? "" : "hidden")}
+        className={cn(
+          "min-h-0 flex-1",
+          rightPanelView === "preview" ? "" : "hidden",
+        )}
       >
         <MemoizedPreviewViewport {...props} />
       </div>
