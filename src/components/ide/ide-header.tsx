@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import SparkleField from "@/components/ui/sparkle-field";
 import {
   Tooltip,
   TooltipContent,
@@ -109,6 +110,13 @@ export const IdeHeader = () => {
   );
   const projectTerminalPanelOpen = useIdeStore(
     (s) => s.projectTerminalPanelOpen,
+  );
+  const threads = useIdeStore((s) => s.threads);
+  const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
+  const streamingProjectIds = new Set(
+    threads
+      .filter((thread) => streamingThreadIds[thread.id])
+      .map((thread) => thread.projectId),
   );
 
   const activeProject =
@@ -434,7 +442,7 @@ export const IdeHeader = () => {
 
                     return (
                       <div
-                        className="group relative shrink-0 transition-transform duration-150 ease-out"
+                        className="group relative shrink-0 overflow-hidden transition-transform duration-150 ease-out"
                         key={project.id}
                         style={{
                           transform: `translateX(${tabOffset}px)`,
@@ -442,6 +450,16 @@ export const IdeHeader = () => {
                           zIndex: isDragging ? 10 : 0,
                         }}
                       >
+                        {streamingProjectIds.has(project.id) && (
+                          <SparkleField
+                            density="low"
+                            height="20px"
+                            palette="cyan"
+                            showGlow={false}
+                            showRunes={false}
+                            style={{ top: "50%", bottom: "auto" }}
+                          />
+                        )}
                         <button
                           className={cn(
                             "flex h-8 w-full select-none items-center rounded-lg border px-3 pr-8 text-sm opacity-100 transition-[colors,box-shadow]",

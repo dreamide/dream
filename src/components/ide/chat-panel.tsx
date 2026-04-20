@@ -88,7 +88,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GlowBorder } from "@/components/ui/glow-border";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -993,7 +992,9 @@ export const ChatPanel = ({
 
         <div id="chat-prompt" className="shrink-0 px-2 pb-2">
           <div className="relative mx-auto w-full max-w-[700px]">
-            <SparkleField height="120px" density="normal" palette="cyan" />
+            {isProcessing && (
+              <SparkleField height="20px" density="normal" palette="cyan" />
+            )}
             <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
               {/* ── Prompt Input ──────────────────────────────────────── */}
               <PromptInput
@@ -1018,14 +1019,12 @@ export const ChatPanel = ({
                     </PromptInputActionMenu>
                   </PromptInputTools>
                   <div className="ml-auto flex items-center gap-2">
-                    <GlowBorder className="rounded-md" disabled={!isProcessing}>
-                      <PromptInputSubmit
-                        className="size-8 rounded-md"
-                        disabled={!isProviderInstalled || selectedModel === ""}
-                        onStop={stop}
-                        status={status}
-                      />
-                    </GlowBorder>
+                    <PromptInputSubmit
+                      className="size-8 rounded-md"
+                      disabled={!isProviderInstalled || selectedModel === ""}
+                      onStop={stop}
+                      status={status}
+                    />
                   </div>
                 </PromptInputFooter>
               </PromptInput>
