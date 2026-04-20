@@ -115,6 +115,7 @@ import type {
   ReasoningEffort,
   ThreadConfig,
 } from "@/types/ide";
+import SparkleField from "../ui/sparkle-field";
 import {
   AgentChip,
   AssistantMessagePart,
@@ -892,7 +893,10 @@ export const ChatPanel = ({
                 </ContextContent>
               </Context>
 
-              <DropdownMenu onOpenChange={setThreadMenuOpen} open={threadMenuOpen}>
+              <DropdownMenu
+                onOpenChange={setThreadMenuOpen}
+                open={threadMenuOpen}
+              >
                 <DropdownMenuTrigger
                   render={
                     <Button
@@ -988,7 +992,8 @@ export const ChatPanel = ({
         ) : null}
 
         <div id="chat-prompt" className="shrink-0 px-2 pb-2">
-          <div className="mx-auto w-full max-w-[700px]">
+          <div className="relative mx-auto w-full max-w-[700px]">
+            <SparkleField height="120px" density="normal" palette="cyan" />
             <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
               {/* ── Prompt Input ──────────────────────────────────────── */}
               <PromptInput
@@ -1011,7 +1016,7 @@ export const ChatPanel = ({
                         <PromptInputActionAddAttachments />
                       </PromptInputActionMenuContent>
                     </PromptInputActionMenu>
-                </PromptInputTools>
+                  </PromptInputTools>
                   <div className="ml-auto flex items-center gap-2">
                     <GlowBorder className="rounded-md" disabled={!isProcessing}>
                       <PromptInputSubmit
@@ -1027,156 +1032,155 @@ export const ChatPanel = ({
 
               {/* ── Options Row ───────────────────────────────────────── */}
               <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
-              {/* Model selector */}
-              <Select
-                onValueChange={(value) => {
-                  if (typeof value !== "string") return;
-                  const matchingOptions = allModelOptions.filter(
-                    (option) => option.id === value,
-                  );
-                  const nextOption =
-                    matchingOptions.find(
-                      (option) => option.provider === thread.provider,
-                    ) ?? matchingOptions[0];
-                  if (!nextOption) return;
+                {/* Model selector */}
+                <Select
+                  onValueChange={(value) => {
+                    if (typeof value !== "string") return;
+                    const matchingOptions = allModelOptions.filter(
+                      (option) => option.id === value,
+                    );
+                    const nextOption =
+                      matchingOptions.find(
+                        (option) => option.provider === thread.provider,
+                      ) ?? matchingOptions[0];
+                    if (!nextOption) return;
 
-                  updateThread(thread.id, (current) => ({
-                    ...current,
-                    model: nextOption.id,
-                    provider: nextOption.provider,
-                    remoteConversationId: null,
-                    remoteConversationModel: null,
-                  }));
-                }}
-                value={selectedModelValue}
-              >
-                <SelectTrigger
-                  className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  disabled={allModelOptions.length === 0}
+                    updateThread(thread.id, (current) => ({
+                      ...current,
+                      model: nextOption.id,
+                      provider: nextOption.provider,
+                      remoteConversationId: null,
+                      remoteConversationModel: null,
+                    }));
+                  }}
+                  value={selectedModelValue}
                 >
-                  <SelectValue placeholder="Model">
-                    <span className="flex items-center gap-1.5">
-                      <ProviderIcon
-                        className="size-3.5 shrink-0 text-muted-foreground/70"
-                        provider={selectedProvider}
-                      />
-                      <span className="truncate">{selectedModelLabel}</span>
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent
-                  alignItemWithTrigger={false}
-                  className="text-xs"
-                  side="top"
-                >
-                  {groupedModelOptions.map((group) => (
-                    <SelectGroup key={group.provider}>
-                      {groupedModelOptions.length > 1 && (
-                        <SelectLabel className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
-                          {group.label}
-                        </SelectLabel>
-                      )}
-                      {group.models.map((option) => (
+                  <SelectTrigger
+                    className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                    disabled={allModelOptions.length === 0}
+                  >
+                    <SelectValue placeholder="Model">
+                      <span className="flex items-center gap-1.5">
+                        <ProviderIcon
+                          className="size-3.5 shrink-0 text-muted-foreground/70"
+                          provider={selectedProvider}
+                        />
+                        <span className="truncate">{selectedModelLabel}</span>
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent
+                    alignItemWithTrigger={false}
+                    className="text-xs"
+                    side="top"
+                  >
+                    {groupedModelOptions.map((group) => (
+                      <SelectGroup key={group.provider}>
+                        {groupedModelOptions.length > 1 && (
+                          <SelectLabel className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
+                            {group.label}
+                          </SelectLabel>
+                        )}
+                        {group.models.map((option) => (
+                          <SelectItem
+                            className="text-xs"
+                            key={`${option.provider}:${option.id}`}
+                            value={option.id}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Reasoning effort selector */}
+                {reasoningEffortOptions.length > 0 && (
+                  <Select
+                    onValueChange={(value) => {
+                      updateThread(thread.id, (current) => ({
+                        ...current,
+                        reasoningEffort: value as ReasoningEffort,
+                      }));
+                    }}
+                    value={selectedReasoningEffort}
+                  >
+                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                      <span className="truncate">{selectedReasoningLabel}</span>
+                    </SelectTrigger>
+                    <SelectContent className="text-xs" side="top">
+                      {reasoningEffortOptions.map((option) => (
                         <SelectItem
                           className="text-xs"
-                          key={`${option.provider}:${option.id}`}
-                          value={option.id}
+                          key={option.value}
+                          value={option.value}
                         >
                           {option.label}
                         </SelectItem>
                       ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </SelectContent>
+                  </Select>
+                )}
 
-              {/* Reasoning effort selector */}
-              {reasoningEffortOptions.length > 0 && (
-                <Select
-                  onValueChange={(value) => {
-                    updateThread(thread.id, (current) => ({
-                      ...current,
-                      reasoningEffort: value as ReasoningEffort,
-                    }));
-                  }}
-                  value={selectedReasoningEffort}
-                >
-                  <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <span className="truncate">{selectedReasoningLabel}</span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    {reasoningEffortOptions.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+                {selectedProvider === "openai" ? (
+                  <Select
+                    onValueChange={(value) => {
+                      setCodexPermissionMode(value as CodexPermissionMode);
+                    }}
+                    value={codexPermissionMode}
+                  >
+                    <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                      <Shield className="size-3.5 shrink-0" />
+                      <span className="truncate">
+                        {getCodexPermissionModeLabel(codexPermissionMode)}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent className="text-xs" side="top">
+                      {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : selectedProvider === "anthropic" ? (
+                  <Select
+                    onValueChange={(value) => {
+                      setClaudePermissionMode(value as ClaudePermissionMode);
+                    }}
+                    value={claudePermissionMode}
+                  >
+                    <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                      <Shield className="size-3.5 shrink-0" />
+                      <span className="truncate">
+                        {getClaudePermissionModeLabel(claudePermissionMode)}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent className="text-xs" side="top">
+                      {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
 
-              {selectedProvider === "openai" ? (
-                <Select
-                  onValueChange={(value) => {
-                    setCodexPermissionMode(value as CodexPermissionMode);
-                  }}
-                  value={codexPermissionMode}
-                >
-                  <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <Shield className="size-3.5 shrink-0" />
-                    <span className="truncate">
-                      {getCodexPermissionModeLabel(codexPermissionMode)}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : selectedProvider === "anthropic" ? (
-                <Select
-                  onValueChange={(value) => {
-                    setClaudePermissionMode(value as ClaudePermissionMode);
-                  }}
-                  value={claudePermissionMode}
-                >
-                  <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <Shield className="size-3.5 shrink-0" />
-                    <span className="truncate">
-                      {getClaudePermissionModeLabel(claudePermissionMode)}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
-
-              <div className="ml-auto flex items-center gap-1">
-                <BranchSwitcher
-                  projectId={project.id}
-                  projectPath={project.path}
-                />
-              </div>
-
+                <div className="ml-auto flex items-center gap-1">
+                  <BranchSwitcher
+                    projectId={project.id}
+                    projectPath={project.path}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1206,7 +1210,11 @@ export const ChatPanel = ({
               value={renameValue}
             />
             <DialogFooter>
-              <Button onClick={closeRenameDialog} type="button" variant="outline">
+              <Button
+                onClick={closeRenameDialog}
+                type="button"
+                variant="outline"
+              >
                 Cancel
               </Button>
               <Button disabled={renameValue.trim().length === 0} type="submit">
