@@ -4,6 +4,7 @@ import {
   ExternalLink,
   FilePenLine,
   MessageSquarePlus,
+  X,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -57,6 +59,7 @@ const useDetectedEditors = () => {
 const ProjectActionsMenu = ({
   editors,
   label,
+  onClose,
   onEdit,
   onOpenChange,
   onOpenIn,
@@ -64,6 +67,7 @@ const ProjectActionsMenu = ({
 }: {
   editors: DetectedEditor[];
   label: string;
+  onClose: () => void;
   onEdit: () => void;
   onOpenChange: (open: boolean) => void;
   onOpenIn: (editorId: string) => void;
@@ -107,6 +111,11 @@ const ProjectActionsMenu = ({
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onClose}>
+          <X className="size-4" />
+          Close
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -161,6 +170,7 @@ export const ProjectSidebar = () => {
   const activeThreadIdByProject = useIdeStore((s) => s.activeThreadIdByProject);
   const addThread = useIdeStore((s) => s.addThread);
   const setActiveThreadId = useIdeStore((s) => s.setActiveThreadId);
+  const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
   const updateThread = useIdeStore((s) => s.updateThread);
   const archiveThread = useIdeStore((s) => s.archiveThread);
@@ -260,6 +270,7 @@ export const ProjectSidebar = () => {
                     name: activeProject.name,
                   })
                 }
+                onClose={() => closeProject(activeProject.id)}
                 onOpenChange={(open) =>
                   setOpenMenuId(open ? `project:${activeProject.id}` : null)
                 }

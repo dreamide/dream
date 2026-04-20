@@ -1,4 +1,7 @@
 import {
+  Ellipsis,
+  ExternalLink,
+  FilePenLine,
   Folder,
   GitCompareArrows,
   Minus,
@@ -13,6 +16,7 @@ import {
 } from "lucide-react";
 
 import {
+  type FormEvent,
   type PointerEvent,
   useCallback,
   useEffect,
@@ -20,6 +24,25 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -28,6 +51,7 @@ import {
 } from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
+import type { DetectedEditor } from "@/types/ide";
 import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
@@ -44,6 +68,11 @@ type ProjectDragState = {
   pointerId: number;
   projectId: string;
   startX: number;
+};
+
+type RenameTarget = {
+  id: string;
+  name: string;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -77,6 +106,7 @@ export const IdeHeader = () => {
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
+  const updateProject = useIdeStore((s) => s.updateProject);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
@@ -93,6 +123,12 @@ export const IdeHeader = () => {
   const addProjectButtonRef = useRef<HTMLButtonElement | null>(null);
   const suppressProjectClickRef = useRef<string | null>(null);
   const [dragProject, setDragProject] = useState<ProjectDragState | null>(null);
+  const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
+  const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(
+    null,
+  );
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [projectTabWidth, setProjectTabWidth] = useState(PROJECT_TAB_MAX_WIDTH);
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
@@ -141,6 +177,39 @@ export const IdeHeader = () => {
       setRightPanelView(value);
     },
     [setRightPanelView],
+  );
+
+  useEffect(() => {
+    const api = getDesktopApi();
+    if (!api) {
+      return;
+    }
+
+    void api.detectEditors().then(setDetectedEditors);
+  }, []);
+
+  const closeRenameDialog = useCallback(() => {
+    setRenameTarget(null);
+    setRenameValue("");
+  }, []);
+
+  const handleRenameSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const nextName = renameValue.trim();
+      if (!renameTarget || !nextName) {
+        return;
+      }
+
+      updateProject(renameTarget.id, (current) => ({
+        ...current,
+        name: nextName,
+      }));
+
+      closeRenameDialog();
+    },
+    [closeRenameDialog, renameTarget, renameValue, updateProject],
   );
 
   const measureProjectTabWidth = useCallback(() => {
@@ -374,6 +443,7 @@ export const IdeHeader = () => {
                     const isDragging =
                       project.id === dragProject?.projectId &&
                       dragProject.moved;
+                    const isProjectMenuOpen = openProjectMenuId === project.id;
                     const tabOffset = getProjectTabOffset(
                       project.id,
                       projectIndex,
@@ -431,24 +501,91 @@ export const IdeHeader = () => {
                         >
                           <span className="truncate">{project.name}</span>
                         </button>
-                        <button
+                        <div
                           className={cn(
-                            "absolute top-1/2 right-2 flex size-4 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground",
-                            "opacity-0 group-hover:opacity-100",
+                            "absolute top-1/2 right-0.5 -translate-y-1/2 transition-opacity",
+                            isProjectMenuOpen
+                              ? "opacity-100"
+                              : "opacity-0 group-hover:opacity-100",
                           )}
-                          aria-label={`Close ${project.name}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            closeProject(project.id);
-                          }}
-                          onPointerDown={(event) => {
-                            event.stopPropagation();
-                          }}
-                          data-project-tab-close
-                          type="button"
                         >
-                          <X className="size-3" />
-                        </button>
+                          <DropdownMenu
+                            onOpenChange={(open) =>
+                              setOpenProjectMenuId(open ? project.id : null)
+                            }
+                            open={isProjectMenuOpen}
+                          >
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  aria-label={`${project.name} actions`}
+                                  className="h-8 w-8 p-0 [-webkit-app-region:no-drag]"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                  }}
+                                  onPointerDown={(event) => {
+                                    event.stopPropagation();
+                                  }}
+                                  size="icon-sm"
+                                  type="button"
+                                  variant="ghost"
+                                />
+                              }
+                            >
+                              <Ellipsis className="size-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="end"
+                              className="w-44 [-webkit-app-region:no-drag]"
+                            >
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setRenameTarget({
+                                    id: project.id,
+                                    name: project.name,
+                                  });
+                                  setRenameValue(project.name);
+                                }}
+                              >
+                                <FilePenLine className="size-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              {detectedEditors.length > 0 ? (
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>
+                                    <ExternalLink className="size-4" />
+                                    Open in
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent className="[-webkit-app-region:no-drag]">
+                                    {detectedEditors.map((editor) => (
+                                      <DropdownMenuItem
+                                        key={editor.id}
+                                        onClick={() => {
+                                          const api = getDesktopApi();
+                                          if (api) {
+                                            void api.openInEditor({
+                                              editorId: editor.id,
+                                              projectPath: project.path,
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        {editor.name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              ) : null}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => closeProject(project.id)}
+                              >
+                                <X className="size-4" />
+                                Close
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     );
                   })}
@@ -602,6 +739,44 @@ export const IdeHeader = () => {
           </div>
         </div>
       ) : null}
+
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) {
+            closeRenameDialog();
+          }
+        }}
+        open={renameTarget !== null}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <form className="space-y-4" onSubmit={handleRenameSubmit}>
+            <DialogHeader>
+              <DialogTitle>Rename project</DialogTitle>
+              <DialogDescription>
+                Choose a new name for this project.
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              autoFocus
+              onChange={(event) => setRenameValue(event.target.value)}
+              placeholder="Enter a name"
+              value={renameValue}
+            />
+            <DialogFooter>
+              <Button
+                onClick={closeRenameDialog}
+                type="button"
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button disabled={renameValue.trim().length === 0} type="submit">
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 };
