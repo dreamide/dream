@@ -60,6 +60,7 @@ interface IdeState {
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
+  draftChatIdByProject: Record<string, string | null>;
   terminalOutput: Record<string, string>;
   terminalStatus: Record<string, "running" | "stopped">;
   terminalTransport: Record<string, "pty" | "pipe">;
@@ -345,6 +346,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},
+  draftChatIdByProject: {},
   terminalOutput: {},
   terminalStatus: {},
   terminalTransport: {},
@@ -461,6 +463,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ...state.activeChatIdByProject,
           [nextProject.id]: nextChat.id,
         },
+        draftChatIdByProject: {
+          ...state.draftChatIdByProject,
+          [nextProject.id]: nextChat.id,
+        },
         messagesByChatId: {
           ...state.messagesByChatId,
           [nextChat.id]: [],
@@ -503,11 +509,13 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ...state.nextTerminalOrdinalByProject,
       };
       const nextPreviewLoading = { ...state.previewLoading };
+      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
 
       delete nextPreviewTabsByProject[projectId];
       delete nextActivePreviewTabIdByProject[projectId];
       delete nextProjectGitRefreshKeys[projectId];
       delete nextTerminalOrdinalByProject[projectId];
+      delete nextDraftChatIdByProject[projectId];
       for (const tab of previewTabs) {
         delete nextPreviewLoading[tab.id];
       }
@@ -529,6 +537,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         previewLoading: nextPreviewLoading,
         previewTabsByProject: nextPreviewTabsByProject,
         activePreviewTabIdByProject: nextActivePreviewTabIdByProject,
+        draftChatIdByProject: nextDraftChatIdByProject,
         projectGitRefreshKeys: nextProjectGitRefreshKeys,
         projects: nextProjects,
         chats: nextChats,
@@ -551,6 +560,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
 
+      const existingDraftChatId = state.draftChatIdByProject[projectId] ?? null;
+      if (
+        existingDraftChatId &&
+        state.chats.some((item) => item.id === existingDraftChatId)
+      ) {
+        return {
+          activeProjectId: projectId,
+          activeChatIdByProject: {
+            ...state.activeChatIdByProject,
+            [projectId]: existingDraftChatId,
+          },
+        };
+      }
+
       const defaultSelection = getDefaultModelSelection(state.settings);
       const nextChat = createChatConfig(project, {
         model: defaultSelection.model || project.model,
@@ -564,6 +587,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         activeProjectId: projectId,
         activeChatIdByProject: {
           ...state.activeChatIdByProject,
+          [projectId]: nextChat.id,
+        },
+        draftChatIdByProject: {
+          ...state.draftChatIdByProject,
           [projectId]: nextChat.id,
         },
         messagesByChatId: {
@@ -605,7 +632,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       const nextChats = state.chats.filter((item) => item.id !== chatId);
       const nextMessagesByChatId = { ...state.messagesByChatId };
+      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
       delete nextMessagesByChatId[chatId];
+      if (nextDraftChatIdByProject[chat.projectId] === chatId) {
+        nextDraftChatIdByProject[chat.projectId] = null;
+      }
 
       return {
         activeChatIdByProject: {
@@ -618,6 +649,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
               : (state.activeChatIdByProject[chat.projectId] ?? null),
           ),
         },
+        draftChatIdByProject: nextDraftChatIdByProject,
         messagesByChatId: nextMessagesByChatId,
         chats: nextChats,
       };
@@ -635,6 +667,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextChats = state.chats.map((item) =>
         item.id === chatId ? { ...item, archivedAt } : item,
       );
+      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
+      if (nextDraftChatIdByProject[chat.projectId] === chatId) {
+        nextDraftChatIdByProject[chat.projectId] = null;
+      }
 
       return {
         activeChatIdByProject: {
@@ -647,6 +683,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
               : (state.activeChatIdByProject[chat.projectId] ?? null),
           ),
         },
+        draftChatIdByProject: nextDraftChatIdByProject,
         chats: nextChats,
       };
     });
@@ -667,7 +704,13 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
 
+      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
+      if (messages.length > 0 && nextDraftChatIdByProject[chat.projectId] === chatId) {
+        nextDraftChatIdByProject[chat.projectId] = null;
+      }
+
       return {
+        draftChatIdByProject: nextDraftChatIdByProject,
         messagesByChatId: { ...state.messagesByChatId, [chatId]: messages },
         chats: state.chats.map((item) =>
           item.id === chatId
@@ -1434,6 +1477,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ...loaded.panelVisibility,
         middle: true,
       },
+      draftChatIdByProject: {},
       settings: loaded.settings,
       chatSort: loaded.chatSort,
       stateHydrated: true,
@@ -1446,6 +1490,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       activeChatIdByProject,
       chatSort,
       chats,
+      draftChatIdByProject,
       messagesByChatId,
       panelSizes,
       panelVisibility,
@@ -1455,21 +1500,32 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     } = get();
     if (!stateHydrated) return;
 
+    const persistedChats = chats.filter((chat) => {
+      if (draftChatIdByProject[chat.projectId] === chat.id) {
+        return false;
+      }
+
+      return (messagesByChatId[chat.id]?.length ?? 0) > 0;
+    });
+    const persistedMessagesByChatId = Object.fromEntries(
+      persistedChats.map((chat) => [chat.id, messagesByChatId[chat.id] ?? []]),
+    );
+
     const nextState: PersistedIdeState = {
       activeProjectId: ensureActiveProject(projects, activeProjectId),
       activeChatIdByProject: Object.fromEntries(
         projects.map((project) => [
           project.id,
           ensureActiveChatForProject(
-            chats,
+            persistedChats,
             project.id,
             activeChatIdByProject[project.id] ?? null,
           ),
         ]),
       ),
-      chats,
+      chats: persistedChats,
       chatSort,
-      messagesByChatId,
+      messagesByChatId: persistedMessagesByChatId,
       panelSizes,
       panelVisibility: {
         ...panelVisibility,
