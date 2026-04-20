@@ -209,6 +209,7 @@ export interface DreamDesktopApi {
   loadState: () => Promise<Partial<PersistedIdeState>>;
   saveState: (state: PersistedIdeState) => Promise<boolean>;
 
+  getDefaultTerminalShell: () => Promise<string>;
   startTerminal: (payload: StartTerminalPayload) => Promise<{
     status: string;
     pid?: number;

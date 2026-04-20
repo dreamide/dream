@@ -558,6 +558,10 @@ function buildTerminalShellCandidates(preferredShellPath) {
   return candidates;
 }
 
+function getDefaultTerminalShellCommand() {
+  return buildTerminalShellCandidates(undefined)[0]?.command ?? "";
+}
+
 function getPipeFallbackShell() {
   if (process.platform === "win32") {
     return {
@@ -1325,6 +1329,10 @@ ipcMain.handle("shell:open-external", (_event, { url }) => {
 
   shell.openExternal(url);
   return true;
+});
+
+ipcMain.handle("terminal:get-default-shell", () => {
+  return getDefaultTerminalShellCommand();
 });
 
 ipcMain.handle("clipboard:write-text", (_event, { text }) => {

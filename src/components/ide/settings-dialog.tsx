@@ -1,4 +1,4 @@
-import { Monitor, Moon, Plug, RefreshCw, Sun, Terminal } from "lucide-react";
+import { Monitor, Moon, Plug, RefreshCw, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   getModelOptionsForProvider,
   getModelsForProvider,
 } from "@/lib/ide-defaults";
+import { getDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { BaseColor } from "@/types/ide";
@@ -107,9 +108,32 @@ export const SettingsDialog = () => {
   const setBaseColor = useUiStore((s) => s.setBaseColor);
   const { setTheme, theme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
+  const [defaultShellPlaceholder, setDefaultShellPlaceholder] = useState("");
 
   useEffect(() => {
     setThemeMounted(true);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDefaultShell = async () => {
+      const desktopApi = getDesktopApi();
+      if (!desktopApi) {
+        return;
+      }
+
+      const shell = await desktopApi.getDefaultTerminalShell();
+      if (!cancelled) {
+        setDefaultShellPlaceholder(shell);
+      }
+    };
+
+    void loadDefaultShell();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const openAiModels = useMemo(
@@ -210,21 +234,6 @@ export const SettingsDialog = () => {
                   Providers
                 </span>
               </button>
-              <button
-                className={cn(
-                  "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
-                  settingsSection === "terminal"
-                    ? "font-semibold text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => setSettingsSection("terminal")}
-                type="button"
-              >
-                <span className="flex items-center gap-2">
-                  <Terminal className="size-4" />
-                  Terminal
-                </span>
-              </button>
             </div>
           </nav>
 
@@ -235,7 +244,7 @@ export const SettingsDialog = () => {
                   <div className="space-y-1">
                     <h3 className="font-medium text-sm">Theme</h3>
                     <p className="text-muted-foreground text-sm">
-                      Choose how Dream should appear across the app.
+                      Controls the interface theme.
                     </p>
                   </div>
 
@@ -271,7 +280,7 @@ export const SettingsDialog = () => {
                   <div className="space-y-1 pt-2">
                     <h3 className="font-medium text-sm">Base color</h3>
                     <p className="text-muted-foreground text-sm">
-                      Set the base gray scale used across the interface.
+                      Controls the base gray scale.
                     </p>
                   </div>
 
@@ -302,6 +311,36 @@ export const SettingsDialog = () => {
                       </TabsList>
                     </Tabs>
                   </div>
+
+                  <div className="space-y-1 pt-2">
+                    <h3 className="font-medium text-sm">Terminal</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Sets the shell used for terminal sessions.
+                    </p>
+                  </div>
+
+                  <div className="max-w-sm space-y-1.5">
+                    <Label
+                      className="font-normal text-muted-foreground"
+                      htmlFor="shell-path"
+                    >
+                      Terminal shell path
+                    </Label>
+                    <Input
+                      id="shell-path"
+                      onChange={(event) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          shellPath: event.currentTarget.value,
+                        }))
+                      }
+                      placeholder={defaultShellPlaceholder}
+                      value={settings.shellPath}
+                    />
+                    <p className="text-muted-foreground text-sm">
+                      Leave empty to use the system default shell.
+                    </p>
+                  </div>
                 </div>
               ) : null}
 
@@ -311,9 +350,7 @@ export const SettingsDialog = () => {
                     <div className="space-y-1">
                       <h3 className="font-medium text-sm">CLI Providers</h3>
                       <p className="text-muted-foreground text-sm">
-                        Dream only uses locally installed Codex and Claude Code
-                        CLIs. API keys and manual provider connection are no
-                        longer used.
+                        Available locally installed Codex and Claude Code CLIs.
                       </p>
                       {providerModels.fetchedAt ? (
                         <p className="text-muted-foreground text-xs">
@@ -502,26 +539,6 @@ export const SettingsDialog = () => {
                       </Select>
                     </div>
                   </div>
-                </div>
-              ) : null}
-
-              {settingsSection === "terminal" ? (
-                <div className="space-y-1.5 rounded-lg p-3">
-                  <Label htmlFor="shell-path">Terminal Shell Path</Label>
-                  <Input
-                    id="shell-path"
-                    onChange={(event) =>
-                      setSettings((previous) => ({
-                        ...previous,
-                        shellPath: event.currentTarget.value,
-                      }))
-                    }
-                    placeholder=""
-                    value={settings.shellPath}
-                  />
-                  <p className="text-muted-foreground text-sm">
-                    Leave empty to use the system default shell.
-                  </p>
                 </div>
               ) : null}
             </div>
