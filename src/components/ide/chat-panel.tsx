@@ -1011,12 +1011,8 @@ export const ChatPanel = ({
                         <PromptInputActionAddAttachments />
                       </PromptInputActionMenuContent>
                     </PromptInputActionMenu>
-                  </PromptInputTools>
+                </PromptInputTools>
                   <div className="ml-auto flex items-center gap-2">
-                    <BranchSwitcher
-                      projectId={project.id}
-                      projectPath={project.path}
-                    />
                     <GlowBorder className="rounded-md" disabled={!isProcessing}>
                       <PromptInputSubmit
                         className="size-8 rounded-md"
@@ -1173,6 +1169,13 @@ export const ChatPanel = ({
                   </SelectContent>
                 </Select>
               ) : null}
+
+              <div className="ml-auto flex items-center gap-1">
+                <BranchSwitcher
+                  projectId={project.id}
+                  projectPath={project.path}
+                />
+              </div>
 
               </div>
             </div>
