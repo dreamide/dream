@@ -125,6 +125,8 @@ const CHIP_ERROR_CLASSES =
   "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10";
 const CHIP_DETAIL_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 py-2 text-sm";
+const RUN_COMMAND_HEADER_CLASSES =
+  "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-sm";
 
 export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
 
@@ -998,49 +1000,54 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
               {part.errorText}
             </pre>
           ) : null}
-          {command ? (
-            <CodeBlock
-              className="[&_pre]:text-xs"
-              code={command}
-              language="bash"
-              style={{ contentVisibility: "visible" }}
-            >
-              <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                <CodeBlockTitle>
-                  <TerminalIcon size={14} />
-                  <CodeBlockFilename>Command</CodeBlockFilename>
-                  {exitCode !== null ? (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 font-mono text-xs"
-                    >
-                      Exit {exitCode}
-                    </Badge>
-                  ) : null}
-                </CodeBlockTitle>
-                <CodeBlockActions>
-                  <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
-                </CodeBlockActions>
-              </CodeBlockHeader>
-            </CodeBlock>
-          ) : null}
-          {commandOutput ? (
-            <CodeBlock
-              className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&_pre]:text-xs"
-              code={commandOutput}
-              language="log"
-              style={{ contentVisibility: "visible" }}
-            >
-              <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                <CodeBlockTitle>
-                  <TerminalIcon size={14} />
-                  <CodeBlockFilename>Output</CodeBlockFilename>
-                </CodeBlockTitle>
-                <CodeBlockActions>
-                  <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
-                </CodeBlockActions>
-              </CodeBlockHeader>
-            </CodeBlock>
+          {command || commandOutput ? (
+            <div className="overflow-hidden rounded-md border bg-background">
+              {command ? (
+                <CodeBlock
+                  className="rounded-none border-0 [&_pre]:text-xs"
+                  code={command}
+                  language="bash"
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
+                    <CodeBlockTitle>
+                      <TerminalIcon size={14} />
+                      <CodeBlockFilename>Command</CodeBlockFilename>
+                      {exitCode !== null ? (
+                        <Badge
+                          variant="secondary"
+                          className="ml-1 font-mono text-xs"
+                        >
+                          Exit {exitCode}
+                        </Badge>
+                      ) : null}
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              ) : null}
+              {command && commandOutput ? <div className="border-t" /> : null}
+              {commandOutput ? (
+                <CodeBlock
+                  className="max-h-96 flex flex-col rounded-none border-0 [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&_pre]:text-xs"
+                  code={commandOutput}
+                  language="log"
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
+                    <CodeBlockTitle>
+                      <TerminalIcon size={14} />
+                      <CodeBlockFilename>Output</CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              ) : null}
+            </div>
           ) : hasRawOutput ? (
             <JsonBlock value={output} />
           ) : null}

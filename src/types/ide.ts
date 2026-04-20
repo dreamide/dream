@@ -4,13 +4,13 @@ import type { UIMessage } from "ai";
 export type AiProvider = "openai" | "anthropic";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
-export type ThreadSortOrder =
+export type ChatSortOrder =
   | "recent"
   | "createdDesc"
   | "createdAsc"
   | "titleAsc";
 
-export interface ThreadConfig {
+export interface ChatConfig {
   id: string;
   projectId: string;
   title: string;
@@ -60,10 +60,10 @@ export interface PersistedIdeState {
   panelVisibility: PanelVisibility;
   panelSizes: PanelSizes;
   settings: AppSettings;
-  threads: ThreadConfig[];
-  activeThreadIdByProject: Record<string, string | null>;
-  threadSort: ThreadSortOrder;
-  chats: Record<string, UIMessage[]>;
+  chats: ChatConfig[];
+  activeChatIdByProject: Record<string, string | null>;
+  chatSort: ChatSortOrder;
+  messagesByChatId: Record<string, UIMessage[]>;
 }
 
 export interface TerminalDataEvent {

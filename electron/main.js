@@ -47,8 +47,9 @@ app.setPath("userData", APP_USER_DATA_PATH);
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
-  activeThreadIdByProject: {},
-  chats: {},
+  activeChatIdByProject: {},
+  chats: [],
+  messagesByChatId: {},
   panelSizes: {
     leftSidebarWidth: 240,
     rightPanelWidth: 520,
@@ -66,8 +67,7 @@ const DEFAULT_PERSISTED_STATE = {
     openAiSelectedModels: [],
     shellPath: "",
   },
-  threadSort: "recent",
-  threads: [],
+  chatSort: "recent",
 };
 const PERSISTED_STATE_KEY = "ide-state";
 const LEGACY_STORE_FILENAME = "dream-settings.json";

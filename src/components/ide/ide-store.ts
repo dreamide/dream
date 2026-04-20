@@ -2,8 +2,8 @@ import type { UIMessage } from "ai";
 import { create } from "zustand";
 import { getDesktopApi } from "@/lib/electron";
 import {
+  createChatConfig,
   createProjectConfig,
-  createThreadConfig,
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_SETTINGS,
@@ -15,18 +15,18 @@ import { dedupeModelOptions } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
+  ChatConfig,
+  ChatSortOrder,
   PanelSizes,
   PanelVisibility,
   PersistedIdeState,
   PreviewTabState,
   ProjectConfig,
-  ThreadConfig,
-  ThreadSortOrder,
 } from "@/types/ide";
 import {
   ensureActiveProject,
-  ensureActiveThreadForProject,
-  getThreadsForProject,
+  ensureActiveChatForProject,
+  getChatsForProject,
   mergePersistedState,
 } from "./ide-state";
 import {
@@ -50,16 +50,16 @@ interface IdeState {
   // Persisted state
   projects: ProjectConfig[];
   activeProjectId: string | null;
-  threads: ThreadConfig[];
-  activeThreadIdByProject: Record<string, string | null>;
-  threadSort: ThreadSortOrder;
+  chats: ChatConfig[];
+  activeChatIdByProject: Record<string, string | null>;
+  chatSort: ChatSortOrder;
   panelVisibility: PanelVisibility;
   panelSizes: PanelSizes;
   settings: AppSettings;
-  chats: Record<string, UIMessage[]>;
+  messagesByChatId: Record<string, UIMessage[]>;
 
   // Runtime state
-  streamingThreadIds: Record<string, boolean>;
+  streamingChatIds: Record<string, boolean>;
   terminalOutput: Record<string, string>;
   terminalStatus: Record<string, "running" | "stopped">;
   terminalTransport: Record<string, "pty" | "pipe">;
@@ -95,8 +95,8 @@ interface IdeState {
 
   // Derived (computed inline via getters, but activeProject is common enough)
   getActiveProject: () => ProjectConfig | null;
-  getThreadsForProject: (projectId: string) => ThreadConfig[];
-  getActiveThread: () => ThreadConfig | null;
+  getChatsForProject: (projectId: string) => ChatConfig[];
+  getActiveChat: () => ChatConfig | null;
   getPreviewTabs: (projectId: string | null | undefined) => PreviewTabState[];
   getActivePreviewTab: (projectId?: string | null) => PreviewTabState | null;
 
@@ -109,16 +109,16 @@ interface IdeState {
     projectId: string,
     updater: (project: ProjectConfig) => ProjectConfig,
   ) => void;
-  addThread: (projectId: string, title?: string) => void;
-  setActiveThreadId: (projectId: string, threadId: string | null) => void;
-  updateThread: (
-    threadId: string,
-    updater: (thread: ThreadConfig) => ThreadConfig,
+  addChat: (projectId: string, title?: string) => void;
+  setActiveChatId: (projectId: string, chatId: string | null) => void;
+  updateChat: (
+    chatId: string,
+    updater: (chat: ChatConfig) => ChatConfig,
   ) => void;
-  closeThread: (threadId: string) => void;
-  archiveThread: (threadId: string) => void;
-  setMessagesForThread: (threadId: string, messages: UIMessage[]) => void;
-  setThreadSort: (sortOrder: ThreadSortOrder) => void;
+  deleteChat: (chatId: string) => void;
+  archiveChat: (chatId: string) => void;
+  setMessagesForChat: (chatId: string, messages: UIMessage[]) => void;
+  setChatSort: (sortOrder: ChatSortOrder) => void;
 
   // Actions – panels
   togglePanel: (panel: keyof PanelVisibility) => void;
@@ -154,7 +154,7 @@ interface IdeState {
   setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
   setTerminalShell: (projectId: string, shell: string) => void;
   setTerminalSessionName: (sessionId: string, name: string) => void;
-  setThreadStreaming: (threadId: string, streaming: boolean) => void;
+  setChatStreaming: (chatId: string, streaming: boolean) => void;
   bumpProjectGitRefreshKey: (projectId: string) => void;
   setPreviewError: (error: string | null) => void;
   setPreviewLoading: (id: string, loading: boolean) => void;
@@ -335,16 +335,16 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Persisted state ─────────────────────────────────────────────────
   projects: [],
   activeProjectId: null,
-  threads: [],
-  activeThreadIdByProject: {},
-  threadSort: "recent",
+  chats: [],
+  activeChatIdByProject: {},
+  chatSort: "recent",
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   panelSizes: DEFAULT_PANEL_SIZES,
   settings: DEFAULT_SETTINGS,
-  chats: {},
+  messagesByChatId: {},
 
   // ── Runtime state ───────────────────────────────────────────────────
-  streamingThreadIds: {},
+  streamingChatIds: {},
   terminalOutput: {},
   terminalStatus: {},
   terminalTransport: {},
@@ -380,22 +380,22 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     return projects.find((project) => project.id === activeProjectId) ?? null;
   },
 
-  getThreadsForProject: (projectId) => {
-    const { threads } = get();
-    return getThreadsForProject(threads, projectId);
+  getChatsForProject: (projectId) => {
+    const { chats } = get();
+    return getChatsForProject(chats, projectId);
   },
 
-  getActiveThread: () => {
-    const { activeThreadIdByProject, getActiveProject, threads } = get();
+  getActiveChat: () => {
+    const { activeChatIdByProject, getActiveProject, chats } = get();
     const project = getActiveProject();
     if (!project) {
       return null;
     }
 
-    const activeThreadId = activeThreadIdByProject[project.id] ?? null;
+    const activeChatId = activeChatIdByProject[project.id] ?? null;
     return (
-      getThreadsForProject(threads, project.id).find(
-        (thread) => thread.id === activeThreadId,
+      getChatsForProject(chats, project.id).find(
+        (chat) => chat.id === activeChatId,
       ) ?? null
     );
   },
@@ -425,20 +425,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         projects,
         state.activeProjectId,
       );
-      const nextActiveThreadIdByProject = Object.fromEntries(
+      const nextActiveChatIdByProject = Object.fromEntries(
         projects.map((project) => [
           project.id,
-          ensureActiveThreadForProject(
-            state.threads,
+          ensureActiveChatForProject(
+            state.chats,
             project.id,
-            state.activeThreadIdByProject[project.id] ?? null,
+            state.activeChatIdByProject[project.id] ?? null,
           ),
         ]),
       );
 
       return {
         activeProjectId: nextActiveProjectId,
-        activeThreadIdByProject: nextActiveThreadIdByProject,
+        activeChatIdByProject: nextActiveChatIdByProject,
         projects,
       };
     });
@@ -453,20 +453,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   addProject: (path) => {
     set((state) => {
       const nextProject = createProjectConfig(path, state.settings);
-      const nextThread = createThreadConfig(nextProject);
+      const nextChat = createChatConfig(nextProject);
 
       return {
         activeProjectId: nextProject.id,
-        activeThreadIdByProject: {
-          ...state.activeThreadIdByProject,
-          [nextProject.id]: nextThread.id,
+        activeChatIdByProject: {
+          ...state.activeChatIdByProject,
+          [nextProject.id]: nextChat.id,
         },
-        chats: {
-          ...state.chats,
-          [nextThread.id]: [],
+        messagesByChatId: {
+          ...state.messagesByChatId,
+          [nextChat.id]: [],
         },
+        chats: [...state.chats, nextChat],
         projects: [...state.projects, nextProject],
-        threads: [...state.threads, nextThread],
       };
     });
   },
@@ -482,12 +482,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextProjects = state.projects.filter(
         (project) => project.id !== projectId,
       );
-      const nextThreads = state.threads.filter(
-        (thread) => thread.projectId !== projectId,
+      const nextChats = state.chats.filter(
+        (chat) => chat.projectId !== projectId,
       );
-      const nextChats = Object.fromEntries(
-        Object.entries(state.chats).filter(([threadId]) =>
-          nextThreads.some((thread) => thread.id === threadId),
+      const nextMessagesByChatId = Object.fromEntries(
+        Object.entries(state.messagesByChatId).filter(([chatId]) =>
+          nextChats.some((chat) => chat.id === chatId),
         ),
       );
       const nextActiveProjectId = ensureActiveProject(
@@ -514,24 +514,24 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       return {
         activeProjectId: nextActiveProjectId,
-        activeThreadIdByProject: Object.fromEntries(
+        activeChatIdByProject: Object.fromEntries(
           nextProjects.map((project) => [
             project.id,
-            ensureActiveThreadForProject(
-              nextThreads,
+            ensureActiveChatForProject(
+              nextChats,
               project.id,
-              state.activeThreadIdByProject[project.id] ?? null,
+              state.activeChatIdByProject[project.id] ?? null,
             ),
           ]),
         ),
-        chats: nextChats,
+        messagesByChatId: nextMessagesByChatId,
         nextTerminalOrdinalByProject,
         previewLoading: nextPreviewLoading,
         previewTabsByProject: nextPreviewTabsByProject,
         activePreviewTabIdByProject: nextActivePreviewTabIdByProject,
         projectGitRefreshKeys: nextProjectGitRefreshKeys,
         projects: nextProjects,
-        threads: nextThreads,
+        chats: nextChats,
       };
     });
   },
@@ -544,7 +544,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }));
   },
 
-  addThread: (projectId, title) => {
+  addChat: (projectId, title) => {
     set((state) => {
       const project = state.projects.find((item) => item.id === projectId);
       if (!project) {
@@ -552,7 +552,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       }
 
       const defaultSelection = getDefaultModelSelection(state.settings);
-      const nextThread = createThreadConfig(project, {
+      const nextChat = createChatConfig(project, {
         model: defaultSelection.model || project.model,
         provider: defaultSelection.model
           ? defaultSelection.provider
@@ -562,104 +562,104 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       return {
         activeProjectId: projectId,
-        activeThreadIdByProject: {
-          ...state.activeThreadIdByProject,
-          [projectId]: nextThread.id,
+        activeChatIdByProject: {
+          ...state.activeChatIdByProject,
+          [projectId]: nextChat.id,
         },
-        chats: {
-          ...state.chats,
-          [nextThread.id]: [],
+        messagesByChatId: {
+          ...state.messagesByChatId,
+          [nextChat.id]: [],
         },
-        threads: [...state.threads, nextThread],
+        chats: [...state.chats, nextChat],
       };
     });
   },
 
-  setActiveThreadId: (projectId, threadId) => {
+  setActiveChatId: (projectId, chatId) => {
     set((state) => ({
-      activeThreadIdByProject: {
-        ...state.activeThreadIdByProject,
-        [projectId]: ensureActiveThreadForProject(
-          state.threads,
+      activeChatIdByProject: {
+        ...state.activeChatIdByProject,
+        [projectId]: ensureActiveChatForProject(
+          state.chats,
           projectId,
-          threadId,
+          chatId,
         ),
       },
     }));
   },
 
-  updateThread: (threadId, updater) => {
+  updateChat: (chatId, updater) => {
     set((state) => ({
-      threads: state.threads.map((thread) =>
-        thread.id === threadId ? updater(thread) : thread,
+      chats: state.chats.map((chat) =>
+        chat.id === chatId ? updater(chat) : chat,
       ),
     }));
   },
 
-  closeThread: (threadId) => {
+  deleteChat: (chatId) => {
     set((state) => {
-      const thread = state.threads.find((item) => item.id === threadId);
-      if (!thread) {
+      const chat = state.chats.find((item) => item.id === chatId);
+      if (!chat) {
         return state;
       }
 
-      const nextThreads = state.threads.filter((item) => item.id !== threadId);
-      const nextChats = { ...state.chats };
-      delete nextChats[threadId];
+      const nextChats = state.chats.filter((item) => item.id !== chatId);
+      const nextMessagesByChatId = { ...state.messagesByChatId };
+      delete nextMessagesByChatId[chatId];
 
       return {
-        activeThreadIdByProject: {
-          ...state.activeThreadIdByProject,
-          [thread.projectId]: ensureActiveThreadForProject(
-            nextThreads,
-            thread.projectId,
-            state.activeThreadIdByProject[thread.projectId] === threadId
+        activeChatIdByProject: {
+          ...state.activeChatIdByProject,
+          [chat.projectId]: ensureActiveChatForProject(
+            nextChats,
+            chat.projectId,
+            state.activeChatIdByProject[chat.projectId] === chatId
               ? null
-              : (state.activeThreadIdByProject[thread.projectId] ?? null),
+              : (state.activeChatIdByProject[chat.projectId] ?? null),
           ),
         },
+        messagesByChatId: nextMessagesByChatId,
         chats: nextChats,
-        threads: nextThreads,
       };
     });
   },
 
-  archiveThread: (threadId) => {
+  archiveChat: (chatId) => {
     set((state) => {
-      const thread = state.threads.find((item) => item.id === threadId);
-      if (!thread) {
+      const chat = state.chats.find((item) => item.id === chatId);
+      if (!chat) {
         return state;
       }
 
       const archivedAt = new Date().toISOString();
-      const nextThreads = state.threads.map((item) =>
-        item.id === threadId ? { ...item, archivedAt } : item,
+      const nextChats = state.chats.map((item) =>
+        item.id === chatId ? { ...item, archivedAt } : item,
       );
 
       return {
-        activeThreadIdByProject: {
-          ...state.activeThreadIdByProject,
-          [thread.projectId]: ensureActiveThreadForProject(
-            nextThreads,
-            thread.projectId,
-            state.activeThreadIdByProject[thread.projectId] === threadId
+        activeChatIdByProject: {
+          ...state.activeChatIdByProject,
+          [chat.projectId]: ensureActiveChatForProject(
+            nextChats,
+            chat.projectId,
+            state.activeChatIdByProject[chat.projectId] === chatId
               ? null
-              : (state.activeThreadIdByProject[thread.projectId] ?? null),
+              : (state.activeChatIdByProject[chat.projectId] ?? null),
           ),
         },
-        threads: nextThreads,
+        chats: nextChats,
       };
     });
   },
 
-  setMessagesForThread: (threadId, messages) => {
+  setMessagesForChat: (chatId, messages) => {
     set((state) => {
-      const thread = state.threads.find((item) => item.id === threadId);
-      if (!thread) {
+      const chat = state.chats.find((item) => item.id === chatId);
+      if (!chat) {
         return state;
       }
       const messagesChanged = !areMessagesEqual(
-        state.chats[threadId],
+        state.messagesByChatId[chatId],
         messages,
       );
 
@@ -668,9 +668,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       }
 
       return {
-        chats: { ...state.chats, [threadId]: messages },
-        threads: state.threads.map((item) =>
-          item.id === threadId
+        messagesByChatId: { ...state.messagesByChatId, [chatId]: messages },
+        chats: state.chats.map((item) =>
+          item.id === chatId
             ? {
                 ...item,
                 updatedAt: new Date().toISOString(),
@@ -681,7 +681,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     });
   },
 
-  setThreadSort: (threadSort) => set({ threadSort }),
+  setChatSort: (chatSort) => set({ chatSort }),
 
   // ── Actions: panels ─────────────────────────────────────────────────
   togglePanel: (panel) => {
@@ -938,15 +938,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     });
   },
 
-  setThreadStreaming: (threadId, streaming) =>
+  setChatStreaming: (chatId, streaming) =>
     set((state) => {
-      const next = { ...state.streamingThreadIds };
+      const next = { ...state.streamingChatIds };
       if (streaming) {
-        next[threadId] = true;
+        next[chatId] = true;
       } else {
-        delete next[threadId];
+        delete next[chatId];
       }
-      return { streamingThreadIds: next };
+      return { streamingChatIds: next };
     }),
   bumpProjectGitRefreshKey: (projectId) => {
     const normalizedProjectId =
@@ -1379,14 +1379,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       if (!rawState) {
         loaded = {
           activeProjectId: null,
-          activeThreadIdByProject: {},
-          chats: {},
+          activeChatIdByProject: {},
+          chats: [],
+          messagesByChatId: {},
           panelSizes: DEFAULT_PANEL_SIZES,
           panelVisibility: DEFAULT_PANEL_VISIBILITY,
           projects: [],
           settings: DEFAULT_SETTINGS,
-          threadSort: "recent",
-          threads: [],
+          chatSort: "recent",
         };
       } else {
         try {
@@ -1396,14 +1396,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         } catch {
           loaded = {
             activeProjectId: null,
-            activeThreadIdByProject: {},
-            chats: {},
+            activeChatIdByProject: {},
+            chats: [],
+            messagesByChatId: {},
             panelSizes: DEFAULT_PANEL_SIZES,
             panelVisibility: DEFAULT_PANEL_VISIBILITY,
             projects: [],
             settings: DEFAULT_SETTINGS,
-            threadSort: "recent",
-            threads: [],
+            chatSort: "recent",
           };
         }
       }
@@ -1417,57 +1417,59 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     set({
       projects: loaded.projects,
       activeProjectId: nextActiveProjectId,
-      threads: loaded.threads,
-      activeThreadIdByProject: Object.fromEntries(
+      chats: loaded.chats,
+      activeChatIdByProject: Object.fromEntries(
         loaded.projects.map((project) => [
           project.id,
-          ensureActiveThreadForProject(
-            loaded.threads,
+          ensureActiveChatForProject(
+            loaded.chats,
             project.id,
-            loaded.activeThreadIdByProject[project.id] ?? null,
+            loaded.activeChatIdByProject[project.id] ?? null,
           ),
         ]),
       ),
+      messagesByChatId: loaded.messagesByChatId,
       panelSizes: loaded.panelSizes,
       panelVisibility: {
         ...loaded.panelVisibility,
         middle: true,
       },
       settings: loaded.settings,
-      threadSort: loaded.threadSort,
-      chats: loaded.chats,
+      chatSort: loaded.chatSort,
       stateHydrated: true,
     });
   },
 
   persist: () => {
     const {
-      projects,
       activeProjectId,
-      threads,
-      activeThreadIdByProject,
-      threadSort,
+      activeChatIdByProject,
+      chatSort,
+      chats,
+      messagesByChatId,
       panelSizes,
       panelVisibility,
+      projects,
       settings,
-      chats,
       stateHydrated,
     } = get();
     if (!stateHydrated) return;
 
     const nextState: PersistedIdeState = {
       activeProjectId: ensureActiveProject(projects, activeProjectId),
-      activeThreadIdByProject: Object.fromEntries(
+      activeChatIdByProject: Object.fromEntries(
         projects.map((project) => [
           project.id,
-          ensureActiveThreadForProject(
-            threads,
+          ensureActiveChatForProject(
+            chats,
             project.id,
-            activeThreadIdByProject[project.id] ?? null,
+            activeChatIdByProject[project.id] ?? null,
           ),
         ]),
       ),
       chats,
+      chatSort,
+      messagesByChatId,
       panelSizes,
       panelVisibility: {
         ...panelVisibility,
@@ -1475,8 +1477,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       },
       projects,
       settings,
-      threadSort,
-      threads,
     };
 
     const desktopApi = getDesktopApi();

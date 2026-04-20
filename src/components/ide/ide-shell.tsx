@@ -65,9 +65,9 @@ export const IdeShell = () => {
   const settingsSection = useIdeStore((s) => s.settingsSection);
   const projects = useIdeStore((s) => s.projects);
   const activeProject = useIdeStore((s) => s.getActiveProject());
-  const activeThread = useIdeStore((s) => s.getActiveThread());
-  const threads = useIdeStore((s) => s.threads);
-  const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
+  const activeChat = useIdeStore((s) => s.getActiveChat());
+  const chats = useIdeStore((s) => s.chats);
+  const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const previewTabsByProject = useIdeStore((s) => s.previewTabsByProject);
   const activePreviewTabIdByProject = useIdeStore(
     (s) => s.activePreviewTabIdByProject,
@@ -76,9 +76,9 @@ export const IdeShell = () => {
     () => new Map(projects.map((project) => [project.id, project])),
     [projects],
   );
-  // Defer the active thread ID so the sidebar highlights immediately while
+  // Defer the active chat ID so the sidebar highlights immediately while
   // the expensive chat panel re-render happens as a low-priority transition.
-  const deferredActiveThreadId = useDeferredValue(activeThread?.id ?? null);
+  const deferredActiveChatId = useDeferredValue(activeChat?.id ?? null);
   const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
   const activePreviewTab =
     activeProject?.id != null
@@ -93,51 +93,48 @@ export const IdeShell = () => {
         null)
       : null;
 
-  // Track the last N visited threads so they stay mounted for instant switching.
-  const recentThreadIdsRef = useRef<string[]>([]);
-  const recentThreadIds = useMemo(() => {
-    if (
-      !deferredActiveThreadId ||
-      recentThreadIdsRef.current[0] === deferredActiveThreadId
-    ) {
-      return recentThreadIdsRef.current;
+  // Track the last N visited chats so they stay mounted for instant switching.
+  const recentChatIdsRef = useRef<string[]>([]);
+  const recentChatIds = useMemo(() => {
+    if (!deferredActiveChatId || recentChatIdsRef.current[0] === deferredActiveChatId) {
+      return recentChatIdsRef.current;
     }
 
     const next = [
-      deferredActiveThreadId,
-      ...recentThreadIdsRef.current.filter(
-        (id) => id !== deferredActiveThreadId,
+      deferredActiveChatId,
+      ...recentChatIdsRef.current.filter(
+        (id) => id !== deferredActiveChatId,
       ),
     ].slice(0, 10);
-    recentThreadIdsRef.current = next;
+    recentChatIdsRef.current = next;
     return next;
-  }, [deferredActiveThreadId]);
+  }, [deferredActiveChatId]);
 
-  const mountedThreads = useMemo(() => {
-    const mountedThreadIds = new Set<string>();
-    const nextThreads = [] as typeof threads;
+  const mountedChats = useMemo(() => {
+    const mountedChatIds = new Set<string>();
+    const nextChats = [] as typeof chats;
 
-    // Mount recently visited threads (capped at 10).
-    for (const id of recentThreadIds) {
-      const thread = threads.find((t) => t.id === id);
-      if (thread && !mountedThreadIds.has(thread.id)) {
-        mountedThreadIds.add(thread.id);
-        nextThreads.push(thread);
+    // Mount recently visited chats (capped at 10).
+    for (const id of recentChatIds) {
+      const chat = chats.find((c) => c.id === id);
+      if (chat && !mountedChatIds.has(chat.id)) {
+        mountedChatIds.add(chat.id);
+        nextChats.push(chat);
       }
     }
 
-    // Keep streaming threads mounted.
-    for (const thread of threads) {
-      if (!streamingThreadIds[thread.id] || mountedThreadIds.has(thread.id)) {
+    // Keep streaming chats mounted.
+    for (const chat of chats) {
+      if (!streamingChatIds[chat.id] || mountedChatIds.has(chat.id)) {
         continue;
       }
 
-      mountedThreadIds.add(thread.id);
-      nextThreads.push(thread);
+      mountedChatIds.add(chat.id);
+      nextChats.push(chat);
     }
 
-    return nextThreads;
-  }, [recentThreadIds, streamingThreadIds, threads]);
+    return nextChats;
+  }, [chats, recentChatIds, streamingChatIds]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
@@ -427,42 +424,42 @@ export const IdeShell = () => {
 
   // Subscribe to persisted state changes for auto-persistence (debounced)
   useEffect(() => {
-    let prev = {
-      activeProjectId: useIdeStore.getState().activeProjectId,
-      activeThreadIdByProject: useIdeStore.getState().activeThreadIdByProject,
-      chats: useIdeStore.getState().chats,
-      panelSizes: useIdeStore.getState().panelSizes,
-      panelVisibility: useIdeStore.getState().panelVisibility,
-      projects: useIdeStore.getState().projects,
-      settings: useIdeStore.getState().settings,
-      threadSort: useIdeStore.getState().threadSort,
-      threads: useIdeStore.getState().threads,
-    };
+      let prev = {
+        activeProjectId: useIdeStore.getState().activeProjectId,
+        activeChatIdByProject: useIdeStore.getState().activeChatIdByProject,
+        chats: useIdeStore.getState().chats,
+        messagesByChatId: useIdeStore.getState().messagesByChatId,
+        panelSizes: useIdeStore.getState().panelSizes,
+        panelVisibility: useIdeStore.getState().panelVisibility,
+        projects: useIdeStore.getState().projects,
+        settings: useIdeStore.getState().settings,
+        chatSort: useIdeStore.getState().chatSort,
+      };
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
     const unsub = useIdeStore.subscribe((state) => {
       const next = {
         activeProjectId: state.activeProjectId,
-        activeThreadIdByProject: state.activeThreadIdByProject,
+        activeChatIdByProject: state.activeChatIdByProject,
         chats: state.chats,
+        messagesByChatId: state.messagesByChatId,
         panelSizes: state.panelSizes,
         panelVisibility: state.panelVisibility,
         projects: state.projects,
         settings: state.settings,
-        threadSort: state.threadSort,
-        threads: state.threads,
+        chatSort: state.chatSort,
       };
 
       if (
         next.activeProjectId !== prev.activeProjectId ||
-        next.activeThreadIdByProject !== prev.activeThreadIdByProject ||
+        next.activeChatIdByProject !== prev.activeChatIdByProject ||
         next.chats !== prev.chats ||
+        next.messagesByChatId !== prev.messagesByChatId ||
         next.panelSizes !== prev.panelSizes ||
         next.panelVisibility !== prev.panelVisibility ||
         next.projects !== prev.projects ||
         next.settings !== prev.settings ||
-        next.threadSort !== prev.threadSort ||
-        next.threads !== prev.threads
+        next.chatSort !== prev.chatSort
       ) {
         prev = next;
         if (state.stateHydrated) {
@@ -760,9 +757,9 @@ export const IdeShell = () => {
     // Fix projects whose provider/model is no longer valid
     const effectiveSettings = { ...nextSettings, defaultModel };
     const defaultSelection = getDefaultModelSelection(effectiveSettings);
-    const { projects, threads } = store;
+    const { chats, projects } = store;
     let projectsChanged = false;
-    let threadsChanged = false;
+    let chatsChanged = false;
     const nextProjects = projects.map((project) => {
       let next = project;
 
@@ -807,9 +804,9 @@ export const IdeShell = () => {
       store.setProjects(nextProjects);
     }
 
-    const nextThreads = threads.map((thread) => {
-      let next = thread;
-      const project = nextProjects.find((item) => item.id === thread.projectId);
+    const nextChats = chats.map((chat) => {
+      let next = chat;
+      const project = nextProjects.find((item) => item.id === chat.projectId);
 
       if (!project) {
         return next;
@@ -829,7 +826,7 @@ export const IdeShell = () => {
             ),
           provider: defaultSelection.provider,
         };
-        threadsChanged = true;
+        chatsChanged = true;
       }
 
       const providerModels = getModelsForProvider(
@@ -846,14 +843,14 @@ export const IdeShell = () => {
         next.model !== fallbackModel
       ) {
         next = { ...next, model: fallbackModel };
-        threadsChanged = true;
+        chatsChanged = true;
       }
 
       return next;
     });
 
-    if (threadsChanged) {
-      useIdeStore.setState({ threads: nextThreads });
+    if (chatsChanged) {
+      useIdeStore.setState({ chats: nextChats });
     }
   }, [settings]);
 
@@ -918,20 +915,20 @@ export const IdeShell = () => {
                   style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
                 >
                   {activeProject ? (
-                    mountedThreads.length > 0 ? (
-                      mountedThreads.map((thread) => {
-                        const project = projectsById.get(thread.projectId);
+                    mountedChats.length > 0 ? (
+                      mountedChats.map((chat) => {
+                        const project = projectsById.get(chat.projectId);
                         if (!project) {
                           return null;
                         }
 
                         const isVisible =
-                          thread.id === deferredActiveThreadId &&
-                          thread.projectId === deferredActiveProjectId;
+                          chat.id === deferredActiveChatId &&
+                          chat.projectId === deferredActiveProjectId;
 
                         return (
                           <div
-                            key={thread.id}
+                            key={chat.id}
                             className={
                               isVisible
                                 ? "flex h-full min-h-0 flex-col"
@@ -941,14 +938,14 @@ export const IdeShell = () => {
                             <ChatPanel
                               isActive={isVisible}
                               project={project}
-                              thread={thread}
+                              chat={chat}
                             />
                           </div>
                         );
                       })
                     ) : (
                       <div className="h-full p-3">
-                        <AppShellPlaceholder message="Create a thread to start a separate conversation for this project." />
+                        <AppShellPlaceholder message="Create a chat to start a separate conversation for this project." />
                       </div>
                     )
                   ) : (

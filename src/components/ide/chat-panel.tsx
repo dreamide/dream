@@ -110,9 +110,9 @@ import {
 } from "@/lib/models";
 import type {
   AiProvider,
+  ChatConfig,
   ProjectConfig,
   ReasoningEffort,
-  ThreadConfig,
 } from "@/types/ide";
 import SparkleField from "../ui/sparkle-field";
 import {
@@ -185,10 +185,10 @@ const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
   return null;
 };
 
-const inferThreadTitle = (promptText: string): string => {
+const inferChatTitle = (promptText: string): string => {
   const collapsed = promptText.replace(/\s+/g, " ").trim();
   if (!collapsed) {
-    return "New thread";
+    return "New chat";
   }
 
   return collapsed.slice(0, 60);
@@ -295,20 +295,20 @@ type ToolApprovalResponder = (response: {
   approved: boolean;
 }) => void;
 
-type ThreadMessageProps = {
+type ChatMessageProps = {
   addToolApprovalResponse: ToolApprovalResponder;
   isLastMessage: boolean;
   isStreaming: boolean;
   message: UIMessage;
 };
 
-const ThreadMessage = memo(
+const ChatMessage = memo(
   ({
     addToolApprovalResponse,
     isLastMessage,
     isStreaming,
     message,
-  }: ThreadMessageProps) => {
+  }: ChatMessageProps) => {
     if (message.role === "user") {
       return (
         <Message from="user" style={MESSAGE_RENDER_STYLE}>
@@ -470,37 +470,37 @@ const ThreadMessage = memo(
       </Message>
     );
   },
-  (prev: ThreadMessageProps, next: ThreadMessageProps) =>
+  (prev: ChatMessageProps, next: ChatMessageProps) =>
     prev.message === next.message &&
     prev.isLastMessage === next.isLastMessage &&
     prev.isStreaming === next.isStreaming &&
     prev.addToolApprovalResponse === next.addToolApprovalResponse,
 );
 
-ThreadMessage.displayName = "ThreadMessage";
+ChatMessage.displayName = "ChatMessage";
 
 export const ChatPanel = ({
   isActive,
   project,
-  thread,
+  chat,
 }: {
   isActive: boolean;
   project: ProjectConfig;
-  thread: ThreadConfig;
+  chat: ChatConfig;
 }) => {
   const settings = useIdeStore((s) => s.settings);
-  const threadMessages = useIdeStore(
-    (s) => s.chats[thread.id] ?? EMPTY_MESSAGES,
+  const chatMessages = useIdeStore(
+    (s) => s.messagesByChatId[chat.id] ?? EMPTY_MESSAGES,
   );
   const providerModels = useIdeStore((s) => s.providerModels);
   const claudePermissionMode = useIdeStore((s) => s.claudePermissionMode);
   const setClaudePermissionMode = useIdeStore((s) => s.setClaudePermissionMode);
   const codexPermissionMode = useIdeStore((s) => s.codexPermissionMode);
   const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
-  const setMessagesForThread = useIdeStore((s) => s.setMessagesForThread);
-  const updateThread = useIdeStore((s) => s.updateThread);
-  const closeThread = useIdeStore((s) => s.closeThread);
-  const archiveThread = useIdeStore((s) => s.archiveThread);
+  const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
+  const updateChat = useIdeStore((s) => s.updateChat);
+  const deleteChat = useIdeStore((s) => s.deleteChat);
+  const archiveChat = useIdeStore((s) => s.archiveChat);
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -538,14 +538,13 @@ export const ChatPanel = ({
 
   const selectedModelOption =
     allModelOptions.find(
-      (option) =>
-        option.provider === thread.provider && option.id === thread.model,
+      (option) => option.provider === chat.provider && option.id === chat.model,
     ) ?? allModelOptions[0];
-  const selectedProvider = selectedModelOption?.provider ?? thread.provider;
+  const selectedProvider = selectedModelOption?.provider ?? chat.provider;
   const isProviderInstalled =
     providerModels[selectedProvider]?.installed ?? false;
   const [localError, setLocalError] = useState<string | null>(null);
-  const [threadMenuOpen, setThreadMenuOpen] = useState(false);
+  const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -562,8 +561,8 @@ export const ChatPanel = ({
     addToolApprovalResponse,
     clearError,
   } = useChat({
-    id: `thread:${thread.id}`,
-    messages: threadMessages,
+    id: `chat:${chat.id}`,
+    messages: chatMessages,
     onError: (error) => {
       console.error("[chat error]", error);
 
@@ -594,7 +593,7 @@ export const ChatPanel = ({
         return;
       }
 
-      updateThread(thread.id, (current) => ({
+      updateChat(chat.id, (current) => ({
         ...current,
         remoteConversationId,
         remoteConversationModel:
@@ -605,8 +604,8 @@ export const ChatPanel = ({
   });
 
   useEffect(() => {
-    setMessagesForThread(thread.id, messages);
-  }, [messages, setMessagesForThread, thread.id]);
+    setMessagesForChat(chat.id, messages);
+  }, [chat.id, messages, setMessagesForChat]);
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
   useEffect(() => {
@@ -649,14 +648,14 @@ export const ChatPanel = ({
   const reasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter((option) =>
     availableReasoningEfforts.includes(option.value),
   );
-  const normalizedThreadReasoningEffort = normalizeReasoningEffort(
-    thread.reasoningEffort,
+  const normalizedChatReasoningEffort = normalizeReasoningEffort(
+    chat.reasoningEffort,
   );
   const selectedReasoningEffort =
     availableReasoningEfforts.length === 0
-      ? normalizedThreadReasoningEffort
-      : availableReasoningEfforts.includes(normalizedThreadReasoningEffort)
-        ? normalizedThreadReasoningEffort
+      ? normalizedChatReasoningEffort
+      : availableReasoningEfforts.includes(normalizedChatReasoningEffort)
+        ? normalizedChatReasoningEffort
         : availableReasoningEfforts.includes("medium")
           ? "medium"
           : availableReasoningEfforts[0];
@@ -706,8 +705,7 @@ export const ChatPanel = ({
 
       const activeOption =
         allModelOptions.find(
-          (option) =>
-            option.provider === thread.provider && option.id === thread.model,
+          (option) => option.provider === chat.provider && option.id === chat.model,
         ) ?? allModelOptions[0];
       const activeProvider = activeOption?.provider ?? selectedProvider;
       const activeModel = activeOption?.id ?? "";
@@ -730,15 +728,15 @@ export const ChatPanel = ({
         return;
       }
 
-      if (threadMessages.length === 0) {
-        updateThread(thread.id, (current) => ({
+      if (chatMessages.length === 0) {
+        updateChat(chat.id, (current) => ({
           ...current,
-          title: inferThreadTitle(prompt.text),
+          title: inferChatTitle(prompt.text),
         }));
       }
 
-      const submittedThreadId = thread.id;
-      useIdeStore.getState().setThreadStreaming(submittedThreadId, true);
+      const submittedChatId = chat.id;
+      useIdeStore.getState().setChatStreaming(submittedChatId, true);
       try {
         await sendMessage(
           {
@@ -753,14 +751,14 @@ export const ChatPanel = ({
               projectPath: project.path,
               provider: activeProvider,
               reasoningEffort: selectedReasoningEffort,
-              remoteConversationId: thread.remoteConversationId,
-              remoteConversationModel: thread.remoteConversationModel,
-              threadId: thread.id,
+              remoteConversationId: chat.remoteConversationId,
+              remoteConversationModel: chat.remoteConversationModel,
+              chatId: chat.id,
             },
           },
         );
       } finally {
-        useIdeStore.getState().setThreadStreaming(submittedThreadId, false);
+        useIdeStore.getState().setChatStreaming(submittedChatId, false);
       }
     },
     [
@@ -768,14 +766,14 @@ export const ChatPanel = ({
       claudePermissionMode,
       codexPermissionMode,
       clearError,
-      threadMessages,
+      chatMessages,
       providerModels,
       project.path,
       selectedProvider,
       selectedReasoningEffort,
       sendMessage,
-      thread,
-      updateThread,
+      chat,
+      updateChat,
     ],
   );
 
@@ -787,10 +785,10 @@ export const ChatPanel = ({
     setRenameValue("");
   }, []);
 
-  const handleRenameThread = useCallback(() => {
-    setRenameTarget({ id: thread.id, name: thread.title });
-    setRenameValue(thread.title);
-  }, [thread.id, thread.title]);
+  const handleRenameChat = useCallback(() => {
+    setRenameTarget({ id: chat.id, name: chat.title });
+    setRenameValue(chat.title);
+  }, [chat.id, chat.title]);
 
   const handleRenameSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -801,13 +799,13 @@ export const ChatPanel = ({
         return;
       }
 
-      updateThread(renameTarget.id, (current) => ({
+      updateChat(renameTarget.id, (current) => ({
         ...current,
         title: nextName,
       }));
       closeRenameDialog();
     },
-    [closeRenameDialog, renameTarget, renameValue, updateThread],
+    [closeRenameDialog, renameTarget, renameValue, updateChat],
   );
 
   // Track elapsed thinking time, only shown during lulls (no new data)
@@ -871,7 +869,7 @@ export const ChatPanel = ({
         <div className="shrink-0 px-2 pt-2">
           <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 border-b border-foreground/10 pb-2">
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-sm">{thread.title}</p>
+              <p className="truncate font-medium text-sm">{chat.title}</p>
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
@@ -893,13 +891,13 @@ export const ChatPanel = ({
               </Context>
 
               <DropdownMenu
-                onOpenChange={setThreadMenuOpen}
-                open={threadMenuOpen}
+                onOpenChange={setChatMenuOpen}
+                open={chatMenuOpen}
               >
                 <DropdownMenuTrigger
                   render={
                     <Button
-                      aria-label={`${thread.title} actions`}
+                      aria-label={`${chat.title} actions`}
                       className="h-8 w-8 p-0"
                       size="icon-sm"
                       type="button"
@@ -910,18 +908,18 @@ export const ChatPanel = ({
                   <Ellipsis className="size-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem onClick={handleRenameThread}>
+                  <DropdownMenuItem onClick={handleRenameChat}>
                     <FilePenLine className="size-4" />
                     Rename
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => archiveThread(thread.id)}>
+                  <DropdownMenuItem onClick={() => archiveChat(chat.id)}>
                     <Archive className="size-4" />
                     Archive
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
-                    onClick={() => closeThread(thread.id)}
+                    onClick={() => deleteChat(chat.id)}
                   >
                     <Trash2 className="size-4" />
                     Delete
@@ -950,7 +948,7 @@ export const ChatPanel = ({
               </div>
             ) : (
               messages.map((message, messageIndex) => (
-                <ThreadMessage
+                <ChatMessage
                   addToolApprovalResponse={addToolApprovalResponse}
                   isLastMessage={messageIndex === messages.length - 1}
                   isStreaming={isStreaming}
@@ -1040,11 +1038,11 @@ export const ChatPanel = ({
                     );
                     const nextOption =
                       matchingOptions.find(
-                        (option) => option.provider === thread.provider,
+                        (option) => option.provider === chat.provider,
                       ) ?? matchingOptions[0];
                     if (!nextOption) return;
 
-                    updateThread(thread.id, (current) => ({
+                    updateChat(chat.id, (current) => ({
                       ...current,
                       model: nextOption.id,
                       provider: nextOption.provider,
@@ -1098,7 +1096,7 @@ export const ChatPanel = ({
                 {reasoningEffortOptions.length > 0 && (
                   <Select
                     onValueChange={(value) => {
-                      updateThread(thread.id, (current) => ({
+                      updateChat(chat.id, (current) => ({
                         ...current,
                         reasoningEffort: value as ReasoningEffort,
                       }));
@@ -1197,9 +1195,9 @@ export const ChatPanel = ({
         <DialogContent className="sm:max-w-sm">
           <form className="space-y-4" onSubmit={handleRenameSubmit}>
             <DialogHeader>
-              <DialogTitle>Rename thread</DialogTitle>
+              <DialogTitle>Rename chat</DialogTitle>
               <DialogDescription>
-                Choose a new name for this thread.
+                Choose a new name for this chat.
               </DialogDescription>
             </DialogHeader>
             <Input

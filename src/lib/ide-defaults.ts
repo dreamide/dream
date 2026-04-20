@@ -2,11 +2,11 @@ import { createModelOption, type ModelOption } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
+  ChatConfig,
   PanelSizes,
   PanelVisibility,
   PersistedIdeState,
   ProjectConfig,
-  ThreadConfig,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
@@ -55,14 +55,14 @@ export const DEFAULT_PANEL_SIZES: PanelSizes = {
 
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
-  activeThreadIdByProject: {},
-  chats: {},
+  activeChatIdByProject: {},
+  chats: [],
+  messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
-  threadSort: "recent",
-  threads: [],
+  chatSort: "recent",
 });
 
 export const createProjectConfig = (
@@ -84,12 +84,12 @@ export const createProjectConfig = (
   };
 };
 
-export const createThreadConfig = (
+export const createChatConfig = (
   project: ProjectConfig,
   overrides?: Partial<
-    Pick<ThreadConfig, "model" | "provider" | "reasoningEffort" | "title">
+    Pick<ChatConfig, "model" | "provider" | "reasoningEffort" | "title">
   >,
-): ThreadConfig => {
+): ChatConfig => {
   const timestamp = new Date().toISOString();
 
   return {
@@ -102,7 +102,7 @@ export const createThreadConfig = (
     reasoningEffort: overrides?.reasoningEffort ?? project.reasoningEffort,
     remoteConversationId: null,
     remoteConversationModel: null,
-    title: overrides?.title?.trim() || "New thread",
+    title: overrides?.title?.trim() || "New chat",
     updatedAt: timestamp,
   };
 };

@@ -37,12 +37,12 @@ import {
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { DetectedEditor } from "@/types/ide";
-import { getThreadsForProject } from "./ide-state";
+import { getChatsForProject } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 
 type RenameTarget =
   | { id: string; kind: "project"; name: string }
-  | { id: string; kind: "thread"; name: string };
+  | { id: string; kind: "chat"; name: string };
 
 const useDetectedEditors = () => {
   const [editors, setEditors] = useState<DetectedEditor[]>([]);
@@ -121,7 +121,7 @@ const ProjectActionsMenu = ({
   );
 };
 
-const ThreadActionsMenu = ({
+const ChatActionsMenu = ({
   label,
   onArchive,
   onEdit,
@@ -165,30 +165,29 @@ const ThreadActionsMenu = ({
 
 export const ProjectSidebar = () => {
   const projects = useIdeStore((s) => s.projects);
-  const allThreads = useIdeStore((s) => s.threads);
+  const allChats = useIdeStore((s) => s.chats);
   const activeProject = useIdeStore((s) => s.getActiveProject());
-  const activeThreadIdByProject = useIdeStore((s) => s.activeThreadIdByProject);
-  const addThread = useIdeStore((s) => s.addThread);
-  const setActiveThreadId = useIdeStore((s) => s.setActiveThreadId);
+  const activeChatIdByProject = useIdeStore((s) => s.activeChatIdByProject);
+  const addChat = useIdeStore((s) => s.addChat);
+  const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
-  const updateThread = useIdeStore((s) => s.updateThread);
-  const archiveThread = useIdeStore((s) => s.archiveThread);
-  const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
+  const updateChat = useIdeStore((s) => s.updateChat);
+  const archiveChat = useIdeStore((s) => s.archiveChat);
+  const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const detectedEditors = useDetectedEditors();
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const activeProjectThreads = useMemo(
-    () =>
-      activeProject ? getThreadsForProject(allThreads, activeProject.id) : [],
-    [activeProject, allThreads],
+  const activeProjectChats = useMemo(
+    () => (activeProject ? getChatsForProject(allChats, activeProject.id) : []),
+    [activeProject, allChats],
   );
 
-  const activeThreadId = activeProject
-    ? (activeThreadIdByProject[activeProject.id] ?? null)
+  const activeChatId = activeProject
+    ? (activeChatIdByProject[activeProject.id] ?? null)
     : null;
 
   const openRenameDialog = (target: RenameTarget) => {
@@ -215,7 +214,7 @@ export const ProjectSidebar = () => {
         name: nextName,
       }));
     } else {
-      updateThread(renameTarget.id, (current) => ({
+      updateChat(renameTarget.id, (current) => ({
         ...current,
         title: nextName,
       }));
@@ -246,9 +245,9 @@ export const ProjectSidebar = () => {
                 <TooltipTrigger
                   render={
                     <Button
-                      aria-label="New thread"
-                      className="h-8 w-8 p-0"
-                      onClick={() => addThread(activeProject.id)}
+                       aria-label="New chat"
+                       className="h-8 w-8 p-0"
+                       onClick={() => addChat(activeProject.id)}
                       size="icon-sm"
                       type="button"
                       variant="ghost"
@@ -257,7 +256,7 @@ export const ProjectSidebar = () => {
                 >
                   <MessageSquarePlus className="size-4" />
                 </TooltipTrigger>
-                <TooltipContent>New thread</TooltipContent>
+                <TooltipContent>New chat</TooltipContent>
               </Tooltip>
 
               <ProjectActionsMenu
@@ -298,59 +297,57 @@ export const ProjectSidebar = () => {
               </p>
             ) : !activeProject ? (
               <p className="rounded-md p-3 text-muted-foreground text-xs">
-                Select a project tab to view its threads.
+                Select a project tab to view its chats.
               </p>
             ) : (
-              activeProjectThreads.map((thread) => {
-                const isActiveThread = thread.id === activeThreadId;
-                const threadMenuId = `thread:${thread.id}`;
-                const isThreadMenuOpen = openMenuId === threadMenuId;
-                const isStreaming = !!streamingThreadIds[thread.id];
+              activeProjectChats.map((chat) => {
+                const isActiveChat = chat.id === activeChatId;
+                const chatMenuId = `chat:${chat.id}`;
+                const isChatMenuOpen = openMenuId === chatMenuId;
+                const isStreaming = !!streamingChatIds[chat.id];
 
                 return (
                   <div
                     className={cn(
                       "group relative min-w-0 rounded-md transition-colors",
-                      isActiveThread
+                      isActiveChat
                         ? "border-2 border-border bg-muted/30"
                         : "border-2 border-transparent hover:bg-muted/30",
                     )}
-                    key={thread.id}
+                    key={chat.id}
                   >
                     <button
                       className="w-full rounded-[inherit] px-2 py-1.5 text-left"
-                      onClick={() =>
-                        setActiveThreadId(activeProject.id, thread.id)
-                      }
+                      onClick={() => setActiveChatId(activeProject.id, chat.id)}
                       type="button"
                     >
                       <div className="flex min-w-0 items-center gap-1.5 pr-6">
                         {isStreaming && <Spinner className="size-3 shrink-0" />}
-                        <p className="truncate text-sm">{thread.title}</p>
+                        <p className="truncate text-sm">{chat.title}</p>
                       </div>
                     </button>
                     <div
                       className={cn(
                         "absolute top-1/2 right-1.5 -translate-y-1/2 transition-opacity",
-                        isThreadMenuOpen
+                        isChatMenuOpen
                           ? "opacity-100"
                           : "opacity-0 group-hover:opacity-100",
                       )}
                     >
-                      <ThreadActionsMenu
-                        label={thread.title}
-                        onArchive={() => archiveThread(thread.id)}
+                      <ChatActionsMenu
+                        label={chat.title}
+                        onArchive={() => archiveChat(chat.id)}
                         onEdit={() =>
                           openRenameDialog({
-                            id: thread.id,
-                            kind: "thread",
-                            name: thread.title,
+                            id: chat.id,
+                            kind: "chat",
+                            name: chat.title,
                           })
                         }
                         onOpenChange={(open) =>
-                          setOpenMenuId(open ? threadMenuId : null)
+                          setOpenMenuId(open ? chatMenuId : null)
                         }
-                        open={isThreadMenuOpen}
+                        open={isChatMenuOpen}
                       />
                     </div>
                   </div>
@@ -373,12 +370,12 @@ export const ProjectSidebar = () => {
           <form className="space-y-4" onSubmit={handleRenameSubmit}>
             <DialogHeader>
               <DialogTitle>
-                Rename {renameTarget?.kind === "project" ? "project" : "thread"}
-              </DialogTitle>
-              <DialogDescription>
-                Choose a new name for this{" "}
-                {renameTarget?.kind === "project" ? "project" : "thread"}.
-              </DialogDescription>
+                 Rename {renameTarget?.kind === "project" ? "project" : "chat"}
+               </DialogTitle>
+               <DialogDescription>
+                 Choose a new name for this{" "}
+                 {renameTarget?.kind === "project" ? "project" : "chat"}.
+               </DialogDescription>
             </DialogHeader>
             <Input
               autoFocus

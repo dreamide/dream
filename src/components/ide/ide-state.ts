@@ -9,7 +9,7 @@ import type {
   UIMessage,
 } from "ai";
 import {
-  createThreadConfig,
+  createChatConfig,
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_PROVIDER,
@@ -19,22 +19,22 @@ import {
 } from "@/lib/ide-defaults";
 import type {
   AppSettings,
+  ChatConfig,
   PersistedIdeState,
   ProjectConfig,
-  ThreadConfig,
 } from "@/types/ide";
 import { dedupeModels, normalizeReasoningEffort } from "./ide-types";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
-  activeThreadIdByProject: {},
-  chats: {},
+  activeChatIdByProject: {},
+  chats: [],
+  messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
-  threadSort: "recent",
-  threads: [],
+  chatSort: "recent",
 };
 
 const isUiMessageArray = (value: unknown): value is UIMessage[] => {
@@ -75,62 +75,61 @@ const normalizeProject = (
   };
 };
 
-const normalizeThread = (
-  thread: ThreadConfig,
+const normalizeChat = (
+  chat: ChatConfig,
   projectsById: Map<string, ProjectConfig>,
-): ThreadConfig | null => {
-  const project = projectsById.get(thread.projectId);
+): ChatConfig | null => {
+  const project = projectsById.get(chat.projectId);
   if (!project) {
     return null;
   }
 
-  const title = typeof thread.title === "string" ? thread.title.trim() : "";
+  const title = typeof chat.title === "string" ? chat.title.trim() : "";
   const createdAt =
-    typeof thread.createdAt === "string" && thread.createdAt.trim().length > 0
-      ? thread.createdAt
+    typeof chat.createdAt === "string" && chat.createdAt.trim().length > 0
+      ? chat.createdAt
       : new Date().toISOString();
   const updatedAt =
-    typeof thread.updatedAt === "string" && thread.updatedAt.trim().length > 0
-      ? thread.updatedAt
+    typeof chat.updatedAt === "string" && chat.updatedAt.trim().length > 0
+      ? chat.updatedAt
       : createdAt;
-  const provider = normalizeProvider(thread.provider);
+  const provider = normalizeProvider(chat.provider);
   const model =
-    typeof thread.model === "string"
+    typeof chat.model === "string"
       ? provider === "anthropic"
-        ? normalizeClaudeCodeModelId(thread.model)
-        : thread.model.trim()
+        ? normalizeClaudeCodeModelId(chat.model)
+        : chat.model.trim()
       : project.model;
   const {
     chatMode: _legacyChatMode,
     remoteConversationChatMode: _legacyRemoteConversationChatMode,
-    ...threadWithoutLegacyModeFields
-  } = thread as ThreadConfig & {
+    ...chatWithoutLegacyModeFields
+  } = chat as ChatConfig & {
     chatMode?: unknown;
     remoteConversationChatMode?: unknown;
   };
 
   return {
-    ...threadWithoutLegacyModeFields,
+    ...chatWithoutLegacyModeFields,
     archivedAt:
-      typeof thread.archivedAt === "string" &&
-      thread.archivedAt.trim().length > 0
-        ? thread.archivedAt
+      typeof chat.archivedAt === "string" && chat.archivedAt.trim().length > 0
+        ? chat.archivedAt
         : null,
     createdAt,
     model: model || project.model,
     provider,
-    reasoningEffort: normalizeReasoningEffort(thread.reasoningEffort),
+    reasoningEffort: normalizeReasoningEffort(chat.reasoningEffort),
     remoteConversationId:
-      typeof thread.remoteConversationId === "string" &&
-      thread.remoteConversationId.trim().length > 0
-        ? thread.remoteConversationId
+      typeof chat.remoteConversationId === "string" &&
+      chat.remoteConversationId.trim().length > 0
+        ? chat.remoteConversationId
         : null,
     remoteConversationModel:
-      typeof thread.remoteConversationModel === "string" &&
-      thread.remoteConversationModel.trim().length > 0
-        ? thread.remoteConversationModel
+      typeof chat.remoteConversationModel === "string" &&
+      chat.remoteConversationModel.trim().length > 0
+        ? chat.remoteConversationModel
         : null,
-    title: title || "New thread",
+    title: title || "New chat",
     updatedAt,
   };
 };
@@ -189,61 +188,73 @@ export const mergePersistedState = (
     projects.map((project) => [project.id, project]),
   );
 
-  const rawThreads = Array.isArray(state.threads) ? state.threads : [];
-  const normalizedThreads = rawThreads
-    .map((thread) => normalizeThread(thread, projectsById))
-    .filter((thread): thread is ThreadConfig => thread !== null);
+  const rawChats = Array.isArray(state.chats)
+    ? state.chats
+    : Array.isArray((state as { threads?: unknown[] }).threads)
+      ? ((state as { threads: ChatConfig[] }).threads ?? [])
+      : [];
+  const normalizedChats = rawChats
+    .map((chat) => normalizeChat(chat, projectsById))
+    .filter((chat): chat is ChatConfig => chat !== null);
 
-  const legacyChats =
-    state.chats && typeof state.chats === "object" ? state.chats : {};
-  const chats: Record<string, UIMessage[]> = {};
-  const threads =
-    normalizedThreads.length > 0
-      ? normalizedThreads
-      : projects.map((project) => createThreadConfig(project));
+  const legacyMessagesByChatId =
+    state.messagesByChatId && typeof state.messagesByChatId === "object"
+      ? state.messagesByChatId
+      : state.chats && !Array.isArray(state.chats) && typeof state.chats === "object"
+        ? (state.chats as Record<string, UIMessage[]>)
+        : {};
+  const messagesByChatId: Record<string, UIMessage[]> = {};
+  const chats =
+    normalizedChats.length > 0
+      ? normalizedChats
+      : projects.map((project) => createChatConfig(project));
 
-  for (const thread of threads) {
-    const threadMessages = legacyChats[thread.id];
-    if (isUiMessageArray(threadMessages)) {
-      chats[thread.id] = threadMessages;
+  for (const chat of chats) {
+    const chatMessages = legacyMessagesByChatId[chat.id];
+    if (isUiMessageArray(chatMessages)) {
+      messagesByChatId[chat.id] = chatMessages;
       continue;
     }
 
-    const legacyProjectMessages = legacyChats[thread.projectId];
+    const legacyProjectMessages = legacyMessagesByChatId[chat.projectId];
     if (isUiMessageArray(legacyProjectMessages)) {
-      chats[thread.id] = legacyProjectMessages;
+      messagesByChatId[chat.id] = legacyProjectMessages;
       continue;
     }
 
-    chats[thread.id] = [];
+    messagesByChatId[chat.id] = [];
   }
 
-  const activeThreadIdByProject = projects.reduce<
+  const activeChatIdByProject = projects.reduce<
     Record<string, string | null>
   >((acc, project) => {
-    const projectThreads = threads.filter(
-      (thread) => thread.projectId === project.id,
+    const projectChats = chats.filter(
+      (chat) => chat.projectId === project.id,
     );
-    if (projectThreads.length === 0) {
+    if (projectChats.length === 0) {
       acc[project.id] = null;
       return acc;
     }
 
-    const requestedThreadId =
-      state.activeThreadIdByProject?.[project.id] ?? null;
-    acc[project.id] = projectThreads.some(
-      (thread) => thread.id === requestedThreadId,
+    const requestedChatId =
+      state.activeChatIdByProject?.[project.id] ??
+      (state as { activeThreadIdByProject?: Record<string, string | null> })
+        .activeThreadIdByProject?.[project.id] ??
+      null;
+    acc[project.id] = projectChats.some(
+      (chat) => chat.id === requestedChatId,
     )
-      ? requestedThreadId
-      : (projectThreads[0]?.id ?? null);
+      ? requestedChatId
+      : (projectChats[0]?.id ?? null);
     return acc;
   }, {});
 
   return {
     activeProjectId:
       typeof state.activeProjectId === "string" ? state.activeProjectId : null,
-    activeThreadIdByProject,
+    activeChatIdByProject,
     chats,
+    messagesByChatId,
     panelSizes: {
       leftSidebarWidth: normalizePanelSize(
         state.panelSizes?.leftSidebarWidth,
@@ -268,13 +279,16 @@ export const mergePersistedState = (
     },
     projects,
     settings: mergedSettings,
-    threadSort:
-      state.threadSort === "createdDesc" ||
-      state.threadSort === "createdAsc" ||
-      state.threadSort === "titleAsc"
-        ? state.threadSort
+    chatSort:
+      state.chatSort === "createdDesc" ||
+      state.chatSort === "createdAsc" ||
+      state.chatSort === "titleAsc" ||
+      (state as { threadSort?: string }).threadSort === "createdDesc" ||
+      (state as { threadSort?: string }).threadSort === "createdAsc" ||
+      (state as { threadSort?: string }).threadSort === "titleAsc"
+        ? ((state.chatSort ??
+            (state as { threadSort?: string }).threadSort) as PersistedIdeState["chatSort"])
         : "recent",
-    threads,
   };
 };
 
@@ -292,30 +306,27 @@ export const ensureActiveProject = (
   return projects[0]?.id ?? null;
 };
 
-export const ensureActiveThreadForProject = (
-  threads: ThreadConfig[],
+export const ensureActiveChatForProject = (
+  chats: ChatConfig[],
   projectId: string,
-  activeThreadId: string | null,
+  activeChatId: string | null,
 ) => {
-  const projectThreads = threads.filter(
-    (thread) => thread.projectId === projectId && thread.archivedAt === null,
+  const projectChats = chats.filter(
+    (chat) => chat.projectId === projectId && chat.archivedAt === null,
   );
-  if (
-    activeThreadId &&
-    projectThreads.some((thread) => thread.id === activeThreadId)
-  ) {
-    return activeThreadId;
+  if (activeChatId && projectChats.some((chat) => chat.id === activeChatId)) {
+    return activeChatId;
   }
 
-  return projectThreads[0]?.id ?? null;
+  return projectChats[0]?.id ?? null;
 };
 
-export const getThreadsForProject = (
-  threads: ThreadConfig[],
+export const getChatsForProject = (
+  chats: ChatConfig[],
   projectId: string,
 ) =>
-  threads.filter(
-    (thread) => thread.projectId === projectId && thread.archivedAt === null,
+  chats.filter(
+    (chat) => chat.projectId === projectId && chat.archivedAt === null,
   );
 
 export const renderUserMessageText = (message: UIMessage): string => {

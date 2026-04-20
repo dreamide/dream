@@ -8,8 +8,9 @@ import { DatabaseSync } from "node:sqlite";
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
-  activeThreadIdByProject: {},
-  chats: {},
+  activeChatIdByProject: {},
+  chats: [],
+  messagesByChatId: {},
   panelVisibility: {
     left: true,
     middle: true,
@@ -31,8 +32,7 @@ const DEFAULT_PERSISTED_STATE = {
     openAiSelectedModels: [],
     shellPath: "",
   },
-  threadSort: "recent",
-  threads: [],
+  chatSort: "recent",
 };
 
 const PERSISTED_STATE_KEY = "ide-state";
@@ -195,7 +195,7 @@ const getDefaultImportedModel = (provider, settings) => {
   );
 };
 
-const inferThreadTitle = (titleFromIndex, messages, sessionId) => {
+const inferChatTitle = (titleFromIndex, messages, sessionId) => {
   if (typeof titleFromIndex === "string" && titleFromIndex.trim()) {
     return titleFromIndex.trim();
   }
@@ -311,7 +311,7 @@ const savePersistedState = (userDataDir, state) => {
   database.close();
 };
 
-const importCodexThreadsIntoState = (currentState, codexRoot) => {
+const importCodexChatsIntoState = (currentState, codexRoot) => {
   const sessionIndexPath = path.join(codexRoot, "session_index.jsonl");
   const sessionIndex = new Map();
 
@@ -334,12 +334,14 @@ const importCodexThreadsIntoState = (currentState, codexRoot) => {
 
   const nextState = {
     ...currentState,
-    activeThreadIdByProject: {
-      ...(currentState.activeThreadIdByProject ?? {}),
+    activeChatIdByProject: {
+      ...(currentState.activeChatIdByProject ?? currentState.activeThreadIdByProject ?? {}),
     },
-    chats: { ...(currentState.chats ?? {}) },
+    chats: [...(currentState.chats ?? currentState.threads ?? [])],
+    messagesByChatId: {
+      ...(currentState.messagesByChatId ?? currentState.chats ?? {}),
+    },
     projects: [...(currentState.projects ?? [])],
-    threads: [...(currentState.threads ?? [])],
   };
 
   const projectIdsByPath = new Map(
@@ -353,25 +355,25 @@ const importCodexThreadsIntoState = (currentState, codexRoot) => {
       return pathKey && projectId ? [[pathKey, projectId]] : [];
     }),
   );
-  const threadIds = new Set(
-    nextState.threads.flatMap((thread) =>
-      typeof thread?.id === "string" && thread.id.trim() ? [thread.id] : [],
+  const chatIds = new Set(
+    nextState.chats.flatMap((chat) =>
+      typeof chat?.id === "string" && chat.id.trim() ? [chat.id] : [],
     ),
   );
   const remoteConversationIds = new Set(
-    nextState.threads.flatMap((thread) =>
-      typeof thread?.remoteConversationId === "string" &&
-      thread.remoteConversationId.trim()
-        ? [thread.remoteConversationId]
+    nextState.chats.flatMap((chat) =>
+      typeof chat?.remoteConversationId === "string" &&
+      chat.remoteConversationId.trim()
+        ? [chat.remoteConversationId]
         : [],
     ),
   );
 
   const result = {
     importedMessages: 0,
-    importedThreads: 0,
+    importedChats: 0,
     projectsCreated: 0,
-    skippedThreads: 0,
+    skippedChats: 0,
   };
 
   for (const filePath of sessionFiles) {
@@ -388,13 +390,13 @@ const importCodexThreadsIntoState = (currentState, codexRoot) => {
         : "";
 
     if (!sessionId) {
-      result.skippedThreads += 1;
+      result.skippedChats += 1;
       continue;
     }
 
-    const threadId = `codex-${sessionId}`;
-    if (threadIds.has(threadId) || remoteConversationIds.has(sessionId)) {
-      result.skippedThreads += 1;
+    const chatId = `codex-${sessionId}`;
+    if (chatIds.has(chatId) || remoteConversationIds.has(sessionId)) {
+      result.skippedChats += 1;
       continue;
     }
 
@@ -443,7 +445,7 @@ const importCodexThreadsIntoState = (currentState, codexRoot) => {
     }
 
     if (importedMessages.length === 0) {
-      result.skippedThreads += 1;
+      result.skippedChats += 1;
       continue;
     }
 
@@ -454,7 +456,7 @@ const importCodexThreadsIntoState = (currentState, codexRoot) => {
       nextState.projects.push({
         id: projectId,
         model: getDefaultImportedModel(provider, nextState.settings ?? {}),
-        name: path.basename(cwd) || "Imported Codex Threads",
+        name: path.basename(cwd) || "Imported Codex Chats",
         path: cwd,
         previewUrl: "http://127.0.0.1:3000",
         provider,
@@ -464,8 +466,8 @@ const importCodexThreadsIntoState = (currentState, codexRoot) => {
       if (pathKey) {
         projectIdsByPath.set(pathKey, projectId);
       }
-      if (!(projectId in nextState.activeThreadIdByProject)) {
-        nextState.activeThreadIdByProject[projectId] = null;
+      if (!(projectId in nextState.activeChatIdByProject)) {
+        nextState.activeChatIdByProject[projectId] = null;
       }
       result.projectsCreated += 1;
     }
@@ -478,26 +480,26 @@ const importCodexThreadsIntoState = (currentState, codexRoot) => {
     const updatedAt =
       indexedMeta?.updatedAt || entries.at(-1)?.timestamp || createdAt;
 
-    nextState.threads.unshift({
+    nextState.chats.unshift({
       archivedAt: null,
       createdAt,
-      id: threadId,
+      id: chatId,
       model: getDefaultImportedModel(provider, nextState.settings ?? {}),
       projectId,
       provider,
       reasoningEffort: "medium",
       remoteConversationId: sessionId,
-      title: inferThreadTitle(indexedMeta?.title, importedMessages, sessionId),
+      title: inferChatTitle(indexedMeta?.title, importedMessages, sessionId),
       updatedAt,
     });
-    nextState.chats[threadId] = importedMessages;
-    threadIds.add(threadId);
+    nextState.messagesByChatId[chatId] = importedMessages;
+    chatIds.add(chatId);
     remoteConversationIds.add(sessionId);
     result.importedMessages += importedMessages.length;
-    result.importedThreads += 1;
+    result.importedChats += 1;
 
-    if (!nextState.activeThreadIdByProject[projectId]) {
-      nextState.activeThreadIdByProject[projectId] = threadId;
+    if (!nextState.activeChatIdByProject[projectId]) {
+      nextState.activeChatIdByProject[projectId] = chatId;
     }
   }
 
@@ -508,7 +510,7 @@ const main = () => {
   const options = parseArgs(process.argv.slice(2));
   const userDataDir = resolveUserDataDir(options.userDataDir);
   const state = loadPersistedState(userDataDir);
-  const { nextState, result } = importCodexThreadsIntoState(
+  const { nextState, result } = importCodexChatsIntoState(
     state,
     options.codexDir,
   );
@@ -518,15 +520,15 @@ const main = () => {
 
   if (options.dryRun) {
     console.log("Dry run enabled. No state was written.");
-  } else if (result.importedThreads > 0) {
+  } else if (result.importedChats > 0) {
     savePersistedState(userDataDir, nextState);
   }
 
   console.log(
-    `Imported ${result.importedThreads} thread(s) and ${result.importedMessages} message(s).`,
+    `Imported ${result.importedChats} chat(s) and ${result.importedMessages} message(s).`,
   );
   console.log(
-    `Created ${result.projectsCreated} project(s), skipped ${result.skippedThreads} thread(s).`,
+    `Created ${result.projectsCreated} project(s), skipped ${result.skippedChats} chat(s).`,
   );
 };
 

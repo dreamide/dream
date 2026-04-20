@@ -111,12 +111,12 @@ export const IdeHeader = () => {
   const projectTerminalPanelOpen = useIdeStore(
     (s) => s.projectTerminalPanelOpen,
   );
-  const threads = useIdeStore((s) => s.threads);
-  const streamingThreadIds = useIdeStore((s) => s.streamingThreadIds);
+  const chats = useIdeStore((s) => s.chats);
+  const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const streamingProjectIds = new Set(
-    threads
-      .filter((thread) => streamingThreadIds[thread.id])
-      .map((thread) => thread.projectId),
+    chats
+      .filter((chat) => streamingChatIds[chat.id])
+      .map((chat) => chat.projectId),
   );
 
   const activeProject =
@@ -625,7 +625,7 @@ export const IdeHeader = () => {
             <ToggleButton
               active={panelVisibility.left}
               onClick={() => togglePanel("left")}
-              title="Toggle threads panel"
+              title="Toggle chats panel"
             >
               <PanelLeft className="size-4" />
             </ToggleButton>

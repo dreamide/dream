@@ -679,6 +679,7 @@ const chatRequestBodySchema = z.object({
   remoteConversationId: z.string().nullable().optional(),
   remoteConversationModel: z.string().nullable().optional(),
   reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
+  chatId: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
 });
 
@@ -835,7 +836,7 @@ const searchInProjectFiles = async (projectRoot, query, maxResults) => {
   return matches;
 };
 
-const codexSessionsByThreadId = new Map();
+const codexSessionsByChatId = new Map();
 
 const getCodexSessionId = (value) => {
   if (typeof value !== "string") {
@@ -1309,20 +1310,20 @@ const streamCodexCliResponse = ({
   projectPath,
   reasoningEffort,
   systemPrompt,
-  threadId,
+  chatId,
   remoteConversationId,
   remoteConversationModel,
 }) => {
-  const storedSession = threadId
-    ? (codexSessionsByThreadId.get(threadId) ?? null)
+  const storedSession = chatId
+    ? (codexSessionsByChatId.get(chatId) ?? null)
     : null;
   const persistedSessionId =
     remoteConversationModel === model
       ? getCodexSessionId(remoteConversationId)
       : null;
   const canResumeStoredSession = storedSession?.model === model;
-  if (threadId && storedSession && !canResumeStoredSession) {
-    codexSessionsByThreadId.delete(threadId);
+  if (chatId && storedSession && !canResumeStoredSession) {
+    codexSessionsByChatId.delete(chatId);
   }
   const initialSessionId = canResumeStoredSession
     ? (storedSession?.sessionId ?? null)
@@ -1393,9 +1394,9 @@ const streamCodexCliResponse = ({
           if (
             event.type === "thread.started" &&
             typeof event.thread_id === "string" &&
-            threadId
+            chatId
           ) {
-            codexSessionsByThreadId.set(threadId, {
+            codexSessionsByChatId.set(chatId, {
               model,
               sessionId: event.thread_id,
             });
@@ -1557,8 +1558,8 @@ const streamCodexCliResponse = ({
                   isCodexResumeFailure(detail)
                 ) {
                   resumedRetryAttempted = true;
-                  if (threadId) {
-                    codexSessionsByThreadId.delete(threadId);
+                  if (chatId) {
+                    codexSessionsByChatId.delete(chatId);
                   }
                   runAttempt(null);
                   return;
@@ -1636,8 +1637,10 @@ app.post("/api/chat", async (c) => {
     reasoningEffort,
     remoteConversationId,
     remoteConversationModel,
+    chatId,
     threadId,
   } = parsed.data;
+  const resolvedChatId = chatId ?? threadId;
   const messages = parsed.data.messages;
 
   try {
@@ -1676,7 +1679,7 @@ app.post("/api/chat", async (c) => {
       remoteConversationId,
       remoteConversationModel,
       systemPrompt: SYSTEM_PROMPT,
-      threadId,
+      chatId: resolvedChatId,
     });
   }
 

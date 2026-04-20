@@ -494,10 +494,10 @@ export const SettingsDialog = () => {
                   <div className="space-y-3 rounded-lg p-4">
                     <div className="space-y-1">
                       <p className="font-medium text-sm">
-                        Default model for new threads
+                        Default model for new chats
                       </p>
                       <p className="text-muted-foreground text-sm">
-                        New threads start on this model automatically.
+                        New chats start on this model automatically.
                       </p>
                     </div>
                     <div className="space-y-1.5">

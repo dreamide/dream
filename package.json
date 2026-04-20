@@ -7,7 +7,7 @@
     "dev": "pnpm dev:electron",
     "dev:vite": "vite --host 127.0.0.1 --port 3210 --strictPort",
     "dev:electron": "cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron electron/main.js",
-    "import:codex-threads": "node scripts/import-codex-threads.mjs",
+    "import:codex-chats": "node scripts/import-codex-chats.mjs",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production electron electron/main.js",
     "dist": "pnpm build && electron-builder",
