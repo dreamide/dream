@@ -1,5 +1,5 @@
 import { spawn as spawnProcess } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -15,7 +15,6 @@ import {
   shell,
   WebContentsView,
 } from "electron";
-import Store from "electron-store";
 import { spawn as spawnPty } from "node-pty";
 import sirv from "sirv";
 
@@ -37,10 +36,6 @@ const rendererStartupTimeoutMs = Number(
 const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
 const APP_USER_DATA_PATH = path.join(app.getPath("appData"), APP_NAME);
-const SHARED_ELECTRON_USER_DATA_PATH = path.join(
-  app.getPath("appData"),
-  "Electron",
-);
 
 app.setName(APP_NAME);
 app.setPath("userData", APP_USER_DATA_PATH);
@@ -70,29 +65,11 @@ const DEFAULT_PERSISTED_STATE = {
   chatSort: "recent",
 };
 const PERSISTED_STATE_KEY = "ide-state";
-const LEGACY_STORE_FILENAME = "dream-settings.json";
 const SQLITE_STATE_FILENAME = "dream.sqlite";
-const SHARED_LEGACY_STORE_PATH = path.join(
-  SHARED_ELECTRON_USER_DATA_PATH,
-  LEGACY_STORE_FILENAME,
-);
-const SHARED_SQLITE_STATE_PATH = path.join(
-  SHARED_ELECTRON_USER_DATA_PATH,
-  SQLITE_STATE_FILENAME,
-);
-
-const legacyStore = new Store({
-  defaults: DEFAULT_PERSISTED_STATE,
-  name: "dream-settings",
-});
 let stateDatabase = null;
 
 function cloneDefaultPersistedState() {
   return JSON.parse(JSON.stringify(DEFAULT_PERSISTED_STATE));
-}
-
-function getLegacyStorePath() {
-  return path.join(app.getPath("userData"), LEGACY_STORE_FILENAME);
 }
 
 function getStateDatabase() {
@@ -130,102 +107,6 @@ function getStateDatabase() {
   return database;
 }
 
-function readAppMeta(database, key) {
-  const row = database
-    .prepare("SELECT value FROM app_meta WHERE key = ?")
-    .get(key);
-  return typeof row?.value === "string" ? row.value : null;
-}
-
-function writeAppMeta(database, key, value) {
-  database
-    .prepare(
-      `
-        INSERT INTO app_meta (key, value)
-        VALUES (?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value
-      `,
-    )
-    .run(key, value);
-}
-
-function readLegacyPersistedState() {
-  try {
-    const legacyState = legacyStore.store;
-    if (legacyState && typeof legacyState === "object") {
-      return legacyState;
-    }
-  } catch {
-    // ignore legacy read failures
-  }
-
-  return cloneDefaultPersistedState();
-}
-
-function readPersistedStateFromFile(filePath) {
-  try {
-    if (!existsSync(filePath)) {
-      return null;
-    }
-
-    const rawState = readFileSync(filePath, "utf8");
-    if (!rawState.trim()) {
-      return null;
-    }
-
-    const parsed = JSON.parse(rawState);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function readPersistedStateFromDatabaseFile(databasePath) {
-  try {
-    if (!existsSync(databasePath)) {
-      return null;
-    }
-
-    const database = new DatabaseSync(databasePath);
-    const row = database
-      .prepare("SELECT value FROM app_state WHERE key = ?")
-      .get(PERSISTED_STATE_KEY);
-    database.close?.();
-
-    if (typeof row?.value !== "string" || !row.value.trim()) {
-      return null;
-    }
-
-    const parsed = JSON.parse(row.value);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function loadSharedElectronPersistedState() {
-  if (APP_USER_DATA_PATH === SHARED_ELECTRON_USER_DATA_PATH) {
-    return null;
-  }
-
-  return (
-    readPersistedStateFromDatabaseFile(SHARED_SQLITE_STATE_PATH) ??
-    readPersistedStateFromFile(SHARED_LEGACY_STORE_PATH)
-  );
-}
-
-function getLegacyStoreUpdatedAt() {
-  try {
-    const legacyStorePath = getLegacyStorePath();
-    if (!existsSync(legacyStorePath)) {
-      return null;
-    }
-
-    return statSync(legacyStorePath).mtime.toISOString();
-  } catch {
-    return null;
-  }
-}
 
 function savePersistedState(state) {
   if (!state || typeof state !== "object") {
@@ -247,55 +128,24 @@ function savePersistedState(state) {
   return true;
 }
 
-function syncLegacyPersistedState(database) {
-  const legacyState = readLegacyPersistedState();
-  savePersistedState(legacyState);
-  writeAppMeta(
-    database,
-    "legacy_store_synced_at",
-    getLegacyStoreUpdatedAt() ?? new Date().toISOString(),
-  );
-  return legacyState;
-}
-
 function loadPersistedState() {
   const database = getStateDatabase();
   const row = database
     .prepare("SELECT value FROM app_state WHERE key = ?")
     .get(PERSISTED_STATE_KEY);
-  const legacyStoreUpdatedAt = getLegacyStoreUpdatedAt();
-  const legacyStoreSyncedAt = readAppMeta(database, "legacy_store_synced_at");
 
   if (typeof row?.value === "string" && row.value.trim()) {
     try {
       const persistedState = JSON.parse(row.value);
       if (persistedState && typeof persistedState === "object") {
-        if (
-          legacyStoreUpdatedAt &&
-          (!legacyStoreSyncedAt || legacyStoreUpdatedAt > legacyStoreSyncedAt)
-        ) {
-          return syncLegacyPersistedState(database);
-        }
-
         return persistedState;
       }
     } catch {
-      // ignore invalid sqlite payloads and fall through to migration
+      // ignore invalid sqlite payloads and fall through to defaults
     }
   }
 
-  const sharedPersistedState = loadSharedElectronPersistedState();
-  if (sharedPersistedState) {
-    savePersistedState(sharedPersistedState);
-    writeAppMeta(
-      database,
-      "shared_electron_migrated_at",
-      new Date().toISOString(),
-    );
-    return sharedPersistedState;
-  }
-
-  return syncLegacyPersistedState(database);
+  return cloneDefaultPersistedState();
 }
 
 let mainWindow = null;

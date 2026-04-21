@@ -423,12 +423,14 @@ export const IdeHeader = () => {
 
         <div className="min-w-0 flex-1 pb-0.5 [-webkit-app-region:drag]">
           {appReady ? (
-            <div className="flex items-end [-webkit-app-region:drag]">
+            <div
+              className="inline-flex max-w-full items-end gap-1 [-webkit-app-region:drag]"
+              ref={projectTabsScrollRef}
+            >
               <div
-                className="min-w-0 w-fit max-w-full overflow-x-auto pb-px [-webkit-app-region:no-drag]"
-                ref={projectTabsScrollRef}
+                className="min-w-0 overflow-hidden pb-px [-webkit-app-region:no-drag]"
               >
-                <div className="flex min-w-max items-end gap-1 pr-1 [-webkit-app-region:no-drag]">
+                <div className="flex min-w-0 items-end gap-1 [-webkit-app-region:no-drag]">
                   {projects.map((project, projectIndex) => {
                     const isActive = project.id === activeProjectId;
                     const isDragging =
@@ -590,26 +592,26 @@ export const IdeHeader = () => {
                       </div>
                     );
                   })}
-
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          aria-label="Add project"
-                          className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                          onClick={() => void handleAddProject()}
-                          ref={addProjectButtonRef}
-                          size="icon-sm"
-                          variant="ghost"
-                        />
-                      }
-                    >
-                      <Plus className="size-4 shrink-0" />
-                    </TooltipTrigger>
-                    <TooltipContent>Add project</TooltipContent>
-                  </Tooltip>
                 </div>
               </div>
+
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      aria-label="Add project"
+                      className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                      onClick={() => void handleAddProject()}
+                      ref={addProjectButtonRef}
+                      size="icon-sm"
+                      variant="ghost"
+                    />
+                  }
+                >
+                  <Plus className="size-4 shrink-0" />
+                </TooltipTrigger>
+                <TooltipContent>Add project</TooltipContent>
+              </Tooltip>
             </div>
           ) : (
             <div className="pointer-events-none flex h-full items-center justify-center pb-2 [-webkit-app-region:drag]">
