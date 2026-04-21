@@ -2,6 +2,7 @@ import {
   Ellipsis,
   ExternalLink,
   FilePenLine,
+  MessageSquarePlus,
   Minus,
   PanelLeft,
   PanelRight,
@@ -98,6 +99,7 @@ export const IdeHeader = () => {
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const togglePanel = useIdeStore((s) => s.togglePanel);
+  const addChat = useIdeStore((s) => s.addChat);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
@@ -169,6 +171,14 @@ export const IdeHeader = () => {
 
     void openProjectTerminal(activeProject.id);
   }, [activeProject, openProjectTerminal]);
+
+  const handleAddChat = useCallback(() => {
+    if (!activeProject) {
+      return;
+    }
+
+    addChat(activeProject.id);
+  }, [activeProject, addChat]);
 
   useEffect(() => {
     const api = getDesktopApi();
@@ -622,8 +632,18 @@ export const IdeHeader = () => {
           )}
         </div>
 
-        {appReady ? (
-          <div className="flex items-center gap-1 pb-1 [-webkit-app-region:no-drag]">
+        {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
+      </div>
+
+      {appReady ? (
+        <div className="flex items-center gap-2 px-3 pb-1 [-webkit-app-region:drag]">
+          <div
+            className={cn(
+              "shrink-0 [-webkit-app-region:drag]",
+              isMacOs ? "w-24" : "w-0",
+            )}
+          />
+          <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
             <ToggleButton
               active={panelVisibility.left}
               onClick={() => togglePanel("left")}
@@ -631,6 +651,26 @@ export const IdeHeader = () => {
             >
               <PanelLeft className="size-4" />
             </ToggleButton>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label="New chat"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                    disabled={!activeProject}
+                    onClick={handleAddChat}
+                    size="icon-sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                <MessageSquarePlus className="size-4 shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent>New chat</TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="min-w-0 flex-1" />
+          <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -679,10 +719,8 @@ export const IdeHeader = () => {
               <TooltipContent>Settings</TooltipContent>
             </Tooltip>
           </div>
-        ) : null}
-
-        {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
-      </div>
+        </div>
+      ) : null}
 
       <Dialog
         onOpenChange={(open) => {
