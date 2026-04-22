@@ -98,6 +98,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Sparkles from "@/components/ui/sparkles";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
@@ -114,7 +115,6 @@ import type {
   ProjectConfig,
   ReasoningEffort,
 } from "@/types/ide";
-import SparkleField from "../ui/sparkle-field";
 import {
   AgentChip,
   AssistantMessagePart,
@@ -713,7 +713,8 @@ export const ChatPanel = ({
 
       const activeOption =
         allModelOptions.find(
-          (option) => option.provider === chat.provider && option.id === chat.model,
+          (option) =>
+            option.provider === chat.provider && option.id === chat.model,
         ) ?? allModelOptions[0];
       const activeProvider = activeOption?.provider ?? selectedProvider;
       const activeModel = activeOption?.id ?? "";
@@ -899,10 +900,7 @@ export const ChatPanel = ({
                 </ContextContent>
               </Context>
 
-              <DropdownMenu
-                onOpenChange={setChatMenuOpen}
-                open={chatMenuOpen}
-              >
+              <DropdownMenu onOpenChange={setChatMenuOpen} open={chatMenuOpen}>
                 <DropdownMenuTrigger
                   render={
                     <Button
@@ -946,7 +944,7 @@ export const ChatPanel = ({
         >
           <ConversationContent
             id={conversationContentDomId}
-            className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-4"
+            className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-10"
           >
             {messages.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4">
@@ -998,198 +996,206 @@ export const ChatPanel = ({
         ) : null}
 
         <div id={promptDomId} className="shrink-0 px-2 pb-2">
-          <div className="relative mx-auto w-full max-w-[700px]">
-            {isProcessing && (
-              <SparkleField height="20px" density="normal" palette="cyan" />
-            )}
-            <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
-              {/* ── Prompt Input ──────────────────────────────────────── */}
-              <PromptInput
-                id={promptInputDomId}
-                className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
-                onSubmit={handleSubmit}
-              >
-                <PromptInputBody>
-                  <PromptAttachments />
-                  <PromptInputTextarea
-                    className="min-h-[80px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
-                    placeholder="Ask anything..."
-                  />
-                </PromptInputBody>
-                <PromptInputFooter className="items-center">
-                  <PromptInputTools>
-                    <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger tooltip="Attach file" />
-                      <PromptInputActionMenuContent>
-                        <PromptInputActionAddAttachments />
-                      </PromptInputActionMenuContent>
-                    </PromptInputActionMenu>
-                  </PromptInputTools>
-                  <div className="ml-auto flex items-center gap-2">
-                    <PromptInputSubmit
-                      className="size-8 rounded-md"
-                      disabled={!isProviderInstalled || selectedModel === ""}
-                      onStop={stop}
-                      status={status}
-                    />
-                  </div>
-                </PromptInputFooter>
-              </PromptInput>
-
-              {/* ── Options Row ───────────────────────────────────────── */}
-              <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
-                {/* Model selector */}
-                <Select
-                  onValueChange={(value) => {
-                    if (typeof value !== "string") return;
-                    const matchingOptions = allModelOptions.filter(
-                      (option) => option.id === value,
-                    );
-                    const nextOption =
-                      matchingOptions.find(
-                        (option) => option.provider === chat.provider,
-                      ) ?? matchingOptions[0];
-                    if (!nextOption) return;
-
-                    updateChat(chat.id, (current) => ({
-                      ...current,
-                      model: nextOption.id,
-                      provider: nextOption.provider,
-                      remoteConversationId: null,
-                      remoteConversationModel: null,
-                      remoteConversationProjectPath: null,
-                    }));
-                  }}
-                  value={selectedModelValue}
+          <div className="mx-auto w-full max-w-[700px]">
+            <Sparkles
+              density={70}
+              disabled={!isProcessing}
+              height={50}
+              sway={0}
+              speed={2}
+              palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}
+            >
+              <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
+                {/* ── Prompt Input ──────────────────────────────────────── */}
+                <PromptInput
+                  id={promptInputDomId}
+                  className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
+                  onSubmit={handleSubmit}
                 >
-                  <SelectTrigger
-                    className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                    disabled={allModelOptions.length === 0}
+                  <PromptInputBody>
+                    <PromptAttachments />
+                    <PromptInputTextarea
+                      className="min-h-[80px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                      placeholder="Ask anything..."
+                    />
+                  </PromptInputBody>
+                  <PromptInputFooter className="items-center">
+                    <PromptInputTools>
+                      <PromptInputActionMenu>
+                        <PromptInputActionMenuTrigger tooltip="Attach file" />
+                        <PromptInputActionMenuContent>
+                          <PromptInputActionAddAttachments />
+                        </PromptInputActionMenuContent>
+                      </PromptInputActionMenu>
+                    </PromptInputTools>
+                    <div className="ml-auto flex items-center gap-2">
+                      <PromptInputSubmit
+                        className="size-8 rounded-md"
+                        disabled={!isProviderInstalled || selectedModel === ""}
+                        onStop={stop}
+                        status={status}
+                      />
+                    </div>
+                  </PromptInputFooter>
+                </PromptInput>
+
+                {/* ── Options Row ───────────────────────────────────────── */}
+                <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
+                  {/* Model selector */}
+                  <Select
+                    onValueChange={(value) => {
+                      if (typeof value !== "string") return;
+                      const matchingOptions = allModelOptions.filter(
+                        (option) => option.id === value,
+                      );
+                      const nextOption =
+                        matchingOptions.find(
+                          (option) => option.provider === chat.provider,
+                        ) ?? matchingOptions[0];
+                      if (!nextOption) return;
+
+                      updateChat(chat.id, (current) => ({
+                        ...current,
+                        model: nextOption.id,
+                        provider: nextOption.provider,
+                        remoteConversationId: null,
+                        remoteConversationModel: null,
+                        remoteConversationProjectPath: null,
+                      }));
+                    }}
+                    value={selectedModelValue}
                   >
-                    <SelectValue placeholder="Model">
-                      <span className="flex items-center gap-1.5">
-                        <ProviderIcon
-                          className="size-3.5 shrink-0 text-muted-foreground/70"
-                          provider={selectedProvider}
-                        />
-                        <span className="truncate">{selectedModelLabel}</span>
-                      </span>
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent
-                    alignItemWithTrigger={false}
-                    className="text-xs"
-                    side="top"
-                  >
-                    {groupedModelOptions.map((group) => (
-                      <SelectGroup key={group.provider}>
-                        {groupedModelOptions.length > 1 && (
-                          <SelectLabel className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
-                            {group.label}
-                          </SelectLabel>
-                        )}
-                        {group.models.map((option) => (
+                    <SelectTrigger
+                      className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                      disabled={allModelOptions.length === 0}
+                    >
+                      <SelectValue placeholder="Model">
+                        <span className="flex items-center gap-1.5">
+                          <ProviderIcon
+                            className="size-3.5 shrink-0 text-muted-foreground/70"
+                            provider={selectedProvider}
+                          />
+                          <span className="truncate">{selectedModelLabel}</span>
+                        </span>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent
+                      alignItemWithTrigger={false}
+                      className="text-xs"
+                      side="top"
+                    >
+                      {groupedModelOptions.map((group) => (
+                        <SelectGroup key={group.provider}>
+                          {groupedModelOptions.length > 1 && (
+                            <SelectLabel className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
+                              {group.label}
+                            </SelectLabel>
+                          )}
+                          {group.models.map((option) => (
+                            <SelectItem
+                              className="text-xs"
+                              key={`${option.provider}:${option.id}`}
+                              value={option.id}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Reasoning effort selector */}
+                  {reasoningEffortOptions.length > 0 && (
+                    <Select
+                      onValueChange={(value) => {
+                        updateChat(chat.id, (current) => ({
+                          ...current,
+                          reasoningEffort: value as ReasoningEffort,
+                        }));
+                      }}
+                      value={selectedReasoningEffort}
+                    >
+                      <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                        <span className="truncate">
+                          {selectedReasoningLabel}
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent className="text-xs" side="top">
+                        {reasoningEffortOptions.map((option) => (
                           <SelectItem
                             className="text-xs"
-                            key={`${option.provider}:${option.id}`}
-                            value={option.id}
+                            key={option.value}
+                            value={option.value}
                           >
                             {option.label}
                           </SelectItem>
                         ))}
-                      </SelectGroup>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </SelectContent>
+                    </Select>
+                  )}
 
-                {/* Reasoning effort selector */}
-                {reasoningEffortOptions.length > 0 && (
-                  <Select
-                    onValueChange={(value) => {
-                      updateChat(chat.id, (current) => ({
-                        ...current,
-                        reasoningEffort: value as ReasoningEffort,
-                      }));
-                    }}
-                    value={selectedReasoningEffort}
-                  >
-                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                      <span className="truncate">{selectedReasoningLabel}</span>
-                    </SelectTrigger>
-                    <SelectContent className="text-xs" side="top">
-                      {reasoningEffortOptions.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                  {selectedProvider === "openai" ? (
+                    <Select
+                      onValueChange={(value) => {
+                        setCodexPermissionMode(value as CodexPermissionMode);
+                      }}
+                      value={codexPermissionMode}
+                    >
+                      <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                        <Shield className="size-3.5 shrink-0" />
+                        <span className="truncate">
+                          {getCodexPermissionModeLabel(codexPermissionMode)}
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent className="text-xs" side="top">
+                        {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
+                          <SelectItem
+                            className="text-xs"
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : selectedProvider === "anthropic" ? (
+                    <Select
+                      onValueChange={(value) => {
+                        setClaudePermissionMode(value as ClaudePermissionMode);
+                      }}
+                      value={claudePermissionMode}
+                    >
+                      <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                        <Shield className="size-3.5 shrink-0" />
+                        <span className="truncate">
+                          {getClaudePermissionModeLabel(claudePermissionMode)}
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent className="text-xs" side="top">
+                        {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
+                          <SelectItem
+                            className="text-xs"
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : null}
 
-                {selectedProvider === "openai" ? (
-                  <Select
-                    onValueChange={(value) => {
-                      setCodexPermissionMode(value as CodexPermissionMode);
-                    }}
-                    value={codexPermissionMode}
-                  >
-                    <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                      <Shield className="size-3.5 shrink-0" />
-                      <span className="truncate">
-                        {getCodexPermissionModeLabel(codexPermissionMode)}
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent className="text-xs" side="top">
-                      {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : selectedProvider === "anthropic" ? (
-                  <Select
-                    onValueChange={(value) => {
-                      setClaudePermissionMode(value as ClaudePermissionMode);
-                    }}
-                    value={claudePermissionMode}
-                  >
-                    <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                      <Shield className="size-3.5 shrink-0" />
-                      <span className="truncate">
-                        {getClaudePermissionModeLabel(claudePermissionMode)}
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent className="text-xs" side="top">
-                      {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-
-                <div className="ml-auto flex items-center gap-1">
-                  <BranchSwitcher
-                    projectId={project.id}
-                    projectPath={project.path}
-                  />
+                  <div className="ml-auto flex items-center gap-1">
+                    <BranchSwitcher
+                      projectId={project.id}
+                      projectPath={project.path}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            </Sparkles>
           </div>
         </div>
       </div>

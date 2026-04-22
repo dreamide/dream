@@ -42,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import SparkleField from "@/components/ui/sparkle-field";
+import Sparkles from "@/components/ui/sparkles";
 import {
   Tooltip,
   TooltipContent,
@@ -464,7 +464,7 @@ export const IdeHeader = () => {
     <header
       id="app-titlebar"
       className={cn(
-        "flex shrink-0 flex-col bg-background/95 text-foreground backdrop-blur-sm [-webkit-app-region:drag]",
+        "flex shrink-0 flex-col bg-muted/70 text-foreground backdrop-blur-sm [-webkit-app-region:drag]",
         isMacOs ? "pr-3" : "pr-0",
       )}
     >
@@ -486,20 +486,74 @@ export const IdeHeader = () => {
                 <div className="flex min-w-0 items-end gap-1 [-webkit-app-region:no-drag]">
                   {projects.map((project, projectIndex) => {
                     const isActive = project.id === activeProjectId;
+                    const nextProject = projects[projectIndex + 1] ?? null;
                     const isDragging =
                       project.id === dragProject?.projectId &&
                       dragProject.moved;
                     const isProjectMenuOpen = openProjectMenuId === project.id;
+                    const isStreaming = streamingProjectIds.has(project.id);
                     const showCompletedDot =
                       completedProjectIds[project.id] && !isActive;
+                    const showTrailingSplitter =
+                      !isActive &&
+                      nextProject !== null &&
+                      nextProject.id !== activeProjectId;
                     const tabOffset = getProjectTabOffset(
                       project.id,
                       projectIndex,
                     );
+                    const projectTabButton = (
+                      <button
+                        className={cn(
+                          "flex h-8 w-full select-none items-center gap-2 rounded-lg border px-3 pr-8 text-sm opacity-100 transition-[colors,box-shadow]",
+                          isActive
+                            ? "border-border bg-background text-foreground shadow-sm"
+                            : "border-transparent bg-muted/55 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                          isDragging && "shadow-md",
+                        )}
+                        onClick={() => {
+                          if (suppressProjectClickRef.current === project.id) {
+                            suppressProjectClickRef.current = null;
+                            return;
+                          }
+
+                          setActiveProjectId(project.id);
+                        }}
+                        onPointerCancel={(event) =>
+                          handleProjectPointerCancel(event, project.id)
+                        }
+                        onPointerDown={(event) =>
+                          handleProjectPointerDown(
+                            event,
+                            project.id,
+                            projectIndex,
+                          )
+                        }
+                        onPointerMove={(event) =>
+                          handleProjectPointerMove(event, project.id)
+                        }
+                        onPointerUp={(event) =>
+                          handleProjectPointerUp(event, project.id)
+                        }
+                        draggable={false}
+                        onDragStart={(event) => {
+                          event.preventDefault();
+                        }}
+                        type="button"
+                      >
+                        {showCompletedDot ? (
+                          <span
+                            aria-hidden="true"
+                            className="size-2 shrink-0 rounded-full bg-green-500"
+                          />
+                        ) : null}
+                        <span className="truncate">{project.name}</span>
+                      </button>
+                    );
 
                     return (
                       <div
-                        className="group relative shrink-0 overflow-hidden transition-transform duration-150 ease-out"
+                        className="group relative shrink-0 overflow-visible transition-transform duration-150 ease-out"
                         key={project.id}
                         style={{
                           transform: `translateX(${tabOffset}px)`,
@@ -507,64 +561,27 @@ export const IdeHeader = () => {
                           zIndex: isDragging ? 10 : 0,
                         }}
                       >
-                        {streamingProjectIds.has(project.id) && (
-                          <SparkleField
-                            density="low"
-                            height="20px"
-                            palette="cyan"
-                            showGlow={false}
-                            showRunes={false}
-                            style={{ top: "50%", bottom: "auto" }}
-                          />
-                        )}
-                        <button
-                          className={cn(
-                            "flex h-8 w-full select-none items-center gap-2 rounded-lg border px-3 pr-8 text-sm opacity-100 transition-[colors,box-shadow]",
-                            isActive
-                              ? "border-border bg-background text-foreground shadow-sm"
-                              : "border-transparent bg-muted/55 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
-                            isDragging && "shadow-md",
-                          )}
-                          onClick={() => {
-                            if (
-                              suppressProjectClickRef.current === project.id
-                            ) {
-                              suppressProjectClickRef.current = null;
-                              return;
-                            }
-
-                            setActiveProjectId(project.id);
-                          }}
-                          onPointerCancel={(event) =>
-                            handleProjectPointerCancel(event, project.id)
-                          }
-                          onPointerDown={(event) =>
-                            handleProjectPointerDown(
-                              event,
-                              project.id,
-                              projectIndex,
-                            )
-                          }
-                          onPointerMove={(event) =>
-                            handleProjectPointerMove(event, project.id)
-                          }
-                          onPointerUp={(event) =>
-                            handleProjectPointerUp(event, project.id)
-                          }
-                          draggable={false}
-                          onDragStart={(event) => {
-                            event.preventDefault();
-                          }}
-                          type="button"
+                        <Sparkles
+                          className="w-full overflow-hidden"
+                          density={38}
+                          disabled={!!isStreaming}
+                          groundGlow={false}
+                          height={10}
+                          sway={0}
+                          speed={3}
+                          sizeMul={0.25}
+                          palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}
+                          style={{ position: "relative" }}
+                          position="bottom"
                         >
-                          {showCompletedDot ? (
-                            <span
-                              aria-hidden="true"
-                              className="size-2 shrink-0 rounded-full bg-green-500"
-                            />
-                          ) : null}
-                          <span className="truncate">{project.name}</span>
-                        </button>
+                          {projectTabButton}
+                        </Sparkles>
+                        {showTrailingSplitter ? (
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute top-1/2 right-[-2.5px] h-4 w-px -translate-y-1/2 bg-foreground/20"
+                          />
+                        ) : null}
                         <div
                           className={cn(
                             "absolute top-1/2 right-0.5 -translate-y-1/2 transition-opacity",
