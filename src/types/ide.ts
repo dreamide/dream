@@ -22,6 +22,7 @@ export interface ChatConfig {
   archivedAt: string | null;
   remoteConversationId: string | null;
   remoteConversationModel: string | null;
+  remoteConversationProjectPath: string | null;
 }
 
 export interface ProjectConfig {

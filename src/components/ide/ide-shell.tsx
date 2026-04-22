@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -76,10 +75,8 @@ export const IdeShell = () => {
     () => new Map(projects.map((project) => [project.id, project])),
     [projects],
   );
-  // Defer the active chat ID so the sidebar highlights immediately while
-  // the expensive chat panel re-render happens as a low-priority transition.
-  const deferredActiveChatId = useDeferredValue(activeChat?.id ?? null);
-  const deferredActiveProjectId = useDeferredValue(activeProject?.id ?? null);
+  const activeChatId = activeChat?.id ?? null;
+  const activeProjectId = activeProject?.id ?? null;
   const activePreviewTab =
     activeProject?.id != null
       ? ((previewTabsByProject[activeProject.id] ?? []).find(
@@ -93,33 +90,15 @@ export const IdeShell = () => {
         null)
       : null;
 
-  // Track the last N visited chats so they stay mounted for instant switching.
-  const recentChatIdsRef = useRef<string[]>([]);
-  const recentChatIds = useMemo(() => {
-    if (!deferredActiveChatId || recentChatIdsRef.current[0] === deferredActiveChatId) {
-      return recentChatIdsRef.current;
-    }
-
-    const next = [
-      deferredActiveChatId,
-      ...recentChatIdsRef.current.filter(
-        (id) => id !== deferredActiveChatId,
-      ),
-    ].slice(0, 10);
-    recentChatIdsRef.current = next;
-    return next;
-  }, [deferredActiveChatId]);
-
   const mountedChats = useMemo(() => {
     const mountedChatIds = new Set<string>();
     const nextChats = [] as typeof chats;
 
-    // Mount recently visited chats (capped at 10).
-    for (const id of recentChatIds) {
-      const chat = chats.find((c) => c.id === id);
-      if (chat && !mountedChatIds.has(chat.id)) {
-        mountedChatIds.add(chat.id);
-        nextChats.push(chat);
+    if (activeChatId) {
+      const activeMountedChat = chats.find((chat) => chat.id === activeChatId);
+      if (activeMountedChat) {
+        mountedChatIds.add(activeMountedChat.id);
+        nextChats.push(activeMountedChat);
       }
     }
 
@@ -134,7 +113,7 @@ export const IdeShell = () => {
     }
 
     return nextChats;
-  }, [chats, recentChatIds, streamingChatIds]);
+  }, [activeChatId, chats, streamingChatIds]);
   const modalPreviewHidden = useModalPreviewHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
@@ -923,11 +902,13 @@ export const IdeShell = () => {
                         }
 
                         const isVisible =
-                          chat.id === deferredActiveChatId &&
-                          chat.projectId === deferredActiveProjectId;
+                          chat.id === activeChatId &&
+                          chat.projectId === activeProjectId;
 
                         return (
                           <div
+                            aria-hidden={!isVisible}
+                            inert={!isVisible}
                             key={chat.id}
                             className={
                               isVisible

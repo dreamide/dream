@@ -489,6 +489,8 @@ const importCodexChatsIntoState = (currentState, codexRoot) => {
       provider,
       reasoningEffort: "medium",
       remoteConversationId: sessionId,
+      remoteConversationModel: null,
+      remoteConversationProjectPath: cwd,
       title: inferChatTitle(indexedMeta?.title, importedMessages, sessionId),
       updatedAt,
     });

@@ -129,6 +129,11 @@ const normalizeChat = (
       chat.remoteConversationModel.trim().length > 0
         ? chat.remoteConversationModel
         : null,
+    remoteConversationProjectPath:
+      typeof chat.remoteConversationProjectPath === "string" &&
+      chat.remoteConversationProjectPath.trim().length > 0
+        ? chat.remoteConversationProjectPath
+        : null,
     title: title || "New chat",
     updatedAt,
   };

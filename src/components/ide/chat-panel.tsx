@@ -154,6 +154,7 @@ const PROVIDER_LABELS: Record<AiProvider, string> = {
 type ChatMessageMetadata = {
   remoteConversationId?: string;
   remoteConversationModel?: string;
+  remoteConversationProjectPath?: string;
 };
 
 const MESSAGE_RENDER_STYLE = {
@@ -488,6 +489,11 @@ export const ChatPanel = ({
   project: ProjectConfig;
   chat: ChatConfig;
 }) => {
+  const panelDomId = `chat-panel-${chat.id}`;
+  const conversationDomId = `chat-conversation-${chat.id}`;
+  const conversationContentDomId = `chat-conversation-content-${chat.id}`;
+  const promptDomId = `chat-prompt-${chat.id}`;
+  const promptInputDomId = `chat-prompt-input-${chat.id}`;
   const settings = useIdeStore((s) => s.settings);
   const chatMessages = useIdeStore(
     (s) => s.messagesByChatId[chat.id] ?? EMPTY_MESSAGES,
@@ -598,6 +604,8 @@ export const ChatPanel = ({
         remoteConversationId,
         remoteConversationModel:
           metadata?.remoteConversationModel ?? current.model,
+        remoteConversationProjectPath:
+          metadata?.remoteConversationProjectPath ?? project.path,
       }));
     },
     transport,
@@ -753,6 +761,7 @@ export const ChatPanel = ({
               reasoningEffort: selectedReasoningEffort,
               remoteConversationId: chat.remoteConversationId,
               remoteConversationModel: chat.remoteConversationModel,
+              remoteConversationProjectPath: chat.remoteConversationProjectPath,
               chatId: chat.id,
             },
           },
@@ -865,7 +874,7 @@ export const ChatPanel = ({
 
   return (
     <>
-      <div id="chat-panel" className="flex h-full min-h-0 flex-col">
+      <div id={panelDomId} className="flex h-full min-h-0 flex-col">
         <div className="shrink-0 px-2 pt-2">
           <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 border-b border-foreground/10 pb-2">
             <div className="min-w-0 flex-1">
@@ -931,12 +940,12 @@ export const ChatPanel = ({
         </div>
 
         <Conversation
-          id="chat-conversation"
+          id={conversationDomId}
           className="min-h-0 flex-1"
           initial={false}
         >
           <ConversationContent
-            id="chat-conversation-content"
+            id={conversationContentDomId}
             className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-4"
           >
             {messages.length === 0 ? (
@@ -988,7 +997,7 @@ export const ChatPanel = ({
           </div>
         ) : null}
 
-        <div id="chat-prompt" className="shrink-0 px-2 pb-2">
+        <div id={promptDomId} className="shrink-0 px-2 pb-2">
           <div className="relative mx-auto w-full max-w-[700px]">
             {isProcessing && (
               <SparkleField height="20px" density="normal" palette="cyan" />
@@ -996,7 +1005,7 @@ export const ChatPanel = ({
             <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
               {/* ── Prompt Input ──────────────────────────────────────── */}
               <PromptInput
-                id="chat-prompt-input"
+                id={promptInputDomId}
                 className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
                 onSubmit={handleSubmit}
               >
@@ -1048,6 +1057,7 @@ export const ChatPanel = ({
                       provider: nextOption.provider,
                       remoteConversationId: null,
                       remoteConversationModel: null,
+                      remoteConversationProjectPath: null,
                     }));
                   }}
                   value={selectedModelValue}

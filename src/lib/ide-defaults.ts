@@ -102,6 +102,7 @@ export const createChatConfig = (
     reasoningEffort: overrides?.reasoningEffort ?? project.reasoningEffort,
     remoteConversationId: null,
     remoteConversationModel: null,
+    remoteConversationProjectPath: null,
     title: overrides?.title?.trim() || "New chat",
     updatedAt: timestamp,
   };

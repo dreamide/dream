@@ -678,6 +678,7 @@ const chatRequestBodySchema = z.object({
   provider: z.enum(["openai", "anthropic"]),
   remoteConversationId: z.string().nullable().optional(),
   remoteConversationModel: z.string().nullable().optional(),
+  remoteConversationProjectPath: z.string().nullable().optional(),
   reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
   chatId: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
@@ -1313,15 +1314,17 @@ const streamCodexCliResponse = ({
   chatId,
   remoteConversationId,
   remoteConversationModel,
+  remoteConversationProjectPath,
 }) => {
   const storedSession = chatId
     ? (codexSessionsByChatId.get(chatId) ?? null)
     : null;
   const persistedSessionId =
-    remoteConversationModel === model
+    remoteConversationModel === model && remoteConversationProjectPath === projectPath
       ? getCodexSessionId(remoteConversationId)
       : null;
-  const canResumeStoredSession = storedSession?.model === model;
+  const canResumeStoredSession =
+    storedSession?.model === model && storedSession?.projectPath === projectPath;
   if (chatId && storedSession && !canResumeStoredSession) {
     codexSessionsByChatId.delete(chatId);
   }
@@ -1398,12 +1401,14 @@ const streamCodexCliResponse = ({
           ) {
             codexSessionsByChatId.set(chatId, {
               model,
+              projectPath,
               sessionId: event.thread_id,
             });
             writer.write({
               messageMetadata: {
                 remoteConversationId: event.thread_id,
                 remoteConversationModel: model,
+                remoteConversationProjectPath: projectPath,
               },
               type: "message-metadata",
             });
@@ -1637,6 +1642,7 @@ app.post("/api/chat", async (c) => {
     reasoningEffort,
     remoteConversationId,
     remoteConversationModel,
+    remoteConversationProjectPath,
     chatId,
     threadId,
   } = parsed.data;
@@ -1678,6 +1684,7 @@ app.post("/api/chat", async (c) => {
       reasoningEffort,
       remoteConversationId,
       remoteConversationModel,
+      remoteConversationProjectPath,
       systemPrompt: SYSTEM_PROMPT,
       chatId: resolvedChatId,
     });
@@ -1695,6 +1702,9 @@ app.post("/api/chat", async (c) => {
     getModelReasoningEfforts(provider, model).length > 0;
   const providerFactory = (modelId) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
+      continue: false,
+      cwd: projectPath,
+      persistSession: false,
       permissionMode: CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
       ...(claudePermissionMode === "bypass-permissions"
         ? { allowDangerouslySkipPermissions: true }
