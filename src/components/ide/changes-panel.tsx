@@ -231,7 +231,7 @@ const ChangesRow = ({
   const hasRemovedLines = typeof change.removedLines === "number";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-foreground/10 bg-background">
+    <div className="border-b border-foreground/10 bg-background">
       <button
         className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30"
         onClick={onToggle}
@@ -254,11 +254,11 @@ const ChangesRow = ({
           <div className="truncate text-sm">{change.path}</div>
         </div>
 
-        <div className="ml-auto flex items-center gap-3 text-sm tabular-nums">
+        <div className="ml-auto flex items-center gap-3 font-mono text-sm tabular-nums">
           {statusLabel ? (
             <span
               className={cn(
-                "font-medium",
+                "font-medium font-sans",
                 change.status === "deleted"
                   ? "text-rose-600"
                   : "text-muted-foreground",
@@ -743,7 +743,7 @@ const ChangesPanelImpl = () => {
         ) : null}
 
         {!statusError && changes.length > 0 ? (
-          <div className="space-y-2">
+          <div className="-m-3">
             {changes.map((change) => (
               <ChangesRow
                 change={change}
