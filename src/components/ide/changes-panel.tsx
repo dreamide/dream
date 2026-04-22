@@ -732,9 +732,11 @@ const ChangesPanelImpl = () => {
         ) : null}
 
         {!statusError && statusLoading && changes.length === 0 ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Spinner className="size-4" />
-            <span>Loading Git changes…</span>
+          <div className="flex h-full items-center justify-center">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Spinner className="size-4" />
+              <span>Loading Git changes…</span>
+            </div>
           </div>
         ) : null}
 
