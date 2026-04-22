@@ -92,9 +92,7 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -526,21 +524,6 @@ export const ChatPanel = ({
       })),
     );
   }, [connectedProviders, providerModels, settings]);
-
-  const groupedModelOptions = useMemo(() => {
-    const groups: {
-      provider: AiProvider;
-      label: string;
-      models: typeof allModelOptions;
-    }[] = [];
-    for (const provider of connectedProviders) {
-      const models = allModelOptions.filter((m) => m.provider === provider);
-      if (models.length > 0) {
-        groups.push({ provider, label: PROVIDER_LABELS[provider], models });
-      }
-    }
-    return groups;
-  }, [connectedProviders, allModelOptions]);
 
   const selectedModelOption =
     allModelOptions.find(
@@ -1084,23 +1067,20 @@ export const ChatPanel = ({
                       className="text-xs"
                       side="top"
                     >
-                      {groupedModelOptions.map((group) => (
-                        <SelectGroup key={group.provider}>
-                          {groupedModelOptions.length > 1 && (
-                            <SelectLabel className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
-                              {group.label}
-                            </SelectLabel>
-                          )}
-                          {group.models.map((option) => (
-                            <SelectItem
-                              className="text-xs"
-                              key={`${option.provider}:${option.id}`}
-                              value={option.id}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
+                      {allModelOptions.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={`${option.provider}:${option.id}`}
+                          value={option.id}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <ProviderIcon
+                              className="size-3.5 shrink-0 text-muted-foreground/70"
+                              provider={option.provider}
+                            />
+                            <span className="truncate">{option.label}</span>
+                          </span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

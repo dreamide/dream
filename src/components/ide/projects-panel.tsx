@@ -168,6 +168,8 @@ export const ProjectSidebar = () => {
   const allChats = useIdeStore((s) => s.chats);
   const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeChatIdByProject = useIdeStore((s) => s.activeChatIdByProject);
+  const draftChatIdByProject = useIdeStore((s) => s.draftChatIdByProject);
+  const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
   const addChat = useIdeStore((s) => s.addChat);
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const closeProject = useIdeStore((s) => s.closeProject);
@@ -181,10 +183,20 @@ export const ProjectSidebar = () => {
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const activeProjectChats = useMemo(
-    () => (activeProject ? getChatsForProject(allChats, activeProject.id) : []),
-    [activeProject, allChats],
-  );
+  const activeProjectChats = useMemo(() => {
+    if (!activeProject) {
+      return [];
+    }
+
+    const draftChatId = draftChatIdByProject[activeProject.id] ?? null;
+    return getChatsForProject(allChats, activeProject.id).filter((chat) => {
+      if (chat.id !== draftChatId) {
+        return true;
+      }
+
+      return (messagesByChatId[chat.id]?.length ?? 0) > 0;
+    });
+  }, [activeProject, allChats, draftChatIdByProject, messagesByChatId]);
 
   const activeChatId = activeProject
     ? (activeChatIdByProject[activeProject.id] ?? null)
@@ -245,9 +257,9 @@ export const ProjectSidebar = () => {
                 <TooltipTrigger
                   render={
                     <Button
-                       aria-label="New chat"
-                       className="h-8 w-8 p-0"
-                       onClick={() => addChat(activeProject.id)}
+                      aria-label="New chat"
+                      className="h-8 w-8 p-0"
+                      onClick={() => addChat(activeProject.id)}
                       size="icon-sm"
                       type="button"
                       variant="ghost"
@@ -370,12 +382,12 @@ export const ProjectSidebar = () => {
           <form className="space-y-4" onSubmit={handleRenameSubmit}>
             <DialogHeader>
               <DialogTitle>
-                 Rename {renameTarget?.kind === "project" ? "project" : "chat"}
-               </DialogTitle>
-               <DialogDescription>
-                 Choose a new name for this{" "}
-                 {renameTarget?.kind === "project" ? "project" : "chat"}.
-               </DialogDescription>
+                Rename {renameTarget?.kind === "project" ? "project" : "chat"}
+              </DialogTitle>
+              <DialogDescription>
+                Choose a new name for this{" "}
+                {renameTarget?.kind === "project" ? "project" : "chat"}.
+              </DialogDescription>
             </DialogHeader>
             <Input
               autoFocus
