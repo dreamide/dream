@@ -169,7 +169,7 @@ const ExpandedDiffBody = ({
           {`${change.previousPath} -> ${change.path}`}
         </div>
       ) : null}
-      <div className="overflow-x-auto px-3 py-3 text-xs">
+      <div className="overflow-x-auto text-xs">
         <DiffEmptyState diff={diff.diff} />
         {diff.diff.trim().length > 0 ? (
           showAddedFileContents && addedFileContents !== null ? (
@@ -233,7 +233,12 @@ const ChangesRow = ({
   return (
     <div className="border-b border-foreground/10 bg-background">
       <button
-        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/30"
+        className={cn(
+          "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors",
+          expanded
+            ? "sticky top-0 z-20 border-b border-foreground/10 bg-background"
+            : "hover:bg-muted/30",
+        )}
         onClick={onToggle}
         type="button"
       >
@@ -251,7 +256,7 @@ const ChangesRow = ({
         />
 
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm">{change.path}</div>
+          <div className="truncate font-mono text-xs">{change.path}</div>
         </div>
 
         <div className="ml-auto flex items-center gap-3 font-mono text-sm tabular-nums">
@@ -720,7 +725,7 @@ const ChangesPanelImpl = () => {
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3">
+      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
         {statusError ? (
           <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
             {statusError}
@@ -745,7 +750,7 @@ const ChangesPanelImpl = () => {
         ) : null}
 
         {!statusError && changes.length > 0 ? (
-          <div className="-m-3">
+          <div className="-mx-3 -mb-3">
             {changes.map((change) => (
               <ChangesRow
                 change={change}
