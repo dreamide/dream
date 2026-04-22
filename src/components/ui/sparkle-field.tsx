@@ -61,7 +61,7 @@ function ensureStyles() {
       left: 10%; right: 10%;
       bottom: -8px;
       height: 40px;
-      background: radial-gradient(60% 100% at 50% 100%, rgba(255,226,122,.35), rgba(155,242,255,.15) 45%, transparent 70%);
+      background: radial-gradient(60% 100% at 50% 100%, rgba(106,199,255,.32), rgba(155,242,255,.18) 45%, rgba(94,163,255,.08) 60%, transparent 75%);
       filter: blur(2px);
       animation: sf-glow-pulse 1.8s steps(6) infinite;
       pointer-events: none;
