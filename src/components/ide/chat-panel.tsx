@@ -1000,7 +1000,7 @@ export const ChatPanel = ({
             <Sparkles
               density={70}
               disabled={!isProcessing}
-              height={50}
+              height={30}
               sway={0}
               speed={2}
               palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}

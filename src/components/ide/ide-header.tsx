@@ -691,13 +691,7 @@ export const IdeHeader = () => {
                 <TooltipContent>Add project</TooltipContent>
               </Tooltip>
             </div>
-          ) : (
-            <div className="pointer-events-none flex h-full items-center justify-center pb-2 [-webkit-app-region:drag]">
-              <span className="text-muted-foreground text-xs tracking-widest">
-                DREAM
-              </span>
-            </div>
-          )}
+          ) : null}
         </div>
 
         {!isMacOs && isElectron && appReady ? <WindowControls /> : null}

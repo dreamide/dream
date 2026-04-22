@@ -117,7 +117,7 @@ function ensureSparklesStyles() {
       left: 6%; right: 6%;
       height: 50px;
       filter: blur(10px);
-      opacity: var(--sp-glow-op, .8);
+      opacity: var(--sp-glow-op, 0);
       animation: sparkles-glow-pulse 2.4s ease-in-out infinite;
     }
     .sparkles-field.sparkles-field-top::after {
@@ -235,18 +235,23 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
 
   useLayoutEffect(ensureSparklesStyles, []);
 
-  /* Build ambient sparkle field */
+  /* ---- Structural rebuild: only when element count/classes must change ---- */
+  const sparksRef = useRef<HTMLSpanElement[]>([]);
+  /* Store base (pre-multiplied) sizes so style-only updates can rescale */
+  const baseSizesRef = useRef<number[]>([]);
+  /* Store base (pre-speed) durations so speed changes don't rebuild */
+  const baseDursRef = useRef<number[]>([]);
+
   useEffect(() => {
     const field = fieldRef.current;
     if (!field) return;
     const fieldEl = field;
 
-    fieldEl.style.setProperty('--sp-h', height + 'px');
-    fieldEl.style.setProperty('--sp-glow', sparklesHexToRGBA(paletteArr[0], .45));
-    fieldEl.style.setProperty('--sp-glow-op', !disabled && groundGlow ? '.9' : '0');
-
     if (disabled) {
       fieldEl.innerHTML = '';
+      sparksRef.current = [];
+      baseSizesRef.current = [];
+      baseDursRef.current = [];
       return;
     }
 
@@ -255,6 +260,9 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
     function build() {
       if (cancelled) return;
       fieldEl.innerHTML = '';
+      const sparks: HTMLSpanElement[] = [];
+      const bases: number[] = [];
+      const durs: number[] = [];
       const width = fieldEl.clientWidth || 700;
 
       for (let i = 0; i < density; i++) {
@@ -271,12 +279,14 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
         s.className = `sparkles-spark sparkles-spark-${position} sp-${kind}`;
 
         const baseSize = kind === 'glow' ? sparklesRand(3, 6) : (Math.random() < 0.6 ? 2 : 3);
-        const size = Math.max(1, baseSize * sizeMul);
         const baseDur = sparklesRand(2.2, 5.8);
+        const x = sparklesRand(6, width - 6);
+
+        /* Apply current visual props (will also be updated in the style effect) */
+        const size = Math.max(1, baseSize * sizeMul);
         const duration = baseDur / speed;
         const delay = sparklesRand(-duration, 0.2);
         const swayV = sparklesRand(-sway, sway);
-        const x = sparklesRand(6, width - 6);
 
         s.style.setProperty('--size', size + 'px');
         s.style.setProperty('--c', sparklesPick(paletteArr));
@@ -285,26 +295,51 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
         s.style.left = x + 'px';
         s.style.animationDuration = duration.toFixed(2) + 's';
         s.style.animationDelay = delay.toFixed(2) + 's';
+
         fieldEl.appendChild(s);
+        sparks.push(s);
+        bases.push(baseSize);
+        durs.push(baseDur);
       }
+      sparksRef.current = sparks;
+      baseSizesRef.current = bases;
+      baseDursRef.current = durs;
     }
 
     build();
     const ro = new ResizeObserver(() => build());
     ro.observe(fieldEl);
     return () => { cancelled = true; ro.disconnect(); };
-  }, [
-    density,
-    disabled,
-    position,
-    speed,
-    sizeMul,
-    sway,
-    height,
-    shape,
-    groundGlow,
-    paletteArr.join('|'),
-  ]);
+    /* Only structural props that change element count or CSS classes */
+  }, [density, disabled, position, shape]);
+
+  /* ---- Style-only patch: update existing sparkles in-place, no reset ---- */
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!field) return;
+
+    field.style.setProperty('--sp-h', height + 'px');
+    field.style.setProperty('--sp-glow', sparklesHexToRGBA(paletteArr[0], .45));
+    field.style.setProperty('--sp-glow-op', !disabled && groundGlow ? '.9' : '0');
+
+    if (disabled) return;
+
+    const sparks = sparksRef.current;
+    const bases = baseSizesRef.current;
+    const durs = baseDursRef.current;
+
+    for (let i = 0; i < sparks.length; i++) {
+      const s = sparks[i];
+      if (!s.isConnected) continue;
+      const size = Math.max(1, bases[i] * sizeMul);
+      const duration = durs[i] / speed;
+
+      s.style.setProperty('--size', size + 'px');
+      s.style.setProperty('--c', sparklesPick(paletteArr));
+      s.style.setProperty('--rise', height + 'px');
+      s.style.animationDuration = duration.toFixed(2) + 's';
+    }
+  }, [speed, sizeMul, height, groundGlow, paletteArr.join('|'), disabled]);
 
   const castBurst = (count = 70) => {
     const field = fieldRef.current;
