@@ -18,6 +18,7 @@ import {
   type PointerEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -115,10 +116,14 @@ export const IdeHeader = () => {
   );
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
-  const streamingProjectIds = new Set(
-    chats
-      .filter((chat) => streamingChatIds[chat.id])
-      .map((chat) => chat.projectId),
+  const streamingProjectIds = useMemo(
+    () =>
+      new Set(
+        chats
+          .filter((chat) => streamingChatIds[chat.id])
+          .map((chat) => chat.projectId),
+      ),
+    [chats, streamingChatIds],
   );
 
   const activeProject =
@@ -134,6 +139,10 @@ export const IdeHeader = () => {
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [projectTabWidth, setProjectTabWidth] = useState(PROJECT_TAB_MAX_WIDTH);
+  const [completedProjectIds, setCompletedProjectIds] = useState<
+    Record<string, boolean>
+  >({});
+  const previousStreamingProjectIdsRef = useRef<Set<string>>(new Set());
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
     : false;
@@ -188,6 +197,42 @@ export const IdeHeader = () => {
 
     void api.detectEditors().then(setDetectedEditors);
   }, []);
+
+  useEffect(() => {
+    const previousStreamingProjectIds = previousStreamingProjectIdsRef.current;
+
+    setCompletedProjectIds((current) => {
+      let changed = false;
+      const next = { ...current };
+
+      for (const projectId of previousStreamingProjectIds) {
+        if (
+          !streamingProjectIds.has(projectId) &&
+          projectId !== activeProjectId &&
+          !next[projectId]
+        ) {
+          next[projectId] = true;
+          changed = true;
+        }
+      }
+
+      for (const projectId of streamingProjectIds) {
+        if (next[projectId]) {
+          delete next[projectId];
+          changed = true;
+        }
+      }
+
+      if (activeProjectId && next[activeProjectId]) {
+        delete next[activeProjectId];
+        changed = true;
+      }
+
+      return changed ? next : current;
+    });
+
+    previousStreamingProjectIdsRef.current = new Set(streamingProjectIds);
+  }, [activeProjectId, streamingProjectIds]);
 
   const closeRenameDialog = useCallback(() => {
     setRenameTarget(null);
@@ -437,9 +482,7 @@ export const IdeHeader = () => {
               className="inline-flex max-w-full items-end gap-1 [-webkit-app-region:drag]"
               ref={projectTabsScrollRef}
             >
-              <div
-                className="min-w-0 overflow-hidden pb-px [-webkit-app-region:no-drag]"
-              >
+              <div className="min-w-0 overflow-hidden pb-px [-webkit-app-region:no-drag]">
                 <div className="flex min-w-0 items-end gap-1 [-webkit-app-region:no-drag]">
                   {projects.map((project, projectIndex) => {
                     const isActive = project.id === activeProjectId;
@@ -447,6 +490,8 @@ export const IdeHeader = () => {
                       project.id === dragProject?.projectId &&
                       dragProject.moved;
                     const isProjectMenuOpen = openProjectMenuId === project.id;
+                    const showCompletedDot =
+                      completedProjectIds[project.id] && !isActive;
                     const tabOffset = getProjectTabOffset(
                       project.id,
                       projectIndex,
@@ -474,7 +519,7 @@ export const IdeHeader = () => {
                         )}
                         <button
                           className={cn(
-                            "flex h-8 w-full select-none items-center rounded-lg border px-3 pr-8 text-sm opacity-100 transition-[colors,box-shadow]",
+                            "flex h-8 w-full select-none items-center gap-2 rounded-lg border px-3 pr-8 text-sm opacity-100 transition-[colors,box-shadow]",
                             isActive
                               ? "border-border bg-background text-foreground shadow-sm"
                               : "border-transparent bg-muted/55 text-muted-foreground hover:bg-muted/80 hover:text-foreground",
@@ -512,6 +557,12 @@ export const IdeHeader = () => {
                           }}
                           type="button"
                         >
+                          {showCompletedDot ? (
+                            <span
+                              aria-hidden="true"
+                              className="size-2 shrink-0 rounded-full bg-green-500"
+                            />
+                          ) : null}
                           <span className="truncate">{project.name}</span>
                         </button>
                         <div
