@@ -564,12 +564,12 @@ export const IdeHeader = () => {
                         <Sparkles
                           className="w-full overflow-hidden"
                           density={38}
-                          disabled={!!isStreaming}
-                          groundGlow={false}
+                          disabled={!isStreaming}
+                          groundGlow={true}
                           height={10}
                           sway={0}
                           speed={3}
-                          sizeMul={0.25}
+                          sizeMul={0.5}
                           palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}
                           style={{ position: "relative" }}
                           position="bottom"
