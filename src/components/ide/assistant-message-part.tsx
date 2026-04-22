@@ -130,7 +130,7 @@ const getExpandedChipClasses = (
   hasError: boolean,
 ) =>
   cn(
-    "mt-2 space-y-2 border-l pl-4",
+    "mt-2 space-y-2 border-l pl-2",
     hasError ? "text-destructive" : defaultTextClasses,
   );
 const CHIP_DETAIL_HEADER_CLASSES =
