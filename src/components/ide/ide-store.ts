@@ -24,8 +24,8 @@ import type {
   ProjectConfig,
 } from "@/types/ide";
 import {
-  ensureActiveProject,
   ensureActiveChatForProject,
+  ensureActiveProject,
   getChatsForProject,
   mergePersistedState,
 } from "./ide-state";
@@ -396,8 +396,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const activeChatId = activeChatIdByProject[project.id] ?? null;
     return (
-      getChatsForProject(chats, project.id).find(
-        (chat) => chat.id === activeChatId,
+      chats.find(
+        (chat) => chat.projectId === project.id && chat.id === activeChatId,
       ) ?? null
     );
   },
@@ -603,16 +603,22 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   setActiveChatId: (projectId, chatId) => {
-    set((state) => ({
-      activeChatIdByProject: {
-        ...state.activeChatIdByProject,
-        [projectId]: ensureActiveChatForProject(
-          state.chats,
-          projectId,
-          chatId,
-        ),
-      },
-    }));
+    set((state) => {
+      const nextActiveChatId =
+        chatId &&
+        state.chats.some(
+          (chat) => chat.projectId === projectId && chat.id === chatId,
+        )
+          ? chatId
+          : ensureActiveChatForProject(state.chats, projectId, chatId);
+
+      return {
+        activeChatIdByProject: {
+          ...state.activeChatIdByProject,
+          [projectId]: nextActiveChatId,
+        },
+      };
+    });
   },
 
   updateChat: (chatId, updater) => {
@@ -705,7 +711,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       }
 
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
-      if (messages.length > 0 && nextDraftChatIdByProject[chat.projectId] === chatId) {
+      if (
+        messages.length > 0 &&
+        nextDraftChatIdByProject[chat.projectId] === chatId
+      ) {
         nextDraftChatIdByProject[chat.projectId] = null;
       }
 
