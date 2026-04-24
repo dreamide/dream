@@ -167,6 +167,11 @@ interface IdeState {
     updater: (tab: PreviewTabState) => PreviewTabState,
   ) => void;
   closePreviewTab: (projectId: string, tabId: string) => string | null;
+  reorderPreviewTabs: (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => void;
   setActivePreviewTab: (projectId: string, tabId: string | null) => void;
   setIsMacOs: (value: boolean) => void;
   setIsElectron: (value: boolean) => void;
@@ -183,6 +188,11 @@ interface IdeState {
   setActiveProjectTerminalId: (
     projectId: string,
     sessionId: string | null,
+  ) => void;
+  reorderProjectTerminals: (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
   ) => void;
   closeProjectTerminal: (projectId: string, sessionId: string) => Promise<void>;
 
@@ -330,6 +340,27 @@ const getTerminalOrdinalFromName = (name: string) => {
 
   const ordinal = Number.parseInt(match[1] ?? "", 10);
   return Number.isFinite(ordinal) ? ordinal : null;
+};
+
+const moveItem = <T>(items: T[], fromIndex: number, toIndex: number) => {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length
+  ) {
+    return items;
+  }
+
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  if (!movedItem) {
+    return items;
+  }
+
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
 };
 
 export const useIdeStore = create<IdeState>((set, get) => ({
@@ -1177,6 +1208,28 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     return nextActiveTabId;
   },
+  reorderPreviewTabs: (projectId, fromIndex, toIndex) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (!normalizedProjectId) {
+      return;
+    }
+
+    set((state) => {
+      const tabs = state.previewTabsByProject[normalizedProjectId] ?? [];
+      const nextTabs = moveItem(tabs, fromIndex, toIndex);
+      if (nextTabs === tabs) {
+        return state;
+      }
+
+      return {
+        previewTabsByProject: {
+          ...state.previewTabsByProject,
+          [normalizedProjectId]: nextTabs,
+        },
+      };
+    });
+  },
   setActivePreviewTab: (projectId, tabId) => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
@@ -1361,6 +1414,30 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         activeTerminalSessionIdByProject: {
           ...state.activeTerminalSessionIdByProject,
           [projectId]: nextSessionId,
+        },
+      };
+    });
+  },
+
+  reorderProjectTerminals: (projectId, fromIndex, toIndex) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (!normalizedProjectId) {
+      return;
+    }
+
+    set((state) => {
+      const sessionIds =
+        state.projectTerminalSessionIds[normalizedProjectId] ?? [];
+      const nextSessionIds = moveItem(sessionIds, fromIndex, toIndex);
+      if (nextSessionIds === sessionIds) {
+        return state;
+      }
+
+      return {
+        projectTerminalSessionIds: {
+          ...state.projectTerminalSessionIds,
+          [normalizedProjectId]: nextSessionIds,
         },
       };
     });

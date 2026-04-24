@@ -3,16 +3,15 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { Plus, TerminalSquare, X } from "lucide-react";
 import { useTheme } from "next-themes";
-import { type HTMLAttributes, useEffect, useRef, useState } from "react";
+import { type HTMLAttributes, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { echoPipeFallbackInput } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
+import { StandardTabs } from "./standard-tabs";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 const TERMINAL_SURFACE_CLASSES =
@@ -342,8 +341,6 @@ export const ProjectTerminalTabsPanel = ({
 }: {
   projectId: string;
 }) => {
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
@@ -359,6 +356,7 @@ export const ProjectTerminalTabsPanel = ({
   const setActiveProjectTerminalId = useIdeStore(
     (s) => s.setActiveProjectTerminalId,
   );
+  const reorderProjectTerminals = useIdeStore((s) => s.reorderProjectTerminals);
 
   const resolvedActiveSessionId =
     activeSessionId && sessionIds.includes(activeSessionId)
@@ -370,16 +368,10 @@ export const ProjectTerminalTabsPanel = ({
 
   const resolveTerminalName = (sessionId: string, index: number) =>
     terminalSessionNames[sessionId]?.trim() || getDefaultTerminalName(index);
-
-  const commitTerminalName = (sessionId: string, index: number) => {
-    const trimmed = editingName.trim();
-    setTerminalSessionName(
-      sessionId,
-      trimmed || resolveTerminalName(sessionId, index),
-    );
-    setEditingSessionId(null);
-    setEditingName("");
-  };
+  const terminalTabItems = sessionIds.map((sessionId, index) => ({
+    id: sessionId,
+    label: resolveTerminalName(sessionId, index),
+  }));
 
   useEffect(() => {
     for (const [index, sessionId] of sessionIds.entries()) {
@@ -404,90 +396,39 @@ export const ProjectTerminalTabsPanel = ({
         <div className="flex items-center gap-2 px-3 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
-            <Tabs
-              className="min-w-0 flex-1"
-              onValueChange={(value) =>
-                setActiveProjectTerminalId(projectId, value)
-              }
-              value={resolvedActiveSessionId}
-            >
-              <TabsList className="h-8 max-w-full justify-start overflow-x-auto bg-muted/60">
-                {sessionIds.map((sessionId, index) => (
-                  <div className="relative shrink-0" key={sessionId}>
-                    {editingSessionId === sessionId ? (
-                      <div className="flex h-6 items-center rounded-md border border-border bg-background px-2 pr-9">
-                        <Input
-                          autoFocus
-                          className="h-5 w-28 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
-                          onBlur={() => commitTerminalName(sessionId, index)}
-                          onChange={(event) =>
-                            setEditingName(event.currentTarget.value)
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              commitTerminalName(sessionId, index);
-                            }
-
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              setEditingSessionId(null);
-                              setEditingName("");
-                            }
-                          }}
-                          value={editingName}
-                        />
-                      </div>
-                    ) : (
-                      <TabsTrigger
-                        className="h-6 shrink-0 px-2 pr-9 text-muted-foreground text-xs hover:text-foreground data-[active]:bg-background data-[active]:text-foreground"
-                        onDoubleClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          setEditingSessionId(sessionId);
-                          setEditingName(resolveTerminalName(sessionId, index));
-                        }}
-                        value={sessionId}
-                      >
-                        <span className="truncate">
-                          {resolveTerminalName(sessionId, index)}
-                        </span>
-                      </TabsTrigger>
-                    )}
-                    <button
-                      aria-label={`Close ${resolveTerminalName(sessionId, index).toLowerCase()}`}
-                      className="-translate-y-1/2 absolute top-1/2 right-1.5 rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (editingSessionId === sessionId) {
-                          setEditingSessionId(null);
-                          setEditingName("");
-                        }
-                        void closeProjectTerminal(projectId, sessionId);
-                      }}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                      }}
-                      type="button"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
+            <StandardTabs
+              activeId={resolvedActiveSessionId}
+              after={
                 <Button
                   aria-label="Open another terminal"
-                  className="ml-2 h-6 w-6 shrink-0 rounded-md p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  className="h-8 w-8 shrink-0 rounded-lg p-0 text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                   onClick={() => void addProjectTerminal(projectId)}
                   size="sm"
                   type="button"
                   variant="ghost"
                 >
-                  <Plus className="size-3.5" />
+                  <Plus className="size-4" />
                 </Button>
-              </TabsList>
-            </Tabs>
+              }
+              ariaLabel="Terminal tabs"
+              canClose={true}
+              className="flex-1"
+              closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
+              items={terminalTabItems}
+              onActivate={(sessionId) =>
+                setActiveProjectTerminalId(projectId, sessionId)
+              }
+              onClose={(sessionId) =>
+                void closeProjectTerminal(projectId, sessionId)
+              }
+              onRename={(sessionId, label) =>
+                setTerminalSessionName(sessionId, label)
+              }
+              onReorder={(fromIndex, toIndex) =>
+                reorderProjectTerminals(projectId, fromIndex, toIndex)
+              }
+              renameOnDoubleClick={true}
+            />
           </div>
         </div>
         <div className="min-h-0 flex-1">

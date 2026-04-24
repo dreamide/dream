@@ -31,6 +31,7 @@ import { ChangesPanel } from "./changes-panel";
 import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
+import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 export interface PreviewPanelProps {
   onSyncPreviewBounds: (reload?: boolean) => void;
@@ -80,6 +81,7 @@ const PreviewViewport = ({
   const createPreviewTab = useIdeStore((state) => state.createPreviewTab);
   const updatePreviewTab = useIdeStore((state) => state.updatePreviewTab);
   const closePreviewTab = useIdeStore((state) => state.closePreviewTab);
+  const reorderPreviewTabs = useIdeStore((state) => state.reorderPreviewTabs);
   const setActivePreviewTab = useIdeStore((state) => state.setActivePreviewTab);
 
   const activeProjectId = activeProject?.id ?? null;
@@ -97,6 +99,21 @@ const PreviewViewport = ({
     ? (previewLoading[activeTab.id] ?? false)
     : false;
   const previewVisible = Boolean(activeProject && activeTab?.url);
+  const previewTabItems = useMemo<StandardTabItem[]>(
+    () =>
+      tabs.map((tab) => {
+        const tabLoading = previewLoading[tab.id] ?? false;
+
+        return {
+          id: tab.id,
+          label: tab.title || "New Tab",
+          leading: tabLoading ? (
+            <Spinner className="size-3 shrink-0 text-muted-foreground" />
+          ) : null,
+        };
+      }),
+    [previewLoading, tabs],
+  );
 
   useEffect(() => {
     if (!activeProject) {
@@ -153,6 +170,18 @@ const PreviewViewport = ({
       tabs,
       updateProject,
     ],
+  );
+
+  const handleReorderTab = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (!activeProjectId) {
+        return;
+      }
+
+      reorderPreviewTabs(activeProjectId, fromIndex, toIndex);
+      syncAfterStateChange();
+    },
+    [activeProjectId, reorderPreviewTabs, syncAfterStateChange],
   );
 
   const handleAddTab = useCallback(() => {
@@ -318,61 +347,35 @@ const PreviewViewport = ({
       id="preview-panel"
       className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
     >
-      <div className="flex items-end bg-muted/50 pl-1.5 pt-1.5">
-        <div className="flex items-end gap-0.5 overflow-x-auto pb-0.5">
-          {tabs.map((tab) => {
-            const tabLoading = previewLoading[tab.id] ?? false;
-            const isActive = tab.id === activeTab?.id;
-
-            return (
-              <div
-                className={cn(
-                  "group flex max-w-[180px] min-w-[90px] shrink-0 items-center gap-1 rounded-t-md pr-1",
-                  isActive
-                    ? "bg-background text-foreground"
-                    : "bg-transparent text-muted-foreground hover:bg-muted/60",
-                )}
-                key={tab.id}
-              >
-                <button
-                  className="flex min-w-0 flex-1 items-center gap-1 px-3 py-1.5 text-xs font-medium"
-                  onClick={() => handleActivateTab(tab.id)}
-                  type="button"
-                >
-                  {tabLoading ? (
-                    <Spinner className="size-3 shrink-0 text-muted-foreground" />
-                  ) : null}
-                  <span className="min-w-0 truncate">
-                    {tab.title || "New Tab"}
-                  </span>
-                </button>
-                {tabs.length > 1 ? (
+      <div className="flex items-end bg-muted/50 px-1.5 pt-1.5">
+        <StandardTabs
+          activeId={activeTab?.id ?? null}
+          after={
+            <Tooltip>
+              <TooltipTrigger
+                render={
                   <button
-                    className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
-                    onClick={() => handleCloseTab(tab.id)}
+                    aria-label="New tab"
+                    className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                    onClick={handleAddTab}
                     type="button"
-                  >
-                    <X className="size-3" />
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  className="mb-0.5 shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  onClick={handleAddTab}
-                  type="button"
-                />
-              }
-            >
-              <Plus className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipContent>New tab</TooltipContent>
-          </Tooltip>
-        </div>
+                  />
+                }
+              >
+                <Plus className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent>New tab</TooltipContent>
+            </Tooltip>
+          }
+          ariaLabel="Preview tabs"
+          canClose={tabs.length > 1}
+          closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
+          className="flex-1"
+          items={previewTabItems}
+          onActivate={handleActivateTab}
+          onClose={handleCloseTab}
+          onReorder={handleReorderTab}
+        />
       </div>
 
       <div className="flex items-center gap-0.5 border-b border-foreground/10 px-1.5 py-2">
