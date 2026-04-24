@@ -11,24 +11,24 @@ import {
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
 import {
-  isModalPreviewHidden,
-  useModalPreviewHidden,
+  isModalBrowserHidden,
+  useModalBrowserHidden,
 } from "@/lib/modal-visibility";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
-import type { PreviewBounds } from "@/types/ide";
+import type { BrowserBounds } from "@/types/ide";
+import { BrowserPanel } from "./browser-panel";
 import { ChatPanel } from "./chat-panel";
 import { IdeHeader } from "./ide-header";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
-import { PreviewPanel } from "./preview-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
-const PREVIEW_PANEL_DEFAULT_WIDTH_PX = DEFAULT_PANEL_SIZES.rightPanelWidth;
-const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
+const BROWSER_PANEL_DEFAULT_WIDTH_PX = DEFAULT_PANEL_SIZES.rightPanelWidth;
+const BROWSER_PANEL_MIN_WIDTH_PX = 320;
 const CHAT_PANEL_MIN_HEIGHT_PX = 180;
 const TERMINAL_PANEL_DEFAULT_HEIGHT_PX = DEFAULT_PANEL_SIZES.terminalHeight;
 const TERMINAL_PANEL_MIN_HEIGHT_PX = TERMINAL_MIN_HEIGHT_PX + 16;
@@ -58,9 +58,9 @@ export const IdeShell = () => {
   const activeChat = useIdeStore((s) => s.getActiveChat());
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
-  const previewTabsByProject = useIdeStore((s) => s.previewTabsByProject);
-  const activePreviewTabIdByProject = useIdeStore(
-    (s) => s.activePreviewTabIdByProject,
+  const browserTabsByProject = useIdeStore((s) => s.browserTabsByProject);
+  const activeBrowserTabIdByProject = useIdeStore(
+    (s) => s.activeBrowserTabIdByProject,
   );
   const projectsById = useMemo(
     () => new Map(projects.map((project) => [project.id, project])),
@@ -68,16 +68,16 @@ export const IdeShell = () => {
   );
   const activeChatId = activeChat?.id ?? null;
   const activeProjectId = activeProject?.id ?? null;
-  const activePreviewTab =
+  const activeBrowserTab =
     activeProject?.id != null
-      ? ((previewTabsByProject[activeProject.id] ?? []).find(
+      ? ((browserTabsByProject[activeProject.id] ?? []).find(
           (tab) =>
             tab.id ===
-            (activePreviewTabIdByProject[activeProject.id] ??
-              previewTabsByProject[activeProject.id]?.[0]?.id ??
+            (activeBrowserTabIdByProject[activeProject.id] ??
+              browserTabsByProject[activeProject.id]?.[0]?.id ??
               null),
         ) ??
-        (previewTabsByProject[activeProject.id] ?? [])[0] ??
+        (browserTabsByProject[activeProject.id] ?? [])[0] ??
         null)
       : null;
 
@@ -105,7 +105,7 @@ export const IdeShell = () => {
 
     return nextChats;
   }, [activeChatId, chats, streamingChatIds]);
-  const modalPreviewHidden = useModalPreviewHidden();
+  const modalBrowserHidden = useModalBrowserHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
@@ -114,9 +114,9 @@ export const IdeShell = () => {
   const setTerminalStatus = useIdeStore((s) => s.setTerminalStatus);
   const setTerminalTransport = useIdeStore((s) => s.setTerminalTransport);
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
-  const setPreviewError = useIdeStore((s) => s.setPreviewError);
-  const setPreviewLoading = useIdeStore((s) => s.setPreviewLoading);
-  const updatePreviewTab = useIdeStore((s) => s.updatePreviewTab);
+  const setBrowserError = useIdeStore((s) => s.setBrowserError);
+  const setBrowserLoading = useIdeStore((s) => s.setBrowserLoading);
+  const updateBrowserTab = useIdeStore((s) => s.updateBrowserTab);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const setPanelSizes = useIdeStore((s) => s.setPanelSizes);
   const projectTerminalSessionIds = useIdeStore(
@@ -139,11 +139,11 @@ export const IdeShell = () => {
     projectTerminalPanelOpen && hasActiveProjectTerminalSessions;
 
   // ── Refs ─────────────────────────────────────────────────────────────
-  const previewHostRef = useRef<HTMLDivElement | null>(null);
+  const browserHostRef = useRef<HTMLDivElement | null>(null);
   // ── Resize state ────────────────────────────────────────────────────
   // Widths live in refs so drag handlers can mutate the DOM directly
   // without triggering React re-renders on every pointer-move.
-  const rightWidthRef = useRef(PREVIEW_PANEL_DEFAULT_WIDTH_PX);
+  const rightWidthRef = useRef(BROWSER_PANEL_DEFAULT_WIDTH_PX);
   const terminalHeightRef = useRef(TERMINAL_PANEL_DEFAULT_HEIGHT_PX);
   const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
@@ -175,7 +175,7 @@ export const IdeShell = () => {
     const availableWidth =
       containerWidth - getHorizontalChromeWidth() - CHAT_PANEL_MIN_WIDTH_PX;
 
-    return Math.max(PREVIEW_PANEL_MIN_WIDTH_PX, availableWidth);
+    return Math.max(BROWSER_PANEL_MIN_WIDTH_PX, availableWidth);
   }, [getHorizontalChromeWidth, middleVisible, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
@@ -183,7 +183,7 @@ export const IdeShell = () => {
       const maxRightWidth = getRightPanelMaxWidth();
       const nextRightWidth = Math.min(
         maxRightWidth,
-        Math.max(PREVIEW_PANEL_MIN_WIDTH_PX, rightWidthRef.current),
+        Math.max(BROWSER_PANEL_MIN_WIDTH_PX, rightWidthRef.current),
       );
       rightWidthRef.current = nextRightWidth;
 
@@ -205,7 +205,7 @@ export const IdeShell = () => {
     (deltaX: number) => {
       const maxRightWidth = getRightPanelMaxWidth();
       const next = Math.max(
-        PREVIEW_PANEL_MIN_WIDTH_PX,
+        BROWSER_PANEL_MIN_WIDTH_PX,
         Math.min(maxRightWidth, rightWidthRef.current + deltaX),
       );
       rightWidthRef.current = next;
@@ -391,23 +391,23 @@ export const IdeShell = () => {
       }
     });
 
-    const removePreviewError = desktopApi.onPreviewError((event) => {
-      setPreviewError(
+    const removeBrowserError = desktopApi.onBrowserError((event) => {
+      setBrowserError(
         `${String(event.code)}${event.description ? `: ${event.description}` : ""}`,
       );
     });
 
-    const removePreviewStatus = desktopApi.onPreviewStatus((event) => {
-      setPreviewLoading(event.tabId ?? event.projectId, event.loading);
+    const removeBrowserStatus = desktopApi.onBrowserStatus((event) => {
+      setBrowserLoading(event.tabId ?? event.projectId, event.loading);
       if (!event.loading) {
         return;
       }
 
-      setPreviewError(null);
+      setBrowserError(null);
     });
 
-    const removePreviewPageState = desktopApi.onPreviewPageState((event) => {
-      updatePreviewTab(event.projectId, event.tabId, (tab) => ({
+    const removeBrowserPageState = desktopApi.onBrowserPageState((event) => {
+      updateBrowserTab(event.projectId, event.tabId, (tab) => ({
         ...tab,
         canGoBack: event.canGoBack,
         canGoForward: event.canGoForward,
@@ -417,7 +417,7 @@ export const IdeShell = () => {
 
       const state = useIdeStore.getState();
       const activeTabId =
-        state.activePreviewTabIdByProject[event.projectId] ?? null;
+        state.activeBrowserTabIdByProject[event.projectId] ?? null;
       if (activeTabId !== event.tabId || !event.url) {
         return;
       }
@@ -425,43 +425,43 @@ export const IdeShell = () => {
       const project = state.projects.find(
         (item) => item.id === event.projectId,
       );
-      if (!project || project.previewUrl === event.url) {
+      if (!project || project.browserUrl === event.url) {
         return;
       }
 
       state.updateProject(event.projectId, (currentProject) => ({
         ...currentProject,
-        previewUrl: event.url,
+        browserUrl: event.url,
       }));
     });
 
     return () => {
       removeTerminalData();
       removeTerminalStatus();
-      removePreviewError();
-      removePreviewPageState();
-      removePreviewStatus();
+      removeBrowserError();
+      removeBrowserPageState();
+      removeBrowserStatus();
     };
   }, [
     appendTerminalOutput,
     setTerminalStatus,
     setTerminalTransport,
     setTerminalShell,
-    setPreviewError,
-    setPreviewLoading,
-    updatePreviewTab,
+    setBrowserError,
+    setBrowserLoading,
+    updateBrowserTab,
   ]);
 
-  // Preview bounds sync
-  const lastSentPreviewUrlRef = useRef<string | null>(null);
-  const lastSentPreviewTabIdRef = useRef<string | null>(null);
-  const syncPreviewBounds = useCallback((reload = false) => {
+  // Browser bounds sync
+  const lastSentBrowserUrlRef = useRef<string | null>(null);
+  const lastSentBrowserTabIdRef = useRef<string | null>(null);
+  const syncBrowserBounds = useCallback((reload = false) => {
     const desktopApi = getDesktopApi();
     const state = useIdeStore.getState();
     const project = state.getActiveProject();
     const pv = state.panelVisibility;
     const currentRightPanelView = state.rightPanelView;
-    const activeTab = project ? state.getActivePreviewTab(project.id) : null;
+    const activeTab = project ? state.getActiveBrowserTab(project.id) : null;
 
     if (!desktopApi) return;
 
@@ -469,12 +469,12 @@ export const IdeShell = () => {
       !project ||
       !activeTab?.url ||
       !pv.right ||
-      currentRightPanelView !== "preview" ||
-      isModalPreviewHidden()
+      currentRightPanelView !== "browser" ||
+      isModalBrowserHidden()
     ) {
-      lastSentPreviewUrlRef.current = null;
-      lastSentPreviewTabIdRef.current = null;
-      desktopApi.updatePreview({
+      lastSentBrowserUrlRef.current = null;
+      lastSentBrowserTabIdRef.current = null;
+      desktopApi.updateBrowser({
         projectId: project?.id,
         tabId: activeTab?.id,
         visible: false,
@@ -482,12 +482,12 @@ export const IdeShell = () => {
       return;
     }
 
-    const host = previewHostRef.current;
+    const host = browserHostRef.current;
     if (!host) return;
 
     const rect = host.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) {
-      desktopApi.updatePreview({
+      desktopApi.updateBrowser({
         projectId: project.id,
         tabId: activeTab.id,
         visible: false,
@@ -495,7 +495,7 @@ export const IdeShell = () => {
       return;
     }
 
-    const bounds: PreviewBounds = {
+    const bounds: BrowserBounds = {
       height: rect.height,
       width: rect.width,
       x: rect.x,
@@ -505,15 +505,15 @@ export const IdeShell = () => {
     // Send the URL when it changed, when the tab changed, or on explicit
     // reload.  This prevents ResizeObserver / effect-driven calls from
     // causing redundant navigations in the Electron BrowserView.
-    const urlChanged = activeTab.url !== lastSentPreviewUrlRef.current;
-    const tabChanged = activeTab.id !== lastSentPreviewTabIdRef.current;
+    const urlChanged = activeTab.url !== lastSentBrowserUrlRef.current;
+    const tabChanged = activeTab.id !== lastSentBrowserTabIdRef.current;
     const sendUrl = reload || urlChanged || tabChanged;
     if (sendUrl) {
-      lastSentPreviewUrlRef.current = activeTab.url;
-      lastSentPreviewTabIdRef.current = activeTab.id;
+      lastSentBrowserUrlRef.current = activeTab.url;
+      lastSentBrowserTabIdRef.current = activeTab.id;
     }
 
-    desktopApi.updatePreview({
+    desktopApi.updateBrowser({
       bounds,
       projectId: project.id,
       tabId: activeTab.id,
@@ -523,14 +523,14 @@ export const IdeShell = () => {
     });
   }, []);
 
-  // Preview resize observer
+  // Browser resize observer
   useEffect(() => {
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
 
-    const update = () => syncPreviewBounds();
+    const update = () => syncBrowserBounds();
     const observer = new ResizeObserver(update);
-    const host = previewHostRef.current;
+    const host = browserHostRef.current;
     if (host) {
       observer.observe(host);
     }
@@ -543,7 +543,7 @@ export const IdeShell = () => {
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [syncPreviewBounds]);
+  }, [syncBrowserBounds]);
 
   useEffect(() => {
     const update = () => syncHorizontalPanelWidths();
@@ -563,39 +563,39 @@ export const IdeShell = () => {
     };
   }, [syncHorizontalPanelWidths]);
 
-  // Sync preview bounds when project or panel visibility changes
+  // Sync browser bounds when project or panel visibility changes
   useEffect(() => {
     void activeProject;
     void panelVisibility.right;
     void rightPanelView;
-    void activePreviewTab?.id;
-    void activePreviewTab?.url;
-    syncPreviewBounds();
+    void activeBrowserTab?.id;
+    void activeBrowserTab?.url;
+    syncBrowserBounds();
   }, [
-    activePreviewTab?.id,
-    activePreviewTab?.url,
+    activeBrowserTab?.id,
+    activeBrowserTab?.url,
     activeProject,
     panelVisibility.right,
     rightPanelView,
-    syncPreviewBounds,
+    syncBrowserBounds,
   ]);
 
-  // Keep the preview hidden while any modal is open or finishing its exit animation.
+  // Keep the browser hidden while any modal is open or finishing its exit animation.
   useEffect(() => {
-    if (modalPreviewHidden) {
-      syncPreviewBounds();
+    if (modalBrowserHidden) {
+      syncBrowserBounds();
       return;
     }
 
-    syncPreviewBounds();
-  }, [modalPreviewHidden, syncPreviewBounds]);
+    syncBrowserBounds();
+  }, [modalBrowserHidden, syncBrowserBounds]);
 
-  // Preview cleanup on unmount
+  // Browser cleanup on unmount
   useEffect(() => {
     return () => {
       const desktopApi = getDesktopApi();
       if (!desktopApi) return;
-      desktopApi.updatePreview({ visible: false });
+      desktopApi.updateBrowser({ visible: false });
     };
   }, []);
 
@@ -744,7 +744,7 @@ export const IdeShell = () => {
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen flex-col overflow-hidden text-foreground">
+    <div className="flex h-screen flex-col overflow-hidden bg-muted/50 text-foreground">
       {!appReady && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <Spinner className="size-6 text-muted-foreground" />
@@ -873,7 +873,7 @@ export const IdeShell = () => {
               />
             )}
 
-            {/* ─── RIGHT: Preview / Explorer ─── */}
+            {/* ─── RIGHT: Browser / Explorer ─── */}
             <div
               className={cn(
                 middleVisible ? "overflow-hidden" : "min-w-0 overflow-hidden",
@@ -883,13 +883,13 @@ export const IdeShell = () => {
                 ...(middleVisible
                   ? {
                       width: rightVisible ? rightWidthRef.current : 0,
-                      minWidth: rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0,
+                      minWidth: rightVisible ? BROWSER_PANEL_MIN_WIDTH_PX : 0,
                       maxWidth: rightVisible ? getRightPanelMaxWidth() : 0,
                       flex: rightVisible ? "0 0 auto" : "0 0 0px",
                     }
                   : {
                       flex: rightVisible ? "1 1 0%" : "0 0 0px",
-                      minWidth: rightVisible ? PREVIEW_PANEL_MIN_WIDTH_PX : 0,
+                      minWidth: rightVisible ? BROWSER_PANEL_MIN_WIDTH_PX : 0,
                     }),
                 opacity: rightVisible ? 1 : 0,
                 paddingRight: rightVisible ? 8 : 0,
@@ -903,11 +903,11 @@ export const IdeShell = () => {
             >
               <div
                 className="h-full pb-2"
-                style={{ minWidth: PREVIEW_PANEL_MIN_WIDTH_PX }}
+                style={{ minWidth: BROWSER_PANEL_MIN_WIDTH_PX }}
               >
-                <PreviewPanel
-                  onSyncPreviewBounds={syncPreviewBounds}
-                  previewHostRef={previewHostRef}
+                <BrowserPanel
+                  onSyncBrowserBounds={syncBrowserBounds}
+                  browserHostRef={browserHostRef}
                 />
               </div>
             </div>

@@ -30,7 +30,7 @@ export interface ProjectConfig {
   name: string;
   path: string;
   runCommand: string;
-  previewUrl: string;
+  browserUrl: string;
   provider: AiProvider;
   model: string;
   reasoningEffort: ReasoningEffort;
@@ -82,25 +82,25 @@ export interface TerminalStatusEvent {
   signal?: NodeJS.Signals | null;
 }
 
-export interface PreviewBounds {
+export interface BrowserBounds {
   x: number;
   y: number;
   width: number;
   height: number;
 }
 
-export interface PreviewErrorEvent {
+export interface BrowserErrorEvent {
   code: number | string;
   description: string;
 }
 
-export interface PreviewStatusEvent {
+export interface BrowserStatusEvent {
   loading: boolean;
   projectId: string;
   tabId?: string;
 }
 
-export interface PreviewTabState {
+export interface BrowserTabState {
   canGoBack: boolean;
   canGoForward: boolean;
   id: string;
@@ -108,7 +108,7 @@ export interface PreviewTabState {
   url: string;
 }
 
-export interface PreviewPageStateEvent {
+export interface BrowserPageStateEvent {
   canGoBack: boolean;
   canGoForward: boolean;
   projectId: string;
@@ -177,8 +177,8 @@ export interface TerminalInputPayload {
   data: string;
 }
 
-export interface PreviewUpdatePayload {
-  bounds?: PreviewBounds;
+export interface BrowserUpdatePayload {
+  bounds?: BrowserBounds;
   goBack?: boolean;
   goForward?: boolean;
   projectId?: string;
@@ -224,13 +224,13 @@ export interface DreamDesktopApi {
     listener: (event: TerminalStatusEvent) => void,
   ) => () => void;
 
-  updatePreview: (payload: PreviewUpdatePayload) => void;
-  onPreviewError: (listener: (event: PreviewErrorEvent) => void) => () => void;
-  onPreviewPageState: (
-    listener: (event: PreviewPageStateEvent) => void,
+  updateBrowser: (payload: BrowserUpdatePayload) => void;
+  onBrowserError: (listener: (event: BrowserErrorEvent) => void) => () => void;
+  onBrowserPageState: (
+    listener: (event: BrowserPageStateEvent) => void,
   ) => () => void;
-  onPreviewStatus: (
-    listener: (event: PreviewStatusEvent) => void,
+  onBrowserStatus: (
+    listener: (event: BrowserStatusEvent) => void,
   ) => () => void;
 
   detectEditors: () => Promise<DetectedEditor[]>;

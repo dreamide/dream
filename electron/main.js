@@ -162,8 +162,8 @@ function loadPersistedState() {
 }
 
 let mainWindow = null;
-let activePreviewTabId = null;
-const previewSessions = new Map(); // keyed by tabId
+let activeBrowserTabId = null;
+const browserSessions = new Map(); // keyed by tabId
 
 let rendererUrl = developmentRendererUrl;
 let viteDevProcess = null;
@@ -174,7 +174,7 @@ const terminalSessions = new Map();
 const terminalTransports = new Map();
 const terminalShells = new Map();
 
-const previewState = {
+const browserState = {
   bounds: { height: 0, width: 0, x: 0, y: 0 },
   projectId: null,
   tabId: null,
@@ -218,7 +218,7 @@ function getAlternateLoopbackUrl(value) {
   return null;
 }
 
-function getPreviewLoadCandidates(value) {
+function getBrowserLoadCandidates(value) {
   const primary = value.trim();
   const alternate = getAlternateLoopbackUrl(primary);
 
@@ -248,7 +248,7 @@ function isRendererNavigation(url) {
   return targetOrigin === rendererOrigin;
 }
 
-function getPreviewPageState(session) {
+function getBrowserPageState(session) {
   if (!session) {
     return null;
   }
@@ -272,16 +272,16 @@ function getPreviewPageState(session) {
   };
 }
 
-function sendPreviewPageState(session) {
-  const pageState = getPreviewPageState(session);
+function sendBrowserPageState(session) {
+  const pageState = getBrowserPageState(session);
   if (!pageState) {
     return;
   }
 
-  sendToRenderer("preview:page-state", pageState);
+  sendToRenderer("browser:page-state", pageState);
 }
 
-function settlePreviewLoadFailure(session, failedUrl) {
+function settleBrowserLoadFailure(session, failedUrl) {
   if (!session) {
     return;
   }
@@ -466,7 +466,7 @@ async function configureRendererProxy(webContents) {
   }
 }
 
-function createPreviewSession(tabId, projectId) {
+function createBrowserSession(tabId, projectId) {
   const view = new WebContentsView({
     webPreferences: {
       contextIsolation: true,
@@ -480,7 +480,7 @@ function createPreviewSession(tabId, projectId) {
   });
 
   view.webContents.on("did-start-loading", () => {
-    sendToRenderer("preview:status", {
+    sendToRenderer("browser:status", {
       loading: true,
       projectId,
       tabId,
@@ -488,7 +488,7 @@ function createPreviewSession(tabId, projectId) {
   });
 
   view.webContents.on("did-finish-load", () => {
-    const session = previewSessions.get(tabId);
+    const session = browserSessions.get(tabId);
     if (session) {
       session.loadingRequestedUrl = null;
       session.currentLoadedUrl =
@@ -498,11 +498,11 @@ function createPreviewSession(tabId, projectId) {
       session.title = session.view.webContents.getTitle() || session.title;
     }
 
-    sendPreviewPageState(previewSessions.get(tabId));
+    sendBrowserPageState(browserSessions.get(tabId));
   });
 
   view.webContents.on("did-stop-loading", () => {
-    const session = previewSessions.get(tabId);
+    const session = browserSessions.get(tabId);
     if (session && session.view.webContents.getURL() !== "about:blank") {
       session.loadingRequestedUrl = null;
       session.currentLoadedUrl = session.view.webContents.getURL();
@@ -511,16 +511,16 @@ function createPreviewSession(tabId, projectId) {
       session.title = session.view.webContents.getTitle() || session.title;
     }
 
-    sendToRenderer("preview:status", {
+    sendToRenderer("browser:status", {
       loading: false,
       projectId,
       tabId,
     });
-    sendPreviewPageState(previewSessions.get(tabId));
+    sendBrowserPageState(browserSessions.get(tabId));
   });
 
   view.webContents.on("did-navigate", (_event, url) => {
-    const session = previewSessions.get(tabId);
+    const session = browserSessions.get(tabId);
     if (!session) {
       return;
     }
@@ -529,7 +529,7 @@ function createPreviewSession(tabId, projectId) {
     session.currentRequestedUrl = session.currentLoadedUrl;
     session.failedRequestedUrl = null;
     session.title = session.view.webContents.getTitle() || session.title;
-    sendPreviewPageState(session);
+    sendBrowserPageState(session);
   });
 
   view.webContents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
@@ -537,7 +537,7 @@ function createPreviewSession(tabId, projectId) {
       return;
     }
 
-    const session = previewSessions.get(tabId);
+    const session = browserSessions.get(tabId);
     if (!session) {
       return;
     }
@@ -546,17 +546,17 @@ function createPreviewSession(tabId, projectId) {
     session.currentRequestedUrl = session.currentLoadedUrl;
     session.failedRequestedUrl = null;
     session.title = session.view.webContents.getTitle() || session.title;
-    sendPreviewPageState(session);
+    sendBrowserPageState(session);
   });
 
   view.webContents.on("page-title-updated", (_event, title) => {
-    const session = previewSessions.get(tabId);
+    const session = browserSessions.get(tabId);
     if (!session) {
       return;
     }
 
     session.title = title || session.title;
-    sendPreviewPageState(session);
+    sendBrowserPageState(session);
   });
 
   view.webContents.on(
@@ -570,15 +570,15 @@ function createPreviewSession(tabId, projectId) {
         return;
       }
 
-      const session = previewSessions.get(tabId);
-      settlePreviewLoadFailure(session, validatedUrl);
-      sendPreviewPageState(session);
+      const session = browserSessions.get(tabId);
+      settleBrowserLoadFailure(session, validatedUrl);
+      sendBrowserPageState(session);
 
-      if (previewState.tabId !== tabId) {
+      if (browserState.tabId !== tabId) {
         return;
       }
 
-      sendToRenderer("preview:error", {
+      sendToRenderer("browser:error", {
         code,
         description,
       });
@@ -600,7 +600,7 @@ function createPreviewSession(tabId, projectId) {
   };
 }
 
-function getPreviewSession(tabId, projectId) {
+function getBrowserSession(tabId, projectId) {
   const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
   const normalizedProjectId =
     typeof projectId === "string" ? projectId.trim() : "";
@@ -608,7 +608,7 @@ function getPreviewSession(tabId, projectId) {
     return null;
   }
 
-  const existing = previewSessions.get(normalizedTabId);
+  const existing = browserSessions.get(normalizedTabId);
   if (existing) {
     if (normalizedProjectId) {
       existing.projectId = normalizedProjectId;
@@ -616,12 +616,12 @@ function getPreviewSession(tabId, projectId) {
     return existing;
   }
 
-  const created = createPreviewSession(normalizedTabId, normalizedProjectId);
-  previewSessions.set(normalizedTabId, created);
+  const created = createBrowserSession(normalizedTabId, normalizedProjectId);
+  browserSessions.set(normalizedTabId, created);
   return created;
 }
 
-function attachPreviewSession(session) {
+function attachBrowserSession(session) {
   if (!mainWindow || mainWindow.isDestroyed() || !session) {
     return;
   }
@@ -632,7 +632,7 @@ function attachPreviewSession(session) {
   }
 }
 
-function detachPreviewSession(session) {
+function detachBrowserSession(session) {
   if (
     !mainWindow ||
     mainWindow.isDestroyed() ||
@@ -646,14 +646,14 @@ function detachPreviewSession(session) {
   session.attached = false;
 }
 
-function detachAllPreviewSessions() {
-  for (const session of previewSessions.values()) {
-    detachPreviewSession(session);
+function detachAllBrowserSessions() {
+  for (const session of browserSessions.values()) {
+    detachBrowserSession(session);
   }
 }
 
-function stopPreviewNavigation(tabId, projectId) {
-  const session = getPreviewSession(tabId, projectId);
+function stopBrowserNavigation(tabId, projectId) {
+  const session = getBrowserSession(tabId, projectId);
   if (!session) {
     return;
   }
@@ -668,15 +668,15 @@ function stopPreviewNavigation(tabId, projectId) {
     // ignore stop failures
   }
 
-  sendToRenderer("preview:status", {
+  sendToRenderer("browser:status", {
     loading: false,
     projectId: session.projectId,
     tabId: session.tabId,
   });
 }
 
-function navigatePreviewHistory(tabId, projectId, direction) {
-  const session = getPreviewSession(tabId, projectId);
+function navigateBrowserHistory(tabId, projectId, direction) {
+  const session = getBrowserSession(tabId, projectId);
   if (!session) {
     return;
   }
@@ -693,15 +693,15 @@ function navigatePreviewHistory(tabId, projectId, direction) {
     // ignore history navigation failures
   }
 
-  sendPreviewPageState(session);
+  sendBrowserPageState(session);
 }
 
-function applyPreviewState() {
+function applyBrowserState() {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
-  const { bounds, projectId, tabId, url, visible } = previewState;
+  const { bounds, projectId, tabId, url, visible } = browserState;
   const canRender =
     visible &&
     typeof projectId === "string" &&
@@ -713,19 +713,19 @@ function applyPreviewState() {
     isHttpUrl(url);
 
   if (!canRender) {
-    detachAllPreviewSessions();
+    detachAllBrowserSessions();
     if (typeof tabId === "string" && tabId.trim().length > 0) {
-      sendToRenderer("preview:status", {
+      sendToRenderer("browser:status", {
         loading: false,
         projectId,
         tabId,
       });
     }
-    activePreviewTabId = null;
+    activeBrowserTabId = null;
     return;
   }
 
-  const nextSession = getPreviewSession(tabId, projectId);
+  const nextSession = getBrowserSession(tabId, projectId);
   if (!nextSession) {
     return;
   }
@@ -738,13 +738,13 @@ function applyPreviewState() {
   };
   const currentProjectSessions = [];
 
-  for (const session of previewSessions.values()) {
+  for (const session of browserSessions.values()) {
     if (session.projectId === projectId) {
       currentProjectSessions.push(session);
       continue;
     }
 
-    detachPreviewSession(session);
+    detachBrowserSession(session);
   }
 
   for (const session of currentProjectSessions) {
@@ -752,18 +752,18 @@ function applyPreviewState() {
       continue;
     }
 
-    attachPreviewSession(session);
+    attachBrowserSession(session);
     session.view.setBounds(roundedBounds);
     session.lastBounds = roundedBounds;
   }
 
-  attachPreviewSession(nextSession);
+  attachBrowserSession(nextSession);
   nextSession.view.setBounds(roundedBounds);
   nextSession.lastBounds = roundedBounds;
-  activePreviewTabId = nextSession.tabId;
+  activeBrowserTabId = nextSession.tabId;
 
-  const forceReload = previewState.reload;
-  previewState.reload = false;
+  const forceReload = browserState.reload;
+  browserState.reload = false;
 
   if (
     (!forceReload && nextSession.failedRequestedUrl === url) ||
@@ -785,11 +785,11 @@ function applyPreviewState() {
       nextSession.view.webContents.reloadIgnoringCache();
     } catch (error) {
       nextSession.loadingRequestedUrl = null;
-      sendToRenderer("preview:error", {
+      sendToRenderer("browser:error", {
         code: "RELOAD_FAILED",
         description: error instanceof Error ? error.message : "Unknown error",
       });
-      sendToRenderer("preview:status", {
+      sendToRenderer("browser:status", {
         loading: false,
         projectId: nextSession.projectId,
         tabId: nextSession.tabId,
@@ -803,7 +803,7 @@ function applyPreviewState() {
   nextSession.loadingRequestedUrl = url;
   nextSession.failedRequestedUrl = null;
   const requestId = ++nextSession.loadRequestId;
-  const candidates = getPreviewLoadCandidates(url);
+  const candidates = getBrowserLoadCandidates(url);
 
   const loadCandidate = async (index = 0) => {
     if (requestId !== nextSession.loadRequestId) {
@@ -816,13 +816,13 @@ function applyPreviewState() {
         return;
       }
 
-      settlePreviewLoadFailure(nextSession, url);
-      sendPreviewPageState(nextSession);
+      settleBrowserLoadFailure(nextSession, url);
+      sendBrowserPageState(nextSession);
 
-      if (previewState.tabId === nextSession.tabId) {
-        sendToRenderer("preview:error", {
+      if (browserState.tabId === nextSession.tabId) {
+        sendToRenderer("browser:error", {
           code: "LOAD_URL_FAILED",
-          description: "Failed to load preview URL.",
+          description: "Failed to load browser URL.",
         });
       }
 
@@ -841,7 +841,7 @@ function applyPreviewState() {
       nextSession.currentLoadedUrl = candidate;
       nextSession.title =
         nextSession.view.webContents.getTitle() || nextSession.title;
-      sendPreviewPageState(nextSession);
+      sendBrowserPageState(nextSession);
     } catch (error) {
       if (requestId !== nextSession.loadRequestId) {
         return;
@@ -852,11 +852,11 @@ function applyPreviewState() {
         return;
       }
 
-      settlePreviewLoadFailure(nextSession, url);
-      sendPreviewPageState(nextSession);
+      settleBrowserLoadFailure(nextSession, url);
+      sendBrowserPageState(nextSession);
 
-      if (previewState.tabId === nextSession.tabId) {
-        sendToRenderer("preview:error", {
+      if (browserState.tabId === nextSession.tabId) {
+        sendToRenderer("browser:error", {
           code: "LOAD_URL_FAILED",
           description: error instanceof Error ? error.message : "Unknown error",
         });
@@ -867,14 +867,14 @@ function applyPreviewState() {
   void loadCandidate();
 }
 
-function destroyPreviewTab(tabId) {
+function destroyBrowserTab(tabId) {
   const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
   if (!normalizedTabId) return;
 
-  const session = previewSessions.get(normalizedTabId);
+  const session = browserSessions.get(normalizedTabId);
   if (!session) return;
 
-  detachPreviewSession(session);
+  detachBrowserSession(session);
 
   try {
     session.view.webContents.close();
@@ -882,15 +882,15 @@ function destroyPreviewTab(tabId) {
     // ignore close failures
   }
 
-  previewSessions.delete(normalizedTabId);
+  browserSessions.delete(normalizedTabId);
 
-  if (activePreviewTabId === normalizedTabId) {
-    activePreviewTabId = null;
+  if (activeBrowserTabId === normalizedTabId) {
+    activeBrowserTabId = null;
   }
 
-  if (previewState.tabId === normalizedTabId) {
-    previewState.tabId = null;
-    previewState.url = "about:blank";
+  if (browserState.tabId === normalizedTabId) {
+    browserState.tabId = null;
+    browserState.url = "about:blank";
   }
 }
 
@@ -1147,14 +1147,14 @@ async function createMainWindow() {
   });
 
   mainWindow.on("resize", () => {
-    applyPreviewState();
+    applyBrowserState();
   });
 
   mainWindow.on("closed", () => {
-    detachAllPreviewSessions();
-    activePreviewTabId = null;
-    previewState.projectId = null;
-    previewState.tabId = null;
+    detachAllBrowserSessions();
+    activeBrowserTabId = null;
+    browserState.projectId = null;
+    browserState.tabId = null;
     mainWindow = null;
   });
 
@@ -1952,7 +1952,7 @@ ipcMain.handle("terminal:stop", (_event, { projectId }) => {
   return true;
 });
 
-ipcMain.on("preview:update", (_event, payload) => {
+ipcMain.on("browser:update", (_event, payload) => {
   if (!payload || typeof payload !== "object") {
     return;
   }
@@ -1961,60 +1961,60 @@ ipcMain.on("preview:update", (_event, payload) => {
     typeof payload.projectId === "string" &&
     payload.projectId.trim().length > 0
   ) {
-    previewState.projectId = payload.projectId.trim();
+    browserState.projectId = payload.projectId.trim();
   }
 
   if (typeof payload.tabId === "string" && payload.tabId.trim().length > 0) {
-    previewState.tabId = payload.tabId.trim();
+    browserState.tabId = payload.tabId.trim();
   }
 
   if (typeof payload.destroyTab === "string") {
-    destroyPreviewTab(payload.destroyTab);
+    destroyBrowserTab(payload.destroyTab);
     return;
   }
 
   if (payload.goBack === true) {
-    navigatePreviewHistory(previewState.tabId, previewState.projectId, "back");
+    navigateBrowserHistory(browserState.tabId, browserState.projectId, "back");
     return;
   }
 
   if (payload.goForward === true) {
-    navigatePreviewHistory(
-      previewState.tabId,
-      previewState.projectId,
+    navigateBrowserHistory(
+      browserState.tabId,
+      browserState.projectId,
       "forward",
     );
     return;
   }
 
   if (payload.stop === true) {
-    stopPreviewNavigation(previewState.tabId, previewState.projectId);
+    stopBrowserNavigation(browserState.tabId, browserState.projectId);
     return;
   }
 
   const nextBounds = payload.bounds;
   if (nextBounds && typeof nextBounds === "object") {
-    previewState.bounds = {
-      height: Number(nextBounds.height ?? previewState.bounds.height),
-      width: Number(nextBounds.width ?? previewState.bounds.width),
-      x: Number(nextBounds.x ?? previewState.bounds.x),
-      y: Number(nextBounds.y ?? previewState.bounds.y),
+    browserState.bounds = {
+      height: Number(nextBounds.height ?? browserState.bounds.height),
+      width: Number(nextBounds.width ?? browserState.bounds.width),
+      x: Number(nextBounds.x ?? browserState.bounds.x),
+      y: Number(nextBounds.y ?? browserState.bounds.y),
     };
   }
 
   if (typeof payload.visible === "boolean") {
-    previewState.visible = payload.visible;
+    browserState.visible = payload.visible;
   }
 
   if (payload.reload === true) {
-    previewState.reload = true;
+    browserState.reload = true;
   }
 
   if (typeof payload.url === "string" && payload.url.trim().length > 0) {
-    previewState.url = payload.url.trim();
+    browserState.url = payload.url.trim();
   }
 
-  applyPreviewState();
+  applyBrowserState();
 });
 
 app.whenReady().then(async () => {

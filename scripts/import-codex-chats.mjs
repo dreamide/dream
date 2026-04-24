@@ -458,7 +458,7 @@ const importCodexChatsIntoState = (currentState, codexRoot) => {
         model: getDefaultImportedModel(provider, nextState.settings ?? {}),
         name: path.basename(cwd) || "Imported Codex Chats",
         path: cwd,
-        previewUrl: "http://127.0.0.1:3000",
+        browserUrl: "http://127.0.0.1:3000",
         provider,
         reasoningEffort: "medium",
         runCommand: "pnpm dev",

@@ -15,12 +15,12 @@ import { dedupeModelOptions } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
+  BrowserTabState,
   ChatConfig,
   ChatSortOrder,
   PanelSizes,
   PanelVisibility,
   PersistedIdeState,
-  PreviewTabState,
   ProjectConfig,
 } from "@/types/ide";
 import {
@@ -34,7 +34,7 @@ import {
   type CodexPermissionMode,
   createProjectTerminalSessionId,
   dedupeModels,
-  getPreviewTerminalSessionId,
+  getBrowserTerminalSessionId,
   type ProviderModelState,
   type ProviderModelsResponse,
   type RightPanelView,
@@ -73,10 +73,10 @@ interface IdeState {
   outputPanelOpen: boolean;
   claudePermissionMode: ClaudePermissionMode;
   codexPermissionMode: CodexPermissionMode;
-  previewError: string | null;
-  previewLoading: Record<string, boolean>;
-  previewTabsByProject: Record<string, PreviewTabState[]>;
-  activePreviewTabIdByProject: Record<string, string | null>;
+  browserError: string | null;
+  browserLoading: Record<string, boolean>;
+  browserTabsByProject: Record<string, BrowserTabState[]>;
+  activeBrowserTabIdByProject: Record<string, string | null>;
   projectGitRefreshKeys: Record<string, number>;
   rightPanelView: RightPanelView;
   stateHydrated: boolean;
@@ -98,8 +98,8 @@ interface IdeState {
   getActiveProject: () => ProjectConfig | null;
   getChatsForProject: (projectId: string) => ChatConfig[];
   getActiveChat: () => ChatConfig | null;
-  getPreviewTabs: (projectId: string | null | undefined) => PreviewTabState[];
-  getActivePreviewTab: (projectId?: string | null) => PreviewTabState | null;
+  getBrowserTabs: (projectId: string | null | undefined) => BrowserTabState[];
+  getActiveBrowserTab: (projectId?: string | null) => BrowserTabState | null;
 
   // Actions – projects
   setProjects: (projects: ProjectConfig[]) => void;
@@ -157,22 +157,22 @@ interface IdeState {
   setTerminalSessionName: (sessionId: string, name: string) => void;
   setChatStreaming: (chatId: string, streaming: boolean) => void;
   bumpProjectGitRefreshKey: (projectId: string) => void;
-  setPreviewError: (error: string | null) => void;
-  setPreviewLoading: (id: string, loading: boolean) => void;
-  ensurePreviewTabs: (projectId: string, initialUrl?: string) => void;
-  createPreviewTab: (projectId: string, initialUrl?: string) => string | null;
-  updatePreviewTab: (
+  setBrowserError: (error: string | null) => void;
+  setBrowserLoading: (id: string, loading: boolean) => void;
+  ensureBrowserTabs: (projectId: string, initialUrl?: string) => void;
+  createBrowserTab: (projectId: string, initialUrl?: string) => string | null;
+  updateBrowserTab: (
     projectId: string,
     tabId: string,
-    updater: (tab: PreviewTabState) => PreviewTabState,
+    updater: (tab: BrowserTabState) => BrowserTabState,
   ) => void;
-  closePreviewTab: (projectId: string, tabId: string) => string | null;
-  reorderPreviewTabs: (
+  closeBrowserTab: (projectId: string, tabId: string) => string | null;
+  reorderBrowserTabs: (
     projectId: string,
     fromIndex: number,
     toIndex: number,
   ) => void;
-  setActivePreviewTab: (projectId: string, tabId: string | null) => void;
+  setActiveBrowserTab: (projectId: string, tabId: string | null) => void;
   setIsMacOs: (value: boolean) => void;
   setIsElectron: (value: boolean) => void;
   setAppReady: (value: boolean) => void;
@@ -264,22 +264,22 @@ const areMessagesEqual = (
   return true;
 };
 
-const PREVIEW_TAB_ID_PREFIX = "preview-tab";
+const BROWSER_TAB_ID_PREFIX = "browser-tab";
 
-const createPreviewTabId = () => {
+const createBrowserTabId = () => {
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
   ) {
-    return `${PREVIEW_TAB_ID_PREFIX}-${crypto.randomUUID()}`;
+    return `${BROWSER_TAB_ID_PREFIX}-${crypto.randomUUID()}`;
   }
 
-  return `${PREVIEW_TAB_ID_PREFIX}-${Date.now()}-${Math.random()
+  return `${BROWSER_TAB_ID_PREFIX}-${Date.now()}-${Math.random()
     .toString(36)
     .slice(2, 10)}`;
 };
 
-const getPreviewTabTitle = (url: string) => {
+const getBrowserTabTitle = (url: string) => {
   const trimmed = typeof url === "string" ? url.trim() : "";
   if (!trimmed) {
     return "New Tab";
@@ -292,27 +292,27 @@ const getPreviewTabTitle = (url: string) => {
   }
 };
 
-const createPreviewTabState = (url = ""): PreviewTabState => ({
+const createBrowserTabState = (url = ""): BrowserTabState => ({
   canGoBack: false,
   canGoForward: false,
-  id: createPreviewTabId(),
-  title: getPreviewTabTitle(url),
+  id: createBrowserTabId(),
+  title: getBrowserTabTitle(url),
   url,
 });
 
-const getPreviewTabsForProject = (
-  previewTabsByProject: Record<string, PreviewTabState[]>,
+const getBrowserTabsForProject = (
+  browserTabsByProject: Record<string, BrowserTabState[]>,
   projectId: string | null | undefined,
 ) => {
   if (!projectId) {
     return [];
   }
 
-  return previewTabsByProject[projectId] ?? [];
+  return browserTabsByProject[projectId] ?? [];
 };
 
-const resolveActivePreviewTab = (
-  tabs: PreviewTabState[],
+const resolveActiveBrowserTab = (
+  tabs: BrowserTabState[],
   activeTabId: string | null | undefined,
 ) => {
   if (tabs.length === 0) {
@@ -390,10 +390,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   outputPanelOpen: false,
   claudePermissionMode: "ask-permissions",
   codexPermissionMode: "default",
-  previewError: null,
-  previewLoading: {},
-  previewTabsByProject: {},
-  activePreviewTabIdByProject: {},
+  browserError: null,
+  browserLoading: {},
+  browserTabsByProject: {},
+  activeBrowserTabIdByProject: {},
   projectGitRefreshKeys: {},
   rightPanelView: "changes",
   stateHydrated: false,
@@ -433,22 +433,22 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     );
   },
 
-  getPreviewTabs: (projectId) => {
-    const { previewTabsByProject } = get();
-    return getPreviewTabsForProject(previewTabsByProject, projectId);
+  getBrowserTabs: (projectId) => {
+    const { browserTabsByProject } = get();
+    return getBrowserTabsForProject(browserTabsByProject, projectId);
   },
 
-  getActivePreviewTab: (projectId) => {
+  getActiveBrowserTab: (projectId) => {
     const state = get();
     const targetProjectId = projectId ?? state.getActiveProject()?.id ?? null;
-    const tabs = getPreviewTabsForProject(
-      state.previewTabsByProject,
+    const tabs = getBrowserTabsForProject(
+      state.browserTabsByProject,
       targetProjectId,
     );
     const activeTabId = targetProjectId
-      ? state.activePreviewTabIdByProject[targetProjectId]
+      ? state.activeBrowserTabIdByProject[targetProjectId]
       : null;
-    return resolveActivePreviewTab(tabs, activeTabId);
+    return resolveActiveBrowserTab(tabs, activeTabId);
   },
 
   // ── Actions: projects ───────────────────────────────────────────────
@@ -509,10 +509,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   closeProject: (projectId) => {
-    const previewTabs = get().previewTabsByProject[projectId] ?? [];
+    const browserTabs = get().browserTabsByProject[projectId] ?? [];
     const desktopApi = getDesktopApi();
-    for (const tab of previewTabs) {
-      desktopApi?.updatePreview({ destroyTab: tab.id });
+    for (const tab of browserTabs) {
+      desktopApi?.updateBrowser({ destroyTab: tab.id });
     }
 
     set((state) => {
@@ -531,24 +531,24 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         nextProjects,
         state.activeProjectId === projectId ? null : state.activeProjectId,
       );
-      const nextPreviewTabsByProject = { ...state.previewTabsByProject };
-      const nextActivePreviewTabIdByProject = {
-        ...state.activePreviewTabIdByProject,
+      const nextBrowserTabsByProject = { ...state.browserTabsByProject };
+      const nextActiveBrowserTabIdByProject = {
+        ...state.activeBrowserTabIdByProject,
       };
       const nextProjectGitRefreshKeys = { ...state.projectGitRefreshKeys };
       const nextTerminalOrdinalByProject = {
         ...state.nextTerminalOrdinalByProject,
       };
-      const nextPreviewLoading = { ...state.previewLoading };
+      const nextBrowserLoading = { ...state.browserLoading };
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
 
-      delete nextPreviewTabsByProject[projectId];
-      delete nextActivePreviewTabIdByProject[projectId];
+      delete nextBrowserTabsByProject[projectId];
+      delete nextActiveBrowserTabIdByProject[projectId];
       delete nextProjectGitRefreshKeys[projectId];
       delete nextTerminalOrdinalByProject[projectId];
       delete nextDraftChatIdByProject[projectId];
-      for (const tab of previewTabs) {
-        delete nextPreviewLoading[tab.id];
+      for (const tab of browserTabs) {
+        delete nextBrowserLoading[tab.id];
       }
 
       return {
@@ -565,9 +565,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ),
         messagesByChatId: nextMessagesByChatId,
         nextTerminalOrdinalByProject,
-        previewLoading: nextPreviewLoading,
-        previewTabsByProject: nextPreviewTabsByProject,
-        activePreviewTabIdByProject: nextActivePreviewTabIdByProject,
+        browserLoading: nextBrowserLoading,
+        browserTabsByProject: nextBrowserTabsByProject,
+        activeBrowserTabIdByProject: nextActiveBrowserTabIdByProject,
         draftChatIdByProject: nextDraftChatIdByProject,
         projectGitRefreshKeys: nextProjectGitRefreshKeys,
         projects: nextProjects,
@@ -1046,13 +1046,13 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       },
     }));
   },
-  setPreviewError: (error) => set({ previewError: error }),
-  setPreviewLoading: (id, loading) => {
+  setBrowserError: (error) => set({ browserError: error }),
+  setBrowserLoading: (id, loading) => {
     set((state) => ({
-      previewLoading: { ...state.previewLoading, [id]: loading },
+      browserLoading: { ...state.browserLoading, [id]: loading },
     }));
   },
-  ensurePreviewTabs: (projectId, initialUrl = "") => {
+  ensureBrowserTabs: (projectId, initialUrl = "") => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
     if (!normalizedProjectId) {
@@ -1061,60 +1061,60 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     set((state) => {
       const existingTabs =
-        state.previewTabsByProject[normalizedProjectId] ?? [];
+        state.browserTabsByProject[normalizedProjectId] ?? [];
       if (existingTabs.length > 0) {
         const activeTabId =
-          state.activePreviewTabIdByProject[normalizedProjectId] ?? null;
+          state.activeBrowserTabIdByProject[normalizedProjectId] ?? null;
         if (activeTabId && existingTabs.some((tab) => tab.id === activeTabId)) {
           return state;
         }
 
         return {
-          activePreviewTabIdByProject: {
-            ...state.activePreviewTabIdByProject,
+          activeBrowserTabIdByProject: {
+            ...state.activeBrowserTabIdByProject,
             [normalizedProjectId]: existingTabs[0]?.id ?? null,
           },
         };
       }
 
-      const initialTab = createPreviewTabState(initialUrl);
+      const initialTab = createBrowserTabState(initialUrl);
       return {
-        previewTabsByProject: {
-          ...state.previewTabsByProject,
+        browserTabsByProject: {
+          ...state.browserTabsByProject,
           [normalizedProjectId]: [initialTab],
         },
-        activePreviewTabIdByProject: {
-          ...state.activePreviewTabIdByProject,
+        activeBrowserTabIdByProject: {
+          ...state.activeBrowserTabIdByProject,
           [normalizedProjectId]: initialTab.id,
         },
       };
     });
   },
-  createPreviewTab: (projectId, initialUrl = "") => {
+  createBrowserTab: (projectId, initialUrl = "") => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
     if (!normalizedProjectId) {
       return null;
     }
 
-    const nextTab = createPreviewTabState(initialUrl);
+    const nextTab = createBrowserTabState(initialUrl);
     set((state) => ({
-      previewTabsByProject: {
-        ...state.previewTabsByProject,
+      browserTabsByProject: {
+        ...state.browserTabsByProject,
         [normalizedProjectId]: [
-          ...(state.previewTabsByProject[normalizedProjectId] ?? []),
+          ...(state.browserTabsByProject[normalizedProjectId] ?? []),
           nextTab,
         ],
       },
-      activePreviewTabIdByProject: {
-        ...state.activePreviewTabIdByProject,
+      activeBrowserTabIdByProject: {
+        ...state.activeBrowserTabIdByProject,
         [normalizedProjectId]: nextTab.id,
       },
     }));
 
     return nextTab.id;
   },
-  updatePreviewTab: (projectId, tabId, updater) => {
+  updateBrowserTab: (projectId, tabId, updater) => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
     const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
@@ -1123,7 +1123,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }
 
     set((state) => {
-      const tabs = state.previewTabsByProject[normalizedProjectId] ?? [];
+      const tabs = state.browserTabsByProject[normalizedProjectId] ?? [];
       let changed = false;
       const nextTabs = tabs.map((tab) => {
         if (tab.id !== normalizedTabId) {
@@ -1140,14 +1140,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       }
 
       return {
-        previewTabsByProject: {
-          ...state.previewTabsByProject,
+        browserTabsByProject: {
+          ...state.browserTabsByProject,
           [normalizedProjectId]: nextTabs,
         },
       };
     });
   },
-  closePreviewTab: (projectId, tabId) => {
+  closeBrowserTab: (projectId, tabId) => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
     const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
@@ -1155,12 +1155,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       return null;
     }
 
-    const existingTabs = get().previewTabsByProject[normalizedProjectId] ?? [];
+    const existingTabs = get().browserTabsByProject[normalizedProjectId] ?? [];
     if (existingTabs.length <= 1) {
       return (
-        resolveActivePreviewTab(
+        resolveActiveBrowserTab(
           existingTabs,
-          get().activePreviewTabIdByProject[normalizedProjectId],
+          get().activeBrowserTabIdByProject[normalizedProjectId],
         )?.id ?? null
       );
     }
@@ -1170,9 +1170,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     );
     if (closingIndex === -1) {
       return (
-        resolveActivePreviewTab(
+        resolveActiveBrowserTab(
           existingTabs,
-          get().activePreviewTabIdByProject[normalizedProjectId],
+          get().activeBrowserTabIdByProject[normalizedProjectId],
         )?.id ?? null
       );
     }
@@ -1181,26 +1181,26 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       (tab) => tab.id !== normalizedTabId,
     );
     const currentActiveTabId =
-      get().activePreviewTabIdByProject[normalizedProjectId] ?? null;
+      get().activeBrowserTabIdByProject[normalizedProjectId] ?? null;
     const nextActiveTab =
       currentActiveTabId === normalizedTabId
         ? (remainingTabs[Math.min(closingIndex, remainingTabs.length - 1)] ??
           null)
-        : resolveActivePreviewTab(remainingTabs, currentActiveTabId);
+        : resolveActiveBrowserTab(remainingTabs, currentActiveTabId);
     const nextActiveTabId = nextActiveTab?.id ?? null;
 
     set((state) => {
-      const nextPreviewLoading = { ...state.previewLoading };
-      delete nextPreviewLoading[normalizedTabId];
+      const nextBrowserLoading = { ...state.browserLoading };
+      delete nextBrowserLoading[normalizedTabId];
 
       return {
-        previewLoading: nextPreviewLoading,
-        previewTabsByProject: {
-          ...state.previewTabsByProject,
+        browserLoading: nextBrowserLoading,
+        browserTabsByProject: {
+          ...state.browserTabsByProject,
           [normalizedProjectId]: remainingTabs,
         },
-        activePreviewTabIdByProject: {
-          ...state.activePreviewTabIdByProject,
+        activeBrowserTabIdByProject: {
+          ...state.activeBrowserTabIdByProject,
           [normalizedProjectId]: nextActiveTabId,
         },
       };
@@ -1208,7 +1208,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     return nextActiveTabId;
   },
-  reorderPreviewTabs: (projectId, fromIndex, toIndex) => {
+  reorderBrowserTabs: (projectId, fromIndex, toIndex) => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
     if (!normalizedProjectId) {
@@ -1216,21 +1216,21 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }
 
     set((state) => {
-      const tabs = state.previewTabsByProject[normalizedProjectId] ?? [];
+      const tabs = state.browserTabsByProject[normalizedProjectId] ?? [];
       const nextTabs = moveItem(tabs, fromIndex, toIndex);
       if (nextTabs === tabs) {
         return state;
       }
 
       return {
-        previewTabsByProject: {
-          ...state.previewTabsByProject,
+        browserTabsByProject: {
+          ...state.browserTabsByProject,
           [normalizedProjectId]: nextTabs,
         },
       };
     });
   },
-  setActivePreviewTab: (projectId, tabId) => {
+  setActiveBrowserTab: (projectId, tabId) => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
     if (!normalizedProjectId) {
@@ -1238,15 +1238,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }
 
     set((state) => {
-      const tabs = state.previewTabsByProject[normalizedProjectId] ?? [];
+      const tabs = state.browserTabsByProject[normalizedProjectId] ?? [];
       const nextActiveTabId =
         tabId && tabs.some((tab) => tab.id === tabId)
           ? tabId
           : (tabs[0]?.id ?? null);
 
       return {
-        activePreviewTabIdByProject: {
-          ...state.activePreviewTabIdByProject,
+        activeBrowserTabIdByProject: {
+          ...state.activeBrowserTabIdByProject,
           [normalizedProjectId]: nextActiveTabId,
         },
       };
@@ -1272,11 +1272,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
-    const sessionId = getPreviewTerminalSessionId(project.id);
+    const sessionId = getBrowserTerminalSessionId(project.id);
 
     set((state) => ({
       outputPanelOpen: true,
-      previewError: null,
+      browserError: null,
       terminalOutput: { ...state.terminalOutput, [sessionId]: "" },
     }));
 
@@ -1294,7 +1294,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
-    const sessionId = getPreviewTerminalSessionId(project.id);
+    const sessionId = getBrowserTerminalSessionId(project.id);
 
     set((state) => ({
       outputPanelOpen: false,

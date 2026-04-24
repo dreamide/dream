@@ -37,10 +37,10 @@ contextBridge.exposeInMainWorld("dream", {
   onTerminalData: (listener) => subscribe("terminal:data", listener),
   onTerminalStatus: (listener) => subscribe("terminal:status", listener),
 
-  updatePreview: (payload) => ipcRenderer.send("preview:update", payload),
-  onPreviewError: (listener) => subscribe("preview:error", listener),
-  onPreviewPageState: (listener) => subscribe("preview:page-state", listener),
-  onPreviewStatus: (listener) => subscribe("preview:status", listener),
+  updateBrowser: (payload) => ipcRenderer.send("browser:update", payload),
+  onBrowserError: (listener) => subscribe("browser:error", listener),
+  onBrowserPageState: (listener) => subscribe("browser:page-state", listener),
+  onBrowserStatus: (listener) => subscribe("browser:status", listener),
 
   detectEditors: () => ipcRenderer.invoke("editors:detect"),
   openInEditor: (payload) => ipcRenderer.invoke("editors:open", payload),

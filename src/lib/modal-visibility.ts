@@ -3,7 +3,7 @@ import * as React from "react";
 export const MODAL_EXIT_ANIMATION_MS = 200;
 
 let activeModalCount = 0;
-let modalPreviewHidden = false;
+let modalBrowserHidden = false;
 let restoreTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
 
 const listeners = new Set<() => void>();
@@ -14,12 +14,12 @@ const emit = () => {
   }
 };
 
-const setModalPreviewHidden = (nextValue: boolean) => {
-  if (modalPreviewHidden === nextValue) {
+const setModalBrowserHidden = (nextValue: boolean) => {
+  if (modalBrowserHidden === nextValue) {
     return;
   }
 
-  modalPreviewHidden = nextValue;
+  modalBrowserHidden = nextValue;
   emit();
 };
 
@@ -35,7 +35,7 @@ const cancelRestoreTimer = () => {
 const markModalOpened = () => {
   cancelRestoreTimer();
   activeModalCount += 1;
-  setModalPreviewHidden(true);
+  setModalBrowserHidden(true);
 };
 
 const markModalClosed = () => {
@@ -54,7 +54,7 @@ const markModalClosed = () => {
     restoreTimer = null;
 
     if (activeModalCount === 0) {
-      setModalPreviewHidden(false);
+      setModalBrowserHidden(false);
     }
   }, MODAL_EXIT_ANIMATION_MS);
 };
@@ -67,12 +67,12 @@ const subscribe = (listener: () => void) => {
   };
 };
 
-export const isModalPreviewHidden = () => modalPreviewHidden;
+export const isModalBrowserHidden = () => modalBrowserHidden;
 
-export const useModalPreviewHidden = () =>
+export const useModalBrowserHidden = () =>
   React.useSyncExternalStore(
     subscribe,
-    () => modalPreviewHidden,
+    () => modalBrowserHidden,
     () => false,
   );
 

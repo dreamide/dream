@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -15,7 +16,7 @@ const DEFAULT_TAB_GAP = 4;
 const DEFAULT_TAB_MIN_WIDTH = 144;
 const DEFAULT_TAB_MAX_WIDTH = 220;
 const TAB_DRAG_THRESHOLD = 4;
-const TAB_SETTLE_DURATION_MS = 150;
+const TAB_FLIP_DURATION_MS = 180;
 
 export type StandardTabItem = {
   id: string;
@@ -29,7 +30,6 @@ type DragState = {
   initialIndex: number;
   moved: boolean;
   pointerId: number;
-  settling?: boolean;
   startX: number;
   tabId: string;
 };
@@ -117,8 +117,11 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const afterRef = useRef<HTMLDivElement | null>(null);
   const dragTabRef = useRef<DragState | null>(null);
-  const settleDragTimeoutRef = useRef<number | null>(null);
+  const flipAnimationFrameRef = useRef<number | null>(null);
+  const flipCleanupTimeoutRef = useRef<number | null>(null);
+  const pendingFlipRectsRef = useRef<Map<string, DOMRect> | null>(null);
   const suppressClickRef = useRef<string | null>(null);
+  const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [dragTab, setDragTab] = useState<DragState | null>(null);
   const [tabWidth, setTabWidth] = useState(maxWidth);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
@@ -179,12 +182,81 @@ export const StandardTabs = <TItem extends StandardTabItem>({
 
   useEffect(
     () => () => {
-      if (settleDragTimeoutRef.current !== null) {
-        window.clearTimeout(settleDragTimeoutRef.current);
+      if (flipAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(flipAnimationFrameRef.current);
+      }
+
+      if (flipCleanupTimeoutRef.current !== null) {
+        window.clearTimeout(flipCleanupTimeoutRef.current);
       }
     },
     [],
   );
+
+  const captureTabRects = useCallback(() => {
+    const rects = new Map<string, DOMRect>();
+
+    for (const [tabId, element] of tabRefs.current) {
+      rects.set(tabId, element.getBoundingClientRect());
+    }
+
+    return rects;
+  }, []);
+
+  useLayoutEffect(() => {
+    const previousRects = pendingFlipRectsRef.current;
+    if (!previousRects) {
+      return;
+    }
+
+    pendingFlipRectsRef.current = null;
+
+    const movedElements: HTMLDivElement[] = [];
+    for (const [tabId, element] of tabRefs.current) {
+      const previousRect = previousRects.get(tabId);
+      if (!previousRect) {
+        continue;
+      }
+
+      const nextRect = element.getBoundingClientRect();
+      const deltaX = previousRect.left - nextRect.left;
+      if (Math.abs(deltaX) < 0.5) {
+        continue;
+      }
+
+      element.style.transition = "none";
+      element.style.transform = `translateX(${deltaX}px)`;
+      movedElements.push(element);
+    }
+
+    if (movedElements.length === 0) {
+      return;
+    }
+
+    if (flipAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(flipAnimationFrameRef.current);
+    }
+
+    if (flipCleanupTimeoutRef.current !== null) {
+      window.clearTimeout(flipCleanupTimeoutRef.current);
+    }
+
+    flipAnimationFrameRef.current = window.requestAnimationFrame(() => {
+      for (const element of movedElements) {
+        element.style.transition = `transform ${TAB_FLIP_DURATION_MS}ms ease`;
+        element.style.transform = "";
+      }
+
+      flipAnimationFrameRef.current = null;
+      flipCleanupTimeoutRef.current = window.setTimeout(() => {
+        for (const element of movedElements) {
+          element.style.transition = "";
+        }
+
+        flipCleanupTimeoutRef.current = null;
+      }, TAB_FLIP_DURATION_MS);
+    });
+  });
 
   const commitRename = useCallback(
     (tabId: string) => {
@@ -212,10 +284,6 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         committedDragTab.tabId === tabId &&
         committedDragTab.pointerId === pointerId
       ) {
-        if (committedDragTab.settling) {
-          return;
-        }
-
         if (currentTarget.hasPointerCapture(pointerId)) {
           currentTarget.releasePointerCapture(pointerId);
         }
@@ -230,39 +298,13 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         }
 
         if (shouldReorder) {
-          const settlingDragTab = {
-            ...committedDragTab,
-            currentX:
-              committedDragTab.startX +
-              (committedDragTab.currentIndex - committedDragTab.initialIndex) *
-                dragStep,
-            pointerId: -1,
-            settling: true,
-          };
-
-          dragTabRef.current = settlingDragTab;
-          setDragTab(settlingDragTab);
-
-          if (settleDragTimeoutRef.current !== null) {
-            window.clearTimeout(settleDragTimeoutRef.current);
-          }
-
-          settleDragTimeoutRef.current = window.setTimeout(() => {
-            onReorder?.(
-              committedDragTab.initialIndex,
-              committedDragTab.currentIndex,
-            );
-
-            if (
-              dragTabRef.current?.tabId === committedDragTab.tabId &&
-              dragTabRef.current.settling
-            ) {
-              dragTabRef.current = null;
-              setDragTab(null);
-            }
-
-            settleDragTimeoutRef.current = null;
-          }, TAB_SETTLE_DURATION_MS);
+          pendingFlipRectsRef.current = captureTabRects();
+          onReorder?.(
+            committedDragTab.initialIndex,
+            committedDragTab.currentIndex,
+          );
+          dragTabRef.current = null;
+          setDragTab(null);
           return;
         }
 
@@ -280,10 +322,6 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           return currentDragTab;
         }
 
-        if (currentDragTab.settling) {
-          return currentDragTab;
-        }
-
         if (currentTarget.hasPointerCapture(pointerId)) {
           currentTarget.releasePointerCapture(pointerId);
         }
@@ -298,47 +336,15 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         }
 
         if (shouldReorder) {
-          const settlingDragTab = {
-            ...currentDragTab,
-            currentX:
-              currentDragTab.startX +
-              (currentDragTab.currentIndex - currentDragTab.initialIndex) *
-                dragStep,
-            pointerId: -1,
-            settling: true,
-          };
-
-          dragTabRef.current = settlingDragTab;
-
-          if (settleDragTimeoutRef.current !== null) {
-            window.clearTimeout(settleDragTimeoutRef.current);
-          }
-
-          settleDragTimeoutRef.current = window.setTimeout(() => {
-            onReorder?.(
-              currentDragTab.initialIndex,
-              currentDragTab.currentIndex,
-            );
-
-            if (
-              dragTabRef.current?.tabId === currentDragTab.tabId &&
-              dragTabRef.current.settling
-            ) {
-              dragTabRef.current = null;
-              setDragTab(null);
-            }
-
-            settleDragTimeoutRef.current = null;
-          }, TAB_SETTLE_DURATION_MS);
-
-          return settlingDragTab;
+          pendingFlipRectsRef.current = captureTabRects();
+          onReorder?.(currentDragTab.initialIndex, currentDragTab.currentIndex);
         }
 
         dragTabRef.current = null;
         return null;
       });
     },
-    [dragStep, onReorder],
+    [captureTabRects, onReorder],
   );
 
   const handlePointerDown = useCallback(
@@ -352,9 +358,14 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       }
 
       event.preventDefault();
-      if (settleDragTimeoutRef.current !== null) {
-        window.clearTimeout(settleDragTimeoutRef.current);
-        settleDragTimeoutRef.current = null;
+      if (flipAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(flipAnimationFrameRef.current);
+        flipAnimationFrameRef.current = null;
+      }
+
+      if (flipCleanupTimeoutRef.current !== null) {
+        window.clearTimeout(flipCleanupTimeoutRef.current);
+        flipCleanupTimeoutRef.current = null;
       }
       if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -506,7 +517,6 @@ export const StandardTabs = <TItem extends StandardTabItem>({
             const isActive = item.id === activeId;
             const nextItem = items[tabIndex + 1] ?? null;
             const isDragging = item.id === dragTab?.tabId && dragTab.moved;
-            const isSettling = isDragging && dragTab?.settling;
             const tabOffset = getTabOffset(item.id, tabIndex);
             const showClose = onClose && resolveCanClose(canClose, item);
             const actions = renderActions?.(item);
@@ -625,11 +635,19 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               <div
                 className={cn(
                   "group relative shrink-0 overflow-visible",
-                  isDragging && !isSettling
+                  isDragging
                     ? "transition-none"
                     : "transition-transform duration-150 ease-out",
                 )}
                 key={item.id}
+                ref={(element) => {
+                  if (element) {
+                    tabRefs.current.set(item.id, element);
+                    return;
+                  }
+
+                  tabRefs.current.delete(item.id);
+                }}
                 style={tabStyle}
               >
                 {renderFrame

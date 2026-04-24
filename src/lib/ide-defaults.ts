@@ -77,7 +77,7 @@ export const createProjectConfig = (
     model: defaultSelection.model,
     name,
     path,
-    previewUrl: "http://127.0.0.1:3000",
+    browserUrl: "http://127.0.0.1:3000",
     provider: defaultSelection.provider,
     reasoningEffort: "medium",
     runCommand: "pnpm dev",

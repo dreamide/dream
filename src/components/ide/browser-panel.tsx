@@ -33,12 +33,12 @@ import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
-export interface PreviewPanelProps {
-  onSyncPreviewBounds: (reload?: boolean) => void;
-  previewHostRef: RefObject<HTMLDivElement | null>;
+export interface BrowserPanelProps {
+  onSyncBrowserBounds: (reload?: boolean) => void;
+  browserHostRef: RefObject<HTMLDivElement | null>;
 }
 
-const normalizePreviewUrlInput = (value: string) => {
+const normalizeBrowserUrlInput = (value: string) => {
   const trimmed = value.trim();
   if (!trimmed) {
     return "";
@@ -51,7 +51,7 @@ const normalizePreviewUrlInput = (value: string) => {
   return `https://${trimmed}`;
 };
 
-const getPreviewTabTitle = (url: string) => {
+const getBrowserTabTitle = (url: string) => {
   try {
     return new URL(url).hostname || "New Tab";
   } catch {
@@ -59,50 +59,50 @@ const getPreviewTabTitle = (url: string) => {
   }
 };
 
-const PreviewViewport = ({
-  onSyncPreviewBounds,
-  previewHostRef,
-}: PreviewPanelProps) => {
-  const previewContainerRef = useRef<HTMLDivElement | null>(null);
-  const [previewUrlDraft, setPreviewUrlDraft] = useState("");
+const BrowserViewport = ({
+  onSyncBrowserBounds,
+  browserHostRef,
+}: BrowserPanelProps) => {
+  const browserContainerRef = useRef<HTMLDivElement | null>(null);
+  const [browserUrlDraft, setBrowserUrlDraft] = useState("");
 
   const activeProject = useIdeStore((state) => state.getActiveProject());
-  const previewError = useIdeStore((state) => state.previewError);
-  const previewLoading = useIdeStore((state) => state.previewLoading);
-  const previewTabsByProject = useIdeStore(
-    (state) => state.previewTabsByProject,
+  const browserError = useIdeStore((state) => state.browserError);
+  const browserLoading = useIdeStore((state) => state.browserLoading);
+  const browserTabsByProject = useIdeStore(
+    (state) => state.browserTabsByProject,
   );
-  const activePreviewTabIdByProject = useIdeStore(
-    (state) => state.activePreviewTabIdByProject,
+  const activeBrowserTabIdByProject = useIdeStore(
+    (state) => state.activeBrowserTabIdByProject,
   );
-  const setPreviewError = useIdeStore((state) => state.setPreviewError);
+  const setBrowserError = useIdeStore((state) => state.setBrowserError);
   const updateProject = useIdeStore((state) => state.updateProject);
-  const ensurePreviewTabs = useIdeStore((state) => state.ensurePreviewTabs);
-  const createPreviewTab = useIdeStore((state) => state.createPreviewTab);
-  const updatePreviewTab = useIdeStore((state) => state.updatePreviewTab);
-  const closePreviewTab = useIdeStore((state) => state.closePreviewTab);
-  const reorderPreviewTabs = useIdeStore((state) => state.reorderPreviewTabs);
-  const setActivePreviewTab = useIdeStore((state) => state.setActivePreviewTab);
+  const ensureBrowserTabs = useIdeStore((state) => state.ensureBrowserTabs);
+  const createBrowserTab = useIdeStore((state) => state.createBrowserTab);
+  const updateBrowserTab = useIdeStore((state) => state.updateBrowserTab);
+  const closeBrowserTab = useIdeStore((state) => state.closeBrowserTab);
+  const reorderBrowserTabs = useIdeStore((state) => state.reorderBrowserTabs);
+  const setActiveBrowserTab = useIdeStore((state) => state.setActiveBrowserTab);
 
   const activeProjectId = activeProject?.id ?? null;
   const tabs = useMemo(
     () =>
-      activeProjectId ? (previewTabsByProject[activeProjectId] ?? []) : [],
-    [activeProjectId, previewTabsByProject],
+      activeProjectId ? (browserTabsByProject[activeProjectId] ?? []) : [],
+    [activeProjectId, browserTabsByProject],
   );
   const activeTabId = activeProjectId
-    ? (activePreviewTabIdByProject[activeProjectId] ?? tabs[0]?.id ?? null)
+    ? (activeBrowserTabIdByProject[activeProjectId] ?? tabs[0]?.id ?? null)
     : null;
   const activeTab =
     tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null;
-  const isPreviewLoading = activeTab
-    ? (previewLoading[activeTab.id] ?? false)
+  const isBrowserLoading = activeTab
+    ? (browserLoading[activeTab.id] ?? false)
     : false;
-  const previewVisible = Boolean(activeProject && activeTab?.url);
-  const previewTabItems = useMemo<StandardTabItem[]>(
+  const browserVisible = Boolean(activeProject && activeTab?.url);
+  const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
       tabs.map((tab) => {
-        const tabLoading = previewLoading[tab.id] ?? false;
+        const tabLoading = browserLoading[tab.id] ?? false;
 
         return {
           id: tab.id,
@@ -112,7 +112,7 @@ const PreviewViewport = ({
           ) : null,
         };
       }),
-    [previewLoading, tabs],
+    [browserLoading, tabs],
   );
 
   useEffect(() => {
@@ -120,28 +120,28 @@ const PreviewViewport = ({
       return;
     }
 
-    ensurePreviewTabs(activeProject.id, activeProject.previewUrl);
-  }, [activeProject, ensurePreviewTabs]);
+    ensureBrowserTabs(activeProject.id, activeProject.browserUrl);
+  }, [activeProject, ensureBrowserTabs]);
 
   useEffect(() => {
     if (!activeProjectId || !tabs.length || activeTabId) {
       return;
     }
 
-    setActivePreviewTab(activeProjectId, tabs[0].id);
-  }, [activeProjectId, activeTabId, setActivePreviewTab, tabs]);
+    setActiveBrowserTab(activeProjectId, tabs[0].id);
+  }, [activeProjectId, activeTabId, setActiveBrowserTab, tabs]);
 
   useEffect(() => {
-    setPreviewUrlDraft(activeTab?.url ?? "");
+    setBrowserUrlDraft(activeTab?.url ?? "");
   }, [activeTab?.url]);
 
   const syncAfterStateChange = useCallback(
     (reload = false) => {
       requestAnimationFrame(() => {
-        onSyncPreviewBounds(reload);
+        onSyncBrowserBounds(reload);
       });
     },
-    [onSyncPreviewBounds],
+    [onSyncBrowserBounds],
   );
 
   const handleActivateTab = useCallback(
@@ -151,21 +151,21 @@ const PreviewViewport = ({
       }
 
       const nextTab = tabs.find((tab) => tab.id === tabId) ?? null;
-      setActivePreviewTab(activeProjectId, tabId);
-      setPreviewUrlDraft(nextTab?.url ?? "");
-      setPreviewError(null);
+      setActiveBrowserTab(activeProjectId, tabId);
+      setBrowserUrlDraft(nextTab?.url ?? "");
+      setBrowserError(null);
 
       updateProject(activeProjectId, (project) => ({
         ...project,
-        previewUrl: nextTab?.url ?? "",
+        browserUrl: nextTab?.url ?? "",
       }));
 
       syncAfterStateChange();
     },
     [
       activeProjectId,
-      setActivePreviewTab,
-      setPreviewError,
+      setActiveBrowserTab,
+      setBrowserError,
       syncAfterStateChange,
       tabs,
       updateProject,
@@ -178,10 +178,10 @@ const PreviewViewport = ({
         return;
       }
 
-      reorderPreviewTabs(activeProjectId, fromIndex, toIndex);
+      reorderBrowserTabs(activeProjectId, fromIndex, toIndex);
       syncAfterStateChange();
     },
-    [activeProjectId, reorderPreviewTabs, syncAfterStateChange],
+    [activeProjectId, reorderBrowserTabs, syncAfterStateChange],
   );
 
   const handleAddTab = useCallback(() => {
@@ -189,18 +189,18 @@ const PreviewViewport = ({
       return;
     }
 
-    createPreviewTab(activeProjectId);
-    setPreviewError(null);
-    setPreviewUrlDraft("");
+    createBrowserTab(activeProjectId);
+    setBrowserError(null);
+    setBrowserUrlDraft("");
     updateProject(activeProjectId, (project) => ({
       ...project,
-      previewUrl: "",
+      browserUrl: "",
     }));
     syncAfterStateChange();
   }, [
     activeProjectId,
-    createPreviewTab,
-    setPreviewError,
+    createBrowserTab,
+    setBrowserError,
     syncAfterStateChange,
     updateProject,
   ]);
@@ -219,14 +219,14 @@ const PreviewViewport = ({
             null)
           : activeTab;
 
-      getDesktopApi()?.updatePreview({ destroyTab: tabId });
-      closePreviewTab(activeProjectId, tabId);
-      setPreviewError(null);
-      setPreviewUrlDraft(fallbackTab?.url ?? "");
+      getDesktopApi()?.updateBrowser({ destroyTab: tabId });
+      closeBrowserTab(activeProjectId, tabId);
+      setBrowserError(null);
+      setBrowserUrlDraft(fallbackTab?.url ?? "");
 
       updateProject(activeProjectId, (project) => ({
         ...project,
-        previewUrl: fallbackTab?.url ?? "",
+        browserUrl: fallbackTab?.url ?? "",
       }));
 
       syncAfterStateChange();
@@ -235,8 +235,8 @@ const PreviewViewport = ({
       activeProjectId,
       activeTab,
       activeTabId,
-      closePreviewTab,
-      setPreviewError,
+      closeBrowserTab,
+      setBrowserError,
       syncAfterStateChange,
       tabs,
       updateProject,
@@ -248,30 +248,30 @@ const PreviewViewport = ({
       return;
     }
 
-    const nextUrl = normalizePreviewUrlInput(previewUrlDraft);
+    const nextUrl = normalizeBrowserUrlInput(browserUrlDraft);
     if (!nextUrl) {
       return;
     }
 
-    setPreviewError(null);
-    updatePreviewTab(activeProjectId, activeTab.id, (tab) => ({
+    setBrowserError(null);
+    updateBrowserTab(activeProjectId, activeTab.id, (tab) => ({
       ...tab,
-      title: getPreviewTabTitle(nextUrl),
+      title: getBrowserTabTitle(nextUrl),
       url: nextUrl,
     }));
     updateProject(activeProjectId, (project) => ({
       ...project,
-      previewUrl: nextUrl,
+      browserUrl: nextUrl,
     }));
-    setPreviewUrlDraft(nextUrl);
+    setBrowserUrlDraft(nextUrl);
     syncAfterStateChange(true);
   }, [
     activeProjectId,
     activeTab,
-    previewUrlDraft,
-    setPreviewError,
+    browserUrlDraft,
+    setBrowserError,
     syncAfterStateChange,
-    updatePreviewTab,
+    updateBrowserTab,
     updateProject,
   ]);
 
@@ -280,8 +280,8 @@ const PreviewViewport = ({
       return;
     }
 
-    if (isPreviewLoading) {
-      getDesktopApi()?.updatePreview({
+    if (isBrowserLoading) {
+      getDesktopApi()?.updateBrowser({
         projectId: activeProjectId,
         stop: true,
         tabId: activeTab.id,
@@ -289,13 +289,13 @@ const PreviewViewport = ({
       return;
     }
 
-    setPreviewError(null);
+    setBrowserError(null);
     syncAfterStateChange(true);
   }, [
     activeProjectId,
     activeTab,
-    isPreviewLoading,
-    setPreviewError,
+    isBrowserLoading,
+    setBrowserError,
     syncAfterStateChange,
   ]);
 
@@ -304,34 +304,34 @@ const PreviewViewport = ({
       return;
     }
 
-    setPreviewError(null);
-    getDesktopApi()?.updatePreview({
+    setBrowserError(null);
+    getDesktopApi()?.updateBrowser({
       goBack: true,
       projectId: activeProjectId,
       tabId: activeTab.id,
     });
-  }, [activeProjectId, activeTab, setPreviewError]);
+  }, [activeProjectId, activeTab, setBrowserError]);
 
   const handleGoForward = useCallback(() => {
     if (!activeProjectId || !activeTab?.canGoForward) {
       return;
     }
 
-    setPreviewError(null);
-    getDesktopApi()?.updatePreview({
+    setBrowserError(null);
+    getDesktopApi()?.updateBrowser({
       goForward: true,
       projectId: activeProjectId,
       tabId: activeTab.id,
     });
-  }, [activeProjectId, activeTab, setPreviewError]);
+  }, [activeProjectId, activeTab, setBrowserError]);
 
   useEffect(() => {
-    const container = previewContainerRef.current;
+    const container = browserContainerRef.current;
     if (!container) {
       return;
     }
 
-    const sync = () => onSyncPreviewBounds();
+    const sync = () => onSyncBrowserBounds();
     const observer = new ResizeObserver(sync);
     observer.observe(container);
     const frame = window.requestAnimationFrame(sync);
@@ -340,11 +340,11 @@ const PreviewViewport = ({
       window.cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [onSyncPreviewBounds]);
+  }, [onSyncBrowserBounds]);
 
   return (
     <div
-      id="preview-panel"
+      id="browser-panel"
       className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
     >
       <div className="flex items-end bg-muted/50 px-1.5 py-1.5">
@@ -367,11 +367,11 @@ const PreviewViewport = ({
               <TooltipContent>New tab</TooltipContent>
             </Tooltip>
           }
-          ariaLabel="Preview tabs"
+          ariaLabel="Browser tabs"
           canClose={tabs.length > 1}
           closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
           className="flex-1"
-          items={previewTabItems}
+          items={browserTabItems}
           onActivate={handleActivateTab}
           onClose={handleCloseTab}
           onReorder={handleReorderTab}
@@ -437,14 +437,14 @@ const PreviewViewport = ({
               />
             }
           >
-            {isPreviewLoading ? (
+            {isBrowserLoading ? (
               <X className="size-4" />
             ) : (
               <RotateCw className="size-4" />
             )}
           </TooltipTrigger>
           <TooltipContent>
-            {isPreviewLoading ? "Stop loading" : "Refresh preview"}
+            {isBrowserLoading ? "Stop loading" : "Refresh browser"}
           </TooltipContent>
         </Tooltip>
 
@@ -453,7 +453,7 @@ const PreviewViewport = ({
             className="h-7 rounded-full border-transparent bg-muted/40 px-3 text-xs focus:border-foreground/20"
             disabled={!activeProject || !activeTab}
             onChange={(event) => {
-              setPreviewUrlDraft(event.currentTarget.value);
+              setBrowserUrlDraft(event.currentTarget.value);
             }}
             onKeyDown={(event) => {
               if (event.key !== "Enter" || !activeProject || !activeTab) {
@@ -464,9 +464,9 @@ const PreviewViewport = ({
               handleNavigate();
             }}
             placeholder="Enter URL..."
-            value={previewUrlDraft}
+            value={browserUrlDraft}
           />
-          {isPreviewLoading ? (
+          {isBrowserLoading ? (
             <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2">
               <Spinner className="size-3.5 text-muted-foreground" />
             </div>
@@ -475,23 +475,23 @@ const PreviewViewport = ({
       </div>
 
       <div className="min-h-0 flex-1">
-        <div className="relative h-full" ref={previewContainerRef}>
+        <div className="relative h-full" ref={browserContainerRef}>
           <div
             className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
-            ref={previewHostRef}
+            ref={browserHostRef}
           />
           {!activeProject ? (
             <div className="absolute inset-0 p-3">
-              <AppShellPlaceholder message="Add a project to start a live preview." />
+              <AppShellPlaceholder message="Add a project to start a live browser." />
             </div>
-          ) : !previewVisible ? (
+          ) : !browserVisible ? (
             <div className="absolute inset-0 p-3">
-              <AppShellPlaceholder message="Enter a URL to show the live preview." />
+              <AppShellPlaceholder message="Enter a URL to show the live browser." />
             </div>
           ) : null}
-          {previewError ? (
+          {browserError ? (
             <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive/20 bg-background/95 px-3 py-2 text-xs text-destructive shadow-sm">
-              {previewError}
+              {browserError}
             </div>
           ) : null}
         </div>
@@ -500,8 +500,8 @@ const PreviewViewport = ({
   );
 };
 
-const MemoizedPreviewViewport = memo(PreviewViewport);
-MemoizedPreviewViewport.displayName = "PreviewViewport";
+const MemoizedBrowserViewport = memo(BrowserViewport);
+MemoizedBrowserViewport.displayName = "BrowserViewport";
 
 const RightPanelTabs = () => {
   const rightPanelView = useIdeStore((state) => state.rightPanelView);
@@ -509,7 +509,7 @@ const RightPanelTabs = () => {
 
   const handleValueChange = useCallback(
     (value: string) => {
-      if (value !== "preview" && value !== "explorer" && value !== "changes") {
+      if (value !== "browser" && value !== "explorer" && value !== "changes") {
         return;
       }
 
@@ -554,15 +554,15 @@ const RightPanelTabs = () => {
             <TooltipTrigger
               render={
                 <TabsTrigger
-                  aria-label="Show preview"
+                  aria-label="Show browser"
                   className="h-6 w-8 px-0 data-[active]:bg-background"
-                  value="preview"
+                  value="browser"
                 />
               }
             >
               <Monitor className="size-4" />
             </TooltipTrigger>
-            <TooltipContent>Preview</TooltipContent>
+            <TooltipContent>Browser</TooltipContent>
           </Tooltip>
         </TabsList>
       </Tabs>
@@ -570,7 +570,7 @@ const RightPanelTabs = () => {
   );
 };
 
-export const PreviewPanel = (props: PreviewPanelProps) => {
+export const BrowserPanel = (props: BrowserPanelProps) => {
   const rightPanelView = useIdeStore((state) => state.rightPanelView);
 
   return (
@@ -595,10 +595,10 @@ export const PreviewPanel = (props: PreviewPanelProps) => {
       <div
         className={cn(
           "min-h-0 flex-1",
-          rightPanelView === "preview" ? "" : "hidden",
+          rightPanelView === "browser" ? "" : "hidden",
         )}
       >
-        <MemoizedPreviewViewport {...props} />
+        <MemoizedBrowserViewport {...props} />
       </div>
     </div>
   );

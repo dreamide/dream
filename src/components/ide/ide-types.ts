@@ -7,7 +7,7 @@ export type SettingsSection = "appearance" | "providers";
 
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
-export type RightPanelView = "preview" | "explorer" | "changes";
+export type RightPanelView = "browser" | "explorer" | "changes";
 export type CodexPermissionMode =
   | "default"
   | "auto-accept-edits"
@@ -21,8 +21,8 @@ export type ClaudePermissionMode =
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>
   `${PROJECT_TERMINAL_SESSION_PREFIX}${projectId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-export const getPreviewTerminalSessionId = (projectId: string): string =>
-  `__preview_terminal__:${projectId}`;
+export const getBrowserTerminalSessionId = (projectId: string): string =>
+  `__browser_terminal__:${projectId}`;
 export const TERMINAL_MIN_HEIGHT_PX = 48;
 
 export type ModelFetchSource = "cli" | "unavailable";

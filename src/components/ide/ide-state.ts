@@ -58,6 +58,15 @@ const normalizeProject = (
   project: ProjectConfig,
   settings: AppSettings,
 ): ProjectConfig => {
+  const rawProject = project as ProjectConfig & {
+    previewUrl?: unknown;
+  };
+  const browserUrl =
+    typeof rawProject.browserUrl === "string"
+      ? rawProject.browserUrl
+      : typeof rawProject.previewUrl === "string"
+        ? rawProject.previewUrl
+        : "http://127.0.0.1:3000";
   const provider = normalizeProvider(project.provider);
   const model =
     typeof project.model === "string"
@@ -69,6 +78,7 @@ const normalizeProject = (
 
   return {
     ...project,
+    browserUrl,
     model: model || defaultModel,
     provider,
     reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
@@ -205,7 +215,9 @@ export const mergePersistedState = (
   const legacyMessagesByChatId =
     state.messagesByChatId && typeof state.messagesByChatId === "object"
       ? state.messagesByChatId
-      : state.chats && !Array.isArray(state.chats) && typeof state.chats === "object"
+      : state.chats &&
+          !Array.isArray(state.chats) &&
+          typeof state.chats === "object"
         ? (state.chats as Record<string, UIMessage[]>)
         : {};
   const messagesByChatId: Record<string, UIMessage[]> = {};
@@ -230,29 +242,28 @@ export const mergePersistedState = (
     messagesByChatId[chat.id] = [];
   }
 
-  const activeChatIdByProject = projects.reduce<
-    Record<string, string | null>
-  >((acc, project) => {
-    const projectChats = chats.filter(
-      (chat) => chat.projectId === project.id,
-    );
-    if (projectChats.length === 0) {
-      acc[project.id] = null;
-      return acc;
-    }
+  const activeChatIdByProject = projects.reduce<Record<string, string | null>>(
+    (acc, project) => {
+      const projectChats = chats.filter(
+        (chat) => chat.projectId === project.id,
+      );
+      if (projectChats.length === 0) {
+        acc[project.id] = null;
+        return acc;
+      }
 
-    const requestedChatId =
-      state.activeChatIdByProject?.[project.id] ??
-      (state as { activeThreadIdByProject?: Record<string, string | null> })
-        .activeThreadIdByProject?.[project.id] ??
-      null;
-    acc[project.id] = projectChats.some(
-      (chat) => chat.id === requestedChatId,
-    )
-      ? requestedChatId
-      : (projectChats[0]?.id ?? null);
-    return acc;
-  }, {});
+      const requestedChatId =
+        state.activeChatIdByProject?.[project.id] ??
+        (state as { activeThreadIdByProject?: Record<string, string | null> })
+          .activeThreadIdByProject?.[project.id] ??
+        null;
+      acc[project.id] = projectChats.some((chat) => chat.id === requestedChatId)
+        ? requestedChatId
+        : (projectChats[0]?.id ?? null);
+      return acc;
+    },
+    {},
+  );
 
   return {
     activeProjectId:
@@ -292,7 +303,8 @@ export const mergePersistedState = (
       (state as { threadSort?: string }).threadSort === "createdAsc" ||
       (state as { threadSort?: string }).threadSort === "titleAsc"
         ? ((state.chatSort ??
-            (state as { threadSort?: string }).threadSort) as PersistedIdeState["chatSort"])
+            (state as { threadSort?: string })
+              .threadSort) as PersistedIdeState["chatSort"])
         : "recent",
   };
 };
@@ -326,10 +338,7 @@ export const ensureActiveChatForProject = (
   return projectChats[0]?.id ?? null;
 };
 
-export const getChatsForProject = (
-  chats: ChatConfig[],
-  projectId: string,
-) =>
+export const getChatsForProject = (chats: ChatConfig[], projectId: string) =>
   chats.filter(
     (chat) => chat.projectId === projectId && chat.archivedAt === null,
   );
