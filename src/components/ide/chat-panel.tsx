@@ -860,7 +860,7 @@ export const ChatPanel = ({
     <>
       <div id={panelDomId} className="flex h-full min-h-0 flex-col">
         <div className="shrink-0 px-2 pt-2">
-          <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 border-b border-foreground/10 pb-2">
+          <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 pb-2">
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium text-sm">{chat.title}</p>
             </div>

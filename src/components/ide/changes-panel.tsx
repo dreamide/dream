@@ -53,6 +53,15 @@ const CHANGE_STATUS_LABELS: Partial<Record<ProjectGitChangeStatus, string>> = {
   untracked: "New",
 };
 
+const CHANGE_STATUS_LABEL_CLASSNAMES: Partial<
+  Record<ProjectGitChangeStatus, string>
+> = {
+  deleted:
+    "rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-950/35 dark:text-rose-300 dark:ring-rose-900/60",
+  untracked:
+    "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/35 dark:text-emerald-300 dark:ring-emerald-900/60",
+};
+
 const DiffEmptyState = ({ diff }: { diff: string }) => {
   if (diff.trim().length > 0) {
     return null;
@@ -264,9 +273,8 @@ const ChangesRow = ({
             <span
               className={cn(
                 "font-medium font-sans",
-                change.status === "deleted"
-                  ? "text-rose-600"
-                  : "text-muted-foreground",
+                CHANGE_STATUS_LABEL_CLASSNAMES[change.status] ??
+                  "text-muted-foreground",
               )}
             >
               {statusLabel}

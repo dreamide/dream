@@ -476,37 +476,43 @@ export const IdeHeader = () => {
             )}
           />
           <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-            <Popover onOpenChange={setHistoryOpen} open={historyOpen}>
-              <PopoverTrigger
-                render={
-                  <Button
-                    aria-label="Chat history"
-                    className={cn(
-                      "size-8 [-webkit-app-region:no-drag]",
-                      historyOpen
-                        ? "text-foreground hover:text-foreground"
-                        : "text-muted-foreground/50 hover:text-foreground",
-                    )}
-                    size="icon"
-                    title="Chat history"
-                    variant="ghost"
+            <Tooltip>
+              <Popover onOpenChange={setHistoryOpen} open={historyOpen}>
+                <PopoverTrigger
+                  render={
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          aria-label="Chat history"
+                          className={cn(
+                            "size-8 [-webkit-app-region:no-drag]",
+                            historyOpen
+                              ? "text-foreground hover:text-foreground"
+                              : "text-muted-foreground/50 hover:text-foreground",
+                          )}
+                          size="icon"
+                          variant="ghost"
+                        />
+                      }
+                    />
+                  }
+                >
+                  <History className="size-4" />
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="h-[min(520px,calc(100vh-96px))] w-[264px] gap-0 overflow-hidden rounded-lg p-0 data-closed:animate-none data-open:animate-none"
+                  side="bottom"
+                  sideOffset={6}
+                >
+                  <ProjectSidebar
+                    className="rounded-none border-0 shadow-none"
+                    onChatSelect={() => setHistoryOpen(false)}
                   />
-                }
-              >
-                <History className="size-4" />
-              </PopoverTrigger>
-              <PopoverContent
-                align="start"
-                className="h-[min(520px,calc(100vh-96px))] w-[264px] gap-0 overflow-hidden rounded-lg p-0 data-closed:animate-none data-open:animate-none"
-                side="bottom"
-                sideOffset={6}
-              >
-                <ProjectSidebar
-                  className="rounded-none border-0 shadow-none"
-                  onChatSelect={() => setHistoryOpen(false)}
-                />
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
+              <TooltipContent>Chat history</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 render={
