@@ -15,6 +15,7 @@ const DEFAULT_TAB_GAP = 4;
 const DEFAULT_TAB_MIN_WIDTH = 144;
 const DEFAULT_TAB_MAX_WIDTH = 220;
 const TAB_DRAG_THRESHOLD = 4;
+const TAB_SETTLE_DURATION_MS = 150;
 
 export type StandardTabItem = {
   id: string;
@@ -28,6 +29,7 @@ type DragState = {
   initialIndex: number;
   moved: boolean;
   pointerId: number;
+  settling?: boolean;
   startX: number;
   tabId: string;
 };
@@ -115,6 +117,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const afterRef = useRef<HTMLDivElement | null>(null);
   const dragTabRef = useRef<DragState | null>(null);
+  const settleDragTimeoutRef = useRef<number | null>(null);
   const suppressClickRef = useRef<string | null>(null);
   const [dragTab, setDragTab] = useState<DragState | null>(null);
   const [tabWidth, setTabWidth] = useState(maxWidth);
@@ -174,6 +177,15 @@ export const StandardTabs = <TItem extends StandardTabItem>({
     }
   }, [editingTabId, items]);
 
+  useEffect(
+    () => () => {
+      if (settleDragTimeoutRef.current !== null) {
+        window.clearTimeout(settleDragTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   const commitRename = useCallback(
     (tabId: string) => {
       const nextLabel = editingLabel.trim();
@@ -200,23 +212,58 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         committedDragTab.tabId === tabId &&
         committedDragTab.pointerId === pointerId
       ) {
+        if (committedDragTab.settling) {
+          return;
+        }
+
         if (currentTarget.hasPointerCapture(pointerId)) {
           currentTarget.releasePointerCapture(pointerId);
         }
 
-        if (
+        const shouldReorder =
           shouldCommit &&
           committedDragTab.moved &&
-          committedDragTab.initialIndex !== committedDragTab.currentIndex
-        ) {
-          onReorder?.(
-            committedDragTab.initialIndex,
-            committedDragTab.currentIndex,
-          );
-        }
+          committedDragTab.initialIndex !== committedDragTab.currentIndex;
 
         if (committedDragTab.moved) {
           suppressClickRef.current = committedDragTab.tabId;
+        }
+
+        if (shouldReorder) {
+          const settlingDragTab = {
+            ...committedDragTab,
+            currentX:
+              committedDragTab.startX +
+              (committedDragTab.currentIndex - committedDragTab.initialIndex) *
+                dragStep,
+            pointerId: -1,
+            settling: true,
+          };
+
+          dragTabRef.current = settlingDragTab;
+          setDragTab(settlingDragTab);
+
+          if (settleDragTimeoutRef.current !== null) {
+            window.clearTimeout(settleDragTimeoutRef.current);
+          }
+
+          settleDragTimeoutRef.current = window.setTimeout(() => {
+            onReorder?.(
+              committedDragTab.initialIndex,
+              committedDragTab.currentIndex,
+            );
+
+            if (
+              dragTabRef.current?.tabId === committedDragTab.tabId &&
+              dragTabRef.current.settling
+            ) {
+              dragTabRef.current = null;
+              setDragTab(null);
+            }
+
+            settleDragTimeoutRef.current = null;
+          }, TAB_SETTLE_DURATION_MS);
+          return;
         }
 
         dragTabRef.current = null;
@@ -233,27 +280,65 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           return currentDragTab;
         }
 
+        if (currentDragTab.settling) {
+          return currentDragTab;
+        }
+
         if (currentTarget.hasPointerCapture(pointerId)) {
           currentTarget.releasePointerCapture(pointerId);
         }
 
-        if (
+        const shouldReorder =
           shouldCommit &&
           currentDragTab.moved &&
-          currentDragTab.initialIndex !== currentDragTab.currentIndex
-        ) {
-          onReorder?.(currentDragTab.initialIndex, currentDragTab.currentIndex);
-        }
+          currentDragTab.initialIndex !== currentDragTab.currentIndex;
 
         if (currentDragTab.moved) {
           suppressClickRef.current = currentDragTab.tabId;
+        }
+
+        if (shouldReorder) {
+          const settlingDragTab = {
+            ...currentDragTab,
+            currentX:
+              currentDragTab.startX +
+              (currentDragTab.currentIndex - currentDragTab.initialIndex) *
+                dragStep,
+            pointerId: -1,
+            settling: true,
+          };
+
+          dragTabRef.current = settlingDragTab;
+
+          if (settleDragTimeoutRef.current !== null) {
+            window.clearTimeout(settleDragTimeoutRef.current);
+          }
+
+          settleDragTimeoutRef.current = window.setTimeout(() => {
+            onReorder?.(
+              currentDragTab.initialIndex,
+              currentDragTab.currentIndex,
+            );
+
+            if (
+              dragTabRef.current?.tabId === currentDragTab.tabId &&
+              dragTabRef.current.settling
+            ) {
+              dragTabRef.current = null;
+              setDragTab(null);
+            }
+
+            settleDragTimeoutRef.current = null;
+          }, TAB_SETTLE_DURATION_MS);
+
+          return settlingDragTab;
         }
 
         dragTabRef.current = null;
         return null;
       });
     },
-    [onReorder],
+    [dragStep, onReorder],
   );
 
   const handlePointerDown = useCallback(
@@ -267,6 +352,10 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       }
 
       event.preventDefault();
+      if (settleDragTimeoutRef.current !== null) {
+        window.clearTimeout(settleDragTimeoutRef.current);
+        settleDragTimeoutRef.current = null;
+      }
       if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.setPointerCapture(event.pointerId);
       }
@@ -417,6 +506,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
             const isActive = item.id === activeId;
             const nextItem = items[tabIndex + 1] ?? null;
             const isDragging = item.id === dragTab?.tabId && dragTab.moved;
+            const isSettling = isDragging && dragTab?.settling;
             const tabOffset = getTabOffset(item.id, tabIndex);
             const showClose = onClose && resolveCanClose(canClose, item);
             const actions = renderActions?.(item);
@@ -533,7 +623,12 @@ export const StandardTabs = <TItem extends StandardTabItem>({
 
             return (
               <div
-                className="group relative shrink-0 overflow-visible transition-transform duration-150 ease-out"
+                className={cn(
+                  "group relative shrink-0 overflow-visible",
+                  isDragging && !isSettling
+                    ? "transition-none"
+                    : "transition-transform duration-150 ease-out",
+                )}
                 key={item.id}
                 style={tabStyle}
               >

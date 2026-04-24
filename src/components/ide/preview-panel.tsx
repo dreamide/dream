@@ -347,7 +347,7 @@ const PreviewViewport = ({
       id="preview-panel"
       className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
     >
-      <div className="flex items-end bg-muted/50 px-1.5 pt-1.5">
+      <div className="flex items-end bg-muted/50 px-1.5 py-1.5">
         <StandardTabs
           activeId={activeTab?.id ?? null}
           after={
@@ -519,7 +519,7 @@ const RightPanelTabs = () => {
   );
 
   return (
-    <div className="border-b border-border/60 px-2 pb-2">
+    <div className="flex items-center border-b border-border/60 px-2 py-2">
       <Tabs onValueChange={handleValueChange} value={rightPanelView}>
         <TabsList className="h-8 bg-muted/60">
           <Tooltip>
