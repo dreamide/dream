@@ -1,10 +1,14 @@
 import {
+  Check,
+  ChevronDown,
+  Copy,
   Ellipsis,
   ExternalLink,
   FilePenLine,
+  FolderOpen,
+  History,
   MessageSquarePlus,
   Minus,
-  PanelLeft,
   PanelRight,
   Plus,
   Settings,
@@ -22,6 +26,8 @@ import {
   useRef,
   useState,
 } from "react";
+import powershellIcon from "@/assets/powershell.svg";
+import vscodeIcon from "@/assets/vscode.svg";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,7 +40,9 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -42,6 +50,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import Sparkles from "@/components/ui/sparkles";
 import {
   Tooltip,
@@ -53,6 +66,7 @@ import { cn } from "@/lib/utils";
 import type { DetectedEditor } from "@/types/ide";
 import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
+import { ProjectSidebar } from "./projects-panel";
 
 const PROJECT_TAB_GAP = 4;
 const PROJECT_TAB_MIN_WIDTH = 144;
@@ -74,6 +88,8 @@ type RenameTarget = {
   name: string;
 };
 
+type OpenInTarget = "file-explorer" | "terminal" | "vscode";
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -91,6 +107,34 @@ const moveProject = <T,>(items: T[], fromIndex: number, toIndex: number) => {
   nextItems.splice(toIndex, 0, movedItem);
   return nextItems;
 };
+
+const VscodeMark = ({ className }: { className?: string }) => (
+  <img
+    alt=""
+    aria-hidden="true"
+    className={cn("size-4 shrink-0", className)}
+    src={vscodeIcon}
+  />
+);
+
+const PowerShellMark = ({ className }: { className?: string }) => (
+  <img
+    alt=""
+    aria-hidden="true"
+    className={cn("size-4 shrink-0", className)}
+    src={powershellIcon}
+  />
+);
+
+const OpenInCheck = ({ active }: { active: boolean }) => (
+  <Check
+    aria-hidden="true"
+    className={cn(
+      "ml-auto size-4 shrink-0",
+      active ? "opacity-100" : "opacity-0",
+    )}
+  />
+);
 
 export const IdeHeader = () => {
   const appReady = useIdeStore((s) => s.appReady);
@@ -138,10 +182,13 @@ export const IdeHeader = () => {
   );
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [preferredOpenInTarget, setPreferredOpenInTarget] =
+    useState<OpenInTarget>("vscode");
   const [projectTabWidth, setProjectTabWidth] = useState(PROJECT_TAB_MAX_WIDTH);
   const [completedProjectIds, setCompletedProjectIds] = useState<
     Record<string, boolean>
   >({});
+  const [historyOpen, setHistoryOpen] = useState(false);
   const previousStreamingProjectIdsRef = useRef<Set<string>>(new Set());
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
@@ -152,6 +199,23 @@ export const IdeHeader = () => {
     ? dragProject.currentX - dragProject.startX
     : 0;
   const dragStep = projectTabWidth + PROJECT_TAB_GAP;
+  const desktopApi = getDesktopApi();
+  const fileExplorerEditor = useMemo(
+    () => detectedEditors.find((editor) => editor.isFileExplorer) ?? null,
+    [detectedEditors],
+  );
+  const openInTriggerIcon =
+    preferredOpenInTarget === "vscode" ? (
+      <VscodeMark />
+    ) : preferredOpenInTarget === "terminal" ? (
+      isMacOs ? (
+        <TerminalSquare className="size-4 shrink-0" />
+      ) : (
+        <PowerShellMark />
+      )
+    ) : (
+      <FolderOpen className="size-4 shrink-0" />
+    );
 
   const handleOpenSettings = useCallback(() => {
     setSettingsSection("appearance");
@@ -180,6 +244,54 @@ export const IdeHeader = () => {
 
     void openProjectTerminal(activeProject.id);
   }, [activeProject, openProjectTerminal]);
+
+  const handleOpenInTarget = useCallback(
+    async (target: OpenInTarget) => {
+      if (!activeProject || !desktopApi) {
+        return;
+      }
+
+      const editorId =
+        target === "vscode"
+          ? "vscode"
+          : target === "terminal"
+            ? "terminal"
+            : (fileExplorerEditor?.id ?? "file-explorer");
+
+      if (!editorId) {
+        return;
+      }
+
+      await desktopApi.openInEditor({
+        editorId,
+        projectPath: activeProject.path,
+      });
+    },
+    [activeProject, desktopApi, fileExplorerEditor],
+  );
+
+  const handleOpenInPreferredTarget = useCallback(() => {
+    void handleOpenInTarget(preferredOpenInTarget);
+  }, [handleOpenInTarget, preferredOpenInTarget]);
+
+  const handleSelectOpenInTarget = useCallback((target: OpenInTarget) => {
+    setPreferredOpenInTarget(target);
+  }, []);
+
+  const handleCopyProjectPath = useCallback(async () => {
+    if (!activeProject) {
+      return;
+    }
+
+    if (desktopApi) {
+      await desktopApi.writeClipboardText(activeProject.path);
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(activeProject.path);
+    }
+  }, [activeProject, desktopApi]);
 
   const handleAddChat = useCallback(() => {
     if (!activeProject) {
@@ -706,13 +818,37 @@ export const IdeHeader = () => {
             )}
           />
           <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-            <ToggleButton
-              active={panelVisibility.left}
-              onClick={() => togglePanel("left")}
-              title="Toggle chats panel"
-            >
-              <PanelLeft className="size-4" />
-            </ToggleButton>
+            <Popover onOpenChange={setHistoryOpen} open={historyOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    aria-label="Chat history"
+                    className={cn(
+                      "size-8 [-webkit-app-region:no-drag]",
+                      historyOpen
+                        ? "text-foreground hover:text-foreground"
+                        : "text-muted-foreground/50 hover:text-foreground",
+                    )}
+                    size="icon"
+                    title="Chat history"
+                    variant="ghost"
+                  />
+                }
+              >
+                <History className="size-4" />
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                className="h-[min(520px,calc(100vh-96px))] w-[264px] gap-0 overflow-hidden rounded-lg p-0 data-closed:animate-none data-open:animate-none"
+                side="bottom"
+                sideOffset={6}
+              >
+                <ProjectSidebar
+                  className="rounded-none border-0 shadow-none"
+                  onChatSelect={() => setHistoryOpen(false)}
+                />
+              </PopoverContent>
+            </Popover>
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -757,6 +893,71 @@ export const IdeHeader = () => {
               </TooltipTrigger>
               <TooltipContent>Open terminal</TooltipContent>
             </Tooltip>
+            <DropdownMenu>
+              <div className="flex items-center [-webkit-app-region:no-drag]">
+                <button
+                  aria-label="Open in preferred app"
+                  className="flex h-8 w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  disabled={!activeProject || !desktopApi}
+                  onClick={handleOpenInPreferredTarget}
+                  type="button"
+                >
+                  {openInTriggerIcon}
+                </button>
+                <DropdownMenuTrigger
+                  render={
+                    <button
+                      aria-label="Choose open in target"
+                      className="flex h-8 w-5 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                      disabled={!activeProject || !desktopApi}
+                      type="button"
+                    />
+                  }
+                >
+                  <ChevronDown className="size-3.5 shrink-0" />
+                </DropdownMenuTrigger>
+              </div>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Open in</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => handleSelectOpenInTarget("file-explorer")}
+                  >
+                    <FolderOpen className="size-4" />
+                    {fileExplorerEditor?.name ??
+                      (isMacOs ? "Finder" : "File Explorer")}
+                    <OpenInCheck
+                      active={preferredOpenInTarget === "file-explorer"}
+                    />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleSelectOpenInTarget("vscode")}
+                  >
+                    <VscodeMark />
+                    VS Code
+                    <OpenInCheck active={preferredOpenInTarget === "vscode"} />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleSelectOpenInTarget("terminal")}
+                  >
+                    {isMacOs ? (
+                      <TerminalSquare className="size-4" />
+                    ) : (
+                      <PowerShellMark />
+                    )}
+                    {isMacOs ? "Terminal" : "PowerShell"}
+                    <OpenInCheck
+                      active={preferredOpenInTarget === "terminal"}
+                    />
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => void handleCopyProjectPath()}>
+                  <Copy className="size-4" />
+                  Copy path
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ToggleButton
               active={panelVisibility.right}
               onClick={() => togglePanel("right")}

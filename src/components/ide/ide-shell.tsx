@@ -1,9 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -28,13 +23,9 @@ import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { PreviewPanel } from "./preview-panel";
-import { ProjectSidebar } from "./projects-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
-const PROJECT_SIDEBAR_WIDTH_PX = DEFAULT_PANEL_SIZES.leftSidebarWidth;
-const PROJECT_SIDEBAR_MIN_WIDTH_PX = 200;
-const PROJECT_SIDEBAR_MAX_WIDTH_PX = 600;
 const CHAT_PANEL_MIN_WIDTH_PX = 400;
 const PREVIEW_PANEL_DEFAULT_WIDTH_PX = DEFAULT_PANEL_SIZES.rightPanelWidth;
 const PREVIEW_PANEL_MIN_WIDTH_PX = 320;
@@ -136,7 +127,6 @@ export const IdeShell = () => {
   );
 
   // ── Derived values ──────────────────────────────────────────────────
-  const leftVisible = panelVisibility.left;
   const middleVisible = panelVisibility.middle;
   const rightVisible = panelVisibility.right;
   const activeProjectTerminalSessionIds = activeProject
@@ -153,11 +143,9 @@ export const IdeShell = () => {
   // ── Resize state ────────────────────────────────────────────────────
   // Widths live in refs so drag handlers can mutate the DOM directly
   // without triggering React re-renders on every pointer-move.
-  const leftWidthRef = useRef(PROJECT_SIDEBAR_WIDTH_PX);
   const rightWidthRef = useRef(PREVIEW_PANEL_DEFAULT_WIDTH_PX);
   const terminalHeightRef = useRef(TERMINAL_PANEL_DEFAULT_HEIGHT_PX);
   const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
-  const leftPanelRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const middlePanelRef = useRef<HTMLDivElement | null>(null);
   const terminalPanelWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -165,23 +153,17 @@ export const IdeShell = () => {
   const isDraggingRef = useRef(false);
 
   if (!isDraggingRef.current) {
-    leftWidthRef.current = panelSizes.leftSidebarWidth;
     rightWidthRef.current = panelSizes.rightPanelWidth;
     terminalHeightRef.current = panelSizes.terminalHeight;
   }
 
   const getHorizontalChromeWidth = useCallback(() => {
-    const leftHandleWidth =
-      leftVisible && (middleVisible || rightVisible)
-        ? PANEL_RESIZE_HANDLE_SIZE_PX
-        : 0;
     const rightHandleWidth =
       rightVisible && middleVisible ? PANEL_RESIZE_HANDLE_SIZE_PX : 0;
-    const leftPadding = leftVisible ? PANEL_EDGE_PADDING_PX : 0;
     const rightPadding = rightVisible ? PANEL_EDGE_PADDING_PX : 0;
 
-    return leftHandleWidth + rightHandleWidth + leftPadding + rightPadding;
-  }, [leftVisible, middleVisible, rightVisible]);
+    return rightHandleWidth + rightPadding;
+  }, [middleVisible, rightVisible]);
 
   const getRightPanelMaxWidth = useCallback(() => {
     if (!rightVisible || !middleVisible) {
@@ -191,36 +173,10 @@ export const IdeShell = () => {
     const containerWidth =
       horizontalPanelsRef.current?.getBoundingClientRect().width ?? 0;
     const availableWidth =
-      containerWidth -
-      getHorizontalChromeWidth() -
-      (leftVisible ? leftWidthRef.current : 0) -
-      CHAT_PANEL_MIN_WIDTH_PX;
+      containerWidth - getHorizontalChromeWidth() - CHAT_PANEL_MIN_WIDTH_PX;
 
     return Math.max(PREVIEW_PANEL_MIN_WIDTH_PX, availableWidth);
-  }, [getHorizontalChromeWidth, leftVisible, middleVisible, rightVisible]);
-
-  const getLeftPanelMaxWidth = useCallback(() => {
-    if (!leftVisible) {
-      return 0;
-    }
-
-    const containerWidth =
-      horizontalPanelsRef.current?.getBoundingClientRect().width ?? 0;
-    const rightWidth =
-      rightVisible && middleVisible
-        ? rightWidthRef.current
-        : rightVisible
-          ? PREVIEW_PANEL_MIN_WIDTH_PX
-          : 0;
-    const middleMinWidth = middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0;
-    const availableWidth =
-      containerWidth - getHorizontalChromeWidth() - rightWidth - middleMinWidth;
-
-    return Math.max(
-      PROJECT_SIDEBAR_MIN_WIDTH_PX,
-      Math.min(PROJECT_SIDEBAR_MAX_WIDTH_PX, availableWidth),
-    );
-  }, [getHorizontalChromeWidth, leftVisible, middleVisible, rightVisible]);
+  }, [getHorizontalChromeWidth, middleVisible, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
     if (rightVisible && middleVisible) {
@@ -237,51 +193,7 @@ export const IdeShell = () => {
         rightPanel.style.maxWidth = `${maxRightWidth}px`;
       }
     }
-
-    if (leftVisible) {
-      const maxLeftWidth = getLeftPanelMaxWidth();
-      const nextLeftWidth = Math.min(
-        maxLeftWidth,
-        Math.max(PROJECT_SIDEBAR_MIN_WIDTH_PX, leftWidthRef.current),
-      );
-      leftWidthRef.current = nextLeftWidth;
-
-      const leftPanel = leftPanelRef.current;
-      if (leftPanel) {
-        leftPanel.style.width = `${nextLeftWidth}px`;
-        leftPanel.style.maxWidth = `${maxLeftWidth}px`;
-      }
-    }
-  }, [
-    getLeftPanelMaxWidth,
-    getRightPanelMaxWidth,
-    leftVisible,
-    middleVisible,
-    rightVisible,
-  ]);
-
-  const handleLeftResizeStart = useCallback(() => {
-    isDraggingRef.current = true;
-    const el = leftPanelRef.current;
-    if (el) el.style.transition = "none";
-  }, []);
-
-  const handleLeftResize = useCallback(
-    (deltaX: number) => {
-      const maxLeftWidth = getLeftPanelMaxWidth();
-      const next = Math.min(
-        maxLeftWidth,
-        Math.max(PROJECT_SIDEBAR_MIN_WIDTH_PX, leftWidthRef.current + deltaX),
-      );
-      leftWidthRef.current = next;
-      const el = leftPanelRef.current;
-      if (el) {
-        el.style.width = `${next}px`;
-        el.style.maxWidth = `${maxLeftWidth}px`;
-      }
-    },
-    [getLeftPanelMaxWidth],
-  );
+  }, [getRightPanelMaxWidth, middleVisible, rightVisible]);
 
   const handleRightResizeStart = useCallback(() => {
     isDraggingRef.current = true;
@@ -310,13 +222,10 @@ export const IdeShell = () => {
     isDraggingRef.current = false;
     // Restore transitions (must match the React style prop exactly so that
     // React's reconciler stays in sync with the DOM).
-    const left = leftPanelRef.current;
-    if (left) left.style.transition = PANEL_TRANSITION;
     const right = rightPanelRef.current;
     if (right) right.style.transition = RIGHT_PANEL_TRANSITION;
     setPanelSizes((current) => ({
       ...current,
-      leftSidebarWidth: leftWidthRef.current,
       rightPanelWidth: rightWidthRef.current,
     }));
   }, [setPanelSizes]);
@@ -403,17 +312,17 @@ export const IdeShell = () => {
 
   // Subscribe to persisted state changes for auto-persistence (debounced)
   useEffect(() => {
-      let prev = {
-        activeProjectId: useIdeStore.getState().activeProjectId,
-        activeChatIdByProject: useIdeStore.getState().activeChatIdByProject,
-        chats: useIdeStore.getState().chats,
-        messagesByChatId: useIdeStore.getState().messagesByChatId,
-        panelSizes: useIdeStore.getState().panelSizes,
-        panelVisibility: useIdeStore.getState().panelVisibility,
-        projects: useIdeStore.getState().projects,
-        settings: useIdeStore.getState().settings,
-        chatSort: useIdeStore.getState().chatSort,
-      };
+    let prev = {
+      activeProjectId: useIdeStore.getState().activeProjectId,
+      activeChatIdByProject: useIdeStore.getState().activeChatIdByProject,
+      chats: useIdeStore.getState().chats,
+      messagesByChatId: useIdeStore.getState().messagesByChatId,
+      panelSizes: useIdeStore.getState().panelSizes,
+      panelVisibility: useIdeStore.getState().panelVisibility,
+      projects: useIdeStore.getState().projects,
+      settings: useIdeStore.getState().settings,
+      chatSort: useIdeStore.getState().chatSort,
+    };
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
     const unsub = useIdeStore.subscribe((state) => {
@@ -846,36 +755,6 @@ export const IdeShell = () => {
       <div className="min-h-0 flex-1 overflow-hidden">
         {!stateHydrated ? null : (
           <div className="flex h-full" ref={horizontalPanelsRef}>
-            {/* ─── LEFT: Projects sidebar ─── */}
-            <div
-              className="shrink-0 overflow-hidden"
-              ref={leftPanelRef}
-              style={{
-                width: leftVisible ? leftWidthRef.current : 0,
-                minWidth: leftVisible ? PROJECT_SIDEBAR_MIN_WIDTH_PX : 0,
-                maxWidth: leftVisible ? getLeftPanelMaxWidth() : 0,
-                opacity: leftVisible ? 1 : 0,
-                paddingLeft: leftVisible ? 8 : 0,
-                pointerEvents: leftVisible ? "auto" : "none",
-                transition: PANEL_TRANSITION,
-                willChange: "width, opacity, padding",
-              }}
-            >
-              <div className="h-full pb-2">
-                <ProjectSidebar />
-              </div>
-            </div>
-
-            {/* Left resize handle */}
-            {leftVisible && (middleVisible || rightVisible) && (
-              <PanelResizeHandle
-                side="right"
-                onResizeStart={handleLeftResizeStart}
-                onResize={handleLeftResize}
-                onResizeEnd={handleResizeEnd}
-              />
-            )}
-
             {/* ─── MIDDLE: Chat + Terminal ─── */}
             <div
               className="min-w-0 flex-1"

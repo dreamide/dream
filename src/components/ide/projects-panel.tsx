@@ -1,6 +1,10 @@
 import { Archive, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -41,7 +45,13 @@ const formatLastActiveTime = (value: string) => {
   return `${Math.floor(deltaMonths / 12)}y`;
 };
 
-export const ProjectSidebar = () => {
+export const ProjectSidebar = ({
+  className,
+  onChatSelect,
+}: {
+  className?: string;
+  onChatSelect?: () => void;
+}) => {
   const projects = useIdeStore((s) => s.projects);
   const allChats = useIdeStore((s) => s.chats);
   const activeProject = useIdeStore((s) => s.getActiveProject());
@@ -97,19 +107,24 @@ export const ProjectSidebar = () => {
   return (
     <div
       id="projects-panel"
-      className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
+      className={cn(
+        "flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md",
+        className,
+      )}
     >
       <div className="px-3 py-3">
         <p className="font-medium text-sm">Chat history</p>
-        <div className="relative mt-2">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="h-8 border-foreground/10 pl-8 text-sm"
+        <InputGroup className="mt-2 h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
+          <InputGroupInput
+            className="text-sm"
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search history..."
             value={searchQuery}
           />
-        </div>
+          <InputGroupAddon>
+            <Search className="size-4 shrink-0 opacity-50" />
+          </InputGroupAddon>
+        </InputGroup>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
@@ -139,31 +154,36 @@ export const ProjectSidebar = () => {
               return (
                 <div
                   className={cn(
-                    "relative min-w-0 rounded-md transition-colors",
+                    "relative min-w-0 rounded-md border transition-colors",
                     isActiveChat
-                      ? "border-2 border-border bg-muted/30"
-                      : "border-2 border-transparent hover:bg-muted/30",
+                      ? "border-border bg-muted/30"
+                      : "border-transparent hover:bg-muted/30",
                     isArchived && !isActiveChat && "opacity-80",
                   )}
                   key={chat.id}
                 >
                   <button
-                    className="w-full rounded-[inherit] px-2 py-1.5 text-left"
-                    onClick={() => setActiveChatId(activeProject.id, chat.id)}
+                    className="w-full rounded-[inherit] px-3 py-2 text-left"
+                    onClick={() => {
+                      setActiveChatId(activeProject.id, chat.id);
+                      onChatSelect?.();
+                    }}
                     type="button"
                   >
-                    <div className="flex min-w-0 items-start gap-2">
-                      <div className="mt-0.5 flex shrink-0 items-center gap-1.5">
-                        {isStreaming ? (
-                          <Spinner className="size-3 shrink-0" />
-                        ) : null}
-                        {isArchived ? (
-                          <Archive className="size-3 shrink-0 text-muted-foreground" />
-                        ) : null}
-                      </div>
+                    <div className="flex min-w-0 items-center gap-2">
+                      {isStreaming || isArchived ? (
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {isStreaming ? (
+                            <Spinner className="size-3 shrink-0" />
+                          ) : null}
+                          {isArchived ? (
+                            <Archive className="size-3 shrink-0 text-muted-foreground" />
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 items-center gap-2">
-                          <p className="min-w-0 flex-1 truncate text-sm">
+                          <p className="min-w-0 flex-1 truncate text-sm leading-5">
                             {chat.title}
                           </p>
                           <span className="ml-auto shrink-0 text-right text-muted-foreground text-xs">

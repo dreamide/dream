@@ -36,6 +36,20 @@ const rendererStartupTimeoutMs = Number(
 const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
 const APP_USER_DATA_PATH = path.join(app.getPath("appData"), APP_NAME);
+const WINDOWS_POWERSHELL_PATH =
+  process.platform === "win32"
+    ? path.join(
+        process.env.SystemRoot || "C:\\Windows",
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "powershell.exe",
+      )
+    : null;
+const WINDOWS_CMD_PATH =
+  process.platform === "win32"
+    ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "cmd.exe")
+    : null;
 
 app.setName(APP_NAME);
 app.setPath("userData", APP_USER_DATA_PATH);
@@ -106,7 +120,6 @@ function getStateDatabase() {
   stateDatabase = database;
   return database;
 }
-
 
 function savePersistedState(state) {
   if (!state || typeof state !== "object") {
@@ -1225,7 +1238,39 @@ const KNOWN_EDITORS = [
   {
     id: "vscode",
     name: "VS Code",
-    win: ["code.cmd", "code.exe"],
+    win: [
+      ...(process.env.LOCALAPPDATA
+        ? [
+            path.join(
+              process.env.LOCALAPPDATA,
+              "Programs",
+              "Microsoft VS Code",
+              "Code.exe",
+            ),
+            path.join(
+              process.env.LOCALAPPDATA,
+              "Programs",
+              "Microsoft VS Code",
+              "bin",
+              "code.cmd",
+            ),
+          ]
+        : []),
+      ...(process.env.ProgramFiles
+        ? [path.join(process.env.ProgramFiles, "Microsoft VS Code", "Code.exe")]
+        : []),
+      ...(process.env["ProgramFiles(x86)"]
+        ? [
+            path.join(
+              process.env["ProgramFiles(x86)"],
+              "Microsoft VS Code",
+              "Code.exe",
+            ),
+          ]
+        : []),
+      "code.exe",
+      "code.cmd",
+    ],
     mac: [
       "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
     ],
@@ -1334,10 +1379,42 @@ const KNOWN_EDITORS = [
   {
     id: "terminal",
     name: "Terminal",
-    win: ["wt.exe", "cmd.exe"],
+    win: [
+      ...(process.env.ProgramFiles
+        ? [path.join(process.env.ProgramFiles, "PowerShell", "7", "pwsh.exe")]
+        : []),
+      "pwsh.exe",
+      ...(WINDOWS_POWERSHELL_PATH ? [WINDOWS_POWERSHELL_PATH] : []),
+      "powershell.exe",
+      "wt.exe",
+      ...(WINDOWS_CMD_PATH ? [WINDOWS_CMD_PATH] : []),
+      "cmd.exe",
+    ],
     mac: ["open", "/Applications/iTerm.app"],
     linux: ["x-terminal-emulator", "gnome-terminal", "konsole"],
-    args: (p) => (process.platform === "darwin" ? ["-a", "Terminal", p] : [p]),
+    args: (p, executable) => {
+      if (process.platform === "darwin") {
+        return ["-a", "Terminal", p];
+      }
+
+      if (process.platform === "win32") {
+        const executableName = executable
+          ? path.basename(executable).toLowerCase()
+          : "";
+
+        if (executableName === "wt.exe") {
+          return ["-d", p];
+        }
+
+        if (executableName === "cmd.exe") {
+          return ["/K"];
+        }
+
+        return ["-NoExit"];
+      }
+
+      return [p];
+    },
     isTerminal: true,
   },
 ];
@@ -1408,6 +1485,38 @@ function detectAvailableEditors() {
   return results;
 }
 
+function resolveKnownEditor(editorId) {
+  const editorDef = KNOWN_EDITORS.find((editor) => editor.id === editorId);
+  if (!editorDef) {
+    return null;
+  }
+
+  const platformKey =
+    process.platform === "win32"
+      ? "win"
+      : process.platform === "darwin"
+        ? "mac"
+        : "linux";
+  const candidates = editorDef[platformKey] || [];
+
+  for (const candidate of candidates) {
+    const resolved = resolveExecutable(candidate);
+    if (!resolved) {
+      continue;
+    }
+
+    return {
+      executable: resolved,
+      id: editorDef.id,
+      isFileExplorer: editorDef.isFileExplorer || false,
+      isTerminal: editorDef.isTerminal || false,
+      name: editorDef.name,
+    };
+  }
+
+  return null;
+}
+
 ipcMain.handle("editors:detect", () => {
   return detectAvailableEditors();
 });
@@ -1417,19 +1526,54 @@ ipcMain.handle("editors:open", (_event, { projectPath, editorId }) => {
     return false;
   }
 
-  const editors = detectAvailableEditors();
-  const editor = editors.find((e) => e.id === editorId);
+  const editor = resolveKnownEditor(editorId);
   if (!editor) {
+    if (editorId === "terminal") {
+      return false;
+    }
+
     // Fallback: open folder in system file explorer
     shell.openPath(projectPath);
     return true;
   }
 
   const editorDef = KNOWN_EDITORS.find((e) => e.id === editorId);
-  const args = editorDef ? editorDef.args(projectPath) : [projectPath];
+  const args = editorDef
+    ? editorDef.args(projectPath, editor.executable)
+    : [projectPath];
+
+  if (process.platform === "win32" && editor.isTerminal) {
+    const launcher = WINDOWS_CMD_PATH ?? "cmd.exe";
+    spawnProcess(
+      launcher,
+      [
+        "/d",
+        "/s",
+        "/c",
+        "start",
+        "",
+        "/D",
+        projectPath,
+        editor.executable,
+        ...args,
+      ],
+      {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    ).unref();
+
+    return true;
+  }
+
+  const requiresShell =
+    process.platform === "win32" &&
+    [".bat", ".cmd"].includes(path.extname(editor.executable).toLowerCase());
 
   spawnProcess(editor.executable, args, {
     detached: true,
+    shell: requiresShell,
     stdio: "ignore",
   }).unref();
 
