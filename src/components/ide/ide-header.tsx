@@ -338,6 +338,7 @@ export const IdeHeader = () => {
                 </Tooltip>
               }
               ariaLabel="Projects"
+              interactiveClassName="[-webkit-app-region:no-drag]"
               items={projectTabItems}
               onActivate={setActiveProjectId}
               onReorder={handleProjectReorder}

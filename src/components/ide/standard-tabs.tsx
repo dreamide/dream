@@ -40,6 +40,7 @@ type StandardTabsProps<TItem extends StandardTabItem> = {
   className?: string;
   closeAriaLabel?: (item: TItem) => string;
   gap?: number;
+  interactiveClassName?: string;
   items: TItem[];
   maxWidth?: number;
   minWidth?: number;
@@ -98,6 +99,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   className,
   closeAriaLabel,
   gap = DEFAULT_TAB_GAP,
+  interactiveClassName,
   items,
   maxWidth = DEFAULT_TAB_MAX_WIDTH,
   minWidth = DEFAULT_TAB_MIN_WIDTH,
@@ -403,14 +405,13 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   return (
     <div
       aria-label={ariaLabel}
-      className={cn(
-        "flex min-w-0 max-w-full items-end gap-1 [-webkit-app-region:no-drag]",
-        className,
-      )}
+      className={cn("flex min-w-0 max-w-full items-end gap-1", className)}
       ref={containerRef}
       role="tablist"
     >
-      <div className="min-w-0 overflow-hidden pb-px">
+      <div
+        className={cn("min-w-0 overflow-hidden pb-px", interactiveClassName)}
+      >
         <div className="flex min-w-0 items-end gap-1">
           {items.map((item, tabIndex) => {
             const isActive = item.id === activeId;
@@ -570,7 +571,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         </div>
       </div>
       {after ? (
-        <div className="shrink-0" ref={afterRef}>
+        <div className={cn("shrink-0", interactiveClassName)} ref={afterRef}>
           {after}
         </div>
       ) : null}
