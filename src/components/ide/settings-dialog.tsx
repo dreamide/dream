@@ -21,11 +21,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getDesktopApi } from "@/lib/electron";
 import {
   getModelOptionsForProvider,
   getModelsForProvider,
 } from "@/lib/ide-defaults";
-import { getDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { BaseColor } from "@/types/ide";
@@ -320,13 +320,8 @@ export const SettingsDialog = () => {
                   </div>
 
                   <div className="max-w-sm space-y-1.5">
-                    <Label
-                      className="font-normal text-muted-foreground"
-                      htmlFor="shell-path"
-                    >
-                      Terminal shell path
-                    </Label>
                     <Input
+                      aria-label="Terminal shell path"
                       id="shell-path"
                       onChange={(event) =>
                         setSettings((previous) => ({

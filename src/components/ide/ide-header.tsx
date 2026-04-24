@@ -142,6 +142,25 @@ export const IdeHeader = () => {
     Record<string, boolean>
   >({});
   const [historyOpen, setHistoryOpen] = useState(false);
+  const projectOpenInEditors = useMemo<DetectedEditor[]>(() => {
+    const fileExplorer = detectedEditors.find(
+      (editor) => editor.id === "file-explorer",
+    );
+    const otherEditors = detectedEditors.filter(
+      (editor) => editor.id !== "file-explorer",
+    );
+
+    return [
+      fileExplorer ?? {
+        executable: "",
+        id: "file-explorer",
+        isFileExplorer: true,
+        isTerminal: false,
+        name: isMacOs ? "Finder" : "File Explorer",
+      },
+      ...otherEditors,
+    ];
+  }, [detectedEditors, isMacOs]);
   const previousStreamingProjectIdsRef = useRef<Set<string>>(new Set());
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
@@ -395,14 +414,14 @@ export const IdeHeader = () => {
                           <FilePenLine className="size-4" />
                           Edit
                         </DropdownMenuItem>
-                        {detectedEditors.length > 0 ? (
+                        {projectOpenInEditors.length > 0 ? (
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
                               <ExternalLink className="size-4" />
                               Open in
                             </DropdownMenuSubTrigger>
                             <DropdownMenuSubContent className="[-webkit-app-region:no-drag]">
-                              {detectedEditors.map((editor) => (
+                              {projectOpenInEditors.map((editor) => (
                                 <DropdownMenuItem
                                   key={editor.id}
                                   onClick={() =>

@@ -1466,6 +1466,18 @@ function detectAvailableEditors() {
 
   for (const editor of KNOWN_EDITORS) {
     const candidates = editor[platformKey] || [];
+    if (editor.isFileExplorer) {
+      const resolved = candidates.map(resolveExecutable).find(Boolean) ?? null;
+      results.push({
+        id: editor.id,
+        name: editor.name,
+        executable: resolved,
+        isFileExplorer: true,
+        isTerminal: false,
+      });
+      continue;
+    }
+
     for (const candidate of candidates) {
       const resolved = resolveExecutable(candidate);
       if (resolved) {
