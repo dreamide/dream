@@ -28,6 +28,7 @@ import {
   ensureActiveProject,
   getChatsForProject,
   mergePersistedState,
+  normalizeProjectPathKey,
 } from "./ide-state";
 import {
   type ClaudePermissionMode,
@@ -49,6 +50,7 @@ import {
 interface IdeState {
   // Persisted state
   projects: ProjectConfig[];
+  closedProjects: ProjectConfig[];
   activeProjectId: string | null;
   chats: ChatConfig[];
   activeChatIdByProject: Record<string, string | null>;
@@ -366,6 +368,7 @@ const moveItem = <T>(items: T[], fromIndex: number, toIndex: number) => {
 export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Persisted state ─────────────────────────────────────────────────
   projects: [],
+  closedProjects: [],
   activeProjectId: null,
   chats: [],
   activeChatIdByProject: {},
@@ -458,16 +461,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         projects,
         state.activeProjectId,
       );
-      const nextActiveChatIdByProject = Object.fromEntries(
-        projects.map((project) => [
+      const nextActiveChatIdByProject = { ...state.activeChatIdByProject };
+      for (const project of projects) {
+        nextActiveChatIdByProject[project.id] = ensureActiveChatForProject(
+          state.chats,
           project.id,
-          ensureActiveChatForProject(
-            state.chats,
-            project.id,
-            state.activeChatIdByProject[project.id] ?? null,
-          ),
-        ]),
-      );
+          state.activeChatIdByProject[project.id] ?? null,
+        );
+      }
 
       return {
         activeProjectId: nextActiveProjectId,
@@ -485,6 +486,64 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   addProject: (path) => {
     set((state) => {
+      const pathKey = normalizeProjectPathKey(path);
+      const openProject = state.projects.find(
+        (project) => normalizeProjectPathKey(project.path) === pathKey,
+      );
+      if (openProject) {
+        return {
+          activeProjectId: openProject.id,
+          activeChatIdByProject: {
+            ...state.activeChatIdByProject,
+            [openProject.id]: ensureActiveChatForProject(
+              state.chats,
+              openProject.id,
+              state.activeChatIdByProject[openProject.id] ?? null,
+            ),
+          },
+        };
+      }
+
+      const closedProject = state.closedProjects.find(
+        (project) => normalizeProjectPathKey(project.path) === pathKey,
+      );
+      if (closedProject) {
+        const reopenedProject = { ...closedProject, path };
+        let nextChats = state.chats;
+        let nextMessagesByChatId = state.messagesByChatId;
+        let nextActiveChatId = ensureActiveChatForProject(
+          nextChats,
+          reopenedProject.id,
+          state.activeChatIdByProject[reopenedProject.id] ?? null,
+        );
+
+        if (!nextActiveChatId) {
+          const nextChat = createChatConfig(reopenedProject);
+          nextChats = [...nextChats, nextChat];
+          nextMessagesByChatId = {
+            ...nextMessagesByChatId,
+            [nextChat.id]: [],
+          };
+          nextActiveChatId = nextChat.id;
+        }
+
+        return {
+          activeProjectId: reopenedProject.id,
+          activeChatIdByProject: {
+            ...state.activeChatIdByProject,
+            [reopenedProject.id]: nextActiveChatId,
+          },
+          closedProjects: state.closedProjects.filter(
+            (project) =>
+              normalizeProjectPathKey(project.path) !== pathKey &&
+              project.id !== reopenedProject.id,
+          ),
+          messagesByChatId: nextMessagesByChatId,
+          chats: nextChats,
+          projects: [...state.projects, reopenedProject],
+        };
+      }
+
       const nextProject = createProjectConfig(path, state.settings);
       const nextChat = createChatConfig(nextProject);
 
@@ -510,27 +569,39 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   closeProject: (projectId) => {
     const browserTabs = get().browserTabsByProject[projectId] ?? [];
+    const terminalSessionIds = get().projectTerminalSessionIds[projectId] ?? [];
     const desktopApi = getDesktopApi();
     for (const tab of browserTabs) {
       desktopApi?.updateBrowser({ destroyTab: tab.id });
     }
+    for (const sessionId of terminalSessionIds) {
+      void desktopApi?.stopTerminal(sessionId);
+    }
 
     set((state) => {
+      const closedProject = state.projects.find(
+        (project) => project.id === projectId,
+      );
       const nextProjects = state.projects.filter(
         (project) => project.id !== projectId,
-      );
-      const nextChats = state.chats.filter(
-        (chat) => chat.projectId !== projectId,
-      );
-      const nextMessagesByChatId = Object.fromEntries(
-        Object.entries(state.messagesByChatId).filter(([chatId]) =>
-          nextChats.some((chat) => chat.id === chatId),
-        ),
       );
       const nextActiveProjectId = ensureActiveProject(
         nextProjects,
         state.activeProjectId === projectId ? null : state.activeProjectId,
       );
+      const closedProjectPathKey = closedProject
+        ? normalizeProjectPathKey(closedProject.path)
+        : null;
+      const nextClosedProjects = closedProject
+        ? [
+            ...state.closedProjects.filter(
+              (project) =>
+                project.id !== closedProject.id &&
+                normalizeProjectPathKey(project.path) !== closedProjectPathKey,
+            ),
+            closedProject,
+          ]
+        : state.closedProjects;
       const nextBrowserTabsByProject = { ...state.browserTabsByProject };
       const nextActiveBrowserTabIdByProject = {
         ...state.activeBrowserTabIdByProject,
@@ -539,6 +610,17 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextTerminalOrdinalByProject = {
         ...state.nextTerminalOrdinalByProject,
       };
+      const nextTerminalOutput = { ...state.terminalOutput };
+      const nextTerminalStatus = { ...state.terminalStatus };
+      const nextTerminalTransport = { ...state.terminalTransport };
+      const nextTerminalShell = { ...state.terminalShell };
+      const nextTerminalSessionNames = { ...state.terminalSessionNames };
+      const nextProjectTerminalSessionIds = {
+        ...state.projectTerminalSessionIds,
+      };
+      const nextActiveTerminalSessionIdByProject = {
+        ...state.activeTerminalSessionIdByProject,
+      };
       const nextBrowserLoading = { ...state.browserLoading };
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
 
@@ -546,32 +628,61 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       delete nextActiveBrowserTabIdByProject[projectId];
       delete nextProjectGitRefreshKeys[projectId];
       delete nextTerminalOrdinalByProject[projectId];
+      delete nextProjectTerminalSessionIds[projectId];
+      delete nextActiveTerminalSessionIdByProject[projectId];
       delete nextDraftChatIdByProject[projectId];
       for (const tab of browserTabs) {
         delete nextBrowserLoading[tab.id];
       }
+      for (const sessionId of terminalSessionIds) {
+        delete nextTerminalOutput[sessionId];
+        delete nextTerminalStatus[sessionId];
+        delete nextTerminalTransport[sessionId];
+        delete nextTerminalShell[sessionId];
+        delete nextTerminalSessionNames[sessionId];
+      }
+      const nextActiveChatIdByProject = { ...state.activeChatIdByProject };
+      if (closedProject) {
+        nextActiveChatIdByProject[projectId] = ensureActiveChatForProject(
+          state.chats,
+          projectId,
+          state.activeChatIdByProject[projectId] ?? null,
+        );
+      }
+      for (const project of nextProjects) {
+        nextActiveChatIdByProject[project.id] = ensureActiveChatForProject(
+          state.chats,
+          project.id,
+          state.activeChatIdByProject[project.id] ?? null,
+        );
+      }
 
       return {
         activeProjectId: nextActiveProjectId,
-        activeChatIdByProject: Object.fromEntries(
-          nextProjects.map((project) => [
-            project.id,
-            ensureActiveChatForProject(
-              nextChats,
-              project.id,
-              state.activeChatIdByProject[project.id] ?? null,
-            ),
-          ]),
-        ),
-        messagesByChatId: nextMessagesByChatId,
+        activeChatIdByProject: nextActiveChatIdByProject,
+        closedProjects: nextClosedProjects,
         nextTerminalOrdinalByProject,
+        terminalOutput: nextTerminalOutput,
+        terminalStatus: nextTerminalStatus,
+        terminalTransport: nextTerminalTransport,
+        terminalShell: nextTerminalShell,
+        terminalSessionNames: nextTerminalSessionNames,
+        projectTerminalSessionIds: nextProjectTerminalSessionIds,
+        activeTerminalSessionIdByProject: nextActiveTerminalSessionIdByProject,
+        projectTerminalPanelOpen: Object.entries(
+          nextProjectTerminalSessionIds,
+        ).some(
+          ([nextProjectId, sessionIds]) =>
+            nextProjectId !== projectId && sessionIds.length > 0,
+        )
+          ? state.projectTerminalPanelOpen
+          : false,
         browserLoading: nextBrowserLoading,
         browserTabsByProject: nextBrowserTabsByProject,
         activeBrowserTabIdByProject: nextActiveBrowserTabIdByProject,
         draftChatIdByProject: nextDraftChatIdByProject,
         projectGitRefreshKeys: nextProjectGitRefreshKeys,
         projects: nextProjects,
-        chats: nextChats,
       };
     });
   },
@@ -1510,6 +1621,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           activeProjectId: null,
           activeChatIdByProject: {},
           chats: [],
+          closedProjects: [],
           messagesByChatId: {},
           panelSizes: DEFAULT_PANEL_SIZES,
           panelVisibility: DEFAULT_PANEL_VISIBILITY,
@@ -1527,6 +1639,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             activeProjectId: null,
             activeChatIdByProject: {},
             chats: [],
+            closedProjects: [],
             messagesByChatId: {},
             panelSizes: DEFAULT_PANEL_SIZES,
             panelVisibility: DEFAULT_PANEL_VISIBILITY,
@@ -1545,10 +1658,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
     set({
       projects: loaded.projects,
+      closedProjects: loaded.closedProjects,
       activeProjectId: nextActiveProjectId,
       chats: loaded.chats,
       activeChatIdByProject: Object.fromEntries(
-        loaded.projects.map((project) => [
+        [...loaded.projects, ...loaded.closedProjects].map((project) => [
           project.id,
           ensureActiveChatForProject(
             loaded.chats,
@@ -1576,6 +1690,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       activeChatIdByProject,
       chatSort,
       chats,
+      closedProjects,
       draftChatIdByProject,
       messagesByChatId,
       panelSizes,
@@ -1586,7 +1701,13 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     } = get();
     if (!stateHydrated) return;
 
+    const allProjects = [...projects, ...closedProjects];
+    const knownProjectIds = new Set(allProjects.map((project) => project.id));
     const persistedChats = chats.filter((chat) => {
+      if (!knownProjectIds.has(chat.projectId)) {
+        return false;
+      }
+
       if (draftChatIdByProject[chat.projectId] === chat.id) {
         return false;
       }
@@ -1600,7 +1721,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const nextState: PersistedIdeState = {
       activeProjectId: ensureActiveProject(projects, activeProjectId),
       activeChatIdByProject: Object.fromEntries(
-        projects.map((project) => [
+        allProjects.map((project) => [
           project.id,
           ensureActiveChatForProject(
             persistedChats,
@@ -1611,6 +1732,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       ),
       chats: persistedChats,
       chatSort,
+      closedProjects,
       messagesByChatId: persistedMessagesByChatId,
       panelSizes,
       panelVisibility: {

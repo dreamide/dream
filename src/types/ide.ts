@@ -57,6 +57,7 @@ export interface PanelSizes {
 
 export interface PersistedIdeState {
   projects: ProjectConfig[];
+  closedProjects: ProjectConfig[];
   activeProjectId: string | null;
   panelVisibility: PanelVisibility;
   panelSizes: PanelSizes;

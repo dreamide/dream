@@ -316,6 +316,7 @@ export const IdeShell = () => {
       activeProjectId: useIdeStore.getState().activeProjectId,
       activeChatIdByProject: useIdeStore.getState().activeChatIdByProject,
       chats: useIdeStore.getState().chats,
+      closedProjects: useIdeStore.getState().closedProjects,
       messagesByChatId: useIdeStore.getState().messagesByChatId,
       panelSizes: useIdeStore.getState().panelSizes,
       panelVisibility: useIdeStore.getState().panelVisibility,
@@ -330,6 +331,7 @@ export const IdeShell = () => {
         activeProjectId: state.activeProjectId,
         activeChatIdByProject: state.activeChatIdByProject,
         chats: state.chats,
+        closedProjects: state.closedProjects,
         messagesByChatId: state.messagesByChatId,
         panelSizes: state.panelSizes,
         panelVisibility: state.panelVisibility,
@@ -342,6 +344,7 @@ export const IdeShell = () => {
         next.activeProjectId !== prev.activeProjectId ||
         next.activeChatIdByProject !== prev.activeChatIdByProject ||
         next.chats !== prev.chats ||
+        next.closedProjects !== prev.closedProjects ||
         next.messagesByChatId !== prev.messagesByChatId ||
         next.panelSizes !== prev.panelSizes ||
         next.panelVisibility !== prev.panelVisibility ||

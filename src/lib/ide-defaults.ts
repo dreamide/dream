@@ -57,6 +57,7 @@ export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
   activeChatIdByProject: {},
   chats: [],
+  closedProjects: [],
   messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,

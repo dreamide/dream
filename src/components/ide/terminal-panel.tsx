@@ -17,6 +17,8 @@ const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 const TERMINAL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
 const TERMINAL_HOST_CLASS = "h-full w-full overflow-hidden";
+const TERMINAL_FONT_FAMILY_FALLBACK =
+  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const getDefaultTerminalName = (index: number) => `Terminal ${index + 1}`;
 
 const formatTerminalShellLabel = (value?: string) => {
@@ -136,6 +138,41 @@ const resolveTerminalTheme = (host: HTMLElement, resolvedTheme?: string) => {
   };
 };
 
+const resolveCssCustomProperty = (
+  style: CSSStyleDeclaration,
+  name: string,
+  seen = new Set<string>(),
+): string => {
+  if (seen.has(name)) {
+    return "";
+  }
+
+  seen.add(name);
+
+  const value = style.getPropertyValue(name).trim();
+  const variableMatch = value.match(/^var\((--[\w-]+)(?:,\s*(.+))?\)$/);
+
+  if (!variableMatch) {
+    return value;
+  }
+
+  const [, variableName, fallback] = variableMatch;
+  return (
+    resolveCssCustomProperty(style, variableName, seen) ||
+    fallback?.trim() ||
+    ""
+  );
+};
+
+const resolveTerminalFontFamily = (host: HTMLElement) => {
+  const style = getComputedStyle(host);
+  return (
+    resolveCssCustomProperty(style, "--font-mono") ||
+    resolveCssCustomProperty(style, "--font-jetbrains-mono") ||
+    TERMINAL_FONT_FAMILY_FALLBACK
+  );
+};
+
 export interface TerminalPanelProps {
   sessionId: string;
   title?: string;
@@ -197,8 +234,7 @@ export const TerminalPanel = ({
       convertEol: true,
       cursorBlink: true,
       cursorStyle: "bar",
-      fontFamily:
-        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      fontFamily: resolveTerminalFontFamily(host),
       fontSize: 12,
       theme: resolveTerminalTheme(host, resolvedTheme),
     });

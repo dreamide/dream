@@ -29,12 +29,22 @@ export const emptyState: PersistedIdeState = {
   activeProjectId: null,
   activeChatIdByProject: {},
   chats: [],
+  closedProjects: [],
   messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   projects: [],
   settings: DEFAULT_SETTINGS,
   chatSort: "recent",
+};
+
+export const normalizeProjectPathKey = (path: string): string => {
+  const trimmed = path.trim();
+  const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "") || trimmed;
+  const normalized = withoutTrailingSeparators.replace(/\\/g, "/");
+  const isWindowsPath = /^[a-zA-Z]:\//.test(normalized) || path.includes("\\");
+
+  return isWindowsPath ? normalized.toLowerCase() : normalized;
 };
 
 const isUiMessageArray = (value: unknown): value is UIMessage[] => {
@@ -199,8 +209,24 @@ export const mergePersistedState = (
   const projects = (Array.isArray(state.projects) ? state.projects : []).map(
     (project) => normalizeProject(project, mergedSettings),
   );
+  const openProjectIds = new Set(projects.map((project) => project.id));
+  const openProjectPathKeys = new Set(
+    projects.map((project) => normalizeProjectPathKey(project.path)),
+  );
+  const closedProjects = (
+    Array.isArray(state.closedProjects) ? state.closedProjects : []
+  )
+    .map((project) => normalizeProject(project, mergedSettings))
+    .filter((project) => {
+      if (openProjectIds.has(project.id)) {
+        return false;
+      }
+
+      return !openProjectPathKeys.has(normalizeProjectPathKey(project.path));
+    });
+  const allProjects = [...projects, ...closedProjects];
   const projectsById = new Map(
-    projects.map((project) => [project.id, project]),
+    allProjects.map((project) => [project.id, project]),
   );
 
   const rawChats = Array.isArray(state.chats)
@@ -242,34 +268,32 @@ export const mergePersistedState = (
     messagesByChatId[chat.id] = [];
   }
 
-  const activeChatIdByProject = projects.reduce<Record<string, string | null>>(
-    (acc, project) => {
-      const projectChats = chats.filter(
-        (chat) => chat.projectId === project.id,
-      );
-      if (projectChats.length === 0) {
-        acc[project.id] = null;
-        return acc;
-      }
-
-      const requestedChatId =
-        state.activeChatIdByProject?.[project.id] ??
-        (state as { activeThreadIdByProject?: Record<string, string | null> })
-          .activeThreadIdByProject?.[project.id] ??
-        null;
-      acc[project.id] = projectChats.some((chat) => chat.id === requestedChatId)
-        ? requestedChatId
-        : (projectChats[0]?.id ?? null);
+  const activeChatIdByProject = allProjects.reduce<
+    Record<string, string | null>
+  >((acc, project) => {
+    const projectChats = chats.filter((chat) => chat.projectId === project.id);
+    if (projectChats.length === 0) {
+      acc[project.id] = null;
       return acc;
-    },
-    {},
-  );
+    }
+
+    const requestedChatId =
+      state.activeChatIdByProject?.[project.id] ??
+      (state as { activeThreadIdByProject?: Record<string, string | null> })
+        .activeThreadIdByProject?.[project.id] ??
+      null;
+    acc[project.id] = projectChats.some((chat) => chat.id === requestedChatId)
+      ? requestedChatId
+      : (projectChats[0]?.id ?? null);
+    return acc;
+  }, {});
 
   return {
     activeProjectId:
       typeof state.activeProjectId === "string" ? state.activeProjectId : null,
     activeChatIdByProject,
     chats,
+    closedProjects,
     messagesByChatId,
     panelSizes: {
       leftSidebarWidth: normalizePanelSize(

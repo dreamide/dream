@@ -10,6 +10,7 @@ const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
   activeChatIdByProject: {},
   chats: [],
+  closedProjects: [],
   messagesByChatId: {},
   panelVisibility: {
     left: true,
@@ -335,17 +336,21 @@ const importCodexChatsIntoState = (currentState, codexRoot) => {
   const nextState = {
     ...currentState,
     activeChatIdByProject: {
-      ...(currentState.activeChatIdByProject ?? currentState.activeThreadIdByProject ?? {}),
+      ...(currentState.activeChatIdByProject ??
+        currentState.activeThreadIdByProject ??
+        {}),
     },
     chats: [...(currentState.chats ?? currentState.threads ?? [])],
     messagesByChatId: {
       ...(currentState.messagesByChatId ?? currentState.chats ?? {}),
     },
+    closedProjects: [...(currentState.closedProjects ?? [])],
     projects: [...(currentState.projects ?? [])],
   };
 
+  const knownProjects = [...nextState.projects, ...nextState.closedProjects];
   const projectIdsByPath = new Map(
-    nextState.projects.flatMap((project) => {
+    knownProjects.flatMap((project) => {
       const pathKey = normalizePathKey(project?.path);
       const projectId =
         typeof project?.id === "string" && project.id.trim()

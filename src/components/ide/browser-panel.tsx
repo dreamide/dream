@@ -26,12 +26,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
+import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { ChangesPanel } from "./changes-panel";
 import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
+
+const RIGHT_PANEL_SURFACE_CLASSES =
+  "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
 
 export interface BrowserPanelProps {
   onSyncBrowserBounds: (reload?: boolean) => void;
@@ -343,10 +347,7 @@ const BrowserViewport = ({
   }, [onSyncBrowserBounds]);
 
   return (
-    <div
-      id="browser-panel"
-      className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md"
-    >
+    <div id="browser-panel" className="flex h-full flex-col overflow-hidden">
       <div className="flex items-end bg-muted/50 px-1.5 py-1.5">
         <StandardTabs
           activeId={activeTab?.id ?? null}
@@ -519,7 +520,7 @@ const RightPanelTabs = () => {
   );
 
   return (
-    <div className="flex items-center border-b border-border/60 px-2 py-2">
+    <div className="flex items-center px-2 pb-2">
       <Tabs onValueChange={handleValueChange} value={rightPanelView}>
         <TabsList className="h-8 bg-muted/60">
           <Tooltip>
@@ -572,33 +573,42 @@ const RightPanelTabs = () => {
 
 export const BrowserPanel = (props: BrowserPanelProps) => {
   const rightPanelView = useIdeStore((state) => state.rightPanelView);
+  const baseColor = useUiStore((state) => state.baseColor);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col pt-2">
       <RightPanelTabs />
       <div
         className={cn(
-          "min-h-0 flex-1",
-          rightPanelView === "explorer" ? "" : "hidden",
+          RIGHT_PANEL_SURFACE_CLASSES,
+          "flex min-h-0 flex-1 flex-col",
         )}
+        data-base-color={baseColor === "neutral" ? undefined : baseColor}
       >
-        <FileExplorerPanel />
-      </div>
-      <div
-        className={cn(
-          "min-h-0 flex-1",
-          rightPanelView === "changes" ? "" : "hidden",
-        )}
-      >
-        <ChangesPanel />
-      </div>
-      <div
-        className={cn(
-          "min-h-0 flex-1",
-          rightPanelView === "browser" ? "" : "hidden",
-        )}
-      >
-        <MemoizedBrowserViewport {...props} />
+        <div
+          className={cn(
+            "min-h-0 flex-1",
+            rightPanelView === "explorer" ? "" : "hidden",
+          )}
+        >
+          <FileExplorerPanel />
+        </div>
+        <div
+          className={cn(
+            "min-h-0 flex-1",
+            rightPanelView === "changes" ? "" : "hidden",
+          )}
+        >
+          <ChangesPanel />
+        </div>
+        <div
+          className={cn(
+            "min-h-0 flex-1",
+            rightPanelView === "browser" ? "" : "hidden",
+          )}
+        >
+          <MemoizedBrowserViewport {...props} />
+        </div>
       </div>
     </div>
   );

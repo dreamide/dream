@@ -58,6 +58,7 @@ const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
   activeChatIdByProject: {},
   chats: [],
+  closedProjects: [],
   messagesByChatId: {},
   panelSizes: {
     leftSidebarWidth: 240,
