@@ -83,8 +83,6 @@ type RenameTarget = {
   name: string;
 };
 
-type OpenInTarget = "file-explorer" | "terminal" | "vscode";
-
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -183,11 +181,6 @@ export const IdeHeader = () => {
     : 0;
   const dragStep = projectTabWidth + PROJECT_TAB_GAP;
   const desktopApi = getDesktopApi();
-  const fileExplorerEditor = useMemo(
-    () => detectedEditors.find((editor) => editor.isFileExplorer) ?? null,
-    [detectedEditors],
-  );
-
   const handleOpenSettings = useCallback(() => {
     setSettingsSection("appearance");
     setSettingsOpen(true);
@@ -216,25 +209,14 @@ export const IdeHeader = () => {
     void openProjectTerminal(activeProject.id);
   }, [activeProject, openProjectTerminal]);
 
-  const handleOpenProjectInTarget = useCallback(
+  const handleOpenProjectInEditor = useCallback(
     async (
       project: {
         path: string;
       },
-      target: OpenInTarget,
+      editorId: string,
     ) => {
       if (!desktopApi) {
-        return;
-      }
-
-      const editorId =
-        target === "vscode"
-          ? "vscode"
-          : target === "terminal"
-            ? "terminal"
-            : (fileExplorerEditor?.id ?? "file-explorer");
-
-      if (!editorId) {
         return;
       }
 
@@ -243,7 +225,7 @@ export const IdeHeader = () => {
         projectPath: project.path,
       });
     },
-    [desktopApi, fileExplorerEditor],
+    [desktopApi],
   );
 
   const handleAddChat = useCallback(() => {
@@ -696,51 +678,39 @@ export const IdeHeader = () => {
                                 <FilePenLine className="size-4" />
                                 Edit
                               </DropdownMenuItem>
-                              {desktopApi ? (
+                              {detectedEditors.length > 0 ? (
                                 <DropdownMenuSub>
                                   <DropdownMenuSubTrigger>
                                     <ExternalLink className="size-4" />
                                     Open in
                                   </DropdownMenuSubTrigger>
                                   <DropdownMenuSubContent className="[-webkit-app-region:no-drag]">
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        void handleOpenProjectInTarget(
-                                          project,
-                                          "file-explorer",
-                                        )
-                                      }
-                                    >
-                                      <FolderOpen className="size-4" />
-                                      {fileExplorerEditor?.name ??
-                                        (isMacOs ? "Finder" : "File Explorer")}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        void handleOpenProjectInTarget(
-                                          project,
-                                          "vscode",
-                                        )
-                                      }
-                                    >
-                                      <VscodeMark />
-                                      VS Code
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        void handleOpenProjectInTarget(
-                                          project,
-                                          "terminal",
-                                        )
-                                      }
-                                    >
-                                      {isMacOs ? (
-                                        <TerminalSquare className="size-4" />
-                                      ) : (
-                                        <PowerShellMark />
-                                      )}
-                                      {isMacOs ? "Terminal" : "PowerShell"}
-                                    </DropdownMenuItem>
+                                    {detectedEditors.map((editor) => (
+                                      <DropdownMenuItem
+                                        key={editor.id}
+                                        onClick={() =>
+                                          void handleOpenProjectInEditor(
+                                            project,
+                                            editor.id,
+                                          )
+                                        }
+                                      >
+                                        {editor.id === "vscode" ? (
+                                          <VscodeMark />
+                                        ) : editor.isFileExplorer ? (
+                                          <FolderOpen className="size-4" />
+                                        ) : editor.isTerminal ? (
+                                          isMacOs ? (
+                                            <TerminalSquare className="size-4" />
+                                          ) : (
+                                            <PowerShellMark />
+                                          )
+                                        ) : (
+                                          <ExternalLink className="size-4" />
+                                        )}
+                                        {editor.name}
+                                      </DropdownMenuItem>
+                                    ))}
                                   </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                               ) : null}
