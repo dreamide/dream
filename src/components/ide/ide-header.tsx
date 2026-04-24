@@ -1,7 +1,4 @@
 import {
-  Check,
-  ChevronDown,
-  Copy,
   Ellipsis,
   ExternalLink,
   FilePenLine,
@@ -40,9 +37,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -126,16 +121,6 @@ const PowerShellMark = ({ className }: { className?: string }) => (
   />
 );
 
-const OpenInCheck = ({ active }: { active: boolean }) => (
-  <Check
-    aria-hidden="true"
-    className={cn(
-      "ml-auto size-4 shrink-0",
-      active ? "opacity-100" : "opacity-0",
-    )}
-  />
-);
-
 export const IdeHeader = () => {
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
@@ -182,8 +167,6 @@ export const IdeHeader = () => {
   );
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [preferredOpenInTarget, setPreferredOpenInTarget] =
-    useState<OpenInTarget>("vscode");
   const [projectTabWidth, setProjectTabWidth] = useState(PROJECT_TAB_MAX_WIDTH);
   const [completedProjectIds, setCompletedProjectIds] = useState<
     Record<string, boolean>
@@ -204,18 +187,6 @@ export const IdeHeader = () => {
     () => detectedEditors.find((editor) => editor.isFileExplorer) ?? null,
     [detectedEditors],
   );
-  const openInTriggerIcon =
-    preferredOpenInTarget === "vscode" ? (
-      <VscodeMark />
-    ) : preferredOpenInTarget === "terminal" ? (
-      isMacOs ? (
-        <TerminalSquare className="size-4 shrink-0" />
-      ) : (
-        <PowerShellMark />
-      )
-    ) : (
-      <FolderOpen className="size-4 shrink-0" />
-    );
 
   const handleOpenSettings = useCallback(() => {
     setSettingsSection("appearance");
@@ -245,9 +216,14 @@ export const IdeHeader = () => {
     void openProjectTerminal(activeProject.id);
   }, [activeProject, openProjectTerminal]);
 
-  const handleOpenInTarget = useCallback(
-    async (target: OpenInTarget) => {
-      if (!activeProject || !desktopApi) {
+  const handleOpenProjectInTarget = useCallback(
+    async (
+      project: {
+        path: string;
+      },
+      target: OpenInTarget,
+    ) => {
+      if (!desktopApi) {
         return;
       }
 
@@ -264,34 +240,11 @@ export const IdeHeader = () => {
 
       await desktopApi.openInEditor({
         editorId,
-        projectPath: activeProject.path,
+        projectPath: project.path,
       });
     },
-    [activeProject, desktopApi, fileExplorerEditor],
+    [desktopApi, fileExplorerEditor],
   );
-
-  const handleOpenInPreferredTarget = useCallback(() => {
-    void handleOpenInTarget(preferredOpenInTarget);
-  }, [handleOpenInTarget, preferredOpenInTarget]);
-
-  const handleSelectOpenInTarget = useCallback((target: OpenInTarget) => {
-    setPreferredOpenInTarget(target);
-  }, []);
-
-  const handleCopyProjectPath = useCallback(async () => {
-    if (!activeProject) {
-      return;
-    }
-
-    if (desktopApi) {
-      await desktopApi.writeClipboardText(activeProject.path);
-      return;
-    }
-
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(activeProject.path);
-    }
-  }, [activeProject, desktopApi]);
 
   const handleAddChat = useCallback(() => {
     if (!activeProject) {
@@ -743,29 +696,51 @@ export const IdeHeader = () => {
                                 <FilePenLine className="size-4" />
                                 Edit
                               </DropdownMenuItem>
-                              {detectedEditors.length > 0 ? (
+                              {desktopApi ? (
                                 <DropdownMenuSub>
                                   <DropdownMenuSubTrigger>
                                     <ExternalLink className="size-4" />
                                     Open in
                                   </DropdownMenuSubTrigger>
                                   <DropdownMenuSubContent className="[-webkit-app-region:no-drag]">
-                                    {detectedEditors.map((editor) => (
-                                      <DropdownMenuItem
-                                        key={editor.id}
-                                        onClick={() => {
-                                          const api = getDesktopApi();
-                                          if (api) {
-                                            void api.openInEditor({
-                                              editorId: editor.id,
-                                              projectPath: project.path,
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        {editor.name}
-                                      </DropdownMenuItem>
-                                    ))}
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        void handleOpenProjectInTarget(
+                                          project,
+                                          "file-explorer",
+                                        )
+                                      }
+                                    >
+                                      <FolderOpen className="size-4" />
+                                      {fileExplorerEditor?.name ??
+                                        (isMacOs ? "Finder" : "File Explorer")}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        void handleOpenProjectInTarget(
+                                          project,
+                                          "vscode",
+                                        )
+                                      }
+                                    >
+                                      <VscodeMark />
+                                      VS Code
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        void handleOpenProjectInTarget(
+                                          project,
+                                          "terminal",
+                                        )
+                                      }
+                                    >
+                                      {isMacOs ? (
+                                        <TerminalSquare className="size-4" />
+                                      ) : (
+                                        <PowerShellMark />
+                                      )}
+                                      {isMacOs ? "Terminal" : "PowerShell"}
+                                    </DropdownMenuItem>
                                   </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                               ) : null}
@@ -893,71 +868,6 @@ export const IdeHeader = () => {
               </TooltipTrigger>
               <TooltipContent>Open terminal</TooltipContent>
             </Tooltip>
-            <DropdownMenu>
-              <div className="flex items-center [-webkit-app-region:no-drag]">
-                <button
-                  aria-label="Open in preferred app"
-                  className="flex h-8 w-7 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                  disabled={!activeProject || !desktopApi}
-                  onClick={handleOpenInPreferredTarget}
-                  type="button"
-                >
-                  {openInTriggerIcon}
-                </button>
-                <DropdownMenuTrigger
-                  render={
-                    <button
-                      aria-label="Choose open in target"
-                      className="flex h-8 w-5 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                      disabled={!activeProject || !desktopApi}
-                      type="button"
-                    />
-                  }
-                >
-                  <ChevronDown className="size-3.5 shrink-0" />
-                </DropdownMenuTrigger>
-              </div>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Open in</DropdownMenuLabel>
-                  <DropdownMenuItem
-                    onClick={() => handleSelectOpenInTarget("file-explorer")}
-                  >
-                    <FolderOpen className="size-4" />
-                    {fileExplorerEditor?.name ??
-                      (isMacOs ? "Finder" : "File Explorer")}
-                    <OpenInCheck
-                      active={preferredOpenInTarget === "file-explorer"}
-                    />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleSelectOpenInTarget("vscode")}
-                  >
-                    <VscodeMark />
-                    VS Code
-                    <OpenInCheck active={preferredOpenInTarget === "vscode"} />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleSelectOpenInTarget("terminal")}
-                  >
-                    {isMacOs ? (
-                      <TerminalSquare className="size-4" />
-                    ) : (
-                      <PowerShellMark />
-                    )}
-                    {isMacOs ? "Terminal" : "PowerShell"}
-                    <OpenInCheck
-                      active={preferredOpenInTarget === "terminal"}
-                    />
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void handleCopyProjectPath()}>
-                  <Copy className="size-4" />
-                  Copy path
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
             <ToggleButton
               active={panelVisibility.right}
               onClick={() => togglePanel("right")}
