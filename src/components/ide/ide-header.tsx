@@ -303,7 +303,7 @@ export const IdeHeader = () => {
     <header
       id="app-titlebar"
       className={cn(
-        "flex shrink-0 flex-col bg-muted/70 text-foreground backdrop-blur-sm [-webkit-app-region:drag]",
+        "flex shrink-0 flex-col border-b border-foreground/10 bg-muted/70 text-foreground backdrop-blur-sm [-webkit-app-region:drag]",
         isMacOs ? "pr-3" : "pr-0",
       )}
     >

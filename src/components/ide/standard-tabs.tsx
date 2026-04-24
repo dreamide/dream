@@ -5,7 +5,6 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -18,7 +17,6 @@ const DEFAULT_TAB_MIN_WIDTH = 144;
 const DEFAULT_TAB_MAX_WIDTH = 220;
 const TAB_DRAG_THRESHOLD = 4;
 const TAB_FLIP_DURATION_MS = 180;
-const TRANSLATE_X_PATTERN = /translateX\((-?\d+(?:\.\d+)?)px\)/;
 
 export type StandardTabItem = {
   id: string;
@@ -34,10 +32,6 @@ type DragState = {
   pointerId: number;
   startX: number;
   tabId: string;
-};
-
-type CapturedTabRect = {
-  left: number;
 };
 
 type StandardTabsProps<TItem extends StandardTabItem> = {
@@ -68,11 +62,6 @@ type StandardTabsProps<TItem extends StandardTabItem> = {
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
-
-const parseTranslateX = (transform: string) => {
-  const match = TRANSLATE_X_PATTERN.exec(transform);
-  return match ? Number(match[1]) : 0;
-};
 
 const resolveCanClose = <TItem extends StandardTabItem>(
   canClose: StandardTabsProps<TItem>["canClose"],
@@ -128,9 +117,6 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const afterRef = useRef<HTMLDivElement | null>(null);
   const dragTabRef = useRef<DragState | null>(null);
-  const flipAnimationFrameRef = useRef<number | null>(null);
-  const flipCleanupTimeoutRef = useRef<number | null>(null);
-  const pendingFlipRectsRef = useRef<Map<string, CapturedTabRect> | null>(null);
   const settlingCleanupTimeoutRef = useRef<number | null>(null);
   const suppressClickRef = useRef<string | null>(null);
   const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -138,7 +124,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   const [tabWidth, setTabWidth] = useState(maxWidth);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
-  const [settlingTabId, setSettlingTabId] = useState<string | null>(null);
+  const [settlingTabIds, setSettlingTabIds] = useState<string[]>([]);
 
   const dragStep = tabWidth + gap;
   const resolveDragDistance = useCallback(
@@ -179,6 +165,15 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       return 0;
     },
     [dragStep, resolveDragDistance],
+  );
+  const getDragAffectedTabIds = useCallback(
+    (state: DragState) => {
+      const startIndex = Math.min(state.initialIndex, state.currentIndex);
+      const endIndex = Math.max(state.initialIndex, state.currentIndex);
+
+      return items.slice(startIndex, endIndex + 1).map((item) => item.id);
+    },
+    [items],
   );
 
   const measureTabWidth = useCallback(() => {
@@ -227,14 +222,6 @@ export const StandardTabs = <TItem extends StandardTabItem>({
 
   useEffect(
     () => () => {
-      if (flipAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(flipAnimationFrameRef.current);
-      }
-
-      if (flipCleanupTimeoutRef.current !== null) {
-        window.clearTimeout(flipCleanupTimeoutRef.current);
-      }
-
       if (settlingCleanupTimeoutRef.current !== null) {
         window.clearTimeout(settlingCleanupTimeoutRef.current);
       }
@@ -242,102 +229,20 @@ export const StandardTabs = <TItem extends StandardTabItem>({
     [],
   );
 
-  const captureTabRects = useCallback(
-    (activeDrag?: DragState) => {
-      const rects = new Map<string, CapturedTabRect>();
-
-      for (const [tabId, element] of tabRefs.current) {
-        const rect = element.getBoundingClientRect();
-        let left = rect.left;
-
-        if (activeDrag?.moved && tabId === activeDrag.tabId) {
-          const tabIndex = items.findIndex((item) => item.id === tabId);
-          if (tabIndex !== -1) {
-            const renderedOffset = parseTranslateX(element.style.transform);
-            left =
-              rect.left -
-              renderedOffset +
-              resolveTabOffset(activeDrag, tabId, tabIndex);
-          }
-        }
-
-        rects.set(tabId, { left });
-      }
-
-      return rects;
-    },
-    [items, resolveTabOffset],
-  );
-
-  useLayoutEffect(() => {
-    const previousRects = pendingFlipRectsRef.current;
-    if (!previousRects) {
+  useEffect(() => {
+    if (settlingTabIds.length === 0) {
       return;
     }
 
-    pendingFlipRectsRef.current = null;
-
-    const movedElements: HTMLDivElement[] = [];
-    for (const [tabId, element] of tabRefs.current) {
-      if (tabId === settlingTabId) {
-        continue;
-      }
-
-      const previousRect = previousRects.get(tabId);
-      if (!previousRect) {
-        continue;
-      }
-
-      const nextRect = element.getBoundingClientRect();
-      const deltaX = previousRect.left - nextRect.left;
-      if (Math.abs(deltaX) < 0.5) {
-        continue;
-      }
-
-      element.style.transition = "none";
-      element.style.transform = `translateX(${deltaX}px)`;
-      movedElements.push(element);
+    if (settlingCleanupTimeoutRef.current !== null) {
+      window.clearTimeout(settlingCleanupTimeoutRef.current);
     }
 
-    if (movedElements.length === 0) {
-      return;
-    }
-
-    if (flipAnimationFrameRef.current !== null) {
-      window.cancelAnimationFrame(flipAnimationFrameRef.current);
-    }
-
-    if (flipCleanupTimeoutRef.current !== null) {
-      window.clearTimeout(flipCleanupTimeoutRef.current);
-    }
-
-    flipAnimationFrameRef.current = window.requestAnimationFrame(() => {
-      for (const element of movedElements) {
-        element.style.transition = `transform ${TAB_FLIP_DURATION_MS}ms ease`;
-        element.style.transform = "";
-      }
-
-      flipAnimationFrameRef.current = null;
-      flipCleanupTimeoutRef.current = window.setTimeout(() => {
-        for (const element of movedElements) {
-          element.style.transition = "";
-        }
-
-        flipCleanupTimeoutRef.current = null;
-      }, TAB_FLIP_DURATION_MS);
-    });
-
-    if (settlingTabId) {
-      if (settlingCleanupTimeoutRef.current !== null) {
-        window.clearTimeout(settlingCleanupTimeoutRef.current);
-      }
-
-      settlingCleanupTimeoutRef.current = window.setTimeout(() => {
-        setSettlingTabId(null);
-        settlingCleanupTimeoutRef.current = null;
-      }, TAB_FLIP_DURATION_MS);
-    }
-  });
+    settlingCleanupTimeoutRef.current = window.setTimeout(() => {
+      setSettlingTabIds([]);
+      settlingCleanupTimeoutRef.current = null;
+    }, TAB_FLIP_DURATION_MS);
+  }, [settlingTabIds.length]);
 
   const commitRename = useCallback(
     (tabId: string) => {
@@ -375,11 +280,11 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         }
 
         if (shouldReorder) {
-          pendingFlipRectsRef.current = captureTabRects(committedDragTab);
+          const settlingIds = getDragAffectedTabIds(committedDragTab);
           dragTabRef.current = null;
           flushSync(() => {
             setDragTab(null);
-            setSettlingTabId(committedDragTab.tabId);
+            setSettlingTabIds(settlingIds);
             onReorder?.(
               committedDragTab.initialIndex,
               committedDragTab.currentIndex,
@@ -403,7 +308,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         currentTarget.releasePointerCapture(pointerId);
       }
     },
-    [captureTabRects, onReorder],
+    [getDragAffectedTabIds, onReorder],
   );
 
   const handlePointerDown = useCallback(
@@ -417,15 +322,6 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       }
 
       event.preventDefault();
-      if (flipAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(flipAnimationFrameRef.current);
-        flipAnimationFrameRef.current = null;
-      }
-
-      if (flipCleanupTimeoutRef.current !== null) {
-        window.clearTimeout(flipCleanupTimeoutRef.current);
-        flipCleanupTimeoutRef.current = null;
-      }
       if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.setPointerCapture(event.pointerId);
       }
@@ -552,6 +448,8 @@ export const StandardTabs = <TItem extends StandardTabItem>({
             const nextItem = items[tabIndex + 1] ?? null;
             const isDragging = item.id === dragTab?.tabId && dragTab.moved;
             const tabOffset = getTabOffset(item.id, tabIndex);
+            const isRepositioning =
+              Boolean(dragTab?.moved) && (isDragging || tabOffset !== 0);
             const showClose = onClose && resolveCanClose(canClose, item);
             const actions = renderActions?.(item);
             const hasRightAdornment = showClose || Boolean(actions);
@@ -668,7 +566,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               <div
                 className={cn(
                   "group relative shrink-0 overflow-visible",
-                  isDragging || item.id === settlingTabId
+                  isRepositioning || settlingTabIds.includes(item.id)
                     ? "transition-none"
                     : "transition-transform duration-150 ease-out",
                 )}
