@@ -3,7 +3,7 @@ import {
   ArrowRight,
   Folder,
   GitCompareArrows,
-  Monitor,
+  Globe,
   Plus,
   RotateCw,
   X,
@@ -560,7 +560,7 @@ const RightPanelTabs = () => {
                 />
               }
             >
-              <Monitor className="size-4" />
+              <Globe className="size-4" />
             </TooltipTrigger>
             <TooltipContent>Browser</TooltipContent>
           </Tooltip>

@@ -378,7 +378,7 @@ const FileExplorerPanelImpl = () => {
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
-        <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2 text-sm font-medium">
+        <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
           <FolderIcon className="size-4 text-muted-foreground" />
           <span>Files</span>
         </div>
@@ -391,27 +391,29 @@ const FileExplorerPanelImpl = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
-      <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2">
-        <FolderIcon className="size-4 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
           <div className="truncate text-sm font-medium">Files</div>
-          <div className="truncate text-muted-foreground text-xs">
-            {activeProject.path}
-          </div>
         </div>
-        <Button
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={() => void loadProjectFiles()}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          {filesLoading ? (
-            <Spinner className="size-3.5 text-muted-foreground" />
-          ) : (
-            <RefreshCw className="size-3.5" />
-          )}
-        </Button>
+        <div className="truncate text-center text-muted-foreground text-xs">
+          {activeProject.path}
+        </div>
+        <div className="flex justify-end">
+          <Button
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            onClick={() => void loadProjectFiles()}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            {filesLoading ? (
+              <Spinner className="size-3.5 text-muted-foreground" />
+            ) : (
+              <RefreshCw className="size-3.5" />
+            )}
+          </Button>
+        </div>
       </div>
 
       <div ref={splitContainerRef} className="flex min-h-0 flex-1">

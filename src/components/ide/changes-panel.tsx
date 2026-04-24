@@ -652,7 +652,7 @@ const ChangesPanelImpl = () => {
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
-        <div className="flex items-center gap-2 border-b border-foreground/10 px-3 py-2 text-sm font-medium">
+        <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
           <GitCompareArrows className="size-4 text-muted-foreground" />
           <span>Changes</span>
         </div>
@@ -665,13 +665,10 @@ const ChangesPanelImpl = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
-      <div className="flex items-center gap-3 border-b border-foreground/10 px-3 py-2">
+      <div className="flex items-center gap-3 border-b border-foreground/10 bg-muted/50 px-3 py-2">
         <GitCompareArrows className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">Changes</div>
-          <div className="truncate text-muted-foreground text-xs">
-            {activeProject.path}
-          </div>
         </div>
 
         <div className="flex overflow-hidden rounded-md border border-foreground/10 bg-muted/30 p-0.5">
