@@ -352,9 +352,6 @@ export const ProjectTerminalTabsPanel = ({
   const activeSessionId = useIdeStore(
     (s) => s.activeTerminalSessionIdByProject[projectId] ?? null,
   );
-  const terminalShell = useIdeStore((s) =>
-    activeSessionId ? s.terminalShell[activeSessionId] : undefined,
-  );
   const addProjectTerminal = useIdeStore((s) => s.addProjectTerminal);
   const closeProjectTerminal = useIdeStore((s) => s.closeProjectTerminal);
   const terminalSessionNames = useIdeStore((s) => s.terminalSessionNames);
@@ -492,9 +489,6 @@ export const ProjectTerminalTabsPanel = ({
               </TabsList>
             </Tabs>
           </div>
-          <span className="truncate text-muted-foreground text-xs">
-            {formatTerminalShellLabel(terminalShell)}
-          </span>
         </div>
         <div className="min-h-0 flex-1">
           <TerminalPanel
@@ -505,7 +499,6 @@ export const ProjectTerminalTabsPanel = ({
             sessionId={resolvedActiveSessionId}
             showHeader={false}
             stopOnClose={false}
-            subtitle={terminalShell}
             title={
               activeTabIndex >= 0
                 ? resolveTerminalName(resolvedActiveSessionId, activeTabIndex)
