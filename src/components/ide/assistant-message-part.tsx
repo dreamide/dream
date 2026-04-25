@@ -1021,7 +1021,12 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
       : Array.isArray(rawMatches)
         ? rawMatches.filter(isString)
         : []
-  ).filter((line) => line.trim().length > 0);
+  ).filter((line) => {
+    const trimmedLine = line.trim();
+    return (
+      trimmedLine.length > 0 && trimmedLine.toLowerCase() !== "no files found"
+    );
+  });
   const toolReferences = matches
     .map(
       (match) =>
