@@ -9,6 +9,7 @@
  */
 
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -823,6 +824,97 @@ const resolveProjectPath = (projectRoot, filePath) => {
     throw new Error("Path is outside of the project root.");
   }
   return fullPath;
+};
+
+const hashContent = (content) =>
+  createHash("sha256").update(content, "utf8").digest("hex");
+
+const buildLineDiff = (previousContent, nextContent) => {
+  const previousLines = previousContent.split("\n");
+  const nextLines = nextContent.split("\n");
+  const lines = [];
+  let previousIndex = 0;
+  let nextIndex = 0;
+
+  while (previousIndex < previousLines.length && nextIndex < nextLines.length) {
+    if (previousLines[previousIndex] === nextLines[nextIndex]) {
+      lines.push(` ${previousLines[previousIndex]}`);
+      previousIndex += 1;
+      nextIndex += 1;
+      continue;
+    }
+
+    const nextInPrevious = previousLines.indexOf(
+      nextLines[nextIndex],
+      previousIndex + 1,
+    );
+    const previousInNext = nextLines.indexOf(
+      previousLines[previousIndex],
+      nextIndex + 1,
+    );
+
+    if (
+      nextInPrevious !== -1 &&
+      (previousInNext === -1 ||
+        nextInPrevious - previousIndex <= previousInNext - nextIndex)
+    ) {
+      while (previousIndex < nextInPrevious) {
+        lines.push(`-${previousLines[previousIndex]}`);
+        previousIndex += 1;
+      }
+      continue;
+    }
+
+    if (previousInNext !== -1) {
+      while (nextIndex < previousInNext) {
+        lines.push(`+${nextLines[nextIndex]}`);
+        nextIndex += 1;
+      }
+      continue;
+    }
+
+    lines.push(`-${previousLines[previousIndex]}`);
+    lines.push(`+${nextLines[nextIndex]}`);
+    previousIndex += 1;
+    nextIndex += 1;
+  }
+
+  while (previousIndex < previousLines.length) {
+    lines.push(`-${previousLines[previousIndex]}`);
+    previousIndex += 1;
+  }
+
+  while (nextIndex < nextLines.length) {
+    lines.push(`+${nextLines[nextIndex]}`);
+    nextIndex += 1;
+  }
+
+  return lines.join("\n");
+};
+
+const getDiffLineCount = (content) =>
+  content.length === 0 ? 0 : content.split("\n").length;
+
+const buildSavedWriteDiff = ({
+  filePath,
+  isNewFile,
+  nextContent,
+  previousContent,
+}) => {
+  const normalizedFilePath = normalizePath(filePath);
+  const previousLineCount = getDiffLineCount(previousContent);
+  const nextLineCount = getDiffLineCount(nextContent);
+
+  return [
+    `diff --git a/${normalizedFilePath} b/${normalizedFilePath}`,
+    isNewFile ? "new file mode 100644" : null,
+    `--- ${isNewFile ? "/dev/null" : `a/${normalizedFilePath}`}`,
+    `+++ b/${normalizedFilePath}`,
+    `@@ -${isNewFile ? 0 : 1},${previousLineCount} +1,${nextLineCount} @@`,
+    buildLineDiff(previousContent, nextContent),
+  ]
+    .filter(Boolean)
+    .join("\n");
 };
 
 const walkFiles = async (root, current, maxResults, output) => {
@@ -1901,10 +1993,22 @@ app.post("/api/chat", async (c) => {
                 } else {
                   await fs.writeFile(absolutePath, content, "utf8");
                 }
+                const beforeContent = previousContent ?? "";
+                const nextContent =
+                  mode === "append" ? `${beforeContent}${content}` : content;
                 return {
                   bytesWritten: Buffer.byteLength(content, "utf8"),
+                  contentHash: hashContent(nextContent),
+                  diff: buildSavedWriteDiff({
+                    filePath,
+                    isNewFile: previousContent === undefined,
+                    nextContent,
+                    previousContent: beforeContent,
+                  }),
+                  diffFormat: "unified",
                   filePath,
                   mode,
+                  previousContentHash: hashContent(beforeContent),
                   status: "ok",
                   ...(previousContent !== undefined ? { previousContent } : {}),
                   content,

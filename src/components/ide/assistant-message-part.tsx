@@ -1,3 +1,5 @@
+import { parsePatchFiles } from "@pierre/diffs";
+import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
 import {
   BotIcon,
@@ -11,6 +13,7 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -53,6 +56,7 @@ import { stringifyPart } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 
 type MessagePart = UIMessage["parts"][number];
+type PierreDiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
 
 type ToolLikePart = MessagePart & {
   approval?: { id: string; approved?: boolean; reason?: string };
@@ -525,6 +529,24 @@ const buildWriteDiff = ({
     "@@",
     buildLineDiff(previousContent, nextContent),
   ].join("\n");
+};
+
+const parseSingleDiff = (diff: string) => {
+  try {
+    const parsedPatches = parsePatchFiles(diff);
+    if (parsedPatches.length !== 1) {
+      return null;
+    }
+
+    const files = parsedPatches[0]?.files;
+    if (!Array.isArray(files) || files.length !== 1) {
+      return null;
+    }
+
+    return files[0] ?? null;
+  } catch {
+    return null;
+  }
 };
 
 const toRelativeProjectPath = (projectPath: string, filePath: string) => {
@@ -1413,6 +1435,7 @@ export const WriteFileChip = ({
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
+  const { resolvedTheme } = useTheme();
   const activeProjectPath = useIdeStore(
     (s) => s.getActiveProject()?.path ?? null,
   );
@@ -1483,6 +1506,11 @@ export const WriteFileChip = ({
     [["previousContent"], ["previous_content"], ["file", "previousContent"]],
     { allowEmpty: true },
   );
+  const savedDiff = getStringFromPaths(
+    output,
+    [["diff"], ["patch"], ["changes", "diff"], ["file", "diff"]],
+    { allowEmpty: true },
+  );
   const mode =
     getStringFromPaths(part.input, [
       ["mode"],
@@ -1498,18 +1526,43 @@ export const WriteFileChip = ({
   const hasOutput = output !== undefined;
   const approvalId = part.approval?.id;
   const canExpand =
-    hasError || isApprovalRequested || content !== null || hasOutput;
+    hasError ||
+    isApprovalRequested ||
+    savedDiff !== null ||
+    content !== null ||
+    hasOutput;
   const previewLanguage = inferLanguage(filePath ?? filename);
   const normalizedContent =
     content !== null ? normalizeEmbeddedLineNumbers(content) : null;
   const previewCode = normalizedContent?.code ?? content ?? "";
   const previewStartLine = normalizedContent?.startingLineNumber ?? 1;
   const diffCode =
-    previousContent !== null && content !== null && filePath
+    savedDiff ??
+    (previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
-      : null;
+      : null);
+  const displayDiffCode = diffCode ?? gitDiff;
   const displayFilename =
     filename === "file" && isRunning ? "Writing" : filename;
+  const parsedDiff = useMemo(
+    () => (displayDiffCode ? parseSingleDiff(displayDiffCode) : null),
+    [displayDiffCode],
+  );
+  const diffOptions = useMemo<PierreDiffOptions>(
+    () => ({
+      diffIndicators: "bars",
+      diffStyle: "unified",
+      disableFileHeader: true,
+      hunkSeparators: "line-info",
+      lineDiffType: "none",
+      theme: {
+        dark: "github-dark",
+        light: "github-light",
+      },
+      themeType: resolvedTheme === "dark" ? "dark" : "light",
+    }),
+    [resolvedTheme],
+  );
 
   useEffect(() => {
     if (defaultExpanded) {
@@ -1518,7 +1571,13 @@ export const WriteFileChip = ({
   }, [defaultExpanded]);
 
   useEffect(() => {
-    if (!expanded || diffCode !== null || !diffProjectPath || !filePath) {
+    if (
+      isRunning ||
+      !expanded ||
+      diffCode !== null ||
+      !diffProjectPath ||
+      !filePath
+    ) {
       return;
     }
 
@@ -1602,7 +1661,7 @@ export const WriteFileChip = ({
     return () => {
       cancelled = true;
     };
-  }, [diffCode, diffProjectPath, expanded, filePath]);
+  }, [diffCode, diffProjectPath, expanded, filePath, isRunning]);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1703,43 +1762,34 @@ export const WriteFileChip = ({
             </pre>
           ) : null}
           {/* Content preview */}
-          {diffCode !== null && filePath ? (
+          {displayDiffCode !== null && filePath ? (
             <div>
-              <CodeBlock
-                className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                code={diffCode}
-                language="diff"
-                style={{ contentVisibility: "visible" }}
-              >
-                <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                  <CodeBlockTitle>
-                    <FileIcon size={14} />
-                    <CodeBlockFilename>{filename}</CodeBlockFilename>
-                  </CodeBlockTitle>
-                  <CodeBlockActions>
-                    <CodeBlockCopyButton />
-                  </CodeBlockActions>
-                </CodeBlockHeader>
-              </CodeBlock>
-            </div>
-          ) : gitDiff !== null && filePath ? (
-            <div>
-              <CodeBlock
-                className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                code={gitDiff}
-                language="diff"
-                style={{ contentVisibility: "visible" }}
-              >
-                <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                  <CodeBlockTitle>
-                    <FileIcon size={14} />
-                    <CodeBlockFilename>{filename}</CodeBlockFilename>
-                  </CodeBlockTitle>
-                  <CodeBlockActions>
-                    <CodeBlockCopyButton />
-                  </CodeBlockActions>
-                </CodeBlockHeader>
-              </CodeBlock>
+              {parsedDiff ? (
+                <div className="max-h-96 overflow-auto rounded-md border bg-background text-xs">
+                  <FileDiff
+                    className="dream-diff-viewer w-full min-w-0"
+                    fileDiff={parsedDiff}
+                    options={diffOptions}
+                  />
+                </div>
+              ) : (
+                <CodeBlock
+                  className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                  code={displayDiffCode}
+                  language="diff"
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
+                    <CodeBlockTitle>
+                      <FileIcon size={14} />
+                      <CodeBlockFilename>{filename}</CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              )}
             </div>
           ) : gitDiffLoading ? (
             <p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
