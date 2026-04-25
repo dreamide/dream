@@ -624,9 +624,13 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           )}
           ref={afterRef}
         >
-          {showAfterSplitter ? (
-            <div aria-hidden="true" className="h-4 w-px bg-foreground/20" />
-          ) : null}
+          <div
+            aria-hidden="true"
+            className={cn(
+              "h-4 w-px bg-foreground/20",
+              !showAfterSplitter && "opacity-0",
+            )}
+          />
           {after}
         </div>
       ) : null}
