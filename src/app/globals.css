@@ -441,6 +441,11 @@
   margin-left: 0.5rem;
 }
 
+[data-streamdown="table-wrapper"] > :first-child button svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* Use native OS scrollbars in xterm instead of xterm's custom overlay scrollbar. */
 .dream-diff-viewer {
   --diffs-font-family: var(--font-jetbrains-mono);

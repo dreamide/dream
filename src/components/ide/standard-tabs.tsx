@@ -125,6 +125,8 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
   const [settlingTabIds, setSettlingTabIds] = useState<string[]>([]);
+  const lastTab = items.at(-1) ?? null;
+  const showAfterSplitter = Boolean(lastTab && lastTab.id !== activeId);
 
   const dragStep = tabWidth + gap;
   const resolveDragDistance = useCallback(
@@ -465,8 +467,8 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               "flex h-8 w-full select-none items-center gap-2 rounded-lg border px-3 text-sm opacity-100 transition-colors",
               hasRightAdornment && "pr-8",
               isActive
-                ? "border-border bg-background text-foreground"
-                : "border-transparent bg-transparent text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                ? "border-foreground/20 bg-background text-foreground"
+                : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
               tabClassName,
             );
             const tabButton = isEditing ? (
@@ -615,7 +617,16 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         </div>
       </div>
       {after ? (
-        <div className={cn("shrink-0", interactiveClassName)} ref={afterRef}>
+        <div
+          className={cn(
+            "flex shrink-0 items-center gap-1",
+            interactiveClassName,
+          )}
+          ref={afterRef}
+        >
+          {showAfterSplitter ? (
+            <div aria-hidden="true" className="h-4 w-px bg-foreground/20" />
+          ) : null}
           {after}
         </div>
       ) : null}

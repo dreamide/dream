@@ -560,7 +560,7 @@ export const CodeBlockCopyButton = ({
       variant="ghost"
       {...props}
     >
-      {children ?? <Icon className="size-4" />}
+      {children ?? <Icon className="size-3.5" />}
     </Button>
   );
 };
@@ -603,7 +603,7 @@ export const CodeBlockDownloadButton = ({
       variant="ghost"
       {...props}
     >
-      {children ?? <DownloadIcon className="size-4" />}
+      {children ?? <DownloadIcon className="size-3.5" />}
     </Button>
   );
 };
