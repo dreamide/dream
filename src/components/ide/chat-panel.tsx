@@ -299,6 +299,7 @@ type ChatMessageProps = {
   isLastMessage: boolean;
   isStreaming: boolean;
   message: UIMessage;
+  projectPath: string;
 };
 
 const ChatMessage = memo(
@@ -307,6 +308,7 @@ const ChatMessage = memo(
     isLastMessage,
     isStreaming,
     message,
+    projectPath,
   }: ChatMessageProps) => {
     if (message.role === "user") {
       return (
@@ -400,6 +402,7 @@ const ChatMessage = memo(
                           key={key}
                           onToolApproval={addToolApprovalResponse}
                           part={chipPart_}
+                          projectPath={projectPath}
                         />
                       );
                     }
@@ -946,6 +949,7 @@ export const ChatPanel = ({
                   isStreaming={isStreaming}
                   key={message.id}
                   message={message}
+                  projectPath={project.path}
                 />
               ))
             )}

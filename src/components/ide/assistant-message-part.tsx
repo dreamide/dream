@@ -10,7 +10,7 @@ import {
   TerminalIcon,
   XIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -117,7 +117,7 @@ const CHIP_TOOL_NAME_ALIASES = {
   ]),
   list: new Set(["glob", "list-files"]),
   read: new Set(["read", "read-file"]),
-  search: new Set(["grep", "search-in-files"]),
+  search: new Set(["grep", "search", "search-in-files", "tool-search"]),
   write: new Set(["edit", "write", "write-file"]),
 } as const;
 
@@ -382,6 +382,113 @@ const normalizeEmbeddedLineNumbers = (
     hadEmbeddedLineNumbers: true,
     startingLineNumber: bestRun.startingLineNumber,
   };
+};
+
+const buildLineDiff = (previousContent: string, nextContent: string) => {
+  const previousLines = previousContent.replace(/\r\n/g, "\n").split("\n");
+  const nextLines = nextContent.replace(/\r\n/g, "\n").split("\n");
+  const lengths = Array.from({ length: previousLines.length + 1 }, () =>
+    Array<number>(nextLines.length + 1).fill(0),
+  );
+
+  for (let i = previousLines.length - 1; i >= 0; i -= 1) {
+    for (let j = nextLines.length - 1; j >= 0; j -= 1) {
+      lengths[i][j] =
+        previousLines[i] === nextLines[j]
+          ? lengths[i + 1][j + 1] + 1
+          : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+    }
+  }
+
+  const lines: string[] = [];
+  let previousIndex = 0;
+  let nextIndex = 0;
+
+  while (previousIndex < previousLines.length && nextIndex < nextLines.length) {
+    if (previousLines[previousIndex] === nextLines[nextIndex]) {
+      lines.push(` ${previousLines[previousIndex]}`);
+      previousIndex += 1;
+      nextIndex += 1;
+    } else if (
+      lengths[previousIndex + 1][nextIndex] >=
+      lengths[previousIndex][nextIndex + 1]
+    ) {
+      lines.push(`-${previousLines[previousIndex]}`);
+      previousIndex += 1;
+    } else {
+      lines.push(`+${nextLines[nextIndex]}`);
+      nextIndex += 1;
+    }
+  }
+
+  while (previousIndex < previousLines.length) {
+    lines.push(`-${previousLines[previousIndex]}`);
+    previousIndex += 1;
+  }
+
+  while (nextIndex < nextLines.length) {
+    lines.push(`+${nextLines[nextIndex]}`);
+    nextIndex += 1;
+  }
+
+  return lines.join("\n");
+};
+
+const buildWriteDiff = ({
+  content,
+  filePath,
+  mode,
+  previousContent,
+}: {
+  content: string;
+  filePath: string;
+  mode: string | null;
+  previousContent: string;
+}) => {
+  const nextContent = mode === "append" ? `${previousContent}${content}` : content;
+  return [
+    `--- ${filePath}`,
+    `+++ ${filePath}`,
+    "@@",
+    buildLineDiff(previousContent, nextContent),
+  ].join("\n");
+};
+
+const toRelativeProjectPath = (projectPath: string, filePath: string) => {
+  const normalizedProjectPath = projectPath.replace(/\\/g, "/").replace(/\/$/, "");
+  const normalizedFilePath = filePath.replace(/\\/g, "/");
+
+  if (
+    normalizedFilePath.toLowerCase().startsWith(`${normalizedProjectPath.toLowerCase()}/`)
+  ) {
+    return normalizedFilePath.slice(normalizedProjectPath.length + 1);
+  }
+
+  return normalizedFilePath;
+};
+
+const readResponseText = async (response: Response) => {
+  try {
+    return await response.text();
+  } catch {
+    return "Request failed.";
+  }
+};
+
+const getFilePathFromOutputText = (output: unknown) => {
+  if (!isString(output)) {
+    return null;
+  }
+
+  const match = output.match(
+    /(?:^|\b)(?:the\s+)?file\s+(.+?)\s+(?:has\s+been|was)\s+(?:updated|written|created)\b/i,
+  );
+  const rawPath = match?.[1]?.trim();
+  if (!rawPath) {
+    return null;
+  }
+
+  return rawPath.replace(/^['"`]+|['"`.]+$/g, "");
 };
 
 const getAgentOutputText = (output: unknown): string | null => {
@@ -826,8 +933,18 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
       ? output.matches
       : isRecord(output) && Array.isArray(output.results)
         ? output.results
+        : Array.isArray(output)
+          ? output
         : null;
   const matches = Array.isArray(rawMatches) ? rawMatches.filter(isRecord) : [];
+  const toolReferences = matches
+    .map((match) =>
+      (isString(match.tool_name) && match.tool_name) ||
+      (isString(match.toolName) && match.toolName) ||
+      null,
+    )
+    .filter((toolName): toolName is string => toolName !== null);
+  const isToolReferenceSearch = toolReferences.length > 0;
   const hasOutput = rawMatches !== null;
   const count =
     isRecord(output) && typeof output.count === "number"
@@ -864,14 +981,18 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         type="button"
       >
         <SearchIcon className="size-3.5 shrink-0" />
-        {query ? (
+        {isToolReferenceSearch ? (
+          <span className="max-w-64 truncate font-medium">
+            Tools: {toolReferences.join(", ")}
+          </span>
+        ) : query ? (
           <span className="max-w-48 truncate font-medium">{label}</span>
         ) : (
           <span className="font-medium">Search</span>
         )}
         {hasOutput && count > 0 ? (
           <span className="opacity-70">
-            {count} {count === 1 ? "match" : "matches"}
+            {count} {isToolReferenceSearch ? (count === 1 ? "tool" : "tools") : count === 1 ? "match" : "matches"}
           </span>
         ) : null}
         {hasError ? <span className="text-destructive">error</span> : null}
@@ -895,12 +1016,28 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
                 <p className="text-muted-foreground text-sm">
                   No matches found.
                 </p>
+              ) : isToolReferenceSearch ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {toolReferences.map((toolName) => (
+                    <Badge
+                      className="rounded-full font-medium text-xs"
+                      key={toolName}
+                      variant="secondary"
+                    >
+                      {toolName}
+                    </Badge>
+                  ))}
+                </div>
               ) : (
                 matches.map((match) => {
                   const file =
                     (isString(match.file) && match.file) ||
                     (isString(match.path) && match.path) ||
-                    "unknown";
+                    null;
+                  const toolName =
+                    (isString(match.tool_name) && match.tool_name) ||
+                    (isString(match.toolName) && match.toolName) ||
+                    null;
                   const line =
                     typeof match.line === "number"
                       ? match.line
@@ -912,19 +1049,27 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
                     (isString(match.preview) && match.preview) ||
                     (isString(match.lineText) && match.lineText) ||
                     "";
-                  const key = `${file}:${line}:${text}`;
+                  const key = `${file ?? toolName ?? "result"}:${line}:${text}`;
 
                   return (
                     <div
                       className="rounded-sm px-2 py-1.5 hover:bg-muted/40"
                       key={key}
                     >
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {file}:{line}
-                      </p>
-                      <p className="font-mono text-xs">
-                        {text || "(empty line)"}
-                      </p>
+                      {file ? (
+                        <>
+                          <p className="font-mono text-xs text-muted-foreground">
+                            {file}:{line}
+                          </p>
+                          <p className="font-mono text-xs">
+                            {text || "(empty line)"}
+                          </p>
+                        </>
+                      ) : toolName ? (
+                        <p className="font-medium text-sm">{toolName}</p>
+                      ) : (
+                        <JsonBlock value={match} />
+                      )}
                     </div>
                   );
                 })
@@ -1114,9 +1259,11 @@ export const isChipToolPart = (part: MessagePart): boolean => {
 
 export const WriteFileChip = ({
   part,
+  projectPath,
   onToolApproval,
 }: {
   part: ToolLikePart;
+  projectPath?: string | null;
   onToolApproval?: ToolApprovalHandler;
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -1125,6 +1272,11 @@ export const WriteFileChip = ({
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
+  const activeProjectPath = useIdeStore((s) => s.getActiveProject()?.path ?? null);
+  const diffProjectPath = projectPath ?? activeProjectPath;
+  const [gitDiff, setGitDiff] = useState<string | null>(null);
+  const [gitDiffError, setGitDiffError] = useState<string | null>(null);
+  const [gitDiffLoading, setGitDiffLoading] = useState(false);
 
   const filePath =
     getStringFromPaths(part.input, [
@@ -1149,7 +1301,8 @@ export const WriteFileChip = ({
       ["file", "filePath"],
       ["file", "filename"],
       ["file", "name"],
-    ]);
+    ]) ??
+    getFilePathFromOutputText(output);
   const filename =
     filePath?.split(/[\\/]/).pop() ??
     getStringFromPaths(part.input, [
@@ -1182,6 +1335,11 @@ export const WriteFileChip = ({
       ],
       { allowEmpty: true },
     );
+  const previousContent = getStringFromPaths(
+    output,
+    [["previousContent"], ["previous_content"], ["file", "previousContent"]],
+    { allowEmpty: true },
+  );
   const mode =
     getStringFromPaths(part.input, [
       ["mode"],
@@ -1203,6 +1361,94 @@ export const WriteFileChip = ({
     content !== null ? normalizeEmbeddedLineNumbers(content) : null;
   const previewCode = normalizedContent?.code ?? content ?? "";
   const previewStartLine = normalizedContent?.startingLineNumber ?? 1;
+  const diffCode =
+    previousContent !== null && content !== null && filePath
+      ? buildWriteDiff({ content, filePath, mode, previousContent })
+      : null;
+
+  useEffect(() => {
+    if (!expanded || diffCode !== null || !diffProjectPath || !filePath) {
+      return;
+    }
+
+    const relativeFilePath = toRelativeProjectPath(diffProjectPath, filePath);
+    let cancelled = false;
+
+    const loadGitDiff = async () => {
+      setGitDiffLoading(true);
+      setGitDiffError(null);
+
+      try {
+        const statusResponse = await fetch("/api/project-git-status", {
+          body: JSON.stringify({ projectPath: diffProjectPath }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+
+        if (!statusResponse.ok) {
+          throw new Error(await readResponseText(statusResponse));
+        }
+
+        const statusPayload = (await statusResponse.json()) as {
+          changes?: Array<{
+            path: string;
+            previousPath: string | null;
+            status: string;
+          }>;
+        };
+        const change = statusPayload.changes?.find(
+          (entry) => {
+            const normalizedEntryPath = entry.path.replace(/\\/g, "/");
+            const normalizedPreviousPath = entry.previousPath?.replace(/\\/g, "/");
+            return (
+              normalizedEntryPath.toLowerCase() === relativeFilePath.toLowerCase() ||
+              normalizedPreviousPath?.toLowerCase() === relativeFilePath.toLowerCase()
+            );
+          },
+        );
+
+        if (!change) {
+          throw new Error("No Git diff is available for this file.");
+        }
+
+        const diffResponse = await fetch("/api/project-git-diff", {
+          body: JSON.stringify({
+            filePath: change.path,
+            previousPath: change.previousPath,
+            projectPath: diffProjectPath,
+            status: change.status,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+
+        if (!diffResponse.ok) {
+          throw new Error(await readResponseText(diffResponse));
+        }
+
+        const diffPayload = (await diffResponse.json()) as { diff?: string };
+        if (!cancelled) {
+          setGitDiff(diffPayload.diff?.trim() || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setGitDiffError(
+            error instanceof Error ? error.message : "Unable to load Git diff.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setGitDiffLoading(false);
+        }
+      }
+    };
+
+    void loadGitDiff();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [diffCode, diffProjectPath, expanded, filePath]);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1303,7 +1549,53 @@ export const WriteFileChip = ({
             </pre>
           ) : null}
           {/* Content preview */}
-          {content !== null && filePath ? (
+          {diffCode !== null && filePath ? (
+            <div>
+              <CodeBlock
+                className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                code={diffCode}
+                language="diff"
+                style={{ contentVisibility: "visible" }}
+              >
+                <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
+                  <CodeBlockTitle>
+                    <FileIcon size={14} />
+                    <CodeBlockFilename>{filename}</CodeBlockFilename>
+                  </CodeBlockTitle>
+                  <CodeBlockActions>
+                    <CodeBlockCopyButton />
+                  </CodeBlockActions>
+                </CodeBlockHeader>
+              </CodeBlock>
+            </div>
+          ) : gitDiff !== null && filePath ? (
+            <div>
+              <CodeBlock
+                className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                code={gitDiff}
+                language="diff"
+                style={{ contentVisibility: "visible" }}
+              >
+                <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
+                  <CodeBlockTitle>
+                    <FileIcon size={14} />
+                    <CodeBlockFilename>{filename}</CodeBlockFilename>
+                  </CodeBlockTitle>
+                  <CodeBlockActions>
+                    <CodeBlockCopyButton />
+                  </CodeBlockActions>
+                </CodeBlockHeader>
+              </CodeBlock>
+            </div>
+          ) : gitDiffLoading ? (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
+              Loading file changes…
+            </p>
+          ) : gitDiffError && !hasOutput ? (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
+              {gitDiffError}
+            </p>
+          ) : content !== null && filePath ? (
             <div>
               <CodeBlock
                 className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
