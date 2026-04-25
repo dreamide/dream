@@ -872,6 +872,44 @@ const stringifyCodexValue = (value) => {
   }
 };
 
+const parseCodexErrorPayload = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+};
+
+const getCodexErrorDetail = (event) => {
+  if (!event || typeof event !== "object") {
+    return null;
+  }
+
+  const directMessage =
+    typeof event.message === "string" ? event.message.trim() : "";
+  const parsedDirectMessage = parseCodexErrorPayload(directMessage);
+  const nestedMessage =
+    typeof event.error?.message === "string" ? event.error.message.trim() : "";
+  const parsedNestedMessage = parseCodexErrorPayload(nestedMessage);
+
+  return (
+    parsedDirectMessage?.error?.message ||
+    directMessage ||
+    parsedNestedMessage?.error?.message ||
+    nestedMessage ||
+    null
+  );
+};
+
 const CODEX_IMAGE_MEDIA_TYPES = new Set([
   "image/avif",
   "image/bmp",
@@ -1391,6 +1429,14 @@ const streamCodexCliResponse = ({
 
         const handleEvent = (event) => {
           if (!event || typeof event !== "object") {
+            return;
+          }
+
+          if (event.type === "error" || event.type === "turn.failed") {
+            const detail = getCodexErrorDetail(event);
+            if (detail) {
+              stderrBuffer += `${detail}\n`;
+            }
             return;
           }
 
