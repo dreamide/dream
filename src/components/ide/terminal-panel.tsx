@@ -429,7 +429,7 @@ export const ProjectTerminalTabsPanel = ({
         className="flex min-h-0 flex-1 flex-col"
         style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
       >
-        <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5">
+        <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
             <StandardTabs

@@ -379,7 +379,7 @@ const BrowserViewport = ({
         />
       </div>
 
-      <div className="flex items-center gap-0.5 border-b border-foreground/10 px-1.5 py-2">
+      <div className="flex items-center gap-0.5 border-b border-foreground/10 bg-muted/50 px-1.5 py-2">
         <Tooltip>
           <TooltipTrigger
             render={
@@ -451,7 +451,7 @@ const BrowserViewport = ({
 
         <div className="relative mx-1.5 flex-1">
           <Input
-            className="h-7 rounded-full border-transparent bg-muted/40 px-3 text-xs focus:border-foreground/20"
+            className="h-7 rounded-full border-foreground/10 bg-background px-3 text-xs focus:border-foreground/20"
             disabled={!activeProject || !activeTab}
             onChange={(event) => {
               setBrowserUrlDraft(event.currentTarget.value);

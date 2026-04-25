@@ -987,23 +987,6 @@ export const ChatPanel = ({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              <Context
-                maxTokens={contextWindow}
-                modelId={modelId}
-                usedTokens={estimatedUsedTokens}
-              >
-                <ContextTrigger className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
-                <ContextContent side="bottom" align="end">
-                  <ContextContentHeader />
-                  <ContextContentBody className="space-y-1.5">
-                    <ContextInputUsage />
-                    <ContextOutputUsage />
-                    <ContextReasoningUsage />
-                    <ContextCacheUsage />
-                  </ContextContentBody>
-                </ContextContent>
-              </Context>
-
               <DropdownMenu onOpenChange={setChatMenuOpen} open={chatMenuOpen}>
                 <DropdownMenuTrigger
                   render={
@@ -1299,6 +1282,24 @@ export const ChatPanel = ({
                       </SelectContent>
                     </Select>
                   ) : null}
+                  <div className="ml-auto">
+                    <Context
+                      maxTokens={contextWindow}
+                      modelId={modelId}
+                      usedTokens={estimatedUsedTokens}
+                    >
+                      <ContextTrigger className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
+                      <ContextContent side="top" align="end">
+                        <ContextContentHeader />
+                        <ContextContentBody className="space-y-1.5">
+                          <ContextInputUsage />
+                          <ContextOutputUsage />
+                          <ContextReasoningUsage />
+                          <ContextCacheUsage />
+                        </ContextContentBody>
+                      </ContextContent>
+                    </Context>
+                  </div>
                 </div>
               </div>
             </Sparkles>
