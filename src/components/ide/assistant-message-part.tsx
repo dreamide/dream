@@ -1868,6 +1868,7 @@ export const AssistantMessagePart = ({
     return (
       <Reasoning
         className="mb-0 w-full"
+        defaultOpen={showReasoningSummaries}
         isStreaming={isStreaming}
         hasContent={hasReasoningText}
       >
