@@ -102,6 +102,33 @@ const ProviderStatusCard = ({
   );
 };
 
+const SettingsControlRow = ({
+  children,
+  controlClassName,
+  description,
+  label,
+}: {
+  children: ReactNode;
+  controlClassName?: string;
+  description: ReactNode;
+  label: string;
+}) => (
+  <div className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between md:gap-8">
+    <div className="min-w-0 space-y-0.5">
+      <Label className="font-medium text-sm">{label}</Label>
+      <div className="text-muted-foreground text-sm">{description}</div>
+    </div>
+    <div
+      className={cn(
+        "flex w-full justify-start md:w-96 md:shrink-0 md:justify-end",
+        controlClassName,
+      )}
+    >
+      {children}
+    </div>
+  </div>
+);
+
 const SettingsSwitchRow = ({
   checked,
   description,
@@ -113,13 +140,13 @@ const SettingsSwitchRow = ({
   label: string;
   onCheckedChange: (checked: boolean) => void;
 }) => (
-  <div className="flex items-center justify-between gap-4 py-3">
-    <div className="min-w-0 space-y-0.5">
-      <Label className="font-medium text-sm">{label}</Label>
-      <p className="text-muted-foreground text-sm">{description}</p>
-    </div>
+  <SettingsControlRow
+    controlClassName="w-auto md:w-auto"
+    description={description}
+    label={label}
+  >
     <Switch checked={checked} onCheckedChange={onCheckedChange} />
-  </div>
+  </SettingsControlRow>
 );
 
 export const SettingsDialog = () => {
@@ -270,15 +297,12 @@ export const SettingsDialog = () => {
             <div className="space-y-4 p-5">
               {settingsSection === "appearance" ? (
                 <div className="space-y-4 rounded-lg p-3">
-                  <div className="space-y-1">
-                    <h3 className="font-medium text-sm">Theme</h3>
-                    <p className="text-muted-foreground text-sm">
-                      Controls the interface theme.
-                    </p>
-                  </div>
-
-                  <div className="max-w-sm">
+                  <SettingsControlRow
+                    description="Controls the interface theme."
+                    label="Theme"
+                  >
                     <Tabs
+                      className="w-full"
                       onValueChange={(value) => {
                         if (value) {
                           setTheme(value);
@@ -304,17 +328,14 @@ export const SettingsDialog = () => {
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
-                  </div>
+                  </SettingsControlRow>
 
-                  <div className="space-y-1 pt-2">
-                    <h3 className="font-medium text-sm">Base color</h3>
-                    <p className="text-muted-foreground text-sm">
-                      Controls the base gray scale.
-                    </p>
-                  </div>
-
-                  <div className="max-w-sm">
+                  <SettingsControlRow
+                    description="Controls the base gray scale."
+                    label="Base color"
+                  >
                     <Tabs
+                      className="w-full"
                       onValueChange={(value) => {
                         if (value) {
                           setBaseColor(value as BaseColor);
@@ -339,16 +360,14 @@ export const SettingsDialog = () => {
                         ))}
                       </TabsList>
                     </Tabs>
-                  </div>
+                  </SettingsControlRow>
 
-                  <div className="space-y-1 pt-2">
-                    <h3 className="font-medium text-sm">Terminal</h3>
-                    <p className="text-muted-foreground text-sm">
-                      Sets the shell used for terminal sessions.
-                    </p>
-                  </div>
-
-                  <div className="max-w-sm space-y-1.5">
+                  <SettingsControlRow
+                    description={
+                      <p>Sets the shell used for terminal sessions.</p>
+                    }
+                    label="Terminal"
+                  >
                     <Input
                       aria-label="Terminal shell path"
                       id="shell-path"
@@ -361,52 +380,48 @@ export const SettingsDialog = () => {
                       placeholder={defaultShellPlaceholder}
                       value={settings.shellPath}
                     />
-                    <p className="text-muted-foreground text-sm">
-                      Leave empty to use the system default shell.
-                    </p>
-                  </div>
+                  </SettingsControlRow>
 
-                  <div className="space-y-1 pt-2">
-                    <h3 className="font-medium text-sm">Timeline</h3>
-                    <p className="text-muted-foreground text-sm">
-                      Controls how model activity appears in chat messages.
-                    </p>
-                  </div>
+                  <div>
+                    <div className="space-y-1 pt-2">
+                      <h3 className="font-medium text-sm">Activity</h3>
+                    </div>
 
-                  <div className="max-w-xl">
-                    <SettingsSwitchRow
-                      checked={settings.showReasoningSummaries}
-                      description="Display model reasoning summaries in the timeline"
-                      label="Show reasoning summaries"
-                      onCheckedChange={(checked) =>
-                        setSettings((previous) => ({
-                          ...previous,
-                          showReasoningSummaries: checked,
-                        }))
-                      }
-                    />
-                    <SettingsSwitchRow
-                      checked={settings.expandShellToolParts}
-                      description="Show shell tool parts expanded by default in the timeline"
-                      label="Expand shell tool parts"
-                      onCheckedChange={(checked) =>
-                        setSettings((previous) => ({
-                          ...previous,
-                          expandShellToolParts: checked,
-                        }))
-                      }
-                    />
-                    <SettingsSwitchRow
-                      checked={settings.expandEditToolParts}
-                      description="Show edit, write, and patch tool parts expanded by default in the timeline"
-                      label="Expand edit tool parts"
-                      onCheckedChange={(checked) =>
-                        setSettings((previous) => ({
-                          ...previous,
-                          expandEditToolParts: checked,
-                        }))
-                      }
-                    />
+                    <div className="mt-2 border-foreground/10 border-l pl-4">
+                      <SettingsSwitchRow
+                        checked={settings.showReasoningSummaries}
+                        description="Display model reasoning summaries in chat messages"
+                        label="Show reasoning summaries"
+                        onCheckedChange={(checked) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            showReasoningSummaries: checked,
+                          }))
+                        }
+                      />
+                      <SettingsSwitchRow
+                        checked={settings.expandShellToolParts}
+                        description="Show shell tool parts expanded by default in chat messages"
+                        label="Expand shell tool parts"
+                        onCheckedChange={(checked) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            expandShellToolParts: checked,
+                          }))
+                        }
+                      />
+                      <SettingsSwitchRow
+                        checked={settings.expandEditToolParts}
+                        description="Show edit, write, and patch tool parts expanded by default in chat messages"
+                        label="Expand edit tool parts"
+                        onCheckedChange={(checked) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            expandEditToolParts: checked,
+                          }))
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -542,17 +557,11 @@ export const SettingsDialog = () => {
                     </ProviderStatusCard>
                   </div>
 
-                  <div className="space-y-3 rounded-lg p-4">
-                    <div className="space-y-1">
-                      <p className="font-medium text-sm">
-                        Default model for new chats
-                      </p>
-                      <p className="text-muted-foreground text-sm">
-                        New chats start on this model automatically.
-                      </p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="default-model">Default model</Label>
+                  <div className="rounded-lg p-4">
+                    <SettingsControlRow
+                      description="New chats start on this model automatically."
+                      label="Default model for new chats"
+                    >
                       <Select
                         onValueChange={(value) =>
                           setSettings((previous) => ({
@@ -563,7 +572,7 @@ export const SettingsDialog = () => {
                         value={selectedDefaultModel}
                       >
                         <SelectTrigger
-                          className="w-72 max-w-full"
+                          className="w-full"
                           disabled={groupedDefaultModelOptions.length === 0}
                           id="default-model"
                         >
@@ -588,7 +597,7 @@ export const SettingsDialog = () => {
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
+                    </SettingsControlRow>
                   </div>
                 </div>
               ) : null}

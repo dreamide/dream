@@ -468,7 +468,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               hasRightAdornment && "pr-8",
               isActive
                 ? "border-foreground/20 bg-background text-foreground"
-                : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground group-hover:bg-muted group-hover:text-foreground",
               tabClassName,
             );
             const tabButton = isEditing ? (
