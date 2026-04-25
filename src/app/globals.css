@@ -425,6 +425,22 @@
   color: var(--muted-foreground);
 }
 
+/* Keep Streamdown table cards aligned with the message width instead of inset. */
+[data-streamdown="table-wrapper"] {
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
+}
+
+[data-streamdown="table-wrapper"] table {
+  width: 100%;
+}
+
+[data-streamdown="table-wrapper"] > :first-child {
+  margin-right: 0.5rem;
+  margin-left: 0.5rem;
+}
+
 /* Use native OS scrollbars in xterm instead of xterm's custom overlay scrollbar. */
 .dream-diff-viewer {
   --diffs-font-family: var(--font-jetbrains-mono);
