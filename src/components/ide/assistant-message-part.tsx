@@ -119,7 +119,7 @@ const CHIP_TOOL_NAME_ALIASES = {
   list: new Set(["list-files"]),
   read: new Set(["read", "read-file"]),
   search: new Set(["glob", "grep", "search", "search-in-files", "tool-search"]),
-  write: new Set(["edit", "write", "write-file"]),
+  write: new Set(["edit", "patch", "write", "write-file"]),
 } as const;
 
 const CHIP_ERROR_CLASSES =
@@ -1210,8 +1210,14 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
   );
 };
 
-export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
-  const [expanded, setExpanded] = useState(false);
+export const RunCommandChip = ({
+  defaultExpanded = false,
+  part,
+}: {
+  defaultExpanded?: boolean;
+  part: ToolLikePart;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
@@ -1249,6 +1255,13 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
     isRecord(output) && isString(output.status) ? output.status : null;
   const hasRawOutput = output !== undefined;
   const canExpand = hasError || hasRawOutput || command !== null;
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
+
   const displayCommand = useMemo(() => {
     if (!command) {
       return null;
@@ -1384,15 +1397,17 @@ export const isChipToolPart = (part: MessagePart): boolean => {
 };
 
 export const WriteFileChip = ({
+  defaultExpanded = false,
   part,
   projectPath,
   onToolApproval,
 }: {
+  defaultExpanded?: boolean;
   part: ToolLikePart;
   projectPath?: string | null;
   onToolApproval?: ToolApprovalHandler;
 }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
@@ -1495,6 +1510,12 @@ export const WriteFileChip = ({
       : null;
   const displayFilename =
     filename === "file" && isRunning ? "Writing" : filename;
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   useEffect(() => {
     if (!expanded || diffCode !== null || !diffProjectPath || !filePath) {
@@ -1823,9 +1844,11 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
 export const AssistantMessagePart = ({
   part,
   isStreaming = false,
+  showReasoningSummaries = true,
 }: {
   part: MessagePart;
   isStreaming?: boolean;
+  showReasoningSummaries?: boolean;
 }) => {
   if (part.type === "text") {
     return (
@@ -1838,7 +1861,7 @@ export const AssistantMessagePart = ({
 
     // Hide when there's no content to show — the lull indicator in
     // ChatPanel already signals "working" during streaming.
-    if (!hasReasoningText) {
+    if (!showReasoningSummaries || !hasReasoningText) {
       return null;
     }
 

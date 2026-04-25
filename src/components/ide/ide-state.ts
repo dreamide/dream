@@ -180,11 +180,23 @@ export const mergePersistedState = (
       typeof rawSettings.defaultModel === "string"
         ? rawSettings.defaultModel
         : "",
+    expandEditToolParts:
+      typeof rawSettings.expandEditToolParts === "boolean"
+        ? rawSettings.expandEditToolParts
+        : DEFAULT_SETTINGS.expandEditToolParts,
+    expandShellToolParts:
+      typeof rawSettings.expandShellToolParts === "boolean"
+        ? rawSettings.expandShellToolParts
+        : DEFAULT_SETTINGS.expandShellToolParts,
     openAiSelectedModels: dedupeModels(
       Array.isArray(rawSettings.openAiSelectedModels)
         ? rawSettings.openAiSelectedModels
         : [],
     ),
+    showReasoningSummaries:
+      typeof rawSettings.showReasoningSummaries === "boolean"
+        ? rawSettings.showReasoningSummaries
+        : DEFAULT_SETTINGS.showReasoningSummaries,
     shellPath:
       typeof rawSettings.shellPath === "string" ? rawSettings.shellPath : "",
   };

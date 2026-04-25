@@ -38,8 +38,11 @@ export interface ProjectConfig {
 
 export interface AppSettings {
   defaultModel: string;
+  expandEditToolParts: boolean;
+  expandShellToolParts: boolean;
   openAiSelectedModels: string[];
   anthropicSelectedModels: string[];
+  showReasoningSummaries: boolean;
   shellPath: string;
 }
 

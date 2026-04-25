@@ -102,6 +102,26 @@ const ProviderStatusCard = ({
   );
 };
 
+const SettingsSwitchRow = ({
+  checked,
+  description,
+  label,
+  onCheckedChange,
+}: {
+  checked: boolean;
+  description: string;
+  label: string;
+  onCheckedChange: (checked: boolean) => void;
+}) => (
+  <div className="flex items-center justify-between gap-4 border-border/70 border-b py-3 last:border-b-0">
+    <div className="min-w-0 space-y-0.5">
+      <Label className="font-medium text-sm">{label}</Label>
+      <p className="text-muted-foreground text-sm">{description}</p>
+    </div>
+    <Switch checked={checked} onCheckedChange={onCheckedChange} />
+  </div>
+);
+
 export const SettingsDialog = () => {
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
@@ -344,6 +364,49 @@ export const SettingsDialog = () => {
                     <p className="text-muted-foreground text-sm">
                       Leave empty to use the system default shell.
                     </p>
+                  </div>
+
+                  <div className="space-y-1 pt-2">
+                    <h3 className="font-medium text-sm">Timeline</h3>
+                    <p className="text-muted-foreground text-sm">
+                      Controls how model activity appears in chat messages.
+                    </p>
+                  </div>
+
+                  <div className="max-w-xl">
+                    <SettingsSwitchRow
+                      checked={settings.showReasoningSummaries}
+                      description="Display model reasoning summaries in the timeline"
+                      label="Show reasoning summaries"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          showReasoningSummaries: checked,
+                        }))
+                      }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.expandShellToolParts}
+                      description="Show shell tool parts expanded by default in the timeline"
+                      label="Expand shell tool parts"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          expandShellToolParts: checked,
+                        }))
+                      }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.expandEditToolParts}
+                      description="Show edit, write, and patch tool parts expanded by default in the timeline"
+                      label="Expand edit tool parts"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          expandEditToolParts: checked,
+                        }))
+                      }
+                    />
                   </div>
                 </div>
               ) : null}

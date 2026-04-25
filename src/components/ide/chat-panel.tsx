@@ -382,6 +382,8 @@ type ToolApprovalResponder = (response: {
 
 type ChatMessageProps = {
   addToolApprovalResponse: ToolApprovalResponder;
+  expandEditToolParts: boolean;
+  expandShellToolParts: boolean;
   fallbackTime?: string;
   isLastMessage: boolean;
   isStreaming: boolean;
@@ -389,11 +391,14 @@ type ChatMessageProps = {
   modelLabel: string;
   projectPath: string;
   reasoningLabel: string;
+  showReasoningSummaries: boolean;
 };
 
 const ChatMessage = memo(
   ({
     addToolApprovalResponse,
+    expandEditToolParts,
+    expandShellToolParts,
     fallbackTime,
     isLastMessage,
     isStreaming,
@@ -401,6 +406,7 @@ const ChatMessage = memo(
     modelLabel,
     projectPath,
     reasoningLabel,
+    showReasoningSummaries,
   }: ChatMessageProps) => {
     if (message.role === "user") {
       return (
@@ -483,7 +489,13 @@ const ChatMessage = memo(
                     const chipToolKind = getChipToolKind(chipPart_);
 
                     if (chipToolKind === "command") {
-                      return <RunCommandChip key={key} part={chipPart_} />;
+                      return (
+                        <RunCommandChip
+                          defaultExpanded={expandShellToolParts}
+                          key={key}
+                          part={chipPart_}
+                        />
+                      );
                     }
                     if (chipToolKind === "agent") {
                       return <AgentChip key={key} part={chipPart_} />;
@@ -497,6 +509,7 @@ const ChatMessage = memo(
                     if (chipToolKind === "write") {
                       return (
                         <WriteFileChip
+                          defaultExpanded={expandEditToolParts}
                           key={key}
                           onToolApproval={addToolApprovalResponse}
                           part={chipPart_}
@@ -558,6 +571,7 @@ const ChatMessage = memo(
                     )}
                     isStreaming={isPartStreaming}
                     part={part}
+                    showReasoningSummaries={showReasoningSummaries}
                   />,
                 );
               }
@@ -578,12 +592,15 @@ const ChatMessage = memo(
   },
   (prev: ChatMessageProps, next: ChatMessageProps) =>
     prev.message === next.message &&
+    prev.expandEditToolParts === next.expandEditToolParts &&
+    prev.expandShellToolParts === next.expandShellToolParts &&
     prev.isLastMessage === next.isLastMessage &&
     prev.isStreaming === next.isStreaming &&
     prev.modelLabel === next.modelLabel &&
     prev.reasoningLabel === next.reasoningLabel &&
     prev.fallbackTime === next.fallbackTime &&
     prev.projectPath === next.projectPath &&
+    prev.showReasoningSummaries === next.showReasoningSummaries &&
     prev.addToolApprovalResponse === next.addToolApprovalResponse,
 );
 
@@ -1044,6 +1061,8 @@ export const ChatPanel = ({
               messages.map((message, messageIndex) => (
                 <ChatMessage
                   addToolApprovalResponse={addToolApprovalResponse}
+                  expandEditToolParts={settings.expandEditToolParts}
+                  expandShellToolParts={settings.expandShellToolParts}
                   fallbackTime={chat.updatedAt || chat.createdAt}
                   isLastMessage={messageIndex === messages.length - 1}
                   isStreaming={isStreaming}
@@ -1052,6 +1071,7 @@ export const ChatPanel = ({
                   modelLabel={selectedModelLabel}
                   projectPath={project.path}
                   reasoningLabel={selectedReasoningLabel}
+                  showReasoningSummaries={settings.showReasoningSummaries}
                 />
               ))
             )}
