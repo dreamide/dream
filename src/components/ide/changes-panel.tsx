@@ -38,15 +38,6 @@ import { useIdeStore } from "./ide-store";
 
 type DiffViewMode = "unified" | "split";
 
-const CHANGE_STATUS_ICON_CLASSNAMES: Record<ProjectGitChangeStatus, string> = {
-  added: "text-emerald-600",
-  copied: "text-sky-600",
-  deleted: "text-rose-600",
-  modified: "text-amber-600",
-  renamed: "text-violet-600",
-  untracked: "text-emerald-600",
-};
-
 const CHANGE_STATUS_LABELS: Partial<Record<ProjectGitChangeStatus, string>> = {
   deleted: "Removed",
   renamed: "Renamed",
@@ -251,19 +242,6 @@ const ChangesRow = ({
         onClick={onToggle}
         type="button"
       >
-        {expanded ? (
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-        )}
-
-        <FileIcon
-          className={cn(
-            "size-4 shrink-0",
-            CHANGE_STATUS_ICON_CLASSNAMES[change.status],
-          )}
-        />
-
         <div className="min-w-0 flex-1">
           <div className="truncate font-mono text-xs">{change.path}</div>
         </div>
@@ -290,6 +268,11 @@ const ChangesRow = ({
               {formatChangeCount(change.removedLines, "-")}
             </span>
           ) : null}
+          {expanded ? (
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          )}
         </div>
       </button>
 
