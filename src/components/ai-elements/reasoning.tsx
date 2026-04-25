@@ -157,9 +157,9 @@ const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
     return <Shimmer duration={1}>Thinking...</Shimmer>;
   }
   if (duration === undefined) {
-    return <p>Thought for a few seconds</p>;
+    return <span>Thought for a few seconds</span>;
   }
-  return <p>Thought for {duration} seconds</p>;
+  return <span>Thought for {duration} seconds</span>;
 };
 
 export const ReasoningTrigger = memo(
@@ -174,7 +174,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+          "inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-700 text-xs transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-950",
           className,
         )}
         disabled={!hasContent}
@@ -182,12 +182,12 @@ export const ReasoningTrigger = memo(
       >
         {children ?? (
           <>
-            <BrainIcon className="size-4" />
+            <BrainIcon className="size-3.5 shrink-0" />
             {getThinkingMessage(isStreaming, duration)}
             {hasContent && (
               <ChevronDownIcon
                 className={cn(
-                  "size-4 transition-transform",
+                  "size-3.5 shrink-0 transition-transform",
                   isOpen ? "rotate-180" : "rotate-0",
                 )}
               />
@@ -211,18 +211,16 @@ export const ReasoningContent = memo(
 
     return (
       <CollapsibleContent
-      className={cn(
-        "mt-4 text-sm",
-        "data-[closed]:fade-out-0 data-[closed]:slide-out-to-top-2 data-[open]:slide-in-from-top-2 text-muted-foreground outline-none data-[closed]:animate-out data-[open]:animate-in",
-        className,
-      )}
-      dir={dir}
-      {...contentProps}
-    >
-      <Streamdown plugins={streamdownPlugins}>
-        {children}
-      </Streamdown>
-    </CollapsibleContent>
+        className={cn(
+          "mt-2 border-slate-300 border-l pl-3 text-sm dark:border-slate-700",
+          "data-[closed]:fade-out-0 data-[closed]:slide-out-to-top-2 data-[open]:slide-in-from-top-2 text-muted-foreground outline-none data-[closed]:animate-out data-[open]:animate-in",
+          className,
+        )}
+        dir={dir}
+        {...contentProps}
+      >
+        <Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+      </CollapsibleContent>
     );
   },
 );
