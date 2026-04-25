@@ -725,6 +725,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
   const directory =
     rawDirectory === "." && projectPath ? projectPath : rawDirectory;
   const label = pattern ?? directory ?? "files";
+  const displayLabel = label === "files" && isRunning ? "Listing" : label;
   const Icon = pattern ? SearchIcon : FolderIcon;
 
   const sortedChildren = useMemo(() => {
@@ -751,7 +752,7 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
         type="button"
       >
         <Icon className="size-3.5 shrink-0" />
-        <span className="max-w-56 truncate font-medium">{label}</span>
+        <span className="max-w-56 truncate font-medium">{displayLabel}</span>
         {hasOutput ? (
           <span className="opacity-70">
             {count} {count === 1 ? "file" : "files"}
@@ -799,6 +800,8 @@ export const AgentChip = ({ part }: { part: ToolLikePart }) => {
   const canExpand = hasError || hasRawOutput;
   const description =
     getStringFromPaths(part.input, [["description"]]) ?? "Agent";
+  const displayDescription =
+    description === "Agent" && isRunning ? "Running agent" : description;
   const subagentType = getStringFromPaths(part.input, [
     ["subagent_type"],
     ["subagentType"],
@@ -821,7 +824,9 @@ export const AgentChip = ({ part }: { part: ToolLikePart }) => {
         type="button"
       >
         <BotIcon className="size-3.5 shrink-0" />
-        <span className="max-w-56 truncate font-medium">{description}</span>
+        <span className="max-w-56 truncate font-medium">
+          {displayDescription}
+        </span>
         {subagentType ? (
           <span className="opacity-70">{subagentType}</span>
         ) : null}
@@ -936,6 +941,8 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
   const previewLanguage = inferLanguage(filePath ?? filename);
   const previewCode = normalizedContent?.code ?? content ?? "";
   const previewStartLine = normalizedContent?.startingLineNumber ?? start ?? 1;
+  const displayFilename =
+    filename === "file" && isRunning ? "Reading" : filename;
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -953,7 +960,7 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
         type="button"
       >
         <EyeIcon className="size-3.5 shrink-0" />
-        <span className="max-w-48 truncate font-medium">{filename}</span>
+        <span className="max-w-48 truncate font-medium">{displayFilename}</span>
         {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
@@ -1291,7 +1298,7 @@ export const RunCommandChip = ({ part }: { part: ToolLikePart }) => {
       >
         <TerminalIcon className="size-3.5 shrink-0" />
         <span className="max-w-64 truncate font-medium">
-          {displayCommand ?? "Command"}
+          {displayCommand ?? (isRunning ? "Running" : "Command")}
         </span>
         {exitCode !== null ? (
           <span className="opacity-70">exit {exitCode}</span>
@@ -1486,6 +1493,8 @@ export const WriteFileChip = ({
     previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
       : null;
+  const displayFilename =
+    filename === "file" && isRunning ? "Writing" : filename;
 
   useEffect(() => {
     if (!expanded || diffCode !== null || !diffProjectPath || !filePath) {
@@ -1591,7 +1600,7 @@ export const WriteFileChip = ({
         type="button"
       >
         <PenLineIcon className="size-3.5 shrink-0" />
-        <span className="max-w-48 truncate font-medium">{filename}</span>
+        <span className="max-w-48 truncate font-medium">{displayFilename}</span>
         {mode === "append" ? <span className="opacity-70">append</span> : null}
         {bytesWritten !== null ? (
           <span className="opacity-70">
