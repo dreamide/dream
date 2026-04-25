@@ -8,6 +8,7 @@ import {
   PenLineIcon,
   SearchIcon,
   TerminalIcon,
+  WrenchIcon,
   XIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1055,6 +1056,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
   const hasRawOutput = output !== undefined;
   const canExpand = hasError || hasRawOutput;
   const label = query ?? "Search";
+  const SearchChipIcon = isToolReferenceSearch ? WrenchIcon : SearchIcon;
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1062,7 +1064,9 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
-            "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
+            isToolReferenceSearch
+              ? "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-400"
+              : "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
             hasError,
           ),
           canExpand && "cursor-pointer",
@@ -1071,7 +1075,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         onClick={() => canExpand && setExpanded(!expanded)}
         type="button"
       >
-        <SearchIcon className="size-3.5 shrink-0" />
+        <SearchChipIcon className="size-3.5 shrink-0" />
         {isToolReferenceSearch ? (
           <span className="max-w-64 truncate font-medium">
             Tools: {toolReferences.join(", ")}
@@ -1102,7 +1106,9 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
       {expanded ? (
         <div
           className={getExpandedChipClasses(
-            "text-blue-700 dark:text-blue-400",
+            isToolReferenceSearch
+              ? "text-orange-700 dark:text-orange-400"
+              : "text-blue-700 dark:text-blue-400",
             hasError,
           )}
           style={{ borderColor: "currentColor" }}
