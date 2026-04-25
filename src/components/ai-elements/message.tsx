@@ -2,7 +2,9 @@ import type { UIMessage } from "ai";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
 import {
+  cloneElement,
   createContext,
+  isValidElement,
   memo,
   useCallback,
   useContext,
@@ -19,6 +21,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { StreamdownCodeBlock } from "@/components/ai-elements/streamdown-code-block";
 import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
 import { cn } from "@/lib/utils";
 
@@ -313,17 +316,74 @@ export const MessageBranchPage = ({
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
+const codeFenceLanguageRegex = /(?:^|\s)language-([^\s]+)/;
+
+const getTextContent = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(getTextContent).join("");
+  }
+
+  if (isValidElement<{ children?: unknown }>(value)) {
+    return getTextContent(value.props.children);
+  }
+
+  return "";
+};
+
+const MessageCodePre = ({ children }: ComponentProps<"pre">) => {
+  if (!isValidElement(children)) {
+    return <pre>{children}</pre>;
+  }
+
+  const codeElement = children as ReactElement<{
+    children?: unknown;
+    className?: string;
+  }>;
+  const languageMatch = codeElement.props.className?.match(
+    codeFenceLanguageRegex,
+  );
+
+  if (!languageMatch) {
+    return (
+      <StreamdownCodeBlock
+        code={getTextContent(codeElement.props.children)}
+        language=""
+      />
+    );
+  }
+
+  return cloneElement(codeElement, {
+    "data-block": "true",
+  } as Partial<typeof codeElement.props>);
+};
+
+const defaultMessageResponseComponents = {
+  pre: MessageCodePre,
+} as NonNullable<MessageResponseProps["components"]>;
+
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn(
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className,
-      )}
-      plugins={streamdownPlugins}
-      {...props}
-    />
-  ),
+  ({ className, components, ...props }: MessageResponseProps) => {
+    const mergedComponents = useMemo(
+      () => ({ ...defaultMessageResponseComponents, ...components }),
+      [components],
+    );
+
+    return (
+      <Streamdown
+        className={cn(
+          "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+          className,
+        )}
+        components={mergedComponents}
+        plugins={streamdownPlugins}
+        {...props}
+      />
+    );
+  },
   (prevProps, nextProps) => prevProps.children === nextProps.children,
 );
 

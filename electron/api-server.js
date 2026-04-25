@@ -1315,7 +1315,6 @@ const buildCodexExecArgs = ({
       "--json",
       "--skip-git-repo-check",
       ...(model ? ["--model", model] : []),
-      ...addDirConfig,
       ...imageConfig,
       ...sandboxConfig,
       ...approvalConfig,

@@ -533,6 +533,7 @@ export const ChatPanel = ({
   const isProviderInstalled =
     providerModels[selectedProvider]?.installed ?? false;
   const [localError, setLocalError] = useState<string | null>(null);
+  const [promptText, setPromptText] = useState("");
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -750,6 +751,7 @@ export const ChatPanel = ({
             },
           },
         );
+        setPromptText("");
       } finally {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
       }
@@ -998,8 +1000,11 @@ export const ChatPanel = ({
                   <PromptInputBody>
                     <PromptAttachments />
                     <PromptInputTextarea
-                      className="min-h-[80px] border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                      className="min-h-0 border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                      onChange={(event) => setPromptText(event.target.value)}
                       placeholder="Ask anything..."
+                      rows={1}
+                      value={promptText}
                     />
                   </PromptInputBody>
                   <PromptInputFooter className="items-center">
@@ -1014,7 +1019,12 @@ export const ChatPanel = ({
                     <div className="ml-auto flex items-center gap-2">
                       <PromptInputSubmit
                         className="size-8 rounded-md"
-                        disabled={!isProviderInstalled || selectedModel === ""}
+                        disabled={
+                          !isProcessing &&
+                          (!isProviderInstalled ||
+                            selectedModel === "" ||
+                            promptText.trim() === "")
+                        }
                         onStop={stop}
                         status={status}
                       />
