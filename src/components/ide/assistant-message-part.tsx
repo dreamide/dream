@@ -10,7 +10,7 @@ import {
   TerminalIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -137,6 +137,7 @@ const CHIP_DETAIL_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 py-2 text-sm";
 const RUN_COMMAND_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-sm";
+const STREAMING_WORD_INTERVAL_MS = 40;
 
 export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
 
@@ -384,6 +385,76 @@ const normalizeEmbeddedLineNumbers = (
   };
 };
 
+const getNextStreamingWordToken = (text: string) =>
+  text.match(/^(\s+|\S+\s*)/)?.[0] ?? text.slice(0, 1);
+
+const StreamingMessageResponse = ({
+  isStreaming,
+  text,
+}: {
+  isStreaming: boolean;
+  text: string;
+}) => {
+  const hasStreamedRef = useRef(isStreaming);
+  const targetTextRef = useRef(text);
+  const visibleTextRef = useRef(isStreaming ? "" : text);
+  const [visibleText, setVisibleText] = useState(visibleTextRef.current);
+
+  useEffect(() => {
+    targetTextRef.current = text;
+    if (isStreaming) {
+      hasStreamedRef.current = true;
+    }
+  }, [isStreaming, text]);
+
+  useEffect(() => {
+    if (!hasStreamedRef.current) {
+      if (visibleTextRef.current !== text) {
+        visibleTextRef.current = text;
+        setVisibleText(text);
+      }
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = () => {
+      const targetText = targetTextRef.current;
+      const currentText = visibleTextRef.current;
+
+      if (currentText === targetText) {
+        return;
+      }
+
+      if (!targetText.startsWith(currentText)) {
+        visibleTextRef.current = targetText;
+        setVisibleText(targetText);
+        return;
+      }
+
+      const nextText =
+        currentText +
+        getNextStreamingWordToken(targetText.slice(currentText.length));
+      visibleTextRef.current = nextText;
+      setVisibleText(nextText);
+
+      if (nextText !== targetText) {
+        timeoutId = setTimeout(tick, STREAMING_WORD_INTERVAL_MS);
+      }
+    };
+
+    timeoutId = setTimeout(tick, STREAMING_WORD_INTERVAL_MS);
+
+    return () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [text]);
+
+  return <MessageResponse>{visibleText}</MessageResponse>;
+};
+
 const buildLineDiff = (previousContent: string, nextContent: string) => {
   const previousLines = previousContent.replace(/\r\n/g, "\n").split("\n");
   const nextLines = nextContent.replace(/\r\n/g, "\n").split("\n");
@@ -445,7 +516,8 @@ const buildWriteDiff = ({
   mode: string | null;
   previousContent: string;
 }) => {
-  const nextContent = mode === "append" ? `${previousContent}${content}` : content;
+  const nextContent =
+    mode === "append" ? `${previousContent}${content}` : content;
   return [
     `--- ${filePath}`,
     `+++ ${filePath}`,
@@ -455,11 +527,15 @@ const buildWriteDiff = ({
 };
 
 const toRelativeProjectPath = (projectPath: string, filePath: string) => {
-  const normalizedProjectPath = projectPath.replace(/\\/g, "/").replace(/\/$/, "");
+  const normalizedProjectPath = projectPath
+    .replace(/\\/g, "/")
+    .replace(/\/$/, "");
   const normalizedFilePath = filePath.replace(/\\/g, "/");
 
   if (
-    normalizedFilePath.toLowerCase().startsWith(`${normalizedProjectPath.toLowerCase()}/`)
+    normalizedFilePath
+      .toLowerCase()
+      .startsWith(`${normalizedProjectPath.toLowerCase()}/`)
   ) {
     return normalizedFilePath.slice(normalizedProjectPath.length + 1);
   }
@@ -935,13 +1011,14 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         ? output.results
         : Array.isArray(output)
           ? output
-        : null;
+          : null;
   const matches = Array.isArray(rawMatches) ? rawMatches.filter(isRecord) : [];
   const toolReferences = matches
-    .map((match) =>
-      (isString(match.tool_name) && match.tool_name) ||
-      (isString(match.toolName) && match.toolName) ||
-      null,
+    .map(
+      (match) =>
+        (isString(match.tool_name) && match.tool_name) ||
+        (isString(match.toolName) && match.toolName) ||
+        null,
     )
     .filter((toolName): toolName is string => toolName !== null);
   const isToolReferenceSearch = toolReferences.length > 0;
@@ -992,7 +1069,14 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
         )}
         {hasOutput && count > 0 ? (
           <span className="opacity-70">
-            {count} {isToolReferenceSearch ? (count === 1 ? "tool" : "tools") : count === 1 ? "match" : "matches"}
+            {count}{" "}
+            {isToolReferenceSearch
+              ? count === 1
+                ? "tool"
+                : "tools"
+              : count === 1
+                ? "match"
+                : "matches"}
           </span>
         ) : null}
         {hasError ? <span className="text-destructive">error</span> : null}
@@ -1272,7 +1356,9 @@ export const WriteFileChip = ({
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
-  const activeProjectPath = useIdeStore((s) => s.getActiveProject()?.path ?? null);
+  const activeProjectPath = useIdeStore(
+    (s) => s.getActiveProject()?.path ?? null,
+  );
   const diffProjectPath = projectPath ?? activeProjectPath;
   const [gitDiff, setGitDiff] = useState<string | null>(null);
   const [gitDiffError, setGitDiffError] = useState<string | null>(null);
@@ -1396,16 +1482,19 @@ export const WriteFileChip = ({
             status: string;
           }>;
         };
-        const change = statusPayload.changes?.find(
-          (entry) => {
-            const normalizedEntryPath = entry.path.replace(/\\/g, "/");
-            const normalizedPreviousPath = entry.previousPath?.replace(/\\/g, "/");
-            return (
-              normalizedEntryPath.toLowerCase() === relativeFilePath.toLowerCase() ||
-              normalizedPreviousPath?.toLowerCase() === relativeFilePath.toLowerCase()
-            );
-          },
-        );
+        const change = statusPayload.changes?.find((entry) => {
+          const normalizedEntryPath = entry.path.replace(/\\/g, "/");
+          const normalizedPreviousPath = entry.previousPath?.replace(
+            /\\/g,
+            "/",
+          );
+          return (
+            normalizedEntryPath.toLowerCase() ===
+              relativeFilePath.toLowerCase() ||
+            normalizedPreviousPath?.toLowerCase() ===
+              relativeFilePath.toLowerCase()
+          );
+        });
 
         if (!change) {
           throw new Error("No Git diff is available for this file.");
@@ -1695,7 +1784,9 @@ export const AssistantMessagePart = ({
   isStreaming?: boolean;
 }) => {
   if (part.type === "text") {
-    return <MessageResponse>{part.text}</MessageResponse>;
+    return (
+      <StreamingMessageResponse isStreaming={isStreaming} text={part.text} />
+    );
   }
 
   if (part.type === "reasoning") {
