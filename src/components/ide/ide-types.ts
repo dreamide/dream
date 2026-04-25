@@ -32,6 +32,7 @@ export interface ProviderModelFetchResult {
   models: ModelOption[];
   source: ModelFetchSource;
   error?: string;
+  version?: string | null;
 }
 
 export interface ProviderModelsResponse {
@@ -46,6 +47,7 @@ export interface ProviderModelState {
   source: ModelFetchSource;
   loading: boolean;
   error: string | null;
+  version: string | null;
 }
 
 export const dedupeModels = (models: string[]): string[] => {

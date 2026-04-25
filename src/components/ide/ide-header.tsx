@@ -507,7 +507,7 @@ export const IdeHeader = () => {
                             "size-8 [-webkit-app-region:no-drag]",
                             historyOpen
                               ? "text-foreground hover:text-foreground"
-                              : "text-muted-foreground/50 hover:text-foreground",
+                              : "text-muted-foreground hover:text-foreground",
                           )}
                           size="icon"
                           variant="ghost"

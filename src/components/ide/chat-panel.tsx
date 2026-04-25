@@ -929,7 +929,7 @@ export const ChatPanel = ({
         >
           <ConversationContent
             id={conversationContentDomId}
-            className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-10"
+            className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-[54px]"
           >
             {messages.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4">

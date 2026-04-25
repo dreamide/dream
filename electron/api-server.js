@@ -560,6 +560,36 @@ const isCliCommandAvailable = async (commandName) => {
   }
 };
 
+const getCliVersion = async (commandName) => {
+  try {
+    if (process.platform === "win32") {
+      const result = await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-Command",
+          `$command = (Get-Command ${commandName} -ErrorAction Stop).Path; & $command --version`,
+        ],
+        {
+          encoding: "utf8",
+          windowsHide: true,
+        },
+      );
+
+      return result.stdout.trim() || result.stderr.trim() || null;
+    }
+
+    const result = await execFileAsync(commandName, ["--version"], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
+
+    return result.stdout.trim() || result.stderr.trim() || null;
+  } catch {
+    return null;
+  }
+};
+
 const fetchOpenAiModels = async () => {
   const installed = await isCliCommandAvailable("codex");
   if (!installed) {
@@ -568,8 +598,10 @@ const fetchOpenAiModels = async () => {
       installed: false,
       models: [],
       source: "unavailable",
+      version: null,
     };
   }
+  const version = await getCliVersion("codex");
 
   const accessToken = await readCodexAccessToken();
   if (!accessToken) {
@@ -578,6 +610,7 @@ const fetchOpenAiModels = async () => {
       installed: true,
       models: [],
       source: "unavailable",
+      version,
     };
   }
 
@@ -589,10 +622,11 @@ const fetchOpenAiModels = async () => {
         installed: true,
         models: [],
         source: "unavailable",
+        version,
       };
     }
 
-    return { installed: true, models, source: "cli" };
+    return { installed: true, models, source: "cli", version };
   } catch (error) {
     return {
       error:
@@ -602,6 +636,7 @@ const fetchOpenAiModels = async () => {
       installed: true,
       models: [],
       source: "unavailable",
+      version,
     };
   }
 };
@@ -613,8 +648,10 @@ const fetchAnthropicModels = async () => {
       installed: false,
       models: [],
       source: "unavailable",
+      version: null,
     };
   }
+  const version = await getCliVersion("claude");
 
   try {
     const models = await fetchClaudeCodeModelOptionsFromDocs();
@@ -624,6 +661,7 @@ const fetchAnthropicModels = async () => {
         installed: true,
         models: [],
         source: "unavailable",
+        version,
       };
     }
 
@@ -631,6 +669,7 @@ const fetchAnthropicModels = async () => {
       installed: true,
       models,
       source: "cli",
+      version,
     };
   } catch (error) {
     return {
@@ -641,6 +680,7 @@ const fetchAnthropicModels = async () => {
       installed: true,
       models: [],
       source: "unavailable",
+      version,
     };
   }
 };

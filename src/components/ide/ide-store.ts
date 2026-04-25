@@ -214,6 +214,7 @@ const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
     loading: false,
     models: [],
     source: "unavailable",
+    version: null,
   },
   fetchedAt: null,
   openai: {
@@ -222,6 +223,7 @@ const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
     loading: false,
     models: [],
     source: "unavailable",
+    version: null,
   },
 };
 
@@ -985,6 +987,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             loading: false,
             models: nextAnthropicModels,
             source: payload.anthropic.source,
+            version: payload.anthropic.version ?? null,
           },
           fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
           openai: {
@@ -993,6 +996,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             loading: false,
             models: nextOpenAiModels,
             source: payload.openai.source,
+            version: payload.openai.version ?? null,
           },
         },
       });
@@ -1051,6 +1055,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             loading: false,
             models: state.providerModels.anthropic.models,
             source: state.providerModels.anthropic.source,
+            version: state.providerModels.anthropic.version,
           },
           fetchedAt: state.providerModels.fetchedAt,
           openai: {
@@ -1059,6 +1064,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             loading: false,
             models: state.providerModels.openai.models,
             source: state.providerModels.openai.source,
+            version: state.providerModels.openai.version,
           },
         },
       }));

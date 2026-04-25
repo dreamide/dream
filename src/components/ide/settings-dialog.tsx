@@ -1,6 +1,8 @@
-import { Monitor, Moon, Plug, RefreshCw, Sun } from "lucide-react";
+import { Monitor, Moon, Plug, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import anthropicLogo from "@/assets/anthropic.svg";
+import openAiLogo from "@/assets/openai.svg";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -32,52 +35,61 @@ import type { BaseColor } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
 
-const PROVIDER_HELP_URLS = {
-  anthropic: "https://docs.anthropic.com/en/docs/claude-code/quickstart",
-  openai: "https://developers.openai.com/codex/cli",
-} as const;
+const formatCliVersion = (version: string | null) => {
+  if (!version) {
+    return null;
+  }
+
+  return version.match(/\d+(?:\.\d+)+(?:[-+][\w.-]+)?/)?.[0] ?? version;
+};
 
 const ProviderStatusCard = ({
   children,
   error,
   installed,
   label,
+  logoSrc,
   loading,
-  modelCount,
-  onOpenHelp,
   runtimeLabel,
+  version,
 }: {
   children?: ReactNode;
   error: string | null;
   installed: boolean;
   label: string;
+  logoSrc: string;
   loading: boolean;
-  modelCount: number;
-  onOpenHelp: () => void;
   runtimeLabel: string;
+  version: string | null;
 }) => {
+  const displayVersion = formatCliVersion(version);
+
   return (
     <div className="rounded-lg border border-foreground/10 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
-          <p className="font-medium text-sm">{label}</p>
-          <p className="text-muted-foreground text-sm">{runtimeLabel}</p>
-          <p
-            className={cn(
-              "text-sm",
-              installed ? "text-emerald-700" : "text-amber-700",
-            )}
-          >
-            {loading
-              ? "Checking installation and models…"
-              : installed
-                ? `${modelCount} model${modelCount === 1 ? "" : "s"} available`
-                : "CLI not detected"}
+          <div className="flex items-center gap-2">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="size-4 shrink-0 dark:invert"
+              src={logoSrc}
+            />
+            <p className="font-medium text-sm">{label}</p>
+          </div>
+          <p className="flex items-center gap-2 text-muted-foreground text-sm">
+            {runtimeLabel}
+            {displayVersion ? (
+              <span className="rounded-full border border-foreground/10 bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground leading-none">
+                {displayVersion}
+              </span>
+            ) : null}
           </p>
+          {!loading && !installed ? (
+            <p className="text-amber-700 text-sm">CLI not detected</p>
+          ) : null}
         </div>
-        <Button onClick={onOpenHelp} size="sm" type="button" variant="outline">
-          Help
-        </Button>
+        {loading ? <Spinner className="mt-1 size-4" /> : null}
       </div>
 
       {error ? (
@@ -101,8 +113,6 @@ export const SettingsDialog = () => {
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
-  const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
-  const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
 
   const baseColor = useUiStore((s) => s.baseColor);
   const setBaseColor = useUiStore((s) => s.setBaseColor);
@@ -343,26 +353,14 @@ export const SettingsDialog = () => {
                 <div className="space-y-4 rounded-lg p-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h3 className="font-medium text-sm">CLI Providers</h3>
-                      <p className="text-muted-foreground text-sm">
-                        Available locally installed Codex and Claude Code CLIs.
-                      </p>
+                      <h3 className="font-medium text-sm">Providers</h3>
                       {providerModels.fetchedAt ? (
-                        <p className="text-muted-foreground text-xs">
-                          Last checked{" "}
+                          <p className="text-muted-foreground text-xs">
+                            Last checked{" "}
                           {new Date(providerModels.fetchedAt).toLocaleString()}
                         </p>
                       ) : null}
                     </div>
-
-                    <Button
-                      onClick={() => void refreshProviderModels()}
-                      type="button"
-                      variant="outline"
-                    >
-                      <RefreshCw className="size-4" />
-                      Refresh
-                    </Button>
                   </div>
 
                   {installedProviderCount === 0 ? (
@@ -377,12 +375,10 @@ export const SettingsDialog = () => {
                       error={providerModels.openai.error}
                       installed={providerModels.openai.installed}
                       label="OpenAI"
+                      logoSrc={openAiLogo}
                       loading={providerModels.openai.loading}
-                      modelCount={providerModels.openai.models.length}
-                      onOpenHelp={() =>
-                        openExternalUrl(PROVIDER_HELP_URLS.openai)
-                      }
                       runtimeLabel="Codex CLI"
+                      version={providerModels.openai.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
                         {!providerModels.openai.installed ? (
@@ -430,12 +426,10 @@ export const SettingsDialog = () => {
                       error={providerModels.anthropic.error}
                       installed={providerModels.anthropic.installed}
                       label="Anthropic"
+                      logoSrc={anthropicLogo}
                       loading={providerModels.anthropic.loading}
-                      modelCount={providerModels.anthropic.models.length}
-                      onOpenHelp={() =>
-                        openExternalUrl(PROVIDER_HELP_URLS.anthropic)
-                      }
                       runtimeLabel="Claude Code CLI"
+                      version={providerModels.anthropic.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
                         {!providerModels.anthropic.installed ? (
