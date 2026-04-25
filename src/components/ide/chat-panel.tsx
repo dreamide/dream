@@ -857,6 +857,7 @@ export const ChatPanel = ({
       }
 
       const submittedChatId = chat.id;
+      setPromptText("");
       useIdeStore.getState().setChatStreaming(submittedChatId, true);
       try {
         await sendMessage(
@@ -886,7 +887,6 @@ export const ChatPanel = ({
             },
           },
         );
-        setPromptText("");
       } finally {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
       }
