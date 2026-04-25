@@ -1299,16 +1299,15 @@ export const ChatPanel = ({
                       </SelectContent>
                     </Select>
                   ) : null}
-
-                  <div className="ml-auto flex items-center gap-1">
-                    <BranchSwitcher
-                      projectId={project.id}
-                      projectPath={project.path}
-                    />
-                  </div>
                 </div>
               </div>
             </Sparkles>
+            <div className="mt-1 flex justify-end">
+              <BranchSwitcher
+                projectId={project.id}
+                projectPath={project.path}
+              />
+            </div>
           </div>
         </div>
       </div>
