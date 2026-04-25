@@ -3,6 +3,8 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   AlertCircle,
   Archive,
+  CheckIcon,
+  CopyIcon,
   Ellipsis,
   FilePenLine,
   PaperclipIcon,
@@ -150,6 +152,11 @@ const PROVIDER_LABELS: Record<AiProvider, string> = {
 };
 
 type ChatMessageMetadata = {
+  createdAt?: string;
+  model?: string;
+  modelLabel?: string;
+  reasoningEffort?: string;
+  reasoningLabel?: string;
   remoteConversationId?: string;
   remoteConversationModel?: string;
   remoteConversationProjectPath?: string;
@@ -159,6 +166,22 @@ const MESSAGE_RENDER_STYLE = {
   containIntrinsicSize: "240px",
   contentVisibility: "auto",
 } as const;
+
+const formatMessageTime = (value: string | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+};
 
 const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
   const { scrollRef, stopScroll } = useStickToBottomContext();
@@ -272,6 +295,69 @@ const UserMessageContent = ({ message }: { message: UIMessage }) => {
   );
 };
 
+const getMessageText = (message: UIMessage) =>
+  message.parts
+    .flatMap((part) => {
+      if (!part || typeof part !== "object" || part.type !== "text") {
+        return [];
+      }
+
+      const value = typeof part.text === "string" ? part.text.trim() : "";
+      return value ? [value] : [];
+    })
+    .join("\n\n");
+
+const MessageHoverFooter = ({
+  fallbackModelLabel,
+  fallbackReasoningLabel,
+  fallbackTime,
+  message,
+}: {
+  fallbackModelLabel: string;
+  fallbackReasoningLabel: string;
+  fallbackTime?: string;
+  message: UIMessage;
+}) => {
+  const [copied, setCopied] = useState(false);
+  const metadata = message.metadata as ChatMessageMetadata | undefined;
+  const modelLabel = metadata?.modelLabel ?? fallbackModelLabel;
+  const reasoningLabel = metadata?.reasoningLabel ?? fallbackReasoningLabel;
+  const time = formatMessageTime(metadata?.createdAt ?? fallbackTime);
+  const text = getMessageText(message);
+
+  const copyMessage = useCallback(async () => {
+    if (!text) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }, [text]);
+
+  return (
+    <div className="flex items-center gap-2 self-end text-muted-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-[.is-assistant]:self-start">
+      <span>
+        {[modelLabel, reasoningLabel, time].filter(Boolean).join(" · ")}
+      </span>
+      {text ? (
+        <button
+          aria-label="Copy message"
+          className="rounded p-1 transition-colors hover:bg-accent hover:text-foreground"
+          onClick={() => void copyMessage()}
+          type="button"
+        >
+          {copied ? (
+            <CheckIcon className="size-3.5" />
+          ) : (
+            <CopyIcon className="size-3.5" />
+          )}
+        </button>
+      ) : null}
+    </div>
+  );
+};
+
 const getMessagePartKey = (
   messageId: string,
   part: Record<string, unknown>,
@@ -296,19 +382,25 @@ type ToolApprovalResponder = (response: {
 
 type ChatMessageProps = {
   addToolApprovalResponse: ToolApprovalResponder;
+  fallbackTime?: string;
   isLastMessage: boolean;
   isStreaming: boolean;
   message: UIMessage;
+  modelLabel: string;
   projectPath: string;
+  reasoningLabel: string;
 };
 
 const ChatMessage = memo(
   ({
     addToolApprovalResponse,
+    fallbackTime,
     isLastMessage,
     isStreaming,
     message,
+    modelLabel,
     projectPath,
+    reasoningLabel,
   }: ChatMessageProps) => {
     if (message.role === "user") {
       return (
@@ -316,6 +408,12 @@ const ChatMessage = memo(
           <MessageContent>
             <UserMessageContent message={message} />
           </MessageContent>
+          <MessageHoverFooter
+            fallbackModelLabel={modelLabel}
+            fallbackReasoningLabel={reasoningLabel}
+            fallbackTime={fallbackTime}
+            message={message}
+          />
         </Message>
       );
     }
@@ -469,6 +567,12 @@ const ChatMessage = memo(
             return elements;
           })()}
         </MessageContent>
+        <MessageHoverFooter
+          fallbackModelLabel={modelLabel}
+          fallbackReasoningLabel={reasoningLabel}
+          fallbackTime={fallbackTime}
+          message={message}
+        />
       </Message>
     );
   },
@@ -476,6 +580,10 @@ const ChatMessage = memo(
     prev.message === next.message &&
     prev.isLastMessage === next.isLastMessage &&
     prev.isStreaming === next.isStreaming &&
+    prev.modelLabel === next.modelLabel &&
+    prev.reasoningLabel === next.reasoningLabel &&
+    prev.fallbackTime === next.fallbackTime &&
+    prev.projectPath === next.projectPath &&
     prev.addToolApprovalResponse === next.addToolApprovalResponse,
 );
 
@@ -737,6 +845,13 @@ export const ChatPanel = ({
         await sendMessage(
           {
             files: prompt.files,
+            metadata: {
+              createdAt: new Date().toISOString(),
+              model: activeModel,
+              modelLabel: activeOption?.label ?? activeModel,
+              reasoningEffort: selectedReasoningEffort,
+              reasoningLabel: selectedReasoningLabel,
+            },
             text: prompt.text,
           },
           {
@@ -769,6 +884,7 @@ export const ChatPanel = ({
       project.path,
       selectedProvider,
       selectedReasoningEffort,
+      selectedReasoningLabel,
       sendMessage,
       chat,
       updateChat,
@@ -932,7 +1048,7 @@ export const ChatPanel = ({
         >
           <ConversationContent
             id={conversationContentDomId}
-            className="mx-auto w-full max-w-[700px] gap-4 px-0 pr-2 pt-3 pb-[54px]"
+            className="mx-auto w-full max-w-[700px] gap-4 px-0 pt-3 pb-[54px]"
           >
             {messages.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4">
@@ -945,11 +1061,14 @@ export const ChatPanel = ({
               messages.map((message, messageIndex) => (
                 <ChatMessage
                   addToolApprovalResponse={addToolApprovalResponse}
+                  fallbackTime={chat.updatedAt || chat.createdAt}
                   isLastMessage={messageIndex === messages.length - 1}
                   isStreaming={isStreaming}
                   key={message.id}
                   message={message}
+                  modelLabel={selectedModelLabel}
                   projectPath={project.path}
+                  reasoningLabel={selectedReasoningLabel}
                 />
               ))
             )}

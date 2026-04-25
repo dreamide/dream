@@ -1113,7 +1113,7 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
             </pre>
           ) : null}
           {hasOutput ? (
-            <div className="max-h-80 space-y-1 overflow-auto rounded-md border bg-muted/30 p-2 text-foreground">
+            <div className="max-h-80 space-y-1 overflow-auto rounded-md border bg-background p-2 text-foreground">
               {isToolReferenceSearch ? (
                 <div className="flex flex-wrap gap-1.5">
                   {toolReferences.map((toolName) => (

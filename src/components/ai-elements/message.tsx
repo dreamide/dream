@@ -32,8 +32,10 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
 export const Message = ({ className, from, ...props }: MessageProps) => (
   <div
     className={cn(
-      "group flex w-full max-w-[95%] flex-col gap-2",
-      from === "user" ? "is-user ml-auto justify-end" : "is-assistant",
+      "group flex w-full flex-col gap-2",
+      from === "user"
+        ? "is-user ml-auto max-w-[95%] justify-end"
+        : "is-assistant max-w-full",
       className,
     )}
     {...props}
@@ -376,6 +378,7 @@ export const MessageResponse = memo(
       <Streamdown
         className={cn(
           "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+          "[&_code]:!text-[12px] [&_kbd]:!text-[12px] [&_pre]:!text-[12px] [&_samp]:!text-[12px]",
           className,
         )}
         components={mergedComponents}
