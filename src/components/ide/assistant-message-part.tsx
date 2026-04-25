@@ -1545,8 +1545,9 @@ export const WriteFileChip = ({
   const displayFilename =
     filename === "file" && isRunning ? "Writing" : filename;
   const parsedDiff = useMemo(
-    () => (displayDiffCode ? parseSingleDiff(displayDiffCode) : null),
-    [displayDiffCode],
+    () =>
+      !isRunning && displayDiffCode ? parseSingleDiff(displayDiffCode) : null,
+    [displayDiffCode, isRunning],
   );
   const diffOptions = useMemo<PierreDiffOptions>(
     () => ({

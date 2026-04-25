@@ -174,7 +174,7 @@ const ExpandedDiffBody = ({
         {diff.diff.trim().length > 0 ? (
           showAddedFileContents && addedFileContents !== null ? (
             <CodeBlock
-              className="dream-diff-viewer w-full"
+              className="dream-diff-viewer w-full rounded-none border-0"
               code={addedFileContents}
               language={inferDiffPreviewLanguage(change.path)}
               style={{ contentVisibility: "visible" }}
@@ -196,7 +196,7 @@ const ExpandedDiffBody = ({
               options={diffOptions}
             />
           ) : (
-            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap rounded-md border bg-muted/20 p-4 font-mono text-xs">
+            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-muted/20 p-4 font-mono text-xs">
               {diff.diff}
             </pre>
           )
