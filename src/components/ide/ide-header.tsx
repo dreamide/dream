@@ -520,7 +520,7 @@ export const IdeHeader = () => {
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
-                  className="h-[min(520px,calc(100vh-96px))] w-[264px] gap-0 overflow-hidden rounded-lg p-0 data-closed:animate-none data-open:animate-none"
+                  className="h-[min(520px,calc(100vh-96px))] w-[264px] gap-0 overflow-hidden rounded-lg p-0 duration-200 data-closed:slide-out-to-left-4 data-open:slide-in-from-left-4 data-open:zoom-in-100 data-closed:zoom-out-100"
                   side="bottom"
                   sideOffset={6}
                 >
