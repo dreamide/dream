@@ -214,7 +214,7 @@ export const ReasoningContent = memo(
       <CollapsibleContent
         className={cn(
           "mt-2 border-current border-l pl-3 text-slate-700 text-sm dark:text-slate-300",
-          "data-[closed]:fade-out-0 data-[closed]:slide-out-to-top-2 data-[open]:slide-in-from-top-2 outline-none data-[closed]:animate-out data-[open]:animate-in",
+          "outline-none",
           className,
         )}
         dir={dir}
