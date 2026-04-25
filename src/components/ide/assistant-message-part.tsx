@@ -115,9 +115,9 @@ const CHIP_TOOL_NAME_ALIASES = {
     "exec-command",
     "bash",
   ]),
-  list: new Set(["glob", "list-files"]),
+  list: new Set(["list-files"]),
   read: new Set(["read", "read-file"]),
-  search: new Set(["grep", "search", "search-in-files", "tool-search"]),
+  search: new Set(["glob", "grep", "search", "search-in-files", "tool-search"]),
   write: new Set(["edit", "write", "write-file"]),
 } as const;
 
@@ -1009,10 +1009,19 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
       ? output.matches
       : isRecord(output) && Array.isArray(output.results)
         ? output.results
-        : Array.isArray(output)
-          ? output
-          : null;
+        : isRecord(output) && Array.isArray(output.files)
+          ? output.files
+          : Array.isArray(output)
+            ? output
+            : null;
   const matches = Array.isArray(rawMatches) ? rawMatches.filter(isRecord) : [];
+  const textResults = (
+    isString(output)
+      ? output.split(/\r?\n/)
+      : Array.isArray(rawMatches)
+        ? rawMatches.filter(isString)
+        : []
+  ).filter((line) => line.trim().length > 0);
   const toolReferences = matches
     .map(
       (match) =>
@@ -1022,13 +1031,13 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
     )
     .filter((toolName): toolName is string => toolName !== null);
   const isToolReferenceSearch = toolReferences.length > 0;
-  const hasOutput = rawMatches !== null;
+  const hasOutput = rawMatches !== null || textResults.length > 0;
   const count =
     isRecord(output) && typeof output.count === "number"
       ? output.count
       : Array.isArray(rawMatches)
         ? rawMatches.length
-        : 0;
+        : textResults.length;
   const query =
     isRecord(part.input) && isString(part.input.query)
       ? part.input.query
@@ -1074,9 +1083,13 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
               ? count === 1
                 ? "tool"
                 : "tools"
-              : count === 1
-                ? "match"
-                : "matches"}
+              : textResults.length > 0
+                ? count === 1
+                  ? "result"
+                  : "results"
+                : count === 1
+                  ? "match"
+                  : "matches"}
           </span>
         ) : null}
         {hasError ? <span className="text-destructive">error</span> : null}
@@ -1095,12 +1108,8 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
             </pre>
           ) : null}
           {hasOutput ? (
-            <div className="max-h-80 space-y-1 overflow-auto rounded-md border bg-muted/30 p-2">
-              {matches.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No matches found.
-                </p>
-              ) : isToolReferenceSearch ? (
+            <div className="max-h-80 space-y-1 overflow-auto rounded-md border bg-muted/30 p-2 text-foreground">
+              {isToolReferenceSearch ? (
                 <div className="flex flex-wrap gap-1.5">
                   {toolReferences.map((toolName) => (
                     <Badge
@@ -1112,6 +1121,21 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
                     </Badge>
                   ))}
                 </div>
+              ) : textResults.length > 0 ? (
+                <div className="space-y-1">
+                  {textResults.map((result) => (
+                    <div
+                      className="rounded-sm px-2 py-1.5 font-mono text-xs hover:bg-muted/40"
+                      key={result}
+                    >
+                      {result}
+                    </div>
+                  ))}
+                </div>
+              ) : matches.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No matches found.
+                </p>
               ) : (
                 matches.map((match) => {
                   const file =
