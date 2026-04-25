@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { BaseColor } from "@/types/ide";
 
 const UI_STORAGE_KEY = "dream-ui-preferences";
+const DEFAULT_BASE_COLOR: BaseColor = "zinc";
 
 interface UiState {
   baseColor: BaseColor;
@@ -10,6 +11,10 @@ interface UiState {
 }
 
 function applyBaseColor(color: BaseColor) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
   if (color === "neutral") {
     document.documentElement.removeAttribute("data-base-color");
   } else {
@@ -18,7 +23,7 @@ function applyBaseColor(color: BaseColor) {
 }
 
 export const useUiStore = create<UiState>((set, _get) => ({
-  baseColor: "neutral",
+  baseColor: DEFAULT_BASE_COLOR,
 
   setBaseColor: (color) => {
     applyBaseColor(color);
@@ -42,7 +47,11 @@ export const useUiStore = create<UiState>((set, _get) => ({
           applyBaseColor(parsed.baseColor);
           set({ baseColor: parsed.baseColor });
         }
+        return;
       }
+
+      applyBaseColor(DEFAULT_BASE_COLOR);
+      set({ baseColor: DEFAULT_BASE_COLOR });
     } catch {
       // ignore
     }

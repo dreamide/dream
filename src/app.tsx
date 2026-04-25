@@ -6,7 +6,7 @@ export const App = () => {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="system"
+      defaultTheme="dark"
       disableTransitionOnChange
       enableSystem
       storageKey="dream-theme"

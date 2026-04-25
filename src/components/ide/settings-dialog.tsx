@@ -3,7 +3,6 @@ import { useTheme } from "next-themes";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -265,7 +264,7 @@ export const SettingsDialog = () => {
                           setTheme(value);
                         }
                       }}
-                      value={themeMounted ? (theme ?? "system") : "system"}
+                      value={themeMounted ? (theme ?? "dark") : "dark"}
                     >
                       <TabsList
                         className="w-full justify-start"
@@ -355,8 +354,8 @@ export const SettingsDialog = () => {
                     <div className="space-y-1">
                       <h3 className="font-medium text-sm">Providers</h3>
                       {providerModels.fetchedAt ? (
-                          <p className="text-muted-foreground text-xs">
-                            Last checked{" "}
+                        <p className="text-muted-foreground text-xs">
+                          Last checked{" "}
                           {new Date(providerModels.fetchedAt).toLocaleString()}
                         </p>
                       ) : null}
