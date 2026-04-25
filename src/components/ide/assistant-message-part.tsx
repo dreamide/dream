@@ -590,6 +590,23 @@ const getFilePathFromOutputText = (output: unknown) => {
   return rawPath.replace(/^['"`]+|['"`.]+$/g, "");
 };
 
+const formatWriteOutputMessage = (output: unknown) => {
+  const message = isString(output)
+    ? output
+    : isRecord(output) && isString(output.message)
+      ? output.message
+      : null;
+
+  if (!message) {
+    return null;
+  }
+
+  return message
+    .trim()
+    .replace(/^['"`]+|['"`]+$/g, "")
+    .replace(/\\/g, "/");
+};
+
 const getAgentOutputText = (output: unknown): string | null => {
   if (!isString(output) || output.length === 0) {
     return null;
@@ -1524,6 +1541,7 @@ export const WriteFileChip = ({
     ["size"],
   ]);
   const hasOutput = output !== undefined;
+  const outputMessage = formatWriteOutputMessage(output);
   const approvalId = part.approval?.id;
   const canExpand =
     hasError ||
@@ -1821,6 +1839,10 @@ export const WriteFileChip = ({
                 </CodeBlockHeader>
               </CodeBlock>
             </div>
+          ) : outputMessage ? (
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
+              {outputMessage}
+            </p>
           ) : hasOutput ? (
             <JsonBlock value={output} />
           ) : null}

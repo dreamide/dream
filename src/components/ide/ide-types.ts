@@ -64,6 +64,7 @@ export const REASONING_EFFORT_OPTIONS: Array<{
   { label: "Medium", value: "medium" },
   { label: "High", value: "high" },
   { label: "Extra High", value: "xhigh" },
+  { label: "Max", value: "max" },
 ];
 
 export const CODEX_PERMISSION_MODE_OPTIONS: Array<{

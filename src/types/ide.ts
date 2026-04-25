@@ -3,7 +3,7 @@ import type { UIMessage } from "ai";
 
 export type AiProvider = "openai" | "anthropic";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type ChatSortOrder =
   | "recent"
   | "createdDesc"

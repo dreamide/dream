@@ -36,12 +36,19 @@ const CODEX_MODELS_CACHE_FILE = path.join(
   ".codex",
   "models_cache.json",
 );
-const VALID_REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
+const VALID_REASONING_EFFORTS = new Set([
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
 const CLAUDE_REASONING_EFFORT_MAP = {
   high: "high",
   low: "low",
+  max: "max",
   medium: "medium",
-  xhigh: "max",
+  xhigh: "high",
 };
 
 const readCodexAuthFile = async () => {
@@ -117,24 +124,24 @@ const getModelReasoningEfforts = (provider, modelId) => {
 
   if (provider === "anthropic") {
     if (["opus", "sonnet", "haiku"].includes(id)) {
-      return ["low", "medium", "high", "xhigh"];
+      return ["low", "medium", "high", "max"];
     }
     const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
     if (newFormat) {
       const major = Number(newFormat[1]);
-      if (major >= 4) return ["low", "medium", "high", "xhigh"];
+      if (major >= 4) return ["low", "medium", "high", "max"];
     }
     const oldFormat = id.match(/^claude-(\d+)[-.](\d+)/);
     if (oldFormat) {
       const major = Number(oldFormat[1]);
       const minor = Number(oldFormat[2]);
       if (major > 3 || (major === 3 && minor >= 7)) {
-        return ["low", "medium", "high", "xhigh"];
+        return ["low", "medium", "high", "max"];
       }
     }
     if (/^claude-(\d+)(?!\d)/.test(id)) {
       const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
-      if (majorOnly >= 4) return ["low", "medium", "high", "xhigh"];
+      if (majorOnly >= 4) return ["low", "medium", "high", "max"];
     }
     return [];
   }
@@ -720,7 +727,9 @@ const chatRequestBodySchema = z.object({
   remoteConversationId: z.string().nullable().optional(),
   remoteConversationModel: z.string().nullable().optional(),
   remoteConversationProjectPath: z.string().nullable().optional(),
-  reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).default("medium"),
+  reasoningEffort: z
+    .enum(["low", "medium", "high", "xhigh", "max"])
+    .default("medium"),
   chatId: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
 });

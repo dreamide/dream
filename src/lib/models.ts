@@ -147,7 +147,7 @@ export const createModelOption = (
   const normalizedReasoningEfforts = Array.from(
     new Set(
       reasoningEfforts.filter((effort): effort is ReasoningEffort =>
-        ["low", "medium", "high", "xhigh"].includes(effort),
+        ["low", "medium", "high", "xhigh", "max"].includes(effort),
       ),
     ),
   );
@@ -178,7 +178,7 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
     const reasoningEfforts = Array.from(
       new Set(model.reasoningEfforts ?? []),
     ).filter((effort): effort is ReasoningEffort =>
-      ["low", "medium", "high", "xhigh"].includes(effort),
+      ["low", "medium", "high", "xhigh", "max"].includes(effort),
     );
     const existing = seen.get(id);
 
@@ -294,7 +294,7 @@ export const getModelReasoningEfforts = (
   // --- Anthropic models with extended thinking (claude-3.7+, claude-4+) --
   if (provider === "anthropic") {
     if (["opus", "sonnet", "haiku"].includes(id)) {
-      return ["low", "medium", "high", "xhigh"];
+      return ["low", "medium", "high", "max"];
     }
 
     // New format: claude-{variant}-{major} e.g. claude-sonnet-4-20250514,
@@ -303,7 +303,7 @@ export const getModelReasoningEfforts = (
     if (newFormat) {
       const major = Number(newFormat[1]);
       if (major >= 4) {
-        return ["low", "medium", "high", "xhigh"];
+        return ["low", "medium", "high", "max"];
       }
     }
 
@@ -314,7 +314,7 @@ export const getModelReasoningEfforts = (
       const major = Number(oldFormat[1]);
       const minor = Number(oldFormat[2]);
       if (major > 3 || (major === 3 && minor >= 7)) {
-        return ["low", "medium", "high", "xhigh"];
+        return ["low", "medium", "high", "max"];
       }
     }
 
@@ -322,7 +322,7 @@ export const getModelReasoningEfforts = (
     if (/^claude-(\d+)(?!\d)/.test(id)) {
       const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
       if (majorOnly >= 4) {
-        return ["low", "medium", "high", "xhigh"];
+        return ["low", "medium", "high", "max"];
       }
     }
 
