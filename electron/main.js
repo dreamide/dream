@@ -79,12 +79,666 @@ const DEFAULT_PERSISTED_STATE = {
   },
   chatSort: "recent",
 };
-const PERSISTED_STATE_KEY = "ide-state";
+const RELATIONAL_SCHEMA_VERSION = 2;
 const SQLITE_STATE_FILENAME = "dream.sqlite";
 let stateDatabase = null;
 
 function cloneDefaultPersistedState() {
   return JSON.parse(JSON.stringify(DEFAULT_PERSISTED_STATE));
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function toJson(value) {
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+function parseJson(value, fallback) {
+  if (typeof value !== "string" || !value.trim()) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeProjectPathKey(projectPath) {
+  const trimmed = typeof projectPath === "string" ? projectPath.trim() : "";
+  const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "") || trimmed;
+  const normalized = withoutTrailingSeparators.replace(/\\/g, "/");
+  const isWindowsPath =
+    /^[a-zA-Z]:\//.test(normalized) || trimmed.includes("\\");
+
+  return isWindowsPath ? normalized.toLowerCase() : normalized;
+}
+
+function getProjectName(projectPath) {
+  const pathParts = String(projectPath || "")
+    .split(/[\\/]/)
+    .filter(Boolean);
+
+  return pathParts.at(-1) || "project";
+}
+
+function getMetadataObject(value) {
+  if (isRecord(value)) {
+    return { ...value };
+  }
+
+  if (typeof value === "string") {
+    const parsed = parseJson(value, {});
+    if (isRecord(parsed)) {
+      return parsed;
+    }
+  }
+
+  return {};
+}
+
+function getNestedRecord(parent, key) {
+  return isRecord(parent?.[key]) ? parent[key] : {};
+}
+
+function getNestedString(parent, key, fallback = "") {
+  return typeof parent?.[key] === "string" ? parent[key] : fallback;
+}
+
+function getNestedNullableString(parent, key) {
+  return typeof parent?.[key] === "string" && parent[key].trim()
+    ? parent[key]
+    : null;
+}
+
+function getNestedNumber(parent, key, fallback) {
+  return typeof parent?.[key] === "number" && Number.isFinite(parent[key])
+    ? parent[key]
+    : fallback;
+}
+
+function getNestedBoolean(parent, key, fallback) {
+  return typeof parent?.[key] === "boolean" ? parent[key] : fallback;
+}
+
+function runInTransaction(database, callback) {
+  database.exec("BEGIN IMMEDIATE");
+
+  try {
+    const result = callback();
+    database.exec("COMMIT");
+    return result;
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function readConfig(database) {
+  const rows = database.prepare("SELECT key, value FROM config").all();
+  const config = {};
+
+  for (const row of rows) {
+    if (typeof row?.key === "string") {
+      config[row.key] = parseJson(row.value, null);
+    }
+  }
+
+  return config;
+}
+
+function writeConfig(database, key, value, updatedAt) {
+  database
+    .prepare(
+      `
+        INSERT INTO config (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at
+      `,
+    )
+    .run(key, toJson(value), updatedAt);
+}
+
+function buildProjectMetadata(project, state, activeChatIdByProject) {
+  const metadata = getMetadataObject(project.metadata);
+  const modelSelection = {
+    ...getNestedRecord(metadata, "modelSelection"),
+    model: typeof project.model === "string" ? project.model : "",
+    provider:
+      typeof project.provider === "string" ? project.provider : "openai",
+    reasoningEffort:
+      typeof project.reasoningEffort === "string"
+        ? project.reasoningEffort
+        : "medium",
+  };
+  const browser = {
+    ...getNestedRecord(metadata, "browser"),
+    url:
+      typeof project.browserUrl === "string"
+        ? project.browserUrl
+        : "http://127.0.0.1:3000",
+  };
+  const ui = {
+    ...getNestedRecord(metadata, "ui"),
+    activeChatId: activeChatIdByProject?.[project.id] ?? null,
+  };
+
+  if (project.id === state.activeProjectId) {
+    ui.panelVisibility = {
+      left: getNestedBoolean(state.panelVisibility, "left", true),
+      middle: true,
+      right: getNestedBoolean(state.panelVisibility, "right", true),
+    };
+    ui.panelSizes = {
+      leftSidebarWidth: getNestedNumber(
+        state.panelSizes,
+        "leftSidebarWidth",
+        240,
+      ),
+      rightPanelWidth: getNestedNumber(
+        state.panelSizes,
+        "rightPanelWidth",
+        520,
+      ),
+      terminalHeight: getNestedNumber(state.panelSizes, "terminalHeight", 260),
+    };
+  }
+
+  return {
+    ...metadata,
+    browser,
+    modelSelection,
+    runCommand:
+      typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
+    ui,
+  };
+}
+
+function buildChatMetadata(chat) {
+  const metadata = getMetadataObject(chat.metadata);
+  const remoteConversation = {
+    ...getNestedRecord(metadata, "remoteConversation"),
+    id:
+      typeof chat.remoteConversationId === "string" &&
+      chat.remoteConversationId.trim()
+        ? chat.remoteConversationId
+        : null,
+    model:
+      typeof chat.remoteConversationModel === "string" &&
+      chat.remoteConversationModel.trim()
+        ? chat.remoteConversationModel
+        : null,
+    projectPath:
+      typeof chat.remoteConversationProjectPath === "string" &&
+      chat.remoteConversationProjectPath.trim()
+        ? chat.remoteConversationProjectPath
+        : null,
+  };
+  const modelSelection = {
+    ...getNestedRecord(metadata, "modelSelection"),
+    model: typeof chat.model === "string" ? chat.model : "",
+    provider: typeof chat.provider === "string" ? chat.provider : "openai",
+    reasoningEffort:
+      typeof chat.reasoningEffort === "string"
+        ? chat.reasoningEffort
+        : "medium",
+  };
+
+  return {
+    ...metadata,
+    modelSelection,
+    remoteConversation,
+  };
+}
+
+function saveStateToRelationalDatabase(database, state) {
+  if (!state || typeof state !== "object") {
+    return false;
+  }
+
+  const now = new Date().toISOString();
+
+  return runInTransaction(database, () => {
+    const existingProjectCreatedAt = new Map(
+      database
+        .prepare("SELECT id, created_at FROM projects")
+        .all()
+        .map((row) => [row.id, row.created_at]),
+    );
+    const existingChatCreatedAt = new Map(
+      database
+        .prepare("SELECT id, created_at FROM chats")
+        .all()
+        .map((row) => [row.id, row.created_at]),
+    );
+
+    database.prepare("DELETE FROM chat_messages").run();
+    database.prepare("DELETE FROM chats").run();
+    database.prepare("DELETE FROM projects").run();
+    database.prepare("DELETE FROM config").run();
+
+    const settings = isRecord(state.settings) ? state.settings : {};
+    writeConfig(
+      database,
+      "activeProjectId",
+      state.activeProjectId ?? null,
+      now,
+    );
+    writeConfig(database, "chatSort", state.chatSort ?? "recent", now);
+    writeConfig(
+      database,
+      "settings.defaultModel",
+      settings.defaultModel ?? "",
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.openAiSelectedModels",
+      Array.isArray(settings.openAiSelectedModels)
+        ? settings.openAiSelectedModels
+        : [],
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.anthropicSelectedModels",
+      Array.isArray(settings.anthropicSelectedModels)
+        ? settings.anthropicSelectedModels
+        : [],
+      now,
+    );
+    writeConfig(database, "settings.shellPath", settings.shellPath ?? "", now);
+
+    const activeChatIdByProject = isRecord(state.activeChatIdByProject)
+      ? state.activeChatIdByProject
+      : {};
+    const rawProjects = Array.isArray(state.projects) ? state.projects : [];
+    const rawClosedProjects = Array.isArray(state.closedProjects)
+      ? state.closedProjects
+      : [];
+    const projectsToPersist = [];
+    const seenProjectIds = new Set();
+    const seenProjectPaths = new Set();
+
+    for (const [status, projects] of [
+      ["open", rawProjects],
+      ["closed", rawClosedProjects],
+    ]) {
+      for (const project of projects) {
+        if (!isRecord(project) || typeof project.id !== "string") {
+          continue;
+        }
+
+        const normalizedPath = normalizeProjectPathKey(project.path);
+        if (
+          !project.id.trim() ||
+          seenProjectIds.has(project.id) ||
+          seenProjectPaths.has(normalizedPath)
+        ) {
+          continue;
+        }
+
+        seenProjectIds.add(project.id);
+        seenProjectPaths.add(normalizedPath);
+        projectsToPersist.push({ project, status });
+      }
+    }
+
+    const insertProject = database.prepare(
+      `
+        INSERT INTO projects (
+          id,
+          path,
+          normalized_path,
+          name,
+          status,
+          sort_order,
+          metadata,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+
+    projectsToPersist.forEach(({ project, status }, index) => {
+      const projectPath = typeof project.path === "string" ? project.path : "";
+      const metadata = buildProjectMetadata(
+        project,
+        state,
+        activeChatIdByProject,
+      );
+
+      insertProject.run(
+        project.id,
+        projectPath,
+        normalizeProjectPathKey(projectPath),
+        typeof project.name === "string" && project.name.trim()
+          ? project.name
+          : getProjectName(projectPath),
+        status,
+        index,
+        toJson(metadata),
+        existingProjectCreatedAt.get(project.id) ?? now,
+        now,
+      );
+    });
+
+    const knownProjectIds = new Set(
+      projectsToPersist.map(({ project }) => project.id),
+    );
+    const chats = Array.isArray(state.chats) ? state.chats : [];
+    const messagesByChatId = isRecord(state.messagesByChatId)
+      ? state.messagesByChatId
+      : {};
+    const insertChat = database.prepare(
+      `
+        INSERT INTO chats (
+          id,
+          project_id,
+          title,
+          archived_at,
+          metadata,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+    const insertMessage = database.prepare(
+      `
+        INSERT INTO chat_messages (
+          id,
+          chat_id,
+          role,
+          sort_order,
+          payload,
+          metadata,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    );
+
+    for (const chat of chats) {
+      if (
+        !isRecord(chat) ||
+        typeof chat.id !== "string" ||
+        typeof chat.projectId !== "string" ||
+        !knownProjectIds.has(chat.projectId)
+      ) {
+        continue;
+      }
+
+      const createdAt =
+        typeof chat.createdAt === "string" && chat.createdAt.trim()
+          ? chat.createdAt
+          : (existingChatCreatedAt.get(chat.id) ?? now);
+      const updatedAt =
+        typeof chat.updatedAt === "string" && chat.updatedAt.trim()
+          ? chat.updatedAt
+          : createdAt;
+
+      insertChat.run(
+        chat.id,
+        chat.projectId,
+        typeof chat.title === "string" && chat.title.trim()
+          ? chat.title
+          : "New chat",
+        typeof chat.archivedAt === "string" && chat.archivedAt.trim()
+          ? chat.archivedAt
+          : null,
+        toJson(buildChatMetadata(chat)),
+        createdAt,
+        updatedAt,
+      );
+
+      const messages = Array.isArray(messagesByChatId[chat.id])
+        ? messagesByChatId[chat.id]
+        : [];
+
+      messages.forEach((message, index) => {
+        if (!isRecord(message)) {
+          return;
+        }
+
+        const messageId =
+          typeof message.id === "string" && message.id.trim()
+            ? message.id
+            : `message-${index}`;
+
+        insertMessage.run(
+          `${chat.id}:${index}:${messageId}`,
+          chat.id,
+          typeof message.role === "string" ? message.role : "",
+          index,
+          toJson(message),
+          toJson({}),
+          now,
+        );
+      });
+    }
+
+    database
+      .prepare(
+        `
+          INSERT INTO schema_migrations (version, applied_at)
+          VALUES (?, ?)
+          ON CONFLICT(version) DO NOTHING
+        `,
+      )
+      .run(RELATIONAL_SCHEMA_VERSION, now);
+    return true;
+  });
+}
+
+function loadStateFromRelationalDatabase(database) {
+  const config = readConfig(database);
+  const projectRows = database
+    .prepare(
+      `
+        SELECT *
+        FROM projects
+        ORDER BY status = 'closed', sort_order, created_at
+      `,
+    )
+    .all();
+
+  if (projectRows.length === 0 && Object.keys(config).length === 0) {
+    return cloneDefaultPersistedState();
+  }
+
+  const projects = [];
+  const closedProjects = [];
+  const allProjects = [];
+  const activeChatIdByProject = {};
+  const projectMetadataById = new Map();
+
+  for (const row of projectRows) {
+    const metadata = getMetadataObject(row.metadata);
+    const modelSelection = getNestedRecord(metadata, "modelSelection");
+    const browser = getNestedRecord(metadata, "browser");
+    const ui = getNestedRecord(metadata, "ui");
+    const project = {
+      browserUrl: getNestedString(browser, "url", "http://127.0.0.1:3000"),
+      id: row.id,
+      metadata,
+      model: getNestedString(modelSelection, "model", ""),
+      name: row.name || getProjectName(row.path),
+      path: row.path || "",
+      provider: getNestedString(modelSelection, "provider", "openai"),
+      reasoningEffort: getNestedString(
+        modelSelection,
+        "reasoningEffort",
+        "medium",
+      ),
+      runCommand: getNestedString(metadata, "runCommand", "pnpm dev"),
+    };
+
+    projectMetadataById.set(row.id, metadata);
+    activeChatIdByProject[row.id] = getNestedNullableString(ui, "activeChatId");
+    allProjects.push(project);
+
+    if (row.status === "closed") {
+      closedProjects.push(project);
+    } else {
+      projects.push(project);
+    }
+  }
+
+  const chats = [];
+  const chatRows = database
+    .prepare(
+      `
+        SELECT *
+        FROM chats
+        ORDER BY created_at, id
+      `,
+    )
+    .all();
+
+  for (const row of chatRows) {
+    const metadata = getMetadataObject(row.metadata);
+    const modelSelection = getNestedRecord(metadata, "modelSelection");
+    const remoteConversation = getNestedRecord(metadata, "remoteConversation");
+
+    chats.push({
+      archivedAt:
+        typeof row.archived_at === "string" && row.archived_at.trim()
+          ? row.archived_at
+          : null,
+      createdAt: row.created_at,
+      id: row.id,
+      metadata,
+      model: getNestedString(modelSelection, "model", ""),
+      projectId: row.project_id,
+      provider: getNestedString(modelSelection, "provider", "openai"),
+      reasoningEffort: getNestedString(
+        modelSelection,
+        "reasoningEffort",
+        "medium",
+      ),
+      remoteConversationId: getNestedNullableString(remoteConversation, "id"),
+      remoteConversationModel: getNestedNullableString(
+        remoteConversation,
+        "model",
+      ),
+      remoteConversationProjectPath: getNestedNullableString(
+        remoteConversation,
+        "projectPath",
+      ),
+      title: row.title || "New chat",
+      updatedAt: row.updated_at,
+    });
+  }
+
+  const messagesByChatId = Object.fromEntries(
+    chats.map((chat) => [chat.id, []]),
+  );
+  const messageRows = database
+    .prepare(
+      `
+        SELECT chat_id, payload
+        FROM chat_messages
+        ORDER BY chat_id, sort_order
+      `,
+    )
+    .all();
+
+  for (const row of messageRows) {
+    const payload = parseJson(row.payload, null);
+    if (isRecord(payload) && Array.isArray(messagesByChatId[row.chat_id])) {
+      messagesByChatId[row.chat_id].push(payload);
+    }
+  }
+
+  for (const project of allProjects) {
+    const requestedChatId = activeChatIdByProject[project.id];
+    const projectChats = chats.filter((chat) => chat.projectId === project.id);
+    activeChatIdByProject[project.id] = projectChats.some(
+      (chat) => chat.id === requestedChatId,
+    )
+      ? requestedChatId
+      : (projectChats[0]?.id ?? null);
+  }
+
+  const activeProjectId =
+    typeof config.activeProjectId === "string" ? config.activeProjectId : null;
+  const activeProject =
+    allProjects.find((project) => project.id === activeProjectId) ??
+    projects[0] ??
+    null;
+  const activeProjectMetadata = activeProject
+    ? projectMetadataById.get(activeProject.id)
+    : null;
+  const activeProjectUi = getNestedRecord(activeProjectMetadata, "ui");
+  const panelVisibility = {
+    left: getNestedBoolean(
+      getNestedRecord(activeProjectUi, "panelVisibility"),
+      "left",
+      true,
+    ),
+    middle: true,
+    right: getNestedBoolean(
+      getNestedRecord(activeProjectUi, "panelVisibility"),
+      "right",
+      true,
+    ),
+  };
+  const panelSizes = {
+    leftSidebarWidth: getNestedNumber(
+      getNestedRecord(activeProjectUi, "panelSizes"),
+      "leftSidebarWidth",
+      240,
+    ),
+    rightPanelWidth: getNestedNumber(
+      getNestedRecord(activeProjectUi, "panelSizes"),
+      "rightPanelWidth",
+      520,
+    ),
+    terminalHeight: getNestedNumber(
+      getNestedRecord(activeProjectUi, "panelSizes"),
+      "terminalHeight",
+      260,
+    ),
+  };
+
+  return {
+    activeProjectId,
+    activeChatIdByProject,
+    chats,
+    chatSort: typeof config.chatSort === "string" ? config.chatSort : "recent",
+    closedProjects,
+    messagesByChatId,
+    panelSizes,
+    panelVisibility,
+    projects,
+    settings: {
+      anthropicSelectedModels: Array.isArray(
+        config["settings.anthropicSelectedModels"],
+      )
+        ? config["settings.anthropicSelectedModels"]
+        : [],
+      defaultModel:
+        typeof config["settings.defaultModel"] === "string"
+          ? config["settings.defaultModel"]
+          : "",
+      openAiSelectedModels: Array.isArray(
+        config["settings.openAiSelectedModels"],
+      )
+        ? config["settings.openAiSelectedModels"]
+        : [],
+      shellPath:
+        typeof config["settings.shellPath"] === "string"
+          ? config["settings.shellPath"]
+          : "",
+    },
+  };
 }
 
 function getStateDatabase() {
@@ -98,68 +752,76 @@ function getStateDatabase() {
   );
   const database = new DatabaseSync(databasePath);
   database.exec(`
+    PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS app_state (
+    DROP TABLE IF EXISTS app_state;
+    DROP TABLE IF EXISTS app_meta;
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS config (
       key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
+      value TEXT NOT NULL CHECK (json_valid(value)),
       updated_at TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS app_meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      path TEXT NOT NULL,
+      normalized_path TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      metadata TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata)),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS chats (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      archived_at TEXT NULL,
+      metadata TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata)),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      payload TEXT NOT NULL CHECK (json_valid(payload)),
+      metadata TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata)),
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_projects_status_order
+      ON projects(status, sort_order);
+    CREATE INDEX IF NOT EXISTS idx_chats_project_updated
+      ON chats(project_id, archived_at, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_order
+      ON chat_messages(chat_id, sort_order);
   `);
   database
     .prepare(
       `
-        INSERT INTO app_meta (key, value)
-        VALUES ('schema_version', '1')
-        ON CONFLICT(key) DO NOTHING
+        INSERT INTO schema_migrations (version, applied_at)
+        VALUES (?, ?)
+        ON CONFLICT(version) DO NOTHING
       `,
     )
-    .run();
+    .run(RELATIONAL_SCHEMA_VERSION, new Date().toISOString());
   stateDatabase = database;
   return database;
 }
 
 function savePersistedState(state) {
-  if (!state || typeof state !== "object") {
-    return false;
-  }
-
   const database = getStateDatabase();
-  database
-    .prepare(
-      `
-        INSERT INTO app_state (key, value, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET
-          value = excluded.value,
-          updated_at = excluded.updated_at
-      `,
-    )
-    .run(PERSISTED_STATE_KEY, JSON.stringify(state), new Date().toISOString());
-  return true;
+  return saveStateToRelationalDatabase(database, state);
 }
 
 function loadPersistedState() {
   const database = getStateDatabase();
-  const row = database
-    .prepare("SELECT value FROM app_state WHERE key = ?")
-    .get(PERSISTED_STATE_KEY);
-
-  if (typeof row?.value === "string" && row.value.trim()) {
-    try {
-      const persistedState = JSON.parse(row.value);
-      if (persistedState && typeof persistedState === "object") {
-        return persistedState;
-      }
-    } catch {
-      // ignore invalid sqlite payloads and fall through to defaults
-    }
-  }
-
-  return cloneDefaultPersistedState();
+  return loadStateFromRelationalDatabase(database);
 }
 
 let mainWindow = null;
