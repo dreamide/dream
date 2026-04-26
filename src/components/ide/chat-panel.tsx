@@ -308,22 +308,12 @@ const getMessageText = (message: UIMessage) =>
     })
     .join("\n\n");
 
-const MessageHoverFooter = ({
-  fallbackModelLabel,
-  fallbackReasoningLabel,
-  fallbackTime,
-  message,
-}: {
-  fallbackModelLabel: string;
-  fallbackReasoningLabel: string;
-  fallbackTime?: string;
-  message: UIMessage;
-}) => {
+const MessageHoverFooter = ({ message }: { message: UIMessage }) => {
   const [copied, setCopied] = useState(false);
   const metadata = message.metadata as ChatMessageMetadata | undefined;
-  const modelLabel = metadata?.modelLabel ?? fallbackModelLabel;
-  const reasoningLabel = metadata?.reasoningLabel ?? fallbackReasoningLabel;
-  const time = formatMessageTime(metadata?.createdAt ?? fallbackTime);
+  const modelLabel = metadata?.modelLabel;
+  const reasoningLabel = metadata?.reasoningLabel;
+  const time = formatMessageTime(metadata?.createdAt);
   const text = getMessageText(message);
 
   const copyMessage = useCallback(async () => {
@@ -521,6 +511,30 @@ const addSavedWriteDiffToMessages = (
   return changed ? nextMessages : currentMessages;
 };
 
+const addMetadataToMessage = (
+  currentMessages: UIMessage[],
+  messageId: string,
+  metadata: ChatMessageMetadata,
+) => {
+  let changed = false;
+  const nextMessages = currentMessages.map((message) => {
+    if (message.id !== messageId) {
+      return message;
+    }
+
+    changed = true;
+    return {
+      ...message,
+      metadata: {
+        ...metadata,
+        ...((message.metadata as Record<string, unknown> | undefined) ?? {}),
+      },
+    };
+  });
+
+  return changed ? nextMessages : currentMessages;
+};
+
 const getMessagePartKey = (
   messageId: string,
   part: Record<string, unknown>,
@@ -547,13 +561,10 @@ type ChatMessageProps = {
   addToolApprovalResponse: ToolApprovalResponder;
   expandEditToolParts: boolean;
   expandShellToolParts: boolean;
-  fallbackTime?: string;
   isLastMessage: boolean;
   isStreaming: boolean;
   message: UIMessage;
-  modelLabel: string;
   projectPath: string;
-  reasoningLabel: string;
   showReasoningSummaries: boolean;
 };
 
@@ -562,13 +573,10 @@ const ChatMessage = memo(
     addToolApprovalResponse,
     expandEditToolParts,
     expandShellToolParts,
-    fallbackTime,
     isLastMessage,
     isStreaming,
     message,
-    modelLabel,
     projectPath,
-    reasoningLabel,
     showReasoningSummaries,
   }: ChatMessageProps) => {
     if (message.role === "user") {
@@ -577,12 +585,7 @@ const ChatMessage = memo(
           <MessageContent>
             <UserMessageContent message={message} />
           </MessageContent>
-          <MessageHoverFooter
-            fallbackModelLabel={modelLabel}
-            fallbackReasoningLabel={reasoningLabel}
-            fallbackTime={fallbackTime}
-            message={message}
-          />
+          <MessageHoverFooter message={message} />
         </Message>
       );
     }
@@ -744,12 +747,7 @@ const ChatMessage = memo(
             return elements;
           })()}
         </MessageContent>
-        <MessageHoverFooter
-          fallbackModelLabel={modelLabel}
-          fallbackReasoningLabel={reasoningLabel}
-          fallbackTime={fallbackTime}
-          message={message}
-        />
+        <MessageHoverFooter message={message} />
       </Message>
     );
   },
@@ -759,9 +757,6 @@ const ChatMessage = memo(
     prev.expandShellToolParts === next.expandShellToolParts &&
     prev.isLastMessage === next.isLastMessage &&
     prev.isStreaming === next.isStreaming &&
-    prev.modelLabel === next.modelLabel &&
-    prev.reasoningLabel === next.reasoningLabel &&
-    prev.fallbackTime === next.fallbackTime &&
     prev.projectPath === next.projectPath &&
     prev.showReasoningSummaries === next.showReasoningSummaries &&
     prev.addToolApprovalResponse === next.addToolApprovalResponse,
@@ -831,6 +826,7 @@ export const ChatPanel = ({
   const savedWriteDiffsRef = useRef(new Map<string, string>());
   const loadingWriteDiffsRef = useRef(new Set<string>());
   const failedWriteDiffsRef = useRef(new Set<string>());
+  const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -872,6 +868,21 @@ export const ChatPanel = ({
     },
     onFinish: ({ message }) => {
       const metadata = message.metadata as ChatMessageMetadata | undefined;
+      const pendingMetadata = pendingAssistantMetadataRef.current;
+      pendingAssistantMetadataRef.current = null;
+
+      if (pendingMetadata) {
+        setMessages((currentMessages) =>
+          addMetadataToMessage(currentMessages, message.id, {
+            ...pendingMetadata,
+            createdAt:
+              typeof metadata?.createdAt === "string" && metadata.createdAt
+                ? metadata.createdAt
+                : new Date().toISOString(),
+          }),
+        );
+      }
+
       const remoteConversationId = metadata?.remoteConversationId?.trim();
 
       if (!remoteConversationId) {
@@ -1176,6 +1187,12 @@ export const ChatPanel = ({
       }
 
       const submittedChatId = chat.id;
+      pendingAssistantMetadataRef.current = {
+        model: activeModel,
+        modelLabel: activeOption?.label ?? activeModel,
+        reasoningEffort: selectedReasoningEffort,
+        reasoningLabel: selectedReasoningLabel,
+      };
       setPromptText("");
       useIdeStore.getState().setChatStreaming(submittedChatId, true);
       try {
@@ -1196,9 +1213,11 @@ export const ChatPanel = ({
               claudePermissionMode,
               codexPermissionMode,
               model: activeModel,
+              modelLabel: activeOption?.label ?? activeModel,
               projectPath: project.path,
               provider: activeProvider,
               reasoningEffort: selectedReasoningEffort,
+              reasoningLabel: selectedReasoningLabel,
               remoteConversationId: chat.remoteConversationId,
               remoteConversationModel: chat.remoteConversationModel,
               remoteConversationProjectPath: chat.remoteConversationProjectPath,
@@ -1382,14 +1401,11 @@ export const ChatPanel = ({
                   addToolApprovalResponse={addToolApprovalResponse}
                   expandEditToolParts={settings.expandEditToolParts}
                   expandShellToolParts={settings.expandShellToolParts}
-                  fallbackTime={chat.updatedAt || chat.createdAt}
                   isLastMessage={messageIndex === messages.length - 1}
                   isStreaming={isStreaming}
                   key={message.id}
                   message={message}
-                  modelLabel={selectedModelLabel}
                   projectPath={project.path}
-                  reasoningLabel={selectedReasoningLabel}
                   showReasoningSummaries={settings.showReasoningSummaries}
                 />
               ))

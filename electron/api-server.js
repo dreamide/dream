@@ -722,6 +722,7 @@ const chatRequestBodySchema = z.object({
     .default("default"),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
+  modelLabel: z.string().min(1).optional(),
   projectPath: z.string().min(1),
   provider: z.enum(["openai", "anthropic"]),
   remoteConversationId: z.string().nullable().optional(),
@@ -730,6 +731,7 @@ const chatRequestBodySchema = z.object({
   reasoningEffort: z
     .enum(["low", "medium", "high", "xhigh", "max"])
     .default("medium"),
+  reasoningLabel: z.string().min(1).optional(),
   chatId: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
 });
@@ -1488,6 +1490,7 @@ const streamCodexCliResponse = ({
   model,
   projectPath,
   reasoningEffort,
+  responseMessageMetadata,
   systemPrompt,
   chatId,
   remoteConversationId,
@@ -1542,6 +1545,11 @@ const streamCodexCliResponse = ({
           writer.write(event);
         };
 
+        writer.write({
+          messageMetadata: responseMessageMetadata,
+          type: "message-metadata",
+        });
+
         const ensureCommandToolStarted = (item) => {
           if (!item?.id || startedToolCalls.has(item.id)) {
             return;
@@ -1592,6 +1600,7 @@ const streamCodexCliResponse = ({
             });
             writer.write({
               messageMetadata: {
+                ...responseMessageMetadata,
                 remoteConversationId: event.thread_id,
                 remoteConversationModel: model,
                 remoteConversationProjectPath: projectPath,
@@ -1823,9 +1832,11 @@ app.post("/api/chat", async (c) => {
     claudePermissionMode,
     codexPermissionMode,
     model,
+    modelLabel,
     projectPath,
     provider,
     reasoningEffort,
+    reasoningLabel,
     remoteConversationId,
     remoteConversationModel,
     remoteConversationProjectPath,
@@ -1834,6 +1845,13 @@ app.post("/api/chat", async (c) => {
   } = parsed.data;
   const resolvedChatId = chatId ?? threadId;
   const messages = parsed.data.messages;
+  const responseMessageMetadata = {
+    createdAt: new Date().toISOString(),
+    model,
+    modelLabel: modelLabel ?? model,
+    reasoningEffort,
+    reasoningLabel: reasoningLabel ?? reasoningEffort,
+  };
 
   try {
     const projectStats = await fs.stat(projectPath);
@@ -1866,6 +1884,7 @@ app.post("/api/chat", async (c) => {
       codexPermissionMode,
       messages,
       model,
+      responseMessageMetadata,
       projectPath,
       reasoningEffort,
       remoteConversationId,
@@ -2029,6 +2048,10 @@ app.post("/api/chat", async (c) => {
   });
 
   return textResult.toUIMessageStreamResponse({
+    messageMetadata: ({ part }) =>
+      part.type === "start" || part.type === "finish"
+        ? responseMessageMetadata
+        : undefined,
     onError: (error) => {
       console.error("[chat stream error]", error);
       return formatStreamError(error);
