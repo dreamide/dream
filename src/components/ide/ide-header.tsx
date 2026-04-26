@@ -22,6 +22,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import powershellIcon from "@/assets/powershell.svg";
 import vscodeIcon from "@/assets/vscode.svg";
 import { Button } from "@/components/ui/button";
@@ -44,11 +45,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import Sparkles from "@/components/ui/sparkles";
 import {
   Tooltip,
@@ -76,6 +72,102 @@ type ProjectTabItem = StandardTabItem & {
   completed: boolean;
   path: string;
   streaming: boolean;
+};
+
+const CHAT_HISTORY_PANEL_WIDTH_PX = 520;
+const CHAT_HISTORY_PANEL_MARGIN_PX = 8;
+const CHAT_HISTORY_TRANSITION_MS = 200;
+
+const getChatHistoryTopOffset = () =>
+  (document.getElementById("app-titlebar")?.getBoundingClientRect().bottom ??
+    0) + CHAT_HISTORY_PANEL_MARGIN_PX;
+
+const ChatHistoryOverlay = ({
+  onClose,
+  open,
+}: {
+  onClose: () => void;
+  open: boolean;
+}) => {
+  const [mounted, setMounted] = useState(open);
+  const [visible, setVisible] = useState(false);
+  const [topOffset, setTopOffset] = useState(() =>
+    typeof document === "undefined" ? 0 : getChatHistoryTopOffset(),
+  );
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      let secondFrame: number | null = null;
+      const firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => setVisible(true));
+      });
+      return () => {
+        cancelAnimationFrame(firstFrame);
+        if (secondFrame !== null) {
+          cancelAnimationFrame(secondFrame);
+        }
+      };
+    }
+
+    setVisible(false);
+    const timeout = window.setTimeout(
+      () => setMounted(false),
+      CHAT_HISTORY_TRANSITION_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [open]);
+
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined") {
+      return;
+    }
+
+    const syncTopOffset = () => {
+      setTopOffset(getChatHistoryTopOffset());
+    };
+
+    syncTopOffset();
+    window.addEventListener("resize", syncTopOffset);
+    return () => window.removeEventListener("resize", syncTopOffset);
+  }, [mounted]);
+
+  if (!mounted || typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      aria-hidden={!open}
+      className={cn(
+        "fixed inset-0 z-50 [-webkit-app-region:no-drag]",
+        visible ? "pointer-events-auto" : "pointer-events-none",
+      )}
+      inert={!open}
+    >
+      <button
+        aria-label="Close chat history"
+        className="absolute inset-0 cursor-default bg-transparent"
+        onClick={onClose}
+        tabIndex={-1}
+        type="button"
+      />
+      <div
+        className="absolute bottom-2 left-2 max-w-[calc(100vw-16px)] transition-[transform,opacity] duration-200 ease-out will-change-[transform,opacity]"
+        style={{
+          opacity: visible ? 1 : 0,
+          top: topOffset,
+          transform: visible
+            ? "translateX(0)"
+            : `translateX(calc(-100% - ${CHAT_HISTORY_PANEL_MARGIN_PX}px))`,
+          width: CHAT_HISTORY_PANEL_WIDTH_PX,
+        }}
+      >
+        <ProjectSidebar className="h-full" onChatSelect={onClose} />
+      </div>
+    </div>,
+    document.body,
+  );
 };
 
 const VscodeMark = ({ className }: { className?: string }) => (
@@ -172,6 +264,21 @@ export const IdeHeader = () => {
     setSettingsSection("appearance");
     setSettingsOpen(true);
   }, [setSettingsOpen, setSettingsSection]);
+
+  useEffect(() => {
+    if (!historyOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setHistoryOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [historyOpen]);
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -496,40 +603,24 @@ export const IdeHeader = () => {
           />
           <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
             <Tooltip>
-              <Popover onOpenChange={setHistoryOpen} open={historyOpen}>
-                <PopoverTrigger
-                  render={
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          aria-label="Chat history"
-                          className={cn(
-                            "size-8 [-webkit-app-region:no-drag]",
-                            historyOpen
-                              ? "text-foreground hover:text-foreground"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                          size="icon"
-                          variant="ghost"
-                        />
-                      }
-                    />
-                  }
-                >
-                  <History className="size-4" />
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="h-[min(520px,calc(100vh-96px))] w-[264px] gap-0 overflow-hidden rounded-lg p-0 duration-200 data-closed:slide-out-to-left-4 data-open:slide-in-from-left-4 data-open:zoom-in-100 data-closed:zoom-out-100"
-                  side="bottom"
-                  sideOffset={6}
-                >
-                  <ProjectSidebar
-                    className="rounded-none border-0 shadow-none"
-                    onChatSelect={() => setHistoryOpen(false)}
+              <TooltipTrigger
+                render={
+                  <Button
+                    aria-label="Chat history"
+                    className={cn(
+                      "size-8 [-webkit-app-region:no-drag]",
+                      historyOpen
+                        ? "text-foreground hover:text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => setHistoryOpen((open) => !open)}
+                    size="icon"
+                    variant="ghost"
                   />
-                </PopoverContent>
-              </Popover>
+                }
+              >
+                <History className="size-4" />
+              </TooltipTrigger>
               <TooltipContent>Chat history</TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -601,6 +692,13 @@ export const IdeHeader = () => {
             </Tooltip>
           </div>
         </div>
+      ) : null}
+
+      {appReady ? (
+        <ChatHistoryOverlay
+          onClose={() => setHistoryOpen(false)}
+          open={historyOpen}
+        />
       ) : null}
 
       <Dialog
