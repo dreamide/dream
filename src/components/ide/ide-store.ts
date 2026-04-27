@@ -119,7 +119,8 @@ interface IdeState {
     updater: (chat: ChatConfig) => ChatConfig,
   ) => void;
   deleteChat: (chatId: string) => void;
-  archiveChat: (chatId: string) => void;
+  permanentlyDeleteChats: (chatIds: string[]) => void;
+  restoreChats: (chatIds: string[]) => void;
   setMessagesForChat: (chatId: string, messages: UIMessage[]) => void;
   setChatSort: (sortOrder: ChatSortOrder) => void;
 
@@ -433,7 +434,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const activeChatId = activeChatIdByProject[project.id] ?? null;
     return (
       chats.find(
-        (chat) => chat.projectId === project.id && chat.id === activeChatId,
+        (chat) =>
+          chat.projectId === project.id &&
+          chat.id === activeChatId &&
+          chat.deletedAt === null,
       ) ?? null
     );
   },
@@ -751,7 +755,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextActiveChatId =
         chatId &&
         state.chats.some(
-          (chat) => chat.projectId === projectId && chat.id === chatId,
+          (chat) =>
+            chat.projectId === projectId &&
+            chat.id === chatId &&
+            chat.deletedAt === null,
         )
           ? chatId
           : ensureActiveChatForProject(state.chats, projectId, chatId);
@@ -780,42 +787,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
 
-      const nextChats = state.chats.filter((item) => item.id !== chatId);
-      const nextMessagesByChatId = { ...state.messagesByChatId };
-      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
-      delete nextMessagesByChatId[chatId];
-      if (nextDraftChatIdByProject[chat.projectId] === chatId) {
-        nextDraftChatIdByProject[chat.projectId] = null;
-      }
-
-      return {
-        activeChatIdByProject: {
-          ...state.activeChatIdByProject,
-          [chat.projectId]: ensureActiveChatForProject(
-            nextChats,
-            chat.projectId,
-            state.activeChatIdByProject[chat.projectId] === chatId
-              ? null
-              : (state.activeChatIdByProject[chat.projectId] ?? null),
-          ),
-        },
-        draftChatIdByProject: nextDraftChatIdByProject,
-        messagesByChatId: nextMessagesByChatId,
-        chats: nextChats,
-      };
-    });
-  },
-
-  archiveChat: (chatId) => {
-    set((state) => {
-      const chat = state.chats.find((item) => item.id === chatId);
-      if (!chat) {
-        return state;
-      }
-
-      const archivedAt = new Date().toISOString();
+      const deletedAt = new Date().toISOString();
       const nextChats = state.chats.map((item) =>
-        item.id === chatId ? { ...item, archivedAt } : item,
+        item.id === chatId ? { ...item, deletedAt } : item,
       );
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
       if (nextDraftChatIdByProject[chat.projectId] === chatId) {
@@ -837,6 +811,68 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         chats: nextChats,
       };
     });
+  },
+
+  permanentlyDeleteChats: (chatIds) => {
+    const idsToDelete = new Set(chatIds);
+    if (idsToDelete.size === 0) {
+      return;
+    }
+
+    set((state) => {
+      const deletedChats = state.chats.filter((chat) =>
+        idsToDelete.has(chat.id),
+      );
+      if (deletedChats.length === 0) {
+        return state;
+      }
+
+      const affectedProjectIds = new Set(
+        deletedChats.map((chat) => chat.projectId),
+      );
+      const nextChats = state.chats.filter((chat) => !idsToDelete.has(chat.id));
+      const nextMessagesByChatId = { ...state.messagesByChatId };
+      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
+
+      for (const chat of deletedChats) {
+        delete nextMessagesByChatId[chat.id];
+        if (nextDraftChatIdByProject[chat.projectId] === chat.id) {
+          nextDraftChatIdByProject[chat.projectId] = null;
+        }
+      }
+
+      return {
+        activeChatIdByProject: {
+          ...state.activeChatIdByProject,
+          ...Object.fromEntries(
+            [...affectedProjectIds].map((projectId) => [
+              projectId,
+              ensureActiveChatForProject(
+                nextChats,
+                projectId,
+                state.activeChatIdByProject[projectId] ?? null,
+              ),
+            ]),
+          ),
+        },
+        draftChatIdByProject: nextDraftChatIdByProject,
+        messagesByChatId: nextMessagesByChatId,
+        chats: nextChats,
+      };
+    });
+  },
+
+  restoreChats: (chatIds) => {
+    const idsToRestore = new Set(chatIds);
+    if (idsToRestore.size === 0) {
+      return;
+    }
+
+    set((state) => ({
+      chats: state.chats.map((chat) =>
+        idsToRestore.has(chat.id) ? { ...chat, deletedAt: null } : chat,
+      ),
+    }));
   },
 
   setMessagesForChat: (chatId, messages) => {
@@ -1718,7 +1754,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return false;
       }
 
-      return (messagesByChatId[chat.id]?.length ?? 0) > 0;
+      return (
+        chat.deletedAt !== null || (messagesByChatId[chat.id]?.length ?? 0) > 0
+      );
     });
     const persistedMessagesByChatId = Object.fromEntries(
       persistedChats.map((chat) => [chat.id, messagesByChatId[chat.id] ?? []]),

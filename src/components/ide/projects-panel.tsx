@@ -1,4 +1,4 @@
-import { Archive, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   InputGroup,
@@ -70,7 +70,10 @@ export const ProjectSidebar = ({
 
     const draftChatId = draftChatIdByProject[activeProject.id] ?? null;
     return allChats
-      .filter((chat) => chat.projectId === activeProject.id)
+      .filter(
+        (chat) =>
+          chat.projectId === activeProject.id && chat.deletedAt === null,
+      )
       .filter((chat) => {
         if (chat.id !== draftChatId) {
           return true;
@@ -148,7 +151,6 @@ export const ProjectSidebar = ({
             filteredChats.map((chat) => {
               const isActiveChat = chat.id === activeChatId;
               const isStreaming = !!streamingChatIds[chat.id];
-              const isArchived = chat.archivedAt !== null;
               const lastActiveAt = chat.updatedAt || chat.createdAt;
 
               return (
@@ -158,7 +160,6 @@ export const ProjectSidebar = ({
                     isActiveChat
                       ? "border-border bg-muted/30"
                       : "border-transparent hover:bg-muted/30",
-                    isArchived && !isActiveChat && "opacity-80",
                   )}
                   key={chat.id}
                 >
@@ -171,14 +172,9 @@ export const ProjectSidebar = ({
                     type="button"
                   >
                     <div className="flex min-w-0 items-center gap-2">
-                      {isStreaming || isArchived ? (
+                      {isStreaming ? (
                         <div className="flex shrink-0 items-center gap-1.5">
-                          {isStreaming ? (
-                            <Spinner className="size-3 shrink-0" />
-                          ) : null}
-                          {isArchived ? (
-                            <Archive className="size-3 shrink-0 text-muted-foreground" />
-                          ) : null}
+                          <Spinner className="size-3 shrink-0" />
                         </div>
                       ) : null}
                       <div className="min-w-0 flex-1">
@@ -190,11 +186,6 @@ export const ProjectSidebar = ({
                             {formatLastActiveTime(lastActiveAt)}
                           </span>
                         </div>
-                        {isArchived ? (
-                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground uppercase tracking-wide">
-                            Archived
-                          </p>
-                        ) : null}
                       </div>
                     </div>
                   </button>

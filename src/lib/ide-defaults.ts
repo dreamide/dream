@@ -97,8 +97,8 @@ export const createChatConfig = (
   const timestamp = new Date().toISOString();
 
   return {
-    archivedAt: null,
     createdAt: timestamp,
+    deletedAt: null,
     id: crypto.randomUUID(),
     model: overrides?.model ?? project.model,
     projectId: project.id,

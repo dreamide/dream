@@ -74,7 +74,10 @@ const DEFAULT_PERSISTED_STATE = {
   settings: {
     anthropicSelectedModels: [],
     defaultModel: "",
+    expandEditToolParts: false,
+    expandShellToolParts: false,
     openAiSelectedModels: [],
+    showReasoningSummaries: true,
     shellPath: "",
   },
   chatSort: "recent",
@@ -353,6 +356,24 @@ function saveStateToRelationalDatabase(database, state) {
       now,
     );
     writeConfig(database, "settings.shellPath", settings.shellPath ?? "", now);
+    writeConfig(
+      database,
+      "settings.expandEditToolParts",
+      settings.expandEditToolParts ?? false,
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.expandShellToolParts",
+      settings.expandShellToolParts ?? false,
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.showReasoningSummaries",
+      settings.showReasoningSummaries ?? true,
+      now,
+    );
 
     const activeChatIdByProject = isRecord(state.activeChatIdByProject)
       ? state.activeChatIdByProject
@@ -442,10 +463,10 @@ function saveStateToRelationalDatabase(database, state) {
           id,
           project_id,
           title,
-          archived_at,
           metadata,
           created_at,
-          updated_at
+          updated_at,
+          deleted_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
@@ -490,12 +511,12 @@ function saveStateToRelationalDatabase(database, state) {
         typeof chat.title === "string" && chat.title.trim()
           ? chat.title
           : "New chat",
-        typeof chat.archivedAt === "string" && chat.archivedAt.trim()
-          ? chat.archivedAt
-          : null,
         toJson(buildChatMetadata(chat)),
         createdAt,
         updatedAt,
+        typeof chat.deletedAt === "string" && chat.deletedAt.trim()
+          ? chat.deletedAt
+          : null,
       );
 
       const messages = Array.isArray(messagesByChatId[chat.id])
@@ -608,11 +629,11 @@ function loadStateFromRelationalDatabase(database) {
     const remoteConversation = getNestedRecord(metadata, "remoteConversation");
 
     chats.push({
-      archivedAt:
-        typeof row.archived_at === "string" && row.archived_at.trim()
-          ? row.archived_at
-          : null,
       createdAt: row.created_at,
+      deletedAt:
+        typeof row.deleted_at === "string" && row.deleted_at.trim()
+          ? row.deleted_at
+          : null,
       id: row.id,
       metadata,
       model: getNestedString(modelSelection, "model", ""),
@@ -728,11 +749,23 @@ function loadStateFromRelationalDatabase(database) {
         typeof config["settings.defaultModel"] === "string"
           ? config["settings.defaultModel"]
           : "",
+      expandEditToolParts:
+        typeof config["settings.expandEditToolParts"] === "boolean"
+          ? config["settings.expandEditToolParts"]
+          : false,
+      expandShellToolParts:
+        typeof config["settings.expandShellToolParts"] === "boolean"
+          ? config["settings.expandShellToolParts"]
+          : false,
       openAiSelectedModels: Array.isArray(
         config["settings.openAiSelectedModels"],
       )
         ? config["settings.openAiSelectedModels"]
         : [],
+      showReasoningSummaries:
+        typeof config["settings.showReasoningSummaries"] === "boolean"
+          ? config["settings.showReasoningSummaries"]
+          : true,
       shellPath:
         typeof config["settings.shellPath"] === "string"
           ? config["settings.shellPath"]
@@ -780,10 +813,10 @@ function getStateDatabase() {
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
-      archived_at TEXT NULL,
       metadata TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata)),
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT NULL
     );
     CREATE TABLE IF NOT EXISTS chat_messages (
       id TEXT PRIMARY KEY,
@@ -796,10 +829,13 @@ function getStateDatabase() {
     );
     CREATE INDEX IF NOT EXISTS idx_projects_status_order
       ON projects(status, sort_order);
-    CREATE INDEX IF NOT EXISTS idx_chats_project_updated
-      ON chats(project_id, archived_at, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_order
       ON chat_messages(chat_id, sort_order);
+  `);
+  database.exec(`
+    DROP INDEX IF EXISTS idx_chats_project_updated;
+    CREATE INDEX IF NOT EXISTS idx_chats_project_updated
+      ON chats(project_id, deleted_at, updated_at DESC);
   `);
   database
     .prepare(

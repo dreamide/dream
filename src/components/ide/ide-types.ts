@@ -3,7 +3,7 @@ import type { AiProvider, AppSettings, ReasoningEffort } from "@/types/ide";
 
 export const STATE_STORAGE_KEY = "dream:ide:state";
 
-export type SettingsSection = "appearance" | "providers";
+export type SettingsSection = "appearance" | "providers" | "chats";
 
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";

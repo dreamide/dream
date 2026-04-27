@@ -1,8 +1,18 @@
-import { Monitor, Moon, Plug, Sun } from "lucide-react";
+import {
+  MessageSquare,
+  Monitor,
+  Moon,
+  Plug,
+  RotateCcw,
+  Sun,
+  Trash2,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +32,14 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -40,6 +58,15 @@ const formatCliVersion = (version: string | null) => {
   }
 
   return version.match(/\d+(?:\.\d+)+(?:[-+][\w.-]+)?/)?.[0] ?? version;
+};
+
+const formatDeletedDate = (value: string) => {
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) {
+    return "";
+  }
+
+  return new Date(timestamp).toLocaleString();
 };
 
 const ProviderStatusCard = ({
@@ -154,17 +181,25 @@ export const SettingsDialog = () => {
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
   const providerModels = useIdeStore((s) => s.providerModels);
+  const chats = useIdeStore((s) => s.chats);
+  const projects = useIdeStore((s) => s.projects);
+  const closedProjects = useIdeStore((s) => s.closedProjects);
 
   const setSettings = useIdeStore((s) => s.setSettings);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
+  const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
+  const restoreChats = useIdeStore((s) => s.restoreChats);
 
   const baseColor = useUiStore((s) => s.baseColor);
   const setBaseColor = useUiStore((s) => s.setBaseColor);
   const { setTheme, theme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
   const [defaultShellPlaceholder, setDefaultShellPlaceholder] = useState("");
+  const [selectedDeletedChatIds, setSelectedDeletedChatIds] = useState<
+    string[]
+  >([]);
 
   useEffect(() => {
     setThemeMounted(true);
@@ -249,6 +284,59 @@ export const SettingsDialog = () => {
   const installedProviderCount = ALL_PROVIDERS.filter(
     (provider) => providerModels[provider].installed,
   ).length;
+  const projectsById = useMemo(
+    () =>
+      new Map(
+        [...projects, ...closedProjects].map((project) => [
+          project.id,
+          project,
+        ]),
+      ),
+    [closedProjects, projects],
+  );
+  const deletedChats = useMemo(
+    () =>
+      [...chats]
+        .filter((chat) => chat.deletedAt !== null)
+        .sort(
+          (left, right) =>
+            Date.parse(right.deletedAt ?? "") -
+            Date.parse(left.deletedAt ?? ""),
+        ),
+    [chats],
+  );
+  const selectedDeletedChatIdSet = useMemo(
+    () => new Set(selectedDeletedChatIds),
+    [selectedDeletedChatIds],
+  );
+
+  useEffect(() => {
+    setSelectedDeletedChatIds((previous) => {
+      const deletedChatIds = new Set(deletedChats.map((chat) => chat.id));
+      const next = previous.filter((chatId) => deletedChatIds.has(chatId));
+      return next.length === previous.length ? previous : next;
+    });
+  }, [deletedChats]);
+
+  const toggleDeletedChatSelection = (chatId: string, checked: boolean) => {
+    setSelectedDeletedChatIds((previous) => {
+      if (checked) {
+        return previous.includes(chatId) ? previous : [...previous, chatId];
+      }
+
+      return previous.filter((id) => id !== chatId);
+    });
+  };
+
+  const handleRestoreSelectedChats = () => {
+    restoreChats(selectedDeletedChatIds);
+    setSelectedDeletedChatIds([]);
+  };
+
+  const handlePermanentlyDeleteSelectedChats = () => {
+    permanentlyDeleteChats(selectedDeletedChatIds);
+    setSelectedDeletedChatIds([]);
+  };
 
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
@@ -288,6 +376,21 @@ export const SettingsDialog = () => {
                 <span className="flex items-center gap-2">
                   <Plug className="size-4" />
                   Providers
+                </span>
+              </button>
+              <button
+                className={cn(
+                  "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
+                  settingsSection === "chats"
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setSettingsSection("chats")}
+                type="button"
+              >
+                <span className="flex items-center gap-2">
+                  <MessageSquare className="size-4" />
+                  Chats
                 </span>
               </button>
             </div>
@@ -599,6 +702,97 @@ export const SettingsDialog = () => {
                       </Select>
                     </SettingsControlRow>
                   </div>
+                </div>
+              ) : null}
+
+              {settingsSection === "chats" ? (
+                <div className="space-y-4 rounded-lg p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <h3 className="font-medium text-sm">Deleted Chats</h3>
+                      <p className="text-muted-foreground text-sm">
+                        {deletedChats.length} deleted{" "}
+                        {deletedChats.length === 1 ? "chat" : "chats"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        disabled={selectedDeletedChatIds.length === 0}
+                        onClick={handleRestoreSelectedChats}
+                        type="button"
+                        variant="outline"
+                      >
+                        <RotateCcw className="size-4" />
+                        Restore
+                      </Button>
+                      <Button
+                        disabled={selectedDeletedChatIds.length === 0}
+                        onClick={handlePermanentlyDeleteSelectedChats}
+                        type="button"
+                        variant="destructive"
+                      >
+                        <Trash2 className="size-4" />
+                        Permanently delete
+                      </Button>
+                    </div>
+                  </div>
+
+                  {deletedChats.length === 0 ? (
+                    <div className="flex min-h-[280px] items-center justify-center rounded-md border border-foreground/10">
+                      <p className="text-muted-foreground text-sm">
+                        No deleted chats.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-md border border-foreground/10">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-10" />
+                            <TableHead>Chat</TableHead>
+                            <TableHead>Project</TableHead>
+                            <TableHead className="text-right">
+                              Deleted
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {deletedChats.map((chat) => {
+                            const project = projectsById.get(chat.projectId);
+                            const checked = selectedDeletedChatIdSet.has(
+                              chat.id,
+                            );
+
+                            return (
+                              <TableRow key={chat.id}>
+                                <TableCell>
+                                  <Checkbox
+                                    aria-label={`Select ${chat.title}`}
+                                    checked={checked}
+                                    onCheckedChange={(nextChecked) =>
+                                      toggleDeletedChatSelection(
+                                        chat.id,
+                                        nextChecked === true,
+                                      )
+                                    }
+                                  />
+                                </TableCell>
+                                <TableCell className="max-w-[320px] truncate font-medium">
+                                  {chat.title}
+                                </TableCell>
+                                <TableCell className="max-w-[280px] truncate text-muted-foreground">
+                                  {project?.name ?? "Unknown project"}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {formatDeletedDate(chat.deletedAt ?? "")}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

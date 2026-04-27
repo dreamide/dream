@@ -120,23 +120,24 @@ const normalizeChat = (
         ? normalizeClaudeCodeModelId(chat.model)
         : chat.model.trim()
       : project.model;
-  const {
-    chatMode: _legacyChatMode,
-    remoteConversationChatMode: _legacyRemoteConversationChatMode,
-    ...chatWithoutLegacyModeFields
-  } = chat as ChatConfig & {
-    chatMode?: unknown;
-    remoteConversationChatMode?: unknown;
+  const rawChat = chat as ChatConfig & {
+    deletedAt?: unknown;
+    metadata?: unknown;
   };
+  const deletedAt =
+    typeof rawChat.deletedAt === "string" && rawChat.deletedAt.trim().length > 0
+      ? rawChat.deletedAt
+      : null;
 
   return {
-    ...chatWithoutLegacyModeFields,
-    archivedAt:
-      typeof chat.archivedAt === "string" && chat.archivedAt.trim().length > 0
-        ? chat.archivedAt
-        : null,
     createdAt,
+    deletedAt,
+    ...(rawChat.metadata && typeof rawChat.metadata === "object"
+      ? { metadata: rawChat.metadata }
+      : {}),
+    id: chat.id,
     model: model || project.model,
+    projectId: chat.projectId,
     provider,
     reasoningEffort: normalizeReasoningEffort(chat.reasoningEffort),
     remoteConversationId:
@@ -156,7 +157,7 @@ const normalizeChat = (
         : null,
     title: title || "New chat",
     updatedAt,
-  };
+  } as ChatConfig;
 };
 
 export const mergePersistedState = (
@@ -365,7 +366,7 @@ export const ensureActiveChatForProject = (
   activeChatId: string | null,
 ) => {
   const projectChats = chats.filter(
-    (chat) => chat.projectId === projectId && chat.archivedAt === null,
+    (chat) => chat.projectId === projectId && chat.deletedAt === null,
   );
   if (activeChatId && projectChats.some((chat) => chat.id === activeChatId)) {
     return activeChatId;
@@ -376,7 +377,7 @@ export const ensureActiveChatForProject = (
 
 export const getChatsForProject = (chats: ChatConfig[], projectId: string) =>
   chats.filter(
-    (chat) => chat.projectId === projectId && chat.archivedAt === null,
+    (chat) => chat.projectId === projectId && chat.deletedAt === null,
   );
 
 export const renderUserMessageText = (message: UIMessage): string => {

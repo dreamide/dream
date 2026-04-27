@@ -19,7 +19,7 @@ export interface ChatConfig {
   reasoningEffort: ReasoningEffort;
   createdAt: string;
   updatedAt: string;
-  archivedAt: string | null;
+  deletedAt: string | null;
   remoteConversationId: string | null;
   remoteConversationModel: string | null;
   remoteConversationProjectPath: string | null;

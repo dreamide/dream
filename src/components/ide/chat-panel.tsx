@@ -2,7 +2,6 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   AlertCircle,
-  Archive,
   CheckIcon,
   CopyIcon,
   Ellipsis,
@@ -87,7 +86,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -790,7 +788,6 @@ export const ChatPanel = ({
   const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
-  const archiveChat = useIdeStore((s) => s.archiveChat);
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -1361,14 +1358,9 @@ export const ChatPanel = ({
                     <FilePenLine className="size-4" />
                     Rename
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => archiveChat(chat.id)}>
-                    <Archive className="size-4" />
-                    Archive
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
                     onClick={() => deleteChat(chat.id)}
+                    variant="destructive"
                   >
                     <Trash2 className="size-4" />
                     Delete
