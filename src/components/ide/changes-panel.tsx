@@ -163,7 +163,7 @@ const ExpandedDiffBody = ({
     : null;
 
   return (
-    <div className="border-t border-foreground/10 bg-background">
+    <div className="bg-muted/20">
       {change.previousPath ? (
         <div className="border-b border-foreground/10 px-4 py-2 text-muted-foreground text-xs">
           {`${change.previousPath} -> ${change.path}`}
@@ -177,6 +177,8 @@ const ExpandedDiffBody = ({
               className="dream-diff-viewer w-full rounded-none border-0"
               code={addedFileContents}
               language={inferDiffPreviewLanguage(change.path)}
+              showLineNumbers
+              startingLineNumber={1}
               style={{ contentVisibility: "visible" }}
             >
               <CodeBlockHeader className="shrink-0 border-0 bg-transparent px-3 py-2">
@@ -196,7 +198,7 @@ const ExpandedDiffBody = ({
               options={diffOptions}
             />
           ) : (
-            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-muted/20 p-4 font-mono text-xs">
+            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-muted/40 p-4 font-mono text-xs">
               {diff.diff}
             </pre>
           )
@@ -231,33 +233,37 @@ const ChangesRow = ({
   const hasRemovedLines = typeof change.removedLines === "number";
 
   return (
-    <div className="border-b border-foreground/10 bg-background">
+    <div className="border-b border-foreground/15 bg-background">
       <button
         className={cn(
           "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors",
           expanded
-            ? "sticky top-0 z-20 border-b border-foreground/10 bg-background"
-            : "hover:bg-muted/30",
+            ? "sticky top-0 z-30 border-b border-foreground/15 bg-background shadow-sm"
+            : "hover:bg-muted/45",
         )}
         onClick={onToggle}
         type="button"
       >
         <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-xs">{change.path}</div>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate font-mono text-xs">
+              {change.path}
+            </span>
+            {statusLabel ? (
+              <span
+                className={cn(
+                  "shrink-0 font-medium font-sans",
+                  CHANGE_STATUS_LABEL_CLASSNAMES[change.status] ??
+                    "text-muted-foreground",
+                )}
+              >
+                {statusLabel}
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-3 font-mono text-sm tabular-nums">
-          {statusLabel ? (
-            <span
-              className={cn(
-                "font-medium font-sans",
-                CHANGE_STATUS_LABEL_CLASSNAMES[change.status] ??
-                  "text-muted-foreground",
-              )}
-            >
-              {statusLabel}
-            </span>
-          ) : null}
+        <div className="ml-auto flex shrink-0 items-center gap-3 font-mono text-sm tabular-nums">
           {hasAddedLines ? (
             <span className="font-medium text-emerald-600">
               {formatChangeCount(change.addedLines, "+")}
@@ -654,21 +660,21 @@ const ChangesPanelImpl = ({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-foreground/10 bg-muted/50 px-3 py-2">
+    <div className="changes-panel flex h-full flex-col overflow-hidden bg-muted/15">
+      <div className="flex items-center gap-3 border-b border-foreground/15 bg-muted/70 px-3 py-2">
         <GitCompareArrows className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">Changes</div>
         </div>
 
-        <div className="flex overflow-hidden rounded-md border border-foreground/10 bg-muted/30 p-0.5">
+        <div className="flex overflow-hidden rounded-md border border-foreground/15 bg-background/70 p-0.5">
           <button
             aria-label="Unified diff"
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
               diffViewMode === "unified"
-                ? "bg-background text-foreground shadow-sm"
-                : "hover:bg-muted/60 hover:text-foreground",
+                ? "bg-muted text-foreground shadow-sm"
+                : "hover:bg-muted/70 hover:text-foreground",
             )}
             onClick={() => handleSetDiffViewMode("unified")}
             title="Unified diff"
@@ -681,8 +687,8 @@ const ChangesPanelImpl = ({
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
               diffViewMode === "split"
-                ? "bg-background text-foreground shadow-sm"
-                : "hover:bg-muted/60 hover:text-foreground",
+                ? "bg-muted text-foreground shadow-sm"
+                : "hover:bg-muted/70 hover:text-foreground",
             )}
             onClick={() => handleSetDiffViewMode("split")}
             title="Split diff"

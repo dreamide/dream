@@ -455,6 +455,33 @@
   line-height: 1.5;
 }
 
+.changes-panel .dream-diff-viewer {
+  --diffs-light-bg: #fbfcfe;
+  --diffs-dark-bg: #101319;
+  --diffs-bg-buffer-override: light-dark(#d8dee6, #444b53);
+  --diffs-bg-hover-override: light-dark(#eef3f8, #29313a);
+  --diffs-bg-context-override: light-dark(#ffffff, #20262e);
+  --diffs-bg-context-number-override: light-dark(#eef3f8, #1a2027);
+  --diffs-bg-separator-override: light-dark(#d7dfe8, #434a52);
+  --diffs-fg-number-override: light-dark(#64748b, #a8b3c2);
+  --diffs-addition-color-override: light-dark(#087f3d, #22e36e);
+  --diffs-deletion-color-override: light-dark(#d01835, #ff5f6f);
+  --diffs-bg-addition-override: light-dark(#ddfae8, #143b25);
+  --diffs-bg-addition-number-override: light-dark(#c6f3d6, #0f4c2a);
+  --diffs-bg-addition-hover-override: light-dark(#c8f5d8, #1a4d2e);
+  --diffs-bg-addition-emphasis-override: light-dark(
+    rgb(8 127 61 / 22%),
+    rgb(34 227 110 / 28%)
+  );
+  --diffs-bg-deletion-override: light-dark(#ffe1e6, #4a252c);
+  --diffs-bg-deletion-number-override: light-dark(#ffcbd4, #5d2530);
+  --diffs-bg-deletion-hover-override: light-dark(#ffd0d8, #61303a);
+  --diffs-bg-deletion-emphasis-override: light-dark(
+    rgb(208 24 53 / 22%),
+    rgb(255 95 111 / 28%)
+  );
+}
+
 .xterm .xterm-scrollable-element > .scrollbar,
 .xterm .xterm-scrollable-element > .shadow {
   display: none;
