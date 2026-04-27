@@ -1171,16 +1171,7 @@ function buildTerminalShellCandidates(preferredShellPath) {
       return;
     }
 
-    let args = parsed.args.length > 0 ? parsed.args : defaultShellArgs;
-    if (process.platform === "win32" && parsed.args.length === 0) {
-      const executableName = path.basename(parsed.command).toLowerCase();
-      if (
-        executableName === "powershell.exe" ||
-        executableName === "pwsh.exe"
-      ) {
-        args = ["-NoLogo"];
-      }
-    }
+    const args = parsed.args.length > 0 ? parsed.args : defaultShellArgs;
     const key = `${parsed.command}\u0000${args.join("\u0000")}`;
     if (seen.has(key)) {
       return;
@@ -1219,7 +1210,7 @@ function getDefaultTerminalShellCommand() {
 function getPipeFallbackShell() {
   if (process.platform === "win32") {
     return {
-      args: ["-NoLogo"],
+      args: [],
       command: "powershell.exe",
       label: "PowerShell pipe fallback",
     };
