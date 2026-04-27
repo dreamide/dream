@@ -160,10 +160,15 @@ export const IdeShell = () => {
   const projectTerminalPanelOpenByProject = useIdeStore(
     (s) => s.projectTerminalPanelOpenByProject,
   );
+  const projectRightPanelOpenByProject = useIdeStore(
+    (s) => s.projectRightPanelOpenByProject,
+  );
 
   // ── Derived values ──────────────────────────────────────────────────
   const middleVisible = panelVisibility.middle;
-  const rightVisible = panelVisibility.right;
+  const rightVisible = activeProjectId
+    ? (projectRightPanelOpenByProject[activeProjectId] ?? panelVisibility.right)
+    : panelVisibility.right;
   const activeProjectTerminalSessionIds = activeProject
     ? (projectTerminalSessionIds[activeProject.id] ??
       EMPTY_TERMINAL_SESSION_IDS)
@@ -184,11 +189,16 @@ export const IdeShell = () => {
   const terminalPanelVisible =
     activeProjectTerminalPanelOpen && hasActiveProjectTerminalSessions;
   const previousActiveProjectIdRef = useRef(activeProjectId);
+  const rightPanelTransitionEnabledRef = useRef(false);
   const terminalPanelTransitionEnabledRef = useRef(false);
   if (previousActiveProjectIdRef.current !== activeProjectId) {
     previousActiveProjectIdRef.current = activeProjectId;
+    rightPanelTransitionEnabledRef.current = false;
     terminalPanelTransitionEnabledRef.current = false;
   }
+  const rightPanelTransition = rightPanelTransitionEnabledRef.current
+    ? RIGHT_PANEL_TRANSITION
+    : "none";
   const terminalPanelTransition = terminalPanelTransitionEnabledRef.current
     ? TERMINAL_PANEL_TRANSITION
     : "none";
@@ -278,12 +288,12 @@ export const IdeShell = () => {
     // Restore transitions (must match the React style prop exactly so that
     // React's reconciler stays in sync with the DOM).
     const right = rightPanelRef.current;
-    if (right) right.style.transition = RIGHT_PANEL_TRANSITION;
+    if (right) right.style.transition = rightPanelTransition;
     setPanelSizes((current) => ({
       ...current,
       rightPanelWidth: rightWidthRef.current,
     }));
-  }, [setPanelSizes]);
+  }, [rightPanelTransition, setPanelSizes]);
 
   const handleTerminalResizeStart = useCallback(() => {
     const wrapper = terminalPanelWrapperRef.current;
@@ -345,6 +355,7 @@ export const IdeShell = () => {
   }, [setPanelSizes, terminalPanelTransition]);
 
   useEffect(() => {
+    rightPanelTransitionEnabledRef.current = true;
     terminalPanelTransitionEnabledRef.current = true;
   });
 
@@ -379,6 +390,8 @@ export const IdeShell = () => {
       messagesByChatId: useIdeStore.getState().messagesByChatId,
       panelSizes: useIdeStore.getState().panelSizes,
       panelVisibility: useIdeStore.getState().panelVisibility,
+      projectRightPanelOpenByProject:
+        useIdeStore.getState().projectRightPanelOpenByProject,
       projects: useIdeStore.getState().projects,
       settings: useIdeStore.getState().settings,
       chatSort: useIdeStore.getState().chatSort,
@@ -394,6 +407,7 @@ export const IdeShell = () => {
         messagesByChatId: state.messagesByChatId,
         panelSizes: state.panelSizes,
         panelVisibility: state.panelVisibility,
+        projectRightPanelOpenByProject: state.projectRightPanelOpenByProject,
         projects: state.projects,
         settings: state.settings,
         chatSort: state.chatSort,
@@ -407,6 +421,8 @@ export const IdeShell = () => {
         next.messagesByChatId !== prev.messagesByChatId ||
         next.panelSizes !== prev.panelSizes ||
         next.panelVisibility !== prev.panelVisibility ||
+        next.projectRightPanelOpenByProject !==
+          prev.projectRightPanelOpenByProject ||
         next.projects !== prev.projects ||
         next.settings !== prev.settings ||
         next.chatSort !== prev.chatSort
@@ -521,7 +537,10 @@ export const IdeShell = () => {
     const desktopApi = getDesktopApi();
     const state = useIdeStore.getState();
     const project = state.getActiveProject();
-    const pv = state.panelVisibility;
+    const rightPanelOpen = project
+      ? (state.projectRightPanelOpenByProject[project.id] ??
+        state.panelVisibility.right)
+      : false;
     const currentRightPanelView = state.rightPanelView;
     const activeTab = project ? state.getActiveBrowserTab(project.id) : null;
 
@@ -530,7 +549,7 @@ export const IdeShell = () => {
     if (
       !project ||
       !activeTab?.url ||
-      !pv.right ||
+      !rightPanelOpen ||
       currentRightPanelView !== "browser" ||
       isModalBrowserHidden()
     ) {
@@ -628,7 +647,7 @@ export const IdeShell = () => {
   // Sync browser bounds when project or panel visibility changes
   useEffect(() => {
     void activeProject;
-    void panelVisibility.right;
+    void rightVisible;
     void rightPanelView;
     void activeBrowserTab?.id;
     void activeBrowserTab?.url;
@@ -637,8 +656,8 @@ export const IdeShell = () => {
     activeBrowserTab?.id,
     activeBrowserTab?.url,
     activeProject,
-    panelVisibility.right,
     rightPanelView,
+    rightVisible,
     syncBrowserBounds,
   ]);
 
@@ -975,7 +994,7 @@ export const IdeShell = () => {
                 paddingRight: rightVisible ? 8 : 0,
                 paddingLeft: rightVisible && !middleVisible ? 8 : 0,
                 pointerEvents: rightVisible ? "auto" : "none",
-                transition: RIGHT_PANEL_TRANSITION,
+                transition: rightPanelTransition,
                 willChange: middleVisible
                   ? "width, opacity, padding"
                   : "flex-basis, opacity, padding",

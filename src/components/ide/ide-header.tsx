@@ -210,6 +210,9 @@ export const IdeHeader = () => {
   const projectTerminalPanelOpenByProject = useIdeStore(
     (s) => s.projectTerminalPanelOpenByProject,
   );
+  const projectRightPanelOpenByProject = useIdeStore(
+    (s) => s.projectRightPanelOpenByProject,
+  );
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const streamingProjectIds = useMemo(
@@ -260,6 +263,10 @@ export const IdeHeader = () => {
   const activeProjectTerminalPanelOpen = activeProject
     ? (projectTerminalPanelOpenByProject[activeProject.id] ?? false)
     : false;
+  const activeProjectRightPanelOpen = activeProject
+    ? (projectRightPanelOpenByProject[activeProject.id] ??
+      panelVisibility.right)
+    : panelVisibility.right;
   const terminalHiddenWithActiveSession =
     terminalOpen && !activeProjectTerminalPanelOpen;
   const desktopApi = getDesktopApi();
@@ -671,7 +678,7 @@ export const IdeHeader = () => {
               <TooltipContent>Open terminal</TooltipContent>
             </Tooltip>
             <ToggleButton
-              active={panelVisibility.right}
+              active={activeProjectRightPanelOpen}
               onClick={() => togglePanel("right")}
               title="Toggle right panel"
             >

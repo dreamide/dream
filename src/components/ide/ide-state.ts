@@ -33,6 +33,7 @@ export const emptyState: PersistedIdeState = {
   messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
+  projectRightPanelOpenByProject: {},
   projects: [],
   settings: DEFAULT_SETTINGS,
   chatSort: "recent",
@@ -241,6 +242,24 @@ export const mergePersistedState = (
   const projectsById = new Map(
     allProjects.map((project) => [project.id, project]),
   );
+  const mergedPanelVisibility = {
+    ...DEFAULT_PANEL_VISIBILITY,
+    ...(state.panelVisibility ?? {}),
+    middle: true,
+  };
+  const rawProjectRightPanelOpenByProject =
+    state.projectRightPanelOpenByProject &&
+    typeof state.projectRightPanelOpenByProject === "object"
+      ? state.projectRightPanelOpenByProject
+      : {};
+  const projectRightPanelOpenByProject = Object.fromEntries(
+    allProjects.map((project) => [
+      project.id,
+      typeof rawProjectRightPanelOpenByProject[project.id] === "boolean"
+        ? rawProjectRightPanelOpenByProject[project.id]
+        : mergedPanelVisibility.right,
+    ]),
+  );
 
   const rawChats = Array.isArray(state.chats)
     ? state.chats
@@ -325,11 +344,8 @@ export const mergePersistedState = (
         120,
       ),
     },
-    panelVisibility: {
-      ...DEFAULT_PANEL_VISIBILITY,
-      ...(state.panelVisibility ?? {}),
-      middle: true,
-    },
+    panelVisibility: mergedPanelVisibility,
+    projectRightPanelOpenByProject,
     projects,
     settings: mergedSettings,
     chatSort:

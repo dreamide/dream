@@ -57,6 +57,7 @@ interface IdeState {
   chatSort: ChatSortOrder;
   panelVisibility: PanelVisibility;
   panelSizes: PanelSizes;
+  projectRightPanelOpenByProject: Record<string, boolean>;
   settings: AppSettings;
   messagesByChatId: Record<string, UIMessage[]>;
 
@@ -378,6 +379,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   chatSort: "recent",
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
   panelSizes: DEFAULT_PANEL_SIZES,
+  projectRightPanelOpenByProject: {},
   settings: DEFAULT_SETTINGS,
   messagesByChatId: {},
 
@@ -485,9 +487,22 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   setActiveProjectId: (id) => {
-    set((state) => ({
-      activeProjectId: ensureActiveProject(state.projects, id),
-    }));
+    set((state) => {
+      const nextActiveProjectId = ensureActiveProject(state.projects, id);
+      const rightPanelOpen = nextActiveProjectId
+        ? (state.projectRightPanelOpenByProject[nextActiveProjectId] ??
+          state.panelVisibility.right)
+        : state.panelVisibility.right;
+
+      return {
+        activeProjectId: nextActiveProjectId,
+        panelVisibility: {
+          ...state.panelVisibility,
+          middle: true,
+          right: rightPanelOpen,
+        },
+      };
+    });
   },
 
   addProject: (path) => {
@@ -506,6 +521,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
               openProject.id,
               state.activeChatIdByProject[openProject.id] ?? null,
             ),
+          },
+          projectRightPanelOpenByProject: {
+            ...state.projectRightPanelOpenByProject,
+            [openProject.id]:
+              state.projectRightPanelOpenByProject[openProject.id] ??
+              state.panelVisibility.right,
           },
         };
       }
@@ -546,6 +567,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ),
           messagesByChatId: nextMessagesByChatId,
           chats: nextChats,
+          projectRightPanelOpenByProject: {
+            ...state.projectRightPanelOpenByProject,
+            [reopenedProject.id]:
+              state.projectRightPanelOpenByProject[reopenedProject.id] ??
+              state.panelVisibility.right,
+          },
           projects: [...state.projects, reopenedProject],
         };
       }
@@ -566,6 +593,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         messagesByChatId: {
           ...state.messagesByChatId,
           [nextChat.id]: [],
+        },
+        projectRightPanelOpenByProject: {
+          ...state.projectRightPanelOpenByProject,
+          [nextProject.id]: state.panelVisibility.right,
         },
         chats: [...state.chats, nextChat],
         projects: [...state.projects, nextProject],
@@ -922,13 +953,38 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       return;
     }
 
-    set((state) => ({
-      panelVisibility: {
-        ...state.panelVisibility,
-        [panel]: !state.panelVisibility[panel],
-        middle: true,
-      },
-    }));
+    set((state) => {
+      if (panel !== "right") {
+        return {
+          panelVisibility: {
+            ...state.panelVisibility,
+            [panel]: !state.panelVisibility[panel],
+            middle: true,
+          },
+        };
+      }
+
+      const projectId = state.activeProjectId;
+      const currentOpen = projectId
+        ? (state.projectRightPanelOpenByProject[projectId] ??
+          state.panelVisibility.right)
+        : state.panelVisibility.right;
+      const nextOpen = !currentOpen;
+
+      return {
+        panelVisibility: {
+          ...state.panelVisibility,
+          right: nextOpen,
+          middle: true,
+        },
+        projectRightPanelOpenByProject: projectId
+          ? {
+              ...state.projectRightPanelOpenByProject,
+              [projectId]: nextOpen,
+            }
+          : state.projectRightPanelOpenByProject,
+      };
+    });
   },
   setPanelSizes: (updater) => {
     set((state) => ({
@@ -1686,6 +1742,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           messagesByChatId: {},
           panelSizes: DEFAULT_PANEL_SIZES,
           panelVisibility: DEFAULT_PANEL_VISIBILITY,
+          projectRightPanelOpenByProject: {},
           projects: [],
           settings: DEFAULT_SETTINGS,
           chatSort: "recent",
@@ -1704,6 +1761,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             messagesByChatId: {},
             panelSizes: DEFAULT_PANEL_SIZES,
             panelVisibility: DEFAULT_PANEL_VISIBILITY,
+            projectRightPanelOpenByProject: {},
             projects: [],
             settings: DEFAULT_SETTINGS,
             chatSort: "recent",
@@ -1738,6 +1796,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ...loaded.panelVisibility,
         middle: true,
       },
+      projectRightPanelOpenByProject: loaded.projectRightPanelOpenByProject,
       draftChatIdByProject: {},
       settings: loaded.settings,
       chatSort: loaded.chatSort,
@@ -1756,6 +1815,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       messagesByChatId,
       panelSizes,
       panelVisibility,
+      projectRightPanelOpenByProject,
       projects,
       settings,
       stateHydrated,
@@ -1802,6 +1862,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ...panelVisibility,
         middle: true,
       },
+      projectRightPanelOpenByProject,
       projects,
       settings,
     };

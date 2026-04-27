@@ -76,6 +76,7 @@ const DEFAULT_PERSISTED_STATE = {
     middle: true,
     right: true,
   },
+  projectRightPanelOpenByProject: {},
   projects: [],
   settings: {
     anthropicSelectedModels: [],
@@ -237,12 +238,32 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
     ...getNestedRecord(metadata, "ui"),
     activeChatId: activeChatIdByProject?.[project.id] ?? null,
   };
+  const projectRightPanelOpenByProject = isRecord(
+    state.projectRightPanelOpenByProject,
+  )
+    ? state.projectRightPanelOpenByProject
+    : {};
+  const existingPanelVisibility = getNestedRecord(ui, "panelVisibility");
+  const rightPanelOpen = getNestedBoolean(
+    projectRightPanelOpenByProject,
+    project.id,
+    project.id === state.activeProjectId
+      ? getNestedBoolean(state.panelVisibility, "right", true)
+      : getNestedBoolean(existingPanelVisibility, "right", true),
+  );
+
+  ui.panelVisibility = {
+    ...existingPanelVisibility,
+    middle: true,
+    right: rightPanelOpen,
+  };
 
   if (project.id === state.activeProjectId) {
     ui.panelVisibility = {
+      ...ui.panelVisibility,
       left: getNestedBoolean(state.panelVisibility, "left", true),
       middle: true,
-      right: getNestedBoolean(state.panelVisibility, "right", true),
+      right: rightPanelOpen,
     };
     ui.panelSizes = {
       leftSidebarWidth: getNestedNumber(
@@ -585,6 +606,7 @@ function loadStateFromRelationalDatabase(database) {
   const closedProjects = [];
   const allProjects = [];
   const activeChatIdByProject = {};
+  const projectRightPanelOpenByProject = {};
   const projectMetadataById = new Map();
 
   for (const row of projectRows) {
@@ -610,6 +632,11 @@ function loadStateFromRelationalDatabase(database) {
 
     projectMetadataById.set(row.id, metadata);
     activeChatIdByProject[row.id] = getNestedNullableString(ui, "activeChatId");
+    projectRightPanelOpenByProject[row.id] = getNestedBoolean(
+      getNestedRecord(ui, "panelVisibility"),
+      "right",
+      true,
+    );
     allProjects.push(project);
 
     if (row.status === "closed") {
@@ -747,6 +774,7 @@ function loadStateFromRelationalDatabase(database) {
     messagesByChatId,
     panelSizes,
     panelVisibility,
+    projectRightPanelOpenByProject,
     projects,
     settings: {
       anthropicSelectedModels: Array.isArray(
