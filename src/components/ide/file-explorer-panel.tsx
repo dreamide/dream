@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { getDesktopApi } from "@/lib/electron";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
@@ -247,6 +248,17 @@ const FileExplorerPanelImpl = () => {
     }
   }, [projectId, projectPath]);
 
+  const handleOpenProjectPath = useCallback(async () => {
+    if (!projectPath) {
+      return;
+    }
+
+    await getDesktopApi()?.openInEditor({
+      editorId: "file-explorer",
+      projectPath,
+    });
+  }, [projectPath]);
+
   useEffect(() => {
     if (!projectId || !projectPath) {
       return;
@@ -396,9 +408,14 @@ const FileExplorerPanelImpl = () => {
           <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
           <div className="truncate text-sm font-medium">Files</div>
         </div>
-        <div className="truncate text-center text-muted-foreground text-xs">
+        <button
+          className="min-w-0 truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          onClick={handleOpenProjectPath}
+          title="Open project folder"
+          type="button"
+        >
           {activeProject.path}
-        </div>
+        </button>
         <div className="flex justify-end">
           <Button
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
