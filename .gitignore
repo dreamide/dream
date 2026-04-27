@@ -43,5 +43,6 @@ node_modules
 
 # other
 nul
+.codex
 .claude
 .next

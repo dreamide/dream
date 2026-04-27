@@ -594,12 +594,6 @@ export const IdeHeader = () => {
 
       {appReady ? (
         <div className="flex items-center gap-2 px-3 pb-1 [-webkit-app-region:drag]">
-          <div
-            className={cn(
-              "shrink-0 [-webkit-app-region:drag]",
-              isMacOs ? "w-24" : "w-0",
-            )}
-          />
           <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
             <Button
               aria-label="Chat history"
