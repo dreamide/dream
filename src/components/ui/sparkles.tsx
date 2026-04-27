@@ -13,7 +13,7 @@
     disabled   disables sparkles and ground glow                 (default: false)
     position   "top" | "bottom" origin edge                      (default: "top")
     density    number of ambient sparkles                         (default: 80)
-    speed      multiplier — 1 = normal, 2 = 2× faster            (default: 1)
+    speed      multiplier — 1 = normal, 2× faster            (default: 1)
     sizeMul    pixel-size multiplier                              (default: 1)
     sway       max horizontal drift in px                         (default: 40)
     height     rise-field height in px                            (default: 360)

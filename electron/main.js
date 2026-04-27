@@ -1222,7 +1222,8 @@ function resolveTerminalCwd(cwd) {
 }
 
 function buildTerminalShellCandidates(preferredShellPath) {
-  const defaultShellArgs = process.platform === "win32" ? [] : ["-il"];
+  // Login shells often reset to $HOME, which breaks project-scoped terminals.
+  const defaultShellArgs = process.platform === "win32" ? [] : ["-i"];
   const candidates = [];
   const seen = new Set();
 
