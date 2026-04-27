@@ -390,6 +390,8 @@ export const IdeShell = () => {
       messagesByChatId: useIdeStore.getState().messagesByChatId,
       panelSizes: useIdeStore.getState().panelSizes,
       panelVisibility: useIdeStore.getState().panelVisibility,
+      projectPanelSizesByProject:
+        useIdeStore.getState().projectPanelSizesByProject,
       projectRightPanelOpenByProject:
         useIdeStore.getState().projectRightPanelOpenByProject,
       projects: useIdeStore.getState().projects,
@@ -407,6 +409,7 @@ export const IdeShell = () => {
         messagesByChatId: state.messagesByChatId,
         panelSizes: state.panelSizes,
         panelVisibility: state.panelVisibility,
+        projectPanelSizesByProject: state.projectPanelSizesByProject,
         projectRightPanelOpenByProject: state.projectRightPanelOpenByProject,
         projects: state.projects,
         settings: state.settings,
@@ -421,6 +424,7 @@ export const IdeShell = () => {
         next.messagesByChatId !== prev.messagesByChatId ||
         next.panelSizes !== prev.panelSizes ||
         next.panelVisibility !== prev.panelVisibility ||
+        next.projectPanelSizesByProject !== prev.projectPanelSizesByProject ||
         next.projectRightPanelOpenByProject !==
           prev.projectRightPanelOpenByProject ||
         next.projects !== prev.projects ||

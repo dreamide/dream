@@ -33,6 +33,7 @@ export const emptyState: PersistedIdeState = {
   messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
+  projectPanelSizesByProject: {},
   projectRightPanelOpenByProject: {},
   projects: [],
   settings: DEFAULT_SETTINGS,
@@ -60,6 +61,30 @@ const normalizePanelSize = (
   typeof value === "number" && Number.isFinite(value) && value >= minimum
     ? value
     : fallback;
+
+const normalizePanelSizes = (
+  value: unknown,
+  fallback = DEFAULT_PANEL_SIZES,
+) => {
+  const panelSizes = value && typeof value === "object" ? value : {};
+  return {
+    leftSidebarWidth: normalizePanelSize(
+      (panelSizes as Partial<typeof DEFAULT_PANEL_SIZES>).leftSidebarWidth,
+      fallback.leftSidebarWidth,
+      160,
+    ),
+    rightPanelWidth: normalizePanelSize(
+      (panelSizes as Partial<typeof DEFAULT_PANEL_SIZES>).rightPanelWidth,
+      fallback.rightPanelWidth,
+      200,
+    ),
+    terminalHeight: normalizePanelSize(
+      (panelSizes as Partial<typeof DEFAULT_PANEL_SIZES>).terminalHeight,
+      fallback.terminalHeight,
+      120,
+    ),
+  };
+};
 
 const normalizeProvider = (value: unknown): "openai" | "anthropic" => {
   return value === "anthropic" ? "anthropic" : DEFAULT_PROVIDER;
@@ -247,6 +272,21 @@ export const mergePersistedState = (
     ...(state.panelVisibility ?? {}),
     middle: true,
   };
+  const mergedPanelSizes = normalizePanelSizes(state.panelSizes);
+  const rawProjectPanelSizesByProject =
+    state.projectPanelSizesByProject &&
+    typeof state.projectPanelSizesByProject === "object"
+      ? state.projectPanelSizesByProject
+      : {};
+  const projectPanelSizesByProject = Object.fromEntries(
+    allProjects.map((project) => [
+      project.id,
+      normalizePanelSizes(
+        rawProjectPanelSizesByProject[project.id],
+        mergedPanelSizes,
+      ),
+    ]),
+  );
   const rawProjectRightPanelOpenByProject =
     state.projectRightPanelOpenByProject &&
     typeof state.projectRightPanelOpenByProject === "object"
@@ -327,24 +367,9 @@ export const mergePersistedState = (
     chats,
     closedProjects,
     messagesByChatId,
-    panelSizes: {
-      leftSidebarWidth: normalizePanelSize(
-        state.panelSizes?.leftSidebarWidth,
-        DEFAULT_PANEL_SIZES.leftSidebarWidth,
-        160,
-      ),
-      rightPanelWidth: normalizePanelSize(
-        state.panelSizes?.rightPanelWidth,
-        DEFAULT_PANEL_SIZES.rightPanelWidth,
-        200,
-      ),
-      terminalHeight: normalizePanelSize(
-        state.panelSizes?.terminalHeight,
-        DEFAULT_PANEL_SIZES.terminalHeight,
-        120,
-      ),
-    },
+    panelSizes: mergedPanelSizes,
     panelVisibility: mergedPanelVisibility,
+    projectPanelSizesByProject,
     projectRightPanelOpenByProject,
     projects,
     settings: mergedSettings,
