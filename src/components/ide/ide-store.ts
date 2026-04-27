@@ -71,7 +71,7 @@ interface IdeState {
   nextTerminalOrdinalByProject: Record<string, number>;
   projectTerminalSessionIds: Record<string, string[]>;
   activeTerminalSessionIdByProject: Record<string, string | null>;
-  projectTerminalPanelOpen: boolean;
+  projectTerminalPanelOpenByProject: Record<string, boolean>;
   outputPanelOpen: boolean;
   claudePermissionMode: ClaudePermissionMode;
   codexPermissionMode: CodexPermissionMode;
@@ -392,7 +392,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   nextTerminalOrdinalByProject: {},
   projectTerminalSessionIds: {},
   activeTerminalSessionIdByProject: {},
-  projectTerminalPanelOpen: false,
+  projectTerminalPanelOpenByProject: {},
   outputPanelOpen: false,
   claudePermissionMode: "ask-permissions",
   codexPermissionMode: "default",
@@ -627,6 +627,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextActiveTerminalSessionIdByProject = {
         ...state.activeTerminalSessionIdByProject,
       };
+      const nextProjectTerminalPanelOpenByProject = {
+        ...state.projectTerminalPanelOpenByProject,
+      };
       const nextBrowserLoading = { ...state.browserLoading };
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
 
@@ -636,6 +639,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       delete nextTerminalOrdinalByProject[projectId];
       delete nextProjectTerminalSessionIds[projectId];
       delete nextActiveTerminalSessionIdByProject[projectId];
+      delete nextProjectTerminalPanelOpenByProject[projectId];
       delete nextDraftChatIdByProject[projectId];
       for (const tab of browserTabs) {
         delete nextBrowserLoading[tab.id];
@@ -675,14 +679,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         terminalSessionNames: nextTerminalSessionNames,
         projectTerminalSessionIds: nextProjectTerminalSessionIds,
         activeTerminalSessionIdByProject: nextActiveTerminalSessionIdByProject,
-        projectTerminalPanelOpen: Object.entries(
-          nextProjectTerminalSessionIds,
-        ).some(
-          ([nextProjectId, sessionIds]) =>
-            nextProjectId !== projectId && sessionIds.length > 0,
-        )
-          ? state.projectTerminalPanelOpen
-          : false,
+        projectTerminalPanelOpenByProject:
+          nextProjectTerminalPanelOpenByProject,
         browserLoading: nextBrowserLoading,
         browserTabsByProject: nextBrowserTabsByProject,
         activeBrowserTabIdByProject: nextActiveBrowserTabIdByProject,
@@ -1466,7 +1464,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const existingSessionIds = get().projectTerminalSessionIds[projectId] ?? [];
 
     if (existingSessionIds.length > 0) {
-      const panelOpen = get().projectTerminalPanelOpen;
+      const panelOpen =
+        get().projectTerminalPanelOpenByProject[projectId] ?? false;
       const activeSessionId =
         get().activeTerminalSessionIdByProject[projectId] ??
         existingSessionIds[existingSessionIds.length - 1] ??
@@ -1479,12 +1478,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             ...state.activeTerminalSessionIdByProject,
             [projectId]: activeSessionId,
           },
-          projectTerminalPanelOpen: true,
+          projectTerminalPanelOpenByProject: {
+            ...state.projectTerminalPanelOpenByProject,
+            [projectId]: true,
+          },
         }));
         return;
       }
 
-      set({ projectTerminalPanelOpen: false });
+      set((state) => ({
+        projectTerminalPanelOpenByProject: {
+          ...state.projectTerminalPanelOpenByProject,
+          [projectId]: false,
+        },
+      }));
       return;
     }
 
@@ -1531,7 +1538,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ...state.activeTerminalSessionIdByProject,
           [projectId]: sessionId,
         },
-        projectTerminalPanelOpen: true,
+        projectTerminalPanelOpenByProject: {
+          ...state.projectTerminalPanelOpenByProject,
+          [projectId]: true,
+        },
         terminalOutput: {
           ...state.terminalOutput,
           [sessionId]: "",
@@ -1624,12 +1634,18 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextTerminalTransport = { ...state.terminalTransport };
       const nextTerminalShell = { ...state.terminalShell };
       const nextTerminalSessionNames = { ...state.terminalSessionNames };
+      const nextProjectTerminalPanelOpenByProject = {
+        ...state.projectTerminalPanelOpenByProject,
+      };
 
       delete nextTerminalOutput[sessionId];
       delete nextTerminalStatus[sessionId];
       delete nextTerminalTransport[sessionId];
       delete nextTerminalShell[sessionId];
       delete nextTerminalSessionNames[sessionId];
+      if (nextSessionIds.length === 0) {
+        nextProjectTerminalPanelOpenByProject[projectId] = false;
+      }
 
       return {
         terminalOutput: nextTerminalOutput,
@@ -1641,8 +1657,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ...state.projectTerminalSessionIds,
           [projectId]: nextSessionIds,
         },
-        projectTerminalPanelOpen:
-          nextSessionIds.length > 0 ? state.projectTerminalPanelOpen : false,
+        projectTerminalPanelOpenByProject:
+          nextProjectTerminalPanelOpenByProject,
         activeTerminalSessionIdByProject: {
           ...state.activeTerminalSessionIdByProject,
           [projectId]: nextActiveSessionId,

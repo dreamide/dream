@@ -207,8 +207,8 @@ export const IdeHeader = () => {
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
-  const projectTerminalPanelOpen = useIdeStore(
-    (s) => s.projectTerminalPanelOpen,
+  const projectTerminalPanelOpenByProject = useIdeStore(
+    (s) => s.projectTerminalPanelOpenByProject,
   );
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
@@ -257,8 +257,11 @@ export const IdeHeader = () => {
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
     : false;
+  const activeProjectTerminalPanelOpen = activeProject
+    ? (projectTerminalPanelOpenByProject[activeProject.id] ?? false)
+    : false;
   const terminalHiddenWithActiveSession =
-    terminalOpen && !projectTerminalPanelOpen;
+    terminalOpen && !activeProjectTerminalPanelOpen;
   const desktopApi = getDesktopApi();
   const handleOpenSettings = useCallback(() => {
     setSettingsSection("appearance");

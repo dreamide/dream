@@ -157,8 +157,8 @@ export const IdeShell = () => {
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
-  const projectTerminalPanelOpen = useIdeStore(
-    (s) => s.projectTerminalPanelOpen,
+  const projectTerminalPanelOpenByProject = useIdeStore(
+    (s) => s.projectTerminalPanelOpenByProject,
   );
 
   // ── Derived values ──────────────────────────────────────────────────
@@ -178,8 +178,20 @@ export const IdeShell = () => {
     [projectTerminalSessionIds, projects],
   );
   const hasAnyProjectTerminalSessions = projectsWithTerminalSessions.length > 0;
+  const activeProjectTerminalPanelOpen = activeProjectId
+    ? (projectTerminalPanelOpenByProject[activeProjectId] ?? false)
+    : false;
   const terminalPanelVisible =
-    projectTerminalPanelOpen && hasActiveProjectTerminalSessions;
+    activeProjectTerminalPanelOpen && hasActiveProjectTerminalSessions;
+  const previousActiveProjectIdRef = useRef(activeProjectId);
+  const terminalPanelTransitionEnabledRef = useRef(false);
+  if (previousActiveProjectIdRef.current !== activeProjectId) {
+    previousActiveProjectIdRef.current = activeProjectId;
+    terminalPanelTransitionEnabledRef.current = false;
+  }
+  const terminalPanelTransition = terminalPanelTransitionEnabledRef.current
+    ? TERMINAL_PANEL_TRANSITION
+    : "none";
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const browserHostRef = useRef<HTMLDivElement | null>(null);
@@ -318,19 +330,23 @@ export const IdeShell = () => {
   const handleTerminalResizeEnd = useCallback(() => {
     const wrapper = terminalPanelWrapperRef.current;
     if (wrapper) {
-      wrapper.style.transition = TERMINAL_PANEL_TRANSITION;
+      wrapper.style.transition = terminalPanelTransition;
     }
 
     const el = terminalPanelRef.current;
     if (el) {
-      el.style.transition = TERMINAL_PANEL_TRANSITION;
+      el.style.transition = terminalPanelTransition;
     }
 
     setPanelSizes((current) => ({
       ...current,
       terminalHeight: terminalHeightRef.current,
     }));
-  }, [setPanelSizes]);
+  }, [setPanelSizes, terminalPanelTransition]);
+
+  useEffect(() => {
+    terminalPanelTransitionEnabledRef.current = true;
+  });
 
   // ── Effects ──────────────────────────────────────────────────────────
 
@@ -872,7 +888,7 @@ export const IdeShell = () => {
                     maxHeight: `calc(100% - ${CHAT_PANEL_MIN_HEIGHT_PX}px)`,
                     opacity: terminalPanelVisible ? 1 : 0,
                     pointerEvents: terminalPanelVisible ? "auto" : "none",
-                    transition: TERMINAL_PANEL_TRANSITION,
+                    transition: terminalPanelTransition,
                     willChange: "height, opacity",
                   }}
                 >
@@ -893,7 +909,7 @@ export const IdeShell = () => {
                         ? TERMINAL_PANEL_MIN_HEIGHT_PX
                         : 0,
                       maxHeight: `calc(100% - ${PANEL_RESIZE_HANDLE_SIZE_PX}px)`,
-                      transition: TERMINAL_PANEL_TRANSITION,
+                      transition: terminalPanelTransition,
                       willChange: "height, opacity",
                     }}
                   >
