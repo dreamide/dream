@@ -811,6 +811,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         chats: nextChats,
       };
     });
+    get().persist();
   },
 
   permanentlyDeleteChats: (chatIds) => {
@@ -860,6 +861,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         chats: nextChats,
       };
     });
+    get().persist();
   },
 
   restoreChats: (chatIds) => {
@@ -873,6 +875,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         idsToRestore.has(chat.id) ? { ...chat, deletedAt: null } : chat,
       ),
     }));
+    get().persist();
   },
 
   setMessagesForChat: (chatId, messages) => {

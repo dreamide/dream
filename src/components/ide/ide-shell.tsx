@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -41,6 +41,7 @@ const PANEL_TRANSITION_MS = 200;
 const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 const RIGHT_PANEL_TRANSITION = `${PANEL_TRANSITION}, flex-basis ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-grow ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-shrink ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 const TERMINAL_PANEL_TRANSITION = `height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+const CHAT_KEEP_ALIVE_LIMIT = 10;
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -81,6 +82,23 @@ export const IdeShell = () => {
         null)
       : null;
 
+  const [recentMountedChatIds, setRecentMountedChatIds] = useState<string[]>(
+    [],
+  );
+
+  useEffect(() => {
+    if (!activeChatId) {
+      return;
+    }
+
+    setRecentMountedChatIds((current) => [
+      activeChatId,
+      ...current
+        .filter((chatId) => chatId !== activeChatId)
+        .slice(0, CHAT_KEEP_ALIVE_LIMIT - 1),
+    ]);
+  }, [activeChatId]);
+
   const mountedChats = useMemo(() => {
     const mountedChatIds = new Set<string>();
     const nextChats = [] as typeof chats;
@@ -93,7 +111,7 @@ export const IdeShell = () => {
       }
     }
 
-    // Keep streaming chats mounted.
+    // Keep streaming chats mounted even when they are not recently viewed.
     for (const chat of chats) {
       if (!streamingChatIds[chat.id] || mountedChatIds.has(chat.id)) {
         continue;
@@ -103,8 +121,25 @@ export const IdeShell = () => {
       nextChats.push(chat);
     }
 
+    for (const chatId of recentMountedChatIds) {
+      if (
+        mountedChatIds.size >= CHAT_KEEP_ALIVE_LIMIT ||
+        mountedChatIds.has(chatId)
+      ) {
+        continue;
+      }
+
+      const recentChat = chats.find((chat) => chat.id === chatId);
+      if (!recentChat || recentChat.deletedAt !== null) {
+        continue;
+      }
+
+      mountedChatIds.add(recentChat.id);
+      nextChats.push(recentChat);
+    }
+
     return nextChats;
-  }, [activeChatId, chats, streamingChatIds]);
+  }, [activeChatId, chats, recentMountedChatIds, streamingChatIds]);
   const modalBrowserHidden = useModalBrowserHidden();
 
   const hydrate = useIdeStore((s) => s.hydrate);
@@ -135,6 +170,14 @@ export const IdeShell = () => {
     : EMPTY_TERMINAL_SESSION_IDS;
   const hasActiveProjectTerminalSessions =
     activeProjectTerminalSessionIds.length > 0;
+  const projectsWithTerminalSessions = useMemo(
+    () =>
+      projects.filter(
+        (project) => (projectTerminalSessionIds[project.id]?.length ?? 0) > 0,
+      ),
+    [projectTerminalSessionIds, projects],
+  );
+  const hasAnyProjectTerminalSessions = projectsWithTerminalSessions.length > 0;
   const terminalPanelVisible =
     projectTerminalPanelOpen && hasActiveProjectTerminalSessions;
 
@@ -819,7 +862,7 @@ export const IdeShell = () => {
                 </div>
 
                 {/* Terminal area */}
-                {activeProject && hasActiveProjectTerminalSessions ? (
+                {hasAnyProjectTerminalSessions ? (
                   <div
                     ref={terminalPanelWrapperRef}
                     className="shrink-0 overflow-hidden"
@@ -843,7 +886,7 @@ export const IdeShell = () => {
                     />
                     <div
                       ref={terminalPanelRef}
-                      className="shrink-0 overflow-hidden"
+                      className="relative shrink-0 overflow-hidden"
                       style={{
                         height: terminalPanelVisible
                           ? terminalHeightRef.current
@@ -856,10 +899,27 @@ export const IdeShell = () => {
                         willChange: "height, opacity",
                       }}
                     >
-                      <ProjectTerminalTabsPanel
-                        key={activeProject.id}
-                        projectId={activeProject.id}
-                      />
+                      {projectsWithTerminalSessions.map((project) => {
+                        const isVisible =
+                          project.id === activeProjectId &&
+                          terminalPanelVisible;
+
+                        return (
+                          <div
+                            aria-hidden={!isVisible}
+                            className={cn(
+                              "absolute inset-0 min-h-0",
+                              isVisible
+                                ? "visible pointer-events-auto"
+                                : "invisible pointer-events-none",
+                            )}
+                            inert={!isVisible}
+                            key={project.id}
+                          >
+                            <ProjectTerminalTabsPanel projectId={project.id} />
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null}

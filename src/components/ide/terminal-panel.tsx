@@ -179,6 +179,7 @@ export interface TerminalPanelProps {
   subtitle?: string;
   autoStart?: boolean;
   bordered?: boolean;
+  isActive?: boolean;
   showHeader?: boolean;
   onClose: () => void;
   onStart?: () => Promise<void> | void;
@@ -192,6 +193,7 @@ export const TerminalPanel = ({
   subtitle,
   autoStart = false,
   bordered = true,
+  isActive = true,
   showHeader = true,
   onClose,
   onStart,
@@ -247,7 +249,6 @@ export const TerminalPanel = ({
     terminal.loadAddon(webLinksAddon);
     terminal.open(host);
     fitAddon.fit();
-    terminal.focus();
 
     const initialOutput =
       useIdeStore.getState().terminalOutput[sessionId] ?? "";
@@ -301,6 +302,20 @@ export const TerminalPanel = ({
       terminal.dispose();
     };
   }, [autoStart, onStart, resolvedTheme, sessionId]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      terminalInstanceRef.current?.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isActive]);
 
   useEffect(() => {
     if (!resolvedTheme) {
@@ -398,9 +413,6 @@ export const ProjectTerminalTabsPanel = ({
     activeSessionId && sessionIds.includes(activeSessionId)
       ? activeSessionId
       : (sessionIds[0] ?? null);
-  const activeTabIndex = resolvedActiveSessionId
-    ? sessionIds.indexOf(resolvedActiveSessionId)
-    : -1;
 
   const resolveTerminalName = (sessionId: string, index: number) =>
     terminalSessionNames[sessionId]?.trim() || getDefaultTerminalName(index);
@@ -467,21 +479,36 @@ export const ProjectTerminalTabsPanel = ({
             />
           </div>
         </div>
-        <div className="min-h-0 flex-1">
-          <TerminalPanel
-            bordered={false}
-            onClose={() =>
-              void closeProjectTerminal(projectId, resolvedActiveSessionId)
-            }
-            sessionId={resolvedActiveSessionId}
-            showHeader={false}
-            stopOnClose={false}
-            title={
-              activeTabIndex >= 0
-                ? resolveTerminalName(resolvedActiveSessionId, activeTabIndex)
-                : "Terminal"
-            }
-          />
+        <div className="relative min-h-0 flex-1">
+          {sessionIds.map((sessionId, index) => {
+            const isActive = sessionId === resolvedActiveSessionId;
+
+            return (
+              <div
+                aria-hidden={!isActive}
+                className={cn(
+                  "absolute inset-0 min-h-0",
+                  isActive
+                    ? "visible pointer-events-auto"
+                    : "invisible pointer-events-none",
+                )}
+                inert={!isActive}
+                key={sessionId}
+              >
+                <TerminalPanel
+                  bordered={false}
+                  isActive={isActive}
+                  onClose={() =>
+                    void closeProjectTerminal(projectId, sessionId)
+                  }
+                  sessionId={sessionId}
+                  showHeader={false}
+                  stopOnClose={false}
+                  title={resolveTerminalName(sessionId, index)}
+                />
+              </div>
+            );
+          })}
         </div>
       </TerminalSurface>
     </div>

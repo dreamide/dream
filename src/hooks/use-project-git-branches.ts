@@ -4,26 +4,59 @@ import type {
   ProjectGitCheckoutResponse,
 } from "@/types/ide";
 
+type ProjectGitBranchesCacheEntry = {
+  error: string | null;
+  refreshToken: number;
+  status: ProjectGitBranchesResponse | null;
+};
+
+const gitBranchesCache = new Map<string, ProjectGitBranchesCacheEntry>();
+const gitBranchesInflightRequests = new Map<
+  string,
+  Promise<ProjectGitBranchesCacheEntry>
+>();
+
 const readResponseText = async (response: Response): Promise<string> => {
   const text = await response.text();
   return text.trim() || `Request failed (${response.status}).`;
 };
+
+const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
+  projectPath?.trim() ?? "";
 
 export const useProjectGitBranches = (
   projectPath: string | null | undefined,
   refreshKey?: number,
 ) => {
   const refreshToken = refreshKey ?? 0;
-  const [status, setStatus] = useState<ProjectGitBranchesResponse | null>(null);
+  const cacheKey = getProjectPathCacheKey(projectPath);
+  const cachedEntry = cacheKey ? gitBranchesCache.get(cacheKey) : null;
+  const [status, setStatus] = useState<ProjectGitBranchesResponse | null>(
+    cachedEntry?.refreshToken === refreshToken
+      ? (cachedEntry.status ?? null)
+      : null,
+  );
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    cachedEntry?.refreshToken === refreshToken
+      ? (cachedEntry.error ?? null)
+      : null,
+  );
 
   const refresh = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!projectPath) {
+    async (signal?: AbortSignal, force = false) => {
+      if (!cacheKey || !projectPath) {
         setStatus(null);
         setError(null);
+        setLoading(false);
+        return;
+      }
+
+      const cached = gitBranchesCache.get(cacheKey);
+      if (!force && cached?.refreshToken === refreshToken) {
+        setStatus(cached.status);
+        setError(cached.error);
         setLoading(false);
         return;
       }
@@ -32,36 +65,64 @@ export const useProjectGitBranches = (
       setError(null);
 
       try {
-        const response = await fetch("/api/project-git-branches", {
-          body: JSON.stringify({ projectPath }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal,
-        });
+        const inflightKey = `${cacheKey}:${refreshToken}`;
+        let request = gitBranchesInflightRequests.get(inflightKey);
 
-        if (!response.ok) {
-          throw new Error(await readResponseText(response));
+        if (!request || force) {
+          request = (async () => {
+            try {
+              const response = await fetch("/api/project-git-branches", {
+                body: JSON.stringify({ projectPath }),
+                headers: { "Content-Type": "application/json" },
+                method: "POST",
+              });
+
+              if (!response.ok) {
+                throw new Error(await readResponseText(response));
+              }
+
+              const entry: ProjectGitBranchesCacheEntry = {
+                error: null,
+                refreshToken,
+                status: (await response.json()) as ProjectGitBranchesResponse,
+              };
+              gitBranchesCache.set(cacheKey, entry);
+              return entry;
+            } catch (error) {
+              const entry: ProjectGitBranchesCacheEntry = {
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to read Git branches.",
+                refreshToken,
+                status: null,
+              };
+              gitBranchesCache.set(cacheKey, entry);
+              return entry;
+            } finally {
+              gitBranchesInflightRequests.delete(inflightKey);
+            }
+          })();
+
+          if (!force) {
+            gitBranchesInflightRequests.set(inflightKey, request);
+          }
         }
 
-        setStatus((await response.json()) as ProjectGitBranchesResponse);
-      } catch (error) {
+        const entry = await request;
         if (signal?.aborted) {
           return;
         }
 
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Failed to read Git branches.",
-        );
-        setStatus(null);
+        setStatus(entry.status);
+        setError(entry.error);
       } finally {
         if (!signal?.aborted) {
           setLoading(false);
         }
       }
     },
-    [projectPath],
+    [cacheKey, projectPath, refreshToken],
   );
 
   useEffect(() => {
@@ -98,6 +159,13 @@ export const useProjectGitBranches = (
         }
 
         const payload = (await response.json()) as ProjectGitCheckoutResponse;
+        if (cacheKey) {
+          gitBranchesCache.set(cacheKey, {
+            error: null,
+            refreshToken,
+            status: payload,
+          });
+        }
         setStatus(payload);
         return payload;
       } catch (error) {
@@ -111,7 +179,7 @@ export const useProjectGitBranches = (
         setSwitching(false);
       }
     },
-    [projectPath],
+    [cacheKey, projectPath, refreshToken],
   );
 
   return {
@@ -121,7 +189,7 @@ export const useProjectGitBranches = (
     error,
     isRepo: status?.isRepo ?? false,
     loading,
-    refresh: () => refresh(),
+    refresh: () => refresh(undefined, true),
     repoRoot: status?.repoRoot ?? null,
     status,
     switching,

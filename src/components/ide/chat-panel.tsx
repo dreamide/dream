@@ -1358,10 +1358,7 @@ export const ChatPanel = ({
                     <FilePenLine className="size-4" />
                     Rename
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => deleteChat(chat.id)}
-                    variant="destructive"
-                  >
+                  <DropdownMenuItem onClick={() => deleteChat(chat.id)}>
                     <Trash2 className="size-4" />
                     Delete
                   </DropdownMenuItem>

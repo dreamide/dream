@@ -5,7 +5,7 @@ import http from "node:http";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
-
+import { readMigrationFiles } from "drizzle-orm/migrator";
 import {
   app,
   BrowserWindow,
@@ -84,6 +84,7 @@ const DEFAULT_PERSISTED_STATE = {
 };
 const RELATIONAL_SCHEMA_VERSION = 2;
 const SQLITE_STATE_FILENAME = "dream.sqlite";
+const DRIZZLE_MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
 let stateDatabase = null;
 
 function cloneDefaultPersistedState() {
@@ -680,7 +681,9 @@ function loadStateFromRelationalDatabase(database) {
 
   for (const project of allProjects) {
     const requestedChatId = activeChatIdByProject[project.id];
-    const projectChats = chats.filter((chat) => chat.projectId === project.id);
+    const projectChats = chats.filter(
+      (chat) => chat.projectId === project.id && chat.deletedAt === null,
+    );
     activeChatIdByProject[project.id] = projectChats.some(
       (chat) => chat.id === requestedChatId,
     )
@@ -774,6 +777,126 @@ function loadStateFromRelationalDatabase(database) {
   };
 }
 
+function ensureTableColumn(database, tableName, columnName, columnDefinition) {
+  const rows = database.prepare(`PRAGMA table_info(${tableName})`).all();
+  const hasColumn = rows.some((row) => row?.name === columnName);
+  if (hasColumn) {
+    return;
+  }
+
+  database.exec(
+    `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`,
+  );
+}
+
+function getDreamMigrationDirective(statement) {
+  const lines = statement
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const directiveLine = lines.find((line) =>
+    line.startsWith("-- dream:ensure-column "),
+  );
+
+  if (!directiveLine) {
+    return null;
+  }
+
+  const [, , tableName, columnName, ...definitionParts] =
+    directiveLine.split(/\s+/);
+  const columnDefinition = definitionParts.join(" ").trim();
+
+  if (!tableName || !columnName || !columnDefinition) {
+    throw new Error(`Invalid Dream migration directive: ${directiveLine}`);
+  }
+
+  return {
+    columnDefinition,
+    columnName,
+    tableName,
+  };
+}
+
+function stripDreamMigrationDirectives(statement) {
+  return statement
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith("-- dream:"))
+    .join("\n")
+    .trim();
+}
+
+function runDrizzleMigrations(database) {
+  const migrations = readMigrationFiles({
+    migrationsFolder: DRIZZLE_MIGRATIONS_FOLDER,
+  });
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      hash TEXT NOT NULL,
+      created_at NUMERIC
+    );
+  `);
+
+  const lastMigration = database
+    .prepare(
+      `
+        SELECT id, hash, created_at
+        FROM __drizzle_migrations
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+    )
+    .get();
+  const lastMigrationTimestamp = Number(lastMigration?.created_at ?? 0);
+
+  database.exec("BEGIN");
+
+  try {
+    for (const migration of migrations) {
+      if (lastMigrationTimestamp >= migration.folderMillis) {
+        continue;
+      }
+
+      for (const rawStatement of migration.sql) {
+        const statement = rawStatement.trim();
+        if (!statement) {
+          continue;
+        }
+
+        const directive = getDreamMigrationDirective(statement);
+        if (directive) {
+          ensureTableColumn(
+            database,
+            directive.tableName,
+            directive.columnName,
+            directive.columnDefinition,
+          );
+        }
+
+        const sqlStatement = stripDreamMigrationDirectives(statement);
+        if (sqlStatement) {
+          database.exec(sqlStatement);
+        }
+      }
+
+      database
+        .prepare(
+          `
+            INSERT INTO __drizzle_migrations (hash, created_at)
+            VALUES (?, ?)
+          `,
+        )
+        .run(migration.hash, migration.folderMillis);
+    }
+
+    database.exec("COMMIT");
+  } catch (error) {
+    database.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function getStateDatabase() {
   if (stateDatabase) {
     return stateDatabase;
@@ -789,54 +912,8 @@ function getStateDatabase() {
     PRAGMA journal_mode = WAL;
     DROP TABLE IF EXISTS app_state;
     DROP TABLE IF EXISTS app_meta;
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      version INTEGER PRIMARY KEY,
-      applied_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS config (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL CHECK (json_valid(value)),
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS projects (
-      id TEXT PRIMARY KEY,
-      path TEXT NOT NULL,
-      normalized_path TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'open',
-      sort_order INTEGER NOT NULL DEFAULT 0,
-      metadata TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata)),
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS chats (
-      id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      metadata TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata)),
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      deleted_at TEXT NULL
-    );
-    CREATE TABLE IF NOT EXISTS chat_messages (
-      id TEXT PRIMARY KEY,
-      chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
-      role TEXT NOT NULL,
-      sort_order INTEGER NOT NULL,
-      payload TEXT NOT NULL CHECK (json_valid(payload)),
-      metadata TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(metadata)),
-      created_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_projects_status_order
-      ON projects(status, sort_order);
-    CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_order
-      ON chat_messages(chat_id, sort_order);
   `);
-  database.exec(`
-    DROP INDEX IF EXISTS idx_chats_project_updated;
-    CREATE INDEX IF NOT EXISTS idx_chats_project_updated
-      ON chats(project_id, deleted_at, updated_at DESC);
-  `);
+  runDrizzleMigrations(database);
   database
     .prepare(
       `
