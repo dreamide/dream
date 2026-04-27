@@ -30,6 +30,12 @@ const rendererUrlFromEnv = process.env.ELECTRON_RENDERER_URL?.trim();
 const developmentRendererUrl =
   rendererUrlFromEnv || `http://127.0.0.1:${internalRendererPort}`;
 const apiServerPort = Number(process.env.ELECTRON_API_PORT ?? 3211);
+const disableTerminalShell =
+  process.env.DREAM_DISABLE_TERMINAL_SHELL === "1" ||
+  process.env.DREAM_DISABLE_TERMINAL_SHELL === "true";
+const debugTerminalStartup =
+  process.env.DREAM_DEBUG_TERMINAL_STARTUP === "1" ||
+  process.env.DREAM_DEBUG_TERMINAL_STARTUP === "true";
 const rendererStartupTimeoutMs = Number(
   process.env.VITE_READY_TIMEOUT_MS ?? 45000,
 );
@@ -1165,7 +1171,16 @@ function buildTerminalShellCandidates(preferredShellPath) {
       return;
     }
 
-    const args = parsed.args.length > 0 ? parsed.args : defaultShellArgs;
+    let args = parsed.args.length > 0 ? parsed.args : defaultShellArgs;
+    if (process.platform === "win32" && parsed.args.length === 0) {
+      const executableName = path.basename(parsed.command).toLowerCase();
+      if (
+        executableName === "powershell.exe" ||
+        executableName === "pwsh.exe"
+      ) {
+        args = ["-NoLogo"];
+      }
+    }
     const key = `${parsed.command}\u0000${args.join("\u0000")}`;
     if (seen.has(key)) {
       return;
@@ -1204,7 +1219,7 @@ function getDefaultTerminalShellCommand() {
 function getPipeFallbackShell() {
   if (process.platform === "win32") {
     return {
-      args: [],
+      args: ["-NoLogo"],
       command: "powershell.exe",
       label: "PowerShell pipe fallback",
     };
@@ -1222,6 +1237,43 @@ function getPipeFallbackShell() {
     args: ["-i"],
     command: "/bin/sh",
     label: "sh pipe fallback",
+  };
+}
+
+function createTerminalStartupLogger(projectId, shellCommand) {
+  if (!debugTerminalStartup) {
+    return () => {};
+  }
+
+  const startedAt = Date.now();
+  const chunks = [];
+  let logged = false;
+
+  const flush = () => {
+    if (logged) {
+      return;
+    }
+
+    logged = true;
+    console.log(
+      "[terminal startup]",
+      JSON.stringify({
+        chunks,
+        projectId,
+        shell: shellCommand,
+      }),
+    );
+  };
+
+  setTimeout(flush, 1500);
+
+  return (chunk) => {
+    if (logged || Date.now() - startedAt > 1500) {
+      flush();
+      return;
+    }
+
+    chunks.push(String(chunk));
   };
 }
 
@@ -2452,15 +2504,16 @@ ipcMain.handle(
 
     stopTerminalSession(projectId);
 
+    if (disableTerminalShell) {
+      sendToRenderer("terminal:status", {
+        projectId,
+        status: "stopped",
+      });
+      return { status: "stopped" };
+    }
+
     const shellCandidates = buildTerminalShellCandidates(preferredShellPath);
     const resolvedCwd = resolveTerminalCwd(cwd);
-
-    if (resolvedCwd !== cwd) {
-      sendToRenderer("terminal:data", {
-        chunk: `\r\n\u001b[33m[terminal warning] CWD not found: ${cwd}. Using ${resolvedCwd}.\u001b[0m\r\n`,
-        projectId,
-      });
-    }
 
     let terminalSession;
     let chosenShell = null;
@@ -2561,6 +2614,10 @@ ipcMain.handle(
         pipeFallbackCandidate.args,
       );
       terminalShells.set(projectId, shellCommand);
+      const logTerminalStartupChunk = createTerminalStartupLogger(
+        projectId,
+        shellCommand,
+      );
 
       sendToRenderer("terminal:status", {
         pid: child.pid,
@@ -2568,11 +2625,6 @@ ipcMain.handle(
         shell: shellCommand,
         status: "running",
         transport: "pipe",
-      });
-
-      sendToRenderer("terminal:data", {
-        chunk: `\u001b[2m[terminal started (pipe fallback): ${shellCommand}]\u001b[0m\r\n`,
-        projectId,
       });
 
       if (spawnErrors.length > 0) {
@@ -2583,6 +2635,7 @@ ipcMain.handle(
       }
 
       child.stdout?.on("data", (chunk) => {
+        logTerminalStartupChunk(chunk);
         sendToRenderer("terminal:data", {
           chunk: chunk.toString(),
           projectId,
@@ -2590,6 +2643,7 @@ ipcMain.handle(
       });
 
       child.stderr?.on("data", (chunk) => {
+        logTerminalStartupChunk(chunk);
         sendToRenderer("terminal:data", {
           chunk: chunk.toString(),
           projectId,
@@ -2656,6 +2710,10 @@ ipcMain.handle(
       chosenShell.args,
     );
     terminalShells.set(projectId, shellCommand);
+    const logTerminalStartupChunk = createTerminalStartupLogger(
+      projectId,
+      shellCommand,
+    );
     sendToRenderer("terminal:status", {
       pid: terminalSession.pid,
       projectId,
@@ -2664,12 +2722,8 @@ ipcMain.handle(
       transport: "pty",
     });
 
-    sendToRenderer("terminal:data", {
-      chunk: `\u001b[2m[terminal started: ${shellCommand}]\u001b[0m\r\n`,
-      projectId,
-    });
-
     terminalSession.onData((chunk) => {
+      logTerminalStartupChunk(chunk);
       sendToRenderer("terminal:data", {
         chunk,
         projectId,
