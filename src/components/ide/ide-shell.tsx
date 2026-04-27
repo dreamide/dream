@@ -862,67 +862,68 @@ export const IdeShell = () => {
                 </div>
 
                 {/* Terminal area */}
-                {hasAnyProjectTerminalSessions ? (
+                <div
+                  ref={terminalPanelWrapperRef}
+                  className="shrink-0 overflow-hidden"
+                  style={{
+                    height: terminalPanelVisible
+                      ? terminalHeightRef.current + PANEL_RESIZE_HANDLE_SIZE_PX
+                      : 0,
+                    maxHeight: `calc(100% - ${CHAT_PANEL_MIN_HEIGHT_PX}px)`,
+                    opacity: terminalPanelVisible ? 1 : 0,
+                    pointerEvents: terminalPanelVisible ? "auto" : "none",
+                    transition: TERMINAL_PANEL_TRANSITION,
+                    willChange: "height, opacity",
+                  }}
+                >
+                  <PanelResizeHandle
+                    onResize={handleTerminalResize}
+                    onResizeEnd={handleTerminalResizeEnd}
+                    onResizeStart={handleTerminalResizeStart}
+                    side="top"
+                  />
                   <div
-                    ref={terminalPanelWrapperRef}
-                    className="shrink-0 overflow-hidden"
+                    ref={terminalPanelRef}
+                    className="relative shrink-0 overflow-hidden"
                     style={{
                       height: terminalPanelVisible
-                        ? terminalHeightRef.current +
-                          PANEL_RESIZE_HANDLE_SIZE_PX
+                        ? terminalHeightRef.current
                         : 0,
-                      maxHeight: `calc(100% - ${CHAT_PANEL_MIN_HEIGHT_PX}px)`,
-                      opacity: terminalPanelVisible ? 1 : 0,
-                      pointerEvents: terminalPanelVisible ? "auto" : "none",
+                      minHeight: terminalPanelVisible
+                        ? TERMINAL_PANEL_MIN_HEIGHT_PX
+                        : 0,
+                      maxHeight: `calc(100% - ${PANEL_RESIZE_HANDLE_SIZE_PX}px)`,
                       transition: TERMINAL_PANEL_TRANSITION,
                       willChange: "height, opacity",
                     }}
                   >
-                    <PanelResizeHandle
-                      onResize={handleTerminalResize}
-                      onResizeEnd={handleTerminalResizeEnd}
-                      onResizeStart={handleTerminalResizeStart}
-                      side="top"
-                    />
-                    <div
-                      ref={terminalPanelRef}
-                      className="relative shrink-0 overflow-hidden"
-                      style={{
-                        height: terminalPanelVisible
-                          ? terminalHeightRef.current
-                          : 0,
-                        minHeight: terminalPanelVisible
-                          ? TERMINAL_PANEL_MIN_HEIGHT_PX
-                          : 0,
-                        maxHeight: `calc(100% - ${PANEL_RESIZE_HANDLE_SIZE_PX}px)`,
-                        transition: TERMINAL_PANEL_TRANSITION,
-                        willChange: "height, opacity",
-                      }}
-                    >
-                      {projectsWithTerminalSessions.map((project) => {
-                        const isVisible =
-                          project.id === activeProjectId &&
-                          terminalPanelVisible;
+                    {hasAnyProjectTerminalSessions
+                      ? projectsWithTerminalSessions.map((project) => {
+                          const isVisible =
+                            project.id === activeProjectId &&
+                            terminalPanelVisible;
 
-                        return (
-                          <div
-                            aria-hidden={!isVisible}
-                            className={cn(
-                              "absolute inset-0 min-h-0",
-                              isVisible
-                                ? "visible pointer-events-auto"
-                                : "invisible pointer-events-none",
-                            )}
-                            inert={!isVisible}
-                            key={project.id}
-                          >
-                            <ProjectTerminalTabsPanel projectId={project.id} />
-                          </div>
-                        );
-                      })}
-                    </div>
+                          return (
+                            <div
+                              aria-hidden={!isVisible}
+                              className={cn(
+                                "absolute inset-0 min-h-0",
+                                isVisible
+                                  ? "visible pointer-events-auto"
+                                  : "invisible pointer-events-none",
+                              )}
+                              inert={!isVisible}
+                              key={project.id}
+                            >
+                              <ProjectTerminalTabsPanel
+                                projectId={project.id}
+                              />
+                            </div>
+                          );
+                        })
+                      : null}
                   </div>
-                ) : null}
+                </div>
               </div>
             </div>
 
