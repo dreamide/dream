@@ -699,7 +699,13 @@ const FileTreeNodeView = ({ node }: { node: FileTreeNode }) => {
   );
 };
 
-export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
+export const ListFilesChip = ({
+  part,
+  projectPath,
+}: {
+  part: ToolLikePart;
+  projectPath?: string | null;
+}) => {
   const [expanded, setExpanded] = useState(false);
   const output = part.output;
   const isRunning =
@@ -750,7 +756,6 @@ export const ListFilesChip = ({ part }: { part: ToolLikePart }) => {
   const hasOutput = files !== null && root !== null;
   const hasRawOutput = output !== undefined;
   const canExpand = hasError || hasRawOutput;
-  const projectPath = useIdeStore((s) => s.getActiveProject()?.path ?? null);
   const rawDirectory =
     isRecord(part.input) && isString(part.input.directory)
       ? part.input.directory

@@ -668,7 +668,13 @@ const ChatMessage = memo(
                       return <ReadFileChip key={key} part={chipPart_} />;
                     }
                     if (chipToolKind === "list") {
-                      return <ListFilesChip key={key} part={chipPart_} />;
+                      return (
+                        <ListFilesChip
+                          key={key}
+                          part={chipPart_}
+                          projectPath={projectPath}
+                        />
+                      );
                     }
                     if (chipToolKind === "write") {
                       return (

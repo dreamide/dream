@@ -27,14 +27,19 @@ import { ChangesPanel } from "./changes-panel";
 import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
+import type { RightPanelView } from "./ide-types";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const RIGHT_PANEL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
 
 export interface BrowserPanelProps {
-  onSyncBrowserBounds: (reload?: boolean) => void;
+  active?: boolean;
   browserHostRef: RefObject<HTMLDivElement | null>;
+  onRightPanelViewChange?: (view: RightPanelView) => void;
+  onSyncBrowserBounds: (reload?: boolean) => void;
+  projectId?: string | null;
+  rightPanelView?: RightPanelView;
 }
 
 const normalizeBrowserUrlInput = (value: string) => {
@@ -59,13 +64,20 @@ const getBrowserTabTitle = (url: string) => {
 };
 
 const BrowserViewport = ({
+  active = true,
   onSyncBrowserBounds,
   browserHostRef,
+  projectId: requestedProjectId,
 }: BrowserPanelProps) => {
   const browserContainerRef = useRef<HTMLDivElement | null>(null);
   const [browserUrlDraft, setBrowserUrlDraft] = useState("");
 
-  const activeProject = useIdeStore((state) => state.getActiveProject());
+  const activeProject = useIdeStore((state) =>
+    requestedProjectId
+      ? (state.projects.find((project) => project.id === requestedProjectId) ??
+        null)
+      : state.getActiveProject(),
+  );
   const browserError = useIdeStore((state) => state.browserError);
   const browserLoading = useIdeStore((state) => state.browserLoading);
   const browserTabsByProject = useIdeStore(
@@ -115,20 +127,24 @@ const BrowserViewport = ({
   );
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
+
     if (!activeProject) {
       return;
     }
 
     ensureBrowserTabs(activeProject.id, activeProject.browserUrl);
-  }, [activeProject, ensureBrowserTabs]);
+  }, [active, activeProject, ensureBrowserTabs]);
 
   useEffect(() => {
-    if (!activeProjectId || !tabs.length || activeTabId) {
+    if (!active || !activeProjectId || !tabs.length || activeTabId) {
       return;
     }
 
     setActiveBrowserTab(activeProjectId, tabs[0].id);
-  }, [activeProjectId, activeTabId, setActiveBrowserTab, tabs]);
+  }, [active, activeProjectId, activeTabId, setActiveBrowserTab, tabs]);
 
   useEffect(() => {
     setBrowserUrlDraft(activeTab?.url ?? "");
@@ -136,11 +152,15 @@ const BrowserViewport = ({
 
   const syncAfterStateChange = useCallback(
     (reload = false) => {
+      if (!active) {
+        return;
+      }
+
       requestAnimationFrame(() => {
         onSyncBrowserBounds(reload);
       });
     },
-    [onSyncBrowserBounds],
+    [active, onSyncBrowserBounds],
   );
 
   const handleActivateTab = useCallback(
@@ -325,6 +345,10 @@ const BrowserViewport = ({
   }, [activeProjectId, activeTab, setBrowserError]);
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
+
     const container = browserContainerRef.current;
     if (!container) {
       return;
@@ -339,10 +363,15 @@ const BrowserViewport = ({
       window.cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [onSyncBrowserBounds]);
+  }, [active, onSyncBrowserBounds]);
 
   return (
-    <div id="browser-panel" className="flex h-full flex-col overflow-hidden">
+    <div
+      id={
+        activeProjectId ? `browser-panel-${activeProjectId}` : "browser-panel"
+      }
+      className="flex h-full flex-col overflow-hidden"
+    >
       <div className="flex items-end bg-muted/50 px-1.5 py-1.5">
         <StandardTabs
           activeId={activeTab?.id ?? null}
@@ -473,24 +502,27 @@ const BrowserViewport = ({
 const MemoizedBrowserViewport = memo(BrowserViewport);
 MemoizedBrowserViewport.displayName = "BrowserViewport";
 
-const RightPanelTabs = () => {
-  const rightPanelView = useIdeStore((state) => state.rightPanelView);
-  const setRightPanelView = useIdeStore((state) => state.setRightPanelView);
-
+const RightPanelTabs = ({
+  onValueChange,
+  value,
+}: {
+  onValueChange: (view: RightPanelView) => void;
+  value: RightPanelView;
+}) => {
   const handleValueChange = useCallback(
     (value: string) => {
       if (value !== "browser" && value !== "explorer" && value !== "changes") {
         return;
       }
 
-      setRightPanelView(value);
+      onValueChange(value);
     },
-    [setRightPanelView],
+    [onValueChange],
   );
 
   return (
     <div className="flex items-center px-2 pb-2">
-      <Tabs onValueChange={handleValueChange} value={rightPanelView}>
+      <Tabs onValueChange={handleValueChange} value={value}>
         <TabsList className="h-8 bg-muted/60">
           <TabsTrigger
             aria-label="Show changes"
@@ -523,12 +555,21 @@ const RightPanelTabs = () => {
 };
 
 export const BrowserPanel = (props: BrowserPanelProps) => {
-  const rightPanelView = useIdeStore((state) => state.rightPanelView);
+  const fallbackRightPanelView = useIdeStore((state) => state.rightPanelView);
+  const setFallbackRightPanelView = useIdeStore(
+    (state) => state.setRightPanelView,
+  );
   const baseColor = useUiStore((state) => state.baseColor);
+  const rightPanelView = props.rightPanelView ?? fallbackRightPanelView;
+  const setRightPanelView =
+    props.onRightPanelViewChange ?? setFallbackRightPanelView;
 
   return (
     <div className="flex h-full min-h-0 flex-col pt-2">
-      <RightPanelTabs />
+      <RightPanelTabs
+        onValueChange={setRightPanelView}
+        value={rightPanelView}
+      />
       <div
         className={cn(
           RIGHT_PANEL_SURFACE_CLASSES,
@@ -542,7 +583,10 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
             rightPanelView === "explorer" ? "" : "hidden",
           )}
         >
-          <FileExplorerPanel />
+          <FileExplorerPanel
+            active={props.active}
+            projectId={props.projectId}
+          />
         </div>
         <div
           className={cn(
@@ -550,7 +594,7 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
             rightPanelView === "changes" ? "" : "hidden",
           )}
         >
-          <ChangesPanel />
+          <ChangesPanel active={props.active} projectId={props.projectId} />
         </div>
         <div
           className={cn(

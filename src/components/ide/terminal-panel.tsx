@@ -388,8 +388,10 @@ export const TerminalPanel = ({
 };
 
 export const ProjectTerminalTabsPanel = ({
+  active = true,
   projectId,
 }: {
+  active?: boolean;
   projectId: string;
 }) => {
   const projectTerminalSessionIds = useIdeStore(
@@ -497,7 +499,7 @@ export const ProjectTerminalTabsPanel = ({
               >
                 <TerminalPanel
                   bordered={false}
-                  isActive={isActive}
+                  isActive={active && isActive}
                   onClose={() =>
                     void closeProjectTerminal(projectId, sessionId)
                   }

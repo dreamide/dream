@@ -25,6 +25,11 @@ const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
 const FILE_TREE_MIN_WIDTH_PX = 250;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
 
+export interface FileExplorerPanelProps {
+  active?: boolean;
+  projectId?: string | null;
+}
+
 type ProjectFilesListResponse = {
   count: number;
   files: string[];
@@ -163,8 +168,16 @@ const readResponseText = async (response: Response): Promise<string> => {
 const isMissingPathError = (message: string | null) =>
   Boolean(message && /ENOENT|no such file or directory/i.test(message));
 
-const FileExplorerPanelImpl = () => {
-  const activeProject = useIdeStore((s) => s.getActiveProject());
+const FileExplorerPanelImpl = ({
+  active = true,
+  projectId: requestedProjectId,
+}: FileExplorerPanelProps) => {
+  const activeProject = useIdeStore((s) =>
+    requestedProjectId
+      ? (s.projects.find((project) => project.id === requestedProjectId) ??
+        null)
+      : s.getActiveProject(),
+  );
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const treePaneRef = useRef<HTMLDivElement | null>(null);
   const treeWidthRef = useRef<number | null>(null);
@@ -260,6 +273,10 @@ const FileExplorerPanelImpl = () => {
   }, [projectPath]);
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
+
     if (!projectId || !projectPath) {
       return;
     }
@@ -269,9 +286,13 @@ const FileExplorerPanelImpl = () => {
     }
 
     void loadProjectFiles();
-  }, [fileListsByProject, loadProjectFiles, projectId, projectPath]);
+  }, [active, fileListsByProject, loadProjectFiles, projectId, projectPath]);
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
+
     if (!projectId || !projectPath || !selectedFilePath) {
       return;
     }
@@ -336,7 +357,7 @@ const FileExplorerPanelImpl = () => {
     return () => {
       cancelled = true;
     };
-  }, [fileContentsByProject, projectId, projectPath, selectedFilePath]);
+  }, [active, fileContentsByProject, projectId, projectPath, selectedFilePath]);
 
   const { defaultExpanded, root } = useMemo(() => {
     if (files.length === 0) {

@@ -33,6 +33,11 @@ import { useIdeStore } from "./ide-store";
 
 type DiffViewMode = "unified" | "split";
 
+export interface ChangesPanelProps {
+  active?: boolean;
+  projectId?: string | null;
+}
+
 const CHANGE_STATUS_LABELS: Partial<Record<ProjectGitChangeStatus, string>> = {
   deleted: "Removed",
   renamed: "Renamed",
@@ -295,8 +300,15 @@ const getExpandedPaths = (
   return expandedPathsByProject[projectId] ?? [];
 };
 
-const ChangesPanelImpl = () => {
-  const activeProject = useIdeStore((s) => s.getActiveProject());
+const ChangesPanelImpl = ({
+  projectId: requestedProjectId,
+}: ChangesPanelProps) => {
+  const activeProject = useIdeStore((s) =>
+    requestedProjectId
+      ? (s.projects.find((project) => project.id === requestedProjectId) ??
+        null)
+      : s.getActiveProject(),
+  );
   const diffLoadQueueRef = useRef<string[]>([]);
   const diffLoadQueuedPathsRef = useRef(new Set<string>());
   const diffLoadProcessingRef = useRef(false);
