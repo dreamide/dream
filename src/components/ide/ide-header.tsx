@@ -46,11 +46,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import Sparkles from "@/components/ui/sparkles";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { DetectedEditor } from "@/types/ide";
@@ -456,22 +451,16 @@ export const IdeHeader = () => {
             <StandardTabs
               activeId={activeProjectId}
               after={
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        aria-label="Add project"
-                        className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-                        onClick={() => void handleAddProject()}
-                        size="icon-sm"
-                        variant="ghost"
-                      />
-                    }
-                  >
-                    <Plus className="size-4 shrink-0" />
-                  </TooltipTrigger>
-                  <TooltipContent>Add project</TooltipContent>
-                </Tooltip>
+                <Button
+                  aria-label="Add project"
+                  className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                  onClick={() => void handleAddProject()}
+                  size="icon-sm"
+                  title="Add project"
+                  variant="ghost"
+                >
+                  <Plus className="size-4 shrink-0" />
+                </Button>
               }
               ariaLabel="Projects"
               interactiveClassName="[-webkit-app-region:no-drag]"
@@ -612,71 +601,53 @@ export const IdeHeader = () => {
             )}
           />
           <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    aria-label="Chat history"
-                    className={cn(
-                      "size-8 [-webkit-app-region:no-drag]",
-                      historyOpen
-                        ? "text-foreground hover:text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                    onClick={() => setHistoryOpen((open) => !open)}
-                    size="icon"
-                    variant="ghost"
-                  />
-                }
-              >
-                <History className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>Chat history</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    aria-label="New chat"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-                    disabled={!activeProject}
-                    onClick={handleAddChat}
-                    size="icon-sm"
-                    variant="ghost"
-                  />
-                }
-              >
-                <MessageSquarePlus className="size-4 shrink-0" />
-              </TooltipTrigger>
-              <TooltipContent>New chat</TooltipContent>
-            </Tooltip>
+            <Button
+              aria-label="Chat history"
+              className={cn(
+                "size-8 [-webkit-app-region:no-drag]",
+                historyOpen
+                  ? "text-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setHistoryOpen((open) => !open)}
+              size="icon"
+              title="Chat history"
+              variant="ghost"
+            >
+              <History className="size-4" />
+            </Button>
+            <Button
+              aria-label="New chat"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+              disabled={!activeProject}
+              onClick={handleAddChat}
+              size="icon-sm"
+              title="New chat"
+              variant="ghost"
+            >
+              <MessageSquarePlus className="size-4 shrink-0" />
+            </Button>
           </div>
           <div className="min-w-0 flex-1" />
           <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    aria-label="Open terminal"
-                    className={cn(
-                      "h-8 w-8 p-0 [-webkit-app-region:no-drag]",
-                      terminalHiddenWithActiveSession
-                        ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                        : terminalOpen
-                          ? "text-foreground hover:text-foreground"
-                          : "text-muted-foreground/50 hover:text-foreground",
-                    )}
-                    disabled={!activeProject}
-                    onClick={handleOpenTerminal}
-                    size="icon-sm"
-                    variant="ghost"
-                  />
-                }
-              >
-                <TerminalSquare className="size-4 shrink-0" />
-              </TooltipTrigger>
-              <TooltipContent>Open terminal</TooltipContent>
-            </Tooltip>
+            <Button
+              aria-label="Open terminal"
+              className={cn(
+                "h-8 w-8 p-0 [-webkit-app-region:no-drag]",
+                terminalHiddenWithActiveSession
+                  ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                  : terminalOpen
+                    ? "text-foreground hover:text-foreground"
+                    : "text-muted-foreground/50 hover:text-foreground",
+              )}
+              disabled={!activeProject}
+              onClick={handleOpenTerminal}
+              size="icon-sm"
+              title="Open terminal"
+              variant="ghost"
+            >
+              <TerminalSquare className="size-4 shrink-0" />
+            </Button>
             <ToggleButton
               active={activeProjectRightPanelOpen}
               onClick={() => togglePanel("right")}
@@ -684,22 +655,16 @@ export const IdeHeader = () => {
             >
               <PanelRight className="size-4" />
             </ToggleButton>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    aria-label="Settings"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-                    onClick={handleOpenSettings}
-                    size="icon-sm"
-                    variant="ghost"
-                  />
-                }
-              >
-                <Settings className="size-4 shrink-0" />
-              </TooltipTrigger>
-              <TooltipContent>Settings</TooltipContent>
-            </Tooltip>
+            <Button
+              aria-label="Settings"
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+              onClick={handleOpenSettings}
+              size="icon-sm"
+              title="Settings"
+              variant="ghost"
+            >
+              <Settings className="size-4 shrink-0" />
+            </Button>
           </div>
         </div>
       ) : null}

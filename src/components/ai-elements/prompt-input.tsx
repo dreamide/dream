@@ -17,7 +17,6 @@ import type {
   HTMLAttributes,
   KeyboardEventHandler,
   PropsWithChildren,
-  ReactNode,
   RefObject,
 } from "react";
 import {
@@ -64,11 +63,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // ============================================================================
@@ -991,9 +985,8 @@ export const PromptInputTools = ({
 export type PromptInputButtonTooltip =
   | string
   | {
-      content: ReactNode;
+      content: string;
       shortcut?: string;
-      side?: ComponentProps<typeof TooltipContent>["side"];
     };
 
 export type PromptInputButtonProps = ComponentProps<typeof InputGroupButton> & {
@@ -1005,40 +998,27 @@ export const PromptInputButton = ({
   className,
   size,
   tooltip,
+  title,
   ...props
 }: PromptInputButtonProps) => {
   const newSize =
     size ?? (Children.count(props.children) > 1 ? "sm" : "icon-sm");
+  const tooltipTitle =
+    typeof tooltip === "string"
+      ? tooltip
+      : tooltip
+        ? [tooltip.content, tooltip.shortcut].filter(Boolean).join(" ")
+        : title;
 
-  const button = (
+  return (
     <InputGroupButton
       className={cn(className)}
       size={newSize}
+      title={tooltipTitle}
       type="button"
       variant={variant}
       {...props}
     />
-  );
-
-  if (!tooltip) {
-    return button;
-  }
-
-  const tooltipContent =
-    typeof tooltip === "string" ? tooltip : tooltip.content;
-  const shortcut = typeof tooltip === "string" ? undefined : tooltip.shortcut;
-  const side = typeof tooltip === "string" ? "top" : (tooltip.side ?? "top");
-
-  return (
-    <Tooltip>
-      <TooltipTrigger render={button} />
-      <TooltipContent side={side}>
-        {tooltipContent}
-        {shortcut && (
-          <span className="ml-2 text-muted-foreground">{shortcut}</span>
-        )}
-      </TooltipContent>
-    </Tooltip>
   );
 };
 

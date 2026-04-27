@@ -2,12 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import { XIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type ArtifactProps = HTMLAttributes<HTMLDivElement>;
@@ -110,6 +104,7 @@ export const ArtifactAction = ({
         "size-8 p-0 text-muted-foreground hover:text-foreground",
         className,
       )}
+      title={tooltip}
       size={size}
       type="button"
       variant={variant}
@@ -119,19 +114,6 @@ export const ArtifactAction = ({
       <span className="sr-only">{label || tooltip}</span>
     </Button>
   );
-
-  if (tooltip) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger render={button} />
-          <TooltipContent>
-            <p>{tooltip}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
 
   return button;
 };

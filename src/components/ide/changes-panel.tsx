@@ -21,11 +21,6 @@ import {
 } from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import type {
@@ -655,38 +650,34 @@ const ChangesPanelImpl = () => {
         </div>
 
         <div className="flex overflow-hidden rounded-md border border-foreground/10 bg-muted/30 p-0.5">
-          <Tooltip>
-            <TooltipTrigger
-              aria-label="Unified diff"
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
-                diffViewMode === "unified"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "hover:bg-muted/60 hover:text-foreground",
-              )}
-              onClick={() => handleSetDiffViewMode("unified")}
-              type="button"
-            >
-              <Rows3 className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipContent>Unified diff</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              aria-label="Split diff"
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
-                diffViewMode === "split"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "hover:bg-muted/60 hover:text-foreground",
-              )}
-              onClick={() => handleSetDiffViewMode("split")}
-              type="button"
-            >
-              <Columns2 className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipContent>Split diff</TooltipContent>
-          </Tooltip>
+          <button
+            aria-label="Unified diff"
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+              diffViewMode === "unified"
+                ? "bg-background text-foreground shadow-sm"
+                : "hover:bg-muted/60 hover:text-foreground",
+            )}
+            onClick={() => handleSetDiffViewMode("unified")}
+            title="Unified diff"
+            type="button"
+          >
+            <Rows3 className="size-3.5" />
+          </button>
+          <button
+            aria-label="Split diff"
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
+              diffViewMode === "split"
+                ? "bg-background text-foreground shadow-sm"
+                : "hover:bg-muted/60 hover:text-foreground",
+            )}
+            onClick={() => handleSetDiffViewMode("split")}
+            title="Split diff"
+            type="button"
+          >
+            <Columns2 className="size-3.5" />
+          </button>
         </div>
 
         <Button

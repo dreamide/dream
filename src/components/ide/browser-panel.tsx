@@ -20,11 +20,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { getDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
@@ -352,21 +347,15 @@ const BrowserViewport = ({
         <StandardTabs
           activeId={activeTab?.id ?? null}
           after={
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    aria-label="New tab"
-                    className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-                    onClick={handleAddTab}
-                    type="button"
-                  />
-                }
-              >
-                <Plus className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent>New tab</TooltipContent>
-            </Tooltip>
+            <button
+              aria-label="New tab"
+              className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+              onClick={handleAddTab}
+              title="New tab"
+              type="button"
+            >
+              <Plus className="size-4" />
+            </button>
           }
           ariaLabel="Browser tabs"
           canClose={tabs.length > 1}
@@ -380,74 +369,54 @@ const BrowserViewport = ({
       </div>
 
       <div className="flex items-center gap-0.5 border-b border-foreground/10 bg-muted/50 px-1.5 py-2">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                className={cn(
-                  "rounded p-1 transition-colors",
-                  activeTab?.canGoBack
-                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    : "text-muted-foreground/40",
-                )}
-                disabled={!activeTab?.canGoBack}
-                onClick={handleGoBack}
-                type="button"
-              />
-            }
-          >
-            <ArrowLeft className="size-4" />
-          </TooltipTrigger>
-          <TooltipContent>Go back</TooltipContent>
-        </Tooltip>
+        <button
+          className={cn(
+            "rounded p-1 transition-colors",
+            activeTab?.canGoBack
+              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+              : "text-muted-foreground/40",
+          )}
+          disabled={!activeTab?.canGoBack}
+          onClick={handleGoBack}
+          title="Go back"
+          type="button"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                className={cn(
-                  "rounded p-1 transition-colors",
-                  activeTab?.canGoForward
-                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    : "text-muted-foreground/40",
-                )}
-                disabled={!activeTab?.canGoForward}
-                onClick={handleGoForward}
-                type="button"
-              />
-            }
-          >
-            <ArrowRight className="size-4" />
-          </TooltipTrigger>
-          <TooltipContent>Go forward</TooltipContent>
-        </Tooltip>
+        <button
+          className={cn(
+            "rounded p-1 transition-colors",
+            activeTab?.canGoForward
+              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+              : "text-muted-foreground/40",
+          )}
+          disabled={!activeTab?.canGoForward}
+          onClick={handleGoForward}
+          title="Go forward"
+          type="button"
+        >
+          <ArrowRight className="size-4" />
+        </button>
 
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                className={cn(
-                  "rounded p-1 transition-colors",
-                  activeProject
-                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    : "text-muted-foreground/40",
-                )}
-                disabled={!activeProject || !activeTab}
-                onClick={handleRefresh}
-                type="button"
-              />
-            }
-          >
-            {isBrowserLoading ? (
-              <X className="size-4" />
-            ) : (
-              <RotateCw className="size-4" />
-            )}
-          </TooltipTrigger>
-          <TooltipContent>
-            {isBrowserLoading ? "Stop loading" : "Refresh browser"}
-          </TooltipContent>
-        </Tooltip>
+        <button
+          className={cn(
+            "rounded p-1 transition-colors",
+            activeProject
+              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+              : "text-muted-foreground/40",
+          )}
+          disabled={!activeProject || !activeTab}
+          onClick={handleRefresh}
+          title={isBrowserLoading ? "Stop loading" : "Refresh browser"}
+          type="button"
+        >
+          {isBrowserLoading ? (
+            <X className="size-4" />
+          ) : (
+            <RotateCw className="size-4" />
+          )}
+        </button>
 
         <div className="relative mx-1.5 flex-1">
           <Input
@@ -523,48 +492,30 @@ const RightPanelTabs = () => {
     <div className="flex items-center px-2 pb-2">
       <Tabs onValueChange={handleValueChange} value={rightPanelView}>
         <TabsList className="h-8 bg-muted/60">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <TabsTrigger
-                  aria-label="Show changes"
-                  className="h-6 w-8 px-0 data-[active]:bg-background"
-                  value="changes"
-                />
-              }
-            >
-              <GitCompareArrows className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>Changes</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <TabsTrigger
-                  aria-label="Show file explorer"
-                  className="h-6 w-8 px-0 data-[active]:bg-background"
-                  value="explorer"
-                />
-              }
-            >
-              <Folder className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>Files</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <TabsTrigger
-                  aria-label="Show browser"
-                  className="h-6 w-8 px-0 data-[active]:bg-background"
-                  value="browser"
-                />
-              }
-            >
-              <Globe className="size-4" />
-            </TooltipTrigger>
-            <TooltipContent>Browser</TooltipContent>
-          </Tooltip>
+          <TabsTrigger
+            aria-label="Show changes"
+            className="h-6 w-8 px-0 data-[active]:bg-background"
+            title="Changes"
+            value="changes"
+          >
+            <GitCompareArrows className="size-4" />
+          </TabsTrigger>
+          <TabsTrigger
+            aria-label="Show file explorer"
+            className="h-6 w-8 px-0 data-[active]:bg-background"
+            title="Files"
+            value="explorer"
+          >
+            <Folder className="size-4" />
+          </TabsTrigger>
+          <TabsTrigger
+            aria-label="Show browser"
+            className="h-6 w-8 px-0 data-[active]:bg-background"
+            title="Browser"
+            value="browser"
+          >
+            <Globe className="size-4" />
+          </TabsTrigger>
         </TabsList>
       </Tabs>
     </div>

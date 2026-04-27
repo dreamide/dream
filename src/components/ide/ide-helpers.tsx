@@ -2,11 +2,6 @@ import type { Terminal } from "@xterm/xterm";
 import type { PropsWithChildren } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // ── Panel resize handle ───────────────────────────────────────────────
@@ -127,28 +122,22 @@ export const ToggleButton = ({
   onClick: () => void;
   title: string;
 }>) => (
-  <Tooltip>
-    <TooltipTrigger
-      render={
-        <Button
-          aria-label={title}
-          className={cn(
-            "size-8 [-webkit-app-region:no-drag]",
-            active
-              ? "text-foreground hover:text-foreground"
-              : "text-muted-foreground/50 hover:text-foreground",
-          )}
-          disabled={disabled}
-          onClick={onClick}
-          size="icon"
-          variant="ghost"
-        />
-      }
-    >
-      {children}
-    </TooltipTrigger>
-    <TooltipContent>{title}</TooltipContent>
-  </Tooltip>
+  <Button
+    aria-label={title}
+    className={cn(
+      "size-8 [-webkit-app-region:no-drag]",
+      active
+        ? "text-foreground hover:text-foreground"
+        : "text-muted-foreground/50 hover:text-foreground",
+    )}
+    disabled={disabled}
+    onClick={onClick}
+    size="icon"
+    title={title}
+    variant="ghost"
+  >
+    {children}
+  </Button>
 );
 
 export const AppShellPlaceholder = ({ message }: { message: string }) => (
