@@ -18,7 +18,78 @@
         --font-inter: "Inter", ui-sans-serif, system-ui, sans-serif;
         --font-jetbrains-mono: "JetBrains Mono", ui-monospace, monospace;
       }
+
+      html,
+      body {
+        background: oklch(1 0 0);
+        color: oklch(0.145 0 0);
+      }
+
+      html.dark,
+      html.dark body {
+        background: oklch(0.145 0 0);
+        color: oklch(0.985 0 0);
+      }
+
+      html.dark[data-base-color="slate"],
+      html.dark[data-base-color="slate"] body {
+        background: oklch(0.129 0.042 264.695);
+      }
+
+      html.dark[data-base-color="gray"],
+      html.dark[data-base-color="gray"] body {
+        background: oklch(0.13 0.028 261.692);
+      }
+
+      html.dark[data-base-color="zinc"],
+      html.dark[data-base-color="zinc"] body {
+        background: oklch(0.141 0.005 285.823);
+      }
+
+      html.dark[data-base-color="stone"],
+      html.dark[data-base-color="stone"] body {
+        background: oklch(0.147 0.004 49.25);
+      }
     </style>
+    <script>
+      (() => {
+        const THEME_KEY = "dream-theme";
+        const UI_KEY = "dream-ui-preferences";
+        const root = document.documentElement;
+
+        try {
+          const storedTheme = localStorage.getItem(THEME_KEY);
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const resolvedTheme =
+            storedTheme === "light"
+              ? "light"
+              : storedTheme === "system"
+                ? prefersDark
+                  ? "dark"
+                  : "light"
+                : "dark";
+
+          root.classList.toggle("dark", resolvedTheme === "dark");
+          root.style.colorScheme = resolvedTheme;
+
+          const rawUiPreferences = localStorage.getItem(UI_KEY);
+          const parsedUiPreferences = rawUiPreferences
+            ? JSON.parse(rawUiPreferences)
+            : null;
+          const baseColor = parsedUiPreferences?.baseColor ?? "zinc";
+
+          if (baseColor && baseColor !== "neutral") {
+            root.setAttribute("data-base-color", baseColor);
+          } else {
+            root.removeAttribute("data-base-color");
+          }
+        } catch {
+          root.classList.add("dark");
+          root.style.colorScheme = "dark";
+          root.setAttribute("data-base-color", "zinc");
+        }
+      })();
+    </script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

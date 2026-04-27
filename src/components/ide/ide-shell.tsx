@@ -831,7 +831,7 @@ export const IdeShell = () => {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted/50 text-foreground">
       {!appReady && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
           <Spinner className="size-6 text-muted-foreground" />
         </div>
       )}
