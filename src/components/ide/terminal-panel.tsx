@@ -216,9 +216,15 @@ export const TerminalPanel = ({
   const terminalTransport = useIdeStore(
     (s) => s.terminalTransport[sessionId] ?? "pty",
   );
+  const terminalSizeRef = useRef<{ cols: number; rows: number } | null>(null);
 
   useEffect(() => {
     transportRef.current = terminalTransport;
+
+    const terminal = terminalInstanceRef.current;
+    if (terminal) {
+      terminal.options.convertEol = terminalTransport === "pipe";
+    }
   }, [terminalTransport]);
 
   useEffect(() => {
@@ -233,7 +239,7 @@ export const TerminalPanel = ({
 
     const terminal = new Terminal({
       allowProposedApi: false,
-      convertEol: true,
+      convertEol: transportRef.current === "pipe",
       cursorBlink: true,
       cursorStyle: "bar",
       fontFamily: resolveTerminalFontFamily(host),
@@ -248,7 +254,42 @@ export const TerminalPanel = ({
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
     terminal.open(host);
-    fitAddon.fit();
+
+    let resizeFrame: number | null = null;
+
+    const fitAndSyncSize = () => {
+      resizeFrame = null;
+      fitAddon.fit();
+
+      const cols = terminal.cols;
+      const rows = terminal.rows;
+
+      if (cols < 2 || rows < 1) {
+        return;
+      }
+
+      const previousSize = terminalSizeRef.current;
+      if (previousSize?.cols === cols && previousSize.rows === rows) {
+        return;
+      }
+
+      terminalSizeRef.current = { cols, rows };
+      getDesktopApi()?.resizeTerminal({
+        cols,
+        projectId: sessionId,
+        rows,
+      });
+    };
+
+    const scheduleFitAndSyncSize = () => {
+      if (resizeFrame !== null) {
+        window.cancelAnimationFrame(resizeFrame);
+      }
+
+      resizeFrame = window.requestAnimationFrame(fitAndSyncSize);
+    };
+
+    fitAndSyncSize();
 
     const initialOutput =
       useIdeStore.getState().terminalOutput[sessionId] ?? "";
@@ -285,19 +326,18 @@ export const TerminalPanel = ({
       });
     });
 
-    const fit = () => {
-      fitAddon.fit();
-    };
-
-    const resizeObserver = new ResizeObserver(fit);
+    const resizeObserver = new ResizeObserver(scheduleFitAndSyncSize);
     resizeObserver.observe(host);
-    window.addEventListener("resize", fit);
+    window.addEventListener("resize", scheduleFitAndSyncSize);
 
     return () => {
+      if (resizeFrame !== null) {
+        window.cancelAnimationFrame(resizeFrame);
+      }
       removeTerminalData?.();
       inputSubscription.dispose();
       resizeObserver.disconnect();
-      window.removeEventListener("resize", fit);
+      window.removeEventListener("resize", scheduleFitAndSyncSize);
       terminalInstanceRef.current = null;
       terminal.dispose();
     };

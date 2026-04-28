@@ -11,6 +11,7 @@
     "dev:terminal-debug": "cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true DREAM_DEBUG_TERMINAL_STARTUP=1 electron electron/main.js",
     "db:generate": "drizzle-kit generate",
     "import:codex-chats": "node scripts/import-codex-chats.mjs",
+    "postinstall": "node scripts/fix-node-pty-permissions.mjs",
     "build": "vite build",
     "start": "cross-env NODE_ENV=production electron electron/main.js",
     "dist": "pnpm build && electron-builder",

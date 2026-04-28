@@ -2607,6 +2607,7 @@ ipcMain.handle(
           cwd: resolvedCwd,
           env: {
             ...process.env,
+            PROMPT_EOL_MARK: "",
             TERM: "xterm-256color",
           },
           name: "xterm-256color",
@@ -2635,6 +2636,7 @@ ipcMain.handle(
             env: {
               ...process.env,
               BASH_SILENCE_DEPRECATION_WARNING: "1",
+              PROMPT_EOL_MARK: "",
               PS1: "\\u@\\h \\W $ ",
               TERM: "xterm-256color",
             },
@@ -2843,6 +2845,35 @@ ipcMain.on("terminal:input", (_event, { data, projectId }) => {
     session.write(data);
   } catch {
     // ignore write failures after process/session exits
+  }
+});
+
+ipcMain.on("terminal:resize", (_event, { cols, projectId, rows }) => {
+  if (!projectId) {
+    return;
+  }
+
+  const session = terminalSessions.get(projectId);
+  if (!session || typeof session.resize !== "function") {
+    return;
+  }
+
+  const normalizedCols = Math.floor(Number(cols));
+  const normalizedRows = Math.floor(Number(rows));
+
+  if (
+    !Number.isFinite(normalizedCols) ||
+    !Number.isFinite(normalizedRows) ||
+    normalizedCols < 2 ||
+    normalizedRows < 1
+  ) {
+    return;
+  }
+
+  try {
+    session.resize(normalizedCols, normalizedRows);
+  } catch {
+    // ignore resize failures after session exits
   }
 });
 

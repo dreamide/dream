@@ -183,6 +183,12 @@ export interface TerminalInputPayload {
   data: string;
 }
 
+export interface TerminalResizePayload {
+  projectId: string;
+  cols: number;
+  rows: number;
+}
+
 export interface BrowserUpdatePayload {
   bounds?: BrowserBounds;
   goBack?: boolean;
@@ -224,6 +230,7 @@ export interface DreamDesktopApi {
     shell?: string;
   }>;
   sendTerminalInput: (payload: TerminalInputPayload) => void;
+  resizeTerminal: (payload: TerminalResizePayload) => void;
   stopTerminal: (projectId: string) => Promise<boolean>;
   onTerminalData: (listener: (event: TerminalDataEvent) => void) => () => void;
   onTerminalStatus: (

@@ -29,9 +29,11 @@ contextBridge.exposeInMainWorld("dream", {
   loadState: () => ipcRenderer.invoke("state:load"),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
 
-  getDefaultTerminalShell: () => ipcRenderer.invoke("terminal:get-default-shell"),
+  getDefaultTerminalShell: () =>
+    ipcRenderer.invoke("terminal:get-default-shell"),
   startTerminal: (payload) => ipcRenderer.invoke("terminal:start", payload),
   sendTerminalInput: (payload) => ipcRenderer.send("terminal:input", payload),
+  resizeTerminal: (payload) => ipcRenderer.send("terminal:resize", payload),
   stopTerminal: (projectId) =>
     ipcRenderer.invoke("terminal:stop", { projectId }),
   onTerminalData: (listener) => subscribe("terminal:data", listener),
