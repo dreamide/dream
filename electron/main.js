@@ -1,5 +1,5 @@
 import { spawn as spawnProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -1198,6 +1198,34 @@ function formatShellCommand(command, args = []) {
     : [];
 
   return [trimmedCommand, ...normalizedArgs].join(" ");
+}
+
+function createTerminalStartupCommands(command) {
+  const commands = [];
+  if (typeof command === "string" && command.trim()) {
+    commands.push(command.trim());
+  }
+
+  return commands;
+}
+
+function writeTerminalStartupCommands(projectId, commands, delayMs = 80) {
+  if (!Array.isArray(commands) || commands.length === 0) {
+    return;
+  }
+
+  setTimeout(() => {
+    const session = terminalSessions.get(projectId);
+    if (!session) {
+      return;
+    }
+
+    try {
+      session.write(`${commands.join("\r")}\r`);
+    } catch {
+      // ignore write failures after session exits
+    }
+  }, delayMs);
 }
 
 function resolveTerminalCwd(cwd) {
@@ -2733,20 +2761,10 @@ ipcMain.handle(
         });
       });
 
-      if (typeof command === "string" && command.trim()) {
-        setTimeout(() => {
-          const session = terminalSessions.get(projectId);
-          if (!session) {
-            return;
-          }
-
-          try {
-            session.write(`${command.trim()}\r`);
-          } catch {
-            // ignore write failures after session exits
-          }
-        }, 80);
-      }
+      writeTerminalStartupCommands(
+        projectId,
+        createTerminalStartupCommands(command),
+      );
 
       return {
         pid: child.pid,
@@ -2797,20 +2815,10 @@ ipcMain.handle(
       });
     });
 
-    if (typeof command === "string" && command.trim()) {
-      setTimeout(() => {
-        const session = terminalSessions.get(projectId);
-        if (!session) {
-          return;
-        }
-
-        try {
-          session.write(`${command.trim()}\r`);
-        } catch {
-          // ignore write failures after session exits
-        }
-      }, 80);
-    }
+    writeTerminalStartupCommands(
+      projectId,
+      createTerminalStartupCommands(command),
+    );
 
     return {
       pid: terminalSession.pid,
