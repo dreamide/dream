@@ -107,11 +107,15 @@ const FileTreeFolderContext = createContext<FileTreeFolderContextType>({
 export type FileTreeFolderProps = HTMLAttributes<HTMLDivElement> & {
   path: string;
   name: string;
+  icon?: ReactNode;
+  expandedIcon?: ReactNode;
 };
 
 export const FileTreeFolder = ({
   path,
   name,
+  icon,
+  expandedIcon,
   className,
   children,
   ...props
@@ -162,11 +166,11 @@ export const FileTreeFolder = ({
               )}
             />
             <FileTreeIcon>
-              {isExpanded ? (
-                <FolderOpenIcon className="size-4 text-blue-500" />
-              ) : (
-                <FolderIcon className="size-4 text-blue-500" />
-              )}
+              {isExpanded
+                ? (expandedIcon ?? (
+                    <FolderOpenIcon className="size-4 text-blue-500" />
+                  ))
+                : (icon ?? <FolderIcon className="size-4 text-blue-500" />)}
             </FileTreeIcon>
             <FileTreeName>{name}</FileTreeName>
           </CollapsibleTrigger>

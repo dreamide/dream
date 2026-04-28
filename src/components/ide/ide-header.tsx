@@ -13,7 +13,9 @@ import {
   TerminalSquare,
   X,
 } from "lucide-react";
-
+import cursorIcon from "material-icon-theme/icons/cursor.svg";
+import sublimeIcon from "material-icon-theme/icons/sublime.svg";
+import vimIcon from "material-icon-theme/icons/vim.svg";
 import {
   type FormEvent,
   useCallback,
@@ -174,6 +176,106 @@ const VscodeMark = ({ className }: { className?: string }) => (
   />
 );
 
+const EditorImageMark = ({
+  className,
+  src,
+}: {
+  className?: string;
+  src: string;
+}) => (
+  <img
+    alt=""
+    aria-hidden="true"
+    className={cn("size-4 shrink-0 object-contain", className)}
+    draggable={false}
+    src={src}
+  />
+);
+
+const FinderMark = ({ className }: { className?: string }) => (
+  <svg
+    aria-hidden="true"
+    className={cn("size-4 shrink-0", className)}
+    fill="none"
+    viewBox="0 0 32 32"
+  >
+    <rect fill="#63C7FF" height="26" rx="6" width="26" x="3" y="3" />
+    <path d="M16 3h7a6 6 0 0 1 6 6v17H16z" fill="#2494FF" />
+    <path d="M16 6v20" stroke="#0B5CAD" strokeLinecap="round" />
+    <path d="M10.5 13.5v2" stroke="#073B78" strokeLinecap="round" />
+    <path d="M21.5 13.5v2" stroke="#073B78" strokeLinecap="round" />
+    <path
+      d="M10.5 21.5c2.8 2 8.2 2 11 0"
+      stroke="#073B78"
+      strokeLinecap="round"
+      strokeWidth="1.5"
+    />
+  </svg>
+);
+
+const JETBRAINS_MARKS: Record<
+  string,
+  { accent: string; label: string; primary: string; secondary: string }
+> = {
+  idea: {
+    accent: "#FF3158",
+    label: "IJ",
+    primary: "#FF6B00",
+    secondary: "#7B2FFF",
+  },
+  phpstorm: {
+    accent: "#B15CFF",
+    label: "PS",
+    primary: "#6F42FF",
+    secondary: "#FF4FD8",
+  },
+  pycharm: {
+    accent: "#F8E71C",
+    label: "PC",
+    primary: "#23D18B",
+    secondary: "#21A1FF",
+  },
+  webstorm: {
+    accent: "#00E5FF",
+    label: "WS",
+    primary: "#00A3FF",
+    secondary: "#005CFF",
+  },
+};
+
+const JetBrainsMark = ({
+  className,
+  editorId,
+}: {
+  className?: string;
+  editorId: string;
+}) => {
+  const mark = JETBRAINS_MARKS[editorId] ?? JETBRAINS_MARKS.idea;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={cn("size-4 shrink-0", className)}
+      viewBox="0 0 32 32"
+    >
+      <rect fill={mark.primary} height="32" rx="7" width="32" />
+      <path d="M0 32 32 0v32z" fill={mark.secondary} />
+      <path d="M0 0h32L0 22z" fill={mark.accent} opacity="0.9" />
+      <rect fill="#111111" height="18" rx="1.5" width="18" x="7" y="7" />
+      <text
+        fill="#ffffff"
+        fontFamily="ui-sans-serif, system-ui, sans-serif"
+        fontSize="7"
+        fontWeight="800"
+        x="10"
+        y="19"
+      >
+        {mark.label}
+      </text>
+    </svg>
+  );
+};
+
 const PowerShellMark = ({ className }: { className?: string }) => (
   <img
     alt=""
@@ -182,6 +284,52 @@ const PowerShellMark = ({ className }: { className?: string }) => (
     src={powershellIcon}
   />
 );
+
+const OpenInEditorIcon = ({
+  editor,
+  isMacOs,
+}: {
+  editor: DetectedEditor;
+  isMacOs: boolean;
+}) => {
+  if (editor.id === "vscode") {
+    return <VscodeMark />;
+  }
+
+  if (editor.id === "cursor") {
+    return <EditorImageMark src={cursorIcon} />;
+  }
+
+  if (editor.id in JETBRAINS_MARKS) {
+    return <JetBrainsMark editorId={editor.id} />;
+  }
+
+  if (editor.id === "sublime") {
+    return <EditorImageMark src={sublimeIcon} />;
+  }
+
+  if (editor.id === "vim" || editor.id === "neovim") {
+    return <EditorImageMark src={vimIcon} />;
+  }
+
+  if (editor.isFileExplorer) {
+    return isMacOs ? (
+      <FinderMark />
+    ) : (
+      <FolderOpen className="size-4 shrink-0" />
+    );
+  }
+
+  if (editor.isTerminal) {
+    return isMacOs ? (
+      <TerminalSquare className="size-4 shrink-0" />
+    ) : (
+      <PowerShellMark />
+    );
+  }
+
+  return <ExternalLink className="size-4 shrink-0" />;
+};
 
 export const IdeHeader = () => {
   const appReady = useIdeStore((s) => s.appReady);
@@ -537,19 +685,10 @@ export const IdeHeader = () => {
                                     )
                                   }
                                 >
-                                  {editor.id === "vscode" ? (
-                                    <VscodeMark />
-                                  ) : editor.isFileExplorer ? (
-                                    <FolderOpen className="size-4" />
-                                  ) : editor.isTerminal ? (
-                                    isMacOs ? (
-                                      <TerminalSquare className="size-4" />
-                                    ) : (
-                                      <PowerShellMark />
-                                    )
-                                  ) : (
-                                    <ExternalLink className="size-4" />
-                                  )}
+                                  <OpenInEditorIcon
+                                    editor={editor}
+                                    isMacOs={isMacOs}
+                                  />
                                   {editor.name}
                                 </DropdownMenuItem>
                               ))}

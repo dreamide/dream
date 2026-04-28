@@ -20,6 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
+import { MaterialFileIcon, MaterialFolderIcon } from "./material-file-icon";
 
 const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
 const FILE_TREE_MIN_WIDTH_PX = 250;
@@ -148,11 +149,22 @@ const FileTreeNodeView = ({ node }: { node: FileTreeNode }) => {
   });
 
   if (node.isFile) {
-    return <FileTreeFile name={node.name} path={node.path} />;
+    return (
+      <FileTreeFile
+        icon={<MaterialFileIcon path={node.path} />}
+        name={node.name}
+        path={node.path}
+      />
+    );
   }
 
   return (
-    <FileTreeFolder name={node.name} path={node.path}>
+    <FileTreeFolder
+      expandedIcon={<MaterialFolderIcon expanded name={node.name} />}
+      icon={<MaterialFolderIcon name={node.name} />}
+      name={node.name}
+      path={node.path}
+    >
       {sortedChildren.map((child) => (
         <FileTreeNodeView key={child.path} node={child} />
       ))}
