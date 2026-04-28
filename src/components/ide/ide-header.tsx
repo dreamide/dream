@@ -2,7 +2,6 @@ import {
   Ellipsis,
   ExternalLink,
   FilePenLine,
-  FolderOpen,
   History,
   MessageSquarePlus,
   Minus,
@@ -213,6 +212,42 @@ const FinderMark = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const WindowsExplorerMark = ({ className }: { className?: string }) => (
+  <svg
+    aria-hidden="true"
+    className={cn("size-4 shrink-0", className)}
+    viewBox="0 0 32 32"
+  >
+    <path
+      d="M3 10.5A4.5 4.5 0 0 1 7.5 6H13l2.3 3H24.5A4.5 4.5 0 0 1 29 13.5V24a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"
+      fill="#F7C948"
+    />
+    <path d="M3 12h26v4H3z" fill="#E7A720" />
+    <path
+      d="M4 14h24.3l-2.2 10.8A4 4 0 0 1 22.2 28H6.9A4 4 0 0 1 3 23.2z"
+      fill="#FFD865"
+    />
+    <path
+      d="M5 15.5h22l-1.9 8.9A3 3 0 0 1 22.2 27H7a3 3 0 0 1-3-3.4z"
+      fill="#F6B73C"
+    />
+    <path d="M8 17.5h16" stroke="#FFF2B3" strokeLinecap="round" />
+  </svg>
+);
+
+const LinuxFilesMark = ({ className }: { className?: string }) => (
+  <svg
+    aria-hidden="true"
+    className={cn("size-4 shrink-0", className)}
+    viewBox="0 0 32 32"
+  >
+    <rect fill="#4F86F7" height="22" rx="5" width="26" x="3" y="7" />
+    <path d="M3 12h26v12a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5z" fill="#2F6FEA" />
+    <path d="M7 5h8l2 4H7a3 3 0 0 1 0-4" fill="#7AA7FF" />
+    <path d="M8 15h16" stroke="#CFE0FF" strokeLinecap="round" />
+  </svg>
+);
+
 const JETBRAINS_MARKS: Record<
   string,
   { accent: string; label: string; primary: string; secondary: string }
@@ -315,8 +350,10 @@ const OpenInEditorIcon = ({
   if (editor.isFileExplorer) {
     return isMacOs ? (
       <FinderMark />
+    ) : editor.name === "File Explorer" ? (
+      <WindowsExplorerMark />
     ) : (
-      <FolderOpen className="size-4 shrink-0" />
+      <LinuxFilesMark />
     );
   }
 
