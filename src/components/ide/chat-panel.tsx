@@ -786,6 +786,9 @@ export const ChatPanel = ({
   const chatMessages = useIdeStore(
     (s) => s.messagesByChatId[chat.id] ?? EMPTY_MESSAGES,
   );
+  const isDraftChat = useIdeStore(
+    (s) => s.draftChatIdByProject[project.id] === chat.id,
+  );
   const providerModels = useIdeStore((s) => s.providerModels);
   const claudePermissionMode = useIdeStore((s) => s.claudePermissionMode);
   const setClaudePermissionMode = useIdeStore((s) => s.setClaudePermissionMode);
@@ -1289,6 +1292,7 @@ export const ChatPanel = ({
 
   // Build a fingerprint that changes whenever new data arrives
   const lastMessage = messages[messages.length - 1];
+  const canShowChatMenu = !isDraftChat || messages.length > 0;
   const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
   const streamFingerprint = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
     lastPart && "text" in lastPart ? (lastPart.text as string).length : 0
@@ -1344,33 +1348,38 @@ export const ChatPanel = ({
               <p className="truncate font-medium text-sm">{chat.title}</p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1">
-              <DropdownMenu onOpenChange={setChatMenuOpen} open={chatMenuOpen}>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      aria-label={`${chat.title} actions`}
-                      className="h-8 w-8 p-0"
-                      size="icon-sm"
-                      type="button"
-                      variant="ghost"
-                    />
-                  }
+            {canShowChatMenu ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <DropdownMenu
+                  onOpenChange={setChatMenuOpen}
+                  open={chatMenuOpen}
                 >
-                  <Ellipsis className="size-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem onClick={handleRenameChat}>
-                    <FilePenLine className="size-4" />
-                    Rename
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => deleteChat(chat.id)}>
-                    <Trash2 className="size-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        aria-label={`${chat.title} actions`}
+                        className="h-8 w-8 p-0"
+                        size="icon-sm"
+                        type="button"
+                        variant="ghost"
+                      />
+                    }
+                  >
+                    <Ellipsis className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem onClick={handleRenameChat}>
+                      <FilePenLine className="size-4" />
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => deleteChat(chat.id)}>
+                      <Trash2 className="size-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : null}
           </div>
         </div>
 
