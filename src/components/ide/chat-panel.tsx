@@ -42,7 +42,6 @@ import {
 import {
   Conversation,
   ConversationContent,
-  ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import {
@@ -1292,6 +1291,7 @@ export const ChatPanel = ({
 
   // Build a fingerprint that changes whenever new data arrives
   const lastMessage = messages[messages.length - 1];
+  const showChatHeader = messages.length > 0;
   const canShowChatMenu = !isDraftChat || messages.length > 0;
   const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
   const streamFingerprint = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
@@ -1342,46 +1342,48 @@ export const ChatPanel = ({
   return (
     <>
       <div id={panelDomId} className="flex h-full min-h-0 flex-col">
-        <div className="shrink-0 px-2 pt-2">
-          <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 pb-2">
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-sm">{chat.title}</p>
-            </div>
-
-            {canShowChatMenu ? (
-              <div className="flex shrink-0 items-center gap-1">
-                <DropdownMenu
-                  onOpenChange={setChatMenuOpen}
-                  open={chatMenuOpen}
-                >
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        aria-label={`${chat.title} actions`}
-                        className="h-8 w-8 p-0"
-                        size="icon-sm"
-                        type="button"
-                        variant="ghost"
-                      />
-                    }
-                  >
-                    <Ellipsis className="size-4" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onClick={handleRenameChat}>
-                      <FilePenLine className="size-4" />
-                      Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => deleteChat(chat.id)}>
-                      <Trash2 className="size-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+        {showChatHeader ? (
+          <div className="shrink-0 px-2 pt-2">
+            <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 pb-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium text-sm">{chat.title}</p>
               </div>
-            ) : null}
+
+              {canShowChatMenu ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <DropdownMenu
+                    onOpenChange={setChatMenuOpen}
+                    open={chatMenuOpen}
+                  >
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          aria-label={`${chat.title} actions`}
+                          className="h-8 w-8 p-0"
+                          size="icon-sm"
+                          type="button"
+                          variant="ghost"
+                        />
+                      }
+                    >
+                      <Ellipsis className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem onClick={handleRenameChat}>
+                        <FilePenLine className="size-4" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => deleteChat(chat.id)}>
+                        <Trash2 className="size-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <Conversation
           id={conversationDomId}
@@ -1390,14 +1392,19 @@ export const ChatPanel = ({
         >
           <ConversationContent
             id={conversationContentDomId}
-            className="mx-auto w-full max-w-[700px] gap-4 px-0 pt-3 pb-[54px]"
+            className={`mx-auto w-full max-w-[700px] gap-4 px-0 pt-3 pb-[54px]${
+              messages.length === 0 ? " min-h-full" : ""
+            }`}
           >
             {messages.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-4">
-                <ConversationEmptyState
-                  description="Ask the assistant to inspect, edit, or create files in the active project."
-                  title="No chat messages yet"
+              <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 text-center">
+                <img
+                  alt=""
+                  className="size-16"
+                  draggable={false}
+                  src="/icon.png"
                 />
+                <p className="font-medium text-lg">Build anything</p>
               </div>
             ) : (
               messages.map((message, messageIndex) => (
