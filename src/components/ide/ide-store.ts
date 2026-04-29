@@ -472,17 +472,39 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         state.activeProjectId,
       );
       const nextActiveChatIdByProject = { ...state.activeChatIdByProject };
+      let nextChats = state.chats;
+      let nextMessagesByChatId = state.messagesByChatId;
       for (const project of projects) {
-        nextActiveChatIdByProject[project.id] = ensureActiveChatForProject(
-          state.chats,
+        let nextActiveChatId = ensureActiveChatForProject(
+          nextChats,
           project.id,
           state.activeChatIdByProject[project.id] ?? null,
         );
+
+        if (!nextActiveChatId) {
+          const defaultSelection = getDefaultModelSelection(state.settings);
+          const nextChat = createChatConfig(project, {
+            model: defaultSelection.model || project.model,
+            provider: defaultSelection.model
+              ? defaultSelection.provider
+              : project.provider,
+          });
+          nextChats = [...nextChats, nextChat];
+          nextMessagesByChatId = {
+            ...nextMessagesByChatId,
+            [nextChat.id]: [],
+          };
+          nextActiveChatId = nextChat.id;
+        }
+
+        nextActiveChatIdByProject[project.id] = nextActiveChatId;
       }
 
       return {
         activeProjectId: nextActiveProjectId,
         activeChatIdByProject: nextActiveChatIdByProject,
+        chats: nextChats,
+        messagesByChatId: nextMessagesByChatId,
         projects,
       };
     });
@@ -491,6 +513,36 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   setActiveProjectId: (id) => {
     set((state) => {
       const nextActiveProjectId = ensureActiveProject(state.projects, id);
+      const nextActiveProject = nextActiveProjectId
+        ? (state.projects.find(
+            (project) => project.id === nextActiveProjectId,
+          ) ?? null)
+        : null;
+      let nextChats = state.chats;
+      let nextMessagesByChatId = state.messagesByChatId;
+      let nextActiveChatId = nextActiveProject
+        ? ensureActiveChatForProject(
+            nextChats,
+            nextActiveProject.id,
+            state.activeChatIdByProject[nextActiveProject.id] ?? null,
+          )
+        : null;
+
+      if (nextActiveProject && !nextActiveChatId) {
+        const defaultSelection = getDefaultModelSelection(state.settings);
+        const nextChat = createChatConfig(nextActiveProject, {
+          model: defaultSelection.model || nextActiveProject.model,
+          provider: defaultSelection.model
+            ? defaultSelection.provider
+            : nextActiveProject.provider,
+        });
+        nextChats = [...nextChats, nextChat];
+        nextMessagesByChatId = {
+          ...nextMessagesByChatId,
+          [nextChat.id]: [],
+        };
+        nextActiveChatId = nextChat.id;
+      }
       const rightPanelOpen = nextActiveProjectId
         ? (state.projectRightPanelOpenByProject[nextActiveProjectId] ??
           state.panelVisibility.right)
@@ -502,6 +554,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       return {
         activeProjectId: nextActiveProjectId,
+        activeChatIdByProject: nextActiveProject
+          ? {
+              ...state.activeChatIdByProject,
+              [nextActiveProject.id]: nextActiveChatId,
+            }
+          : state.activeChatIdByProject,
+        chats: nextChats,
+        messagesByChatId: nextMessagesByChatId,
         panelSizes,
         panelVisibility: {
           ...state.panelVisibility,
@@ -519,6 +579,29 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         (project) => normalizeProjectPathKey(project.path) === pathKey,
       );
       if (openProject) {
+        let nextChats = state.chats;
+        let nextMessagesByChatId = state.messagesByChatId;
+        let nextActiveChatId = ensureActiveChatForProject(
+          nextChats,
+          openProject.id,
+          state.activeChatIdByProject[openProject.id] ?? null,
+        );
+
+        if (!nextActiveChatId) {
+          const defaultSelection = getDefaultModelSelection(state.settings);
+          const nextChat = createChatConfig(openProject, {
+            model: defaultSelection.model || openProject.model,
+            provider: defaultSelection.model
+              ? defaultSelection.provider
+              : openProject.provider,
+          });
+          nextChats = [...nextChats, nextChat];
+          nextMessagesByChatId = {
+            ...nextMessagesByChatId,
+            [nextChat.id]: [],
+          };
+          nextActiveChatId = nextChat.id;
+        }
         const panelSizes =
           state.projectPanelSizesByProject[openProject.id] ?? state.panelSizes;
         const rightPanelOpen =
@@ -535,12 +618,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           },
           activeChatIdByProject: {
             ...state.activeChatIdByProject,
-            [openProject.id]: ensureActiveChatForProject(
-              state.chats,
-              openProject.id,
-              state.activeChatIdByProject[openProject.id] ?? null,
-            ),
+            [openProject.id]: nextActiveChatId,
           },
+          chats: nextChats,
+          messagesByChatId: nextMessagesByChatId,
           projectRightPanelOpenByProject: {
             ...state.projectRightPanelOpenByProject,
             [openProject.id]: rightPanelOpen,
@@ -618,6 +699,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       return {
         activeProjectId: nextProject.id,
+        panelVisibility: {
+          ...state.panelVisibility,
+          middle: true,
+          right: false,
+        },
         activeChatIdByProject: {
           ...state.activeChatIdByProject,
           [nextProject.id]: nextChat.id,
@@ -632,7 +718,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         },
         projectRightPanelOpenByProject: {
           ...state.projectRightPanelOpenByProject,
-          [nextProject.id]: state.panelVisibility.right,
+          [nextProject.id]: false,
         },
         projectPanelSizesByProject: {
           ...state.projectPanelSizesByProject,

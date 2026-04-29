@@ -321,8 +321,16 @@ export const mergePersistedState = (
   const messagesByChatId: Record<string, UIMessage[]> = {};
   const chats =
     normalizedChats.length > 0
-      ? normalizedChats
+      ? [...normalizedChats]
       : projects.map((project) => createChatConfig(project));
+  const projectIdsWithChats = new Set(chats.map((chat) => chat.projectId));
+  for (const project of projects) {
+    if (!projectIdsWithChats.has(project.id)) {
+      const chat = createChatConfig(project);
+      chats.push(chat);
+      projectIdsWithChats.add(project.id);
+    }
+  }
 
   for (const chat of chats) {
     const chatMessages = legacyMessagesByChatId[chat.id];
