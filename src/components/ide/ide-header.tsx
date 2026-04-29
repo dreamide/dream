@@ -2,12 +2,8 @@ import {
   Ellipsis,
   ExternalLink,
   FilePenLine,
-  History,
-  MessageSquarePlus,
   Minus,
-  PanelRight,
   Plus,
-  Settings,
   Square,
   TerminalSquare,
   X,
@@ -23,7 +19,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
 import powershellIcon from "@/assets/powershell.svg";
 import vscodeIcon from "@/assets/vscode.svg";
 import { Button } from "@/components/ui/button";
@@ -50,9 +45,7 @@ import Sparkles from "@/components/ui/sparkles";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { DetectedEditor, ProjectIconInfo } from "@/types/ide";
-import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import { ProjectSidebar } from "./projects-panel";
 import {
   moveTabItem,
   type StandardTabItem,
@@ -134,102 +127,6 @@ const ProjectTabIcon = ({
       src={getProjectIconUrl(projectPath, icon.path)}
       title={projectName}
     />
-  );
-};
-
-const CHAT_HISTORY_PANEL_WIDTH_PX = 520;
-const CHAT_HISTORY_PANEL_MARGIN_PX = 8;
-const CHAT_HISTORY_TRANSITION_MS = 200;
-
-const getChatHistoryTopOffset = () =>
-  (document.getElementById("app-titlebar")?.getBoundingClientRect().bottom ??
-    0) + CHAT_HISTORY_PANEL_MARGIN_PX;
-
-const ChatHistoryOverlay = ({
-  onClose,
-  open,
-}: {
-  onClose: () => void;
-  open: boolean;
-}) => {
-  const [mounted, setMounted] = useState(open);
-  const [visible, setVisible] = useState(false);
-  const [topOffset, setTopOffset] = useState(() =>
-    typeof document === "undefined" ? 0 : getChatHistoryTopOffset(),
-  );
-
-  useEffect(() => {
-    if (open) {
-      setMounted(true);
-      let secondFrame: number | null = null;
-      const firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(() => setVisible(true));
-      });
-      return () => {
-        cancelAnimationFrame(firstFrame);
-        if (secondFrame !== null) {
-          cancelAnimationFrame(secondFrame);
-        }
-      };
-    }
-
-    setVisible(false);
-    const timeout = window.setTimeout(
-      () => setMounted(false),
-      CHAT_HISTORY_TRANSITION_MS,
-    );
-    return () => window.clearTimeout(timeout);
-  }, [open]);
-
-  useEffect(() => {
-    if (!mounted || typeof window === "undefined") {
-      return;
-    }
-
-    const syncTopOffset = () => {
-      setTopOffset(getChatHistoryTopOffset());
-    };
-
-    syncTopOffset();
-    window.addEventListener("resize", syncTopOffset);
-    return () => window.removeEventListener("resize", syncTopOffset);
-  }, [mounted]);
-
-  if (!mounted || typeof document === "undefined") {
-    return null;
-  }
-
-  return createPortal(
-    <div
-      aria-hidden={!open}
-      className={cn(
-        "fixed inset-0 z-50 [-webkit-app-region:no-drag]",
-        visible ? "pointer-events-auto" : "pointer-events-none",
-      )}
-      inert={!open}
-    >
-      <button
-        aria-label="Close chat history"
-        className="absolute inset-0 cursor-default bg-transparent"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
-      <div
-        className="absolute bottom-2 left-2 max-w-[calc(100vw-16px)] transition-[transform,opacity] duration-200 ease-out will-change-[transform,opacity]"
-        style={{
-          opacity: visible ? 1 : 0,
-          top: topOffset,
-          transform: visible
-            ? "translateX(0)"
-            : `translateX(calc(-100% - ${CHAT_HISTORY_PANEL_MARGIN_PX}px))`,
-          width: CHAT_HISTORY_PANEL_WIDTH_PX,
-        }}
-      >
-        <ProjectSidebar className="h-full" onChatSelect={onClose} />
-      </div>
-    </div>,
-    document.body,
   );
 };
 
@@ -439,27 +336,12 @@ export const IdeHeader = () => {
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
-  const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
-  const togglePanel = useIdeStore((s) => s.togglePanel);
-  const addChat = useIdeStore((s) => s.addChat);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-  const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
-  const projectTerminalSessionIds = useIdeStore(
-    (s) => s.projectTerminalSessionIds,
-  );
-  const projectTerminalPanelOpenByProject = useIdeStore(
-    (s) => s.projectTerminalPanelOpenByProject,
-  );
-  const projectRightPanelOpenByProject = useIdeStore(
-    (s) => s.projectRightPanelOpenByProject,
-  );
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const streamingProjectIds = useMemo(
@@ -475,8 +357,6 @@ export const IdeHeader = () => {
     .map((project) => `${project.id}\x00${project.path}`)
     .join("\x01");
 
-  const activeProject =
-    projects.find((project) => project.id === activeProjectId) ?? null;
   const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
   const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(
     null,
@@ -486,7 +366,6 @@ export const IdeHeader = () => {
   const [completedProjectIds, setCompletedProjectIds] = useState<
     Record<string, boolean>
   >({});
-  const [historyOpen, setHistoryOpen] = useState(false);
   const projectOpenInEditors = useMemo<DetectedEditor[]>(() => {
     const fileExplorer = detectedEditors.find(
       (editor) => editor.id === "file-explorer",
@@ -508,38 +387,7 @@ export const IdeHeader = () => {
   }, [detectedEditors, isMacOs]);
   const previousStreamingProjectIdsRef = useRef<Set<string>>(new Set());
   const projectIconScanSignatureRef = useRef("");
-  const terminalOpen = activeProject
-    ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
-    : false;
-  const activeProjectTerminalPanelOpen = activeProject
-    ? (projectTerminalPanelOpenByProject[activeProject.id] ?? false)
-    : false;
-  const activeProjectRightPanelOpen = activeProject
-    ? (projectRightPanelOpenByProject[activeProject.id] ??
-      panelVisibility.right)
-    : panelVisibility.right;
-  const terminalHiddenWithActiveSession =
-    terminalOpen && !activeProjectTerminalPanelOpen;
   const desktopApi = getDesktopApi();
-  const handleOpenSettings = useCallback(() => {
-    setSettingsSection("appearance");
-    setSettingsOpen(true);
-  }, [setSettingsOpen, setSettingsSection]);
-
-  useEffect(() => {
-    if (!historyOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setHistoryOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [historyOpen]);
 
   const handleAddProject = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -555,14 +403,6 @@ export const IdeHeader = () => {
 
     useIdeStore.getState().addProject(selectedPath);
   }, []);
-
-  const handleOpenTerminal = useCallback(() => {
-    if (!activeProject) {
-      return;
-    }
-
-    void openProjectTerminal(activeProject.id);
-  }, [activeProject, openProjectTerminal]);
 
   const handleOpenProjectInEditor = useCallback(
     async (
@@ -582,14 +422,6 @@ export const IdeHeader = () => {
     },
     [desktopApi],
   );
-
-  const handleAddChat = useCallback(() => {
-    if (!activeProject) {
-      return;
-    }
-
-    addChat(activeProject.id);
-  }, [activeProject, addChat]);
 
   useEffect(() => {
     const api = getDesktopApi();
@@ -930,84 +762,6 @@ export const IdeHeader = () => {
 
         {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
       </div>
-
-      {appReady ? (
-        <div className="flex items-center gap-2 px-3 pb-1 [-webkit-app-region:drag]">
-          <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-            <Button
-              aria-label="Chat history"
-              className={cn(
-                "size-8 [-webkit-app-region:no-drag]",
-                historyOpen
-                  ? "text-foreground hover:text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setHistoryOpen((open) => !open)}
-              size="icon"
-              title="Chat history"
-              variant="ghost"
-            >
-              <History className="size-4" />
-            </Button>
-            <Button
-              aria-label="New chat"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-              disabled={!activeProject}
-              onClick={handleAddChat}
-              size="icon-sm"
-              title="New chat"
-              variant="ghost"
-            >
-              <MessageSquarePlus className="size-4 shrink-0" />
-            </Button>
-          </div>
-          <div className="min-w-0 flex-1" />
-          <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-            <Button
-              aria-label="Open terminal"
-              className={cn(
-                "h-8 w-8 p-0 [-webkit-app-region:no-drag]",
-                terminalHiddenWithActiveSession
-                  ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                  : terminalOpen
-                    ? "text-foreground hover:text-foreground"
-                    : "text-muted-foreground/50 hover:text-foreground",
-              )}
-              disabled={!activeProject}
-              onClick={handleOpenTerminal}
-              size="icon-sm"
-              title="Open terminal"
-              variant="ghost"
-            >
-              <TerminalSquare className="size-4 shrink-0" />
-            </Button>
-            <ToggleButton
-              active={activeProjectRightPanelOpen}
-              onClick={() => togglePanel("right")}
-              title="Toggle right panel"
-            >
-              <PanelRight className="size-4" />
-            </ToggleButton>
-            <Button
-              aria-label="Settings"
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-              onClick={handleOpenSettings}
-              size="icon-sm"
-              title="Settings"
-              variant="ghost"
-            >
-              <Settings className="size-4 shrink-0" />
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {appReady ? (
-        <ChatHistoryOverlay
-          onClose={() => setHistoryOpen(false)}
-          open={historyOpen}
-        />
-      ) : null}
 
       <Dialog
         onOpenChange={(open) => {

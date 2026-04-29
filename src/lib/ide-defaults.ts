@@ -51,6 +51,7 @@ export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
 };
 
 export const DEFAULT_PANEL_SIZES: PanelSizes = {
+  chatHistoryPanelWidth: 400,
   leftSidebarWidth: 240,
   rightPanelWidth: 520,
   terminalHeight: 260,
@@ -64,6 +65,7 @@ export const createEmptyState = (): PersistedIdeState => ({
   messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
+  projectChatHistoryPanelOpenByProject: {},
   projectPanelSizesByProject: {},
   projectRightPanelOpenByProject: {},
   projects: [],

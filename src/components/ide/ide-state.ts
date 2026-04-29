@@ -33,6 +33,7 @@ export const emptyState: PersistedIdeState = {
   messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
+  projectChatHistoryPanelOpenByProject: {},
   projectPanelSizesByProject: {},
   projectRightPanelOpenByProject: {},
   projects: [],
@@ -68,6 +69,15 @@ const normalizePanelSizes = (
 ) => {
   const panelSizes = value && typeof value === "object" ? value : {};
   return {
+    chatHistoryPanelWidth: Math.min(
+      500,
+      normalizePanelSize(
+        (panelSizes as Partial<typeof DEFAULT_PANEL_SIZES>)
+          .chatHistoryPanelWidth,
+        fallback.chatHistoryPanelWidth,
+        200,
+      ),
+    ),
     leftSidebarWidth: normalizePanelSize(
       (panelSizes as Partial<typeof DEFAULT_PANEL_SIZES>).leftSidebarWidth,
       fallback.leftSidebarWidth,
@@ -318,6 +328,19 @@ export const mergePersistedState = (
       ),
     ]),
   );
+  const rawProjectChatHistoryPanelOpenByProject =
+    state.projectChatHistoryPanelOpenByProject &&
+    typeof state.projectChatHistoryPanelOpenByProject === "object"
+      ? state.projectChatHistoryPanelOpenByProject
+      : {};
+  const projectChatHistoryPanelOpenByProject = Object.fromEntries(
+    allProjects.map((project) => [
+      project.id,
+      typeof rawProjectChatHistoryPanelOpenByProject[project.id] === "boolean"
+        ? rawProjectChatHistoryPanelOpenByProject[project.id]
+        : mergedPanelVisibility.left,
+    ]),
+  );
   const rawProjectRightPanelOpenByProject =
     state.projectRightPanelOpenByProject &&
     typeof state.projectRightPanelOpenByProject === "object"
@@ -408,6 +431,7 @@ export const mergePersistedState = (
     messagesByChatId,
     panelSizes: mergedPanelSizes,
     panelVisibility: mergedPanelVisibility,
+    projectChatHistoryPanelOpenByProject,
     projectPanelSizesByProject,
     projectRightPanelOpenByProject,
     projects,

@@ -61,6 +61,7 @@ export interface PanelVisibility {
 }
 
 export interface PanelSizes {
+  chatHistoryPanelWidth: number;
   leftSidebarWidth: number;
   rightPanelWidth: number;
   terminalHeight: number;
@@ -70,6 +71,7 @@ export interface PersistedIdeState {
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
+  projectChatHistoryPanelOpenByProject: Record<string, boolean>;
   projectRightPanelOpenByProject: Record<string, boolean>;
   projectPanelSizesByProject: Record<string, PanelSizes>;
   panelVisibility: PanelVisibility;
