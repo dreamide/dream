@@ -20,7 +20,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { useStickToBottomContext } from "use-stick-to-bottom";
+import {
+  type StickToBottomContext,
+  useStickToBottomContext,
+} from "use-stick-to-bottom";
 import {
   Attachment,
   AttachmentInfo,
@@ -164,6 +167,16 @@ const MESSAGE_RENDER_STYLE = {
   containIntrinsicSize: "240px",
   contentVisibility: "auto",
 } as const;
+const CHAT_CONTENT_BOTTOM_PADDING_PX = 54;
+const CHAT_SCROLL_BOTTOM_GAP_PX = 24;
+
+const getConversationTargetScrollTop = (targetScrollTop: number) =>
+  Math.max(targetScrollTop - CHAT_SCROLL_BOTTOM_GAP_PX, 0);
+
+const scrollElementToChatBottom = (element: HTMLElement) => {
+  const targetScrollTop = element.scrollHeight - 1 - element.clientHeight;
+  element.scrollTop = getConversationTargetScrollTop(targetScrollTop);
+};
 
 const formatMessageTime = (value: string | undefined) => {
   if (!value) {
@@ -194,45 +207,13 @@ const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
       if (!element) return;
 
       stopScroll();
-      element.scrollTop = element.scrollHeight;
+      scrollElementToChatBottom(element);
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
     };
   }, [isActive, scrollRef, stopScroll]);
-
-  return null;
-};
-
-const ConversationScrollOnUserMessage = ({
-  isActive,
-  lastMessageId,
-  lastMessageRole,
-}: {
-  isActive: boolean;
-  lastMessageId: string | undefined;
-  lastMessageRole: UIMessage["role"] | undefined;
-}) => {
-  const { scrollRef, scrollToBottom } = useStickToBottomContext();
-
-  useEffect(() => {
-    if (!(isActive && lastMessageId && lastMessageRole === "user")) {
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      const element = scrollRef.current;
-      if (!element) return;
-
-      element.scrollTop = element.scrollHeight;
-      scrollToBottom();
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-    };
-  }, [isActive, lastMessageId, lastMessageRole, scrollRef, scrollToBottom]);
 
   return null;
 };
@@ -864,6 +845,7 @@ export const ChatPanel = ({
   const loadingWriteDiffsRef = useRef(new Set<string>());
   const failedWriteDiffsRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
+  const conversationContextRef = useRef<StickToBottomContext | null>(null);
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -1185,6 +1167,24 @@ export const ChatPanel = ({
       ? `anthropic:${selectedModel}`
       : `openai:${selectedModel}`;
 
+  const scrollConversationToBottom = useCallback(() => {
+    if (!isActive) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const conversationContext = conversationContextRef.current;
+      const element = conversationContext?.scrollRef.current;
+      if (!element) {
+        return;
+      }
+
+      conversationContext.stopScroll();
+      scrollElementToChatBottom(element);
+      void conversationContext.scrollToBottom({ animation: "instant" });
+    });
+  }, [isActive]);
+
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       setLocalError(null);
@@ -1233,7 +1233,7 @@ export const ChatPanel = ({
       setPromptText("");
       useIdeStore.getState().setChatStreaming(submittedChatId, true);
       try {
-        await sendMessage(
+        const sendPromise = sendMessage(
           {
             files: prompt.files,
             metadata: {
@@ -1262,6 +1262,8 @@ export const ChatPanel = ({
             },
           },
         );
+        scrollConversationToBottom();
+        await sendPromise;
       } finally {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
       }
@@ -1278,6 +1280,7 @@ export const ChatPanel = ({
       selectedReasoningEffort,
       selectedReasoningLabel,
       sendMessage,
+      scrollConversationToBottom,
       chat,
       updateChat,
     ],
@@ -1418,15 +1421,18 @@ export const ChatPanel = ({
         ) : null}
 
         <Conversation
+          contextRef={conversationContextRef}
           id={conversationDomId}
           className="min-h-0 flex-1"
           initial={false}
+          targetScrollTop={getConversationTargetScrollTop}
         >
           <ConversationContent
             id={conversationContentDomId}
-            className={`mx-auto w-full max-w-[700px] gap-4 px-0 pt-3 pb-[54px]${
+            className={`mx-auto w-full max-w-[700px] gap-4 px-0 pt-3${
               messages.length === 0 ? " min-h-full" : ""
             }`}
+            style={{ paddingBottom: CHAT_CONTENT_BOTTOM_PADDING_PX }}
           >
             {messages.length === 0 ? (
               <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 text-center">
@@ -1462,11 +1468,6 @@ export const ChatPanel = ({
             ) : null}
           </ConversationContent>
           <ConversationScrollMemory isActive={isActive} />
-          <ConversationScrollOnUserMessage
-            isActive={isActive}
-            lastMessageId={lastMessage?.id}
-            lastMessageRole={lastMessage?.role}
-          />
           <ConversationScrollButton />
         </Conversation>
 
