@@ -23,6 +23,7 @@ import { BrowserPanel } from "./browser-panel";
 import { ChatPanel } from "./chat-panel";
 import {
   AppShellPlaceholder,
+  HorizontalResizablePanel,
   PanelResizeHandle,
   ToggleButton,
 } from "./ide-helpers";
@@ -303,86 +304,39 @@ export const ProjectWorkspace = ({
     }
   }, [getRightPanelMaxWidth, middleVisible, rightVisible]);
 
-  const handleRightResizeStart = useCallback(() => {
-    isDraggingRef.current = true;
-    const el = rightPanelRef.current;
-    if (el) el.style.transition = "none";
-  }, []);
+  const handleRightResizeEnd = useCallback(
+    (width: number) => {
+      isDraggingRef.current = false;
+      rightWidthRef.current = width;
 
-  const handleRightResize = useCallback(
-    (deltaX: number) => {
-      const maxRightWidth = getRightPanelMaxWidth();
-      const next = Math.max(
-        BROWSER_PANEL_MIN_WIDTH_PX,
-        Math.min(maxRightWidth, rightWidthRef.current + deltaX),
-      );
-      rightWidthRef.current = next;
-      const el = rightPanelRef.current;
-      if (el) {
-        el.style.width = `${next}px`;
-        el.style.maxWidth = `${maxRightWidth}px`;
+      if (!active) {
+        return;
       }
+
+      setPanelSizes((current) => ({
+        ...current,
+        rightPanelWidth: width,
+      }));
     },
-    [getRightPanelMaxWidth],
+    [active, setPanelSizes],
   );
 
-  const handleResizeEnd = useCallback(() => {
-    isDraggingRef.current = false;
-    const right = rightPanelRef.current;
-    if (right) right.style.transition = rightPanelTransition;
-    if (!active) {
-      return;
-    }
+  const handleHistoryResizeEnd = useCallback(
+    (width: number) => {
+      historyPanelWidthRef.current = width;
+      setHistoryPanelWidth(width);
 
-    setPanelSizes((current) => ({
-      ...current,
-      rightPanelWidth: rightWidthRef.current,
-    }));
-  }, [active, rightPanelTransition, setPanelSizes]);
+      if (!active) {
+        return;
+      }
 
-  const handleHistoryResize = useCallback((deltaX: number) => {
-    const next = clampChatHistoryPanelWidth(
-      historyPanelWidthRef.current + deltaX,
-    );
-    historyPanelWidthRef.current = next;
-
-    const el = historyPanelRef.current;
-    if (el) {
-      el.style.width = `${next}px`;
-      el.style.minWidth = `${next}px`;
-      el.style.maxWidth = `${next}px`;
-    }
-  }, []);
-
-  const handleHistoryResizeStart = useCallback(() => {
-    historyPanelWidthRef.current = clampChatHistoryPanelWidth(
-      historyPanelRef.current?.getBoundingClientRect().width ??
-        historyPanelWidthRef.current,
-    );
-
-    const el = historyPanelRef.current;
-    if (el) {
-      el.style.transition = "none";
-    }
-  }, []);
-
-  const handleHistoryResizeEnd = useCallback(() => {
-    const el = historyPanelRef.current;
-    if (el) {
-      el.style.transition = PANEL_TRANSITION;
-    }
-
-    setHistoryPanelWidth(historyPanelWidthRef.current);
-
-    if (!active) {
-      return;
-    }
-
-    setPanelSizes((current) => ({
-      ...current,
-      chatHistoryPanelWidth: historyPanelWidthRef.current,
-    }));
-  }, [active, setPanelSizes]);
+      setPanelSizes((current) => ({
+        ...current,
+        chatHistoryPanelWidth: width,
+      }));
+    },
+    [active, setPanelSizes],
+  );
 
   const handleAddChat = useCallback(() => {
     addChat(projectId);
@@ -606,6 +560,11 @@ export const ProjectWorkspace = ({
     };
   }, [activeBrowserTab?.id, projectId]);
 
+  const rightPanelMaxWidth = getRightPanelMaxWidth();
+  const boundedRightPanelMaxWidth = Number.isFinite(rightPanelMaxWidth)
+    ? rightPanelMaxWidth
+    : Number.MAX_SAFE_INTEGER;
+
   return (
     <div className="flex h-full" ref={horizontalPanelsRef}>
       <aside className="flex w-12 shrink-0 flex-col items-center py-2">
@@ -651,38 +610,21 @@ export const ProjectWorkspace = ({
         </Button>
       </aside>
 
-      <div
-        aria-hidden={!historyOpen}
-        className="shrink-0 overflow-hidden"
-        inert={!historyOpen}
-        ref={historyPanelRef}
-        style={{
-          boxSizing: "border-box",
-          maxWidth: historyOpen ? historyPanelWidth : 0,
-          minWidth: historyOpen ? historyPanelWidth : 0,
-          opacity: historyOpen ? 1 : 0,
-          pointerEvents: historyOpen ? "auto" : "none",
-          transition: PANEL_TRANSITION,
-          width: historyOpen ? historyPanelWidth : 0,
-          willChange: "width, opacity, padding",
-        }}
+      <HorizontalResizablePanel
+        contentClassName="py-2"
+        contentMinWidth={CHAT_HISTORY_PANEL_MIN_WIDTH_PX}
+        handleSide="right"
+        maxWidth={CHAT_HISTORY_PANEL_MAX_WIDTH_PX}
+        minWidth={CHAT_HISTORY_PANEL_MIN_WIDTH_PX}
+        onResizeEnd={handleHistoryResizeEnd}
+        open={historyOpen}
+        panelRef={historyPanelRef}
+        transition={PANEL_TRANSITION}
+        width={historyPanelWidth}
+        widthRef={historyPanelWidthRef}
       >
-        <div
-          className="h-full py-2"
-          style={{ minWidth: CHAT_HISTORY_PANEL_MIN_WIDTH_PX }}
-        >
-          <ProjectSidebar className="h-full" />
-        </div>
-      </div>
-
-      {historyOpen ? (
-        <PanelResizeHandle
-          onResize={handleHistoryResize}
-          onResizeEnd={handleHistoryResizeEnd}
-          onResizeStart={handleHistoryResizeStart}
-          side="right"
-        />
-      ) : null}
+        <ProjectSidebar className="h-full" />
+      </HorizontalResizablePanel>
 
       {/* ─── MIDDLE: Chat + Terminal ─── */}
       <div
@@ -776,58 +718,42 @@ export const ProjectWorkspace = ({
         </div>
       </div>
 
-      {/* Right resize handle — only when middle panel separates them */}
-      {rightVisible && middleVisible && (
-        <PanelResizeHandle
-          side="left"
-          onResizeStart={handleRightResizeStart}
-          onResize={handleRightResize}
-          onResizeEnd={handleResizeEnd}
-        />
-      )}
-
       {/* ─── RIGHT: Browser / Explorer ─── */}
-      <div
-        className={cn(
-          middleVisible ? "overflow-hidden" : "min-w-0 overflow-hidden",
-        )}
-        ref={rightPanelRef}
+      <HorizontalResizablePanel
+        className={cn(middleVisible ? "" : "min-w-0")}
+        contentClassName="pb-2"
+        contentMinWidth={BROWSER_PANEL_MIN_WIDTH_PX}
+        handleSide="left"
+        handleVisible={middleVisible}
+        maxWidth={boundedRightPanelMaxWidth}
+        minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
+        onResizeEnd={handleRightResizeEnd}
+        onResizeStart={() => {
+          isDraggingRef.current = true;
+        }}
+        open={rightVisible}
+        panelRef={rightPanelRef}
         style={{
-          ...(middleVisible
-            ? {
-                width: rightVisible ? rightWidthRef.current : 0,
-                minWidth: rightVisible ? BROWSER_PANEL_MIN_WIDTH_PX : 0,
-                maxWidth: rightVisible ? getRightPanelMaxWidth() : 0,
-                flex: rightVisible ? "0 0 auto" : "0 0 0px",
-              }
-            : {
-                flex: rightVisible ? "1 1 0%" : "0 0 0px",
-                minWidth: rightVisible ? BROWSER_PANEL_MIN_WIDTH_PX : 0,
-              }),
-          opacity: rightVisible ? 1 : 0,
+          flex: middleVisible ? undefined : rightVisible ? "1 1 0%" : "0 0 0px",
           paddingRight: rightVisible ? 8 : 0,
           paddingLeft: rightVisible && !middleVisible ? 8 : 0,
-          pointerEvents: rightVisible ? "auto" : "none",
-          transition: rightPanelTransition,
           willChange: middleVisible
             ? "width, opacity, padding"
             : "flex-basis, opacity, padding",
         }}
+        transition={rightPanelTransition}
+        width={rightWidthRef.current}
+        widthRef={rightWidthRef}
       >
-        <div
-          className="h-full pb-2"
-          style={{ minWidth: BROWSER_PANEL_MIN_WIDTH_PX }}
-        >
-          <BrowserPanel
-            active={active}
-            browserHostRef={browserHostRef}
-            onRightPanelViewChange={setRightPanelView}
-            onSyncBrowserBounds={syncBrowserBounds}
-            projectId={projectId}
-            rightPanelView={rightPanelView}
-          />
-        </div>
-      </div>
+        <BrowserPanel
+          active={active}
+          browserHostRef={browserHostRef}
+          onRightPanelViewChange={setRightPanelView}
+          onSyncBrowserBounds={syncBrowserBounds}
+          projectId={projectId}
+          rightPanelView={rightPanelView}
+        />
+      </HorizontalResizablePanel>
 
       <aside className="flex w-12 shrink-0 flex-col items-center gap-1 py-2">
         <ToggleButton

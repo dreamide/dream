@@ -1,5 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
-import type { PropsWithChildren } from "react";
+import type { CSSProperties, PropsWithChildren } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -107,6 +107,166 @@ export const PanelResizeHandle = ({
         )}
       />
     </div>
+  );
+};
+
+type MutableRef<T> = {
+  current: T;
+};
+
+export const HorizontalResizablePanel = ({
+  children,
+  className,
+  contentClassName,
+  contentMinWidth,
+  contentStyle,
+  handleSide,
+  handleVisible,
+  maxWidth,
+  minWidth,
+  onResizeEnd,
+  onResizeStart,
+  open,
+  panelRef,
+  style,
+  transition,
+  width,
+  widthRef,
+}: PropsWithChildren<{
+  className?: string;
+  contentClassName?: string;
+  contentMinWidth: number;
+  contentStyle?: CSSProperties;
+  handleSide: "left" | "right";
+  handleVisible?: boolean;
+  maxWidth: number;
+  minWidth: number;
+  onResizeEnd?: (width: number) => void;
+  onResizeStart?: () => void;
+  open: boolean;
+  panelRef?: MutableRef<HTMLDivElement | null>;
+  style?: CSSProperties;
+  transition: string;
+  width: number;
+  widthRef: MutableRef<number>;
+}>) => {
+  const internalPanelRef = useRef<HTMLDivElement | null>(null);
+
+  const setPanelRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      internalPanelRef.current = node;
+      if (panelRef) {
+        panelRef.current = node;
+      }
+    },
+    [panelRef],
+  );
+
+  const getPanel = useCallback(
+    () => panelRef?.current ?? internalPanelRef.current,
+    [panelRef],
+  );
+
+  const clampWidth = useCallback(
+    (value: number) => Math.max(minWidth, Math.min(maxWidth, value)),
+    [maxWidth, minWidth],
+  );
+
+  const applyWidth = useCallback(
+    (nextWidth: number) => {
+      widthRef.current = nextWidth;
+      const panel = getPanel();
+      if (!panel) {
+        return;
+      }
+
+      panel.style.width = `${nextWidth}px`;
+      panel.style.maxWidth = `${maxWidth}px`;
+    },
+    [getPanel, maxWidth, widthRef],
+  );
+
+  const handleResizeStart = useCallback(() => {
+    onResizeStart?.();
+
+    const panel = getPanel();
+    widthRef.current = clampWidth(
+      panel?.getBoundingClientRect().width ?? widthRef.current,
+    );
+
+    if (panel) {
+      panel.style.transition = "none";
+    }
+  }, [clampWidth, getPanel, onResizeStart, widthRef]);
+
+  const handleResize = useCallback(
+    (deltaX: number) => {
+      applyWidth(clampWidth(widthRef.current + deltaX));
+    },
+    [applyWidth, clampWidth, widthRef],
+  );
+
+  const handleResizeEnd = useCallback(() => {
+    const panel = getPanel();
+    if (panel) {
+      panel.style.transition = transition;
+    }
+
+    onResizeEnd?.(widthRef.current);
+  }, [getPanel, onResizeEnd, transition, widthRef]);
+
+  useEffect(() => {
+    widthRef.current = clampWidth(width);
+  }, [clampWidth, width, widthRef]);
+
+  const panel = (
+    <div
+      aria-hidden={!open}
+      className={cn("shrink-0 overflow-hidden", className)}
+      inert={!open}
+      ref={setPanelRef}
+      style={{
+        boxSizing: "border-box",
+        flex: open ? "0 0 auto" : "0 0 0px",
+        maxWidth: open ? maxWidth : 0,
+        minWidth: open ? minWidth : 0,
+        opacity: open ? 1 : 0,
+        pointerEvents: open ? "auto" : "none",
+        transition,
+        width: open ? width : 0,
+        willChange: "width, opacity, padding",
+        ...style,
+      }}
+    >
+      <div
+        className={cn("h-full", contentClassName)}
+        style={{ minWidth: contentMinWidth, ...contentStyle }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+
+  const handle =
+    open && (handleVisible ?? true) ? (
+      <PanelResizeHandle
+        onResize={handleResize}
+        onResizeEnd={handleResizeEnd}
+        onResizeStart={handleResizeStart}
+        side={handleSide}
+      />
+    ) : null;
+
+  return handleSide === "left" ? (
+    <>
+      {handle}
+      {panel}
+    </>
+  ) : (
+    <>
+      {panel}
+      {handle}
+    </>
   );
 };
 
