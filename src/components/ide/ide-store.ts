@@ -273,6 +273,86 @@ const areMessagesEqual = (
   return true;
 };
 
+const isGrowingTextualPart = (
+  left: UIMessage["parts"][number],
+  right: UIMessage["parts"][number],
+) => {
+  if (
+    (left.type !== "text" && left.type !== "reasoning") ||
+    left.type !== right.type
+  ) {
+    return false;
+  }
+
+  const previousText = "text" in left ? left.text : "";
+  const nextText = "text" in right ? right.text : "";
+
+  return (
+    typeof previousText === "string" &&
+    typeof nextText === "string" &&
+    nextText.startsWith(previousText)
+  );
+};
+
+const shouldTouchChatUpdatedAt = (
+  previousMessages: UIMessage[] | undefined,
+  nextMessages: UIMessage[],
+) => {
+  if (!previousMessages || previousMessages.length !== nextMessages.length) {
+    return true;
+  }
+
+  const lastMessageIndex = nextMessages.length - 1;
+
+  for (
+    let messageIndex = 0;
+    messageIndex < nextMessages.length;
+    messageIndex++
+  ) {
+    const previousMessage = previousMessages[messageIndex];
+    const nextMessage = nextMessages[messageIndex];
+
+    if (previousMessage === nextMessage) {
+      continue;
+    }
+
+    if (
+      previousMessage.id !== nextMessage.id ||
+      previousMessage.role !== nextMessage.role ||
+      previousMessage.parts.length !== nextMessage.parts.length
+    ) {
+      return true;
+    }
+
+    if (previousMessage.parts === nextMessage.parts) {
+      continue;
+    }
+
+    const lastPartIndex = nextMessage.parts.length - 1;
+
+    for (let partIndex = 0; partIndex < nextMessage.parts.length; partIndex++) {
+      const previousPart = previousMessage.parts[partIndex];
+      const nextPart = nextMessage.parts[partIndex];
+
+      if (previousPart === nextPart) {
+        continue;
+      }
+
+      if (
+        messageIndex === lastMessageIndex &&
+        partIndex === lastPartIndex &&
+        isGrowingTextualPart(previousPart, nextPart)
+      ) {
+        continue;
+      }
+
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const BROWSER_TAB_ID_PREFIX = "browser-tab";
 
 const createBrowserTabId = () => {
@@ -1077,6 +1157,11 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
 
+      const touchUpdatedAt = shouldTouchChatUpdatedAt(
+        state.messagesByChatId[chatId],
+        messages,
+      );
+
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
       if (
         messages.length > 0 &&
@@ -1088,14 +1173,16 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       return {
         draftChatIdByProject: nextDraftChatIdByProject,
         messagesByChatId: { ...state.messagesByChatId, [chatId]: messages },
-        chats: state.chats.map((item) =>
-          item.id === chatId
-            ? {
-                ...item,
-                updatedAt: new Date().toISOString(),
-              }
-            : item,
-        ),
+        chats: touchUpdatedAt
+          ? state.chats.map((item) =>
+              item.id === chatId
+                ? {
+                    ...item,
+                    updatedAt: new Date().toISOString(),
+                  }
+                : item,
+            )
+          : state.chats,
       };
     });
   },

@@ -626,7 +626,7 @@ export const ProjectWorkspace = ({
         width={historyPanelWidth}
         widthRef={historyPanelWidthRef}
       >
-        <ProjectSidebar className="h-full" />
+        {active && historyOpen ? <ProjectSidebar className="h-full" /> : null}
       </HorizontalResizablePanel>
 
       {/* ─── MIDDLE: Chat + Terminal ─── */}

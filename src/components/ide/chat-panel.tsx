@@ -152,6 +152,8 @@ const PROVIDER_LABELS: Record<AiProvider, string> = {
   anthropic: "Anthropic",
 };
 
+const CHAT_STREAM_UPDATE_THROTTLE_MS = 50;
+
 type ChatMessageMetadata = {
   createdAt?: string;
   model?: string;
@@ -866,6 +868,7 @@ export const ChatPanel = ({
     addToolApprovalResponse,
     clearError,
   } = useChat({
+    experimental_throttle: CHAT_STREAM_UPDATE_THROTTLE_MS,
     id: `chat:${chat.id}`,
     messages: chatMessages,
     onError: (error) => {
