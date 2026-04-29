@@ -100,6 +100,32 @@ const readResponseText = async (response: Response): Promise<string> => {
 
 type PierreDiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
 
+const DIFF_UNMODIFIED_LINES_CSS = `
+[data-separator='line-info'] {
+  margin-block: 0;
+  background-color: light-dark(#f6f8fb, #20252c);
+}
+
+[data-separator='line-info'] [data-separator-wrapper],
+[data-separator='line-info'] [data-expand-button],
+[data-separator='line-info'] [data-separator-content] {
+  background-color: light-dark(#f6f8fb, #20252c);
+}
+
+[data-separator='line-info'] [data-separator-content] {
+  padding-inline: 0;
+}
+
+[data-separator='line-info'] [data-expand-button] {
+  border-right-color: transparent;
+}
+
+[data-separator='line-info'] [data-expand-up],
+[data-separator='line-info'] [data-expand-down] {
+  border-color: transparent;
+}
+`;
+
 const ExpandedDiffBody = ({
   change,
   diff,
@@ -126,6 +152,7 @@ const ExpandedDiffBody = ({
         light: "github-light",
       },
       themeType: resolvedTheme === "dark" ? "dark" : "light",
+      unsafeCSS: DIFF_UNMODIFIED_LINES_CSS,
     }),
     [mode, resolvedTheme],
   );

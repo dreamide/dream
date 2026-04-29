@@ -784,7 +784,7 @@ export const IdeHeader = () => {
         isMacOs ? "pr-3" : "pr-0",
       )}
     >
-      <div className="flex h-11 items-end gap-2 pl-3 [-webkit-app-region:drag]">
+      <div className="flex h-11 items-center gap-2 bg-[oklch(0.945_0_0)] pl-3 shadow-[inset_0_-1px_rgb(0_0_0/0.08)] dark:bg-[oklch(0.245_0_0)] [-webkit-app-region:drag]">
         <div
           className={cn(
             "h-8 shrink-0 [-webkit-app-region:drag]",
@@ -792,14 +792,14 @@ export const IdeHeader = () => {
           )}
         />
 
-        <div className="min-w-0 flex-1 pb-0.5 [-webkit-app-region:drag]">
+        <div className="min-w-0 flex-1 [-webkit-app-region:drag]">
           {appReady ? (
             <StandardTabs
               activeId={activeProjectId}
               after={
                 <Button
                   aria-label="Add project"
-                  className="mb-px h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                  className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
                   onClick={() => void handleAddProject()}
                   size="icon-sm"
                   title="Add project"
@@ -809,10 +809,12 @@ export const IdeHeader = () => {
                 </Button>
               }
               ariaLabel="Projects"
+              className="items-center"
               interactiveClassName="[-webkit-app-region:no-drag]"
               items={projectTabItems}
               onActivate={setActiveProjectId}
               onReorder={handleProjectReorder}
+              tabClassName="h-9 border-transparent text-foreground/70 hover:bg-black/4 hover:text-foreground group-hover:bg-black/4 group-hover:text-foreground aria-selected:border-foreground/15 aria-selected:bg-background aria-selected:text-foreground aria-selected:shadow-sm dark:hover:bg-white/8 dark:group-hover:bg-white/8 dark:aria-selected:bg-background"
               renderActions={(project) => {
                 const isProjectMenuOpen = openProjectMenuId === project.id;
 
@@ -835,7 +837,7 @@ export const IdeHeader = () => {
                         render={
                           <Button
                             aria-label={`${project.label} actions`}
-                            className="h-8 w-8 p-0 [-webkit-app-region:no-drag]"
+                            className="h-8 w-8 bg-transparent p-0 hover:bg-transparent data-[state=open]:bg-transparent [-webkit-app-region:no-drag]"
                             onClick={(event) => {
                               event.stopPropagation();
                             }}
