@@ -207,9 +207,12 @@ export const ProjectSidebar = ({
                   >
                     <button
                       className="w-full rounded-[inherit] px-3 py-2 text-left"
-                      onClick={() => {
+                      onClick={(event) => {
                         setActiveChatId(activeProject.id, chat.id);
                         onChatSelect?.();
+                        if (event.detail > 0) {
+                          event.currentTarget.blur();
+                        }
                       }}
                       type="button"
                     >

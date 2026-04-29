@@ -20,11 +20,13 @@ import { cn } from "@/lib/utils";
  *   dragging up increases height.
  */
 export const PanelResizeHandle = ({
+  onDoubleClick,
   onResizeStart,
   onResize,
   onResizeEnd,
   side,
 }: {
+  onDoubleClick?: () => void;
   onResizeStart?: () => void;
   onResize: (delta: number) => void;
   onResizeEnd?: () => void;
@@ -75,6 +77,15 @@ export const PanelResizeHandle = ({
     [onResizeEnd],
   );
 
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onDoubleClick?.();
+    },
+    [onDoubleClick],
+  );
+
   // Prevent text selection globally while dragging
   useEffect(() => {
     const onSelectStart = (e: Event) => {
@@ -85,18 +96,21 @@ export const PanelResizeHandle = ({
   }, []);
 
   return (
-    <div
+    <button
+      aria-label="Resize panel"
       className={cn(
-        "group relative z-20 flex shrink-0 touch-none select-none items-center justify-center",
+        "group relative z-20 flex shrink-0 touch-none select-none items-center justify-center border-0 bg-transparent p-0",
         side === "left" || side === "right"
           ? "cursor-col-resize"
           : "cursor-row-resize",
       )}
       style={side === "left" || side === "right" ? { width: 1 } : { height: 1 }}
+      type="button"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onDoubleClick={handleDoubleClick}
     >
       <div
         className={cn(
@@ -106,7 +120,7 @@ export const PanelResizeHandle = ({
             : "inset-x-0 -top-1.5 -bottom-1.5 cursor-row-resize",
         )}
       />
-    </div>
+    </button>
   );
 };
 
@@ -126,6 +140,7 @@ export const HorizontalResizablePanel = ({
   minWidth,
   onResizeEnd,
   onResizeStart,
+  onHandleDoubleClick,
   open,
   panelRef,
   style,
@@ -143,6 +158,7 @@ export const HorizontalResizablePanel = ({
   minWidth: number;
   onResizeEnd?: (width: number) => void;
   onResizeStart?: () => void;
+  onHandleDoubleClick?: () => void;
   open: boolean;
   panelRef?: MutableRef<HTMLDivElement | null>;
   style?: CSSProperties;
@@ -250,6 +266,7 @@ export const HorizontalResizablePanel = ({
   const handle =
     open && (handleVisible ?? true) ? (
       <PanelResizeHandle
+        onDoubleClick={onHandleDoubleClick}
         onResize={handleResize}
         onResizeEnd={handleResizeEnd}
         onResizeStart={handleResizeStart}

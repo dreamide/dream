@@ -616,6 +616,9 @@ export const ProjectWorkspace = ({
         handleSide="right"
         maxWidth={CHAT_HISTORY_PANEL_MAX_WIDTH_PX}
         minWidth={CHAT_HISTORY_PANEL_MIN_WIDTH_PX}
+        onHandleDoubleClick={() =>
+          setProjectChatHistoryPanelOpen(projectId, false)
+        }
         onResizeEnd={handleHistoryResizeEnd}
         open={historyOpen}
         panelRef={historyPanelRef}
@@ -687,6 +690,7 @@ export const ProjectWorkspace = ({
             }}
           >
             <PanelResizeHandle
+              onDoubleClick={handleOpenTerminal}
               onResize={handleTerminalResize}
               onResizeEnd={handleTerminalResizeEnd}
               onResizeStart={handleTerminalResizeStart}
@@ -727,6 +731,7 @@ export const ProjectWorkspace = ({
         handleVisible={middleVisible}
         maxWidth={boundedRightPanelMaxWidth}
         minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
+        onHandleDoubleClick={() => togglePanel("right")}
         onResizeEnd={handleRightResizeEnd}
         onResizeStart={() => {
           isDraggingRef.current = true;
