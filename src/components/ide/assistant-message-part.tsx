@@ -4,7 +4,6 @@ import {
   BotIcon,
   CheckIcon,
   EyeIcon,
-  FileIcon,
   FolderIcon,
   PenLineIcon,
   SearchIcon,
@@ -60,6 +59,7 @@ import { cn } from "@/lib/utils";
 import { IdeDiffViewer } from "./diff-viewer";
 import { stringifyPart } from "./ide-state";
 import { useIdeStore } from "./ide-store";
+import { MaterialFileIcon } from "./material-file-icon";
 
 type MessagePart = UIMessage["parts"][number];
 
@@ -1278,7 +1278,10 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
             >
               <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
                 <CodeBlockTitle>
-                  <FileIcon size={14} />
+                  <MaterialFileIcon
+                    className="size-3.5"
+                    path={filePath ?? filename}
+                  />
                   <CodeBlockFilename>{filename}</CodeBlockFilename>
                   {start !== null && end !== null ? (
                     <Badge variant="secondary" className="ml-1 text-sm">
@@ -2119,7 +2122,10 @@ export const WriteFileChip = ({
                 >
                   <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <FileIcon size={14} />
+                      <MaterialFileIcon
+                        className="size-3.5"
+                        path={filePath ?? filename}
+                      />
                       <CodeBlockFilename>{filename}</CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>
@@ -2149,7 +2155,10 @@ export const WriteFileChip = ({
               >
                 <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
                   <CodeBlockTitle>
-                    <FileIcon size={14} />
+                    <MaterialFileIcon
+                      className="size-3.5"
+                      path={filePath ?? filename}
+                    />
                     <CodeBlockFilename>{filename}</CodeBlockFilename>
                   </CodeBlockTitle>
                   <CodeBlockActions>
