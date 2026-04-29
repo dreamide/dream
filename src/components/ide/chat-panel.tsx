@@ -163,7 +163,7 @@ type ChatMessageMetadata = {
   remoteConversationProjectPath?: string;
 };
 
-const CHAT_CONTENT_BOTTOM_PADDING_PX = 64;
+const CHAT_CONTENT_BOTTOM_PADDING_PX = 88;
 
 const scrollElementToChatBottom = (element: HTMLElement) => {
   const targetScrollTop = element.scrollHeight - 1 - element.clientHeight;
@@ -850,6 +850,7 @@ export const ChatPanel = ({
   const failedWriteDiffsRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
   const conversationContextRef = useRef<StickToBottomContext | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -1171,48 +1172,57 @@ export const ChatPanel = ({
       ? `anthropic:${selectedModel}`
       : `openai:${selectedModel}`;
 
+  const scheduleConversationScroll = useCallback(
+    (mode: "force" | "locked") => {
+      if (!isActive || scrollFrameRef.current !== null) {
+        return;
+      }
+
+      scrollFrameRef.current = window.requestAnimationFrame(() => {
+        scrollFrameRef.current = null;
+        const conversationContext = conversationContextRef.current;
+        const element = conversationContext?.scrollRef.current;
+        if (!conversationContext || !element) {
+          return;
+        }
+        if (mode === "locked" && conversationContext.escapedFromLock) {
+          return;
+        }
+
+        scrollElementToChatBottom(element);
+        void conversationContext.scrollToBottom({
+          animation: "instant",
+          ignoreEscapes: true,
+        });
+      });
+    },
+    [isActive],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
+    };
+  }, []);
+
   const scrollConversationToBottom = useCallback(() => {
     if (!isActive) {
       return;
     }
 
-    window.requestAnimationFrame(() => {
-      const conversationContext = conversationContextRef.current;
-      const element = conversationContext?.scrollRef.current;
-      if (!element) {
-        return;
-      }
-
-      scrollElementToChatBottom(element);
-      void conversationContext.scrollToBottom({
-        animation: "instant",
-        ignoreEscapes: true,
-      });
-    });
-  }, [isActive]);
+    scheduleConversationScroll("force");
+  }, [isActive, scheduleConversationScroll]);
 
   const scrollConversationToBottomIfLocked = useCallback(() => {
     if (!isActive) {
       return;
     }
 
-    window.requestAnimationFrame(() => {
-      const conversationContext = conversationContextRef.current;
-      const element = conversationContext?.scrollRef.current;
-      if (!conversationContext || !element) {
-        return;
-      }
-      if (conversationContext.escapedFromLock) {
-        return;
-      }
-
-      scrollElementToChatBottom(element);
-      void conversationContext.scrollToBottom({
-        animation: "instant",
-        ignoreEscapes: true,
-      });
-    });
-  }, [isActive]);
+    scheduleConversationScroll("locked");
+  }, [isActive, scheduleConversationScroll]);
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {

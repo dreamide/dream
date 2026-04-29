@@ -14,7 +14,14 @@ import {
   XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -637,7 +644,9 @@ const StreamingMessageResponse = ({
 
     if (!targetText.startsWith(currentText)) {
       visibleTextRef.current = targetText;
-      setVisibleText(targetText);
+      startTransition(() => {
+        setVisibleText(targetText);
+      });
       return;
     }
 
@@ -649,12 +658,16 @@ const StreamingMessageResponse = ({
 
     if (nextText === currentText) {
       visibleTextRef.current = targetText;
-      setVisibleText(targetText);
+      startTransition(() => {
+        setVisibleText(targetText);
+      });
       return;
     }
 
     visibleTextRef.current = nextText;
-    setVisibleText(nextText);
+    startTransition(() => {
+      setVisibleText(nextText);
+    });
 
     if (nextText !== targetText) {
       scheduleTick(intervalMs);
