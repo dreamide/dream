@@ -277,18 +277,12 @@ export const ProjectWorkspace = ({
     const availableWidth =
       containerWidth -
       WORKSPACE_SIDE_NAV_WIDTH_PX * 2 -
-      (historyOpen ? historyPanelWidth : 0) -
+      (historyOpen ? historyPanelWidthRef.current : 0) -
       getHorizontalChromeWidth() -
       CHAT_PANEL_MIN_WIDTH_PX;
 
     return Math.max(BROWSER_PANEL_MIN_WIDTH_PX, availableWidth);
-  }, [
-    getHorizontalChromeWidth,
-    historyOpen,
-    historyPanelWidth,
-    middleVisible,
-    rightVisible,
-  ]);
+  }, [getHorizontalChromeWidth, historyOpen, middleVisible, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
     if (!rightVisible || !middleVisible) {
@@ -351,10 +345,21 @@ export const ProjectWorkspace = ({
       historyPanelWidthRef.current + deltaX,
     );
     historyPanelWidthRef.current = next;
-    setHistoryPanelWidth(next);
+
+    const el = historyPanelRef.current;
+    if (el) {
+      el.style.width = `${next}px`;
+      el.style.minWidth = `${next}px`;
+      el.style.maxWidth = `${next}px`;
+    }
   }, []);
 
   const handleHistoryResizeStart = useCallback(() => {
+    historyPanelWidthRef.current = clampChatHistoryPanelWidth(
+      historyPanelRef.current?.getBoundingClientRect().width ??
+        historyPanelWidthRef.current,
+    );
+
     const el = historyPanelRef.current;
     if (el) {
       el.style.transition = "none";
@@ -366,6 +371,8 @@ export const ProjectWorkspace = ({
     if (el) {
       el.style.transition = PANEL_TRANSITION;
     }
+
+    setHistoryPanelWidth(historyPanelWidthRef.current);
 
     if (!active) {
       return;
@@ -661,7 +668,7 @@ export const ProjectWorkspace = ({
         }}
       >
         <div
-          className="h-full pb-2"
+          className="h-full py-2"
           style={{ minWidth: CHAT_HISTORY_PANEL_MIN_WIDTH_PX }}
         >
           <ProjectSidebar className="h-full" />
