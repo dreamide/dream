@@ -133,8 +133,6 @@ function configureApplicationMenu() {
   );
 }
 
-configureApplicationMenu();
-
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
   activeChatIdByProject: {},
@@ -2040,8 +2038,7 @@ async function startRendererServerIfNeeded() {
   }
 
   // Production: serve Vite build output with sirv + proxy /api to Hono
-  const appPath = app.getAppPath();
-  const distPath = path.join(appPath, "dist");
+  const distPath = path.join(__dirname, "..", "dist");
   const sirvHandler = sirv(distPath, {
     single: true,
     dev: false,
@@ -3027,6 +3024,8 @@ ipcMain.on("browser:update", (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
+  configureApplicationMenu();
+
   if (process.platform === "darwin" && existsSync(appIconPath)) {
     app.dock?.setIcon(appIconPath);
   }
