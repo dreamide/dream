@@ -1,5 +1,4 @@
 import { parsePatchFiles } from "@pierre/diffs";
-import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
 import {
   BotIcon,
@@ -13,7 +12,6 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import {
   startTransition,
   useCallback,
@@ -59,11 +57,11 @@ import {
 } from "@/components/ai-elements/tool";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { IdeDiffViewer } from "./diff-viewer";
 import { stringifyPart } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 
 type MessagePart = UIMessage["parts"][number];
-type PierreDiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
 
 type ToolLikePart = MessagePart & {
   approval?: { id: string; approved?: boolean; reason?: string };
@@ -1794,7 +1792,6 @@ export const WriteFileChip = ({
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
-  const { resolvedTheme } = useTheme();
   const activeProjectPath = useIdeStore(
     (s) => s.getActiveProject()?.path ?? null,
   );
@@ -1909,22 +1906,6 @@ export const WriteFileChip = ({
       !isRunning && displayDiffCode ? parseSingleDiff(displayDiffCode) : null,
     [displayDiffCode, isRunning],
   );
-  const diffOptions = useMemo<PierreDiffOptions>(
-    () => ({
-      diffIndicators: "bars",
-      diffStyle: "unified",
-      disableFileHeader: true,
-      hunkSeparators: "line-info",
-      lineDiffType: "none",
-      theme: {
-        dark: "github-dark",
-        light: "github-light",
-      },
-      themeType: resolvedTheme === "dark" ? "dark" : "light",
-    }),
-    [resolvedTheme],
-  );
-
   useEffect(() => {
     if (defaultExpanded) {
       setExpanded(true);
@@ -2127,11 +2108,7 @@ export const WriteFileChip = ({
             <div>
               {parsedDiff ? (
                 <div className="max-h-96 overflow-auto rounded-md border bg-background text-xs">
-                  <FileDiff
-                    className="dream-diff-viewer w-full min-w-0"
-                    fileDiff={parsedDiff}
-                    options={diffOptions}
-                  />
+                  <IdeDiffViewer fileDiff={parsedDiff} />
                 </div>
               ) : (
                 <CodeBlock

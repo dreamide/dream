@@ -446,7 +446,7 @@
   height: 14px;
 }
 
-/* Use native OS scrollbars in xterm instead of xterm's custom overlay scrollbar. */
+/* Shared diff viewer styling for changes and inline tool previews. */
 .dream-diff-viewer {
   --diffs-font-family: var(--font-jetbrains-mono);
   --diffs-header-font-family: var(--font-jetbrains-mono);
@@ -455,7 +455,7 @@
   line-height: 1.5;
 }
 
-.changes-panel .dream-diff-viewer {
+.dream-diff-surface .dream-diff-viewer {
   --diffs-light-bg: #fbfcfe;
   --diffs-dark-bg: #101319;
   --diffs-bg-buffer-override: light-dark(#d8dee6, #444b53);

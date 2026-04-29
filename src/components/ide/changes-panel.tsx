@@ -1,4 +1,3 @@
-import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
 import {
   ChevronDown,
   ChevronRight,
@@ -8,7 +7,6 @@ import {
   RefreshCw,
   Rows3,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -28,6 +26,7 @@ import type {
   ProjectGitDiffResponse,
   ProjectGitStatusEntry,
 } from "@/types/ide";
+import { IdeDiffViewer } from "./diff-viewer";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
@@ -98,34 +97,6 @@ const readResponseText = async (response: Response): Promise<string> => {
   return text.trim() || `Request failed (${response.status}).`;
 };
 
-type PierreDiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
-
-const DIFF_UNMODIFIED_LINES_CSS = `
-[data-separator='line-info'] {
-  margin-block: 0;
-  background-color: light-dark(#f6f8fb, #20252c);
-}
-
-[data-separator='line-info'] [data-separator-wrapper],
-[data-separator='line-info'] [data-expand-button],
-[data-separator='line-info'] [data-separator-content] {
-  background-color: light-dark(#f6f8fb, #20252c);
-}
-
-[data-separator='line-info'] [data-separator-content] {
-  padding-inline: 0;
-}
-
-[data-separator='line-info'] [data-expand-button] {
-  border-right-color: transparent;
-}
-
-[data-separator='line-info'] [data-expand-up],
-[data-separator='line-info'] [data-expand-down] {
-  border-color: transparent;
-}
-`;
-
 const ExpandedDiffBody = ({
   change,
   diff,
@@ -139,24 +110,6 @@ const ExpandedDiffBody = ({
   diffLoading: boolean;
   mode: DiffViewMode;
 }) => {
-  const { resolvedTheme } = useTheme();
-  const diffOptions = useMemo<PierreDiffOptions>(
-    () => ({
-      diffIndicators: "bars",
-      diffStyle: mode,
-      disableFileHeader: true,
-      hunkSeparators: "line-info",
-      lineDiffType: "none",
-      theme: {
-        dark: "github-dark",
-        light: "github-light",
-      },
-      themeType: resolvedTheme === "dark" ? "dark" : "light",
-      unsafeCSS: DIFF_UNMODIFIED_LINES_CSS,
-    }),
-    [mode, resolvedTheme],
-  );
-
   if (diffLoading) {
     return (
       <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
@@ -219,10 +172,10 @@ const ExpandedDiffBody = ({
               </CodeBlockHeader>
             </CodeBlock>
           ) : diff.parsedDiff ? (
-            <FileDiff
-              className="dream-diff-viewer min-w-[720px]"
+            <IdeDiffViewer
+              className="min-w-[720px]"
+              diffStyle={mode}
               fileDiff={diff.parsedDiff}
-              options={diffOptions}
             />
           ) : (
             <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-muted/40 p-4 font-mono text-xs">
