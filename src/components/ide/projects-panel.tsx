@@ -18,7 +18,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import type { ChatConfig } from "@/types/ide";
+import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 
 const formatLastActiveTime = (value: string) => {
@@ -58,13 +58,13 @@ const formatLastActiveTime = (value: string) => {
 export const ProjectSidebar = ({
   className,
   onChatSelect,
+  project,
 }: {
   className?: string;
   onChatSelect?: () => void;
+  project: ProjectConfig;
 }) => {
-  const projects = useIdeStore((s) => s.projects);
   const allChats = useIdeStore((s) => s.chats);
-  const activeProject = useIdeStore((s) => s.getActiveProject());
   const activeChatIdByProject = useIdeStore((s) => s.activeChatIdByProject);
   const draftChatIdByProject = useIdeStore((s) => s.draftChatIdByProject);
   const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
@@ -78,15 +78,10 @@ export const ProjectSidebar = ({
   const [renameValue, setRenameValue] = useState("");
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
-    if (!activeProject) {
-      return [];
-    }
-
-    const draftChatId = draftChatIdByProject[activeProject.id] ?? null;
+    const draftChatId = draftChatIdByProject[project.id] ?? null;
     return allChats
       .filter(
-        (chat) =>
-          chat.projectId === activeProject.id && chat.deletedAt === null,
+        (chat) => chat.projectId === project.id && chat.deletedAt === null,
       )
       .filter((chat) => {
         if (chat.id !== draftChatId) {
@@ -104,7 +99,7 @@ export const ProjectSidebar = ({
 
         return rightUpdated - leftUpdated;
       });
-  }, [activeProject, allChats, draftChatIdByProject, messagesByChatId]);
+  }, [allChats, draftChatIdByProject, messagesByChatId, project.id]);
 
   const filteredChats = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -117,9 +112,7 @@ export const ProjectSidebar = ({
     );
   }, [activeProjectChats, searchQuery]);
 
-  const activeChatId = activeProject
-    ? (activeChatIdByProject[activeProject.id] ?? null)
-    : null;
+  const activeChatId = activeChatIdByProject[project.id] ?? null;
 
   const closeRenameDialog = useCallback(() => {
     setRenameTarget(null);
@@ -169,18 +162,7 @@ export const ProjectSidebar = ({
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          {projects.length === 0 ? (
-            <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground text-sm">
-              <p>
-                Add a folder to start working on multiple projects in one
-                workspace.
-              </p>
-            </div>
-          ) : !activeProject ? (
-            <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground text-sm">
-              <p>Select a project tab to view its chats.</p>
-            </div>
-          ) : filteredChats.length === 0 ? (
+          {filteredChats.length === 0 ? (
             <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground text-sm">
               <p>
                 {searchQuery.trim()
@@ -208,7 +190,7 @@ export const ProjectSidebar = ({
                     <button
                       className="w-full rounded-[inherit] px-3 py-2 text-left"
                       onClick={(event) => {
-                        setActiveChatId(activeProject.id, chat.id);
+                        setActiveChatId(project.id, chat.id);
                         onChatSelect?.();
                         if (event.detail > 0) {
                           event.currentTarget.blur();

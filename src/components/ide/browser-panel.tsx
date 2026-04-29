@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
+import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 import { ChangesPanel } from "./changes-panel";
 import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder } from "./ide-helpers";
@@ -32,13 +33,14 @@ import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const RIGHT_PANEL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
+const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 
 export interface BrowserPanelProps {
   active?: boolean;
   browserHostRef: RefObject<HTMLDivElement | null>;
   onRightPanelViewChange?: (view: RightPanelView) => void;
   onSyncBrowserBounds: (reload?: boolean) => void;
-  projectId?: string | null;
+  project: ProjectConfig;
   rightPanelView?: RightPanelView;
 }
 
@@ -67,24 +69,18 @@ const BrowserViewport = ({
   active = true,
   onSyncBrowserBounds,
   browserHostRef,
-  projectId: requestedProjectId,
+  project,
 }: BrowserPanelProps) => {
   const browserContainerRef = useRef<HTMLDivElement | null>(null);
   const [browserUrlDraft, setBrowserUrlDraft] = useState("");
 
-  const activeProject = useIdeStore((state) =>
-    requestedProjectId
-      ? (state.projects.find((project) => project.id === requestedProjectId) ??
-        null)
-      : state.getActiveProject(),
-  );
   const browserError = useIdeStore((state) => state.browserError);
   const browserLoading = useIdeStore((state) => state.browserLoading);
-  const browserTabsByProject = useIdeStore(
-    (state) => state.browserTabsByProject,
+  const tabs = useIdeStore(
+    (state) => state.browserTabsByProject[project.id] ?? EMPTY_BROWSER_TABS,
   );
-  const activeBrowserTabIdByProject = useIdeStore(
-    (state) => state.activeBrowserTabIdByProject,
+  const activeTabId = useIdeStore(
+    (state) => state.activeBrowserTabIdByProject[project.id] ?? null,
   );
   const setBrowserError = useIdeStore((state) => state.setBrowserError);
   const updateProject = useIdeStore((state) => state.updateProject);
@@ -95,21 +91,14 @@ const BrowserViewport = ({
   const reorderBrowserTabs = useIdeStore((state) => state.reorderBrowserTabs);
   const setActiveBrowserTab = useIdeStore((state) => state.setActiveBrowserTab);
 
-  const activeProjectId = activeProject?.id ?? null;
-  const tabs = useMemo(
-    () =>
-      activeProjectId ? (browserTabsByProject[activeProjectId] ?? []) : [],
-    [activeProjectId, browserTabsByProject],
-  );
-  const activeTabId = activeProjectId
-    ? (activeBrowserTabIdByProject[activeProjectId] ?? tabs[0]?.id ?? null)
-    : null;
+  const projectId = project.id;
+  const resolvedActiveTabId = activeTabId ?? tabs[0]?.id ?? null;
   const activeTab =
-    tabs.find((tab) => tab.id === activeTabId) ?? tabs[0] ?? null;
+    tabs.find((tab) => tab.id === resolvedActiveTabId) ?? tabs[0] ?? null;
   const isBrowserLoading = activeTab
     ? (browserLoading[activeTab.id] ?? false)
     : false;
-  const browserVisible = Boolean(activeProject && activeTab?.url);
+  const browserVisible = Boolean(activeTab?.url);
   const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
       tabs.map((tab) => {
@@ -131,20 +120,16 @@ const BrowserViewport = ({
       return;
     }
 
-    if (!activeProject) {
-      return;
-    }
-
-    ensureBrowserTabs(activeProject.id, activeProject.browserUrl);
-  }, [active, activeProject, ensureBrowserTabs]);
+    ensureBrowserTabs(project.id, project.browserUrl);
+  }, [active, ensureBrowserTabs, project.browserUrl, project.id]);
 
   useEffect(() => {
-    if (!active || !activeProjectId || !tabs.length || activeTabId) {
+    if (!active || !tabs.length || activeTabId) {
       return;
     }
 
-    setActiveBrowserTab(activeProjectId, tabs[0].id);
-  }, [active, activeProjectId, activeTabId, setActiveBrowserTab, tabs]);
+    setActiveBrowserTab(projectId, tabs[0].id);
+  }, [active, activeTabId, projectId, setActiveBrowserTab, tabs]);
 
   useEffect(() => {
     setBrowserUrlDraft(activeTab?.url ?? "");
@@ -165,16 +150,12 @@ const BrowserViewport = ({
 
   const handleActivateTab = useCallback(
     (tabId: string) => {
-      if (!activeProjectId) {
-        return;
-      }
-
       const nextTab = tabs.find((tab) => tab.id === tabId) ?? null;
-      setActiveBrowserTab(activeProjectId, tabId);
+      setActiveBrowserTab(projectId, tabId);
       setBrowserUrlDraft(nextTab?.url ?? "");
       setBrowserError(null);
 
-      updateProject(activeProjectId, (project) => ({
+      updateProject(projectId, (project) => ({
         ...project,
         browserUrl: nextTab?.url ?? "",
       }));
@@ -182,7 +163,7 @@ const BrowserViewport = ({
       syncAfterStateChange();
     },
     [
-      activeProjectId,
+      projectId,
       setActiveBrowserTab,
       setBrowserError,
       syncAfterStateChange,
@@ -193,32 +174,24 @@ const BrowserViewport = ({
 
   const handleReorderTab = useCallback(
     (fromIndex: number, toIndex: number) => {
-      if (!activeProjectId) {
-        return;
-      }
-
-      reorderBrowserTabs(activeProjectId, fromIndex, toIndex);
+      reorderBrowserTabs(projectId, fromIndex, toIndex);
       syncAfterStateChange();
     },
-    [activeProjectId, reorderBrowserTabs, syncAfterStateChange],
+    [projectId, reorderBrowserTabs, syncAfterStateChange],
   );
 
   const handleAddTab = useCallback(() => {
-    if (!activeProjectId) {
-      return;
-    }
-
-    createBrowserTab(activeProjectId);
+    createBrowserTab(projectId);
     setBrowserError(null);
     setBrowserUrlDraft("");
-    updateProject(activeProjectId, (project) => ({
+    updateProject(projectId, (project) => ({
       ...project,
       browserUrl: "",
     }));
     syncAfterStateChange();
   }, [
-    activeProjectId,
     createBrowserTab,
+    projectId,
     setBrowserError,
     syncAfterStateChange,
     updateProject,
@@ -226,10 +199,6 @@ const BrowserViewport = ({
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
-      if (!activeProjectId) {
-        return;
-      }
-
       const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
       const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
       const fallbackTab =
@@ -239,11 +208,11 @@ const BrowserViewport = ({
           : activeTab;
 
       getDesktopApi()?.updateBrowser({ destroyTab: tabId });
-      closeBrowserTab(activeProjectId, tabId);
+      closeBrowserTab(projectId, tabId);
       setBrowserError(null);
       setBrowserUrlDraft(fallbackTab?.url ?? "");
 
-      updateProject(activeProjectId, (project) => ({
+      updateProject(projectId, (project) => ({
         ...project,
         browserUrl: fallbackTab?.url ?? "",
       }));
@@ -251,10 +220,10 @@ const BrowserViewport = ({
       syncAfterStateChange();
     },
     [
-      activeProjectId,
       activeTab,
       activeTabId,
       closeBrowserTab,
+      projectId,
       setBrowserError,
       syncAfterStateChange,
       tabs,
@@ -263,7 +232,7 @@ const BrowserViewport = ({
   );
 
   const handleNavigate = useCallback(() => {
-    if (!activeProjectId || !activeTab) {
+    if (!activeTab) {
       return;
     }
 
@@ -273,21 +242,21 @@ const BrowserViewport = ({
     }
 
     setBrowserError(null);
-    updateBrowserTab(activeProjectId, activeTab.id, (tab) => ({
+    updateBrowserTab(projectId, activeTab.id, (tab) => ({
       ...tab,
       title: getBrowserTabTitle(nextUrl),
       url: nextUrl,
     }));
-    updateProject(activeProjectId, (project) => ({
+    updateProject(projectId, (project) => ({
       ...project,
       browserUrl: nextUrl,
     }));
     setBrowserUrlDraft(nextUrl);
     syncAfterStateChange(true);
   }, [
-    activeProjectId,
     activeTab,
     browserUrlDraft,
+    projectId,
     setBrowserError,
     syncAfterStateChange,
     updateBrowserTab,
@@ -295,13 +264,13 @@ const BrowserViewport = ({
   ]);
 
   const handleRefresh = useCallback(() => {
-    if (!activeProjectId || !activeTab) {
+    if (!activeTab) {
       return;
     }
 
     if (isBrowserLoading) {
       getDesktopApi()?.updateBrowser({
-        projectId: activeProjectId,
+        projectId,
         stop: true,
         tabId: activeTab.id,
       });
@@ -311,38 +280,38 @@ const BrowserViewport = ({
     setBrowserError(null);
     syncAfterStateChange(true);
   }, [
-    activeProjectId,
     activeTab,
     isBrowserLoading,
+    projectId,
     setBrowserError,
     syncAfterStateChange,
   ]);
 
   const handleGoBack = useCallback(() => {
-    if (!activeProjectId || !activeTab?.canGoBack) {
+    if (!activeTab?.canGoBack) {
       return;
     }
 
     setBrowserError(null);
     getDesktopApi()?.updateBrowser({
       goBack: true,
-      projectId: activeProjectId,
+      projectId,
       tabId: activeTab.id,
     });
-  }, [activeProjectId, activeTab, setBrowserError]);
+  }, [activeTab, projectId, setBrowserError]);
 
   const handleGoForward = useCallback(() => {
-    if (!activeProjectId || !activeTab?.canGoForward) {
+    if (!activeTab?.canGoForward) {
       return;
     }
 
     setBrowserError(null);
     getDesktopApi()?.updateBrowser({
       goForward: true,
-      projectId: activeProjectId,
+      projectId,
       tabId: activeTab.id,
     });
-  }, [activeProjectId, activeTab, setBrowserError]);
+  }, [activeTab, projectId, setBrowserError]);
 
   useEffect(() => {
     if (!active) {
@@ -367,9 +336,7 @@ const BrowserViewport = ({
 
   return (
     <div
-      id={
-        activeProjectId ? `browser-panel-${activeProjectId}` : "browser-panel"
-      }
+      id={`browser-panel-${projectId}`}
       className="flex h-full flex-col overflow-hidden"
     >
       <div className="flex items-end bg-muted/50 px-1.5 py-1.5">
@@ -431,11 +398,11 @@ const BrowserViewport = ({
         <button
           className={cn(
             "rounded p-1 transition-colors",
-            activeProject
+            activeTab
               ? "text-muted-foreground hover:bg-muted hover:text-foreground"
               : "text-muted-foreground/40",
           )}
-          disabled={!activeProject || !activeTab}
+          disabled={!activeTab}
           onClick={handleRefresh}
           title={isBrowserLoading ? "Stop loading" : "Refresh browser"}
           type="button"
@@ -450,12 +417,12 @@ const BrowserViewport = ({
         <div className="relative mx-1.5 flex-1">
           <Input
             className="h-7 rounded-full border-foreground/10 bg-background px-3 text-xs focus:border-foreground/20"
-            disabled={!activeProject || !activeTab}
+            disabled={!activeTab}
             onChange={(event) => {
               setBrowserUrlDraft(event.currentTarget.value);
             }}
             onKeyDown={(event) => {
-              if (event.key !== "Enter" || !activeProject || !activeTab) {
+              if (event.key !== "Enter" || !activeTab) {
                 return;
               }
 
@@ -479,11 +446,7 @@ const BrowserViewport = ({
             className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
             ref={browserHostRef}
           />
-          {!activeProject ? (
-            <div className="absolute inset-0 p-3">
-              <AppShellPlaceholder message="Add a project to start a live browser." />
-            </div>
-          ) : !browserVisible ? (
+          {!browserVisible ? (
             <div className="absolute inset-0 p-3">
               <AppShellPlaceholder message="Enter a URL to show the live browser." />
             </div>
@@ -585,7 +548,7 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
         >
           <FileExplorerPanel
             active={props.active}
-            projectId={props.projectId}
+            projectId={props.project.id}
           />
         </div>
         <div
@@ -594,7 +557,7 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
             rightPanelView === "changes" ? "" : "hidden",
           )}
         >
-          <ChangesPanel active={props.active} projectId={props.projectId} />
+          <ChangesPanel active={props.active} projectId={props.project.id} />
         </div>
         <div
           className={cn(

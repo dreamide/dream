@@ -5,10 +5,13 @@ import {
   Settings,
   TerminalSquare,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
-import { DEFAULT_PANEL_SIZES } from "@/lib/ide-defaults";
+import {
+  DEFAULT_PANEL_SIZES,
+  DEFAULT_PANEL_VISIBILITY,
+} from "@/lib/ide-defaults";
 import {
   isModalBrowserHidden,
   useModalBrowserHidden,
@@ -65,20 +68,20 @@ export interface ProjectWorkspaceProps {
   project: ProjectConfig;
 }
 
-export const ProjectWorkspace = ({
+const ProjectWorkspaceComponent = ({
   active,
   project,
 }: ProjectWorkspaceProps) => {
   const projectId = project.id;
 
   // ── Store selectors ─────────────────────────────────────────────────
-  const panelVisibility = useIdeStore((s) => s.panelVisibility);
   const projectPanelSizes = useIdeStore(
-    (s) => s.projectPanelSizesByProject[projectId] ?? s.panelSizes,
+    (s) => s.projectPanelSizesByProject[projectId] ?? DEFAULT_PANEL_SIZES,
   );
   const rightVisible = useIdeStore(
     (s) =>
-      s.projectRightPanelOpenByProject[projectId] ?? s.panelVisibility.right,
+      s.projectRightPanelOpenByProject[projectId] ??
+      DEFAULT_PANEL_VISIBILITY.right,
   );
   const activeChatId = useIdeStore(
     (s) => s.activeChatIdByProject[projectId] ?? null,
@@ -100,14 +103,16 @@ export const ProjectWorkspace = ({
   const historyOpen = useIdeStore(
     (s) =>
       s.projectChatHistoryPanelOpenByProject[projectId] ??
-      s.panelVisibility.left,
+      DEFAULT_PANEL_VISIBILITY.left,
   );
-  const setPanelSizes = useIdeStore((s) => s.setPanelSizes);
+  const setProjectPanelSizes = useIdeStore((s) => s.setProjectPanelSizes);
   const setProjectChatHistoryPanelOpen = useIdeStore(
     (s) => s.setProjectChatHistoryPanelOpen,
   );
+  const setProjectRightPanelOpen = useIdeStore(
+    (s) => s.setProjectRightPanelOpen,
+  );
   const addChat = useIdeStore((s) => s.addChat);
-  const togglePanel = useIdeStore((s) => s.togglePanel);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
@@ -127,7 +132,7 @@ export const ProjectWorkspace = ({
   const modalBrowserHidden = useModalBrowserHidden();
 
   // ── Derived values ──────────────────────────────────────────────────
-  const middleVisible = panelVisibility.middle;
+  const middleVisible = true;
   const activeBrowserTab = useMemo(() => {
     if (browserTabs.length === 0) {
       return null;
@@ -266,7 +271,7 @@ export const ProjectWorkspace = ({
     const rightPadding = rightVisible ? PANEL_EDGE_PADDING_PX : 0;
 
     return rightHandleWidth + rightPadding;
-  }, [middleVisible, rightVisible]);
+  }, [rightVisible]);
 
   const getRightPanelMaxWidth = useCallback(() => {
     if (!rightVisible || !middleVisible) {
@@ -283,7 +288,7 @@ export const ProjectWorkspace = ({
       CHAT_PANEL_MIN_WIDTH_PX;
 
     return Math.max(BROWSER_PANEL_MIN_WIDTH_PX, availableWidth);
-  }, [getHorizontalChromeWidth, historyOpen, middleVisible, rightVisible]);
+  }, [getHorizontalChromeWidth, historyOpen, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
     if (!rightVisible || !middleVisible) {
@@ -302,7 +307,7 @@ export const ProjectWorkspace = ({
       rightPanel.style.width = `${nextRightWidth}px`;
       rightPanel.style.maxWidth = `${maxRightWidth}px`;
     }
-  }, [getRightPanelMaxWidth, middleVisible, rightVisible]);
+  }, [getRightPanelMaxWidth, rightVisible]);
 
   const handleRightResizeEnd = useCallback(
     (width: number) => {
@@ -313,12 +318,12 @@ export const ProjectWorkspace = ({
         return;
       }
 
-      setPanelSizes((current) => ({
+      setProjectPanelSizes(projectId, (current) => ({
         ...current,
         rightPanelWidth: width,
       }));
     },
-    [active, setPanelSizes],
+    [active, projectId, setProjectPanelSizes],
   );
 
   const handleHistoryResizeEnd = useCallback(
@@ -330,12 +335,12 @@ export const ProjectWorkspace = ({
         return;
       }
 
-      setPanelSizes((current) => ({
+      setProjectPanelSizes(projectId, (current) => ({
         ...current,
         chatHistoryPanelWidth: width,
       }));
     },
-    [active, setPanelSizes],
+    [active, projectId, setProjectPanelSizes],
   );
 
   const handleAddChat = useCallback(() => {
@@ -350,6 +355,10 @@ export const ProjectWorkspace = ({
     setSettingsSection("appearance");
     setSettingsOpen(true);
   }, [setSettingsOpen, setSettingsSection]);
+
+  const handleToggleRightPanel = useCallback(() => {
+    setProjectRightPanelOpen(projectId, !rightVisible);
+  }, [projectId, rightVisible, setProjectRightPanelOpen]);
 
   const handleTerminalResizeStart = useCallback(() => {
     const wrapper = terminalPanelWrapperRef.current;
@@ -408,11 +417,11 @@ export const ProjectWorkspace = ({
       return;
     }
 
-    setPanelSizes((current) => ({
+    setProjectPanelSizes(projectId, (current) => ({
       ...current,
       terminalHeight: terminalHeightRef.current,
     }));
-  }, [active, setPanelSizes, terminalPanelTransition]);
+  }, [active, projectId, setProjectPanelSizes, terminalPanelTransition]);
 
   useEffect(() => {
     rightPanelTransitionEnabledRef.current = true;
@@ -626,7 +635,9 @@ export const ProjectWorkspace = ({
         width={historyPanelWidth}
         widthRef={historyPanelWidthRef}
       >
-        {active && historyOpen ? <ProjectSidebar className="h-full" /> : null}
+        {active && historyOpen ? (
+          <ProjectSidebar className="h-full" project={project} />
+        ) : null}
       </HorizontalResizablePanel>
 
       {/* ─── MIDDLE: Chat + Terminal ─── */}
@@ -731,7 +742,7 @@ export const ProjectWorkspace = ({
         handleVisible={middleVisible}
         maxWidth={boundedRightPanelMaxWidth}
         minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
-        onHandleDoubleClick={() => togglePanel("right")}
+        onHandleDoubleClick={handleToggleRightPanel}
         onResizeEnd={handleRightResizeEnd}
         onResizeStart={() => {
           isDraggingRef.current = true;
@@ -755,7 +766,7 @@ export const ProjectWorkspace = ({
           browserHostRef={browserHostRef}
           onRightPanelViewChange={setRightPanelView}
           onSyncBrowserBounds={syncBrowserBounds}
-          projectId={projectId}
+          project={project}
           rightPanelView={rightPanelView}
         />
       </HorizontalResizablePanel>
@@ -763,7 +774,7 @@ export const ProjectWorkspace = ({
       <aside className="flex w-12 shrink-0 flex-col items-center gap-1 py-2">
         <ToggleButton
           active={rightVisible}
-          onClick={() => togglePanel("right")}
+          onClick={handleToggleRightPanel}
           title="Toggle right panel"
         >
           <PanelRight className="size-4" />
@@ -789,3 +800,6 @@ export const ProjectWorkspace = ({
     </div>
   );
 };
+
+export const ProjectWorkspace = memo(ProjectWorkspaceComponent);
+ProjectWorkspace.displayName = "ProjectWorkspace";
