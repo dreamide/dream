@@ -14,7 +14,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -595,18 +595,64 @@ const StreamingMessageResponse = ({
   text: string;
 }) => {
   const hasStreamedRef = useRef(isStreaming);
+  const isStreamingRef = useRef(isStreaming);
   const targetTextRef = useRef(text);
   const visibleTextRef = useRef(isStreaming ? "" : text);
+  const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tickRef = useRef<() => void>(() => {});
   const [visibleText, setVisibleText] = useState(visibleTextRef.current);
+
+  const scheduleTick = useCallback((delayMs: number) => {
+    if (timeoutIdRef.current !== null) {
+      return;
+    }
+
+    timeoutIdRef.current = setTimeout(() => {
+      timeoutIdRef.current = null;
+      tickRef.current();
+    }, delayMs);
+  }, []);
+
+  tickRef.current = () => {
+    const targetText = targetTextRef.current;
+    const currentText = visibleTextRef.current;
+
+    if (currentText === targetText) {
+      return;
+    }
+
+    if (!targetText.startsWith(currentText)) {
+      visibleTextRef.current = targetText;
+      setVisibleText(targetText);
+      return;
+    }
+
+    const { intervalMs, nextText } = getNextStreamingFrame(
+      currentText,
+      targetText,
+      isStreamingRef.current,
+    );
+
+    if (nextText === currentText) {
+      visibleTextRef.current = targetText;
+      setVisibleText(targetText);
+      return;
+    }
+
+    visibleTextRef.current = nextText;
+    setVisibleText(nextText);
+
+    if (nextText !== targetText) {
+      scheduleTick(intervalMs);
+    }
+  };
 
   useEffect(() => {
     targetTextRef.current = text;
+    isStreamingRef.current = isStreaming;
     if (isStreaming) {
       hasStreamedRef.current = true;
     }
-  }, [isStreaming, text]);
-
-  useEffect(() => {
     if (!hasStreamedRef.current) {
       if (visibleTextRef.current !== text) {
         visibleTextRef.current = text;
@@ -615,46 +661,23 @@ const StreamingMessageResponse = ({
       return;
     }
 
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const tick = () => {
-      const targetText = targetTextRef.current;
-      const currentText = visibleTextRef.current;
-
-      if (currentText === targetText) {
-        return;
-      }
-
-      if (!targetText.startsWith(currentText)) {
-        visibleTextRef.current = targetText;
-        setVisibleText(targetText);
-        return;
-      }
-
-      const { intervalMs, nextText } = getNextStreamingFrame(
-        currentText,
-        targetText,
-        isStreaming,
+    if (visibleTextRef.current !== targetTextRef.current) {
+      scheduleTick(
+        isStreaming
+          ? STREAMING_WORD_INTERVAL_MS
+          : STREAMING_FINISHED_INTERVAL_MS,
       );
-      visibleTextRef.current = nextText;
-      setVisibleText(nextText);
+    }
+  }, [isStreaming, scheduleTick, text]);
 
-      if (nextText !== targetText) {
-        timeoutId = setTimeout(tick, intervalMs);
-      }
-    };
-
-    timeoutId = setTimeout(
-      tick,
-      isStreaming ? STREAMING_WORD_INTERVAL_MS : STREAMING_FINISHED_INTERVAL_MS,
-    );
-
+  useEffect(() => {
     return () => {
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
+      if (timeoutIdRef.current !== null) {
+        clearTimeout(timeoutIdRef.current);
+        timeoutIdRef.current = null;
       }
     };
-  }, [isStreaming, text]);
+  }, []);
 
   return <MessageResponse>{visibleText}</MessageResponse>;
 };
