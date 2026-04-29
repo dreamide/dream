@@ -67,7 +67,6 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import {
   Source,
   Sources,
@@ -164,10 +163,7 @@ type ChatMessageMetadata = {
   remoteConversationProjectPath?: string;
 };
 
-const CHAT_CONTENT_IDLE_BOTTOM_PADDING_PX = 64;
-const CHAT_CONTENT_PROCESSING_BOTTOM_PADDING_PX = 104;
-const THINKING_STATUS_CLASSNAME =
-  "pointer-events-none absolute bottom-[calc(100%+46px)] left-1/2 z-20 w-[calc(100%-1rem)] max-w-[700px] -translate-x-1/2 text-muted-foreground text-sm";
+const CHAT_CONTENT_BOTTOM_PADDING_PX = 64;
 
 const scrollElementToChatBottom = (element: HTMLElement) => {
   const targetScrollTop = element.scrollHeight - 1 - element.clientHeight;
@@ -1350,15 +1346,9 @@ export const ChatPanel = ({
     [closeRenameDialog, renameTarget, renameValue, updateChat],
   );
 
-  // Track elapsed thinking time, only shown during lulls (no new data)
-  const [thinkingSeconds, setThinkingSeconds] = useState(0);
-  const [showThinking, setShowThinking] = useState(false);
   const wasProcessingRef = useRef(isProcessing);
-  const lullStartRef = useRef<number | null>(null);
-  const lullTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Build a fingerprint that changes whenever new data arrives
+  // Build a fingerprint that changes whenever new data arrives.
   const lastMessage = messages[messages.length - 1];
   const showChatHeader = messages.length > 0;
   const canShowChatMenu = !isDraftChat || messages.length > 0;
@@ -1366,51 +1356,6 @@ export const ChatPanel = ({
   const streamFingerprint = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
     lastPart && "text" in lastPart ? (lastPart.text as string).length : 0
   }`;
-
-  useEffect(() => {
-    void streamFingerprint;
-
-    if (!isProcessing) {
-      // Not processing — reset everything
-      setShowThinking(false);
-      setThinkingSeconds(0);
-      lullStartRef.current = null;
-      if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-
-    // Data changed while processing — hide and reset, wait for next lull
-    setShowThinking(false);
-    setThinkingSeconds(0);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
-
-    lullTimerRef.current = setTimeout(() => {
-      lullStartRef.current = performance.now();
-      setShowThinking(true);
-      setThinkingSeconds(1);
-      intervalRef.current = setInterval(() => {
-        if (lullStartRef.current !== null) {
-          setThinkingSeconds(
-            Math.max(
-              1,
-              Math.floor((performance.now() - lullStartRef.current) / 1000) + 1,
-            ),
-          );
-        }
-      }, 1000);
-    }, 1000);
-
-    return () => {
-      if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isProcessing, streamFingerprint]);
-
-  const chatContentBottomPadding = isProcessing
-    ? CHAT_CONTENT_PROCESSING_BOTTOM_PADDING_PX
-    : CHAT_CONTENT_IDLE_BOTTOM_PADDING_PX;
 
   useEffect(() => {
     const wasProcessing = wasProcessingRef.current;
@@ -1431,7 +1376,6 @@ export const ChatPanel = ({
   ]);
 
   useEffect(() => {
-    void showThinking;
     void streamFingerprint;
 
     if (!isProcessing) {
@@ -1439,12 +1383,7 @@ export const ChatPanel = ({
     }
 
     scrollConversationToBottomIfLocked();
-  }, [
-    isProcessing,
-    scrollConversationToBottomIfLocked,
-    showThinking,
-    streamFingerprint,
-  ]);
+  }, [isProcessing, scrollConversationToBottomIfLocked, streamFingerprint]);
 
   return (
     <>
@@ -1503,7 +1442,7 @@ export const ChatPanel = ({
             className={`mx-auto w-full max-w-[700px] gap-4 px-0 pt-3${
               messages.length === 0 ? " min-h-full" : ""
             }`}
-            style={{ paddingBottom: chatContentBottomPadding }}
+            style={{ paddingBottom: CHAT_CONTENT_BOTTOM_PADDING_PX }}
           >
             {messages.length === 0 ? (
               <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 text-center">
@@ -1554,14 +1493,7 @@ export const ChatPanel = ({
           </div>
         ) : null}
 
-        <div id={promptDomId} className="relative shrink-0 px-2 pb-2">
-          {isProcessing && showThinking ? (
-            <div className={THINKING_STATUS_CLASSNAME}>
-              <Shimmer as="span" duration={1.5}>
-                {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
-              </Shimmer>
-            </div>
-          ) : null}
+        <div id={promptDomId} className="shrink-0 px-2 pb-2">
           <div className="mx-auto w-full max-w-[700px]">
             <Sparkles
               density={70}

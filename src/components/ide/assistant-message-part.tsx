@@ -1655,15 +1655,27 @@ export const TaskOutputChip = ({ part }: { part: ToolLikePart }) => {
   const taskId =
     getStringFromPaths(part.input, [["task_id"], ["taskId"], ["id"]]) ??
     getStringFromPaths(part.output, [["task_id"], ["taskId"], ["id"]]);
+  const parametersCode = isRecord(part.input)
+    ? JSON.stringify(part.input, null, 2)
+    : null;
   const outputText =
     isString(part.output) && part.output.length > 0 ? part.output : null;
   const hasRawOutput = part.output !== undefined;
-  const canExpand = hasError || hasRawOutput || isRecord(part.input);
-  const outputLanguage: BundledLanguage = outputText
-    ?.trimStart()
-    .startsWith("<")
-    ? "xml"
-    : "log";
+  const resultCode = hasError
+    ? (part.errorText ?? "")
+    : outputText !== null
+      ? outputText
+      : hasRawOutput
+        ? stringifyPart(part.output)
+        : null;
+  const canExpand = parametersCode !== null || resultCode !== null;
+  const resultLanguage: BundledLanguage = hasError
+    ? "log"
+    : outputText?.trimStart().startsWith("<")
+      ? "xml"
+      : outputText !== null
+        ? "log"
+        : "json";
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1696,47 +1708,50 @@ export const TaskOutputChip = ({ part }: { part: ToolLikePart }) => {
           )}
           style={{ borderColor: "currentColor" }}
         >
-          {isRecord(part.input) ? (
-            <div className="space-y-2 rounded-md bg-muted/20 p-3">
-              <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                Parameters
-              </h4>
-              <div className="rounded-md bg-muted/50">
+          {parametersCode !== null || resultCode !== null ? (
+            <div className="overflow-hidden rounded-md border bg-background">
+              {parametersCode !== null ? (
                 <CodeBlock
-                  code={JSON.stringify(part.input, null, 2)}
+                  className="max-h-64 flex flex-col rounded-none border-0 [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&_pre]:text-xs"
+                  code={parametersCode}
                   language="json"
-                />
-              </div>
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
+                    <CodeBlockTitle>
+                      <WrenchIcon size={14} />
+                      <CodeBlockFilename>Parameters</CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              ) : null}
+              {parametersCode !== null && resultCode !== null ? (
+                <div className="border-t" />
+              ) : null}
+              {resultCode !== null ? (
+                <CodeBlock
+                  className="max-h-96 flex flex-col rounded-none border-0 [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&_pre]:text-xs"
+                  code={resultCode}
+                  language={resultLanguage}
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
+                    <CodeBlockTitle>
+                      <WrenchIcon size={14} />
+                      <CodeBlockFilename>
+                        {hasError ? "Error" : "Result"}
+                      </CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              ) : null}
             </div>
-          ) : null}
-          {hasError ? (
-            <div className="space-y-2 rounded-md bg-destructive/5 p-3">
-              <h4 className="font-medium text-destructive text-xs uppercase tracking-wide">
-                Result
-              </h4>
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-destructive text-xs">
-                {part.errorText}
-              </pre>
-            </div>
-          ) : outputText !== null ? (
-            <CodeBlock
-              className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-              code={outputText}
-              language={outputLanguage}
-              style={{ contentVisibility: "visible" }}
-            >
-              <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                <CodeBlockTitle>
-                  <WrenchIcon size={14} />
-                  <CodeBlockFilename>Result</CodeBlockFilename>
-                </CodeBlockTitle>
-                <CodeBlockActions>
-                  <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
-                </CodeBlockActions>
-              </CodeBlockHeader>
-            </CodeBlock>
-          ) : hasRawOutput ? (
-            <JsonBlock value={part.output} />
           ) : null}
         </div>
       ) : null}
