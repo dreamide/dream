@@ -27,6 +27,7 @@ export interface ChatConfig {
 
 export interface ProjectConfig {
   id: string;
+  icon: ProjectIconInfo | null;
   name: string;
   path: string;
   runCommand: string;
@@ -34,6 +35,13 @@ export interface ProjectConfig {
   provider: AiProvider;
   model: string;
   reasoningEffort: ReasoningEffort;
+}
+
+export interface ProjectIconInfo {
+  path: string;
+  mimeType: string;
+  source: string;
+  mtimeMs: number;
 }
 
 export interface AppSettings {

@@ -49,7 +49,7 @@ import { Input } from "@/components/ui/input";
 import Sparkles from "@/components/ui/sparkles";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
-import type { DetectedEditor } from "@/types/ide";
+import type { DetectedEditor, ProjectIconInfo } from "@/types/ide";
 import { ToggleButton } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { ProjectSidebar } from "./projects-panel";
@@ -68,6 +68,73 @@ type ProjectTabItem = StandardTabItem & {
   completed: boolean;
   path: string;
   streaming: boolean;
+};
+
+const areProjectIconsEqual = (
+  left: ProjectIconInfo | null,
+  right: ProjectIconInfo | null,
+) =>
+  left?.path === right?.path &&
+  left?.mimeType === right?.mimeType &&
+  left?.source === right?.source &&
+  left?.mtimeMs === right?.mtimeMs;
+
+const getProjectIconUrl = (projectPath: string, iconPath: string) =>
+  `/api/project-file-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(iconPath)}`;
+
+const normalizeProjectIconResponse = (
+  value: unknown,
+): ProjectIconInfo | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const icon = value as Partial<ProjectIconInfo>;
+  const iconPath = typeof icon.path === "string" ? icon.path.trim() : "";
+  if (!iconPath) {
+    return null;
+  }
+
+  return {
+    mimeType:
+      typeof icon.mimeType === "string" && icon.mimeType.trim()
+        ? icon.mimeType.trim()
+        : "application/octet-stream",
+    mtimeMs: typeof icon.mtimeMs === "number" ? icon.mtimeMs : 0,
+    path: iconPath,
+    source:
+      typeof icon.source === "string" && icon.source.trim()
+        ? icon.source.trim()
+        : "unknown",
+  };
+};
+
+const ProjectTabIcon = ({
+  icon,
+  projectName,
+  projectPath,
+}: {
+  icon: ProjectIconInfo | null;
+  projectName: string;
+  projectPath: string;
+}) => {
+  const [failed, setFailed] = useState(false);
+
+  if (!icon || failed) {
+    return null;
+  }
+
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className="size-4 shrink-0 rounded-sm object-contain"
+      draggable={false}
+      onError={() => setFailed(true)}
+      src={getProjectIconUrl(projectPath, icon.path)}
+      title={projectName}
+    />
+  );
 };
 
 const CHAT_HISTORY_PANEL_WIDTH_PX = 520;
@@ -404,6 +471,9 @@ export const IdeHeader = () => {
       ),
     [chats, streamingChatIds],
   );
+  const projectIconScanSignature = projects
+    .map((project) => `${project.id}\x00${project.path}`)
+    .join("\x01");
 
   const activeProject =
     projects.find((project) => project.id === activeProjectId) ?? null;
@@ -437,6 +507,7 @@ export const IdeHeader = () => {
     ];
   }, [detectedEditors, isMacOs]);
   const previousStreamingProjectIdsRef = useRef<Set<string>>(new Set());
+  const projectIconScanSignatureRef = useRef("");
   const terminalOpen = activeProject
     ? (projectTerminalSessionIds[activeProject.id]?.length ?? 0) > 0
     : false;
@@ -530,6 +601,73 @@ export const IdeHeader = () => {
   }, []);
 
   useEffect(() => {
+    if (
+      !appReady ||
+      !projectIconScanSignature ||
+      projectIconScanSignatureRef.current === projectIconScanSignature
+    ) {
+      return;
+    }
+
+    projectIconScanSignatureRef.current = projectIconScanSignature;
+    const abortController = new AbortController();
+    const scanTargets = useIdeStore.getState().projects.map((project) => ({
+      id: project.id,
+      path: project.path,
+    }));
+
+    for (const project of scanTargets) {
+      void fetch("/api/project-icon", {
+        body: JSON.stringify({ projectPath: project.path }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+        signal: abortController.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) {
+            return null;
+          }
+
+          return (await response.json()) as { icon?: unknown };
+        })
+        .then((payload) => {
+          if (!payload || abortController.signal.aborted) {
+            return;
+          }
+
+          const nextIcon = normalizeProjectIconResponse(payload.icon);
+          const currentProject = useIdeStore
+            .getState()
+            .projects.find((item) => item.id === project.id);
+
+          if (
+            !currentProject ||
+            currentProject.path !== project.path ||
+            areProjectIconsEqual(currentProject.icon, nextIcon)
+          ) {
+            return;
+          }
+
+          updateProject(project.id, (current) =>
+            current.path === project.path
+              ? {
+                  ...current,
+                  icon: nextIcon,
+                }
+              : current,
+          );
+        })
+        .catch((error: unknown) => {
+          if (!abortController.signal.aborted) {
+            console.warn("Unable to detect project icon:", error);
+          }
+        });
+    }
+
+    return () => abortController.abort();
+  }, [appReady, projectIconScanSignature, updateProject]);
+
+  useEffect(() => {
     const previousStreamingProjectIds = previousStreamingProjectIdsRef.current;
 
     setCompletedProjectIds((current) => {
@@ -591,20 +729,43 @@ export const IdeHeader = () => {
 
   const projectTabItems = useMemo<ProjectTabItem[]>(
     () =>
-      projects.map((project) => ({
-        completed: Boolean(completedProjectIds[project.id]),
-        id: project.id,
-        label: project.name,
-        leading:
-          completedProjectIds[project.id] && project.id !== activeProjectId ? (
+      projects.map((project) => {
+        const completed =
+          Boolean(completedProjectIds[project.id]) &&
+          project.id !== activeProjectId;
+        const leading =
+          project.icon || completed ? (
             <span
-              aria-hidden="true"
-              className="size-2 shrink-0 rounded-full bg-green-500"
-            />
-          ) : null,
-        path: project.path,
-        streaming: streamingProjectIds.has(project.id),
-      })),
+              className="relative flex size-4 shrink-0 items-center justify-center"
+              key={`${project.id}:${project.icon?.path ?? ""}:${project.icon?.mtimeMs ?? 0}:${completed}`}
+            >
+              <ProjectTabIcon
+                icon={project.icon}
+                projectName={project.name}
+                projectPath={project.path}
+              />
+              {completed ? (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "size-2 shrink-0 rounded-full bg-green-500",
+                    project.icon &&
+                      "absolute right-[-1px] bottom-[-1px] ring-2 ring-background",
+                  )}
+                />
+              ) : null}
+            </span>
+          ) : null;
+
+        return {
+          completed,
+          id: project.id,
+          label: project.name,
+          leading,
+          path: project.path,
+          streaming: streamingProjectIds.has(project.id),
+        };
+      }),
     [activeProjectId, completedProjectIds, projects, streamingProjectIds],
   );
 

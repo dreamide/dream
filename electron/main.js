@@ -291,6 +291,27 @@ function writeConfig(database, key, value, updatedAt) {
 
 function buildProjectMetadata(project, state, activeChatIdByProject) {
   const metadata = getMetadataObject(project.metadata);
+  const projectIcon = isRecord(project.icon)
+    ? project.icon
+    : getNestedRecord(metadata, "icon");
+  const iconPath =
+    typeof projectIcon.path === "string" ? projectIcon.path.trim() : "";
+  const icon = iconPath
+    ? {
+        path: iconPath,
+        mimeType:
+          typeof projectIcon.mimeType === "string" &&
+          projectIcon.mimeType.trim()
+            ? projectIcon.mimeType.trim()
+            : "application/octet-stream",
+        source:
+          typeof projectIcon.source === "string" && projectIcon.source.trim()
+            ? projectIcon.source.trim()
+            : "unknown",
+        mtimeMs:
+          typeof projectIcon.mtimeMs === "number" ? projectIcon.mtimeMs : 0,
+      }
+    : null;
   const modelSelection = {
     ...getNestedRecord(metadata, "modelSelection"),
     model: typeof project.model === "string" ? project.model : "",
@@ -370,6 +391,7 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
   return {
     ...metadata,
     browser,
+    icon,
     modelSelection,
     runCommand:
       typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
@@ -699,12 +721,26 @@ function loadStateFromRelationalDatabase(database) {
 
   for (const row of projectRows) {
     const metadata = getMetadataObject(row.metadata);
+    const icon = getNestedRecord(metadata, "icon");
+    const iconPath = getNestedString(icon, "path", "");
     const modelSelection = getNestedRecord(metadata, "modelSelection");
     const browser = getNestedRecord(metadata, "browser");
     const ui = getNestedRecord(metadata, "ui");
     const project = {
       browserUrl: getNestedString(browser, "url", "http://127.0.0.1:3000"),
       id: row.id,
+      icon: iconPath
+        ? {
+            path: iconPath,
+            mimeType: getNestedString(
+              icon,
+              "mimeType",
+              "application/octet-stream",
+            ),
+            source: getNestedString(icon, "source", "unknown"),
+            mtimeMs: getNestedNumber(icon, "mtimeMs", 0),
+          }
+        : null,
       metadata,
       model: getNestedString(modelSelection, "model", ""),
       name: row.name || getProjectName(row.path),

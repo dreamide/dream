@@ -80,6 +80,7 @@ export const createProjectConfig = (
 
   return {
     id: crypto.randomUUID(),
+    icon: null,
     model: defaultSelection.model,
     name,
     path,

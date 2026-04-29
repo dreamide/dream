@@ -90,13 +90,43 @@ const normalizeProvider = (value: unknown): "openai" | "anthropic" => {
   return value === "anthropic" ? "anthropic" : DEFAULT_PROVIDER;
 };
 
+const normalizeProjectIcon = (value: unknown): ProjectConfig["icon"] => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const icon = value as Partial<NonNullable<ProjectConfig["icon"]>>;
+  const iconPath = typeof icon.path === "string" ? icon.path.trim() : "";
+  if (!iconPath) {
+    return null;
+  }
+
+  return {
+    mimeType:
+      typeof icon.mimeType === "string" && icon.mimeType.trim()
+        ? icon.mimeType.trim()
+        : "application/octet-stream",
+    mtimeMs: typeof icon.mtimeMs === "number" ? icon.mtimeMs : 0,
+    path: iconPath,
+    source:
+      typeof icon.source === "string" && icon.source.trim()
+        ? icon.source.trim()
+        : "unknown",
+  };
+};
+
 const normalizeProject = (
   project: ProjectConfig,
   settings: AppSettings,
 ): ProjectConfig => {
   const rawProject = project as ProjectConfig & {
+    metadata?: unknown;
     previewUrl?: unknown;
   };
+  const rawMetadata =
+    rawProject.metadata && typeof rawProject.metadata === "object"
+      ? (rawProject.metadata as { icon?: unknown })
+      : {};
   const browserUrl =
     typeof rawProject.browserUrl === "string"
       ? rawProject.browserUrl
@@ -115,6 +145,7 @@ const normalizeProject = (
   return {
     ...project,
     browserUrl,
+    icon: normalizeProjectIcon(rawProject.icon ?? rawMetadata.icon),
     model: model || defaultModel,
     provider,
     reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
