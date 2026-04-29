@@ -96,31 +96,31 @@ export const PanelResizeHandle = ({
   }, []);
 
   return (
-    <button
-      aria-label="Resize panel"
+    <div
       className={cn(
-        "group relative z-20 flex shrink-0 touch-none select-none items-center justify-center border-0 bg-transparent p-0",
+        "group relative z-20 flex shrink-0 touch-none select-none items-center justify-center",
         side === "left" || side === "right"
           ? "cursor-col-resize"
           : "cursor-row-resize",
       )}
       style={side === "left" || side === "right" ? { width: 1 } : { height: 1 }}
-      type="button"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      onDoubleClick={handleDoubleClick}
     >
-      <div
+      <button
+        aria-label="Resize panel"
         className={cn(
-          "absolute",
+          "absolute border-0 bg-transparent p-0",
           side === "left" || side === "right"
             ? "inset-y-0 -left-1.5 -right-1.5 cursor-col-resize"
             : "inset-x-0 -top-1.5 -bottom-1.5 cursor-row-resize",
         )}
+        onDoubleClick={handleDoubleClick}
+        type="button"
       />
-    </button>
+    </div>
   );
 };
 
