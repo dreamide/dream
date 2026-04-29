@@ -12,6 +12,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  Menu,
   shell,
   WebContentsView,
 } from "electron";
@@ -59,6 +60,80 @@ const WINDOWS_CMD_PATH =
 
 app.setName(APP_NAME);
 app.setPath("userData", APP_USER_DATA_PATH);
+
+function configureApplicationMenu() {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  app.setAboutPanelOptions({
+    applicationName: APP_NAME,
+    applicationVersion: app.getVersion(),
+  });
+
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: APP_NAME,
+        submenu: [
+          { label: `About ${APP_NAME}`, role: "about" },
+          { type: "separator" },
+          { role: "services" },
+          { type: "separator" },
+          { label: `Hide ${APP_NAME}`, role: "hide" },
+          { role: "hideOthers" },
+          { role: "unhide" },
+          { type: "separator" },
+          { label: `Quit ${APP_NAME}`, role: "quit" },
+        ],
+      },
+      {
+        label: "Edit",
+        submenu: [
+          { role: "undo" },
+          { role: "redo" },
+          { type: "separator" },
+          { role: "cut" },
+          { role: "copy" },
+          { role: "paste" },
+          { role: "pasteAndMatchStyle" },
+          { role: "delete" },
+          { role: "selectAll" },
+        ],
+      },
+      {
+        label: "View",
+        submenu: [
+          { role: "reload" },
+          { role: "forceReload" },
+          { role: "toggleDevTools" },
+          { type: "separator" },
+          { role: "resetZoom" },
+          { role: "zoomIn" },
+          { role: "zoomOut" },
+          { type: "separator" },
+          { role: "togglefullscreen" },
+        ],
+      },
+      {
+        label: "Window",
+        submenu: [
+          { role: "minimize" },
+          { role: "zoom" },
+          { type: "separator" },
+          { role: "front" },
+        ],
+      },
+      {
+        label: "Help",
+        role: "help",
+        submenu: [],
+      },
+    ]),
+  );
+}
+
+configureApplicationMenu();
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,

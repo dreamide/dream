@@ -205,6 +205,38 @@ const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
   return null;
 };
 
+const ConversationScrollOnUserMessage = ({
+  isActive,
+  lastMessageId,
+  lastMessageRole,
+}: {
+  isActive: boolean;
+  lastMessageId: string | undefined;
+  lastMessageRole: UIMessage["role"] | undefined;
+}) => {
+  const { scrollRef, scrollToBottom } = useStickToBottomContext();
+
+  useEffect(() => {
+    if (!(isActive && lastMessageId && lastMessageRole === "user")) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const element = scrollRef.current;
+      if (!element) return;
+
+      element.scrollTop = element.scrollHeight;
+      scrollToBottom();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isActive, lastMessageId, lastMessageRole, scrollRef, scrollToBottom]);
+
+  return null;
+};
+
 const inferChatTitle = (promptText: string): string => {
   const collapsed = promptText.replace(/\s+/g, " ").trim();
   if (!collapsed) {
@@ -1430,6 +1462,11 @@ export const ChatPanel = ({
             ) : null}
           </ConversationContent>
           <ConversationScrollMemory isActive={isActive} />
+          <ConversationScrollOnUserMessage
+            isActive={isActive}
+            lastMessageId={lastMessage?.id}
+            lastMessageRole={lastMessage?.role}
+          />
           <ConversationScrollButton />
         </Conversation>
 
