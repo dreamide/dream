@@ -242,6 +242,12 @@ const CHIP_DETAIL_HEADER_CLASSES =
 const RUN_COMMAND_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-sm";
 const STREAMING_WORD_INTERVAL_MS = 40;
+const STREAMING_MIN_INTERVAL_MS = 18;
+const STREAMING_BACKLOG_START_CHARS = 120;
+const STREAMING_BACKLOG_FULL_SPEED_CHARS = 900;
+const STREAMING_BACKLOG_TARGET_TICKS = 18;
+const STREAMING_MIN_CHARS_PER_TICK = 24;
+const STREAMING_MAX_CHARS_PER_TICK = 140;
 const STREAMING_FINISHED_INTERVAL_MS = 8;
 const STREAMING_FINISHED_MIN_CHARS_PER_TICK = 240;
 const STREAMING_FINISHED_MAX_CHARS_PER_TICK = 1200;
@@ -495,24 +501,24 @@ const normalizeEmbeddedLineNumbers = (
 const getNextStreamingWordToken = (text: string) =>
   text.match(/^(\s+|\S+\s*)/)?.[0] ?? text.slice(0, 1);
 
-const getNextStreamingText = (
-  currentText: string,
-  targetText: string,
-  isStreaming: boolean,
-) => {
-  const remainingText = targetText.slice(currentText.length);
-
-  if (isStreaming) {
-    return currentText + getNextStreamingWordToken(remainingText);
+const getBacklogPressure = (remainingLength: number) => {
+  if (remainingLength <= STREAMING_BACKLOG_START_CHARS) {
+    return 0;
   }
 
-  const targetChunkSize = Math.min(
-    STREAMING_FINISHED_MAX_CHARS_PER_TICK,
-    Math.max(
-      STREAMING_FINISHED_MIN_CHARS_PER_TICK,
-      Math.ceil(remainingText.length / 4),
-    ),
+  return Math.min(
+    1,
+    (remainingLength - STREAMING_BACKLOG_START_CHARS) /
+      (STREAMING_BACKLOG_FULL_SPEED_CHARS - STREAMING_BACKLOG_START_CHARS),
   );
+};
+
+const getNextStreamingChunkText = (
+  currentText: string,
+  targetText: string,
+  targetChunkSize: number,
+) => {
+  const remainingText = targetText.slice(currentText.length);
   let chunkLength = 0;
 
   while (chunkLength < remainingText.length && chunkLength < targetChunkSize) {
@@ -522,6 +528,63 @@ const getNextStreamingText = (
   }
 
   return targetText.slice(0, currentText.length + chunkLength);
+};
+
+const getNextStreamingFrame = (
+  currentText: string,
+  targetText: string,
+  isStreaming: boolean,
+) => {
+  const remainingText = targetText.slice(currentText.length);
+
+  if (isStreaming) {
+    const pressure = getBacklogPressure(remainingText.length);
+
+    if (pressure === 0) {
+      return {
+        intervalMs: STREAMING_WORD_INTERVAL_MS,
+        nextText: currentText + getNextStreamingWordToken(remainingText),
+      };
+    }
+
+    const targetChunkSize = Math.min(
+      STREAMING_MAX_CHARS_PER_TICK,
+      Math.max(
+        STREAMING_MIN_CHARS_PER_TICK,
+        Math.ceil(remainingText.length / STREAMING_BACKLOG_TARGET_TICKS),
+      ),
+    );
+    const intervalMs = Math.round(
+      STREAMING_WORD_INTERVAL_MS -
+        pressure * (STREAMING_WORD_INTERVAL_MS - STREAMING_MIN_INTERVAL_MS),
+    );
+
+    return {
+      intervalMs,
+      nextText: getNextStreamingChunkText(
+        currentText,
+        targetText,
+        targetChunkSize,
+      ),
+    };
+  }
+
+  const targetChunkSize = Math.min(
+    STREAMING_FINISHED_MAX_CHARS_PER_TICK,
+    Math.max(
+      STREAMING_FINISHED_MIN_CHARS_PER_TICK,
+      Math.ceil(remainingText.length / 4),
+    ),
+  );
+
+  return {
+    intervalMs: STREAMING_FINISHED_INTERVAL_MS,
+    nextText: getNextStreamingChunkText(
+      currentText,
+      targetText,
+      targetChunkSize,
+    ),
+  };
 };
 
 const StreamingMessageResponse = ({
@@ -568,7 +631,7 @@ const StreamingMessageResponse = ({
         return;
       }
 
-      const nextText = getNextStreamingText(
+      const { intervalMs, nextText } = getNextStreamingFrame(
         currentText,
         targetText,
         isStreaming,
@@ -577,12 +640,7 @@ const StreamingMessageResponse = ({
       setVisibleText(nextText);
 
       if (nextText !== targetText) {
-        timeoutId = setTimeout(
-          tick,
-          isStreaming
-            ? STREAMING_WORD_INTERVAL_MS
-            : STREAMING_FINISHED_INTERVAL_MS,
-        );
+        timeoutId = setTimeout(tick, intervalMs);
       }
     };
 
