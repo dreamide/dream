@@ -242,6 +242,9 @@ const CHIP_DETAIL_HEADER_CLASSES =
 const RUN_COMMAND_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-sm";
 const STREAMING_WORD_INTERVAL_MS = 40;
+const STREAMING_FINISHED_INTERVAL_MS = 8;
+const STREAMING_FINISHED_MIN_CHARS_PER_TICK = 240;
+const STREAMING_FINISHED_MAX_CHARS_PER_TICK = 1200;
 
 export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
 
@@ -492,6 +495,35 @@ const normalizeEmbeddedLineNumbers = (
 const getNextStreamingWordToken = (text: string) =>
   text.match(/^(\s+|\S+\s*)/)?.[0] ?? text.slice(0, 1);
 
+const getNextStreamingText = (
+  currentText: string,
+  targetText: string,
+  isStreaming: boolean,
+) => {
+  const remainingText = targetText.slice(currentText.length);
+
+  if (isStreaming) {
+    return currentText + getNextStreamingWordToken(remainingText);
+  }
+
+  const targetChunkSize = Math.min(
+    STREAMING_FINISHED_MAX_CHARS_PER_TICK,
+    Math.max(
+      STREAMING_FINISHED_MIN_CHARS_PER_TICK,
+      Math.ceil(remainingText.length / 4),
+    ),
+  );
+  let chunkLength = 0;
+
+  while (chunkLength < remainingText.length && chunkLength < targetChunkSize) {
+    chunkLength += getNextStreamingWordToken(
+      remainingText.slice(chunkLength),
+    ).length;
+  }
+
+  return targetText.slice(0, currentText.length + chunkLength);
+};
+
 const StreamingMessageResponse = ({
   isStreaming,
   text,
@@ -536,25 +568,35 @@ const StreamingMessageResponse = ({
         return;
       }
 
-      const nextText =
-        currentText +
-        getNextStreamingWordToken(targetText.slice(currentText.length));
+      const nextText = getNextStreamingText(
+        currentText,
+        targetText,
+        isStreaming,
+      );
       visibleTextRef.current = nextText;
       setVisibleText(nextText);
 
       if (nextText !== targetText) {
-        timeoutId = setTimeout(tick, STREAMING_WORD_INTERVAL_MS);
+        timeoutId = setTimeout(
+          tick,
+          isStreaming
+            ? STREAMING_WORD_INTERVAL_MS
+            : STREAMING_FINISHED_INTERVAL_MS,
+        );
       }
     };
 
-    timeoutId = setTimeout(tick, STREAMING_WORD_INTERVAL_MS);
+    timeoutId = setTimeout(
+      tick,
+      isStreaming ? STREAMING_WORD_INTERVAL_MS : STREAMING_FINISHED_INTERVAL_MS,
+    );
 
     return () => {
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
       }
     };
-  }, [text]);
+  }, [isStreaming, text]);
 
   return <MessageResponse>{visibleText}</MessageResponse>;
 };
