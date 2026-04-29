@@ -169,6 +169,7 @@ const MESSAGE_RENDER_STYLE = {
 } as const;
 const CHAT_CONTENT_BOTTOM_PADDING_PX = 54;
 const CHAT_SCROLL_BOTTOM_GAP_PX = 24;
+const THINKING_STATUS_SLOT_CLASSNAME = "h-9 shrink-0 py-2";
 
 const getConversationTargetScrollTop = (targetScrollTop: number) =>
   Math.max(targetScrollTop - CHAT_SCROLL_BOTTOM_GAP_PX, 0);
@@ -1185,6 +1186,24 @@ export const ChatPanel = ({
     });
   }, [isActive]);
 
+  const scrollConversationToBottomIfPinned = useCallback(() => {
+    if (!isActive) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const conversationContext = conversationContextRef.current;
+      if (!conversationContext?.isAtBottom) {
+        return;
+      }
+
+      void conversationContext.scrollToBottom({
+        animation: "instant",
+        preserveScrollPosition: true,
+      });
+    });
+  }, [isActive]);
+
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       setLocalError(null);
@@ -1320,6 +1339,7 @@ export const ChatPanel = ({
   // Track elapsed thinking time, only shown during lulls (no new data)
   const [thinkingSeconds, setThinkingSeconds] = useState(0);
   const [showThinking, setShowThinking] = useState(false);
+  const [reserveThinkingSlot, setReserveThinkingSlot] = useState(false);
   const lullStartRef = useRef<number | null>(null);
   const lullTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1339,6 +1359,7 @@ export const ChatPanel = ({
     if (!isProcessing) {
       // Not processing — reset everything
       setShowThinking(false);
+      setReserveThinkingSlot(false);
       setThinkingSeconds(0);
       lullStartRef.current = null;
       if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
@@ -1354,6 +1375,7 @@ export const ChatPanel = ({
 
     lullTimerRef.current = setTimeout(() => {
       lullStartRef.current = performance.now();
+      setReserveThinkingSlot(true);
       setShowThinking(true);
       setThinkingSeconds(1);
       intervalRef.current = setInterval(() => {
@@ -1373,6 +1395,14 @@ export const ChatPanel = ({
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isProcessing, streamFingerprint]);
+
+  useEffect(() => {
+    if (!reserveThinkingSlot) {
+      return;
+    }
+
+    scrollConversationToBottomIfPinned();
+  }, [reserveThinkingSlot, scrollConversationToBottomIfPinned]);
 
   return (
     <>
@@ -1459,11 +1489,13 @@ export const ChatPanel = ({
                 />
               ))
             )}
-            {isProcessing && showThinking ? (
-              <div className="py-2">
-                <Shimmer as="span" className="text-sm" duration={1.5}>
-                  {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
-                </Shimmer>
+            {isProcessing && reserveThinkingSlot ? (
+              <div className={THINKING_STATUS_SLOT_CLASSNAME}>
+                {showThinking ? (
+                  <Shimmer as="span" className="text-sm" duration={1.5}>
+                    {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
+                  </Shimmer>
+                ) : null}
               </div>
             ) : null}
           </ConversationContent>
