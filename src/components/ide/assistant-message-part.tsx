@@ -222,8 +222,19 @@ const CHIP_TOOL_NAME_ALIASES = {
   list: new Set(["list-files"]),
   read: new Set(["read", "read-file"]),
   search: new Set(["glob", "grep", "search", "search-in-files", "tool-search"]),
+  taskOutput: new Set(["task-output", "taskoutput", "task-result"]),
   write: new Set(["edit", "patch", "write", "write-file"]),
 } as const;
+
+const TOOL_STATE_LABELS: Record<ToolPart["state"], string> = {
+  "approval-requested": "Awaiting Approval",
+  "approval-responded": "Responded",
+  "input-available": "Running",
+  "input-streaming": "Pending",
+  "output-available": "Completed",
+  "output-denied": "Denied",
+  "output-error": "Error",
+};
 
 const CHIP_ERROR_CLASSES =
   "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10";
@@ -272,6 +283,9 @@ export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
   }
   if (CHIP_TOOL_NAME_ALIASES.search.has(toolName)) {
     return "search";
+  }
+  if (CHIP_TOOL_NAME_ALIASES.taskOutput.has(toolName)) {
+    return "taskOutput";
   }
   if (CHIP_TOOL_NAME_ALIASES.list.has(toolName)) {
     return "list";
@@ -1626,6 +1640,103 @@ export const RunCommandChip = ({
             </div>
           ) : hasRawOutput ? (
             <JsonBlock value={output} />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+export const TaskOutputChip = ({ part }: { part: ToolLikePart }) => {
+  const [expanded, setExpanded] = useState(false);
+  const state = (part.state ?? "input-streaming") as ToolPart["state"];
+  const isRunning = state === "input-available" || state === "input-streaming";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const taskId =
+    getStringFromPaths(part.input, [["task_id"], ["taskId"], ["id"]]) ??
+    getStringFromPaths(part.output, [["task_id"], ["taskId"], ["id"]]);
+  const outputText =
+    isString(part.output) && part.output.length > 0 ? part.output : null;
+  const hasRawOutput = part.output !== undefined;
+  const canExpand = hasError || hasRawOutput || isRecord(part.input);
+  const outputLanguage: BundledLanguage = outputText
+    ?.trimStart()
+    .startsWith("<")
+    ? "xml"
+    : "log";
+
+  return (
+    <div className={expanded ? "mb-3 w-full" : undefined}>
+      <button
+        className={cn(
+          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+          getChipToneClasses(
+            "border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
+            hasError,
+          ),
+          canExpand && "cursor-pointer",
+          isRunning && "animate-pulse",
+        )}
+        onClick={() => canExpand && setExpanded(!expanded)}
+        type="button"
+      >
+        <WrenchIcon className="size-3.5 shrink-0" />
+        <span className="font-medium">Task output</span>
+        {taskId ? (
+          <span className="max-w-28 truncate opacity-70">{taskId}</span>
+        ) : null}
+        <span className="opacity-70">{TOOL_STATE_LABELS[state]}</span>
+        {hasError ? <span className="text-destructive">error</span> : null}
+      </button>
+      {expanded ? (
+        <div
+          className={getExpandedChipClasses(
+            "text-cyan-700 dark:text-cyan-300",
+            hasError,
+          )}
+          style={{ borderColor: "currentColor" }}
+        >
+          {isRecord(part.input) ? (
+            <div className="space-y-2 rounded-md bg-muted/20 p-3">
+              <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                Parameters
+              </h4>
+              <div className="rounded-md bg-muted/50">
+                <CodeBlock
+                  code={JSON.stringify(part.input, null, 2)}
+                  language="json"
+                />
+              </div>
+            </div>
+          ) : null}
+          {hasError ? (
+            <div className="space-y-2 rounded-md bg-destructive/5 p-3">
+              <h4 className="font-medium text-destructive text-xs uppercase tracking-wide">
+                Result
+              </h4>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-destructive text-xs">
+                {part.errorText}
+              </pre>
+            </div>
+          ) : outputText !== null ? (
+            <CodeBlock
+              className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+              code={outputText}
+              language={outputLanguage}
+              style={{ contentVisibility: "visible" }}
+            >
+              <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
+                <CodeBlockTitle>
+                  <WrenchIcon size={14} />
+                  <CodeBlockFilename>Result</CodeBlockFilename>
+                </CodeBlockTitle>
+                <CodeBlockActions>
+                  <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
+                </CodeBlockActions>
+              </CodeBlockHeader>
+            </CodeBlock>
+          ) : hasRawOutput ? (
+            <JsonBlock value={part.output} />
           ) : null}
         </div>
       ) : null}

@@ -124,6 +124,7 @@ import {
   ReadFileChip,
   RunCommandChip,
   SearchInFilesChip,
+  TaskOutputChip,
   WriteFileChip,
 } from "./assistant-message-part";
 import { BranchSwitcher } from "./branch-switcher";
@@ -163,20 +164,14 @@ type ChatMessageMetadata = {
   remoteConversationProjectPath?: string;
 };
 
-const MESSAGE_RENDER_STYLE = {
-  containIntrinsicSize: "240px",
-  contentVisibility: "auto",
-} as const;
-const CHAT_CONTENT_BOTTOM_PADDING_PX = 54;
-const CHAT_SCROLL_BOTTOM_GAP_PX = 24;
-const THINKING_STATUS_SLOT_CLASSNAME = "h-9 shrink-0 py-2";
-
-const getConversationTargetScrollTop = (targetScrollTop: number) =>
-  Math.max(targetScrollTop - CHAT_SCROLL_BOTTOM_GAP_PX, 0);
+const CHAT_CONTENT_IDLE_BOTTOM_PADDING_PX = 64;
+const CHAT_CONTENT_PROCESSING_BOTTOM_PADDING_PX = 104;
+const THINKING_STATUS_CLASSNAME =
+  "pointer-events-none absolute bottom-[calc(100%+46px)] left-1/2 z-20 w-[calc(100%-1rem)] max-w-[700px] -translate-x-1/2 text-muted-foreground text-sm";
 
 const scrollElementToChatBottom = (element: HTMLElement) => {
   const targetScrollTop = element.scrollHeight - 1 - element.clientHeight;
-  element.scrollTop = getConversationTargetScrollTop(targetScrollTop);
+  element.scrollTop = Math.max(targetScrollTop, 0);
 };
 
 const formatMessageTime = (value: string | undefined) => {
@@ -196,7 +191,7 @@ const formatMessageTime = (value: string | undefined) => {
 };
 
 const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
-  const { scrollRef, stopScroll } = useStickToBottomContext();
+  const { scrollRef, scrollToBottom } = useStickToBottomContext();
 
   useEffect(() => {
     if (!isActive) {
@@ -207,14 +202,14 @@ const ConversationScrollMemory = ({ isActive }: { isActive: boolean }) => {
       const element = scrollRef.current;
       if (!element) return;
 
-      stopScroll();
       scrollElementToChatBottom(element);
+      void scrollToBottom({ animation: "instant", ignoreEscapes: true });
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [isActive, scrollRef, stopScroll]);
+  }, [isActive, scrollRef, scrollToBottom]);
 
   return null;
 };
@@ -326,6 +321,11 @@ const MessageHoverFooter = ({ message }: { message: UIMessage }) => {
   const reasoningLabel = metadata?.reasoningLabel;
   const time = formatMessageTime(metadata?.createdAt);
   const text = getMessageText(message);
+  const footerText = [modelLabel, reasoningLabel, time]
+    .filter(Boolean)
+    .join(" · ");
+  const positionClassName =
+    message.role === "user" ? "right-0 justify-end" : "left-0 justify-start";
 
   const copyMessage = useCallback(async () => {
     if (!text) {
@@ -337,15 +337,19 @@ const MessageHoverFooter = ({ message }: { message: UIMessage }) => {
     window.setTimeout(() => setCopied(false), 1200);
   }, [text]);
 
+  if (!footerText && !text) {
+    return null;
+  }
+
   return (
-    <div className="flex items-center gap-2 self-end text-muted-foreground text-xs opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 group-[.is-assistant]:self-start">
-      <span>
-        {[modelLabel, reasoningLabel, time].filter(Boolean).join(" · ")}
-      </span>
+    <div
+      className={`${positionClassName} pointer-events-none absolute top-full z-10 mt-1 flex items-center gap-2 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100`}
+    >
+      {footerText ? <span>{footerText}</span> : null}
       {text ? (
         <button
           aria-label="Copy message"
-          className="rounded p-1 transition-colors hover:bg-accent hover:text-foreground"
+          className="pointer-events-auto rounded p-1 transition-colors hover:bg-accent hover:text-foreground"
           onClick={() => void copyMessage()}
           type="button"
         >
@@ -592,7 +596,7 @@ const ChatMessage = memo(
   }: ChatMessageProps) => {
     if (message.role === "user") {
       return (
-        <Message from="user" style={MESSAGE_RENDER_STYLE}>
+        <Message className="relative" from="user">
           <MessageContent>
             <UserMessageContent message={message} />
           </MessageContent>
@@ -609,7 +613,7 @@ const ChatMessage = memo(
     );
 
     return (
-      <Message from={message.role} style={MESSAGE_RENDER_STYLE}>
+      <Message className="relative" from={message.role}>
         {sourceParts.length > 0 ? (
           <Sources>
             <SourcesTrigger count={sourceParts.length} />
@@ -699,6 +703,9 @@ const ChatMessage = memo(
                           projectPath={projectPath}
                         />
                       );
+                    }
+                    if (chipToolKind === "taskOutput") {
+                      return <TaskOutputChip key={key} part={chipPart_} />;
                     }
 
                     return <SearchInFilesChip key={key} part={chipPart_} />;
@@ -1180,26 +1187,33 @@ export const ChatPanel = ({
         return;
       }
 
-      conversationContext.stopScroll();
       scrollElementToChatBottom(element);
-      void conversationContext.scrollToBottom({ animation: "instant" });
+      void conversationContext.scrollToBottom({
+        animation: "instant",
+        ignoreEscapes: true,
+      });
     });
   }, [isActive]);
 
-  const scrollConversationToBottomIfPinned = useCallback(() => {
+  const scrollConversationToBottomIfLocked = useCallback(() => {
     if (!isActive) {
       return;
     }
 
     window.requestAnimationFrame(() => {
       const conversationContext = conversationContextRef.current;
-      if (!conversationContext?.isAtBottom) {
+      const element = conversationContext?.scrollRef.current;
+      if (!conversationContext || !element) {
+        return;
+      }
+      if (conversationContext.escapedFromLock) {
         return;
       }
 
+      scrollElementToChatBottom(element);
       void conversationContext.scrollToBottom({
         animation: "instant",
-        preserveScrollPosition: true,
+        ignoreEscapes: true,
       });
     });
   }, [isActive]);
@@ -1339,7 +1353,7 @@ export const ChatPanel = ({
   // Track elapsed thinking time, only shown during lulls (no new data)
   const [thinkingSeconds, setThinkingSeconds] = useState(0);
   const [showThinking, setShowThinking] = useState(false);
-  const [reserveThinkingSlot, setReserveThinkingSlot] = useState(false);
+  const wasProcessingRef = useRef(isProcessing);
   const lullStartRef = useRef<number | null>(null);
   const lullTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1359,7 +1373,6 @@ export const ChatPanel = ({
     if (!isProcessing) {
       // Not processing — reset everything
       setShowThinking(false);
-      setReserveThinkingSlot(false);
       setThinkingSeconds(0);
       lullStartRef.current = null;
       if (lullTimerRef.current) clearTimeout(lullTimerRef.current);
@@ -1375,7 +1388,6 @@ export const ChatPanel = ({
 
     lullTimerRef.current = setTimeout(() => {
       lullStartRef.current = performance.now();
-      setReserveThinkingSlot(true);
       setShowThinking(true);
       setThinkingSeconds(1);
       intervalRef.current = setInterval(() => {
@@ -1396,13 +1408,43 @@ export const ChatPanel = ({
     };
   }, [isProcessing, streamFingerprint]);
 
+  const chatContentBottomPadding = isProcessing
+    ? CHAT_CONTENT_PROCESSING_BOTTOM_PADDING_PX
+    : CHAT_CONTENT_IDLE_BOTTOM_PADDING_PX;
+
   useEffect(() => {
-    if (!reserveThinkingSlot) {
+    const wasProcessing = wasProcessingRef.current;
+    wasProcessingRef.current = isProcessing;
+
+    if (isProcessing && !wasProcessing) {
+      scrollConversationToBottom();
       return;
     }
 
-    scrollConversationToBottomIfPinned();
-  }, [reserveThinkingSlot, scrollConversationToBottomIfPinned]);
+    if (!isProcessing && wasProcessing) {
+      scrollConversationToBottomIfLocked();
+    }
+  }, [
+    isProcessing,
+    scrollConversationToBottom,
+    scrollConversationToBottomIfLocked,
+  ]);
+
+  useEffect(() => {
+    void showThinking;
+    void streamFingerprint;
+
+    if (!isProcessing) {
+      return;
+    }
+
+    scrollConversationToBottomIfLocked();
+  }, [
+    isProcessing,
+    scrollConversationToBottomIfLocked,
+    showThinking,
+    streamFingerprint,
+  ]);
 
   return (
     <>
@@ -1455,14 +1497,13 @@ export const ChatPanel = ({
           id={conversationDomId}
           className="min-h-0 flex-1"
           initial={false}
-          targetScrollTop={getConversationTargetScrollTop}
         >
           <ConversationContent
             id={conversationContentDomId}
             className={`mx-auto w-full max-w-[700px] gap-4 px-0 pt-3${
               messages.length === 0 ? " min-h-full" : ""
             }`}
-            style={{ paddingBottom: CHAT_CONTENT_BOTTOM_PADDING_PX }}
+            style={{ paddingBottom: chatContentBottomPadding }}
           >
             {messages.length === 0 ? (
               <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 text-center">
@@ -1489,15 +1530,6 @@ export const ChatPanel = ({
                 />
               ))
             )}
-            {isProcessing && reserveThinkingSlot ? (
-              <div className={THINKING_STATUS_SLOT_CLASSNAME}>
-                {showThinking ? (
-                  <Shimmer as="span" className="text-sm" duration={1.5}>
-                    {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
-                  </Shimmer>
-                ) : null}
-              </div>
-            ) : null}
           </ConversationContent>
           <ConversationScrollMemory isActive={isActive} />
           <ConversationScrollButton />
@@ -1522,7 +1554,14 @@ export const ChatPanel = ({
           </div>
         ) : null}
 
-        <div id={promptDomId} className="shrink-0 px-2 pb-2">
+        <div id={promptDomId} className="relative shrink-0 px-2 pb-2">
+          {isProcessing && showThinking ? (
+            <div className={THINKING_STATUS_CLASSNAME}>
+              <Shimmer as="span" duration={1.5}>
+                {`Thinking... ${thinkingSeconds} second${thinkingSeconds !== 1 ? "s" : ""}`}
+              </Shimmer>
+            </div>
+          ) : null}
           <div className="mx-auto w-full max-w-[700px]">
             <Sparkles
               density={70}
