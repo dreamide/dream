@@ -524,8 +524,8 @@ export const SettingsDialog = () => {
                       />
                       <SettingsSwitchRow
                         checked={settings.expandShellToolParts}
-                        description="Show shell tool parts expanded by default"
-                        label="Expand shell tool parts"
+                        description="Show shell tool calls expanded by default"
+                        label="Expand shell tool calls"
                         onCheckedChange={(checked) =>
                           setSettings((previous) => ({
                             ...previous,
@@ -535,8 +535,8 @@ export const SettingsDialog = () => {
                       />
                       <SettingsSwitchRow
                         checked={settings.expandEditToolParts}
-                        description="Show edit, write, and patch tool parts expanded by default"
-                        label="Expand edit tool parts"
+                        description="Show edit, write, and patch tool calls expanded by default"
+                        label="Expand edit tool calls"
                         onCheckedChange={(checked) =>
                           setSettings((previous) => ({
                             ...previous,

@@ -845,7 +845,7 @@ const ProjectWorkspaceComponent = ({
         panelRef={rightPanelRef}
         style={{
           flex: middleVisible ? undefined : rightVisible ? "1 1 0%" : "0 0 0px",
-          paddingRight: rightVisible ? 8 : 0,
+          paddingRight: 0,
           paddingLeft: rightVisible && !middleVisible ? 8 : 0,
           willChange: middleVisible
             ? "width, opacity, padding"
