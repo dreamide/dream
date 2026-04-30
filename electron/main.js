@@ -157,8 +157,7 @@ const DEFAULT_PERSISTED_STATE = {
     anthropicSelectedModels: [],
     autoAcceptPermissions: false,
     defaultModel: "",
-    expandEditToolParts: false,
-    expandShellToolParts: false,
+    expandToolCalls: false,
     openAiSelectedModels: [],
     showReasoningSummaries: true,
     shellPath: "",
@@ -503,20 +502,14 @@ function saveStateToRelationalDatabase(database, state) {
     writeConfig(
       database,
       "settings.autoAcceptPermissions",
-      settings.autoAcceptPermissions ?? false,
+      settings.autoAcceptPermissions === true,
       now,
     );
     writeConfig(database, "settings.shellPath", settings.shellPath ?? "", now);
     writeConfig(
       database,
-      "settings.expandEditToolParts",
-      settings.expandEditToolParts ?? false,
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.expandShellToolParts",
-      settings.expandShellToolParts ?? false,
+      "settings.expandToolCalls",
+      settings.expandToolCalls === true,
       now,
     );
     writeConfig(
@@ -952,14 +945,11 @@ function loadStateFromRelationalDatabase(database) {
         typeof config["settings.autoAcceptPermissions"] === "boolean"
           ? config["settings.autoAcceptPermissions"]
           : false,
-      expandEditToolParts:
-        typeof config["settings.expandEditToolParts"] === "boolean"
-          ? config["settings.expandEditToolParts"]
-          : false,
-      expandShellToolParts:
-        typeof config["settings.expandShellToolParts"] === "boolean"
-          ? config["settings.expandShellToolParts"]
-          : false,
+      expandToolCalls:
+        typeof config["settings.expandToolCalls"] === "boolean"
+          ? config["settings.expandToolCalls"]
+          : config["settings.expandShellToolParts"] === true ||
+            config["settings.expandEditToolParts"] === true,
       openAiSelectedModels: Array.isArray(
         config["settings.openAiSelectedModels"],
       )

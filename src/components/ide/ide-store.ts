@@ -1254,6 +1254,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           : {}),
       };
     });
+    get().persist();
   },
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setSettingsSection: (section) => set({ settingsSection: section }),

@@ -651,7 +651,7 @@ const ChatMessage = memo(
               const group = chipGroup;
               elements.push(
                 <div
-                  className="my-2 flex flex-wrap items-start gap-2"
+                  className="my-1.5 flex flex-wrap items-start gap-2"
                   key={`chip-group-${group[0].index}`}
                 >
                   {group.map(({ part: chipPart, index: chipIndex }) => {
