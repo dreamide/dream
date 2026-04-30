@@ -71,7 +71,6 @@ export interface PersistedIdeState {
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
-  projectChatHistoryPanelOpenByProject: Record<string, boolean>;
   projectRightPanelOpenByProject: Record<string, boolean>;
   projectPanelSizesByProject: Record<string, PanelSizes>;
   panelVisibility: PanelVisibility;

@@ -146,11 +146,10 @@ const DEFAULT_PERSISTED_STATE = {
     terminalHeight: 260,
   },
   panelVisibility: {
-    left: true,
+    left: false,
     middle: true,
     right: true,
   },
-  projectChatHistoryPanelOpenByProject: {},
   projectPanelSizesByProject: {},
   projectRightPanelOpenByProject: {},
   projects: [],
@@ -340,11 +339,6 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
   )
     ? state.projectRightPanelOpenByProject
     : {};
-  const projectChatHistoryPanelOpenByProject = isRecord(
-    state.projectChatHistoryPanelOpenByProject,
-  )
-    ? state.projectChatHistoryPanelOpenByProject
-    : {};
   const projectPanelSizesByProject = isRecord(state.projectPanelSizesByProject)
     ? state.projectPanelSizesByProject
     : {};
@@ -362,17 +356,11 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
       ? getNestedBoolean(state.panelVisibility, "right", true)
       : getNestedBoolean(existingPanelVisibility, "right", true),
   );
-  const chatHistoryPanelOpen = getNestedBoolean(
-    projectChatHistoryPanelOpenByProject,
-    project.id,
-    project.id === state.activeProjectId
-      ? getNestedBoolean(state.panelVisibility, "left", true)
-      : getNestedBoolean(existingPanelVisibility, "left", true),
-  );
+  const persistedPanelVisibility = { ...existingPanelVisibility };
+  delete persistedPanelVisibility.left;
 
   ui.panelVisibility = {
-    ...existingPanelVisibility,
-    left: chatHistoryPanelOpen,
+    ...persistedPanelVisibility,
     middle: true,
     right: rightPanelOpen,
   };
@@ -402,7 +390,6 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
   if (project.id === state.activeProjectId) {
     ui.panelVisibility = {
       ...ui.panelVisibility,
-      left: chatHistoryPanelOpen,
       middle: true,
       right: rightPanelOpen,
     };
@@ -736,7 +723,6 @@ function loadStateFromRelationalDatabase(database) {
   const allProjects = [];
   const activeChatIdByProject = {};
   const projectPanelSizesByProject = {};
-  const projectChatHistoryPanelOpenByProject = {};
   const projectRightPanelOpenByProject = {};
   const projectMetadataById = new Map();
 
@@ -777,11 +763,6 @@ function loadStateFromRelationalDatabase(database) {
 
     projectMetadataById.set(row.id, metadata);
     activeChatIdByProject[row.id] = getNestedNullableString(ui, "activeChatId");
-    projectChatHistoryPanelOpenByProject[row.id] = getNestedBoolean(
-      getNestedRecord(ui, "panelVisibility"),
-      "left",
-      true,
-    );
     projectRightPanelOpenByProject[row.id] = getNestedBoolean(
       getNestedRecord(ui, "panelVisibility"),
       "right",
@@ -907,11 +888,7 @@ function loadStateFromRelationalDatabase(database) {
     : null;
   const activeProjectUi = getNestedRecord(activeProjectMetadata, "ui");
   const panelVisibility = {
-    left: getNestedBoolean(
-      getNestedRecord(activeProjectUi, "panelVisibility"),
-      "left",
-      true,
-    ),
+    left: false,
     middle: true,
     right: getNestedBoolean(
       getNestedRecord(activeProjectUi, "panelVisibility"),
@@ -951,7 +928,6 @@ function loadStateFromRelationalDatabase(database) {
     messagesByChatId,
     panelSizes,
     panelVisibility,
-    projectChatHistoryPanelOpenByProject,
     projectPanelSizesByProject,
     projectRightPanelOpenByProject,
     projects,

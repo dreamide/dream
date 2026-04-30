@@ -254,6 +254,7 @@ const ProjectWorkspaceComponent = ({
   const terminalHeightRef = useRef(TERMINAL_PANEL_DEFAULT_HEIGHT_PX);
   const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
+  const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyPanelRef = useRef<HTMLDivElement | null>(null);
   const middlePanelRef = useRef<HTMLDivElement | null>(null);
   const terminalPanelWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -264,6 +265,40 @@ const ProjectWorkspaceComponent = ({
     rightWidthRef.current = projectPanelSizes.rightPanelWidth;
     terminalHeightRef.current = projectPanelSizes.terminalHeight;
   }
+
+  useEffect(() => {
+    if (!active || !historyOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (
+        historyPanelRef.current?.contains(target) ||
+        historyButtonRef.current?.contains(target) ||
+        (target instanceof Element &&
+          target.closest('[data-slot="dialog-content"]'))
+      ) {
+        return;
+      }
+
+      setProjectChatHistoryPanelOpen(projectId, false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [active, historyOpen, projectId, setProjectChatHistoryPanelOpen]);
+
+  useEffect(() => {
+    if (!active && historyOpen) {
+      setProjectChatHistoryPanelOpen(projectId, false);
+    }
+  }, [active, historyOpen, projectId, setProjectChatHistoryPanelOpen]);
 
   const getHorizontalChromeWidth = useCallback(() => {
     const rightHandleWidth =
@@ -283,12 +318,11 @@ const ProjectWorkspaceComponent = ({
     const availableWidth =
       containerWidth -
       WORKSPACE_SIDE_NAV_WIDTH_PX * 2 -
-      (historyOpen ? historyPanelWidthRef.current : 0) -
       getHorizontalChromeWidth() -
       CHAT_PANEL_MIN_WIDTH_PX;
 
     return Math.max(BROWSER_PANEL_MIN_WIDTH_PX, availableWidth);
-  }, [getHorizontalChromeWidth, historyOpen, rightVisible]);
+  }, [getHorizontalChromeWidth, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
     if (!rightVisible || !middleVisible) {
@@ -342,6 +376,44 @@ const ProjectWorkspaceComponent = ({
     },
     [active, projectId, setProjectPanelSizes],
   );
+
+  const handleHistoryResizeStart = useCallback(() => {
+    const panel = historyPanelRef.current;
+    if (!panel) {
+      return;
+    }
+
+    historyPanelWidthRef.current = clampChatHistoryPanelWidth(
+      panel.getBoundingClientRect().width,
+    );
+    panel.style.transition = "none";
+  }, []);
+
+  const handleHistoryResize = useCallback((deltaX: number) => {
+    const nextWidth = clampChatHistoryPanelWidth(
+      historyPanelWidthRef.current + deltaX,
+    );
+    historyPanelWidthRef.current = nextWidth;
+
+    const panel = historyPanelRef.current;
+    if (panel) {
+      panel.style.width = `${nextWidth}px`;
+      panel.style.maxWidth = `${CHAT_HISTORY_PANEL_MAX_WIDTH_PX}px`;
+    }
+  }, []);
+
+  const finishHistoryResize = useCallback(() => {
+    const panel = historyPanelRef.current;
+    if (panel) {
+      panel.style.transition = PANEL_TRANSITION;
+    }
+
+    handleHistoryResizeEnd(historyPanelWidthRef.current);
+  }, [handleHistoryResizeEnd]);
+
+  const closeHistoryPanel = useCallback(() => {
+    setProjectChatHistoryPanelOpen(projectId, false);
+  }, [projectId, setProjectChatHistoryPanelOpen]);
 
   const handleAddChat = useCallback(() => {
     addChat(projectId);
@@ -575,7 +647,7 @@ const ProjectWorkspaceComponent = ({
     : Number.MAX_SAFE_INTEGER;
 
   return (
-    <div className="flex h-full" ref={horizontalPanelsRef}>
+    <div className="relative flex h-full" ref={horizontalPanelsRef}>
       <aside className="flex w-12 shrink-0 flex-col items-center py-2">
         <div className="flex flex-col items-center gap-1">
           <Button
@@ -589,6 +661,7 @@ const ProjectWorkspaceComponent = ({
             onClick={() =>
               setProjectChatHistoryPanelOpen(projectId, !historyOpen)
             }
+            ref={historyButtonRef}
             size="icon"
             title="Chat history"
             variant="ghost"
@@ -619,26 +692,47 @@ const ProjectWorkspaceComponent = ({
         </Button>
       </aside>
 
-      <HorizontalResizablePanel
-        contentClassName="py-2"
-        contentMinWidth={CHAT_HISTORY_PANEL_MIN_WIDTH_PX}
-        handleSide="right"
-        maxWidth={CHAT_HISTORY_PANEL_MAX_WIDTH_PX}
-        minWidth={CHAT_HISTORY_PANEL_MIN_WIDTH_PX}
-        onHandleDoubleClick={() =>
-          setProjectChatHistoryPanelOpen(projectId, false)
-        }
-        onResizeEnd={handleHistoryResizeEnd}
-        open={historyOpen}
-        panelRef={historyPanelRef}
-        transition={PANEL_TRANSITION}
-        width={historyPanelWidth}
-        widthRef={historyPanelWidthRef}
+      <div
+        aria-hidden={!historyOpen}
+        className="absolute top-0 bottom-0 z-30 overflow-hidden"
+        inert={!historyOpen}
+        ref={historyPanelRef}
+        style={{
+          boxSizing: "border-box",
+          left: WORKSPACE_SIDE_NAV_WIDTH_PX,
+          maxWidth: historyOpen ? CHAT_HISTORY_PANEL_MAX_WIDTH_PX : 0,
+          minWidth: historyOpen ? CHAT_HISTORY_PANEL_MIN_WIDTH_PX : 0,
+          opacity: historyOpen ? 1 : 0,
+          pointerEvents: historyOpen ? "auto" : "none",
+          transition: PANEL_TRANSITION,
+          width: historyOpen ? historyPanelWidth : 0,
+          willChange: "width, opacity",
+        }}
       >
-        {active && historyOpen ? (
-          <ProjectSidebar className="h-full" project={project} />
-        ) : null}
-      </HorizontalResizablePanel>
+        <div
+          className="flex h-full"
+          style={{ minWidth: CHAT_HISTORY_PANEL_MIN_WIDTH_PX }}
+        >
+          <div className="min-w-0 flex-1 py-2">
+            {active && historyOpen ? (
+              <ProjectSidebar
+                className="h-full"
+                onChatSelect={closeHistoryPanel}
+                project={project}
+              />
+            ) : null}
+          </div>
+          {historyOpen ? (
+            <PanelResizeHandle
+              onDoubleClick={closeHistoryPanel}
+              onResize={handleHistoryResize}
+              onResizeEnd={finishHistoryResize}
+              onResizeStart={handleHistoryResizeStart}
+              side="right"
+            />
+          ) : null}
+        </div>
+      </div>
 
       {/* ─── MIDDLE: Chat + Terminal ─── */}
       <div

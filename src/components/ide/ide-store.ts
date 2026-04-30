@@ -760,7 +760,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         },
         projectChatHistoryPanelOpenByProject: {
           ...state.projectChatHistoryPanelOpenByProject,
-          [nextProject.id]: true,
+          [nextProject.id]: false,
         },
         projectPanelSizesByProject: {
           ...state.projectPanelSizesByProject,
@@ -1129,21 +1129,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }
 
     set((state) => {
-      if (panel !== "right") {
-        const nextOpen = !state.panelVisibility[panel];
+      if (panel === "left") {
+        const projectId = state.activeProjectId;
+        const currentOpen = projectId
+          ? (state.projectChatHistoryPanelOpenByProject[projectId] ?? false)
+          : false;
+        const nextOpen = !currentOpen;
+
         return {
-          panelVisibility: {
-            ...state.panelVisibility,
-            [panel]: nextOpen,
-            middle: true,
-          },
-          projectChatHistoryPanelOpenByProject:
-            panel === "left" && state.activeProjectId
-              ? {
-                  ...state.projectChatHistoryPanelOpenByProject,
-                  [state.activeProjectId]: nextOpen,
-                }
-              : state.projectChatHistoryPanelOpenByProject,
+          projectChatHistoryPanelOpenByProject: projectId
+            ? {
+                ...state.projectChatHistoryPanelOpenByProject,
+                [projectId]: nextOpen,
+              }
+            : state.projectChatHistoryPanelOpenByProject,
         };
       }
 
@@ -1966,7 +1965,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           messagesByChatId: {},
           panelSizes: DEFAULT_PANEL_SIZES,
           panelVisibility: DEFAULT_PANEL_VISIBILITY,
-          projectChatHistoryPanelOpenByProject: {},
           projectPanelSizesByProject: {},
           projectRightPanelOpenByProject: {},
           projects: [],
@@ -1987,7 +1985,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             messagesByChatId: {},
             panelSizes: DEFAULT_PANEL_SIZES,
             panelVisibility: DEFAULT_PANEL_VISIBILITY,
-            projectChatHistoryPanelOpenByProject: {},
             projectPanelSizesByProject: {},
             projectRightPanelOpenByProject: {},
             projects: [],
@@ -2007,10 +2004,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       ? (loaded.projectPanelSizesByProject[nextActiveProjectId] ??
         loaded.panelSizes)
       : loaded.panelSizes;
-    const nextChatHistoryPanelOpen = nextActiveProjectId
-      ? (loaded.projectChatHistoryPanelOpenByProject[nextActiveProjectId] ??
-        loaded.panelVisibility.left)
-      : loaded.panelVisibility.left;
+    const nextChatHistoryPanelOpenByProject = Object.fromEntries(
+      [...loaded.projects, ...loaded.closedProjects].map((project) => [
+        project.id,
+        false,
+      ]),
+    );
 
     set({
       projects: loaded.projects,
@@ -2031,11 +2030,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       panelSizes: nextPanelSizes,
       panelVisibility: {
         ...loaded.panelVisibility,
-        left: nextChatHistoryPanelOpen,
+        left: false,
         middle: true,
       },
-      projectChatHistoryPanelOpenByProject:
-        loaded.projectChatHistoryPanelOpenByProject,
+      projectChatHistoryPanelOpenByProject: nextChatHistoryPanelOpenByProject,
       projectPanelSizesByProject: loaded.projectPanelSizesByProject,
       projectRightPanelOpenByProject: loaded.projectRightPanelOpenByProject,
       draftChatIdByProject: {},
@@ -2056,7 +2054,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       messagesByChatId,
       panelSizes,
       panelVisibility,
-      projectChatHistoryPanelOpenByProject,
       projectPanelSizesByProject,
       projectRightPanelOpenByProject,
       projects,
@@ -2103,10 +2100,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       panelSizes,
       panelVisibility: {
         ...panelVisibility,
+        left: false,
         middle: true,
       },
       projectPanelSizesByProject,
-      projectChatHistoryPanelOpenByProject,
       projectRightPanelOpenByProject,
       projects,
       settings,

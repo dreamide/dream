@@ -13,7 +13,7 @@ const DEFAULT_PERSISTED_STATE = {
   closedProjects: [],
   messagesByChatId: {},
   panelVisibility: {
-    left: true,
+    left: false,
     middle: true,
     right: true,
   },

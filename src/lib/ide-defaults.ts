@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
-  left: true,
+  left: false,
   middle: true,
   right: true,
 };
@@ -65,7 +65,6 @@ export const createEmptyState = (): PersistedIdeState => ({
   messagesByChatId: {},
   panelSizes: DEFAULT_PANEL_SIZES,
   panelVisibility: DEFAULT_PANEL_VISIBILITY,
-  projectChatHistoryPanelOpenByProject: {},
   projectPanelSizesByProject: {},
   projectRightPanelOpenByProject: {},
   projects: [],
