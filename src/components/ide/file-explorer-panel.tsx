@@ -1,4 +1,4 @@
-import { FileIcon, FolderIcon, RefreshCw } from "lucide-react";
+import { FileIcon, Files, RefreshCw } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -424,7 +424,7 @@ const FileExplorerPanelImpl = ({
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
-          <FolderIcon className="size-4 text-muted-foreground" />
+          <Files className="size-4 text-muted-foreground" />
           <span>Files</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
@@ -438,7 +438,7 @@ const FileExplorerPanelImpl = ({
     <div className="flex h-full flex-col overflow-hidden">
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+          <Files className="size-4 shrink-0 text-muted-foreground" />
           <div className="truncate text-sm font-medium">Files</div>
         </div>
         <button

@@ -1,5 +1,5 @@
 import {
-  Folder,
+  Files,
   GitCompareArrows,
   Globe,
   History,
@@ -892,7 +892,7 @@ const ProjectWorkspaceComponent = ({
           onClick={() => handleSelectRightPanelView("explorer")}
           title="Files"
         >
-          <Folder className="size-4" />
+          <Files className="size-4" />
         </ToggleButton>
         <ToggleButton
           active={rightVisible && rightPanelView === "browser"}
