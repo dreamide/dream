@@ -1039,7 +1039,7 @@ export const ListFilesChip = ({
   }, [root]);
 
   return (
-    <div className={expanded ? "mb-3 w-full" : undefined}>
+    <div className={expanded ? "w-full" : undefined}>
       <button
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -1126,7 +1126,7 @@ export const AgentChip = ({
   }, [defaultExpanded]);
 
   return (
-    <div className={expanded ? "mb-3 w-full" : undefined}>
+    <div className={expanded ? "w-full" : undefined}>
       <button
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -1274,7 +1274,7 @@ export const ReadFileChip = ({
   }, [defaultExpanded]);
 
   return (
-    <div className={expanded ? "mb-3 w-full" : undefined}>
+    <div className={expanded ? "w-full" : undefined}>
       <button
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -1410,7 +1410,7 @@ export const SearchInFilesChip = ({
   }, [defaultExpanded]);
 
   return (
-    <div className={expanded ? "mb-3 w-full" : undefined}>
+    <div className={expanded ? "w-full" : undefined}>
       <button
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -1615,7 +1615,7 @@ export const RunCommandChip = ({
   }, [command]);
 
   return (
-    <div className={expanded ? "mb-3 w-full" : undefined}>
+    <div className={expanded ? "w-full" : undefined}>
       <button
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -1754,7 +1754,7 @@ export const TaskOutputChip = ({
   }, [defaultExpanded]);
 
   return (
-    <div className={expanded ? "mb-3 w-full" : undefined}>
+    <div className={expanded ? "w-full" : undefined}>
       <button
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
@@ -2071,7 +2071,7 @@ export const WriteFileChip = ({
   }, [diffCode, diffProjectPath, expanded, filePath, isRunning]);
 
   return (
-    <div className={expanded ? "mb-3 w-full" : undefined}>
+    <div className={expanded ? "w-full" : undefined}>
       <button
         className={cn(
           "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
