@@ -1684,6 +1684,13 @@ function detachAllBrowserSessions() {
   }
 }
 
+function hideBrowserSessionsForRendererNavigation() {
+  detachAllBrowserSessions();
+  activeBrowserTabId = null;
+  browserState.visible = false;
+  browserState.reload = false;
+}
+
 function stopBrowserNavigation(tabId, projectId) {
   const session = getBrowserSession(tabId, projectId);
   if (!session) {
@@ -2167,6 +2174,7 @@ async function createMainWindow() {
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (isRendererNavigation(url)) {
+      hideBrowserSessionsForRendererNavigation();
       return;
     }
 
@@ -2175,6 +2183,21 @@ async function createMainWindow() {
     if (isHttpUrl(url)) {
       shell.openExternal(url);
     }
+  });
+
+  mainWindow.webContents.on(
+    "did-start-navigation",
+    (_event, url, isInPlace, isMainFrame) => {
+      if (!isMainFrame || isInPlace || !isRendererNavigation(url)) {
+        return;
+      }
+
+      hideBrowserSessionsForRendererNavigation();
+    },
+  );
+
+  mainWindow.webContents.on("render-process-gone", () => {
+    hideBrowserSessionsForRendererNavigation();
   });
 
   mainWindow.on("resize", () => {

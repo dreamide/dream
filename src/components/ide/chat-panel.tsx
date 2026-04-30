@@ -722,6 +722,15 @@ const ChatMessage = memo(
                         />
                       );
                     }
+                    if (chipToolKind === "toolSearch") {
+                      return (
+                        <SearchInFilesChip
+                          defaultExpanded={expandToolCalls}
+                          key={key}
+                          part={chipPart_}
+                        />
+                      );
+                    }
 
                     return (
                       <SearchInFilesChip

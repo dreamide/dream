@@ -226,8 +226,9 @@ const CHIP_TOOL_NAME_ALIASES = {
   ]),
   list: new Set(["list-files"]),
   read: new Set(["read", "read-file"]),
-  search: new Set(["glob", "grep", "search", "search-in-files", "tool-search"]),
+  search: new Set(["glob", "grep", "search", "search-in-files"]),
   taskOutput: new Set(["task-output", "taskoutput", "task-result"]),
+  toolSearch: new Set(["tool-search"]),
   write: new Set(["edit", "patch", "write", "write-file"]),
 } as const;
 
@@ -291,6 +292,9 @@ export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
   }
   if (CHIP_TOOL_NAME_ALIASES.taskOutput.has(toolName)) {
     return "taskOutput";
+  }
+  if (CHIP_TOOL_NAME_ALIASES.toolSearch.has(toolName)) {
+    return "toolSearch";
   }
   if (CHIP_TOOL_NAME_ALIASES.list.has(toolName)) {
     return "list";
@@ -1381,7 +1385,9 @@ export const SearchInFilesChip = ({
         null,
     )
     .filter((toolName): toolName is string => toolName !== null);
-  const isToolReferenceSearch = toolReferences.length > 0;
+  const normalizedToolName = normalizeToolName(getToolName(part));
+  const isToolSearch = CHIP_TOOL_NAME_ALIASES.toolSearch.has(normalizedToolName);
+  const isToolReferenceSearch = isToolSearch || toolReferences.length > 0;
   const hasOutput = rawMatches !== null || textResults.length > 0;
   const count =
     isRecord(output) && typeof output.count === "number"
@@ -1427,9 +1433,13 @@ export const SearchInFilesChip = ({
         type="button"
       >
         <SearchChipIcon className="size-3.5 shrink-0" />
-        {isToolReferenceSearch ? (
+        {isToolReferenceSearch && toolReferences.length > 0 ? (
           <span className="max-w-64 truncate font-medium">
             Tools: {toolReferences.join(", ")}
+          </span>
+        ) : isToolSearch ? (
+          <span className="max-w-48 truncate font-medium">
+            {query ? `Tools: ${query}` : "Tools search"}
           </span>
         ) : query ? (
           <span className="max-w-48 truncate font-medium">{label}</span>
