@@ -95,6 +95,11 @@ export const CLAUDE_PERMISSION_MODE_OPTIONS: Array<{
   value: ClaudePermissionMode;
 }> = [
   {
+    description: "Inspect and plan without making file edits.",
+    label: "Plan mode",
+    value: "plan-mode",
+  },
+  {
     description: "Ask before making file edits.",
     label: "Ask permissions",
     value: "ask-permissions",
@@ -103,11 +108,6 @@ export const CLAUDE_PERMISSION_MODE_OPTIONS: Array<{
     description: "Apply file edits without asking.",
     label: "Accept edits",
     value: "accept-edits",
-  },
-  {
-    description: "Inspect and plan without making file edits.",
-    label: "Plan mode",
-    value: "plan-mode",
   },
   {
     description: "Apply edits without approval prompts.",
