@@ -254,9 +254,9 @@ const getExpandedChipClasses = (
     hasError ? "text-destructive" : defaultTextClasses,
   );
 const CHIP_DETAIL_HEADER_CLASSES =
-  "shrink-0 border-0 bg-transparent px-3 py-2 text-sm";
+  "shrink-0 border-0 bg-transparent px-3 py-2 text-[12px]";
 const RUN_COMMAND_HEADER_CLASSES =
-  "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-sm";
+  "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-[12px]";
 const STREAMING_WORD_INTERVAL_MS = 40;
 const STREAMING_MIN_INTERVAL_MS = 18;
 const STREAMING_BACKLOG_START_CHARS = 120;

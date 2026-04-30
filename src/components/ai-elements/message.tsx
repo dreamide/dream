@@ -358,8 +358,7 @@ export const MessageResponse = memo(
     return (
       <Streamdown
         className={cn(
-          "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-          "[&_code]:!text-[12px] [&_kbd]:!text-[12px] [&_pre]:!text-[12px] [&_samp]:!text-[12px]",
+          "dream-markdown-code-size size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
           className,
         )}
         components={mergedComponents}

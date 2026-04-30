@@ -330,14 +330,14 @@ const CodeBlockBody = memo(
     return (
         <pre
           className={cn(
-            "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 text-xs",
+            "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 !text-[12px]",
             className,
           )}
         style={preStyle}
       >
         <code
           className={cn(
-            "font-mono text-xs",
+            "font-mono !text-[12px]",
           )}
           style={
             showLineNumbers
@@ -393,7 +393,7 @@ export const CodeBlockHeader = ({
 }: HTMLAttributes<HTMLDivElement>) => (
     <div
       className={cn(
-        "flex min-h-9 items-center justify-between px-3 py-1.5 text-muted-foreground text-sm",
+        "flex min-h-9 items-center justify-between px-3 py-1.5 text-muted-foreground text-[12px]",
         className,
       )}
     {...props}

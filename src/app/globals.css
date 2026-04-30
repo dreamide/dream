@@ -398,9 +398,29 @@
   }
 
   :where(code, pre, kbd, samp, .font-mono) {
-    font-size: 0.75rem;
+    font-size: 12px;
     line-height: 1.5;
   }
+}
+
+.dream-markdown-code-size
+  :where(
+    code,
+    pre,
+    kbd,
+    samp,
+    [data-streamdown="inline-code"],
+    [data-streamdown="code-block-body"],
+    [data-streamdown="code-block-body"] *
+  ) {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dream-markdown-code-size
+  [data-streamdown="code-block-body"]
+  :where(*)::before {
+  font-size: 12px;
 }
 
 /* Streamdown markdown list styling overrides */

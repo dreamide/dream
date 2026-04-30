@@ -213,7 +213,7 @@ export const ReasoningContent = memo(
     return (
       <CollapsibleContent
         className={cn(
-          "mt-2 border-current border-l pl-3 text-slate-700 text-sm dark:text-slate-300",
+          "dream-markdown-code-size mt-2 border-current border-l pl-3 text-slate-700 text-sm dark:text-slate-300",
           "outline-none",
           className,
         )}
