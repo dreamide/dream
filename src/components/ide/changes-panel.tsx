@@ -1,9 +1,9 @@
 import {
   ChevronDown,
   ChevronRight,
+  Code,
   Columns2,
   FileIcon,
-  GitCompareArrows,
   RefreshCw,
   Rows3,
 } from "lucide-react";
@@ -629,7 +629,7 @@ const ChangesPanelImpl = ({
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
-          <GitCompareArrows className="size-4 text-muted-foreground" />
+          <Code className="size-4 text-muted-foreground" />
           <span>Changes</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
@@ -642,7 +642,7 @@ const ChangesPanelImpl = ({
   return (
     <div className="changes-panel flex h-full flex-col overflow-hidden bg-muted/15">
       <div className="flex items-center gap-3 border-b border-foreground/15 bg-muted/70 px-3 py-2">
-        <GitCompareArrows className="size-4 text-muted-foreground" />
+        <Code className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">Changes</div>
         </div>

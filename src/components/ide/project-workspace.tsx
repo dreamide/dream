@@ -1,6 +1,6 @@
 import {
+  Code,
   Files,
-  GitCompareArrows,
   Globe,
   History,
   MessageSquarePlus,
@@ -885,7 +885,7 @@ const ProjectWorkspaceComponent = ({
           onClick={() => handleSelectRightPanelView("changes")}
           title="Changes"
         >
-          <GitCompareArrows className="size-4" />
+          <Code className="size-4" />
         </ToggleButton>
         <ToggleButton
           active={rightVisible && rightPanelView === "explorer"}
