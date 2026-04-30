@@ -1,7 +1,9 @@
 import {
+  Folder,
+  GitCompareArrows,
+  Globe,
   History,
   MessageSquarePlus,
-  PanelRight,
   Settings,
   TerminalSquare,
 } from "lucide-react";
@@ -432,6 +434,19 @@ const ProjectWorkspaceComponent = ({
     setProjectRightPanelOpen(projectId, !rightVisible);
   }, [projectId, rightVisible, setProjectRightPanelOpen]);
 
+  const handleSelectRightPanelView = useCallback(
+    (view: RightPanelView) => {
+      if (rightVisible && rightPanelView === view) {
+        setProjectRightPanelOpen(projectId, false);
+        return;
+      }
+
+      setRightPanelView(view);
+      setProjectRightPanelOpen(projectId, true);
+    },
+    [projectId, rightPanelView, rightVisible, setProjectRightPanelOpen],
+  );
+
   const handleTerminalResizeStart = useCallback(() => {
     const wrapper = terminalPanelWrapperRef.current;
     if (wrapper) {
@@ -858,7 +873,6 @@ const ProjectWorkspaceComponent = ({
         <BrowserPanel
           active={active}
           browserHostRef={browserHostRef}
-          onRightPanelViewChange={setRightPanelView}
           onSyncBrowserBounds={syncBrowserBounds}
           project={project}
           rightPanelView={rightPanelView}
@@ -867,11 +881,25 @@ const ProjectWorkspaceComponent = ({
 
       <aside className="flex w-12 shrink-0 flex-col items-center gap-1 py-2">
         <ToggleButton
-          active={rightVisible}
-          onClick={handleToggleRightPanel}
-          title="Toggle right panel"
+          active={rightVisible && rightPanelView === "changes"}
+          onClick={() => handleSelectRightPanelView("changes")}
+          title="Changes"
         >
-          <PanelRight className="size-4" />
+          <GitCompareArrows className="size-4" />
+        </ToggleButton>
+        <ToggleButton
+          active={rightVisible && rightPanelView === "explorer"}
+          onClick={() => handleSelectRightPanelView("explorer")}
+          title="Files"
+        >
+          <Folder className="size-4" />
+        </ToggleButton>
+        <ToggleButton
+          active={rightVisible && rightPanelView === "browser"}
+          onClick={() => handleSelectRightPanelView("browser")}
+          title="Browser"
+        >
+          <Globe className="size-4" />
         </ToggleButton>
         <Button
           aria-label="Open terminal"

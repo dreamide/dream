@@ -1,9 +1,6 @@
 import {
   ArrowLeft,
   ArrowRight,
-  Folder,
-  GitCompareArrows,
-  Globe,
   Plus,
   RotateCw,
   X,
@@ -19,7 +16,6 @@ import {
 } from "react";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
@@ -38,10 +34,9 @@ const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 export interface BrowserPanelProps {
   active?: boolean;
   browserHostRef: RefObject<HTMLDivElement | null>;
-  onRightPanelViewChange?: (view: RightPanelView) => void;
   onSyncBrowserBounds: (reload?: boolean) => void;
   project: ProjectConfig;
-  rightPanelView?: RightPanelView;
+  rightPanelView: RightPanelView;
 }
 
 const normalizeBrowserUrlInput = (value: string) => {
@@ -465,74 +460,12 @@ const BrowserViewport = ({
 const MemoizedBrowserViewport = memo(BrowserViewport);
 MemoizedBrowserViewport.displayName = "BrowserViewport";
 
-const RightPanelTabs = ({
-  onValueChange,
-  value,
-}: {
-  onValueChange: (view: RightPanelView) => void;
-  value: RightPanelView;
-}) => {
-  const handleValueChange = useCallback(
-    (value: string) => {
-      if (value !== "browser" && value !== "explorer" && value !== "changes") {
-        return;
-      }
-
-      onValueChange(value);
-    },
-    [onValueChange],
-  );
-
-  return (
-    <div className="flex items-center px-2 pb-2">
-      <Tabs onValueChange={handleValueChange} value={value}>
-        <TabsList className="h-8 bg-muted/60">
-          <TabsTrigger
-            aria-label="Show changes"
-            className="h-6 w-8 px-0 data-[active]:bg-background"
-            title="Changes"
-            value="changes"
-          >
-            <GitCompareArrows className="size-4" />
-          </TabsTrigger>
-          <TabsTrigger
-            aria-label="Show file explorer"
-            className="h-6 w-8 px-0 data-[active]:bg-background"
-            title="Files"
-            value="explorer"
-          >
-            <Folder className="size-4" />
-          </TabsTrigger>
-          <TabsTrigger
-            aria-label="Show browser"
-            className="h-6 w-8 px-0 data-[active]:bg-background"
-            title="Browser"
-            value="browser"
-          >
-            <Globe className="size-4" />
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </div>
-  );
-};
-
 export const BrowserPanel = (props: BrowserPanelProps) => {
-  const fallbackRightPanelView = useIdeStore((state) => state.rightPanelView);
-  const setFallbackRightPanelView = useIdeStore(
-    (state) => state.setRightPanelView,
-  );
   const baseColor = useUiStore((state) => state.baseColor);
-  const rightPanelView = props.rightPanelView ?? fallbackRightPanelView;
-  const setRightPanelView =
-    props.onRightPanelViewChange ?? setFallbackRightPanelView;
+  const rightPanelView = props.rightPanelView;
 
   return (
     <div className="flex h-full min-h-0 flex-col pt-2">
-      <RightPanelTabs
-        onValueChange={setRightPanelView}
-        value={rightPanelView}
-      />
       <div
         className={cn(
           RIGHT_PANEL_SURFACE_CLASSES,
