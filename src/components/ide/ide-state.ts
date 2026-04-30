@@ -251,14 +251,14 @@ export const mergePersistedState = (
       typeof rawSettings.defaultModel === "string"
         ? rawSettings.defaultModel
         : "",
-    expandEditToolParts:
-      typeof rawSettings.expandEditToolParts === "boolean"
-        ? rawSettings.expandEditToolParts
-        : DEFAULT_SETTINGS.expandEditToolParts,
-    expandShellToolParts:
-      typeof rawSettings.expandShellToolParts === "boolean"
-        ? rawSettings.expandShellToolParts
-        : DEFAULT_SETTINGS.expandShellToolParts,
+    expandToolCalls:
+      typeof rawSettings.expandToolCalls === "boolean"
+        ? rawSettings.expandToolCalls
+        : typeof rawSettings.expandShellToolParts === "boolean" ||
+            typeof rawSettings.expandEditToolParts === "boolean"
+          ? rawSettings.expandShellToolParts === true ||
+            rawSettings.expandEditToolParts === true
+          : DEFAULT_SETTINGS.expandToolCalls,
     openAiSelectedModels: dedupeModels(
       Array.isArray(rawSettings.openAiSelectedModels)
         ? rawSettings.openAiSelectedModels

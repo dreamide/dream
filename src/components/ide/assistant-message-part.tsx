@@ -947,13 +947,15 @@ const FileTreeNodeView = ({ node }: { node: FileTreeNode }) => {
 };
 
 export const ListFilesChip = ({
+  defaultExpanded = false,
   part,
   projectPath,
 }: {
+  defaultExpanded?: boolean;
   part: ToolLikePart;
   projectPath?: string | null;
 }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
@@ -995,9 +997,12 @@ export const ListFilesChip = ({
     };
   }, [output]);
 
-  const { root, defaultExpanded } = useMemo(() => {
-    if (!files) return { root: null, defaultExpanded: new Set<string>() };
-    return buildFileTree(files);
+  const { root, defaultExpandedFolders } = useMemo(() => {
+    if (!files) {
+      return { root: null, defaultExpandedFolders: new Set<string>() };
+    }
+    const tree = buildFileTree(files);
+    return { root: tree.root, defaultExpandedFolders: tree.defaultExpanded };
   }, [files]);
 
   const hasOutput = files !== null && root !== null;
@@ -1018,6 +1023,12 @@ export const ListFilesChip = ({
   const label = pattern ?? directory ?? "files";
   const displayLabel = label === "files" && isRunning ? "Listing" : label;
   const Icon = pattern ? SearchIcon : FolderIcon;
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   const sortedChildren = useMemo(() => {
     if (!root) return [];
@@ -1065,7 +1076,10 @@ export const ListFilesChip = ({
             </pre>
           ) : null}
           {hasOutput ? (
-            <FileTree className="text-xs" defaultExpanded={defaultExpanded}>
+            <FileTree
+              className="text-xs"
+              defaultExpanded={defaultExpandedFolders}
+            >
               {sortedChildren.map((child) => (
                 <FileTreeNodeView key={child.path} node={child} />
               ))}
@@ -1081,8 +1095,14 @@ export const ListFilesChip = ({
 
 // ── Chip-based tool components ─────────────────────────────────────────
 
-export const AgentChip = ({ part }: { part: ToolLikePart }) => {
-  const [expanded, setExpanded] = useState(false);
+export const AgentChip = ({
+  defaultExpanded = false,
+  part,
+}: {
+  defaultExpanded?: boolean;
+  part: ToolLikePart;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
@@ -1098,6 +1118,12 @@ export const AgentChip = ({ part }: { part: ToolLikePart }) => {
     ["subagentType"],
     ["type"],
   ]);
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1172,8 +1198,14 @@ export const AgentChip = ({ part }: { part: ToolLikePart }) => {
   );
 };
 
-export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
-  const [expanded, setExpanded] = useState(false);
+export const ReadFileChip = ({
+  defaultExpanded = false,
+  part,
+}: {
+  defaultExpanded?: boolean;
+  part: ToolLikePart;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
@@ -1234,6 +1266,12 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
   const previewStartLine = normalizedContent?.startingLineNumber ?? start ?? 1;
   const displayFilename =
     filename === "file" && isRunning ? "Reading" : filename;
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1303,8 +1341,14 @@ export const ReadFileChip = ({ part }: { part: ToolLikePart }) => {
   );
 };
 
-export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
-  const [expanded, setExpanded] = useState(false);
+export const SearchInFilesChip = ({
+  defaultExpanded = false,
+  part,
+}: {
+  defaultExpanded?: boolean;
+  part: ToolLikePart;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const rawMatches =
     isRecord(output) && Array.isArray(output.matches)
@@ -1358,6 +1402,12 @@ export const SearchInFilesChip = ({ part }: { part: ToolLikePart }) => {
   const canExpand = hasError || hasRawOutput;
   const label = query ?? "Search";
   const SearchChipIcon = isToolReferenceSearch ? WrenchIcon : SearchIcon;
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>
@@ -1661,8 +1711,14 @@ export const RunCommandChip = ({
   );
 };
 
-export const TaskOutputChip = ({ part }: { part: ToolLikePart }) => {
-  const [expanded, setExpanded] = useState(false);
+export const TaskOutputChip = ({
+  defaultExpanded = false,
+  part,
+}: {
+  defaultExpanded?: boolean;
+  part: ToolLikePart;
+}) => {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
@@ -1690,6 +1746,12 @@ export const TaskOutputChip = ({ part }: { part: ToolLikePart }) => {
       : outputText !== null
         ? "log"
         : "json";
+
+  useEffect(() => {
+    if (defaultExpanded) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded]);
 
   return (
     <div className={expanded ? "mb-3 w-full" : undefined}>

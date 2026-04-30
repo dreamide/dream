@@ -477,7 +477,7 @@ const FileExplorerPanelImpl = ({
             maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
           }}
         >
-          <div className="h-full border-r border-foreground/10 bg-muted/20">
+          <div className="h-full border-r border-foreground/10 bg-background">
             <ScrollArea className="h-full">
               <div className="p-3">
                 {filesError ? (

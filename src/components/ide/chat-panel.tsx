@@ -572,8 +572,7 @@ type ToolApprovalResponder = (response: {
 
 type ChatMessageProps = {
   addToolApprovalResponse: ToolApprovalResponder;
-  expandEditToolParts: boolean;
-  expandShellToolParts: boolean;
+  expandToolCalls: boolean;
   isLastMessage: boolean;
   isStreaming: boolean;
   message: UIMessage;
@@ -584,8 +583,7 @@ type ChatMessageProps = {
 const ChatMessage = memo(
   ({
     addToolApprovalResponse,
-    expandEditToolParts,
-    expandShellToolParts,
+    expandToolCalls,
     isLastMessage,
     isStreaming,
     message,
@@ -670,21 +668,34 @@ const ChatMessage = memo(
                     if (chipToolKind === "command") {
                       return (
                         <RunCommandChip
-                          defaultExpanded={expandShellToolParts}
+                          defaultExpanded={expandToolCalls}
                           key={key}
                           part={chipPart_}
                         />
                       );
                     }
                     if (chipToolKind === "agent") {
-                      return <AgentChip key={key} part={chipPart_} />;
+                      return (
+                        <AgentChip
+                          defaultExpanded={expandToolCalls}
+                          key={key}
+                          part={chipPart_}
+                        />
+                      );
                     }
                     if (chipToolKind === "read") {
-                      return <ReadFileChip key={key} part={chipPart_} />;
+                      return (
+                        <ReadFileChip
+                          defaultExpanded={expandToolCalls}
+                          key={key}
+                          part={chipPart_}
+                        />
+                      );
                     }
                     if (chipToolKind === "list") {
                       return (
                         <ListFilesChip
+                          defaultExpanded={expandToolCalls}
                           key={key}
                           part={chipPart_}
                           projectPath={projectPath}
@@ -694,7 +705,7 @@ const ChatMessage = memo(
                     if (chipToolKind === "write") {
                       return (
                         <WriteFileChip
-                          defaultExpanded={expandEditToolParts}
+                          defaultExpanded={expandToolCalls}
                           key={key}
                           onToolApproval={addToolApprovalResponse}
                           part={chipPart_}
@@ -703,10 +714,22 @@ const ChatMessage = memo(
                       );
                     }
                     if (chipToolKind === "taskOutput") {
-                      return <TaskOutputChip key={key} part={chipPart_} />;
+                      return (
+                        <TaskOutputChip
+                          defaultExpanded={expandToolCalls}
+                          key={key}
+                          part={chipPart_}
+                        />
+                      );
                     }
 
-                    return <SearchInFilesChip key={key} part={chipPart_} />;
+                    return (
+                      <SearchInFilesChip
+                        defaultExpanded={expandToolCalls}
+                        key={key}
+                        part={chipPart_}
+                      />
+                    );
                   })}
                 </div>,
               );
@@ -775,8 +798,7 @@ const ChatMessage = memo(
   },
   (prev: ChatMessageProps, next: ChatMessageProps) =>
     prev.message === next.message &&
-    prev.expandEditToolParts === next.expandEditToolParts &&
-    prev.expandShellToolParts === next.expandShellToolParts &&
+    prev.expandToolCalls === next.expandToolCalls &&
     prev.isLastMessage === next.isLastMessage &&
     prev.isStreaming === next.isStreaming &&
     prev.projectPath === next.projectPath &&
@@ -1471,8 +1493,7 @@ export const ChatPanel = ({
               messages.map((message, messageIndex) => (
                 <ChatMessage
                   addToolApprovalResponse={addToolApprovalResponse}
-                  expandEditToolParts={settings.expandEditToolParts}
-                  expandShellToolParts={settings.expandShellToolParts}
+                  expandToolCalls={settings.expandToolCalls}
                   isLastMessage={messageIndex === messages.length - 1}
                   isStreaming={isStreaming}
                   key={message.id}
