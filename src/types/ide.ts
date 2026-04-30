@@ -35,6 +35,7 @@ export interface ProjectConfig {
   provider: AiProvider;
   model: string;
   reasoningEffort: ReasoningEffort;
+  ui: ProjectUiState;
 }
 
 export interface ProjectIconInfo {
@@ -67,17 +68,22 @@ export interface PanelSizes {
   terminalHeight: number;
 }
 
+export type RightPanelView = "browser" | "explorer" | "changes";
+
+export interface ProjectUiState {
+  activeChatId: string | null;
+  chatHistoryPanelOpen: boolean;
+  panelSizes: PanelSizes;
+  rightPanelOpen: boolean;
+  rightPanelView: RightPanelView;
+}
+
 export interface PersistedIdeState {
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
-  projectRightPanelOpenByProject: Record<string, boolean>;
-  projectPanelSizesByProject: Record<string, PanelSizes>;
-  panelVisibility: PanelVisibility;
-  panelSizes: PanelSizes;
   settings: AppSettings;
   chats: ChatConfig[];
-  activeChatIdByProject: Record<string, string | null>;
   chatSort: ChatSortOrder;
   messagesByChatId: Record<string, UIMessage[]>;
 }

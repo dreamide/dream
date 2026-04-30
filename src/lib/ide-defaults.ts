@@ -7,6 +7,7 @@ import type {
   PanelVisibility,
   PersistedIdeState,
   ProjectConfig,
+  ProjectUiState,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
@@ -57,16 +58,19 @@ export const DEFAULT_PANEL_SIZES: PanelSizes = {
   terminalHeight: 260,
 };
 
+export const DEFAULT_PROJECT_UI: ProjectUiState = {
+  activeChatId: null,
+  chatHistoryPanelOpen: false,
+  panelSizes: DEFAULT_PANEL_SIZES,
+  rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,
+  rightPanelView: "changes",
+};
+
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
-  activeChatIdByProject: {},
   chats: [],
   closedProjects: [],
   messagesByChatId: {},
-  panelSizes: DEFAULT_PANEL_SIZES,
-  panelVisibility: DEFAULT_PANEL_VISIBILITY,
-  projectPanelSizesByProject: {},
-  projectRightPanelOpenByProject: {},
   projects: [],
   settings: DEFAULT_SETTINGS,
   chatSort: "recent",
@@ -89,6 +93,10 @@ export const createProjectConfig = (
     provider: defaultSelection.provider,
     reasoningEffort: "medium",
     runCommand: "pnpm dev",
+    ui: {
+      ...DEFAULT_PROJECT_UI,
+      rightPanelOpen: false,
+    },
   };
 };
 

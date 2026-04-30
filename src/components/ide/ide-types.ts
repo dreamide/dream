@@ -1,5 +1,10 @@
 import type { ModelOption } from "@/lib/models";
-import type { AiProvider, AppSettings, ReasoningEffort } from "@/types/ide";
+import type {
+  AiProvider,
+  AppSettings,
+  ReasoningEffort,
+  RightPanelView,
+} from "@/types/ide";
 
 export const STATE_STORAGE_KEY = "dream:ide:state";
 
@@ -7,7 +12,7 @@ export type SettingsSection = "appearance" | "providers" | "chats";
 
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
-export type RightPanelView = "browser" | "explorer" | "changes";
+export type { RightPanelView };
 export type CodexPermissionMode =
   | "default"
   | "auto-accept-edits"
