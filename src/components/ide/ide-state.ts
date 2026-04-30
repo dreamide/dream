@@ -243,6 +243,10 @@ export const mergePersistedState = (
         ? rawSettings.anthropicSelectedModels.map(normalizeClaudeCodeModelId)
         : [],
     ),
+    autoAcceptPermissions:
+      typeof rawSettings.autoAcceptPermissions === "boolean"
+        ? rawSettings.autoAcceptPermissions
+        : DEFAULT_SETTINGS.autoAcceptPermissions,
     defaultModel:
       typeof rawSettings.defaultModel === "string"
         ? rawSettings.defaultModel

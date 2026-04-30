@@ -45,6 +45,7 @@ export interface ProjectIconInfo {
 }
 
 export interface AppSettings {
+  autoAcceptPermissions: boolean;
   defaultModel: string;
   expandEditToolParts: boolean;
   expandShellToolParts: boolean;

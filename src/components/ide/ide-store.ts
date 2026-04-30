@@ -237,6 +237,15 @@ const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
   },
 };
 
+const getPermissionModesForAutoAccept = (
+  autoAcceptPermissions: boolean,
+): Pick<IdeState, "claudePermissionMode" | "codexPermissionMode"> => ({
+  claudePermissionMode: autoAcceptPermissions
+    ? "accept-edits"
+    : "ask-permissions",
+  codexPermissionMode: autoAcceptPermissions ? "auto-accept-edits" : "default",
+});
+
 const areMessagesEqual = (
   left: UIMessage[] | undefined,
   right: UIMessage[],
@@ -762,6 +771,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ...state.projectChatHistoryPanelOpenByProject,
           [nextProject.id]: false,
         },
+        ...getPermissionModesForAutoAccept(
+          state.settings.autoAcceptPermissions,
+        ),
         projectPanelSizesByProject: {
           ...state.projectPanelSizesByProject,
           [nextProject.id]: DEFAULT_PANEL_SIZES,
@@ -916,6 +928,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             ...state.activeChatIdByProject,
             [projectId]: existingDraftChatId,
           },
+          ...getPermissionModesForAutoAccept(
+            state.settings.autoAcceptPermissions,
+          ),
         };
       }
 
@@ -942,6 +957,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ...state.messagesByChatId,
           [nextChat.id]: [],
         },
+        ...getPermissionModesForAutoAccept(
+          state.settings.autoAcceptPermissions,
+        ),
         chats: [...state.chats, nextChat],
       };
     });
@@ -1222,10 +1240,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Actions: settings ───────────────────────────────────────────────
   setSettings: (updater) => {
-    set((state) => ({
-      settings:
-        typeof updater === "function" ? updater(state.settings) : updater,
-    }));
+    set((state) => {
+      const nextSettings =
+        typeof updater === "function" ? updater(state.settings) : updater;
+      const autoAcceptChanged =
+        nextSettings.autoAcceptPermissions !==
+        state.settings.autoAcceptPermissions;
+
+      return {
+        settings: nextSettings,
+        ...(autoAcceptChanged
+          ? getPermissionModesForAutoAccept(nextSettings.autoAcceptPermissions)
+          : {}),
+      };
+    });
   },
   setSettingsOpen: (open) => set({ settingsOpen: open }),
   setSettingsSection: (section) => set({ settingsSection: section }),
@@ -2039,6 +2067,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       draftChatIdByProject: {},
       settings: loaded.settings,
       chatSort: loaded.chatSort,
+      ...getPermissionModesForAutoAccept(loaded.settings.autoAcceptPermissions),
       stateHydrated: true,
     });
   },

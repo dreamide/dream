@@ -155,6 +155,7 @@ const DEFAULT_PERSISTED_STATE = {
   projects: [],
   settings: {
     anthropicSelectedModels: [],
+    autoAcceptPermissions: false,
     defaultModel: "",
     expandEditToolParts: false,
     expandShellToolParts: false,
@@ -497,6 +498,12 @@ function saveStateToRelationalDatabase(database, state) {
       Array.isArray(settings.anthropicSelectedModels)
         ? settings.anthropicSelectedModels
         : [],
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.autoAcceptPermissions",
+      settings.autoAcceptPermissions ?? false,
       now,
     );
     writeConfig(database, "settings.shellPath", settings.shellPath ?? "", now);
@@ -941,6 +948,10 @@ function loadStateFromRelationalDatabase(database) {
         typeof config["settings.defaultModel"] === "string"
           ? config["settings.defaultModel"]
           : "",
+      autoAcceptPermissions:
+        typeof config["settings.autoAcceptPermissions"] === "boolean"
+          ? config["settings.autoAcceptPermissions"]
+          : false,
       expandEditToolParts:
         typeof config["settings.expandEditToolParts"] === "boolean"
           ? config["settings.expandEditToolParts"]

@@ -25,6 +25,7 @@ const DEFAULT_PERSISTED_STATE = {
     anthropicApiKey: "",
     anthropicRefreshToken: "",
     anthropicSelectedModels: [],
+    autoAcceptPermissions: false,
     connectedProviders: [],
     defaultAnthropicModel: "",
     defaultOpenAiModel: "",

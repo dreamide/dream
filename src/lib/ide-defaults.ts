@@ -36,6 +36,7 @@ export const normalizeClaudeCodeModelId = (modelId: string): string => {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   anthropicSelectedModels: [],
+  autoAcceptPermissions: false,
   defaultModel: "",
   expandEditToolParts: false,
   expandShellToolParts: false,

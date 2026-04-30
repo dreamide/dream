@@ -487,13 +487,33 @@ export const SettingsDialog = () => {
 
                   <div>
                     <div className="space-y-1 pt-2">
-                      <h3 className="font-medium text-sm">Activity</h3>
+                      <h3 className="font-medium text-sm">Permissions</h3>
+                    </div>
+
+                    <div className="mt-2 border-foreground/10 border-l pl-4">
+                      <SettingsSwitchRow
+                        checked={settings.autoAcceptPermissions}
+                        description="New chats automatically approve standard permission requests"
+                        label="Auto-accept permissions"
+                        onCheckedChange={(checked) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            autoAcceptPermissions: checked,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="space-y-1 pt-2">
+                      <h3 className="font-medium text-sm">Chat messages</h3>
                     </div>
 
                     <div className="mt-2 border-foreground/10 border-l pl-4">
                       <SettingsSwitchRow
                         checked={settings.showReasoningSummaries}
-                        description="Display model reasoning summaries in chat messages"
+                        description="Display model reasoning summaries"
                         label="Show reasoning summaries"
                         onCheckedChange={(checked) =>
                           setSettings((previous) => ({
@@ -504,7 +524,7 @@ export const SettingsDialog = () => {
                       />
                       <SettingsSwitchRow
                         checked={settings.expandShellToolParts}
-                        description="Show shell tool parts expanded by default in chat messages"
+                        description="Show shell tool parts expanded by default"
                         label="Expand shell tool parts"
                         onCheckedChange={(checked) =>
                           setSettings((previous) => ({
@@ -515,7 +535,7 @@ export const SettingsDialog = () => {
                       />
                       <SettingsSwitchRow
                         checked={settings.expandEditToolParts}
-                        description="Show edit, write, and patch tool parts expanded by default in chat messages"
+                        description="Show edit, write, and patch tool parts expanded by default"
                         label="Expand edit tool parts"
                         onCheckedChange={(checked) =>
                           setSettings((previous) => ({
