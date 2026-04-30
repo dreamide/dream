@@ -478,7 +478,7 @@ export const ProjectTerminalTabsPanel = ({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col p-2">
+    <div className="flex h-full min-h-0 flex-col py-2 pr-2">
       <TerminalSurface
         className="flex min-h-0 flex-1 flex-col"
         style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}

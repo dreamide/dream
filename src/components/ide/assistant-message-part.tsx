@@ -2330,7 +2330,7 @@ export const AssistantMessagePart = ({
 
     return (
       <Reasoning
-        className="mb-0 w-full"
+        className="my-3 w-full"
         defaultOpen={showReasoningSummaries}
         isStreaming={isStreaming}
         hasContent={hasReasoningText}
