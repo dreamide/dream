@@ -131,6 +131,7 @@ const ProjectWorkspaceComponent = ({
         CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
     ),
   );
+  const [browserResizeHidden, setBrowserResizeHidden] = useState(false);
   const modalBrowserHidden = useModalBrowserHidden();
 
   // ── Derived values ──────────────────────────────────────────────────
@@ -518,12 +519,17 @@ const ProjectWorkspaceComponent = ({
   // Browser bounds sync
   const lastSentBrowserUrlRef = useRef<string | null>(null);
   const lastSentBrowserTabIdRef = useRef<string | null>(null);
+  const browserResizeHiddenRef = useRef(false);
   const syncBrowserBounds = useCallback(
     (reload = false) => {
       const desktopApi = getDesktopApi();
       if (!desktopApi) return;
 
       if (!active) {
+        return;
+      }
+
+      if (browserResizeHiddenRef.current) {
         return;
       }
 
@@ -582,6 +588,42 @@ const ProjectWorkspaceComponent = ({
       });
     },
     [active, activeBrowserTab, projectId, rightPanelView, rightVisible],
+  );
+
+  const hideBrowserForRightResize = useCallback(() => {
+    isDraggingRef.current = true;
+
+    if (
+      !active ||
+      !activeBrowserTab?.url ||
+      !rightVisible ||
+      rightPanelView !== "browser"
+    ) {
+      return;
+    }
+
+    lastSentBrowserUrlRef.current = null;
+    lastSentBrowserTabIdRef.current = null;
+    browserResizeHiddenRef.current = true;
+    setBrowserResizeHidden(true);
+    getDesktopApi()?.updateBrowser({
+      projectId,
+      tabId: activeBrowserTab.id,
+      visible: false,
+    });
+  }, [active, activeBrowserTab, projectId, rightPanelView, rightVisible]);
+
+  const handleRightResizeEndWithBrowserSync = useCallback(
+    (width: number) => {
+      handleRightResizeEnd(width);
+
+      window.requestAnimationFrame(() => {
+        browserResizeHiddenRef.current = false;
+        syncBrowserBounds();
+        setBrowserResizeHidden(false);
+      });
+    },
+    [handleRightResizeEnd, syncBrowserBounds],
   );
 
   useEffect(() => {
@@ -852,10 +894,8 @@ const ProjectWorkspaceComponent = ({
         maxWidth={boundedRightPanelMaxWidth}
         minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
         onHandleDoubleClick={handleToggleRightPanel}
-        onResizeEnd={handleRightResizeEnd}
-        onResizeStart={() => {
-          isDraggingRef.current = true;
-        }}
+        onResizeEnd={handleRightResizeEndWithBrowserSync}
+        onResizeStart={hideBrowserForRightResize}
         open={rightVisible}
         panelRef={rightPanelRef}
         style={{
@@ -873,6 +913,7 @@ const ProjectWorkspaceComponent = ({
         <BrowserPanel
           active={active}
           browserHostRef={browserHostRef}
+          browserResizeHidden={browserResizeHidden}
           onSyncBrowserBounds={syncBrowserBounds}
           project={project}
           rightPanelView={rightPanelView}

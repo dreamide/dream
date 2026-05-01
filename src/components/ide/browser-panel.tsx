@@ -1,10 +1,4 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  Plus,
-  RotateCw,
-  X,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, RotateCw, X } from "lucide-react";
 import {
   memo,
   type RefObject,
@@ -34,6 +28,7 @@ const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 export interface BrowserPanelProps {
   active?: boolean;
   browserHostRef: RefObject<HTMLDivElement | null>;
+  browserResizeHidden?: boolean;
   onSyncBrowserBounds: (reload?: boolean) => void;
   project: ProjectConfig;
   rightPanelView: RightPanelView;
@@ -63,6 +58,7 @@ const getBrowserTabTitle = (url: string) => {
 const BrowserViewport = ({
   active = true,
   onSyncBrowserBounds,
+  browserResizeHidden = false,
   browserHostRef,
   project,
 }: BrowserPanelProps) => {
@@ -445,6 +441,9 @@ const BrowserViewport = ({
             <div className="absolute inset-0 p-3">
               <AppShellPlaceholder message="Enter a URL to show the live browser." />
             </div>
+          ) : null}
+          {browserVisible && browserResizeHidden ? (
+            <div className="absolute inset-0 bg-background" />
           ) : null}
           {browserError ? (
             <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive/20 bg-background/95 px-3 py-2 text-xs text-destructive shadow-sm">
