@@ -135,23 +135,9 @@ function configureApplicationMenu() {
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
-  activeChatIdByProject: {},
   chats: [],
   closedProjects: [],
   messagesByChatId: {},
-  panelSizes: {
-    chatHistoryPanelWidth: 400,
-    leftSidebarWidth: 240,
-    rightPanelWidth: 520,
-    terminalHeight: 260,
-  },
-  panelVisibility: {
-    left: false,
-    middle: true,
-    right: true,
-  },
-  projectPanelSizesByProject: {},
-  projectRightPanelOpenByProject: {},
   projects: [],
   settings: {
     anthropicSelectedModels: [],
@@ -250,6 +236,13 @@ function getNestedBoolean(parent, key, fallback) {
   return typeof parent?.[key] === "boolean" ? parent[key] : fallback;
 }
 
+function getNestedRightPanelView(parent, key, fallback = "changes") {
+  const value = parent?.[key];
+  return value === "browser" || value === "explorer" || value === "changes"
+    ? value
+    : fallback;
+}
+
 function runInTransaction(database, callback) {
   database.exec("BEGIN IMMEDIATE");
 
@@ -290,7 +283,7 @@ function writeConfig(database, key, value, updatedAt) {
     .run(key, toJson(value), updatedAt);
 }
 
-function buildProjectMetadata(project, state, activeChatIdByProject) {
+function buildProjectMetadata(project) {
   const metadata = getMetadataObject(project.metadata);
   const projectIcon = isRecord(project.icon)
     ? project.icon
@@ -332,29 +325,21 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
   };
   const ui = {
     ...getNestedRecord(metadata, "ui"),
-    activeChatId: activeChatIdByProject?.[project.id] ?? null,
+    activeChatId:
+      typeof project.ui?.activeChatId === "string"
+        ? project.ui.activeChatId
+        : null,
   };
-  const projectRightPanelOpenByProject = isRecord(
-    state.projectRightPanelOpenByProject,
-  )
-    ? state.projectRightPanelOpenByProject
-    : {};
-  const projectPanelSizesByProject = isRecord(state.projectPanelSizesByProject)
-    ? state.projectPanelSizesByProject
-    : {};
   const existingPanelVisibility = getNestedRecord(ui, "panelVisibility");
   const existingPanelSizes = getNestedRecord(ui, "panelSizes");
-  const projectPanelSizes = isRecord(projectPanelSizesByProject[project.id])
-    ? projectPanelSizesByProject[project.id]
-    : project.id === state.activeProjectId
-      ? state.panelSizes
-      : existingPanelSizes;
+  const projectUi = isRecord(project.ui) ? project.ui : {};
+  const projectPanelSizes = isRecord(projectUi.panelSizes)
+    ? projectUi.panelSizes
+    : existingPanelSizes;
   const rightPanelOpen = getNestedBoolean(
-    projectRightPanelOpenByProject,
-    project.id,
-    project.id === state.activeProjectId
-      ? getNestedBoolean(state.panelVisibility, "right", true)
-      : getNestedBoolean(existingPanelVisibility, "right", true),
+    projectUi,
+    "rightPanelOpen",
+    getNestedBoolean(existingPanelVisibility, "right", true),
   );
   const persistedPanelVisibility = { ...existingPanelVisibility };
   delete persistedPanelVisibility.left;
@@ -364,6 +349,16 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
     middle: true,
     right: rightPanelOpen,
   };
+  ui.rightPanelView = getNestedRightPanelView(
+    projectUi,
+    "rightPanelView",
+    getNestedRightPanelView(ui, "rightPanelView", "changes"),
+  );
+  ui.chatHistoryPanelOpen = getNestedBoolean(
+    projectUi,
+    "chatHistoryPanelOpen",
+    getNestedBoolean(ui, "chatHistoryPanelOpen", false),
+  );
   ui.panelSizes = {
     chatHistoryPanelWidth: getNestedNumber(
       projectPanelSizes,
@@ -386,14 +381,6 @@ function buildProjectMetadata(project, state, activeChatIdByProject) {
       getNestedNumber(existingPanelSizes, "terminalHeight", 260),
     ),
   };
-
-  if (project.id === state.activeProjectId) {
-    ui.panelVisibility = {
-      ...ui.panelVisibility,
-      middle: true,
-      right: rightPanelOpen,
-    };
-  }
 
   return {
     ...metadata,
@@ -519,9 +506,6 @@ function saveStateToRelationalDatabase(database, state) {
       now,
     );
 
-    const activeChatIdByProject = isRecord(state.activeChatIdByProject)
-      ? state.activeChatIdByProject
-      : {};
     const rawProjects = Array.isArray(state.projects) ? state.projects : [];
     const rawClosedProjects = Array.isArray(state.closedProjects)
       ? state.closedProjects
@@ -573,11 +557,7 @@ function saveStateToRelationalDatabase(database, state) {
 
     projectsToPersist.forEach(({ project, status }, index) => {
       const projectPath = typeof project.path === "string" ? project.path : "";
-      const metadata = buildProjectMetadata(
-        project,
-        state,
-        activeChatIdByProject,
-      );
+      const metadata = buildProjectMetadata(project);
 
       insertProject.run(
         project.id,
@@ -721,11 +701,6 @@ function loadStateFromRelationalDatabase(database) {
   const projects = [];
   const closedProjects = [];
   const allProjects = [];
-  const activeChatIdByProject = {};
-  const projectPanelSizesByProject = {};
-  const projectRightPanelOpenByProject = {};
-  const projectMetadataById = new Map();
-
   for (const row of projectRows) {
     const metadata = getMetadataObject(row.metadata);
     const icon = getNestedRecord(metadata, "icon");
@@ -761,34 +736,37 @@ function loadStateFromRelationalDatabase(database) {
       runCommand: getNestedString(metadata, "runCommand", "pnpm dev"),
     };
 
-    projectMetadataById.set(row.id, metadata);
-    activeChatIdByProject[row.id] = getNestedNullableString(ui, "activeChatId");
-    projectRightPanelOpenByProject[row.id] = getNestedBoolean(
-      getNestedRecord(ui, "panelVisibility"),
-      "right",
-      true,
-    );
-    projectPanelSizesByProject[row.id] = {
-      chatHistoryPanelWidth: getNestedNumber(
-        getNestedRecord(ui, "panelSizes"),
-        "chatHistoryPanelWidth",
-        400,
+    project.ui = {
+      activeChatId: getNestedNullableString(ui, "activeChatId"),
+      chatHistoryPanelOpen: getNestedBoolean(ui, "chatHistoryPanelOpen", false),
+      panelSizes: {
+        chatHistoryPanelWidth: getNestedNumber(
+          getNestedRecord(ui, "panelSizes"),
+          "chatHistoryPanelWidth",
+          400,
+        ),
+        leftSidebarWidth: getNestedNumber(
+          getNestedRecord(ui, "panelSizes"),
+          "leftSidebarWidth",
+          240,
+        ),
+        rightPanelWidth: getNestedNumber(
+          getNestedRecord(ui, "panelSizes"),
+          "rightPanelWidth",
+          520,
+        ),
+        terminalHeight: getNestedNumber(
+          getNestedRecord(ui, "panelSizes"),
+          "terminalHeight",
+          260,
+        ),
+      },
+      rightPanelOpen: getNestedBoolean(
+        getNestedRecord(ui, "panelVisibility"),
+        "right",
+        true,
       ),
-      leftSidebarWidth: getNestedNumber(
-        getNestedRecord(ui, "panelSizes"),
-        "leftSidebarWidth",
-        240,
-      ),
-      rightPanelWidth: getNestedNumber(
-        getNestedRecord(ui, "panelSizes"),
-        "rightPanelWidth",
-        520,
-      ),
-      terminalHeight: getNestedNumber(
-        getNestedRecord(ui, "panelSizes"),
-        "terminalHeight",
-        260,
-      ),
+      rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
     };
     allProjects.push(project);
 
@@ -866,70 +844,26 @@ function loadStateFromRelationalDatabase(database) {
   }
 
   for (const project of allProjects) {
-    const requestedChatId = activeChatIdByProject[project.id];
+    const requestedChatId = project.ui.activeChatId;
     const projectChats = chats.filter(
       (chat) => chat.projectId === project.id && chat.deletedAt === null,
     );
-    activeChatIdByProject[project.id] = projectChats.some(
-      (chat) => chat.id === requestedChatId,
-    )
-      ? requestedChatId
-      : (projectChats[0]?.id ?? null);
+    project.ui = {
+      ...project.ui,
+      activeChatId: projectChats.some((chat) => chat.id === requestedChatId)
+        ? requestedChatId
+        : (projectChats[0]?.id ?? null),
+    };
   }
 
   const activeProjectId =
     typeof config.activeProjectId === "string" ? config.activeProjectId : null;
-  const activeProject =
-    allProjects.find((project) => project.id === activeProjectId) ??
-    projects[0] ??
-    null;
-  const activeProjectMetadata = activeProject
-    ? projectMetadataById.get(activeProject.id)
-    : null;
-  const activeProjectUi = getNestedRecord(activeProjectMetadata, "ui");
-  const panelVisibility = {
-    left: false,
-    middle: true,
-    right: getNestedBoolean(
-      getNestedRecord(activeProjectUi, "panelVisibility"),
-      "right",
-      true,
-    ),
-  };
-  const panelSizes = {
-    chatHistoryPanelWidth: getNestedNumber(
-      getNestedRecord(activeProjectUi, "panelSizes"),
-      "chatHistoryPanelWidth",
-      400,
-    ),
-    leftSidebarWidth: getNestedNumber(
-      getNestedRecord(activeProjectUi, "panelSizes"),
-      "leftSidebarWidth",
-      240,
-    ),
-    rightPanelWidth: getNestedNumber(
-      getNestedRecord(activeProjectUi, "panelSizes"),
-      "rightPanelWidth",
-      520,
-    ),
-    terminalHeight: getNestedNumber(
-      getNestedRecord(activeProjectUi, "panelSizes"),
-      "terminalHeight",
-      260,
-    ),
-  };
-
   return {
     activeProjectId,
-    activeChatIdByProject,
     chats,
     chatSort: typeof config.chatSort === "string" ? config.chatSort : "recent",
     closedProjects,
     messagesByChatId,
-    panelSizes,
-    panelVisibility,
-    projectPanelSizesByProject,
-    projectRightPanelOpenByProject,
     projects,
     settings: {
       anthropicSelectedModels: Array.isArray(
@@ -1535,7 +1469,11 @@ function createBrowserSession(tabId, projectId) {
 
   view.webContents.on("did-stop-loading", () => {
     const session = browserSessions.get(tabId);
-    if (session && session.view.webContents.getURL() !== "about:blank") {
+    if (
+      session &&
+      !session.failedRequestedUrl &&
+      session.view.webContents.getURL() !== "about:blank"
+    ) {
       session.loadingRequestedUrl = null;
       session.currentLoadedUrl = session.view.webContents.getURL();
       session.currentRequestedUrl = session.currentLoadedUrl;
@@ -1856,6 +1794,8 @@ function applyBrowserState() {
       }
 
       settleBrowserLoadFailure(nextSession, url);
+      nextSession.currentRequestedUrl = url;
+      nextSession.failedRequestedUrl = url;
       sendBrowserPageState(nextSession);
 
       if (browserState.tabId === nextSession.tabId) {
@@ -1867,6 +1807,8 @@ function applyBrowserState() {
 
       return;
     }
+
+    nextSession.loadingRequestedUrl = candidate;
 
     try {
       await nextSession.view.webContents.loadURL(candidate);
@@ -1892,6 +1834,8 @@ function applyBrowserState() {
       }
 
       settleBrowserLoadFailure(nextSession, url);
+      nextSession.currentRequestedUrl = url;
+      nextSession.failedRequestedUrl = url;
       sendBrowserPageState(nextSession);
 
       if (browserState.tabId === nextSession.tabId) {

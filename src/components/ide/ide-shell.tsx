@@ -65,18 +65,11 @@ export const IdeShell = () => {
   // Subscribe to persisted state changes for auto-persistence (debounced)
   useEffect(() => {
     let prev = {
-      activeChatIdByProject: useIdeStore.getState().activeChatIdByProject,
       activeProjectId: useIdeStore.getState().activeProjectId,
       chatSort: useIdeStore.getState().chatSort,
       chats: useIdeStore.getState().chats,
       closedProjects: useIdeStore.getState().closedProjects,
       messagesByChatId: useIdeStore.getState().messagesByChatId,
-      panelSizes: useIdeStore.getState().panelSizes,
-      panelVisibility: useIdeStore.getState().panelVisibility,
-      projectPanelSizesByProject:
-        useIdeStore.getState().projectPanelSizesByProject,
-      projectRightPanelOpenByProject:
-        useIdeStore.getState().projectRightPanelOpenByProject,
       projects: useIdeStore.getState().projects,
       settings: useIdeStore.getState().settings,
     };
@@ -84,31 +77,20 @@ export const IdeShell = () => {
 
     const unsub = useIdeStore.subscribe((state) => {
       const next = {
-        activeChatIdByProject: state.activeChatIdByProject,
         activeProjectId: state.activeProjectId,
         chatSort: state.chatSort,
         chats: state.chats,
         closedProjects: state.closedProjects,
         messagesByChatId: state.messagesByChatId,
-        panelSizes: state.panelSizes,
-        panelVisibility: state.panelVisibility,
-        projectPanelSizesByProject: state.projectPanelSizesByProject,
-        projectRightPanelOpenByProject: state.projectRightPanelOpenByProject,
         projects: state.projects,
         settings: state.settings,
       };
 
       if (
         next.activeProjectId !== prev.activeProjectId ||
-        next.activeChatIdByProject !== prev.activeChatIdByProject ||
         next.chats !== prev.chats ||
         next.closedProjects !== prev.closedProjects ||
         next.messagesByChatId !== prev.messagesByChatId ||
-        next.panelSizes !== prev.panelSizes ||
-        next.panelVisibility !== prev.panelVisibility ||
-        next.projectPanelSizesByProject !== prev.projectPanelSizesByProject ||
-        next.projectRightPanelOpenByProject !==
-          prev.projectRightPanelOpenByProject ||
         next.projects !== prev.projects ||
         next.settings !== prev.settings ||
         next.chatSort !== prev.chatSort

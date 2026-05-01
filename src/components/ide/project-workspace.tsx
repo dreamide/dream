@@ -10,10 +10,7 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
-import {
-  DEFAULT_PANEL_SIZES,
-  DEFAULT_PANEL_VISIBILITY,
-} from "@/lib/ide-defaults";
+import { DEFAULT_PANEL_SIZES } from "@/lib/ide-defaults";
 import {
   isModalBrowserHidden,
   useModalBrowserHidden,
@@ -77,17 +74,12 @@ const ProjectWorkspaceComponent = ({
   const projectId = project.id;
 
   // ── Store selectors ─────────────────────────────────────────────────
-  const projectPanelSizes = useIdeStore(
-    (s) => s.projectPanelSizesByProject[projectId] ?? DEFAULT_PANEL_SIZES,
+  const projectUi = useIdeStore(
+    (s) => s.projects.find((item) => item.id === projectId)?.ui ?? project.ui,
   );
-  const rightVisible = useIdeStore(
-    (s) =>
-      s.projectRightPanelOpenByProject[projectId] ??
-      DEFAULT_PANEL_VISIBILITY.right,
-  );
-  const activeChatId = useIdeStore(
-    (s) => s.activeChatIdByProject[projectId] ?? null,
-  );
+  const projectPanelSizes = projectUi.panelSizes;
+  const rightVisible = projectUi.rightPanelOpen;
+  const activeChatId = projectUi.activeChatId;
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const browserTabs = useIdeStore(
@@ -102,11 +94,7 @@ const ProjectWorkspaceComponent = ({
   const activeProjectTerminalPanelOpen = useIdeStore(
     (s) => s.projectTerminalPanelOpenByProject[projectId] ?? false,
   );
-  const historyOpen = useIdeStore(
-    (s) =>
-      s.projectChatHistoryPanelOpenByProject[projectId] ??
-      DEFAULT_PANEL_VISIBILITY.left,
-  );
+  const historyOpen = projectUi.chatHistoryPanelOpen;
   const setProjectPanelSizes = useIdeStore((s) => s.setProjectPanelSizes);
   const setProjectChatHistoryPanelOpen = useIdeStore(
     (s) => s.setProjectChatHistoryPanelOpen,
@@ -114,14 +102,16 @@ const ProjectWorkspaceComponent = ({
   const setProjectRightPanelOpen = useIdeStore(
     (s) => s.setProjectRightPanelOpen,
   );
+  const rightPanelView = projectUi.rightPanelView;
+  const setProjectRightPanelView = useIdeStore(
+    (s) => s.setProjectRightPanelView,
+  );
   const addChat = useIdeStore((s) => s.addChat);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
 
   // ── Local workspace state ───────────────────────────────────────────
-  const [rightPanelView, setRightPanelView] =
-    useState<RightPanelView>("changes");
   const [recentMountedChatIds, setRecentMountedChatIds] = useState<string[]>(
     [],
   );
@@ -442,10 +432,16 @@ const ProjectWorkspaceComponent = ({
         return;
       }
 
-      setRightPanelView(view);
+      setProjectRightPanelView(projectId, view);
       setProjectRightPanelOpen(projectId, true);
     },
-    [projectId, rightPanelView, rightVisible, setProjectRightPanelOpen],
+    [
+      projectId,
+      rightPanelView,
+      rightVisible,
+      setProjectRightPanelOpen,
+      setProjectRightPanelView,
+    ],
   );
 
   const handleTerminalResizeStart = useCallback(() => {

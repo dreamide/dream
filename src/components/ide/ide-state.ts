@@ -12,6 +12,7 @@ import {
   createChatConfig,
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
+  DEFAULT_PROJECT_UI,
   DEFAULT_PROVIDER,
   DEFAULT_SETTINGS,
   getPreferredDefaultModel,
@@ -22,22 +23,28 @@ import type {
   ChatConfig,
   PersistedIdeState,
   ProjectConfig,
+  RightPanelView,
 } from "@/types/ide";
 import { dedupeModels, normalizeReasoningEffort } from "./ide-types";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
-  activeChatIdByProject: {},
   chats: [],
   closedProjects: [],
   messagesByChatId: {},
-  panelSizes: DEFAULT_PANEL_SIZES,
-  panelVisibility: DEFAULT_PANEL_VISIBILITY,
-  projectPanelSizesByProject: {},
-  projectRightPanelOpenByProject: {},
   projects: [],
   settings: DEFAULT_SETTINGS,
   chatSort: "recent",
+};
+
+type LegacyPersistedIdeState = Partial<PersistedIdeState> & {
+  activeChatIdByProject?: Record<string, string | null>;
+  activeThreadIdByProject?: Record<string, string | null>;
+  panelSizes?: unknown;
+  panelVisibility?: Partial<{ left: boolean; middle: boolean; right: boolean }>;
+  projectPanelSizesByProject?: Record<string, unknown>;
+  projectRightPanelOpenByProject?: Record<string, unknown>;
+  projectRightPanelViewByProject?: Record<string, unknown>;
 };
 
 export const normalizeProjectPathKey = (path: string): string => {
@@ -52,6 +59,9 @@ export const normalizeProjectPathKey = (path: string): string => {
 const isUiMessageArray = (value: unknown): value is UIMessage[] => {
   return Array.isArray(value);
 };
+
+const isRightPanelView = (value: unknown): value is RightPanelView =>
+  value === "browser" || value === "explorer" || value === "changes";
 
 const normalizePanelSize = (
   value: unknown,
@@ -131,10 +141,21 @@ const normalizeProject = (
   const rawProject = project as ProjectConfig & {
     metadata?: unknown;
     previewUrl?: unknown;
+    ui?: unknown;
   };
   const rawMetadata =
     rawProject.metadata && typeof rawProject.metadata === "object"
-      ? (rawProject.metadata as { icon?: unknown })
+      ? (rawProject.metadata as { icon?: unknown; ui?: unknown })
+      : {};
+  const rawUi =
+    rawProject.ui && typeof rawProject.ui === "object"
+      ? (rawProject.ui as unknown as Record<string, unknown>)
+      : rawMetadata.ui && typeof rawMetadata.ui === "object"
+        ? (rawMetadata.ui as Record<string, unknown>)
+        : {};
+  const rawPanelVisibility =
+    rawUi.panelVisibility && typeof rawUi.panelVisibility === "object"
+      ? (rawUi.panelVisibility as Record<string, unknown>)
       : {};
   const browserUrl =
     typeof rawProject.browserUrl === "string"
@@ -158,6 +179,26 @@ const normalizeProject = (
     model: model || defaultModel,
     provider,
     reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
+    ui: {
+      activeChatId:
+        typeof rawUi.activeChatId === "string" && rawUi.activeChatId.trim()
+          ? rawUi.activeChatId
+          : null,
+      chatHistoryPanelOpen:
+        typeof rawUi.chatHistoryPanelOpen === "boolean"
+          ? rawUi.chatHistoryPanelOpen
+          : DEFAULT_PROJECT_UI.chatHistoryPanelOpen,
+      panelSizes: normalizePanelSizes(rawUi.panelSizes),
+      rightPanelOpen:
+        typeof rawUi.rightPanelOpen === "boolean"
+          ? rawUi.rightPanelOpen
+          : typeof rawPanelVisibility.right === "boolean"
+            ? rawPanelVisibility.right
+            : DEFAULT_PROJECT_UI.rightPanelOpen,
+      rightPanelView: isRightPanelView(rawUi.rightPanelView)
+        ? rawUi.rightPanelView
+        : DEFAULT_PROJECT_UI.rightPanelView,
+    },
   };
 };
 
@@ -232,6 +273,8 @@ export const mergePersistedState = (
   if (!state) {
     return emptyState;
   }
+
+  const legacyState = state as LegacyPersistedIdeState;
 
   const rawSettings = (state.settings ?? {}) as Partial<AppSettings> &
     Record<string, unknown>;
@@ -313,37 +356,25 @@ export const mergePersistedState = (
   );
   const mergedPanelVisibility = {
     ...DEFAULT_PANEL_VISIBILITY,
-    ...(state.panelVisibility ?? {}),
+    ...(legacyState.panelVisibility ?? {}),
     middle: true,
   };
-  const mergedPanelSizes = normalizePanelSizes(state.panelSizes);
+  const mergedPanelSizes = normalizePanelSizes(legacyState.panelSizes);
   const rawProjectPanelSizesByProject =
-    state.projectPanelSizesByProject &&
-    typeof state.projectPanelSizesByProject === "object"
-      ? state.projectPanelSizesByProject
+    legacyState.projectPanelSizesByProject &&
+    typeof legacyState.projectPanelSizesByProject === "object"
+      ? legacyState.projectPanelSizesByProject
       : {};
-  const projectPanelSizesByProject = Object.fromEntries(
-    allProjects.map((project) => [
-      project.id,
-      normalizePanelSizes(
-        rawProjectPanelSizesByProject[project.id],
-        mergedPanelSizes,
-      ),
-    ]),
-  );
   const rawProjectRightPanelOpenByProject =
-    state.projectRightPanelOpenByProject &&
-    typeof state.projectRightPanelOpenByProject === "object"
-      ? state.projectRightPanelOpenByProject
+    legacyState.projectRightPanelOpenByProject &&
+    typeof legacyState.projectRightPanelOpenByProject === "object"
+      ? legacyState.projectRightPanelOpenByProject
       : {};
-  const projectRightPanelOpenByProject = Object.fromEntries(
-    allProjects.map((project) => [
-      project.id,
-      typeof rawProjectRightPanelOpenByProject[project.id] === "boolean"
-        ? rawProjectRightPanelOpenByProject[project.id]
-        : mergedPanelVisibility.right,
-    ]),
-  );
+  const rawProjectRightPanelViewByProject =
+    legacyState.projectRightPanelViewByProject &&
+    typeof legacyState.projectRightPanelViewByProject === "object"
+      ? legacyState.projectRightPanelViewByProject
+      : {};
 
   const rawChats = Array.isArray(state.chats)
     ? state.chats
@@ -392,41 +423,53 @@ export const mergePersistedState = (
     messagesByChatId[chat.id] = [];
   }
 
-  const activeChatIdByProject = allProjects.reduce<
-    Record<string, string | null>
-  >((acc, project) => {
+  const applyProjectUi = (project: ProjectConfig): ProjectConfig => {
     const projectChats = chats.filter((chat) => chat.projectId === project.id);
-    if (projectChats.length === 0) {
-      acc[project.id] = null;
-      return acc;
-    }
+    const legacyActiveChatId =
+      legacyState.activeChatIdByProject?.[project.id] ??
+      legacyState.activeThreadIdByProject?.[project.id] ??
+      null;
 
     const requestedChatId =
-      state.activeChatIdByProject?.[project.id] ??
-      (state as { activeThreadIdByProject?: Record<string, string | null> })
-        .activeThreadIdByProject?.[project.id] ??
-      null;
-    acc[project.id] = projectChats.some((chat) => chat.id === requestedChatId)
+      legacyActiveChatId ?? project.ui.activeChatId ?? null;
+    const activeChatId = projectChats.some(
+      (chat) => chat.id === requestedChatId,
+    )
       ? requestedChatId
       : (projectChats[0]?.id ?? null);
-    return acc;
-  }, {});
+    const legacyRightPanelOpen = rawProjectRightPanelOpenByProject[project.id];
+    const legacyRightPanelView = rawProjectRightPanelViewByProject[project.id];
+
+    return {
+      ...project,
+      ui: {
+        ...project.ui,
+        activeChatId,
+        panelSizes: normalizePanelSizes(
+          rawProjectPanelSizesByProject[project.id],
+          project.ui.panelSizes ?? mergedPanelSizes,
+        ),
+        rightPanelOpen:
+          typeof legacyRightPanelOpen === "boolean"
+            ? legacyRightPanelOpen
+            : (project.ui.rightPanelOpen ?? mergedPanelVisibility.right),
+        rightPanelView: isRightPanelView(legacyRightPanelView)
+          ? legacyRightPanelView
+          : project.ui.rightPanelView,
+      },
+    };
+  };
+
+  const projectsWithUi = projects.map(applyProjectUi);
+  const closedProjectsWithUi = closedProjects.map(applyProjectUi);
 
   return {
     activeProjectId:
       typeof state.activeProjectId === "string" ? state.activeProjectId : null,
-    activeChatIdByProject,
     chats,
-    closedProjects,
+    closedProjects: closedProjectsWithUi,
     messagesByChatId,
-    panelSizes: mergedPanelSizes,
-    panelVisibility: {
-      ...mergedPanelVisibility,
-      left: false,
-    },
-    projectPanelSizesByProject,
-    projectRightPanelOpenByProject,
-    projects,
+    projects: projectsWithUi,
     settings: mergedSettings,
     chatSort:
       state.chatSort === "createdDesc" ||

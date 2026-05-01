@@ -65,7 +65,9 @@ export const ProjectSidebar = ({
   project: ProjectConfig;
 }) => {
   const allChats = useIdeStore((s) => s.chats);
-  const activeChatIdByProject = useIdeStore((s) => s.activeChatIdByProject);
+  const projectUi = useIdeStore(
+    (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
+  );
   const draftChatIdByProject = useIdeStore((s) => s.draftChatIdByProject);
   const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
@@ -112,7 +114,7 @@ export const ProjectSidebar = ({
     );
   }, [activeProjectChats, searchQuery]);
 
-  const activeChatId = activeChatIdByProject[project.id] ?? null;
+  const activeChatId = projectUi.activeChatId;
 
   const closeRenameDialog = useCallback(() => {
     setRenameTarget(null);
