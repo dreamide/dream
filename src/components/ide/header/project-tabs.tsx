@@ -322,8 +322,9 @@ export const ProjectTabs = () => {
                   aria-hidden="true"
                   className={cn(
                     "size-2 shrink-0 rounded-full bg-green-500",
-                    project.icon &&
-                      "absolute right-[-1px] bottom-[-1px] ring-2 ring-background",
+                    project.icon
+                      ? "absolute right-[-1px] bottom-[-1px] ring-2 ring-background"
+                      : "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
                   )}
                 />
               ) : null}
