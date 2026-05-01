@@ -1,4 +1,12 @@
-import { ArrowLeft, ArrowRight, Code2, Plus, RotateCw, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Code2,
+  Globe,
+  Plus,
+  RotateCw,
+  X,
+} from "lucide-react";
 import {
   memo,
   type RefObject,
@@ -345,7 +353,8 @@ const BrowserViewport = ({
       id={`browser-panel-${projectId}`}
       className="flex h-full flex-col overflow-hidden"
     >
-      <div className="flex items-end bg-muted/50 px-1.5 py-1.5">
+      <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5">
+        <Globe className="size-4 shrink-0 text-muted-foreground" />
         <StandardTabs
           activeId={activeTab?.id ?? null}
           after={
@@ -360,7 +369,7 @@ const BrowserViewport = ({
             </button>
           }
           ariaLabel="Browser tabs"
-          canClose={tabs.length > 1}
+          canClose={true}
           closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
           className="flex-1"
           items={browserTabItems}

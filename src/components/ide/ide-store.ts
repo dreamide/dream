@@ -1618,15 +1618,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }
 
     const existingTabs = get().browserTabsByProject[normalizedProjectId] ?? [];
-    if (existingTabs.length <= 1) {
-      return (
-        resolveActiveBrowserTab(
-          existingTabs,
-          get().activeBrowserTabIdByProject[normalizedProjectId],
-        )?.id ?? null
-      );
-    }
-
     const closingIndex = existingTabs.findIndex(
       (tab) => tab.id === normalizedTabId,
     );
@@ -1637,6 +1628,28 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           get().activeBrowserTabIdByProject[normalizedProjectId],
         )?.id ?? null
       );
+    }
+
+    if (existingTabs.length <= 1) {
+      const replacementTab = createBrowserTabState();
+      set((state) => {
+        const nextBrowserLoading = { ...state.browserLoading };
+        delete nextBrowserLoading[normalizedTabId];
+
+        return {
+          browserLoading: nextBrowserLoading,
+          browserTabsByProject: {
+            ...state.browserTabsByProject,
+            [normalizedProjectId]: [replacementTab],
+          },
+          activeBrowserTabIdByProject: {
+            ...state.activeBrowserTabIdByProject,
+            [normalizedProjectId]: replacementTab.id,
+          },
+        };
+      });
+
+      return replacementTab.id;
     }
 
     const remainingTabs = existingTabs.filter(

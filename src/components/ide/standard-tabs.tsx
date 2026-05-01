@@ -464,10 +464,10 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               zIndex: isDragging ? 10 : 0,
             };
             const tabClasses = cn(
-              "flex h-8 w-full select-none items-center gap-2 rounded-md border px-3 text-sm opacity-100 transition-colors",
+              "flex h-8 w-full select-none items-center gap-2 rounded-sm border px-3 text-sm opacity-100 transition-colors",
               hasRightAdornment && "pr-8",
               isActive
-                ? "border-border bg-background text-foreground dark:bg-[oklch(0.30_0_0)]"
+                ? "border-foreground/20 dark:border-foreground/10 bg-background dark:bg-muted text-foreground"
                 : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground group-hover:bg-muted group-hover:text-foreground",
               tabClassName,
             );

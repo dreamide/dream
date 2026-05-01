@@ -641,7 +641,7 @@ const ChangesPanelImpl = ({
 
   return (
     <div className="changes-panel flex h-full flex-col overflow-hidden bg-muted/15">
-      <div className="flex items-center gap-3 border-b border-foreground/15 bg-muted/70 px-3 py-2">
+      <div className="flex items-center gap-3 border-b border-foreground/10 bg-muted/50 px-3 py-2">
         <Code className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">Changes</div>
