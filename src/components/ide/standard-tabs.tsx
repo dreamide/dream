@@ -467,7 +467,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               "flex h-8 w-full select-none items-center gap-2 rounded-lg border px-3 text-sm opacity-100 transition-colors",
               hasRightAdornment && "pr-8",
               isActive
-                ? "border-foreground/20 bg-background text-foreground"
+                ? "border-border bg-background text-foreground dark:bg-[oklch(0.30_0_0)]"
                 : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground group-hover:bg-muted group-hover:text-foreground",
               tabClassName,
             );

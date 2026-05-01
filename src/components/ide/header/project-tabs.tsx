@@ -358,7 +358,7 @@ export const ProjectTabs = () => {
             after={
               <Button
                 aria-label="Add project"
-                className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                className="mb-px text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
                 onClick={() => void handleAddProject()}
                 size="icon-sm"
                 title="Add project"
@@ -368,12 +368,10 @@ export const ProjectTabs = () => {
               </Button>
             }
             ariaLabel="Projects"
-            className="items-center"
             interactiveClassName="[-webkit-app-region:no-drag]"
             items={projectTabItems}
             onActivate={setActiveProjectId}
             onReorder={handleProjectReorder}
-            tabClassName="h-9 border-transparent text-foreground/70 hover:bg-black/4 hover:text-foreground group-hover:bg-black/4 group-hover:text-foreground aria-selected:border-foreground/15 aria-selected:bg-background aria-selected:text-foreground aria-selected:shadow-sm dark:hover:bg-white/8 dark:group-hover:bg-white/8 dark:aria-selected:bg-background"
             renderActions={(project) => (
               <ProjectActionsMenu
                 closeProject={closeProject}
