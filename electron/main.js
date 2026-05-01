@@ -1469,7 +1469,11 @@ function createBrowserSession(tabId, projectId) {
 
   view.webContents.on("did-stop-loading", () => {
     const session = browserSessions.get(tabId);
-    if (session && session.view.webContents.getURL() !== "about:blank") {
+    if (
+      session &&
+      !session.failedRequestedUrl &&
+      session.view.webContents.getURL() !== "about:blank"
+    ) {
       session.loadingRequestedUrl = null;
       session.currentLoadedUrl = session.view.webContents.getURL();
       session.currentRequestedUrl = session.currentLoadedUrl;
@@ -1790,6 +1794,8 @@ function applyBrowserState() {
       }
 
       settleBrowserLoadFailure(nextSession, url);
+      nextSession.currentRequestedUrl = url;
+      nextSession.failedRequestedUrl = url;
       sendBrowserPageState(nextSession);
 
       if (browserState.tabId === nextSession.tabId) {
@@ -1801,6 +1807,8 @@ function applyBrowserState() {
 
       return;
     }
+
+    nextSession.loadingRequestedUrl = candidate;
 
     try {
       await nextSession.view.webContents.loadURL(candidate);
@@ -1826,6 +1834,8 @@ function applyBrowserState() {
       }
 
       settleBrowserLoadFailure(nextSession, url);
+      nextSession.currentRequestedUrl = url;
+      nextSession.failedRequestedUrl = url;
       sendBrowserPageState(nextSession);
 
       if (browserState.tabId === nextSession.tabId) {
