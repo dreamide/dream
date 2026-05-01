@@ -202,6 +202,7 @@ export interface BrowserUpdatePayload {
   bounds?: BrowserBounds;
   goBack?: boolean;
   goForward?: boolean;
+  openDevTools?: boolean;
   projectId?: string;
   tabId?: string;
   reload?: boolean;

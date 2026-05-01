@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Plus, RotateCw, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Code2, Plus, RotateCw, X } from "lucide-react";
 import {
   memo,
   type RefObject,
@@ -304,6 +304,21 @@ const BrowserViewport = ({
     });
   }, [activeTab, projectId, setBrowserError]);
 
+  const handleOpenDevTools = useCallback(() => {
+    if (!activeTab) {
+      return;
+    }
+
+    onSyncBrowserBounds();
+    window.requestAnimationFrame(() => {
+      getDesktopApi()?.updateBrowser({
+        openDevTools: true,
+        projectId,
+        tabId: activeTab.id,
+      });
+    });
+  }, [activeTab, onSyncBrowserBounds, projectId]);
+
   useEffect(() => {
     if (!active) {
       return;
@@ -451,6 +466,24 @@ const BrowserViewport = ({
             </div>
           ) : null}
         </div>
+      </div>
+
+      <div className="flex h-8 shrink-0 items-center justify-end border-t border-foreground/10 bg-muted/50 px-1.5">
+        <button
+          aria-label="Open DevTools"
+          className={cn(
+            "rounded p-1 transition-colors",
+            activeTab?.url && !browserResizeHidden
+              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+              : "text-muted-foreground/40",
+          )}
+          disabled={!activeTab?.url || browserResizeHidden}
+          onClick={handleOpenDevTools}
+          title="Open DevTools"
+          type="button"
+        >
+          <Code2 className="size-4" />
+        </button>
       </div>
     </div>
   );

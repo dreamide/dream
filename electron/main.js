@@ -1933,6 +1933,47 @@ function destroyBrowserTab(tabId) {
   }
 }
 
+function openBrowserDevTools(tabId, projectId) {
+  const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
+  if (!normalizedTabId) {
+    sendToRenderer("browser:error", {
+      code: "DEVTOOLS_FAILED",
+      description: "No active browser tab found for DevTools.",
+    });
+    return;
+  }
+
+  const session = browserSessions.get(normalizedTabId);
+  if (!session) {
+    sendToRenderer("browser:error", {
+      code: "DEVTOOLS_FAILED",
+      description: "Browser tab is not ready for DevTools yet.",
+    });
+    return;
+  }
+
+  attachBrowserSession(session);
+
+  try {
+    session.view.webContents.openDevTools({
+      activate: true,
+      mode: "undocked",
+      title: session.title ? `DevTools - ${session.title}` : "DevTools",
+    });
+  } catch {
+    try {
+      session.view.webContents.openDevTools();
+    } catch {
+      sendToRenderer("browser:error", {
+        code: "DEVTOOLS_FAILED",
+        description: "Failed to open DevTools.",
+        projectId,
+        tabId: normalizedTabId,
+      });
+    }
+  }
+}
+
 function stopChildProcess(child) {
   if (!child || child.killed) {
     return;
@@ -3049,6 +3090,14 @@ ipcMain.on("browser:update", (_event, payload) => {
 
   if (typeof payload.destroyTab === "string") {
     destroyBrowserTab(payload.destroyTab);
+    return;
+  }
+
+  if (payload.openDevTools === true) {
+    openBrowserDevTools(
+      payload.tabId ?? browserState.tabId,
+      browserState.projectId,
+    );
     return;
   }
 
