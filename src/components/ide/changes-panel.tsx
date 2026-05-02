@@ -4,6 +4,8 @@ import {
   Code,
   Columns2,
   FileIcon,
+  ListChevronsUpDown,
+  ListCollapse,
   Rows3,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -354,6 +356,7 @@ const ChangesPanelImpl = ({
   const allExpanded =
     changes.length > 0 &&
     changes.every((change) => expandedPathSet.has(change.path));
+  const expandAllTitle = allExpanded ? "Collapse all" : "Expand all";
 
   useEffect(() => {
     refreshStatusRef.current = refreshStatus;
@@ -686,12 +689,18 @@ const ChangesPanelImpl = ({
         </div>
 
         <Button
-          className="h-7 gap-1.5 px-2 text-xs"
+          aria-label={expandAllTitle}
+          className="size-7 p-0"
           onClick={handleToggleExpandAll}
+          title={expandAllTitle}
           type="button"
           variant="outline"
         >
-          {allExpanded ? "Collapse all" : "Expand all"}
+          {allExpanded ? (
+            <ListCollapse className="size-3.5" />
+          ) : (
+            <ListChevronsUpDown className="size-3.5" />
+          )}
         </Button>
       </div>
 
