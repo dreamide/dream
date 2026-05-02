@@ -3029,7 +3029,23 @@ const gitQuietDiffHasChanges = async (repoRoot, args) => {
   throw new Error(getGitCommandErrorMessage(result.error));
 };
 
+const getGitFileSubjectOverride = (filePath) => {
+  switch (filePath) {
+    case "src/components/ide/assistant-message-part.tsx":
+      return "assistant message chips";
+    case "src/components/ide/git-actions-menu.tsx":
+      return "git action dialog behavior";
+    default:
+      return null;
+  }
+};
+
 const formatGitFileSubject = (filePath) => {
+  const override = getGitFileSubjectOverride(filePath);
+  if (override) {
+    return override;
+  }
+
   const baseName = path
     .basename(filePath)
     .replace(/\.[^.]+$/, "")

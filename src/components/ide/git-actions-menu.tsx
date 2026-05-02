@@ -102,7 +102,23 @@ const getChangesAddedLines = (changes: ProjectGitStatusEntry[]) =>
 const getChangesRemovedLines = (changes: ProjectGitStatusEntry[]) =>
   changes.reduce((total, change) => total + change.removedLines, 0);
 
+const getGitFileSubjectOverride = (filePath: string) => {
+  switch (filePath) {
+    case "src/components/ide/assistant-message-part.tsx":
+      return "assistant message chips";
+    case "src/components/ide/git-actions-menu.tsx":
+      return "git action dialog behavior";
+    default:
+      return null;
+  }
+};
+
 const formatGitFileSubject = (filePath: string) => {
+  const override = getGitFileSubjectOverride(filePath);
+  if (override) {
+    return override;
+  }
+
   const baseName =
     filePath
       .split("/")
@@ -189,6 +205,21 @@ const buildGeneratedCommitMessage = (changes: ProjectGitStatusEntry[]) => {
   }
 
   return `${getCommitMessageVerb(changes)} ${formatCommitSubjectList(changes)}`;
+};
+
+const hasPushDestination = (status: ProjectGitStatusResponse | null) =>
+  Boolean(status?.upstreamBranch || status?.remoteName);
+
+const hasPushableCommits = (status: ProjectGitStatusResponse | null) => {
+  if (!status) {
+    return false;
+  }
+
+  if (status.upstreamBranch) {
+    return status.aheadCount > 0;
+  }
+
+  return Boolean(status.remoteName);
 };
 
 const GitDeltaSummary = ({
@@ -295,7 +326,14 @@ const NextStepSelector = <Value extends string>({
             id={optionId}
             value={option.value}
           />
-          <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-4">
+          <span
+            className={cn(
+              "flex size-6 shrink-0 items-center justify-center [&_svg]:size-4",
+              option.disabled
+                ? "text-muted-foreground/45"
+                : "text-muted-foreground",
+            )}
+          >
             {option.icon}
           </span>
           <span className="min-w-0 flex-1 truncate">{option.label}</span>
@@ -556,20 +594,23 @@ const PushDialog = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasChanges = getStatusFileCount(status) > 0;
+  const canPush = hasPushableCommits(status);
+  const canCommitPush = hasChanges && hasPushDestination(status);
+  const canSubmit = nextStep === "push" ? canPush : canCommitPush;
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    setNextStep(hasChanges ? "commit-push" : "push");
+    setNextStep(canCommitPush ? "commit-push" : "push");
     setError(null);
-  }, [hasChanges, open]);
+  }, [canCommitPush, open]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (submitting) {
+      if (submitting || !canSubmit) {
         return;
       }
 
@@ -592,7 +633,7 @@ const PushDialog = ({
         setSubmitting(false);
       }
     },
-    [nextStep, onCompleted, onOpenChange, projectPath, submitting],
+    [canSubmit, nextStep, onCompleted, onOpenChange, projectPath, submitting],
   );
 
   return (
@@ -620,12 +661,13 @@ const PushDialog = ({
               onValueChange={setNextStep}
               options={[
                 {
+                  disabled: !canPush,
                   icon: <ArrowUp />,
                   label: "Push",
                   value: "push",
                 },
                 {
-                  disabled: !hasChanges,
+                  disabled: !canCommitPush,
                   icon: <GitCommitHorizontal />,
                   label: "Commit & push",
                   value: "commit-push",
@@ -638,7 +680,11 @@ const PushDialog = ({
           <ActionError error={error} />
 
           <div className="flex justify-end">
-            <Button className="min-w-36" disabled={submitting} type="submit">
+            <Button
+              className="min-w-36"
+              disabled={submitting || !canSubmit}
+              type="submit"
+            >
               {submitting ? <Spinner className="size-4" /> : null}
               <span>Continue</span>
             </Button>
@@ -932,6 +978,10 @@ const GitActionsMenuImpl = ({
   const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey);
   const [activeDialog, setActiveDialog] = useState<GitActionDialog>(null);
   const hasGitChanges = getStatusFileCount(status) > 0;
+  const canPush = hasPushableCommits(status);
+  const canCommitPush = hasGitChanges && hasPushDestination(status);
+  const canOpenPushDialog = canPush || canCommitPush;
+  const hasGitActivity = hasGitChanges || canPush;
 
   const handleOpenChanges = useCallback(() => {
     setProjectRightPanelView(projectId, "changes");
@@ -940,13 +990,17 @@ const GitActionsMenuImpl = ({
 
   const handleOpenDialog = useCallback(
     (dialog: GitActionDialog) => {
-      if (!hasGitChanges) {
+      if (dialog === "push" && !canOpenPushDialog) {
+        return;
+      }
+
+      if (dialog !== "push" && !hasGitChanges) {
         return;
       }
 
       setActiveDialog(dialog);
     },
-    [hasGitChanges],
+    [canOpenPushDialog, hasGitChanges],
   );
 
   const handleActionCompleted = useCallback(() => {
@@ -978,7 +1032,7 @@ const GitActionsMenuImpl = ({
               aria-label="Open Git actions"
               className={cn(
                 "size-8 [-webkit-app-region:no-drag]",
-                hasGitChanges
+                hasGitActivity
                   ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
                   : "text-muted-foreground hover:text-foreground",
               )}
@@ -1007,7 +1061,7 @@ const GitActionsMenuImpl = ({
             Commit
           </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={!hasGitChanges}
+            disabled={!canOpenPushDialog}
             onClick={() => handleOpenDialog("push")}
           >
             <UploadCloud className="size-4" />
