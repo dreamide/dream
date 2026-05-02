@@ -2410,10 +2410,25 @@ const renderToolOutput = (part: ToolLikePart) => {
   );
 };
 
-const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
+const ToolPartCard = ({
+  onToolApproval,
+  part,
+}: {
+  onToolApproval?: ToolApprovalHandler;
+  part: ToolLikePart;
+}) => {
   const toolName = getToolName(part);
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isCompleted = state === "output-available" || state === "output-error";
+  const approvalTitle =
+    getStringFromPaths(part.input, [["title"], ["permission", "title"]]) ??
+    `Allow ${formatToolName(toolName)}?`;
+  const approvalDescription = getStringFromPaths(part.input, [
+    ["description"],
+    ["decisionReason"],
+    ["blockedPath"],
+    ["permission", "description"],
+  ]);
 
   const toolHeaderProps =
     part.type === "dynamic-tool"
@@ -2431,6 +2446,22 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
     <Tool defaultOpen={isCompleted}>
       <ToolHeader title={formatToolName(toolName)} {...toolHeaderProps} />
       <ToolContent>
+        {part.approval?.id && part.approval && onToolApproval ? (
+          <ActionApproval
+            approval={part.approval}
+            onToolApproval={onToolApproval}
+            state={state}
+          >
+            <span className="space-y-1 text-sm">
+              <span className="block">{approvalTitle}</span>
+              {approvalDescription ? (
+                <span className="block text-muted-foreground text-xs">
+                  {approvalDescription}
+                </span>
+              ) : null}
+            </span>
+          </ActionApproval>
+        ) : null}
         {isRecord(part.input) ? (
           <ToolInput input={part.input as ToolPart["input"]} />
         ) : null}
@@ -2443,10 +2474,12 @@ const ToolPartCard = ({ part }: { part: ToolLikePart }) => {
 export const AssistantMessagePart = ({
   part,
   isStreaming = false,
+  onToolApproval,
   showReasoningSummaries = true,
 }: {
   part: MessagePart;
   isStreaming?: boolean;
+  onToolApproval?: ToolApprovalHandler;
   showReasoningSummaries?: boolean;
 }) => {
   if (part.type === "text") {
@@ -2493,7 +2526,7 @@ export const AssistantMessagePart = ({
   }
 
   if (isToolLikePart(part)) {
-    return <ToolPartCard part={part} />;
+    return <ToolPartCard onToolApproval={onToolApproval} part={part} />;
   }
 
   return (

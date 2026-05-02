@@ -487,6 +487,10 @@ const app = new Hono();
 
 const pendingToolApprovals = new Map();
 
+const registerPendingToolApproval = ({ id, provider, request, respond }) => {
+  pendingToolApprovals.set(id, { provider, request, respond });
+};
+
 const toolApprovalResponseSchema = z.object({
   approved: z.boolean(),
   id: z.string().min(1),
@@ -826,6 +830,134 @@ const REASONING_TOOL_STEP_LIMIT = 50;
 const COMMIT_MESSAGE_CODEX_MODEL = "gpt-5.4-mini";
 const COMMIT_MESSAGE_CLAUDE_MODEL = "haiku";
 const COMMIT_MESSAGE_DIFF_MAX_CHARS = 18_000;
+
+const waitForToolApproval = ({ id, provider, request, signal }) =>
+  new Promise((resolve) => {
+    let settled = false;
+
+    const finish = (response) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      signal?.removeEventListener("abort", handleAbort);
+      pendingToolApprovals.delete(id);
+      resolve(response);
+    };
+
+    const handleAbort = () => {
+      finish({
+        approved: false,
+        id,
+        reason: "Permission request was cancelled.",
+        scope: "once",
+      });
+    };
+
+    registerPendingToolApproval({
+      id,
+      provider,
+      request,
+      respond: finish,
+    });
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+
+    signal?.addEventListener("abort", handleAbort, { once: true });
+  });
+
+const createClaudeNativePermissionHandler = (writer) => {
+  return async (toolName, input, options) => {
+    const toolCallId =
+      typeof options?.toolUseID === "string" && options.toolUseID.length > 0
+        ? options.toolUseID
+        : `claude-tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const approvalId = `anthropic:${toolCallId}`;
+    const title =
+      typeof options?.displayName === "string" && options.displayName.length > 0
+        ? options.displayName
+        : toolName;
+    const approvalInput = {
+      ...input,
+      ...(typeof options?.title === "string" ? { title: options.title } : {}),
+      ...(typeof options?.displayName === "string"
+        ? { displayName: options.displayName }
+        : {}),
+      ...(typeof options?.description === "string"
+        ? { description: options.description }
+        : {}),
+      ...(typeof options?.blockedPath === "string"
+        ? { blockedPath: options.blockedPath }
+        : {}),
+      ...(typeof options?.decisionReason === "string"
+        ? { decisionReason: options.decisionReason }
+        : {}),
+    };
+
+    writer.write({
+      dynamic: true,
+      providerExecuted: true,
+      title,
+      toolCallId,
+      toolName,
+      type: "tool-input-start",
+    });
+    writer.write({
+      dynamic: true,
+      input: approvalInput,
+      providerExecuted: true,
+      title,
+      toolCallId,
+      toolName,
+      type: "tool-input-available",
+    });
+    writer.write({
+      approvalId,
+      toolCallId,
+      type: "tool-approval-request",
+    });
+
+    const response = await waitForToolApproval({
+      id: approvalId,
+      provider: "anthropic",
+      request: {
+        input,
+        options: {
+          blockedPath: options?.blockedPath ?? null,
+          decisionReason: options?.decisionReason ?? null,
+          description: options?.description ?? null,
+          displayName: options?.displayName ?? null,
+          title: options?.title ?? null,
+          toolUseID: toolCallId,
+        },
+        toolName,
+      },
+      signal: options?.signal,
+    });
+
+    if (response.approved) {
+      return {
+        behavior: "allow",
+        ...(response.scope === "session" && options?.suggestions
+          ? { updatedPermissions: options.suggestions }
+          : {}),
+        toolUseID: options?.toolUseID,
+        updatedInput: input,
+      };
+    }
+
+    return {
+      behavior: "deny",
+      interrupt: false,
+      message: response.reason || "User rejected the permission request.",
+      toolUseID: options?.toolUseID,
+    };
+  };
+};
 
 const normalizePath = (value) => value.replace(/\\/g, "/");
 
@@ -1968,8 +2100,14 @@ app.post("/api/chat", async (c) => {
 
   const usesReasoningModel =
     getModelReasoningEfforts(provider, model).length > 0;
-  const providerFactory = (modelId) =>
+  const providerFactory = (modelId, writer) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
+      ...(claudePermissionMode === "ask-permissions"
+        ? {
+            canUseTool: createClaudeNativePermissionHandler(writer),
+            streamingInput: "auto",
+          }
+        : {}),
       continue: false,
       cwd: projectPath,
       persistSession: false,
@@ -1981,7 +2119,6 @@ app.post("/api/chat", async (c) => {
         ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort] }
         : {}),
     });
-  const languageModel = providerFactory(model);
 
   let modelMessages;
   try {
@@ -1993,133 +2130,162 @@ app.post("/api/chat", async (c) => {
     return c.text(`Failed to prepare messages: ${detail}`, 400);
   }
 
-  const textResult = streamText({
-    messages: modelMessages,
-    model: languageModel,
-    stopWhen: stepCountIs(
-      usesReasoningModel ? REASONING_TOOL_STEP_LIMIT : DEFAULT_TOOL_STEP_LIMIT,
-    ),
-    system: SYSTEM_PROMPT,
-    ...(usesReasoningModel ? {} : { temperature: 0.2 }),
-    tools: {
-      listFiles: tool({
-        description:
-          "List project files recursively. Use this before reading or editing unfamiliar areas.",
-        inputSchema: z.object({
-          directory: z.string().default("."),
-          maxResults: z.number().int().min(1).max(400).default(200),
-        }),
-        execute: async ({ directory, maxResults }) => {
-          const files = await listProjectFiles(
-            projectPath,
-            directory,
-            maxResults,
-          );
-          return { count: files.length, files };
-        },
-      }),
-      readFile: tool({
-        description:
-          "Read a UTF-8 file from the project. Optionally scope output by line range.",
-        inputSchema: z.object({
-          endLine: z.number().int().min(1).optional(),
-          filePath: z.string().min(1),
-          startLine: z.number().int().min(1).optional(),
-        }),
-        execute: async ({ endLine, filePath, startLine }) => {
-          const absolutePath = resolveProjectPath(projectPath, filePath);
-          const fullText = await fs.readFile(absolutePath, "utf8");
-          if (!startLine && !endLine) {
-            return { filePath, content: fullText };
-          }
-          const lines = fullText.split(/\r?\n/);
-          const safeStart = Math.max(1, startLine ?? 1);
-          const safeEnd = Math.min(lines.length, endLine ?? lines.length);
-          if (safeStart > safeEnd) {
-            throw new Error("startLine cannot be greater than endLine.");
-          }
-          const content = lines.slice(safeStart - 1, safeEnd).join("\n");
-          return { filePath, content, endLine: safeEnd, startLine: safeStart };
-        },
-      }),
-      searchInFiles: tool({
-        description:
-          "Search text across project files and return matching file/line snippets.",
-        inputSchema: z.object({
-          maxResults: z.number().int().min(1).max(100).default(25),
-          query: z.string().min(1),
-        }),
-        execute: async ({ maxResults, query }) => {
-          const matches = await searchInProjectFiles(
-            projectPath,
-            query,
-            maxResults,
-          );
-          return { count: matches.length, matches };
-        },
-      }),
-      ...(claudePermissionMode === "plan-mode"
-        ? {}
-        : {
-            writeFile: tool({
-              description:
-                "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
-              inputSchema: z.object({
-                content: z.string(),
-                filePath: z.string().min(1),
-                mode: z.enum(["overwrite", "append"]).default("overwrite"),
-              }),
-              requireApproval: claudePermissionMode === "ask-permissions",
-              execute: async ({ content, filePath, mode }) => {
-                const absolutePath = resolveProjectPath(projectPath, filePath);
-                let previousContent;
-                try {
-                  previousContent = await fs.readFile(absolutePath, "utf8");
-                } catch {
-                  // File doesn't exist yet
-                }
-                await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-                if (mode === "append") {
-                  await fs.appendFile(absolutePath, content, "utf8");
-                } else {
-                  await fs.writeFile(absolutePath, content, "utf8");
-                }
-                const beforeContent = previousContent ?? "";
-                const nextContent =
-                  mode === "append" ? `${beforeContent}${content}` : content;
-                return {
-                  bytesWritten: Buffer.byteLength(content, "utf8"),
-                  contentHash: hashContent(nextContent),
-                  diff: buildSavedWriteDiff({
-                    filePath,
-                    isNewFile: previousContent === undefined,
-                    nextContent,
-                    previousContent: beforeContent,
-                  }),
-                  diffFormat: "unified",
-                  filePath,
-                  mode,
-                  previousContentHash: hashContent(beforeContent),
-                  status: "ok",
-                  ...(previousContent !== undefined ? { previousContent } : {}),
-                  content,
-                };
-              },
-            }),
-          }),
-    },
-  });
-
-  return textResult.toUIMessageStreamResponse({
-    messageMetadata: ({ part }) =>
-      part.type === "start" || part.type === "finish"
-        ? responseMessageMetadata
-        : undefined,
+  const stream = createUIMessageStream({
+    originalMessages: messages,
     onError: (error) => {
       console.error("[chat stream error]", error);
       return formatStreamError(error);
     },
+    execute: ({ writer }) => {
+      const textResult = streamText({
+        messages: modelMessages,
+        model: providerFactory(model, writer),
+        stopWhen: stepCountIs(
+          usesReasoningModel
+            ? REASONING_TOOL_STEP_LIMIT
+            : DEFAULT_TOOL_STEP_LIMIT,
+        ),
+        system: SYSTEM_PROMPT,
+        ...(usesReasoningModel ? {} : { temperature: 0.2 }),
+        tools: {
+          listFiles: tool({
+            description:
+              "List project files recursively. Use this before reading or editing unfamiliar areas.",
+            inputSchema: z.object({
+              directory: z.string().default("."),
+              maxResults: z.number().int().min(1).max(400).default(200),
+            }),
+            execute: async ({ directory, maxResults }) => {
+              const files = await listProjectFiles(
+                projectPath,
+                directory,
+                maxResults,
+              );
+              return { count: files.length, files };
+            },
+          }),
+          readFile: tool({
+            description:
+              "Read a UTF-8 file from the project. Optionally scope output by line range.",
+            inputSchema: z.object({
+              endLine: z.number().int().min(1).optional(),
+              filePath: z.string().min(1),
+              startLine: z.number().int().min(1).optional(),
+            }),
+            execute: async ({ endLine, filePath, startLine }) => {
+              const absolutePath = resolveProjectPath(projectPath, filePath);
+              const fullText = await fs.readFile(absolutePath, "utf8");
+              if (!startLine && !endLine) {
+                return { filePath, content: fullText };
+              }
+              const lines = fullText.split(/\r?\n/);
+              const safeStart = Math.max(1, startLine ?? 1);
+              const safeEnd = Math.min(lines.length, endLine ?? lines.length);
+              if (safeStart > safeEnd) {
+                throw new Error("startLine cannot be greater than endLine.");
+              }
+              const content = lines.slice(safeStart - 1, safeEnd).join("\n");
+              return {
+                content,
+                endLine: safeEnd,
+                filePath,
+                startLine: safeStart,
+              };
+            },
+          }),
+          searchInFiles: tool({
+            description:
+              "Search text across project files and return matching file/line snippets.",
+            inputSchema: z.object({
+              maxResults: z.number().int().min(1).max(100).default(25),
+              query: z.string().min(1),
+            }),
+            execute: async ({ maxResults, query }) => {
+              const matches = await searchInProjectFiles(
+                projectPath,
+                query,
+                maxResults,
+              );
+              return { count: matches.length, matches };
+            },
+          }),
+          ...(claudePermissionMode === "plan-mode"
+            ? {}
+            : {
+                writeFile: tool({
+                  description:
+                    "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
+                  inputSchema: z.object({
+                    content: z.string(),
+                    filePath: z.string().min(1),
+                    mode: z.enum(["overwrite", "append"]).default("overwrite"),
+                  }),
+                  requireApproval: claudePermissionMode === "ask-permissions",
+                  execute: async ({ content, filePath, mode }) => {
+                    const absolutePath = resolveProjectPath(
+                      projectPath,
+                      filePath,
+                    );
+                    let previousContent;
+                    try {
+                      previousContent = await fs.readFile(absolutePath, "utf8");
+                    } catch {
+                      // File doesn't exist yet
+                    }
+                    await fs.mkdir(path.dirname(absolutePath), {
+                      recursive: true,
+                    });
+                    if (mode === "append") {
+                      await fs.appendFile(absolutePath, content, "utf8");
+                    } else {
+                      await fs.writeFile(absolutePath, content, "utf8");
+                    }
+                    const beforeContent = previousContent ?? "";
+                    const nextContent =
+                      mode === "append"
+                        ? `${beforeContent}${content}`
+                        : content;
+                    return {
+                      bytesWritten: Buffer.byteLength(content, "utf8"),
+                      content,
+                      contentHash: hashContent(nextContent),
+                      diff: buildSavedWriteDiff({
+                        filePath,
+                        isNewFile: previousContent === undefined,
+                        nextContent,
+                        previousContent: beforeContent,
+                      }),
+                      diffFormat: "unified",
+                      filePath,
+                      mode,
+                      previousContentHash: hashContent(beforeContent),
+                      status: "ok",
+                      ...(previousContent !== undefined
+                        ? { previousContent }
+                        : {}),
+                    };
+                  },
+                }),
+              }),
+        },
+      });
+
+      writer.merge(
+        textResult.toUIMessageStream({
+          messageMetadata: ({ part }) =>
+            part.type === "start" || part.type === "finish"
+              ? responseMessageMetadata
+              : undefined,
+          onError: (error) => {
+            console.error("[chat stream error]", error);
+            return formatStreamError(error);
+          },
+        }),
+      );
+    },
   });
+
+  return createUIMessageStreamResponse({ stream });
 });
 
 // ---------------------------------------------------------------------------

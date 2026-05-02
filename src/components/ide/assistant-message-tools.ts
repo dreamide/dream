@@ -46,7 +46,14 @@ export const CHIP_TOOL_NAME_ALIASES = {
   search: new Set(["glob", "grep", "search", "search-in-files"]),
   taskOutput: new Set(["task-output", "taskoutput", "task-result"]),
   toolSearch: new Set(["tool-search"]),
-  write: new Set(["edit", "patch", "write", "write-file"]),
+  write: new Set([
+    "edit",
+    "multi-edit",
+    "notebook-edit",
+    "patch",
+    "write",
+    "write-file",
+  ]),
 } as const;
 
 export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;

@@ -793,6 +793,7 @@ const ChatMessage = memo(
                       i,
                     )}
                     isStreaming={isPartStreaming}
+                    onToolApproval={addToolApprovalResponse}
                     part={part}
                     showReasoningSummaries={showReasoningSummaries}
                   />,
@@ -972,10 +973,14 @@ export const ChatPanel = ({
 
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
     (response) => {
-      void addAiSdkToolApprovalResponse({
-        approved: response.approved,
-        id: response.id,
-        reason: response.reason,
+      void Promise.resolve(
+        addAiSdkToolApprovalResponse({
+          approved: response.approved,
+          id: response.id,
+          reason: response.reason,
+        }),
+      ).catch((error: unknown) => {
+        console.debug("[tool approval ai-sdk response]", error);
       });
 
       void fetch("/api/tool-approval-response", {
