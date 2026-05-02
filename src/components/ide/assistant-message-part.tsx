@@ -222,6 +222,8 @@ const RUN_COMMAND_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-[12px]";
 const CHIP_BUTTON_BASE_CLASSES =
   "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-2.5 py-1 text-xs transition-colors";
+const CHIP_SUBTEXT_CLASSES = "opacity-70";
+const CHIP_ERROR_SUBTEXT_CLASSES = "text-destructive/70";
 const CHIP_LAYOUT_TRANSITION = {
   damping: 32,
   duration: 0.18,
@@ -1009,11 +1011,13 @@ export const ListFilesChip = ({
               {displayLabel}
             </span>
             {hasOutput ? (
-              <span className="opacity-70">
+              <span className={CHIP_SUBTEXT_CLASSES}>
                 {count} {count === 1 ? "file" : "files"}
               </span>
             ) : null}
-            {hasError ? <span className="text-destructive">error</span> : null}
+            {hasError ? (
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+            ) : null}
           </>
         ) : null}
       </ChipButton>
@@ -1102,10 +1106,14 @@ export const AgentChip = ({
               {displayDescription}
             </span>
             {subagentType ? (
-              <span className="opacity-70">{subagentType}</span>
+              <span className={CHIP_SUBTEXT_CLASSES}>{subagentType}</span>
             ) : null}
-            <span className="opacity-70">{formatToolName(state)}</span>
-            {hasError ? <span className="text-destructive">error</span> : null}
+            <span className={CHIP_SUBTEXT_CLASSES}>
+              {formatToolName(state)}
+            </span>
+            {hasError ? (
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+            ) : null}
           </>
         ) : null}
       </ChipButton>
@@ -1225,6 +1233,18 @@ export const ReadFileChip = ({
   const previewStartLine = normalizedContent?.startingLineNumber ?? start ?? 1;
   const displayFilename =
     filename === "file" && isRunning ? "Reading" : filename;
+  const displayStart = start ?? normalizedContent?.startingLineNumber ?? 1;
+  const displayEnd =
+    end ??
+    (content !== null
+      ? displayStart + previewCode.split(/\r?\n/).length - 1
+      : null);
+  const lineRangeLabel =
+    displayEnd !== null
+      ? displayStart === displayEnd
+        ? `Line ${displayStart}`
+        : `Lines ${displayStart}-${displayEnd}`
+      : null;
 
   useEffect(() => {
     if (defaultExpanded) {
@@ -1253,7 +1273,12 @@ export const ReadFileChip = ({
             <span className="max-w-48 truncate font-medium">
               {displayFilename}
             </span>
-            {hasError ? <span className="text-destructive">error</span> : null}
+            {lineRangeLabel ? (
+              <span className={CHIP_SUBTEXT_CLASSES}>{lineRangeLabel}</span>
+            ) : null}
+            {hasError ? (
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+            ) : null}
           </>
         ) : null}
       </ChipButton>
@@ -1286,9 +1311,9 @@ export const ReadFileChip = ({
                     path={filePath ?? filename}
                   />
                   <CodeBlockFilename>{filename}</CodeBlockFilename>
-                  {start !== null && end !== null ? (
+                  {lineRangeLabel ? (
                     <Badge variant="secondary" className="ml-1 text-sm">
-                      Lines {start}-{end}
+                      {lineRangeLabel}
                     </Badge>
                   ) : null}
                 </CodeBlockTitle>
@@ -1411,7 +1436,7 @@ export const SearchInFilesChip = ({
               <span className="font-medium">Search</span>
             )}
             {hasOutput && count > 0 ? (
-              <span className="opacity-70">
+              <span className={CHIP_SUBTEXT_CLASSES}>
                 {count}{" "}
                 {isToolReferenceSearch
                   ? count === 1
@@ -1426,7 +1451,9 @@ export const SearchInFilesChip = ({
                       : "matches"}
               </span>
             ) : null}
-            {hasError ? <span className="text-destructive">error</span> : null}
+            {hasError ? (
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+            ) : null}
           </>
         ) : null}
       </ChipButton>
@@ -1612,12 +1639,14 @@ export const RunCommandChip = ({
               {displayCommand ?? "Command"}
             </span>
             {exitCode !== null ? (
-              <span className="opacity-70">exit {exitCode}</span>
+              <span className={CHIP_SUBTEXT_CLASSES}>exit {exitCode}</span>
             ) : null}
             {status === "running" ? (
-              <span className="opacity-70">running</span>
+              <span className={CHIP_SUBTEXT_CLASSES}>running</span>
             ) : null}
-            {hasError ? <span className="text-destructive">error</span> : null}
+            {hasError ? (
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+            ) : null}
           </>
         ) : null}
       </ChipButton>
@@ -1753,10 +1782,16 @@ export const TaskOutputChip = ({
           <>
             <span className="font-medium">Task output</span>
             {taskId ? (
-              <span className="max-w-28 truncate opacity-70">{taskId}</span>
+              <span className={cn("max-w-28 truncate", CHIP_SUBTEXT_CLASSES)}>
+                {taskId}
+              </span>
             ) : null}
-            <span className="opacity-70">{TOOL_STATE_LABELS[state]}</span>
-            {hasError ? <span className="text-destructive">error</span> : null}
+            <span className={CHIP_SUBTEXT_CLASSES}>
+              {TOOL_STATE_LABELS[state]}
+            </span>
+            {hasError ? (
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+            ) : null}
           </>
         ) : null}
       </ChipButton>
@@ -2072,17 +2107,19 @@ export const WriteFileChip = ({
               {displayFilename}
             </span>
             {mode === "append" ? (
-              <span className="opacity-70">append</span>
+              <span className={CHIP_SUBTEXT_CLASSES}>append</span>
             ) : null}
             {bytesWritten !== null ? (
-              <span className="opacity-70">
+              <span className={CHIP_SUBTEXT_CLASSES}>
                 {bytesWritten.toLocaleString()} bytes
               </span>
             ) : null}
             {isApprovalRequested ? (
               <span className="text-yellow-600">approval</span>
             ) : null}
-            {hasError ? <span className="text-destructive">error</span> : null}
+            {hasError ? (
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+            ) : null}
           </>
         ) : null}
       </ChipButton>
