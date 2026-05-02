@@ -23,6 +23,7 @@ import type {
 } from "@/types/ide";
 import { BrowserPanel } from "./browser-panel";
 import { ChatPanel } from "./chat-panel";
+import { GitActionsMenu } from "./git-actions-menu";
 import {
   AppShellPlaceholder,
   HorizontalResizablePanel,
@@ -938,6 +939,7 @@ const ProjectWorkspaceComponent = ({
         >
           <Globe className="size-4" />
         </ToggleButton>
+        <GitActionsMenu projectId={projectId} projectPath={project.path} />
         <Button
           aria-label="Open terminal"
           className={cn(

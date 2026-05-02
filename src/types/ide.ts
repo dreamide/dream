@@ -153,14 +153,28 @@ export interface ProjectGitStatusEntry {
   path: string;
   previousPath: string | null;
   removedLines: number;
+  staged: boolean;
   status: ProjectGitChangeStatus;
+  unstaged: boolean;
 }
 
 export interface ProjectGitStatusResponse {
+  addedLines: number;
+  aheadCount: number;
+  baseBranch: string | null;
   branch: string | null;
   changes: ProjectGitStatusEntry[];
+  behindCount: number;
+  fileCount: number;
+  hasStagedChanges: boolean;
+  hasUnstagedChanges: boolean;
   isRepo: boolean;
+  remoteName: string | null;
+  removedLines: number;
   repoRoot: string | null;
+  stagedCount: number;
+  unstagedCount: number;
+  upstreamBranch: string | null;
 }
 
 export interface ProjectGitBranchEntry {
@@ -186,6 +200,67 @@ export interface ProjectGitDiffResponse {
   parsedDiff: FileDiffMetadata | null;
   previousPath: string | null;
   status: ProjectGitChangeStatus;
+}
+
+export interface ProjectGitCommitRequest {
+  customInstructions?: string | null;
+  includeUnstaged: boolean;
+  message?: string | null;
+  projectPath: string;
+}
+
+export interface ProjectGitCommitResponse {
+  commitHash: string | null;
+  commitMessage: string;
+  committed: boolean;
+  status: ProjectGitStatusResponse;
+}
+
+export type ProjectGitPushNextStep = "push" | "commit-push";
+
+export interface ProjectGitPushRequest {
+  commitMessage?: string | null;
+  customInstructions?: string | null;
+  includeUnstaged: boolean;
+  nextStep: ProjectGitPushNextStep;
+  projectPath: string;
+}
+
+export interface ProjectGitPushResponse {
+  branch: string;
+  commit: ProjectGitCommitResponse | null;
+  pushed: boolean;
+  status: ProjectGitStatusResponse;
+  upstreamBranch: string | null;
+}
+
+export type ProjectGitCreatePrNextStep =
+  | "create"
+  | "push-create"
+  | "commit-push-create";
+
+export interface ProjectGitCreatePrRequest {
+  baseBranch?: string | null;
+  commitMessage?: string | null;
+  customInstructions?: string | null;
+  description?: string | null;
+  draft: boolean;
+  includeUnstaged: boolean;
+  nextStep: ProjectGitCreatePrNextStep;
+  openPrPage: boolean;
+  projectPath: string;
+  title?: string | null;
+}
+
+export interface ProjectGitCreatePrResponse {
+  baseBranch: string;
+  commit: ProjectGitCommitResponse | null;
+  draft: boolean;
+  headBranch: string;
+  push: ProjectGitPushResponse | null;
+  status: ProjectGitStatusResponse;
+  title: string;
+  url: string | null;
 }
 
 export interface StartTerminalPayload {

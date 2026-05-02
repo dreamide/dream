@@ -2139,8 +2139,45 @@ const projectGitDiffRequestSchema = z.object({
   ]),
 });
 
+const nullableTrimmedStringSchema = z
+  .string()
+  .transform((value) => value.trim())
+  .optional()
+  .nullable();
+
+const projectGitCommitRequestSchema = z.object({
+  customInstructions: nullableTrimmedStringSchema,
+  includeUnstaged: z.boolean().default(true),
+  message: nullableTrimmedStringSchema,
+  projectPath: z.string().min(1),
+});
+
+const projectGitPushRequestSchema = z.object({
+  commitMessage: nullableTrimmedStringSchema,
+  customInstructions: nullableTrimmedStringSchema,
+  includeUnstaged: z.boolean().default(true),
+  nextStep: z.enum(["push", "commit-push"]).default("push"),
+  projectPath: z.string().min(1),
+});
+
+const projectGitCreatePullRequestSchema = z.object({
+  baseBranch: nullableTrimmedStringSchema,
+  commitMessage: nullableTrimmedStringSchema,
+  customInstructions: nullableTrimmedStringSchema,
+  description: nullableTrimmedStringSchema,
+  draft: z.boolean().default(true),
+  includeUnstaged: z.boolean().default(true),
+  nextStep: z
+    .enum(["create", "push-create", "commit-push-create"])
+    .default("create"),
+  openPrPage: z.boolean().default(false),
+  projectPath: z.string().min(1),
+  title: nullableTrimmedStringSchema,
+});
+
 const EMPTY_GIT_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const GIT_EXEC_MAX_BUFFER = 16 * 1024 * 1024;
+const GH_EXEC_MAX_BUFFER = 8 * 1024 * 1024;
 
 const getGitCommandErrorMessage = (error) => {
   if (error?.code === "ENOENT") {
@@ -2180,6 +2217,44 @@ const runGitCommand = async (cwd, args, { allowFailure = false } = {}) => {
   }
 };
 
+const getGhCommandErrorMessage = (error) => {
+  if (error?.code === "ENOENT") {
+    return "GitHub CLI is not available on PATH.";
+  }
+
+  const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
+  const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
+
+  return stderr || stdout || "GitHub CLI command failed.";
+};
+
+const runGhCommand = async (cwd, args, { allowFailure = false } = {}) => {
+  try {
+    const result = await execFileAsync("gh", args, {
+      cwd,
+      encoding: "utf8",
+      maxBuffer: GH_EXEC_MAX_BUFFER,
+      windowsHide: true,
+    });
+    return {
+      ok: true,
+      stderr: result.stderr,
+      stdout: result.stdout,
+    };
+  } catch (error) {
+    if (allowFailure) {
+      return {
+        error,
+        ok: false,
+        stderr: typeof error?.stderr === "string" ? error.stderr : "",
+        stdout: typeof error?.stdout === "string" ? error.stdout : "",
+      };
+    }
+
+    throw new Error(getGhCommandErrorMessage(error));
+  }
+};
+
 const isGitRepositoryError = (result) => {
   if (result.ok) {
     return false;
@@ -2190,6 +2265,176 @@ const isGitRepositoryError = (result) => {
     message.includes("not a git repository") ||
     message.includes("outside repository")
   );
+};
+
+const isChangedGitStatusCode = (value) =>
+  typeof value === "string" && value !== "" && value !== "." && value !== " ";
+
+const mapGitChangeState = (xy, untracked = false) => {
+  if (untracked) {
+    return {
+      staged: false,
+      unstaged: true,
+    };
+  }
+
+  const x = xy?.[0] ?? ".";
+  const y = xy?.[1] ?? ".";
+
+  return {
+    staged: isChangedGitStatusCode(x),
+    unstaged: isChangedGitStatusCode(y),
+  };
+};
+
+const getPreferredGitRemote = async (repoRoot) => {
+  const remoteResult = await runGitCommand(repoRoot, ["remote"], {
+    allowFailure: true,
+  });
+  if (!remoteResult.ok) {
+    return null;
+  }
+
+  const remotes = remoteResult.stdout
+    .split(/\r?\n/)
+    .map((remote) => remote.trim())
+    .filter(Boolean);
+
+  if (remotes.length === 0) {
+    return null;
+  }
+
+  return remotes.includes("origin") ? "origin" : remotes[0];
+};
+
+const gitRefExists = async (repoRoot, ref) => {
+  const result = await runGitCommand(
+    repoRoot,
+    ["show-ref", "--verify", "--quiet", ref],
+    { allowFailure: true },
+  );
+
+  return result.ok;
+};
+
+const getGitDefaultBranch = async (repoRoot, remoteName) => {
+  if (remoteName) {
+    const remoteHeadResult = await runGitCommand(
+      repoRoot,
+      ["symbolic-ref", "--quiet", "--short", `refs/remotes/${remoteName}/HEAD`],
+      { allowFailure: true },
+    );
+    if (remoteHeadResult.ok) {
+      const remoteHead = remoteHeadResult.stdout.trim();
+      if (remoteHead.startsWith(`${remoteName}/`)) {
+        return remoteHead.slice(remoteName.length + 1);
+      }
+      if (remoteHead) {
+        return remoteHead;
+      }
+    }
+  }
+
+  for (const branchName of ["main", "master"]) {
+    if (await gitRefExists(repoRoot, `refs/heads/${branchName}`)) {
+      return branchName;
+    }
+
+    if (
+      remoteName &&
+      (await gitRefExists(repoRoot, `refs/remotes/${remoteName}/${branchName}`))
+    ) {
+      return branchName;
+    }
+  }
+
+  return null;
+};
+
+const getCurrentGitUpstream = async (repoRoot) => {
+  const upstreamResult = await runGitCommand(
+    repoRoot,
+    ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    { allowFailure: true },
+  );
+
+  return upstreamResult.ok ? upstreamResult.stdout.trim() || null : null;
+};
+
+const getGitAheadBehindCounts = async (repoRoot, upstreamBranch) => {
+  if (!upstreamBranch) {
+    return {
+      aheadCount: 0,
+      behindCount: 0,
+    };
+  }
+
+  const countsResult = await runGitCommand(
+    repoRoot,
+    ["rev-list", "--left-right", "--count", `${upstreamBranch}...HEAD`],
+    { allowFailure: true },
+  );
+
+  if (!countsResult.ok) {
+    return {
+      aheadCount: 0,
+      behindCount: 0,
+    };
+  }
+
+  const [behind = "0", ahead = "0"] = countsResult.stdout.trim().split(/\s+/);
+  return {
+    aheadCount: Number.parseInt(ahead, 10) || 0,
+    behindCount: Number.parseInt(behind, 10) || 0,
+  };
+};
+
+const getProjectGitMetadata = async (repoRoot, branch) => {
+  const remoteName = await getPreferredGitRemote(repoRoot);
+  const [baseBranch, upstreamBranch] = await Promise.all([
+    getGitDefaultBranch(repoRoot, remoteName),
+    branch?.startsWith("HEAD ")
+      ? Promise.resolve(null)
+      : getCurrentGitUpstream(repoRoot),
+  ]);
+  const { aheadCount, behindCount } = await getGitAheadBehindCounts(
+    repoRoot,
+    upstreamBranch,
+  );
+
+  return {
+    aheadCount,
+    baseBranch,
+    behindCount,
+    remoteName,
+    upstreamBranch,
+  };
+};
+
+const summarizeProjectGitChanges = (changes) => {
+  const summary = changes.reduce(
+    (current, change) => ({
+      addedLines: current.addedLines + (change.addedLines ?? 0),
+      fileCount: current.fileCount + 1,
+      hasStagedChanges: current.hasStagedChanges || Boolean(change.staged),
+      hasUnstagedChanges:
+        current.hasUnstagedChanges || Boolean(change.unstaged),
+      removedLines: current.removedLines + (change.removedLines ?? 0),
+      stagedCount: current.stagedCount + (change.staged ? 1 : 0),
+      unstagedCount: current.unstagedCount + (change.unstaged ? 1 : 0),
+    }),
+    {
+      addedLines: 0,
+      fileCount: 0,
+      hasStagedChanges: false,
+      hasUnstagedChanges: false,
+      removedLines: 0,
+      stagedCount: 0,
+      unstagedCount: 0,
+    },
+  );
+
+  return summary;
 };
 
 const isBinaryBuffer = (buffer) => {
@@ -2290,10 +2535,22 @@ const listProjectGitChanges = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
     return {
+      addedLines: 0,
+      aheadCount: 0,
+      baseBranch: null,
       branch: repoInfo.branch,
       changes: [],
+      behindCount: 0,
+      fileCount: 0,
+      hasStagedChanges: false,
+      hasUnstagedChanges: false,
       isRepo: false,
+      remoteName: null,
+      removedLines: 0,
       repoRoot: null,
+      stagedCount: 0,
+      unstagedCount: 0,
+      upstreamBranch: null,
     };
   }
 
@@ -2321,6 +2578,7 @@ const listProjectGitChanges = async (projectPath) => {
       }
 
       changes.push({
+        ...mapGitChangeState("", true),
         path: projectRelativePath,
         previousPath: null,
         status: "untracked",
@@ -2341,6 +2599,7 @@ const listProjectGitChanges = async (projectPath) => {
       }
 
       changes.push({
+        ...mapGitChangeState(fields[1] ?? ""),
         path: projectRelativePath,
         previousPath: null,
         status: mapGitChangeStatus(fields[1] ?? ""),
@@ -2371,6 +2630,7 @@ const listProjectGitChanges = async (projectPath) => {
       );
 
       changes.push({
+        ...mapGitChangeState(fields[1] ?? ""),
         path: projectRelativePath,
         previousPath: previousProjectRelativePath,
         status: mapGitChangeStatus(fields[1] ?? "", fields[8]?.[0] ?? ""),
@@ -2385,22 +2645,30 @@ const listProjectGitChanges = async (projectPath) => {
     changes,
   );
 
-  return {
-    branch: repoInfo.branch,
-    changes: changes.map((change) => {
-      const stats = statsByPath.get(change.path) ?? {
-        addedLines: 0,
-        removedLines: 0,
-      };
+  const enrichedChanges = changes.map((change) => {
+    const stats = statsByPath.get(change.path) ?? {
+      addedLines: 0,
+      removedLines: 0,
+    };
 
-      return {
-        ...change,
-        addedLines: stats.addedLines,
-        removedLines: stats.removedLines,
-      };
-    }),
+    return {
+      ...change,
+      addedLines: stats.addedLines,
+      removedLines: stats.removedLines,
+    };
+  });
+  const metadata = await getProjectGitMetadata(
+    repoInfo.repoRoot,
+    repoInfo.branch,
+  );
+
+  return {
+    ...metadata,
+    branch: repoInfo.branch,
+    changes: enrichedChanges,
     isRepo: true,
     repoRoot: repoInfo.repoRoot,
+    ...summarizeProjectGitChanges(enrichedChanges),
   };
 };
 
@@ -2694,6 +2962,432 @@ const getProjectGitDiff = async (
     parsedDiff: parseSingleFileDiff(diffResult.stdout),
     previousPath,
     status,
+  };
+};
+
+const normalizeGitActionText = (value) =>
+  typeof value === "string" ? value.trim() : "";
+
+const getGitActionBranchName = (branch) => {
+  const normalizedBranch = normalizeGitActionText(branch);
+  if (!normalizedBranch || normalizedBranch.startsWith("HEAD ")) {
+    return null;
+  }
+
+  return normalizedBranch;
+};
+
+const ensureProjectGitRepository = async (projectPath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  return repoInfo;
+};
+
+const getProjectGitPathspec = (projectPath, repoRoot) => {
+  const relativeProjectPath = normalizePath(
+    path.relative(repoRoot, path.resolve(projectPath)),
+  );
+
+  return relativeProjectPath && relativeProjectPath !== "."
+    ? relativeProjectPath
+    : ".";
+};
+
+const listStagedGitPaths = async (repoRoot) => {
+  const result = await runGitCommand(repoRoot, [
+    "diff",
+    "--cached",
+    "--name-only",
+    "-z",
+  ]);
+
+  return result.stdout
+    .split("\0")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map(normalizePath);
+};
+
+const isGitPathInsidePathspec = (gitPath, pathspec) =>
+  pathspec === "." ||
+  gitPath === pathspec ||
+  gitPath.startsWith(`${pathspec}/`);
+
+const gitQuietDiffHasChanges = async (repoRoot, args) => {
+  const result = await runGitCommand(repoRoot, args, { allowFailure: true });
+  if (result.ok) {
+    return false;
+  }
+
+  if (result.error?.code === 1) {
+    return true;
+  }
+
+  throw new Error(getGitCommandErrorMessage(result.error));
+};
+
+const formatGitFileSubject = (filePath) => {
+  const baseName = path.basename(filePath).trim();
+  if (!baseName) {
+    return "project files";
+  }
+
+  return baseName;
+};
+
+const humanizeBranchName = (branch) => {
+  const leaf = normalizeGitActionText(branch).split("/").filter(Boolean).pop();
+  const words = (leaf || branch || "changes")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!words) {
+    return "Changes";
+  }
+
+  return words.replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const describeGitChangeForMessage = (change) => {
+  const fileSubject = formatGitFileSubject(change.path);
+  switch (change.status) {
+    case "added":
+    case "untracked":
+      return `Add ${fileSubject}`;
+    case "deleted":
+      return `Remove ${fileSubject}`;
+    case "renamed":
+      return `Rename ${formatGitFileSubject(
+        change.previousPath ?? "file",
+      )} to ${fileSubject}`;
+    case "copied":
+      return `Copy ${fileSubject}`;
+    default:
+      return `Update ${fileSubject}`;
+  }
+};
+
+const getCommonTopLevelDirectory = (changes) => {
+  const directories = changes
+    .map((change) => change.path.split("/").filter(Boolean)[0])
+    .filter(Boolean);
+
+  if (directories.length === 0) {
+    return null;
+  }
+
+  const [firstDirectory] = directories;
+  return directories.every((directory) => directory === firstDirectory)
+    ? firstDirectory
+    : null;
+};
+
+const buildGeneratedCommitMessage = (changes, customInstructions) => {
+  const relevantChanges = changes.filter((change) => change.staged);
+  if (relevantChanges.length === 1 && relevantChanges[0]) {
+    return describeGitChangeForMessage(relevantChanges[0]);
+  }
+
+  const commonDirectory = getCommonTopLevelDirectory(relevantChanges);
+  const subject = commonDirectory
+    ? `Update ${commonDirectory} files`
+    : relevantChanges.length > 0
+      ? `Update ${relevantChanges.length} files`
+      : "Update project files";
+
+  const instructions = normalizeGitActionText(customInstructions).toLowerCase();
+  if (instructions.includes("conventional")) {
+    return `chore: ${subject.charAt(0).toLowerCase()}${subject.slice(1)}`;
+  }
+
+  return subject;
+};
+
+const commitProjectGitChanges = async (
+  projectPath,
+  { customInstructions = "", includeUnstaged = true, message = "" } = {},
+) => {
+  const repoInfo = await ensureProjectGitRepository(projectPath);
+  const projectPathspec = getProjectGitPathspec(projectPath, repoInfo.repoRoot);
+
+  if (includeUnstaged) {
+    await runGitCommand(repoInfo.repoRoot, [
+      "add",
+      "-A",
+      "--",
+      projectPathspec,
+    ]);
+  }
+
+  const hasStagedChanges = await gitQuietDiffHasChanges(repoInfo.repoRoot, [
+    "diff",
+    "--cached",
+    "--quiet",
+    "--",
+    projectPathspec,
+  ]);
+  if (!hasStagedChanges) {
+    throw new Error("No staged changes to commit.");
+  }
+
+  const stagedPaths = await listStagedGitPaths(repoInfo.repoRoot);
+  const outsideProjectStagedPaths = stagedPaths.filter(
+    (gitPath) => !isGitPathInsidePathspec(gitPath, projectPathspec),
+  );
+  if (outsideProjectStagedPaths.length > 0) {
+    throw new Error(
+      "There are staged changes outside the active project. Commit them separately before using this action.",
+    );
+  }
+
+  const statusBeforeCommit = await listProjectGitChanges(projectPath);
+  const commitMessage =
+    normalizeGitActionText(message) ||
+    buildGeneratedCommitMessage(statusBeforeCommit.changes, customInstructions);
+
+  await runGitCommand(repoInfo.repoRoot, ["commit", "-m", commitMessage]);
+  const commitHashResult = await runGitCommand(
+    repoInfo.repoRoot,
+    ["rev-parse", "--short", "HEAD"],
+    { allowFailure: true },
+  );
+
+  return {
+    commitHash: commitHashResult.ok ? commitHashResult.stdout.trim() : null,
+    commitMessage,
+    committed: true,
+    status: await listProjectGitChanges(projectPath),
+  };
+};
+
+const pushProjectGitChanges = async (
+  projectPath,
+  {
+    commitMessage = "",
+    customInstructions = "",
+    includeUnstaged = true,
+    nextStep = "push",
+  } = {},
+) => {
+  let commit = null;
+  if (nextStep === "commit-push") {
+    commit = await commitProjectGitChanges(projectPath, {
+      customInstructions,
+      includeUnstaged,
+      message: commitMessage,
+    });
+  }
+
+  const repoInfo = await ensureProjectGitRepository(projectPath);
+  const branch = getGitActionBranchName(repoInfo.branch);
+  if (!branch) {
+    throw new Error("Cannot push from a detached HEAD.");
+  }
+
+  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, branch);
+  const args = metadata.upstreamBranch
+    ? ["push"]
+    : metadata.remoteName
+      ? ["push", "-u", metadata.remoteName, branch]
+      : null;
+
+  if (!args) {
+    throw new Error("No Git remote is configured for this repository.");
+  }
+
+  await runGitCommand(repoInfo.repoRoot, args);
+
+  const status = await listProjectGitChanges(projectPath);
+  return {
+    branch,
+    commit,
+    pushed: true,
+    status,
+    upstreamBranch: status.upstreamBranch,
+  };
+};
+
+const getPullRequestBaseRef = async (repoRoot, remoteName, baseBranch) => {
+  if (!baseBranch) {
+    return null;
+  }
+
+  if (
+    remoteName &&
+    (await gitRefExists(repoRoot, `refs/remotes/${remoteName}/${baseBranch}`))
+  ) {
+    return `${remoteName}/${baseBranch}`;
+  }
+
+  if (await gitRefExists(repoRoot, `refs/heads/${baseBranch}`)) {
+    return baseBranch;
+  }
+
+  return null;
+};
+
+const readPullRequestCommitSubjects = async (repoRoot, baseRef) => {
+  const args = baseRef
+    ? ["log", "--pretty=%s", `${baseRef}..HEAD`]
+    : ["log", "--pretty=%s", "-n", "10"];
+  const logResult = await runGitCommand(repoRoot, args, {
+    allowFailure: true,
+  });
+
+  if (!logResult.ok) {
+    return [];
+  }
+
+  return logResult.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+};
+
+const readPullRequestDiffStat = async (repoRoot, baseRef) => {
+  if (!baseRef) {
+    return "";
+  }
+
+  const diffResult = await runGitCommand(
+    repoRoot,
+    ["diff", "--stat", `${baseRef}...HEAD`],
+    { allowFailure: true },
+  );
+
+  return diffResult.ok ? diffResult.stdout.trim() : "";
+};
+
+const buildGeneratedPullRequestTitle = (branch, commitSubjects) => {
+  return commitSubjects[0] || humanizeBranchName(branch);
+};
+
+const buildGeneratedPullRequestBody = ({
+  branch,
+  commitSubjects,
+  customInstructions,
+  diffStat,
+}) => {
+  const summaryItems =
+    commitSubjects.length > 0
+      ? commitSubjects.slice(0, 8)
+      : [`Prepare ${humanizeBranchName(branch).toLowerCase()}`];
+  const instructions = normalizeGitActionText(customInstructions).toLowerCase();
+  const includeTesting =
+    !instructions.includes("no test") && !instructions.includes("skip test");
+
+  return [
+    "## Summary",
+    ...summaryItems.map((subject) => `- ${subject}`),
+    diffStat ? "\n## Changes" : null,
+    diffStat ? "```text" : null,
+    diffStat || null,
+    diffStat ? "```" : null,
+    includeTesting ? "\n## Testing" : null,
+    includeTesting ? "- Not run" : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+const parsePullRequestUrl = (output) => {
+  const match = output.match(/https?:\/\/\S+/);
+  return match?.[0] ?? null;
+};
+
+const createProjectPullRequest = async (
+  projectPath,
+  {
+    baseBranch: requestedBaseBranch = "",
+    commitMessage = "",
+    customInstructions = "",
+    description = "",
+    draft = true,
+    includeUnstaged = true,
+    nextStep = "create",
+    title = "",
+  } = {},
+) => {
+  let commit = null;
+  let push = null;
+
+  if (nextStep === "commit-push-create") {
+    commit = await commitProjectGitChanges(projectPath, {
+      customInstructions,
+      includeUnstaged,
+      message: commitMessage,
+    });
+  }
+
+  if (nextStep === "push-create" || nextStep === "commit-push-create") {
+    push = await pushProjectGitChanges(projectPath, { nextStep: "push" });
+  }
+
+  const repoInfo = await ensureProjectGitRepository(projectPath);
+  const headBranch = getGitActionBranchName(repoInfo.branch);
+  if (!headBranch) {
+    throw new Error("Cannot create a pull request from a detached HEAD.");
+  }
+
+  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, headBranch);
+  const baseBranch =
+    normalizeGitActionText(requestedBaseBranch) ||
+    metadata.baseBranch ||
+    "main";
+  const baseRef = await getPullRequestBaseRef(
+    repoInfo.repoRoot,
+    metadata.remoteName,
+    baseBranch,
+  );
+  const [commitSubjects, diffStat] = await Promise.all([
+    readPullRequestCommitSubjects(repoInfo.repoRoot, baseRef),
+    readPullRequestDiffStat(repoInfo.repoRoot, baseRef),
+  ]);
+  const pullRequestTitle =
+    normalizeGitActionText(title) ||
+    buildGeneratedPullRequestTitle(headBranch, commitSubjects);
+  const pullRequestBody =
+    normalizeGitActionText(description) ||
+    buildGeneratedPullRequestBody({
+      branch: headBranch,
+      commitSubjects,
+      customInstructions,
+      diffStat,
+    });
+
+  const args = [
+    "pr",
+    "create",
+    "--base",
+    baseBranch,
+    "--head",
+    headBranch,
+    "--title",
+    pullRequestTitle,
+    "--body",
+    pullRequestBody,
+  ];
+
+  if (draft) {
+    args.push("--draft");
+  }
+
+  const createResult = await runGhCommand(repoInfo.repoRoot, args);
+  const output = `${createResult.stdout}\n${createResult.stderr}`.trim();
+
+  return {
+    baseBranch,
+    commit,
+    draft,
+    headBranch,
+    push,
+    status: await listProjectGitChanges(projectPath),
+    title: pullRequestTitle,
+    url: parsePullRequestUrl(output),
   };
 };
 
@@ -3145,6 +3839,83 @@ app.post("/api/project-git-checkout", async (c) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to switch Git branches.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-commit", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitCommitRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { projectPath, ...options } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(await commitProjectGitChanges(projectPath, options));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to commit changes.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-push", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitPushRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { projectPath, ...options } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(await pushProjectGitChanges(projectPath, options));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to push changes.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-create-pr", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitCreatePullRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { projectPath, ...options } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(await createProjectPullRequest(projectPath, options));
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to create a pull request.";
     return c.text(message, 400);
   }
 });

@@ -28,6 +28,7 @@ import type {
 import { IdeDiffViewer } from "./diff-viewer";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
+import { MaterialFileIcon } from "./material-file-icon";
 
 type DiffViewMode = "unified" | "split";
 
@@ -225,6 +226,7 @@ const ChangesRow = ({
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
+            <MaterialFileIcon className="size-4 shrink-0" path={change.path} />
             <span className="min-w-0 truncate font-mono text-xs">
               {change.path}
             </span>
