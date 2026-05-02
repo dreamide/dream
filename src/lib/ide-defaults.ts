@@ -11,7 +11,7 @@ import type {
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
-export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
+export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "google"];
 export const CLAUDE_CODE_MODEL_IDS = {
   haiku: "haiku",
   opus: "opus",
@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoAcceptPermissions: false,
   defaultModel: "",
   expandToolCalls: false,
+  geminiSelectedModels: [],
   openAiSelectedModels: [],
   showReasoningSummaries: true,
   shellPath: "",
@@ -161,6 +162,10 @@ export const getModelsForProvider = (
     return clean(
       settings.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
     );
+  }
+
+  if (provider === "google") {
+    return clean(settings.geminiSelectedModels);
   }
 
   return clean(settings.openAiSelectedModels);

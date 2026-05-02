@@ -182,12 +182,25 @@ const ANTHROPIC_TOKEN_LABELS = {
   sonnet: "Sonnet",
 };
 
+const GOOGLE_TOKEN_LABELS = {
+  auto: "Auto",
+  flash: "Flash",
+  gemini: "Gemini",
+  lite: "Lite",
+  preview: "Preview",
+  pro: "Pro",
+};
+
 const formatToken = (provider, token, isFirstToken) => {
   if (!token) return "";
   if (/^\d+(\.\d+)*$/.test(token)) return token;
   if (/^o\d/i.test(token)) return token.toLowerCase();
   const labels =
-    provider === "openai" ? OPENAI_TOKEN_LABELS : ANTHROPIC_TOKEN_LABELS;
+    provider === "openai"
+      ? OPENAI_TOKEN_LABELS
+      : provider === "anthropic"
+        ? ANTHROPIC_TOKEN_LABELS
+        : GOOGLE_TOKEN_LABELS;
   const normalized = token.toLowerCase();
   const mapped = labels[normalized];
   if (mapped) return mapped;
@@ -220,6 +233,13 @@ const formatModelIdLabel = (provider, modelId) => {
   ) {
     return `Claude ${formatToken(provider, parts[0], true)}`;
   }
+  if (provider === "google" && parts[0]?.toLowerCase() === "gemini") {
+    const rest = parts
+      .slice(1)
+      .map((p, i) => formatToken(provider, p, i === 0))
+      .join(" ");
+    return rest ? `Gemini ${rest}` : "Gemini";
+  }
   return parts.map((p, i) => formatToken(provider, p, i === 0)).join(" ");
 };
 
@@ -240,6 +260,13 @@ const inferProviderForModelLabel = (id) => {
     ["haiku", "opus", "sonnet"].includes(normalizedId)
   ) {
     return "anthropic";
+  }
+
+  if (
+    normalizedId.startsWith("gemini-") ||
+    ["auto", "flash", "flash-lite", "pro"].includes(normalizedId)
+  ) {
+    return "google";
   }
 
   return "openai";
@@ -307,6 +334,17 @@ const CLAUDE_CODE_MODEL_OPTIONS = [
   createModelOption("anthropic", "sonnet", CLAUDE_CODE_MODEL_LABELS.sonnet),
   createModelOption("anthropic", "opus", CLAUDE_CODE_MODEL_LABELS.opus),
   createModelOption("anthropic", "haiku", CLAUDE_CODE_MODEL_LABELS.haiku),
+];
+
+const GEMINI_CLI_MODEL_OPTIONS = [
+  createModelOption("google", "auto", "Auto"),
+  createModelOption("google", "pro", "Pro"),
+  createModelOption("google", "flash", "Flash"),
+  createModelOption("google", "flash-lite", "Flash Lite"),
+  createModelOption("google", "gemini-2.5-pro"),
+  createModelOption("google", "gemini-2.5-flash"),
+  createModelOption("google", "gemini-2.5-flash-lite"),
+  createModelOption("google", "gemini-3-pro-preview"),
 ];
 
 const normalizeClaudeCodeModel = (modelId) => {
@@ -704,15 +742,38 @@ const fetchAnthropicModels = async () => {
   }
 };
 
+const fetchGoogleModels = async () => {
+  const installed = await isCliCommandAvailable("gemini");
+  if (!installed) {
+    return {
+      error: "Gemini CLI is not installed or not available on PATH.",
+      installed: false,
+      models: [],
+      source: "unavailable",
+      version: null,
+    };
+  }
+  const version = await getCliVersion("gemini");
+
+  return {
+    installed: true,
+    models: GEMINI_CLI_MODEL_OPTIONS,
+    source: "cli",
+    version,
+  };
+};
+
 app.post("/api/provider-models", async (c) => {
-  const [openai, anthropic] = await Promise.all([
+  const [openai, anthropic, google] = await Promise.all([
     fetchOpenAiModels(),
     fetchAnthropicModels(),
+    fetchGoogleModels(),
   ]);
 
   return c.json({
     anthropic,
     fetchedAt: new Date().toISOString(),
+    google,
     openai,
   });
 });
@@ -735,7 +796,7 @@ const chatRequestBodySchema = z.object({
   model: z.string().min(1),
   modelLabel: z.string().min(1).optional(),
   projectPath: z.string().min(1),
-  provider: z.enum(["openai", "anthropic"]),
+  provider: z.enum(["openai", "anthropic", "google"]),
   remoteConversationId: z.string().nullable().optional(),
   remoteConversationModel: z.string().nullable().optional(),
   remoteConversationProjectPath: z.string().nullable().optional(),
@@ -1512,11 +1573,13 @@ const streamCodexCliResponse = ({
     ? (codexSessionsByChatId.get(chatId) ?? null)
     : null;
   const persistedSessionId =
-    remoteConversationModel === model && remoteConversationProjectPath === projectPath
+    remoteConversationModel === model &&
+    remoteConversationProjectPath === projectPath
       ? getCodexSessionId(remoteConversationId)
       : null;
   const canResumeStoredSession =
-    storedSession?.model === model && storedSession?.projectPath === projectPath;
+    storedSession?.model === model &&
+    storedSession?.projectPath === projectPath;
   if (chatId && storedSession && !canResumeStoredSession) {
     codexSessionsByChatId.delete(chatId);
   }
@@ -1826,6 +1889,121 @@ const streamCodexCliResponse = ({
   return createUIMessageStreamResponse({ stream });
 };
 
+const GEMINI_APPROVAL_MODE_MAP = {
+  "auto-accept-edits": "auto_edit",
+  default: "default",
+  "full-access": "yolo",
+};
+
+const getGeminiCliSpawnErrorMessage = (error) => {
+  if (error?.code === "ENOENT") {
+    return "Gemini CLI not found. Install it or add it to PATH, then restart Dream.";
+  }
+
+  return error instanceof Error ? error.message : "Gemini CLI request failed.";
+};
+
+const buildGeminiExecArgs = ({ codexPermissionMode, model }) => [
+  ...(model ? ["--model", model] : []),
+  "--approval-mode",
+  GEMINI_APPROVAL_MODE_MAP[codexPermissionMode] ?? "default",
+  "--prompt",
+  "Continue the conversation using the full prompt and instructions provided on stdin.",
+];
+
+const streamGeminiCliResponse = ({
+  abortSignal,
+  codexPermissionMode,
+  messages,
+  model,
+  projectPath,
+  responseMessageMetadata,
+  systemPrompt,
+}) => {
+  const stream = createUIMessageStream({
+    originalMessages: messages,
+    onError: (error) =>
+      error instanceof Error ? error.message : "Gemini CLI request failed.",
+    execute: ({ writer }) =>
+      new Promise((resolve, reject) => {
+        let stderrBuffer = "";
+        let startedText = false;
+        let finished = false;
+        let child;
+
+        const finish = (callback) => {
+          if (finished) return;
+          finished = true;
+          abortSignal?.removeEventListener("abort", handleAbort);
+          callback();
+        };
+
+        const handleAbort = () => {
+          child?.kill("SIGTERM");
+          finish(resolve);
+        };
+
+        const writeTextDelta = (delta) => {
+          if (!delta) return;
+          if (!startedText) {
+            startedText = true;
+            writer.write({ type: "text-start", id: "gemini-text" });
+          }
+          writer.write({ type: "text-delta", delta, id: "gemini-text" });
+        };
+
+        writer.write({
+          messageMetadata: responseMessageMetadata,
+          type: "message-metadata",
+        });
+
+        abortSignal?.addEventListener("abort", handleAbort, { once: true });
+
+        const fullPrompt = buildCodexConversationPrompt({
+          currentTurnAttachments: null,
+          messages,
+          projectPath,
+          systemPrompt,
+        });
+        const args = buildGeminiExecArgs({ codexPermissionMode, model });
+
+        child = spawn("gemini", args, {
+          cwd: projectPath,
+          env: process.env,
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+
+        child.stdout.on("data", (chunk) => {
+          writeTextDelta(chunk.toString());
+        });
+        child.stderr.on("data", (chunk) => {
+          stderrBuffer += chunk.toString();
+        });
+        child.on("error", (error) => {
+          finish(() => reject(new Error(getGeminiCliSpawnErrorMessage(error))));
+        });
+        child.on("close", (code) => {
+          if (startedText) {
+            writer.write({ type: "text-end", id: "gemini-text" });
+          }
+
+          if (code === 0 || abortSignal?.aborted) {
+            finish(resolve);
+            return;
+          }
+
+          const detail =
+            stderrBuffer.trim() || `Gemini CLI exited with code ${code}.`;
+          finish(() => reject(new Error(detail)));
+        });
+
+        child.stdin.end(fullPrompt);
+      }),
+  });
+
+  return createUIMessageStreamResponse({ stream });
+};
+
 app.post("/api/chat", async (c) => {
   let rawBody;
   try {
@@ -1903,6 +2081,26 @@ app.post("/api/chat", async (c) => {
       remoteConversationProjectPath,
       systemPrompt: SYSTEM_PROMPT,
       chatId: resolvedChatId,
+    });
+  }
+
+  if (provider === "google") {
+    const geminiInstalled = await isCliCommandAvailable("gemini");
+    if (!geminiInstalled) {
+      return c.text(
+        "Gemini CLI is not installed or not available on PATH.",
+        400,
+      );
+    }
+
+    return streamGeminiCliResponse({
+      abortSignal: c.req.raw.signal,
+      codexPermissionMode,
+      messages,
+      model,
+      responseMessageMetadata,
+      projectPath,
+      systemPrompt: SYSTEM_PROMPT,
     });
   }
 

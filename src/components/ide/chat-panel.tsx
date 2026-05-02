@@ -117,8 +117,6 @@ import type {
 import {
   AgentChip,
   AssistantMessagePart,
-  getChipToolKind,
-  isChipToolPart,
   ListFilesChip,
   ReadFileChip,
   RunCommandChip,
@@ -126,6 +124,7 @@ import {
   TaskOutputChip,
   WriteFileChip,
 } from "./assistant-message-part";
+import { getChipToolKind, isChipToolPart } from "./assistant-message-tools";
 import { BranchSwitcher } from "./branch-switcher";
 import { useIdeStore } from "./ide-store";
 import {
@@ -133,8 +132,11 @@ import {
   type ClaudePermissionMode,
   CODEX_PERMISSION_MODE_OPTIONS,
   type CodexPermissionMode,
+  GEMINI_PERMISSION_MODE_OPTIONS,
+  type GeminiPermissionMode,
   getClaudePermissionModeLabel,
   getCodexPermissionModeLabel,
+  getGeminiPermissionModeLabel,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
@@ -150,6 +152,7 @@ type RenameTarget = {
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
+  google: "Google",
 };
 
 const CHAT_STREAM_UPDATE_THROTTLE_MS = 50;
@@ -884,6 +887,7 @@ export const ChatPanel = ({
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
   const conversationContextRef = useRef<StickToBottomContext | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
+  const messagesRef = useRef(chatMessages);
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -960,8 +964,27 @@ export const ChatPanel = ({
   });
 
   useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    if (chatMessages.length > messages.length) {
+      setMessages(chatMessages);
+    }
+  }, [chatMessages, messages.length, setMessages]);
+
+  useEffect(() => {
     setMessagesForChat(chat.id, messages);
   }, [chat.id, messages, setMessagesForChat]);
+
+  useEffect(() => {
+    return () => {
+      const latestMessages = messagesRef.current;
+      if (latestMessages.length > 0) {
+        setMessagesForChat(chat.id, latestMessages);
+      }
+    };
+  }, [chat.id, setMessagesForChat]);
 
   // Some provider-backed write tools only return a success string. Capture the
   // live Git diff while it exists and write it back into the chat message so the
@@ -1204,7 +1227,9 @@ export const ChatPanel = ({
   const modelId =
     selectedProvider === "anthropic"
       ? `anthropic:${selectedModel}`
-      : `openai:${selectedModel}`;
+      : selectedProvider === "google"
+        ? `google:${selectedModel}`
+        : `openai:${selectedModel}`;
 
   const scheduleConversationScroll = useCallback(
     (mode: "force" | "locked") => {
@@ -1681,7 +1706,8 @@ export const ChatPanel = ({
                     </Select>
                   )}
 
-                  {selectedProvider === "openai" ? (
+                  {selectedProvider === "openai" ||
+                  selectedProvider === "google" ? (
                     <Select
                       onValueChange={(value) => {
                         setCodexPermissionMode(value as CodexPermissionMode);

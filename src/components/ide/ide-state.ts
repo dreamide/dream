@@ -105,8 +105,10 @@ const normalizePanelSizes = (
   };
 };
 
-const normalizeProvider = (value: unknown): "openai" | "anthropic" => {
-  return value === "anthropic" ? "anthropic" : DEFAULT_PROVIDER;
+const normalizeProvider = (
+  value: unknown,
+): "openai" | "anthropic" | "google" => {
+  return value === "anthropic" || value === "google" ? value : DEFAULT_PROVIDER;
 };
 
 const normalizeProjectIcon = (value: unknown): ProjectConfig["icon"] => {
@@ -302,6 +304,11 @@ export const mergePersistedState = (
           ? rawSettings.expandShellToolParts === true ||
             rawSettings.expandEditToolParts === true
           : DEFAULT_SETTINGS.expandToolCalls,
+    geminiSelectedModels: dedupeModels(
+      Array.isArray(rawSettings.geminiSelectedModels)
+        ? rawSettings.geminiSelectedModels
+        : [],
+    ),
     openAiSelectedModels: dedupeModels(
       Array.isArray(rawSettings.openAiSelectedModels)
         ? rawSettings.openAiSelectedModels

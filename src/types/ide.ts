@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
 
-export type AiProvider = "openai" | "anthropic";
+export type AiProvider = "openai" | "anthropic" | "google";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type ChatSortOrder =
@@ -51,6 +51,7 @@ export interface AppSettings {
   expandToolCalls: boolean;
   openAiSelectedModels: string[];
   anthropicSelectedModels: string[];
+  geminiSelectedModels: string[];
   showReasoningSummaries: boolean;
   shellPath: string;
 }

@@ -34,6 +34,7 @@ import {
   type CodexPermissionMode,
   createProjectTerminalSessionId,
   dedupeModels,
+  type GeminiPermissionMode,
   getBrowserTerminalSessionId,
   type ProviderModelState,
   type ProviderModelsResponse,
@@ -70,6 +71,7 @@ interface IdeState {
   outputPanelOpen: boolean;
   claudePermissionMode: ClaudePermissionMode;
   codexPermissionMode: CodexPermissionMode;
+  geminiPermissionMode: GeminiPermissionMode;
   browserError: string | null;
   browserLoading: Record<string, boolean>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
@@ -87,6 +89,7 @@ interface IdeState {
   providerModels: {
     openai: ProviderModelState;
     anthropic: ProviderModelState;
+    google: ProviderModelState;
     fetchedAt: string | null;
   };
 
@@ -133,6 +136,7 @@ interface IdeState {
   setOutputPanelOpen: (open: boolean) => void;
   setClaudePermissionMode: (value: ClaudePermissionMode) => void;
   setCodexPermissionMode: (value: CodexPermissionMode) => void;
+  setGeminiPermissionMode: (value: GeminiPermissionMode) => void;
 
   // Actions – settings
   setSettings: (
@@ -218,6 +222,14 @@ const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
     version: null,
   },
   fetchedAt: null,
+  google: {
+    error: null,
+    installed: false,
+    loading: false,
+    models: [],
+    source: "unavailable",
+    version: null,
+  },
   openai: {
     error: null,
     installed: false,
@@ -230,11 +242,15 @@ const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
 
 const getPermissionModesForAutoAccept = (
   autoAcceptPermissions: boolean,
-): Pick<IdeState, "claudePermissionMode" | "codexPermissionMode"> => ({
+): Pick<
+  IdeState,
+  "claudePermissionMode" | "codexPermissionMode" | "geminiPermissionMode"
+> => ({
   claudePermissionMode: autoAcceptPermissions
     ? "accept-edits"
     : "ask-permissions",
   codexPermissionMode: autoAcceptPermissions ? "auto-accept-edits" : "default",
+  geminiPermissionMode: autoAcceptPermissions ? "auto-accept-edits" : "default",
 });
 
 const areMessagesEqual = (
@@ -356,6 +372,17 @@ const shouldTouchChatUpdatedAt = (
   }
 
   return false;
+};
+
+const isStaleMessageSnapshot = (
+  previousMessages: UIMessage[] | undefined,
+  nextMessages: UIMessage[],
+) => {
+  if (!previousMessages || previousMessages.length === 0) {
+    return false;
+  }
+
+  return nextMessages.length < previousMessages.length;
 };
 
 const BROWSER_TAB_ID_PREFIX = "browser-tab";
@@ -501,6 +528,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   outputPanelOpen: false,
   claudePermissionMode: "ask-permissions",
   codexPermissionMode: "default",
+  geminiPermissionMode: "default",
   browserError: null,
   browserLoading: {},
   browserTabsByProject: {},
@@ -1125,17 +1153,19 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       if (!chat) {
         return state;
       }
-      const messagesChanged = !areMessagesEqual(
-        state.messagesByChatId[chatId],
-        messages,
-      );
+      const previousMessages = state.messagesByChatId[chatId];
+      if (isStaleMessageSnapshot(previousMessages, messages)) {
+        return state;
+      }
+
+      const messagesChanged = !areMessagesEqual(previousMessages, messages);
 
       if (!messagesChanged) {
         return state;
       }
 
       const touchUpdatedAt = shouldTouchChatUpdatedAt(
-        state.messagesByChatId[chatId],
+        previousMessages,
         messages,
       );
 
@@ -1252,24 +1282,79 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     }));
   },
   setProjectRightPanelOpen: (projectId, open) => {
-    set((state) => ({
-      projects: updateProjectUiInList(state.projects, projectId, (project) => ({
+    let shouldPersist = false;
+
+    set((state) => {
+      const projectUpdater = (project: ProjectConfig) => ({
         ...project.ui,
         rightPanelOpen: open,
-      })),
-    }));
+      });
+      const nextState: Partial<IdeState> = {};
+
+      if (state.projects.some((project) => project.id === projectId)) {
+        nextState.projects = updateProjectUiInList(
+          state.projects,
+          projectId,
+          projectUpdater,
+        );
+        shouldPersist = true;
+      }
+
+      if (state.closedProjects.some((project) => project.id === projectId)) {
+        nextState.closedProjects = updateProjectUiInList(
+          state.closedProjects,
+          projectId,
+          projectUpdater,
+        );
+        shouldPersist = true;
+      }
+
+      return shouldPersist ? nextState : state;
+    });
+
+    if (shouldPersist) {
+      get().persist();
+    }
   },
   setProjectRightPanelView: (projectId, view) => {
-    set((state) => ({
-      projects: updateProjectUiInList(state.projects, projectId, (project) => ({
+    let shouldPersist = false;
+
+    set((state) => {
+      const projectUpdater = (project: ProjectConfig) => ({
         ...project.ui,
         rightPanelView: view,
-      })),
-    }));
+      });
+      const nextState: Partial<IdeState> = {};
+
+      if (state.projects.some((project) => project.id === projectId)) {
+        nextState.projects = updateProjectUiInList(
+          state.projects,
+          projectId,
+          projectUpdater,
+        );
+        shouldPersist = true;
+      }
+
+      if (state.closedProjects.some((project) => project.id === projectId)) {
+        nextState.closedProjects = updateProjectUiInList(
+          state.closedProjects,
+          projectId,
+          projectUpdater,
+        );
+        shouldPersist = true;
+      }
+
+      return shouldPersist ? nextState : state;
+    });
+
+    if (shouldPersist) {
+      get().persist();
+    }
   },
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
   setClaudePermissionMode: (value) => set({ claudePermissionMode: value }),
   setCodexPermissionMode: (value) => set({ codexPermissionMode: value }),
+  setGeminiPermissionMode: (value) => set({ geminiPermissionMode: value }),
 
   // ── Actions: settings ───────────────────────────────────────────────
   setSettings: (updater) => {
@@ -1313,6 +1398,22 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           },
         };
       }
+      if (provider === "google") {
+        const current = dedupeModels(prev.geminiSelectedModels);
+        const next = current.includes(model)
+          ? current.filter((v) => v !== model)
+          : [...current, model];
+        const nextSettings = {
+          ...prev,
+          geminiSelectedModels: next,
+        };
+        return {
+          settings: {
+            ...nextSettings,
+            defaultModel: getPreferredDefaultModel(nextSettings),
+          },
+        };
+      }
       const current = dedupeModels(prev.anthropicSelectedModels);
       const next = current.includes(model)
         ? current.filter((v) => v !== model)
@@ -1340,6 +1441,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           loading: true,
         },
         openai: { ...state.providerModels.openai, error: null, loading: true },
+        google: { ...state.providerModels.google, error: null, loading: true },
       },
     }));
 
@@ -1352,10 +1454,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const payload = (await response.json()) as ProviderModelsResponse;
       const nextOpenAiModels = dedupeModelOptions(payload.openai.models);
       const nextAnthropicModels = dedupeModelOptions(payload.anthropic.models);
+      const nextGeminiModels = dedupeModelOptions(payload.google.models);
       const nextOpenAiModelIds = nextOpenAiModels.map((model) => model.id);
       const nextAnthropicModelIds = nextAnthropicModels.map(
         (model) => model.id,
       );
+      const nextGeminiModelIds = nextGeminiModels.map((model) => model.id);
 
       set({
         providerModels: {
@@ -1368,6 +1472,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             version: payload.anthropic.version ?? null,
           },
           fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
+          google: {
+            error: payload.google.error ?? null,
+            installed: payload.google.installed,
+            loading: false,
+            models: nextGeminiModels,
+            source: payload.google.source,
+            version: payload.google.version ?? null,
+          },
           openai: {
             error: payload.openai.error ?? null,
             installed: payload.openai.installed,
@@ -1388,14 +1500,20 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         const currentAnthropicSelected = dedupeModels(
           prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
         ).filter((m) => nextAnthropicModelIds.includes(m));
+        const currentGeminiSelected = dedupeModels(
+          prev.geminiSelectedModels,
+        ).filter((m) => nextGeminiModelIds.includes(m));
 
         const openAiSelectedModels =
           currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
         const anthropicSelectedModels =
           currentAnthropicSelected.length > 0 ? currentAnthropicSelected : [];
+        const geminiSelectedModels =
+          currentGeminiSelected.length > 0 ? currentGeminiSelected : [];
         const nextSettings = {
           ...prev,
           anthropicSelectedModels,
+          geminiSelectedModels,
           openAiSelectedModels,
         };
         const defaultModel = getPreferredDefaultModel(nextSettings);
@@ -1405,11 +1523,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           openAiSelectedModels.length === prev.openAiSelectedModels.length &&
           anthropicSelectedModels.length ===
             prev.anthropicSelectedModels.length &&
+          geminiSelectedModels.length === prev.geminiSelectedModels.length &&
           openAiSelectedModels.every(
             (m, i) => prev.openAiSelectedModels[i] === m,
           ) &&
           anthropicSelectedModels.every(
             (m, i) => prev.anthropicSelectedModels[i] === m,
+          ) &&
+          geminiSelectedModels.every(
+            (m, i) => prev.geminiSelectedModels[i] === m,
           )
         ) {
           return state;
@@ -1436,6 +1558,14 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             version: state.providerModels.anthropic.version,
           },
           fetchedAt: state.providerModels.fetchedAt,
+          google: {
+            error: message,
+            installed: state.providerModels.google.installed,
+            loading: false,
+            models: state.providerModels.google.models,
+            source: state.providerModels.google.source,
+            version: state.providerModels.google.version,
+          },
           openai: {
             error: message,
             installed: state.providerModels.openai.installed,
@@ -2100,13 +2230,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return false;
       }
 
-      if (draftChatIdByProject[chat.projectId] === chat.id) {
+      const messageCount = messagesByChatId[chat.id]?.length ?? 0;
+      if (
+        draftChatIdByProject[chat.projectId] === chat.id &&
+        messageCount === 0
+      ) {
         return false;
       }
 
-      return (
-        chat.deletedAt !== null || (messagesByChatId[chat.id]?.length ?? 0) > 0
-      );
+      return chat.deletedAt !== null || messageCount > 0;
     });
     const persistedMessagesByChatId = Object.fromEntries(
       persistedChats.map((chat) => [chat.id, messagesByChatId[chat.id] ?? []]),

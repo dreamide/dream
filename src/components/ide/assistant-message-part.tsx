@@ -1,5 +1,4 @@
 import { parsePatchFiles } from "@pierre/diffs";
-import type { UIMessage } from "ai";
 import {
   BotIcon,
   CheckIcon,
@@ -56,22 +55,18 @@ import {
 } from "@/components/ai-elements/tool";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  CHIP_TOOL_NAME_ALIASES,
+  getToolName,
+  isToolLikePart,
+  type MessagePart,
+  normalizeToolName,
+  type ToolLikePart,
+} from "./assistant-message-tools";
 import { IdeDiffViewer } from "./diff-viewer";
 import { stringifyPart } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { MaterialFileIcon } from "./material-file-icon";
-
-type MessagePart = UIMessage["parts"][number];
-
-type ToolLikePart = MessagePart & {
-  approval?: { id: string; approved?: boolean; reason?: string };
-  errorText?: string;
-  input?: unknown;
-  output?: unknown;
-  state?: string;
-  toolCallId?: string;
-  toolName?: string;
-};
 
 type ToolApprovalHandler = (response: {
   id: string;
@@ -82,10 +77,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isString = (value: unknown): value is string => typeof value === "string";
-
-const isToolLikePart = (part: MessagePart): part is ToolLikePart =>
-  typeof part.type === "string" &&
-  (part.type.startsWith("tool-") || part.type === "dynamic-tool");
 
 const ANSI_ESCAPE_SEQUENCE =
   // biome-ignore lint/suspicious/noControlCharactersInRegex: matches ANSI control sequences in command output
@@ -201,37 +192,6 @@ const formatToolName = (name: string): string =>
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-const getToolName = (part: ToolLikePart): string => {
-  if (part.type === "dynamic-tool" && isString(part.toolName)) {
-    return part.toolName;
-  }
-
-  return part.type.startsWith("tool-") ? part.type.slice(5) : part.type;
-};
-
-const normalizeToolName = (name: string): string =>
-  name
-    .replace(/([a-z])([A-Z])/g, "$1-$2")
-    .replace(/[\s_]+/g, "-")
-    .toLowerCase();
-
-const CHIP_TOOL_NAME_ALIASES = {
-  agent: new Set(["agent"]),
-  command: new Set([
-    "run-command",
-    "runcommand",
-    "command",
-    "exec-command",
-    "bash",
-  ]),
-  list: new Set(["list-files"]),
-  read: new Set(["read", "read-file"]),
-  search: new Set(["glob", "grep", "search", "search-in-files"]),
-  taskOutput: new Set(["task-output", "taskoutput", "task-result"]),
-  toolSearch: new Set(["tool-search"]),
-  write: new Set(["edit", "patch", "write", "write-file"]),
-} as const;
-
 const TOOL_STATE_LABELS: Record<ToolPart["state"], string> = {
   "approval-requested": "Awaiting Approval",
   "approval-responded": "Responded",
@@ -268,43 +228,6 @@ const STREAMING_MAX_CHARS_PER_TICK = 140;
 const STREAMING_FINISHED_INTERVAL_MS = 8;
 const STREAMING_FINISHED_MIN_CHARS_PER_TICK = 240;
 const STREAMING_FINISHED_MAX_CHARS_PER_TICK = 1200;
-
-export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
-
-export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
-  if (!isToolLikePart(part)) {
-    return null;
-  }
-
-  const toolName = normalizeToolName(getToolName(part));
-
-  if (CHIP_TOOL_NAME_ALIASES.command.has(toolName)) {
-    return "command";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.agent.has(toolName)) {
-    return "agent";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.read.has(toolName)) {
-    return "read";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.search.has(toolName)) {
-    return "search";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.taskOutput.has(toolName)) {
-    return "taskOutput";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.toolSearch.has(toolName)) {
-    return "toolSearch";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.list.has(toolName)) {
-    return "list";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.write.has(toolName)) {
-    return "write";
-  }
-
-  return null;
-};
 
 const extToLanguage: Record<string, BundledLanguage> = {
   astro: "astro",
@@ -1386,7 +1309,8 @@ export const SearchInFilesChip = ({
     )
     .filter((toolName): toolName is string => toolName !== null);
   const normalizedToolName = normalizeToolName(getToolName(part));
-  const isToolSearch = CHIP_TOOL_NAME_ALIASES.toolSearch.has(normalizedToolName);
+  const isToolSearch =
+    CHIP_TOOL_NAME_ALIASES.toolSearch.has(normalizedToolName);
   const isToolReferenceSearch = isToolSearch || toolReferences.length > 0;
   const hasOutput = rawMatches !== null || textResults.length > 0;
   const count =
@@ -1843,11 +1767,6 @@ export const TaskOutputChip = ({
       ) : null}
     </div>
   );
-};
-
-/** Check if a tool part should render as an inline chip */
-export const isChipToolPart = (part: MessagePart): boolean => {
-  return getChipToolKind(part) !== null;
 };
 
 export const WriteFileChip = ({

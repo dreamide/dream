@@ -22,6 +22,10 @@ export type ClaudePermissionMode =
   | "accept-edits"
   | "plan-mode"
   | "bypass-permissions";
+export type GeminiPermissionMode =
+  | "default"
+  | "auto-accept-edits"
+  | "full-access";
 
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>
@@ -44,6 +48,7 @@ export interface ProviderModelsResponse {
   fetchedAt: string;
   openai: ProviderModelFetchResult;
   anthropic: ProviderModelFetchResult;
+  google: ProviderModelFetchResult;
 }
 
 export interface ProviderModelState {
@@ -121,6 +126,28 @@ export const CLAUDE_PERMISSION_MODE_OPTIONS: Array<{
   },
 ];
 
+export const GEMINI_PERMISSION_MODE_OPTIONS: Array<{
+  description: string;
+  label: string;
+  value: GeminiPermissionMode;
+}> = [
+  {
+    description: "Ask before running actions.",
+    label: "Ask",
+    value: "default",
+  },
+  {
+    description: "Edit files without asking.",
+    label: "Edit",
+    value: "auto-accept-edits",
+  },
+  {
+    description: "Full access without asking.",
+    label: "Full access",
+    value: "full-access",
+  },
+];
+
 export const getCodexPermissionModeLabel = (
   value: CodexPermissionMode,
 ): string => {
@@ -139,22 +166,37 @@ export const getClaudePermissionModeLabel = (
   );
 };
 
+export const getGeminiPermissionModeLabel = (
+  value: GeminiPermissionMode,
+): string => {
+  return (
+    GEMINI_PERMISSION_MODE_OPTIONS.find((option) => option.value === value)
+      ?.label ?? "Ask"
+  );
+};
+
 export const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {
   return REASONING_EFFORT_OPTIONS.some((option) => option.value === value)
     ? (value as ReasoningEffort)
     : "medium";
 };
 
-export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
+export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "google"];
 
 export const getProviderLabel = (provider: AiProvider): string => {
-  return provider === "openai" ? "OpenAI" : "Anthropic";
+  if (provider === "openai") return "OpenAI";
+  if (provider === "anthropic") return "Anthropic";
+  return "Google";
 };
 
 export const getProviderDescription = (provider: AiProvider): string => {
-  return provider === "openai"
-    ? "Uses the local Codex CLI for OpenAI models."
-    : "Uses the local Claude Code CLI for Claude models.";
+  if (provider === "openai") {
+    return "Uses the local Codex CLI for OpenAI models.";
+  }
+  if (provider === "anthropic") {
+    return "Uses the local Claude Code CLI for Claude models.";
+  }
+  return "Uses the local Gemini CLI for Gemini models.";
 };
 
 export const getEnabledProviders = (settings: AppSettings): AiProvider[] => {
@@ -166,6 +208,10 @@ export const getEnabledProviders = (settings: AppSettings): AiProvider[] => {
 
   if (settings.anthropicSelectedModels.length > 0) {
     providers.push("anthropic");
+  }
+
+  if (settings.geminiSelectedModels.length > 0) {
+    providers.push("google");
   }
 
   return providers;
