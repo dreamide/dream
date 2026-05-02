@@ -846,6 +846,12 @@ export const ChatPanel = ({
   const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
+  const bumpProjectGitRefreshKey = useIdeStore(
+    (s) => s.bumpProjectGitRefreshKey,
+  );
+  const bumpProjectFilesRefreshKey = useIdeStore(
+    (s) => s.bumpProjectFilesRefreshKey,
+  );
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -881,6 +887,7 @@ export const ChatPanel = ({
   const savedWriteDiffsRef = useRef(new Map<string, string>());
   const loadingWriteDiffsRef = useRef(new Set<string>());
   const failedWriteDiffsRef = useRef(new Set<string>());
+  const refreshedWriteEventsRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
   const conversationContextRef = useRef<StickToBottomContext | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
@@ -988,6 +995,7 @@ export const ChatPanel = ({
   // live Git diff while it exists and write it back into the chat message so the
   // chip remains inspectable after reloads or later Git operations.
   useEffect(() => {
+    let shouldRefreshProjectPanels = false;
     const pendingCachedDiffs: Array<{
       diff: string;
       filePath: string;
@@ -1002,12 +1010,22 @@ export const ChatPanel = ({
 
       for (let partIndex = 0; partIndex < message.parts.length; partIndex++) {
         const part = message.parts[partIndex];
-        if (getChipToolKind(part) !== "write" || getSavedWriteDiff(part)) {
+        if (getChipToolKind(part) !== "write") {
           continue;
         }
 
         const partRecord = part as Record<string, unknown>;
         if (partRecord.state !== "output-available") {
+          continue;
+        }
+
+        const writeRefreshKey = `${chat.id}:${message.id}:${partIndex}`;
+        if (!refreshedWriteEventsRef.current.has(writeRefreshKey)) {
+          refreshedWriteEventsRef.current.add(writeRefreshKey);
+          shouldRefreshProjectPanels = true;
+        }
+
+        if (getSavedWriteDiff(part)) {
           continue;
         }
 
@@ -1119,6 +1137,11 @@ export const ChatPanel = ({
       }
     }
 
+    if (shouldRefreshProjectPanels) {
+      bumpProjectGitRefreshKey(project.id);
+      bumpProjectFilesRefreshKey(project.id);
+    }
+
     if (pendingCachedDiffs.length > 0) {
       setMessages((currentMessages) =>
         pendingCachedDiffs.reduce(
@@ -1134,7 +1157,15 @@ export const ChatPanel = ({
         ),
       );
     }
-  }, [chat.id, messages, project.path, setMessages]);
+  }, [
+    bumpProjectFilesRefreshKey,
+    bumpProjectGitRefreshKey,
+    chat.id,
+    messages,
+    project.id,
+    project.path,
+    setMessages,
+  ]);
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
   useEffect(() => {

@@ -12,6 +12,35 @@ const gitStatusInflightRequests = new Map<
   string,
   Promise<ProjectGitStatusCacheEntry>
 >();
+const gitStatusCacheListeners = new Map<string, Set<() => void>>();
+
+const notifyGitStatusCacheListeners = (cacheKey: string) => {
+  const listeners = gitStatusCacheListeners.get(cacheKey);
+  if (!listeners) {
+    return;
+  }
+
+  for (const listener of listeners) {
+    listener();
+  }
+};
+
+const subscribeToGitStatusCache = (cacheKey: string, listener: () => void) => {
+  let listeners = gitStatusCacheListeners.get(cacheKey);
+  if (!listeners) {
+    listeners = new Set();
+    gitStatusCacheListeners.set(cacheKey, listeners);
+  }
+
+  listeners.add(listener);
+
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      gitStatusCacheListeners.delete(cacheKey);
+    }
+  };
+};
 
 const readResponseText = async (response: Response): Promise<string> => {
   const text = await response.text();
@@ -83,6 +112,7 @@ export const useProjectGitStatus = (
                 status: (await response.json()) as ProjectGitStatusResponse,
               };
               gitStatusCache.set(cacheKey, entry);
+              notifyGitStatusCacheListeners(cacheKey);
               return entry;
             } catch (error) {
               const entry: ProjectGitStatusCacheEntry = {
@@ -94,6 +124,7 @@ export const useProjectGitStatus = (
                 status: null,
               };
               gitStatusCache.set(cacheKey, entry);
+              notifyGitStatusCacheListeners(cacheKey);
               return entry;
             } finally {
               gitStatusInflightRequests.delete(inflightKey);
@@ -120,6 +151,23 @@ export const useProjectGitStatus = (
     },
     [cacheKey, projectPath, refreshToken],
   );
+
+  useEffect(() => {
+    if (!cacheKey) {
+      return;
+    }
+
+    return subscribeToGitStatusCache(cacheKey, () => {
+      const entry = gitStatusCache.get(cacheKey);
+      if (entry?.refreshToken !== refreshToken) {
+        return;
+      }
+
+      setStatus(entry.status);
+      setError(entry.error);
+      setLoading(false);
+    });
+  }, [cacheKey, refreshToken]);
 
   useEffect(() => {
     void refreshToken;

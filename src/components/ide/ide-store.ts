@@ -76,6 +76,7 @@ interface IdeState {
   browserTabsByProject: Record<string, BrowserTabState[]>;
   activeBrowserTabIdByProject: Record<string, string | null>;
   projectGitRefreshKeys: Record<string, number>;
+  projectFilesRefreshKeys: Record<string, number>;
   stateHydrated: boolean;
   isMacOs: boolean;
   isElectron: boolean;
@@ -161,6 +162,7 @@ interface IdeState {
   setTerminalSessionName: (sessionId: string, name: string) => void;
   setChatStreaming: (chatId: string, streaming: boolean) => void;
   bumpProjectGitRefreshKey: (projectId: string) => void;
+  bumpProjectFilesRefreshKey: (projectId: string) => void;
   setBrowserError: (error: string | null) => void;
   setBrowserLoading: (id: string, loading: boolean) => void;
   ensureBrowserTabs: (projectId: string, initialUrl?: string) => void;
@@ -507,6 +509,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   browserTabsByProject: {},
   activeBrowserTabIdByProject: {},
   projectGitRefreshKeys: {},
+  projectFilesRefreshKeys: {},
   stateHydrated: false,
   isMacOs: false,
   isElectron: false,
@@ -786,6 +789,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
           ]
         : state.closedProjects;
       const nextProjectGitRefreshKeys = { ...state.projectGitRefreshKeys };
+      const nextProjectFilesRefreshKeys = {
+        ...state.projectFilesRefreshKeys,
+      };
       const nextTerminalOrdinalByProject = {
         ...state.nextTerminalOrdinalByProject,
       };
@@ -807,6 +813,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
 
       delete nextProjectGitRefreshKeys[projectId];
+      delete nextProjectFilesRefreshKeys[projectId];
       delete nextTerminalOrdinalByProject[projectId];
       delete nextProjectTerminalSessionIds[projectId];
       delete nextActiveTerminalSessionIdByProject[projectId];
@@ -873,6 +880,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         browserLoading: nextBrowserLoading,
         draftChatIdByProject: nextDraftChatIdByProject,
         projectGitRefreshKeys: nextProjectGitRefreshKeys,
+        projectFilesRefreshKeys: nextProjectFilesRefreshKeys,
         projects: nextOpenProjects,
       };
     });
@@ -1594,6 +1602,21 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         ...state.projectGitRefreshKeys,
         [normalizedProjectId]:
           (state.projectGitRefreshKeys[normalizedProjectId] ?? 0) + 1,
+      },
+    }));
+  },
+  bumpProjectFilesRefreshKey: (projectId) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (!normalizedProjectId) {
+      return;
+    }
+
+    set((state) => ({
+      projectFilesRefreshKeys: {
+        ...state.projectFilesRefreshKeys,
+        [normalizedProjectId]:
+          (state.projectFilesRefreshKeys[normalizedProjectId] ?? 0) + 1,
       },
     }));
   },

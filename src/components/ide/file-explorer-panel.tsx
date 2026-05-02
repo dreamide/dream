@@ -209,6 +209,9 @@ const FileExplorerPanelImpl = ({
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
+  const projectFilesRefreshKey = useIdeStore((s) =>
+    projectId ? (s.projectFilesRefreshKeys[projectId] ?? 0) : 0,
+  );
   const files = projectId ? (fileListsByProject[projectId] ?? []) : [];
   const selectedFilePath = projectId
     ? (selectedFileByProject[projectId] ?? null)
@@ -284,6 +287,7 @@ const FileExplorerPanelImpl = ({
   }, [projectPath]);
 
   useEffect(() => {
+    void projectFilesRefreshKey;
     if (!active) {
       return;
     }
@@ -292,8 +296,23 @@ const FileExplorerPanelImpl = ({
       return;
     }
 
+    setFileContentsByProject((current) => {
+      if (!current[projectId]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[projectId];
+      return next;
+    });
     void loadProjectFiles();
-  }, [active, loadProjectFiles, projectId, projectPath]);
+  }, [
+    active,
+    loadProjectFiles,
+    projectFilesRefreshKey,
+    projectId,
+    projectPath,
+  ]);
 
   useEffect(() => {
     if (!active) {
