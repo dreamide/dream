@@ -107,6 +107,22 @@ const GitDeltaSummary = ({
   </div>
 );
 
+const GitMenuDeltaSummary = ({
+  status,
+}: {
+  status: ProjectGitStatusResponse | null;
+}) =>
+  status ? (
+    <span className="ml-auto flex shrink-0 items-center gap-1.5 font-mono text-xs tabular-nums">
+      <span className="font-medium !text-emerald-500 group-focus/dropdown-menu-item:!text-emerald-500">
+        {formatDelta(getStatusAddedLines(status), "+")}
+      </span>
+      <span className="font-medium !text-rose-500 group-focus/dropdown-menu-item:!text-rose-500">
+        {formatDelta(getStatusRemovedLines(status), "-")}
+      </span>
+    </span>
+  ) : null;
+
 type NextStepOption<Value extends string> = {
   disabled?: boolean;
   icon: ReactNode;
@@ -700,24 +716,21 @@ interface GitActionsMenuProps {
 
 const GitActionDialogHost = ({
   action,
+  branch,
   onActionCompleted,
   onOpenChange,
   onPrCompleted,
-  projectId,
   projectPath,
+  status,
 }: {
   action: ActiveGitActionDialog;
+  branch: string | null;
   onActionCompleted: () => void;
   onOpenChange: (open: boolean) => void;
   onPrCompleted: (url: string | null, shouldOpen: boolean) => void;
-  projectId: string;
   projectPath: string;
+  status: ProjectGitStatusResponse | null;
 }) => {
-  const gitRefreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[projectId] ?? 0,
-  );
-  const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey);
-
   if (action === "commit") {
     return (
       <CommitDialog
@@ -760,6 +773,9 @@ const GitActionsMenuImpl = ({
   projectId,
   projectPath,
 }: GitActionsMenuProps) => {
+  const gitRefreshKey = useIdeStore(
+    (s) => s.projectGitRefreshKeys[projectId] ?? 0,
+  );
   const bumpProjectGitRefreshKey = useIdeStore(
     (s) => s.bumpProjectGitRefreshKey,
   );
@@ -770,7 +786,9 @@ const GitActionsMenuImpl = ({
     (s) => s.setProjectRightPanelView,
   );
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
+  const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey);
   const [activeDialog, setActiveDialog] = useState<GitActionDialog>(null);
+  const hasGitChanges = getStatusFileCount(status) > 0;
 
   const handleOpenChanges = useCallback(() => {
     setProjectRightPanelView(projectId, "changes");
@@ -808,7 +826,12 @@ const GitActionsMenuImpl = ({
           render={
             <Button
               aria-label="Open Git actions"
-              className="size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+              className={cn(
+                "size-8 [-webkit-app-region:no-drag]",
+                hasGitChanges
+                  ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
               size="icon"
               title="Git actions"
               variant="ghost"
@@ -824,6 +847,7 @@ const GitActionsMenuImpl = ({
           <DropdownMenuItem onClick={handleOpenChanges}>
             <Code className="size-4" />
             Changes
+            <GitMenuDeltaSummary status={status} />
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleOpenDialog("commit")}>
             <GitCommitHorizontal className="size-4" />
@@ -843,11 +867,12 @@ const GitActionsMenuImpl = ({
       {activeDialog ? (
         <GitActionDialogHost
           action={activeDialog}
+          branch={branch}
           onActionCompleted={handleActionCompleted}
           onOpenChange={handleDialogOpenChange}
           onPrCompleted={handlePrCompleted}
-          projectId={projectId}
           projectPath={projectPath}
+          status={status}
         />
       ) : null}
     </>

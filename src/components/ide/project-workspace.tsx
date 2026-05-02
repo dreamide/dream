@@ -939,7 +939,6 @@ const ProjectWorkspaceComponent = ({
         >
           <Globe className="size-4" />
         </ToggleButton>
-        <GitActionsMenu projectId={projectId} projectPath={project.path} />
         <Button
           aria-label="Open terminal"
           className={cn(
@@ -957,6 +956,7 @@ const ProjectWorkspaceComponent = ({
         >
           <TerminalSquare className="size-4" />
         </Button>
+        <GitActionsMenu projectId={projectId} projectPath={project.path} />
       </aside>
     </div>
   );
