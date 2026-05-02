@@ -10,7 +10,6 @@ import {
 import { useTheme } from "next-themes";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
-import googleLogo from "@/assets/google.svg";
 import openAiLogo from "@/assets/openai.svg";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -236,13 +235,8 @@ export const SettingsDialog = () => {
     () => getModelsForProvider("anthropic", settings),
     [settings],
   );
-  const geminiModels = useMemo(
-    () => getModelsForProvider("google", settings),
-    [settings],
-  );
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
-  const availableGeminiModels = providerModels.google.models;
 
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
@@ -257,19 +251,13 @@ export const SettingsDialog = () => {
       ),
     [availableAnthropicModels, settings],
   );
-  const geminiModelOptions = useMemo(
-    () => getModelOptionsForProvider("google", settings, availableGeminiModels),
-    [availableGeminiModels, settings],
-  );
-
   const groupedDefaultModelOptions = useMemo(
     () =>
       [
         { models: openAiModelOptions, provider: "openai" as const },
         { models: anthropicModelOptions, provider: "anthropic" as const },
-        { models: geminiModelOptions, provider: "google" as const },
       ].filter((group) => group.models.length > 0),
-    [anthropicModelOptions, geminiModelOptions, openAiModelOptions],
+    [anthropicModelOptions, openAiModelOptions],
   );
 
   const selectedDefaultModel = useMemo(() => {
@@ -568,12 +556,12 @@ export const SettingsDialog = () => {
 
                   {installedProviderCount === 0 ? (
                     <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
-                      Install Codex CLI, Claude Code CLI, or Gemini CLI, then
-                      refresh this section.
+                      Install Codex CLI or Claude Code CLI, then refresh this
+                      section.
                     </p>
                   ) : null}
 
-                  <div className="grid gap-3 md:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <ProviderStatusCard
                       error={providerModels.openai.error}
                       installed={providerModels.openai.installed}
@@ -672,57 +660,6 @@ export const SettingsDialog = () => {
                                         "anthropic",
                                         model.id,
                                       );
-                                    }
-                                  }}
-                                />
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </ProviderStatusCard>
-                    <ProviderStatusCard
-                      error={providerModels.google.error}
-                      installed={providerModels.google.installed}
-                      label="Google"
-                      logoSrc={googleLogo}
-                      loading={providerModels.google.loading}
-                      runtimeLabel="Gemini CLI"
-                      version={providerModels.google.version}
-                    >
-                      <div className="space-y-1.5 rounded-md p-1">
-                        {!providerModels.google.installed ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            Install Gemini CLI to use Gemini models.
-                          </p>
-                        ) : availableGeminiModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            No CLI models available yet. Refresh Providers.
-                          </p>
-                        ) : (
-                          availableGeminiModels.map((model) => {
-                            const isSelected = geminiModels.includes(model.id);
-
-                            return (
-                              <div
-                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
-                                key={model.id}
-                              >
-                                <Label
-                                  className={cn(
-                                    "truncate pr-3 text-sm",
-                                    isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {model.label}
-                                </Label>
-                                <Switch
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked !== isSelected) {
-                                      toggleProviderModel("google", model.id);
                                     }
                                   }}
                                 />

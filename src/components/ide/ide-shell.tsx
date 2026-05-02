@@ -223,11 +223,9 @@ export const IdeShell = () => {
     const anthropicSelectedModels = dedupeModels(
       prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
     );
-    const geminiSelectedModels = dedupeModels(prev.geminiSelectedModels);
     const nextSettings = {
       ...prev,
       anthropicSelectedModels,
-      geminiSelectedModels,
       openAiSelectedModels,
     };
     const defaultModel = getPreferredDefaultModel(nextSettings);
@@ -237,14 +235,12 @@ export const IdeShell = () => {
       defaultModel !== prev.defaultModel ||
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
-      geminiSelectedModels.length !== prev.geminiSelectedModels.length ||
       !openAiSelectedModels.every(
         (m, i) => prev.openAiSelectedModels[i] === m,
       ) ||
       !anthropicSelectedModels.every(
         (m, i) => prev.anthropicSelectedModels[i] === m,
-      ) ||
-      !geminiSelectedModels.every((m, i) => prev.geminiSelectedModels[i] === m);
+      );
 
     if (changed) {
       store.setSettings({

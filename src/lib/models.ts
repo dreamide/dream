@@ -28,15 +28,6 @@ const ANTHROPIC_TOKEN_LABELS: Record<string, string> = {
   sonnet: "Sonnet",
 };
 
-const GOOGLE_TOKEN_LABELS: Record<string, string> = {
-  auto: "Auto",
-  flash: "Flash",
-  gemini: "Gemini",
-  lite: "Lite",
-  preview: "Preview",
-  pro: "Pro",
-};
-
 const formatToken = (
   provider: AiProvider,
   token: string,
@@ -55,11 +46,7 @@ const formatToken = (
   }
 
   const labels =
-    provider === "openai"
-      ? OPENAI_TOKEN_LABELS
-      : provider === "anthropic"
-        ? ANTHROPIC_TOKEN_LABELS
-        : GOOGLE_TOKEN_LABELS;
+    provider === "openai" ? OPENAI_TOKEN_LABELS : ANTHROPIC_TOKEN_LABELS;
   const normalized = token.toLowerCase();
   const mapped = labels[normalized];
 
@@ -111,14 +98,6 @@ export const formatModelIdLabel = (
     return rest ? `Claude ${rest}` : "Claude";
   }
 
-  if (provider === "google" && parts[0]?.toLowerCase() === "gemini") {
-    const rest = parts
-      .slice(1)
-      .map((part, index) => formatToken(provider, part, index === 0))
-      .join(" ");
-    return rest ? `Gemini ${rest}` : "Gemini";
-  }
-
   if (
     provider === "anthropic" &&
     ["opus", "sonnet", "haiku"].includes(parts[0]?.toLowerCase() ?? "")
@@ -152,13 +131,6 @@ const inferProviderForModelLabel = (id: string): AiProvider => {
     ["haiku", "opus", "sonnet"].includes(normalizedId)
   ) {
     return "anthropic";
-  }
-
-  if (
-    normalizedId.startsWith("gemini-") ||
-    ["auto", "flash", "flash-lite", "pro"].includes(normalizedId)
-  ) {
-    return "google";
   }
 
   return "openai";
@@ -274,11 +246,6 @@ const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
   [/^gpt-4-turbo/, 128_000],
   [/^gpt-4/, 128_000],
   [/^codex-/, 200_000],
-
-  // Google
-  [/^(auto|pro)$/, 1_000_000],
-  [/^flash/, 1_000_000],
-  [/^gemini-/, 1_000_000],
 ];
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;

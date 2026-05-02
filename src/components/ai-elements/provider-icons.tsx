@@ -35,38 +35,10 @@ export const AnthropicIcon = ({ className, ...props }: IconProps) => (
   </svg>
 );
 
-export const GoogleIcon = ({ className, ...props }: IconProps) => (
-  <svg
-    className={cn("size-3.5", className)}
-    role="img"
-    viewBox="0 0 24 24"
-    xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
-    <path
-      d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h6.5c-.3 1.4-1.1 2.7-2.3 3.5v2.9h3.7c2.2-2 3.6-5 3.6-8.5z"
-      fill="#4285F4"
-    />
-    <path
-      d="M12 24c3.2 0 5.9-1.1 7.9-2.9l-3.7-2.9c-1 .7-2.4 1.1-4.2 1.1-3.1 0-5.7-2.1-6.6-4.9H1.6v3C3.5 21.3 7.5 24 12 24z"
-      fill="#34A853"
-    />
-    <path
-      d="M5.4 14.4c-.2-.7-.4-1.5-.4-2.4s.1-1.7.4-2.4v-3H1.6C.6 8.2 0 10.1 0 12s.6 3.8 1.6 5.4l3.8-3z"
-      fill="#FBBC05"
-    />
-    <path
-      d="M12 4.7c1.7 0 3.3.6 4.5 1.8l3.3-3.3C17.9 1.2 15.2 0 12 0 7.5 0 3.5 2.7 1.6 6.6l3.8 3C6.3 6.8 8.9 4.7 12 4.7z"
-      fill="#EA4335"
-    />
-  </svg>
-);
-
 export const ProviderIcon = ({
   provider,
   ...props
 }: IconProps & { provider: AiProvider }) => {
   if (provider === "anthropic") return <AnthropicIcon {...props} />;
-  if (provider === "google") return <GoogleIcon {...props} />;
   return <OpenAiIcon {...props} />;
 };

@@ -133,11 +133,8 @@ import {
   type ClaudePermissionMode,
   CODEX_PERMISSION_MODE_OPTIONS,
   type CodexPermissionMode,
-  GEMINI_PERMISSION_MODE_OPTIONS,
-  type GeminiPermissionMode,
   getClaudePermissionModeLabel,
   getCodexPermissionModeLabel,
-  getGeminiPermissionModeLabel,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
@@ -153,7 +150,6 @@ type RenameTarget = {
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
-  google: "Google",
 };
 
 const CHAT_STREAM_UPDATE_THROTTLE_MS = 50;
@@ -847,8 +843,6 @@ export const ChatPanel = ({
   const setClaudePermissionMode = useIdeStore((s) => s.setClaudePermissionMode);
   const codexPermissionMode = useIdeStore((s) => s.codexPermissionMode);
   const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
-  const geminiPermissionMode = useIdeStore((s) => s.geminiPermissionMode);
-  const setGeminiPermissionMode = useIdeStore((s) => s.setGeminiPermissionMode);
   const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
@@ -1231,9 +1225,7 @@ export const ChatPanel = ({
   const modelId =
     selectedProvider === "anthropic"
       ? `anthropic:${selectedModel}`
-      : selectedProvider === "google"
-        ? `google:${selectedModel}`
-        : `openai:${selectedModel}`;
+      : `openai:${selectedModel}`;
 
   const scheduleConversationScroll = useCallback(
     (mode: "force" | "locked") => {
@@ -1351,7 +1343,6 @@ export const ChatPanel = ({
             body: {
               claudePermissionMode,
               codexPermissionMode,
-              geminiPermissionMode,
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
               projectPath: project.path,
@@ -1375,7 +1366,6 @@ export const ChatPanel = ({
       allModelOptions,
       claudePermissionMode,
       codexPermissionMode,
-      geminiPermissionMode,
       clearError,
       chatMessages,
       providerModels,
@@ -1727,31 +1717,6 @@ export const ChatPanel = ({
                       </SelectTrigger>
                       <SelectContent className="text-xs" side="top">
                         {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
-                          <SelectItem
-                            className="text-xs"
-                            key={option.value}
-                            value={option.value}
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : selectedProvider === "google" ? (
-                    <Select
-                      onValueChange={(value) => {
-                        setGeminiPermissionMode(value as GeminiPermissionMode);
-                      }}
-                      value={geminiPermissionMode}
-                    >
-                      <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                        <Shield className="size-3.5 shrink-0" />
-                        <span className="truncate">
-                          {getGeminiPermissionModeLabel(geminiPermissionMode)}
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent className="text-xs" side="top">
-                        {GEMINI_PERMISSION_MODE_OPTIONS.map((option) => (
                           <SelectItem
                             className="text-xs"
                             key={option.value}
