@@ -135,6 +135,8 @@ function configureApplicationMenu() {
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
+  activeBrowserTabIdByProject: {},
+  browserTabsByProject: {},
   chats: [],
   closedProjects: [],
   messagesByChatId: {},
@@ -464,6 +466,20 @@ function saveStateToRelationalDatabase(database, state) {
       now,
     );
     writeConfig(database, "chatSort", state.chatSort ?? "recent", now);
+    writeConfig(
+      database,
+      "browserTabsByProject",
+      isRecord(state.browserTabsByProject) ? state.browserTabsByProject : {},
+      now,
+    );
+    writeConfig(
+      database,
+      "activeBrowserTabIdByProject",
+      isRecord(state.activeBrowserTabIdByProject)
+        ? state.activeBrowserTabIdByProject
+        : {},
+      now,
+    );
     writeConfig(
       database,
       "settings.defaultModel",
@@ -860,6 +876,12 @@ function loadStateFromRelationalDatabase(database) {
     typeof config.activeProjectId === "string" ? config.activeProjectId : null;
   return {
     activeProjectId,
+    activeBrowserTabIdByProject: isRecord(config.activeBrowserTabIdByProject)
+      ? config.activeBrowserTabIdByProject
+      : {},
+    browserTabsByProject: isRecord(config.browserTabsByProject)
+      ? config.browserTabsByProject
+      : {},
     chats,
     chatSort: typeof config.chatSort === "string" ? config.chatSort : "recent",
     closedProjects,

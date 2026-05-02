@@ -82,6 +82,8 @@ export interface PersistedIdeState {
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
+  activeBrowserTabIdByProject: Record<string, string | null>;
+  browserTabsByProject: Record<string, BrowserTabState[]>;
   settings: AppSettings;
   chats: ChatConfig[];
   chatSort: ChatSortOrder;

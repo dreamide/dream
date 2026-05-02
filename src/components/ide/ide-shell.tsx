@@ -66,6 +66,9 @@ export const IdeShell = () => {
   useEffect(() => {
     let prev = {
       activeProjectId: useIdeStore.getState().activeProjectId,
+      activeBrowserTabIdByProject:
+        useIdeStore.getState().activeBrowserTabIdByProject,
+      browserTabsByProject: useIdeStore.getState().browserTabsByProject,
       chatSort: useIdeStore.getState().chatSort,
       chats: useIdeStore.getState().chats,
       closedProjects: useIdeStore.getState().closedProjects,
@@ -78,6 +81,8 @@ export const IdeShell = () => {
     const unsub = useIdeStore.subscribe((state) => {
       const next = {
         activeProjectId: state.activeProjectId,
+        activeBrowserTabIdByProject: state.activeBrowserTabIdByProject,
+        browserTabsByProject: state.browserTabsByProject,
         chatSort: state.chatSort,
         chats: state.chats,
         closedProjects: state.closedProjects,
@@ -88,6 +93,8 @@ export const IdeShell = () => {
 
       if (
         next.activeProjectId !== prev.activeProjectId ||
+        next.activeBrowserTabIdByProject !== prev.activeBrowserTabIdByProject ||
+        next.browserTabsByProject !== prev.browserTabsByProject ||
         next.chats !== prev.chats ||
         next.closedProjects !== prev.closedProjects ||
         next.messagesByChatId !== prev.messagesByChatId ||

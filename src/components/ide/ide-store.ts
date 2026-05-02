@@ -785,10 +785,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
             closedProject,
           ]
         : state.closedProjects;
-      const nextBrowserTabsByProject = { ...state.browserTabsByProject };
-      const nextActiveBrowserTabIdByProject = {
-        ...state.activeBrowserTabIdByProject,
-      };
       const nextProjectGitRefreshKeys = { ...state.projectGitRefreshKeys };
       const nextTerminalOrdinalByProject = {
         ...state.nextTerminalOrdinalByProject,
@@ -810,8 +806,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextBrowserLoading = { ...state.browserLoading };
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
 
-      delete nextBrowserTabsByProject[projectId];
-      delete nextActiveBrowserTabIdByProject[projectId];
       delete nextProjectGitRefreshKeys[projectId];
       delete nextTerminalOrdinalByProject[projectId];
       delete nextProjectTerminalSessionIds[projectId];
@@ -877,8 +871,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         projectTerminalPanelOpenByProject:
           nextProjectTerminalPanelOpenByProject,
         browserLoading: nextBrowserLoading,
-        browserTabsByProject: nextBrowserTabsByProject,
-        activeBrowserTabIdByProject: nextActiveBrowserTabIdByProject,
         draftChatIdByProject: nextDraftChatIdByProject,
         projectGitRefreshKeys: nextProjectGitRefreshKeys,
         projects: nextOpenProjects,
@@ -2098,6 +2090,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       if (!rawState) {
         loaded = {
           activeProjectId: null,
+          activeBrowserTabIdByProject: {},
+          browserTabsByProject: {},
           chats: [],
           closedProjects: [],
           messagesByChatId: {},
@@ -2113,6 +2107,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         } catch {
           loaded = {
             activeProjectId: null,
+            activeBrowserTabIdByProject: {},
+            browserTabsByProject: {},
             chats: [],
             closedProjects: [],
             messagesByChatId: {},
@@ -2133,6 +2129,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       projects: loaded.projects,
       closedProjects: loaded.closedProjects,
       activeProjectId: nextActiveProjectId,
+      activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
+      browserTabsByProject: loaded.browserTabsByProject,
       chats: loaded.chats,
       messagesByChatId: loaded.messagesByChatId,
       draftChatIdByProject: {},
@@ -2146,6 +2144,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   persist: () => {
     const {
       activeProjectId,
+      activeBrowserTabIdByProject,
+      browserTabsByProject,
       chatSort,
       chats,
       closedProjects,
@@ -2192,9 +2192,28 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const persistedClosedProjects = closedProjects.map(
       sanitizeProjectForPersistence,
     );
+    const persistedBrowserTabsByProject = Object.fromEntries(
+      Object.entries(browserTabsByProject).filter(
+        ([projectId, tabs]) =>
+          knownProjectIds.has(projectId) && tabs.length > 0,
+      ),
+    );
+    const persistedActiveBrowserTabIdByProject = Object.fromEntries(
+      Object.entries(persistedBrowserTabsByProject).map(([projectId, tabs]) => {
+        const activeTabId = activeBrowserTabIdByProject[projectId] ?? null;
+        return [
+          projectId,
+          activeTabId && tabs.some((tab) => tab.id === activeTabId)
+            ? activeTabId
+            : (tabs[0]?.id ?? null),
+        ];
+      }),
+    );
 
     const nextState: PersistedIdeState = {
       activeProjectId: ensureActiveProject(projects, activeProjectId),
+      activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,
+      browserTabsByProject: persistedBrowserTabsByProject,
       chats: persistedChats,
       chatSort,
       closedProjects: persistedClosedProjects,

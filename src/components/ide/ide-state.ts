@@ -20,6 +20,7 @@ import {
 } from "@/lib/ide-defaults";
 import type {
   AppSettings,
+  BrowserTabState,
   ChatConfig,
   PersistedIdeState,
   ProjectConfig,
@@ -29,6 +30,8 @@ import { dedupeModels, normalizeReasoningEffort } from "./ide-types";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
+  activeBrowserTabIdByProject: {},
+  browserTabsByProject: {},
   chats: [],
   closedProjects: [],
   messagesByChatId: {},
@@ -62,6 +65,87 @@ const isUiMessageArray = (value: unknown): value is UIMessage[] => {
 
 const isRightPanelView = (value: unknown): value is RightPanelView =>
   value === "browser" || value === "explorer" || value === "changes";
+
+const normalizeBrowserTab = (value: unknown): BrowserTabState | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const tab = value as Partial<BrowserTabState>;
+  const id = typeof tab.id === "string" ? tab.id.trim() : "";
+  if (!id) {
+    return null;
+  }
+
+  const url = typeof tab.url === "string" ? tab.url.trim() : "";
+  const title = typeof tab.title === "string" ? tab.title.trim() : "";
+  return {
+    canGoBack: tab.canGoBack === true,
+    canGoForward: tab.canGoForward === true,
+    id,
+    title: title || "New Tab",
+    url,
+  };
+};
+
+const normalizeBrowserTabsByProject = (
+  value: unknown,
+): Record<string, BrowserTabState[]> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const normalized: Record<string, BrowserTabState[]> = {};
+  for (const [projectId, rawTabs] of Object.entries(value)) {
+    const normalizedProjectId = projectId.trim();
+    if (!normalizedProjectId || !Array.isArray(rawTabs)) {
+      continue;
+    }
+
+    const seenTabIds = new Set<string>();
+    const tabs = rawTabs
+      .map(normalizeBrowserTab)
+      .filter((tab): tab is BrowserTabState => {
+        if (!tab || seenTabIds.has(tab.id)) {
+          return false;
+        }
+        seenTabIds.add(tab.id);
+        return true;
+      });
+
+    if (tabs.length > 0) {
+      normalized[normalizedProjectId] = tabs;
+    }
+  }
+
+  return normalized;
+};
+
+const normalizeActiveBrowserTabIds = (
+  value: unknown,
+  browserTabsByProject: Record<string, BrowserTabState[]>,
+): Record<string, string | null> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return Object.fromEntries(
+      Object.entries(browserTabsByProject).map(([projectId, tabs]) => [
+        projectId,
+        tabs[0]?.id ?? null,
+      ]),
+    );
+  }
+
+  const normalized: Record<string, string | null> = {};
+  for (const [projectId, tabs] of Object.entries(browserTabsByProject)) {
+    const rawActiveTabId = (value as Record<string, unknown>)[projectId];
+    const activeTabId =
+      typeof rawActiveTabId === "string" ? rawActiveTabId.trim() : "";
+    normalized[projectId] = tabs.some((tab) => tab.id === activeTabId)
+      ? activeTabId
+      : (tabs[0]?.id ?? null);
+  }
+
+  return normalized;
+};
 
 const normalizePanelSize = (
   value: unknown,
@@ -462,10 +546,27 @@ export const mergePersistedState = (
 
   const projectsWithUi = projects.map(applyProjectUi);
   const closedProjectsWithUi = closedProjects.map(applyProjectUi);
+  const knownProjectIds = new Set(
+    [...projectsWithUi, ...closedProjectsWithUi].map((project) => project.id),
+  );
+  const rawBrowserTabsByProject = normalizeBrowserTabsByProject(
+    state.browserTabsByProject,
+  );
+  const browserTabsByProject = Object.fromEntries(
+    Object.entries(rawBrowserTabsByProject).filter(([projectId]) =>
+      knownProjectIds.has(projectId),
+    ),
+  );
+  const activeBrowserTabIdByProject = normalizeActiveBrowserTabIds(
+    state.activeBrowserTabIdByProject,
+    browserTabsByProject,
+  );
 
   return {
     activeProjectId:
       typeof state.activeProjectId === "string" ? state.activeProjectId : null,
+    activeBrowserTabIdByProject,
+    browserTabsByProject,
     chats,
     closedProjects: closedProjectsWithUi,
     messagesByChatId,

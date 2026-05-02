@@ -68,6 +68,8 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
 
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
+  activeBrowserTabIdByProject: {},
+  browserTabsByProject: {},
   chats: [],
   closedProjects: [],
   messagesByChatId: {},

@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_TAB_GAP = 4;
+const DEFAULT_TAB_GAP = 8;
 const DEFAULT_TAB_MIN_WIDTH = 144;
 const DEFAULT_TAB_MAX_WIDTH = 220;
 const TAB_DRAG_THRESHOLD = 4;
@@ -187,7 +187,8 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       return;
     }
 
-    const availableWidth = containerWidth - afterWidth - gap * items.length;
+    const availableWidth =
+      containerWidth - afterWidth - gap * Math.max(items.length - 1, 0);
     const nextWidth = clamp(availableWidth / items.length, minWidth, maxWidth);
 
     setTabWidth(nextWidth);
@@ -437,14 +438,14 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   return (
     <div
       aria-label={ariaLabel}
-      className={cn("flex min-w-0 max-w-full items-end gap-1", className)}
+      className={cn("flex min-w-0 max-w-full items-end", className)}
       ref={containerRef}
       role="tablist"
     >
       <div
         className={cn("min-w-0 overflow-hidden pb-px", interactiveClassName)}
       >
-        <div className="flex min-w-0 items-end gap-1">
+        <div className="flex min-w-0 items-end">
           {items.map((item, tabIndex) => {
             const isActive = item.id === activeId;
             const nextItem = items[tabIndex + 1] ?? null;
@@ -460,7 +461,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
             const isEditing = editingTabId === item.id;
             const tabStyle: CSSProperties = {
               transform: `translateX(${tabOffset}px)`,
-              width: `${tabWidth}px`,
+              width: `${tabWidth + (nextItem ? gap : 0)}px`,
               zIndex: isDragging ? 10 : 0,
             };
             const tabClasses = cn(
@@ -567,7 +568,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
             return (
               <div
                 className={cn(
-                  "group relative shrink-0 overflow-visible",
+                  "flex shrink-0 items-end overflow-visible",
                   isRepositioning || settlingTabIds.includes(item.id)
                     ? "transition-none"
                     : "transition-transform duration-150 ease-out",
@@ -583,33 +584,48 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                 }}
                 style={tabStyle}
               >
-                {renderFrame
-                  ? renderFrame(item, tabButton, { isActive, isDragging })
-                  : tabButton}
-                {showTrailingSplitter ? (
+                <div
+                  className="group relative shrink-0 overflow-visible"
+                  style={{ width: `${tabWidth}px` }}
+                >
+                  {renderFrame
+                    ? renderFrame(item, tabButton, { isActive, isDragging })
+                    : tabButton}
+                  {actions ? actions : null}
+                  {showClose ? (
+                    <button
+                      aria-label={
+                        closeAriaLabel?.(item) ?? `Close ${item.label}`
+                      }
+                      className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-accent-foreground group-hover:opacity-100"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onClose(item.id);
+                      }}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      type="button"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  ) : null}
+                </div>
+                {nextItem ? (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 right-[-2.5px] h-4 w-px -translate-y-1/2 bg-foreground/20"
-                  />
-                ) : null}
-                {actions ? actions : null}
-                {showClose ? (
-                  <button
-                    aria-label={closeAriaLabel?.(item) ?? `Close ${item.label}`}
-                    className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-accent-foreground group-hover:opacity-100"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onClose(item.id);
-                    }}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    type="button"
+                    className="flex h-8 shrink-0 items-center justify-center"
+                    style={{ width: `${gap}px` }}
                   >
-                    <X className="size-3.5" />
-                  </button>
+                    <div
+                      className={cn(
+                        "h-4 w-px bg-foreground/20",
+                        !showTrailingSplitter && "invisible",
+                      )}
+                    />
+                  </div>
                 ) : null}
               </div>
             );
@@ -618,19 +634,21 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       </div>
       {after ? (
         <div
-          className={cn(
-            "flex shrink-0 items-center gap-1",
-            interactiveClassName,
-          )}
+          className={cn("flex shrink-0 items-center", interactiveClassName)}
           ref={afterRef}
         >
           <div
             aria-hidden="true"
-            className={cn(
-              "h-4 w-px bg-foreground/20",
-              !showAfterSplitter && "opacity-0",
-            )}
-          />
+            className="flex h-8 shrink-0 items-center justify-center"
+            style={{ width: `${gap}px` }}
+          >
+            <div
+              className={cn(
+                "h-4 w-px bg-foreground/20",
+                !showAfterSplitter && "invisible",
+              )}
+            />
+          </div>
           {after}
         </div>
       ) : null}
