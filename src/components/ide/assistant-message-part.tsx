@@ -978,16 +978,23 @@ export const ListFilesChip = ({
           isRunning && "animate-pulse",
         )}
         onClick={() => canExpand && setExpanded(!expanded)}
+        aria-label={displayLabel}
         type="button"
       >
         <Icon className="size-3.5 shrink-0" />
-        <span className="max-w-56 truncate font-medium">{displayLabel}</span>
-        {hasOutput ? (
-          <span className="opacity-70">
-            {count} {count === 1 ? "file" : "files"}
-          </span>
+        {!isRunning ? (
+          <>
+            <span className="max-w-56 truncate font-medium">
+              {displayLabel}
+            </span>
+            {hasOutput ? (
+              <span className="opacity-70">
+                {count} {count === 1 ? "file" : "files"}
+              </span>
+            ) : null}
+            {hasError ? <span className="text-destructive">error</span> : null}
+          </>
         ) : null}
-        {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
         <div
@@ -1065,17 +1072,22 @@ export const AgentChip = ({
           isRunning && "animate-pulse",
         )}
         onClick={() => canExpand && setExpanded(!expanded)}
+        aria-label={displayDescription}
         type="button"
       >
         <BotIcon className="size-3.5 shrink-0" />
-        <span className="max-w-56 truncate font-medium">
-          {displayDescription}
-        </span>
-        {subagentType ? (
-          <span className="opacity-70">{subagentType}</span>
+        {!isRunning ? (
+          <>
+            <span className="max-w-56 truncate font-medium">
+              {displayDescription}
+            </span>
+            {subagentType ? (
+              <span className="opacity-70">{subagentType}</span>
+            ) : null}
+            <span className="opacity-70">{formatToolName(state)}</span>
+            {hasError ? <span className="text-destructive">error</span> : null}
+          </>
         ) : null}
-        <span className="opacity-70">{formatToolName(state)}</span>
-        {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
         <div
@@ -1213,11 +1225,18 @@ export const ReadFileChip = ({
           isRunning && "animate-pulse",
         )}
         onClick={() => canExpand && setExpanded(!expanded)}
+        aria-label={displayFilename}
         type="button"
       >
         <EyeIcon className="size-3.5 shrink-0" />
-        <span className="max-w-48 truncate font-medium">{displayFilename}</span>
-        {hasError ? <span className="text-destructive">error</span> : null}
+        {!isRunning ? (
+          <>
+            <span className="max-w-48 truncate font-medium">
+              {displayFilename}
+            </span>
+            {hasError ? <span className="text-destructive">error</span> : null}
+          </>
+        ) : null}
       </button>
       {expanded ? (
         <div
@@ -1354,39 +1373,44 @@ export const SearchInFilesChip = ({
           isRunning && "animate-pulse",
         )}
         onClick={() => canExpand && setExpanded(!expanded)}
+        aria-label={label}
         type="button"
       >
         <SearchChipIcon className="size-3.5 shrink-0" />
-        {isToolReferenceSearch && toolReferences.length > 0 ? (
-          <span className="max-w-64 truncate font-medium">
-            Tools: {toolReferences.join(", ")}
-          </span>
-        ) : isToolSearch ? (
-          <span className="max-w-48 truncate font-medium">
-            {query ? `Tools: ${query}` : "Tools search"}
-          </span>
-        ) : query ? (
-          <span className="max-w-48 truncate font-medium">{label}</span>
-        ) : (
-          <span className="font-medium">Search</span>
-        )}
-        {hasOutput && count > 0 ? (
-          <span className="opacity-70">
-            {count}{" "}
-            {isToolReferenceSearch
-              ? count === 1
-                ? "tool"
-                : "tools"
-              : textResults.length > 0
-                ? count === 1
-                  ? "result"
-                  : "results"
-                : count === 1
-                  ? "match"
-                  : "matches"}
-          </span>
+        {!isRunning ? (
+          <>
+            {isToolReferenceSearch && toolReferences.length > 0 ? (
+              <span className="max-w-64 truncate font-medium">
+                Tools: {toolReferences.join(", ")}
+              </span>
+            ) : isToolSearch ? (
+              <span className="max-w-48 truncate font-medium">
+                {query ? `Tools: ${query}` : "Tools search"}
+              </span>
+            ) : query ? (
+              <span className="max-w-48 truncate font-medium">{label}</span>
+            ) : (
+              <span className="font-medium">Search</span>
+            )}
+            {hasOutput && count > 0 ? (
+              <span className="opacity-70">
+                {count}{" "}
+                {isToolReferenceSearch
+                  ? count === 1
+                    ? "tool"
+                    : "tools"
+                  : textResults.length > 0
+                    ? count === 1
+                      ? "result"
+                      : "results"
+                    : count === 1
+                      ? "match"
+                      : "matches"}
+              </span>
+            ) : null}
+            {hasError ? <span className="text-destructive">error</span> : null}
+          </>
         ) : null}
-        {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
         <div
@@ -1561,19 +1585,24 @@ export const RunCommandChip = ({
           isRunning && "animate-pulse",
         )}
         onClick={() => canExpand && setExpanded(!expanded)}
+        aria-label={displayCommand ?? (isRunning ? "Running" : "Command")}
         type="button"
       >
         <TerminalIcon className="size-3.5 shrink-0" />
-        <span className="max-w-64 truncate font-medium">
-          {displayCommand ?? (isRunning ? "Running" : "Command")}
-        </span>
-        {exitCode !== null ? (
-          <span className="opacity-70">exit {exitCode}</span>
+        {!isRunning ? (
+          <>
+            <span className="max-w-64 truncate font-medium">
+              {displayCommand ?? "Command"}
+            </span>
+            {exitCode !== null ? (
+              <span className="opacity-70">exit {exitCode}</span>
+            ) : null}
+            {status === "running" ? (
+              <span className="opacity-70">running</span>
+            ) : null}
+            {hasError ? <span className="text-destructive">error</span> : null}
+          </>
         ) : null}
-        {status === "running" ? (
-          <span className="opacity-70">running</span>
-        ) : null}
-        {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
         <div
@@ -1700,15 +1729,20 @@ export const TaskOutputChip = ({
           isRunning && "animate-pulse",
         )}
         onClick={() => canExpand && setExpanded(!expanded)}
+        aria-label="Task output"
         type="button"
       >
         <WrenchIcon className="size-3.5 shrink-0" />
-        <span className="font-medium">Task output</span>
-        {taskId ? (
-          <span className="max-w-28 truncate opacity-70">{taskId}</span>
+        {!isRunning ? (
+          <>
+            <span className="font-medium">Task output</span>
+            {taskId ? (
+              <span className="max-w-28 truncate opacity-70">{taskId}</span>
+            ) : null}
+            <span className="opacity-70">{TOOL_STATE_LABELS[state]}</span>
+            {hasError ? <span className="text-destructive">error</span> : null}
+          </>
         ) : null}
-        <span className="opacity-70">{TOOL_STATE_LABELS[state]}</span>
-        {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
         <div
@@ -2013,20 +2047,29 @@ export const WriteFileChip = ({
           isRunning && "animate-pulse",
         )}
         onClick={() => canExpand && setExpanded(!expanded)}
+        aria-label={displayFilename}
         type="button"
       >
         <PenLineIcon className="size-3.5 shrink-0" />
-        <span className="max-w-48 truncate font-medium">{displayFilename}</span>
-        {mode === "append" ? <span className="opacity-70">append</span> : null}
-        {bytesWritten !== null ? (
-          <span className="opacity-70">
-            {bytesWritten.toLocaleString()} bytes
-          </span>
+        {!isRunning ? (
+          <>
+            <span className="max-w-48 truncate font-medium">
+              {displayFilename}
+            </span>
+            {mode === "append" ? (
+              <span className="opacity-70">append</span>
+            ) : null}
+            {bytesWritten !== null ? (
+              <span className="opacity-70">
+                {bytesWritten.toLocaleString()} bytes
+              </span>
+            ) : null}
+            {isApprovalRequested ? (
+              <span className="text-yellow-600">approval</span>
+            ) : null}
+            {hasError ? <span className="text-destructive">error</span> : null}
+          </>
         ) : null}
-        {isApprovalRequested ? (
-          <span className="text-yellow-600">approval</span>
-        ) : null}
-        {hasError ? <span className="text-destructive">error</span> : null}
       </button>
       {expanded ? (
         <div
