@@ -747,6 +747,52 @@ const parseSingleDiff = (diff: string) => {
   }
 };
 
+const getDiffStats = (diff: ReturnType<typeof parseSingleDiff>) => {
+  if (!diff) {
+    return null;
+  }
+
+  const additions = diff.hunks.reduce(
+    (total, hunk) => total + hunk.additionLines,
+    0,
+  );
+  const deletions = diff.hunks.reduce(
+    (total, hunk) => total + hunk.deletionLines,
+    0,
+  );
+
+  if (additions === 0 && deletions === 0) {
+    return null;
+  }
+
+  return { additions, deletions };
+};
+
+const getWriteFileStateLabel = (
+  diff: ReturnType<typeof parseSingleDiff>,
+  mode: string | null,
+  previousContent: string | null,
+) => {
+  if (diff) {
+    if (diff.type === "new") {
+      return "created";
+    }
+    if (diff.type === "deleted") {
+      return "deleted";
+    }
+    if (diff.type === "rename-pure" || diff.type === "rename-changed") {
+      return "renamed";
+    }
+    return "modified";
+  }
+
+  if (mode === "append" || previousContent !== null) {
+    return "modified";
+  }
+
+  return null;
+};
+
 const toRelativeProjectPath = (projectPath: string, filePath: string) => {
   const normalizedProjectPath = projectPath
     .replace(/\\/g, "/")
@@ -1953,11 +1999,6 @@ export const WriteFileChip = ({
       ["file", "mode"],
     ]) ??
     getStringFromPaths(output, [["mode"], ["writeMode"], ["file", "mode"]]);
-  const bytesWritten = getNumberFromPaths(output, [
-    ["bytesWritten"],
-    ["bytes"],
-    ["size"],
-  ]);
   const hasOutput = output !== undefined;
   const outputMessage = formatWriteOutputMessage(output);
   const approvalId = part.approval?.id;
@@ -1985,6 +2026,12 @@ export const WriteFileChip = ({
       !isRunning && displayDiffCode ? parseSingleDiff(displayDiffCode) : null,
     [displayDiffCode, isRunning],
   );
+  const writeFileStateLabel = getWriteFileStateLabel(
+    parsedDiff,
+    mode,
+    previousContent,
+  );
+  const writeDiffStats = getDiffStats(parsedDiff);
   useEffect(() => {
     if (defaultExpanded) {
       setExpanded(true);
@@ -2086,43 +2133,57 @@ export const WriteFileChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <ChipButton
+      <div
         className={cn(
-          getChipToneClasses(
-            "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
-            hasError,
-          ),
-          isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
-          canExpand && "cursor-pointer",
-          isRunning && "animate-pulse",
+          "flex items-center gap-2",
+          expanded && "w-full justify-between",
         )}
-        onClick={() => canExpand && setExpanded(!expanded)}
-        aria-label={displayFilename}
-        type="button"
       >
-        <PenLineIcon className="size-3.5 shrink-0" />
-        {!isRunning ? (
-          <>
-            <span className="max-w-48 truncate font-medium">
-              {displayFilename}
-            </span>
-            {mode === "append" ? (
-              <span className={CHIP_SUBTEXT_CLASSES}>append</span>
-            ) : null}
-            {bytesWritten !== null ? (
-              <span className={CHIP_SUBTEXT_CLASSES}>
-                {bytesWritten.toLocaleString()} bytes
+        <ChipButton
+          className={cn(
+            getChipToneClasses(
+              "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
+              hasError,
+            ),
+            isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
+            canExpand && "cursor-pointer",
+            isRunning && "animate-pulse",
+          )}
+          onClick={() => canExpand && setExpanded(!expanded)}
+          aria-label={displayFilename}
+          type="button"
+        >
+          <PenLineIcon className="size-3.5 shrink-0" />
+          {!isRunning ? (
+            <>
+              <span className="max-w-48 truncate font-medium">
+                {displayFilename}
               </span>
-            ) : null}
-            {isApprovalRequested ? (
-              <span className="text-yellow-600">approval</span>
-            ) : null}
-            {hasError ? (
-              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
-            ) : null}
-          </>
+              {writeFileStateLabel ? (
+                <span className={CHIP_SUBTEXT_CLASSES}>
+                  {writeFileStateLabel}
+                </span>
+              ) : null}
+              {isApprovalRequested ? (
+                <span className="text-yellow-600">approval</span>
+              ) : null}
+              {hasError ? (
+                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+              ) : null}
+            </>
+          ) : null}
+        </ChipButton>
+        {expanded && writeDiffStats ? (
+          <span className="flex shrink-0 items-center gap-1 font-medium text-xs">
+            <span className="text-emerald-600 dark:text-emerald-400">
+              +{writeDiffStats.additions}
+            </span>
+            <span className="text-red-600 dark:text-red-400">
+              -{writeDiffStats.deletions}
+            </span>
+          </span>
         ) : null}
-      </ChipButton>
+      </div>
       {expanded ? (
         <div
           className={getExpandedChipClasses(
