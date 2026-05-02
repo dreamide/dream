@@ -4,7 +4,6 @@ import {
   Code,
   Columns2,
   FileIcon,
-  RefreshCw,
   Rows3,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -287,6 +286,7 @@ const getExpandedPaths = (
 };
 
 const ChangesPanelImpl = ({
+  active = true,
   projectId: requestedProjectId,
 }: ChangesPanelProps) => {
   const activeProject = useIdeStore((s) =>
@@ -298,6 +298,7 @@ const ChangesPanelImpl = ({
   const diffLoadQueueRef = useRef<string[]>([]);
   const diffLoadQueuedPathsRef = useRef(new Set<string>());
   const diffLoadProcessingRef = useRef(false);
+  const refreshStatusRef = useRef<() => Promise<void>>(async () => {});
   const queuedProjectIdRef = useRef<string | null>(null);
 
   const [expandedPathsByProject, setExpandedPathsByProject] = useState<
@@ -353,11 +354,38 @@ const ChangesPanelImpl = ({
     changes.every((change) => expandedPathSet.has(change.path));
 
   useEffect(() => {
+    refreshStatusRef.current = refreshStatus;
+  }, [refreshStatus]);
+
+  useEffect(() => {
     queuedProjectIdRef.current = projectId;
     diffLoadQueueRef.current = [];
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
   }, [projectId]);
+
+  useEffect(() => {
+    if (!active || !projectId) {
+      return;
+    }
+
+    diffLoadQueueRef.current = [];
+    diffLoadQueuedPathsRef.current.clear();
+    diffLoadProcessingRef.current = false;
+    setDiffsByProject((current) => ({
+      ...current,
+      [projectId]: {},
+    }));
+    setDiffErrorsByProject((current) => ({
+      ...current,
+      [projectId]: {},
+    }));
+    setDiffLoadingByProject((current) => ({
+      ...current,
+      [projectId]: {},
+    }));
+    void refreshStatusRef.current();
+  }, [active, projectId]);
 
   useEffect(() => {
     void gitRefreshKey;
@@ -538,29 +566,6 @@ const ChangesPanelImpl = ({
     }
   }, [expandedPaths, projectId, queueDiffLoad]);
 
-  const handleRefresh = useCallback(() => {
-    if (!projectId) {
-      return;
-    }
-
-    diffLoadQueueRef.current = [];
-    diffLoadQueuedPathsRef.current.clear();
-    diffLoadProcessingRef.current = false;
-    setDiffsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffErrorsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffLoadingByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    void refreshStatus();
-  }, [projectId, refreshStatus]);
-
   const handleTogglePath = useCallback(
     (filePath: string) => {
       if (!projectId) {
@@ -685,20 +690,6 @@ const ChangesPanelImpl = ({
           variant="outline"
         >
           {allExpanded ? "Collapse all" : "Expand all"}
-        </Button>
-
-        <Button
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={handleRefresh}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          {statusLoading ? (
-            <Spinner className="size-3.5 text-muted-foreground" />
-          ) : (
-            <RefreshCw className="size-3.5" />
-          )}
         </Button>
       </div>
 

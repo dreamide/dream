@@ -431,7 +431,7 @@ const FileExplorerPanelImpl = ({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Files className="size-4 shrink-0 text-muted-foreground" />
           <div className="truncate text-sm font-medium">Files</div>
@@ -444,11 +444,6 @@ const FileExplorerPanelImpl = ({
         >
           {activeProject.path}
         </button>
-        <div className="flex justify-end">
-          {filesLoading ? (
-            <Spinner className="size-3.5 text-muted-foreground" />
-          ) : null}
-        </div>
       </div>
 
       <div ref={splitContainerRef} className="flex min-h-0 flex-1">

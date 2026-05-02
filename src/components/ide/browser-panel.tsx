@@ -531,7 +531,10 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
             rightPanelView === "changes" ? "" : "hidden",
           )}
         >
-          <ChangesPanel active={props.active} projectId={props.project.id} />
+          <ChangesPanel
+            active={props.active && rightPanelView === "changes"}
+            projectId={props.project.id}
+          />
         </div>
         <div
           className={cn(
