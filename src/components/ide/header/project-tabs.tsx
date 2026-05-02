@@ -9,7 +9,6 @@ import {
 } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
-import { cn } from "@/lib/utils";
 import type { DetectedEditor } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
 import {
@@ -306,30 +305,28 @@ export const ProjectTabs = () => {
         const completed =
           Boolean(completedProjectIds[project.id]) &&
           project.id !== activeProjectId;
-        const leading =
-          project.icon || completed ? (
+        const leading = completed ? (
+          <span
+            className="flex size-4 shrink-0 items-center justify-center self-center leading-none"
+            key={`${project.id}:completed`}
+          >
             <span
-              className="relative flex size-4 shrink-0 items-center justify-center"
-              key={`${project.id}:${project.icon?.path ?? ""}:${project.icon?.mtimeMs ?? 0}:${completed}`}
-            >
-              <ProjectTabIcon
-                icon={project.icon}
-                projectName={project.name}
-                projectPath={project.path}
-              />
-              {completed ? (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "size-2 shrink-0 rounded-full bg-green-500",
-                    project.icon
-                      ? "absolute right-[-1px] bottom-[-1px] ring-2 ring-background"
-                      : "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
-                  )}
-                />
-              ) : null}
-            </span>
-          ) : null;
+              aria-hidden="true"
+              className="size-2 shrink-0 rounded-full bg-green-500"
+            />
+          </span>
+        ) : project.icon ? (
+          <span
+            className="relative flex size-4 shrink-0 items-center justify-center self-center leading-none"
+            key={`${project.id}:${project.icon.path}:${project.icon.mtimeMs}`}
+          >
+            <ProjectTabIcon
+              icon={project.icon}
+              projectName={project.name}
+              projectPath={project.path}
+            />
+          </span>
+        ) : null;
 
         return {
           completed,
