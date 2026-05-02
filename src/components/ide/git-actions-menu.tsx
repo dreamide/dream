@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import type {
+  AiProvider,
   ProjectGitCommitMessageResponse,
   ProjectGitCommitResponse,
   ProjectGitCreatePrNextStep,
@@ -453,6 +454,7 @@ const CommitDialog = ({
   onOpenChange,
   open,
   projectPath,
+  provider,
   status,
 }: {
   branch: string | null;
@@ -460,11 +462,12 @@ const CommitDialog = ({
   onOpenChange: (open: boolean) => void;
   open: boolean;
   projectPath: string;
+  provider: AiProvider;
   status: ProjectGitStatusResponse | null;
 }) => {
   const [commitMessage, setCommitMessage] = useState("");
   const [autoGenerateMessage, setAutoGenerateMessage] = useState(true);
-  const [generatedCommitMessage, setGeneratedCommitMessage] = useState("");
+  const [generatingCommitMessage, setGeneratingCommitMessage] = useState(false);
   const [includeUnstaged, setIncludeUnstaged] = useState(true);
   const [submittingAction, setSubmittingAction] =
     useState<CommitSubmitAction | null>(null);
@@ -474,7 +477,10 @@ const CommitDialog = ({
     [includeUnstaged, status],
   );
   const hasCommitChanges = commitChanges.length > 0;
-  const canCommit = Boolean(commitMessage.trim()) && hasCommitChanges;
+  const canCommit =
+    Boolean(commitMessage.trim()) &&
+    hasCommitChanges &&
+    !generatingCommitMessage;
   const canCommitPush = canCommit && hasPushDestination(status);
   const fallbackGeneratedCommitMessage = useMemo(
     () => buildGeneratedCommitMessage(commitChanges),
@@ -488,7 +494,7 @@ const CommitDialog = ({
 
     setAutoGenerateMessage(true);
     setCommitMessage("");
-    setGeneratedCommitMessage("");
+    setGeneratingCommitMessage(false);
     setIncludeUnstaged(true);
     setSubmittingAction(null);
     setError(null);
@@ -496,23 +502,26 @@ const CommitDialog = ({
 
   useEffect(() => {
     if (!(open && autoGenerateMessage)) {
+      setGeneratingCommitMessage(false);
       return;
     }
 
-    setGeneratedCommitMessage(fallbackGeneratedCommitMessage);
-    setCommitMessage(fallbackGeneratedCommitMessage);
+    setCommitMessage("");
 
     if (!hasCommitChanges) {
+      setGeneratingCommitMessage(false);
       return;
     }
 
     const controller = new AbortController();
+    setGeneratingCommitMessage(true);
     void (async () => {
       try {
         const response = await fetch("/api/project-git-commit-message", {
           body: JSON.stringify({
             includeUnstaged,
             projectPath,
+            provider,
           }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
@@ -527,11 +536,15 @@ const CommitDialog = ({
           (await response.json()) as ProjectGitCommitMessageResponse;
         const nextMessage =
           payload.commitMessage.trim() || fallbackGeneratedCommitMessage;
-        setGeneratedCommitMessage(nextMessage);
         setCommitMessage(nextMessage);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
+        }
+        setCommitMessage(fallbackGeneratedCommitMessage);
+      } finally {
+        if (!controller.signal.aborted) {
+          setGeneratingCommitMessage(false);
         }
       }
     })();
@@ -546,15 +559,17 @@ const CommitDialog = ({
     includeUnstaged,
     open,
     projectPath,
+    provider,
   ]);
 
   const handleAutoGenerateMessageChange = useCallback(
     (nextChecked: boolean | "indeterminate") => {
       const nextAutoGenerateMessage = nextChecked === true;
       setAutoGenerateMessage(nextAutoGenerateMessage);
-      setCommitMessage(nextAutoGenerateMessage ? generatedCommitMessage : "");
+      setGeneratingCommitMessage(false);
+      setCommitMessage("");
     },
-    [generatedCommitMessage],
+    [],
   );
 
   const handleSubmitAction = useCallback(
@@ -672,14 +687,25 @@ const CommitDialog = ({
                 <span>Auto generate message</span>
               </label>
             </div>
-            <Textarea
-              className="min-h-24 resize-none"
-              id="commit-message"
-              readOnly={autoGenerateMessage}
-              onChange={(event) => setCommitMessage(event.target.value)}
-              placeholder="Enter a commit message"
-              value={commitMessage}
-            />
+            <div className="relative">
+              <Textarea
+                aria-busy={generatingCommitMessage}
+                className="min-h-24 resize-none"
+                id="commit-message"
+                readOnly={autoGenerateMessage}
+                onChange={(event) => setCommitMessage(event.target.value)}
+                placeholder={
+                  generatingCommitMessage ? "" : "Enter a commit message"
+                }
+                value={commitMessage}
+              />
+              {generatingCommitMessage ? (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 text-muted-foreground text-sm">
+                  <Spinner className="size-4" />
+                  <span>Generating commit message...</span>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <ActionError error={error} />
@@ -1023,6 +1049,7 @@ const GitActionDialogHost = ({
   onOpenChange,
   onPrCompleted,
   projectPath,
+  provider,
   status,
 }: {
   action: ActiveGitActionDialog;
@@ -1031,6 +1058,7 @@ const GitActionDialogHost = ({
   onOpenChange: (open: boolean) => void;
   onPrCompleted: (url: string | null, shouldOpen: boolean) => void;
   projectPath: string;
+  provider: AiProvider;
   status: ProjectGitStatusResponse | null;
 }) => {
   if (action === "commit") {
@@ -1041,6 +1069,7 @@ const GitActionDialogHost = ({
         onOpenChange={onOpenChange}
         open
         projectPath={projectPath}
+        provider={provider}
         status={status}
       />
     );
@@ -1088,6 +1117,11 @@ const GitActionsMenuImpl = ({
     (s) => s.setProjectRightPanelView,
   );
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
+  const provider = useIdeStore(
+    (s) =>
+      s.projects.find((project) => project.id === projectId)?.provider ??
+      "openai",
+  );
   const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey);
   const [activeDialog, setActiveDialog] = useState<GitActionDialog>(null);
   const hasGitChanges = getStatusFileCount(status) > 0;
@@ -1196,6 +1230,7 @@ const GitActionsMenuImpl = ({
           onOpenChange={handleDialogOpenChange}
           onPrCompleted={handlePrCompleted}
           projectPath={projectPath}
+          provider={provider}
           status={status}
         />
       ) : null}

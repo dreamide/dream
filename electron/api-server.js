@@ -20,6 +20,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  generateText,
   stepCountIs,
   streamText,
   tool,
@@ -776,6 +777,9 @@ Important: Always explain your reasoning and findings in text before and after m
 const _OPENAI_CODEX_CHATGPT_BASE_URL = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_TOOL_STEP_LIMIT = 8;
 const REASONING_TOOL_STEP_LIMIT = 50;
+const COMMIT_MESSAGE_CODEX_MODEL = "gpt-5.4-mini";
+const COMMIT_MESSAGE_CLAUDE_MODEL = "haiku";
+const COMMIT_MESSAGE_DIFF_MAX_CHARS = 18_000;
 
 const normalizePath = (value) => value.replace(/\\/g, "/");
 
@@ -2155,6 +2159,7 @@ const projectGitCommitRequestSchema = z.object({
 const projectGitCommitMessageRequestSchema = z.object({
   includeUnstaged: z.boolean().default(true),
   projectPath: z.string().min(1),
+  provider: z.enum(["openai", "anthropic"]).default("openai"),
 });
 
 const projectGitPushRequestSchema = z.object({
@@ -3176,21 +3181,18 @@ const getCommitMessageVerb = (changes) => {
 };
 
 const buildGeneratedCommitMessage = (changes, customInstructions) => {
-  const relevantChanges = changes.filter((change) => change.staged);
-  const pathAwareMessage = buildPathAwareCommitMessage(relevantChanges);
+  const pathAwareMessage = buildPathAwareCommitMessage(changes);
   if (pathAwareMessage) {
     return pathAwareMessage;
   }
 
-  if (relevantChanges.length === 1 && relevantChanges[0]) {
-    return describeGitChangeForMessage(relevantChanges[0]);
+  if (changes.length === 1 && changes[0]) {
+    return describeGitChangeForMessage(changes[0]);
   }
 
   const subject =
-    relevantChanges.length > 0
-      ? `${getCommitMessageVerb(relevantChanges)} ${formatCommitSubjectList(
-          relevantChanges,
-        )}`
+    changes.length > 0
+      ? `${getCommitMessageVerb(changes)} ${formatCommitSubjectList(changes)}`
       : "Update project files";
 
   const instructions = normalizeGitActionText(customInstructions).toLowerCase();
@@ -3270,9 +3272,236 @@ const buildDiffAwareCommitMessage = (changes, diffText, customInstructions) => {
   return message || buildGeneratedCommitMessage(changes, customInstructions);
 };
 
+const sanitizeGeneratedCommitMessage = (value) => {
+  const firstLine = String(value ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (!firstLine) {
+    return "";
+  }
+
+  return firstLine
+    .replace(/^commit message:\s*/i, "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim();
+};
+
+const truncateCommitMessageDiff = (diffText) => {
+  if (diffText.length <= COMMIT_MESSAGE_DIFF_MAX_CHARS) {
+    return diffText;
+  }
+
+  return `${diffText.slice(
+    0,
+    COMMIT_MESSAGE_DIFF_MAX_CHARS,
+  )}\n\n[diff truncated]`;
+};
+
+const buildCommitMessagePrompt = ({ changes, diffText, fallbackMessage }) => {
+  const changedFiles = changes
+    .map((change) => `- ${change.status}: ${change.path}`)
+    .join("\n");
+
+  return [
+    "Generate one concise git commit subject for these changes.",
+    "Use imperative mood, no markdown, no quotes, no trailing period.",
+    "Be specific about behavior, not just filenames.",
+    "Return only the commit subject.",
+    fallbackMessage ? `Reasonable fallback: ${fallbackMessage}` : null,
+    "",
+    "Changed files:",
+    changedFiles,
+    "",
+    "Diff:",
+    truncateCommitMessageDiff(diffText),
+  ]
+    .filter((part) => part !== null)
+    .join("\n");
+};
+
+const generateClaudeCommitMessage = async ({
+  diffText,
+  fallbackMessage,
+  changes,
+  projectPath,
+}) => {
+  const result = await generateText({
+    model: claudeCode(COMMIT_MESSAGE_CLAUDE_MODEL, {
+      continue: false,
+      cwd: projectPath,
+      persistSession: false,
+      permissionMode: "plan",
+    }),
+    prompt: buildCommitMessagePrompt({ changes, diffText, fallbackMessage }),
+    system:
+      "You write concise, accurate git commit subjects. Return only the subject line.",
+    temperature: 0.2,
+  });
+
+  return sanitizeGeneratedCommitMessage(result.text);
+};
+
+const generateCodexCommitMessage = async ({
+  diffText,
+  fallbackMessage,
+  changes,
+  projectPath,
+}) =>
+  new Promise((resolve, reject) => {
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+    let latestText = "";
+
+    const prompt = [
+      "You write concise, accurate git commit subjects.",
+      buildCommitMessagePrompt({ changes, diffText, fallbackMessage }),
+    ].join("\n\n");
+
+    const finishWithText = () => {
+      const sanitized = sanitizeGeneratedCommitMessage(latestText);
+      resolve(sanitized);
+    };
+
+    const handleEvent = (event) => {
+      if (!event || typeof event !== "object") {
+        return;
+      }
+
+      if (event.type === "error" || event.type === "turn.failed") {
+        const detail = getCodexErrorDetail(event);
+        if (detail) {
+          stderrBuffer += `${detail}\n`;
+        }
+        return;
+      }
+
+      const item = event.item;
+      if (
+        event.type === "item.completed" &&
+        item?.type === "agent_message" &&
+        typeof item.text === "string"
+      ) {
+        latestText = item.text;
+      }
+    };
+
+    const handleStdoutChunk = (chunk) => {
+      stdoutBuffer += chunk.toString();
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        try {
+          handleEvent(JSON.parse(trimmed));
+        } catch {
+          stderrBuffer += `${trimmed}\n`;
+        }
+      }
+    };
+
+    void resolveCodexCliLaunch()
+      .then((launch) => {
+        const child = spawn(
+          launch.command,
+          [
+            ...launch.argsPrefix,
+            "exec",
+            "--json",
+            "--cd",
+            projectPath,
+            "--skip-git-repo-check",
+            "--model",
+            COMMIT_MESSAGE_CODEX_MODEL,
+            "-c",
+            'sandbox_mode="read-only"',
+            "-c",
+            'approval_policy="never"',
+            "-c",
+            'model_reasoning_effort="low"',
+            "-",
+          ],
+          {
+            env: process.env,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        );
+
+        child.stdout.on("data", handleStdoutChunk);
+        child.stderr.on("data", (chunk) => {
+          stderrBuffer += chunk.toString();
+        });
+        child.on("error", (error) => {
+          reject(new Error(getCodexCliSpawnErrorMessage(error)));
+        });
+        child.on("close", (code) => {
+          const trimmed = stdoutBuffer.trim();
+          if (trimmed) {
+            try {
+              handleEvent(JSON.parse(trimmed));
+            } catch {
+              stderrBuffer += `${trimmed}\n`;
+            }
+          }
+
+          if (code === 0) {
+            finishWithText();
+            return;
+          }
+
+          reject(
+            new Error(
+              stderrBuffer.trim() || `Codex CLI exited with code ${code}.`,
+            ),
+          );
+        });
+
+        child.stdin.end(prompt);
+      })
+      .catch((error) => {
+        reject(
+          new Error(
+            error instanceof Error
+              ? error.message
+              : "Codex CLI request failed.",
+          ),
+        );
+      });
+  });
+
+const generateAiCommitMessage = async ({
+  provider,
+  diffText,
+  fallbackMessage,
+  changes,
+  projectPath,
+}) => {
+  if (provider === "anthropic") {
+    return generateClaudeCommitMessage({
+      changes,
+      diffText,
+      fallbackMessage,
+      projectPath,
+    });
+  }
+
+  return generateCodexCommitMessage({
+    changes,
+    diffText,
+    fallbackMessage,
+    projectPath,
+  });
+};
+
 const generateProjectGitCommitMessage = async (
   projectPath,
-  { includeUnstaged = true, customInstructions = "" } = {},
+  { includeUnstaged = true, customInstructions = "", provider = "openai" } = {},
 ) => {
   const status = await listProjectGitChanges(projectPath);
   const changes = status.changes.filter((change) =>
@@ -3302,11 +3531,31 @@ const generateProjectGitCommitMessage = async (
     }),
   );
 
-  return buildDiffAwareCommitMessage(
+  const diffText = diffPayloads.join("\n\n");
+  const fallbackMessage = buildDiffAwareCommitMessage(
     changes,
-    diffPayloads.join("\n\n"),
+    diffText,
     customInstructions,
   );
+
+  if (!diffText.trim()) {
+    return fallbackMessage;
+  }
+
+  try {
+    const aiMessage = await generateAiCommitMessage({
+      changes,
+      diffText,
+      fallbackMessage,
+      projectPath,
+      provider,
+    });
+
+    return aiMessage || fallbackMessage;
+  } catch (error) {
+    console.warn("[git] AI commit message generation failed:", error);
+    return fallbackMessage;
+  }
 };
 
 const commitProjectGitChanges = async (
@@ -3347,13 +3596,16 @@ const commitProjectGitChanges = async (
   }
 
   const statusBeforeCommit = await listProjectGitChanges(projectPath);
+  const commitMessageChanges = statusBeforeCommit.changes.filter((change) =>
+    includeUnstaged ? change.staged || change.unstaged : change.staged,
+  );
   const commitMessage =
     normalizeGitActionText(message) ||
     (await generateProjectGitCommitMessage(projectPath, {
       customInstructions,
       includeUnstaged,
     })) ||
-    buildGeneratedCommitMessage(statusBeforeCommit.changes, customInstructions);
+    buildGeneratedCommitMessage(commitMessageChanges, customInstructions);
 
   await runGitCommand(repoInfo.repoRoot, ["commit", "-m", commitMessage]);
   const commitHashResult = await runGitCommand(
