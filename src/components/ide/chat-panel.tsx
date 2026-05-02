@@ -568,6 +568,8 @@ const getMessagePartKey = (
 type ToolApprovalResponder = (response: {
   id: string;
   approved: boolean;
+  reason?: string;
+  scope?: "once" | "session";
 }) => void;
 
 type ChatMessageProps = {
@@ -670,6 +672,7 @@ const ChatMessage = memo(
                         <RunCommandChip
                           defaultExpanded={expandToolCalls}
                           key={key}
+                          onToolApproval={addToolApprovalResponse}
                           part={chipPart_}
                         />
                       );
@@ -904,7 +907,7 @@ export const ChatPanel = ({
     setMessages,
     status,
     stop,
-    addToolApprovalResponse,
+    addToolApprovalResponse: addAiSdkToolApprovalResponse,
     clearError,
   } = useChat({
     experimental_throttle: CHAT_STREAM_UPDATE_THROTTLE_MS,
@@ -966,6 +969,30 @@ export const ChatPanel = ({
     },
     transport,
   });
+
+  const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
+    (response) => {
+      void addAiSdkToolApprovalResponse({
+        approved: response.approved,
+        id: response.id,
+        reason: response.reason,
+      });
+
+      void fetch("/api/tool-approval-response", {
+        body: JSON.stringify({
+          approved: response.approved,
+          id: response.id,
+          reason: response.reason ?? null,
+          scope: response.scope ?? "once",
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }).catch((error) => {
+        console.error("[tool approval response]", error);
+      });
+    },
+    [addAiSdkToolApprovalResponse],
+  );
 
   useEffect(() => {
     messagesRef.current = messages;

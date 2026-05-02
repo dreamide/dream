@@ -13,6 +13,7 @@ import {
 import { motion } from "motion/react";
 import {
   type ComponentProps,
+  type ReactNode,
   startTransition,
   useCallback,
   useEffect,
@@ -73,6 +74,8 @@ import { MaterialFileIcon } from "./material-file-icon";
 type ToolApprovalHandler = (response: {
   id: string;
   approved: boolean;
+  reason?: string;
+  scope?: "once" | "session";
 }) => void;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -86,6 +89,70 @@ const ANSI_ESCAPE_SEQUENCE =
 
 const stripAnsiSequences = (value: string) =>
   value.replaceAll(ANSI_ESCAPE_SEQUENCE, "");
+
+const ActionApproval = ({
+  approval,
+  approveLabel = "Approve",
+  children,
+  onToolApproval,
+  rejectLabel = "Reject",
+  state,
+}: {
+  approval: NonNullable<ToolLikePart["approval"]>;
+  approveLabel?: string;
+  children: ReactNode;
+  onToolApproval: ToolApprovalHandler;
+  rejectLabel?: string;
+  state: ToolPart["state"];
+}) => {
+  const approvalId = approval.id;
+
+  return (
+    <Confirmation
+      approval={approval as Parameters<typeof Confirmation>[0]["approval"]}
+      state={state}
+    >
+      <ConfirmationRequest>{children}</ConfirmationRequest>
+      <ConfirmationAccepted>
+        <span className="flex items-center gap-1.5 text-green-700 text-sm">
+          <CheckIcon className="size-4" />
+          Approved
+        </span>
+      </ConfirmationAccepted>
+      <ConfirmationRejected>
+        <span className="flex items-center gap-1.5 text-red-700 text-sm">
+          <XIcon className="size-4" />
+          Rejected
+        </span>
+      </ConfirmationRejected>
+      <ConfirmationActions>
+        <ConfirmationAction
+          variant="outline"
+          onClick={() =>
+            onToolApproval({
+              approved: false,
+              id: approvalId,
+            })
+          }
+        >
+          {rejectLabel}
+        </ConfirmationAction>
+        <ConfirmationAction
+          variant="default"
+          onClick={() =>
+            onToolApproval({
+              approved: true,
+              id: approvalId,
+              scope: "once",
+            })
+          }
+        >
+          {approveLabel}
+        </ConfirmationAction>
+      </ConfirmationActions>
+    </Confirmation>
+  );
+};
 
 const unquoteCommandArgument = (value: string) => {
   const trimmed = value.trim();
@@ -1605,16 +1672,19 @@ export const SearchInFilesChip = ({
 
 export const RunCommandChip = ({
   defaultExpanded = false,
+  onToolApproval,
   part,
 }: {
   defaultExpanded?: boolean;
+  onToolApproval?: ToolApprovalHandler;
   part: ToolLikePart;
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
-  const isRunning =
-    part.state === "input-available" || part.state === "input-streaming";
+  const state = (part.state ?? "input-streaming") as ToolPart["state"];
+  const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const isApprovalRequested = state === "approval-requested";
   const command =
     isRecord(part.input) && isString(part.input.command)
       ? part.input.command
@@ -1647,7 +1717,9 @@ export const RunCommandChip = ({
   const status =
     isRecord(output) && isString(output.status) ? output.status : null;
   const hasRawOutput = output !== undefined;
-  const canExpand = hasError || hasRawOutput || command !== null;
+  const approvalId = part.approval?.id;
+  const canExpand =
+    hasError || isApprovalRequested || hasRawOutput || command !== null;
 
   useEffect(() => {
     if (defaultExpanded) {
@@ -1690,6 +1762,9 @@ export const RunCommandChip = ({
             {status === "running" ? (
               <span className={CHIP_SUBTEXT_CLASSES}>running</span>
             ) : null}
+            {isApprovalRequested ? (
+              <span className="text-yellow-600">approval</span>
+            ) : null}
             {hasError ? (
               <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
             ) : null}
@@ -1704,6 +1779,21 @@ export const RunCommandChip = ({
           )}
           style={{ borderColor: "currentColor" }}
         >
+          {approvalId && part.approval && onToolApproval ? (
+            <ActionApproval
+              approval={part.approval}
+              onToolApproval={onToolApproval}
+              state={state}
+            >
+              <span className="text-sm">
+                Allow running{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {displayCommand ?? command ?? "command"}
+                </code>
+                ?
+              </span>
+            </ActionApproval>
+          ) : null}
           {hasError ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
               {part.errorText}
@@ -2194,58 +2284,19 @@ export const WriteFileChip = ({
         >
           {/* Approval UI */}
           {approvalId && part.approval && onToolApproval ? (
-            <Confirmation
-              approval={
-                part.approval as Parameters<typeof Confirmation>[0]["approval"]
-              }
+            <ActionApproval
+              approval={part.approval}
+              onToolApproval={onToolApproval}
               state={state}
             >
-              <ConfirmationRequest>
-                <span className="text-sm">
-                  Allow writing to{" "}
-                  <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                    {filePath ?? "file"}
-                  </code>
-                  ?
-                </span>
-              </ConfirmationRequest>
-              <ConfirmationAccepted>
-                <span className="flex items-center gap-1.5 text-sm text-green-700">
-                  <CheckIcon className="size-4" />
-                  Approved
-                </span>
-              </ConfirmationAccepted>
-              <ConfirmationRejected>
-                <span className="flex items-center gap-1.5 text-sm text-red-700">
-                  <XIcon className="size-4" />
-                  Rejected
-                </span>
-              </ConfirmationRejected>
-              <ConfirmationActions>
-                <ConfirmationAction
-                  variant="outline"
-                  onClick={() =>
-                    onToolApproval({
-                      id: approvalId,
-                      approved: false,
-                    })
-                  }
-                >
-                  Reject
-                </ConfirmationAction>
-                <ConfirmationAction
-                  variant="default"
-                  onClick={() =>
-                    onToolApproval({
-                      id: approvalId,
-                      approved: true,
-                    })
-                  }
-                >
-                  Approve
-                </ConfirmationAction>
-              </ConfirmationActions>
-            </Confirmation>
+              <span className="text-sm">
+                Allow writing to{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {filePath ?? "file"}
+                </code>
+                ?
+              </span>
+            </ActionApproval>
           ) : null}
           {/* Error */}
           {hasError ? (
