@@ -1,6 +1,20 @@
 import type { UIMessage } from "ai";
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  DownloadIcon,
+  Maximize2Icon,
+  XIcon,
+} from "lucide-react";
+import type {
+  ComponentProps,
+  HTMLAttributes,
+  ReactElement,
+  ReactNode,
+  RefObject,
+} from "react";
 import {
   cloneElement,
   createContext,
@@ -10,13 +24,28 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import { Streamdown } from "streamdown";
+import { createPortal } from "react-dom";
+import {
+  extractTableDataFromElement,
+  Streamdown,
+  tableDataToCSV,
+  tableDataToMarkdown,
+  tableDataToTSV,
+} from "streamdown";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { StreamdownCodeBlock } from "@/components/ai-elements/streamdown-code-block";
 import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
+import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
@@ -344,8 +373,319 @@ const MessageCodePre = ({ children }: ComponentProps<"pre">) => {
   } as Partial<typeof codeElement.props>);
 };
 
+type TableTextFormat = "csv" | "markdown" | "tsv";
+type TableDownloadFormat = Exclude<TableTextFormat, "tsv">;
+
+const TABLE_ACTION_BUTTON_CLASSES =
+  "h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground";
+
+const getTableElement = (tableRef: RefObject<HTMLTableElement | null>) => {
+  const table = tableRef.current;
+  if (!table) {
+    throw new Error("Table not found.");
+  }
+
+  return table;
+};
+
+const getTableText = (
+  tableRef: RefObject<HTMLTableElement | null>,
+  format: TableTextFormat,
+) => {
+  const data = extractTableDataFromElement(getTableElement(tableRef));
+
+  if (format === "csv") {
+    return tableDataToCSV(data);
+  }
+
+  if (format === "tsv") {
+    return tableDataToTSV(data);
+  }
+
+  return tableDataToMarkdown(data);
+};
+
+const copyTextToClipboard = async (value: string) => {
+  const desktopApi = getDesktopApi();
+  if (desktopApi) {
+    const copied = await desktopApi.writeClipboardText(value);
+    if (!copied) {
+      throw new Error("Clipboard copy failed.");
+    }
+    return;
+  }
+
+  if (typeof window === "undefined" || !navigator?.clipboard?.writeText) {
+    throw new Error("Clipboard API not available.");
+  }
+
+  await navigator.clipboard.writeText(value);
+};
+
+const saveTableTextFile = async (
+  format: TableDownloadFormat,
+  contents: string,
+) => {
+  const extension = format === "csv" ? "csv" : "md";
+  const filename = `table.${extension}`;
+  const desktopApi = getDesktopApi();
+
+  if (desktopApi) {
+    await desktopApi.saveTextFile({
+      contents,
+      defaultPath: filename,
+      title: "Save table",
+    });
+    return;
+  }
+
+  const mimeType = format === "csv" ? "text/csv" : "text/markdown";
+  const blob = new Blob([contents], { type: `${mimeType};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+const MarkdownTableCopyMenu = ({
+  tableRef,
+}: {
+  tableRef: RefObject<HTMLTableElement | null>;
+}) => {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<number>(0);
+
+  const handleCopy = useCallback(
+    async (format: TableTextFormat) => {
+      await copyTextToClipboard(getTableText(tableRef, format));
+      setCopied(true);
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = window.setTimeout(() => setCopied(false), 2000);
+    },
+    [tableRef],
+  );
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(timeoutRef.current);
+    },
+    [],
+  );
+
+  const Icon = copied ? CheckIcon : CopyIcon;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label="Copy table"
+            className={TABLE_ACTION_BUTTON_CLASSES}
+            size="icon-xs"
+            title="Copy table"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Icon className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => void handleCopy("markdown")}>
+          Markdown
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void handleCopy("csv")}>
+          CSV
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void handleCopy("tsv")}>
+          TSV
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const MarkdownTableDownloadMenu = ({
+  tableRef,
+}: {
+  tableRef: RefObject<HTMLTableElement | null>;
+}) => {
+  const handleDownload = useCallback(
+    async (format: TableDownloadFormat) => {
+      await saveTableTextFile(format, getTableText(tableRef, format));
+    },
+    [tableRef],
+  );
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label="Download table"
+            className={TABLE_ACTION_BUTTON_CLASSES}
+            size="icon-xs"
+            title="Download table"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <DownloadIcon className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => void handleDownload("csv")}>
+          CSV
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void handleDownload("markdown")}>
+          Markdown
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const MarkdownTableFullscreenButton = ({
+  children,
+}: {
+  children: ReactNode;
+}) => {
+  const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenTableRef = useRef<HTMLTableElement>(null);
+
+  useEffect(() => {
+    if (!fullscreen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFullscreen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [fullscreen]);
+
+  return (
+    <>
+      <Button
+        aria-label="View fullscreen"
+        className={TABLE_ACTION_BUTTON_CLASSES}
+        onClick={() => setFullscreen(true)}
+        size="icon-xs"
+        title="View fullscreen"
+        type="button"
+        variant="ghost"
+      >
+        <Maximize2Icon className="size-3.5" />
+      </Button>
+      {fullscreen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              aria-label="View fullscreen"
+              aria-modal="true"
+              className="fixed inset-0 z-50 flex flex-col bg-background"
+              data-streamdown="table-fullscreen"
+              onClick={() => setFullscreen(false)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setFullscreen(false);
+                }
+              }}
+              role="dialog"
+            >
+              <div
+                className="flex h-full flex-col"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+                role="presentation"
+              >
+                <div className="flex items-center justify-end gap-1 p-4">
+                  <MarkdownTableCopyMenu tableRef={fullscreenTableRef} />
+                  <MarkdownTableDownloadMenu tableRef={fullscreenTableRef} />
+                  <Button
+                    aria-label="Exit fullscreen"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => setFullscreen(false)}
+                    size="icon-sm"
+                    title="Exit fullscreen"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <XIcon className="size-4" />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-auto p-4 pt-0 [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10">
+                  <table
+                    className="w-full border-collapse border border-border"
+                    data-streamdown="table"
+                    ref={fullscreenTableRef}
+                  >
+                    {children}
+                  </table>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+};
+
+const MarkdownTable = memo(
+  ({
+    children,
+    className,
+    node: _node,
+    ...props
+  }: ComponentProps<"table"> & { node?: unknown }) => {
+    const tableRef = useRef<HTMLTableElement>(null);
+
+    return (
+      <div
+        className="my-4 flex flex-col gap-2 rounded-lg border border-border bg-sidebar p-2"
+        data-streamdown="table-wrapper"
+      >
+        <div className="flex items-center justify-end gap-1">
+          <MarkdownTableCopyMenu tableRef={tableRef} />
+          <MarkdownTableDownloadMenu tableRef={tableRef} />
+          <MarkdownTableFullscreenButton>
+            {children}
+          </MarkdownTableFullscreenButton>
+        </div>
+        <div className="border-collapse overflow-x-auto overflow-y-auto rounded-md border border-border bg-background">
+          <table
+            className={cn("w-full divide-y divide-border", className)}
+            data-streamdown="table"
+            ref={tableRef}
+            {...props}
+          >
+            {children}
+          </table>
+        </div>
+      </div>
+    );
+  },
+);
+
+MarkdownTable.displayName = "MarkdownTable";
+
 const defaultMessageResponseComponents = {
   pre: MessageCodePre,
+  table: MarkdownTable,
 } as NonNullable<MessageResponseProps["components"]>;
 
 export const MessageResponse = memo(

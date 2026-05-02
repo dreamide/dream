@@ -77,19 +77,33 @@ const TokenSpan = ({ token }: { token: ThemedToken }) => (
 // Line rendering component
 const LineSpan = ({
   keyedLine,
+  lineNumber,
   showLineNumbers,
 }: {
   keyedLine: KeyedLine;
+  lineNumber: number;
   showLineNumbers: boolean;
-}) => (
-  <span className={showLineNumbers ? LINE_NUMBER_CLASSES : "block"}>
-    {keyedLine.tokens.length === 0
-      ? "\n"
+}) => {
+  const lineContent =
+    keyedLine.tokens.length === 0
+      ? " "
       : keyedLine.tokens.map(({ token, key }) => (
           <TokenSpan key={key} token={token} />
-        ))}
-  </span>
-);
+        ));
+
+  if (!showLineNumbers) {
+    return <span className="block min-h-[1.5em]">{lineContent}</span>;
+  }
+
+  return (
+    <span className={LINE_NUMBER_CLASSES}>
+      <span className="select-none text-right font-mono text-muted-foreground/70 tabular-nums">
+        {lineNumber}
+      </span>
+      <span className="min-w-0">{lineContent}</span>
+    </span>
+  );
+};
 
 // Types
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
@@ -288,18 +302,13 @@ export const highlightCode = (
   return null;
 };
 
-// Line number styles using CSS counters
+// Keep line numbers as real text so the gutter cannot disappear if counters or
+// pseudo-element styles are overridden by surrounding markdown/code CSS.
 const LINE_NUMBER_CLASSES = cn(
-  "block",
-  "before:content-[counter(line)]",
-  "before:inline-block",
-  "before:[counter-increment:line]",
-  "before:w-8",
-  "before:mr-4",
-  "before:text-right",
-  "before:text-muted-foreground/50",
-  "before:font-mono",
-  "before:select-none",
+  "grid",
+  "min-h-[1.5em]",
+  "grid-cols-[2rem_minmax(0,1fr)]",
+  "gap-4",
 );
 
 const CodeBlockBody = memo(
@@ -335,20 +344,12 @@ const CodeBlockBody = memo(
           )}
         style={preStyle}
       >
-        <code
-          className={cn(
-            "font-mono !text-[12px]",
-          )}
-          style={
-            showLineNumbers
-              ? { counterReset: `line ${Math.max(0, startingLineNumber - 1)}` }
-              : undefined
-          }
-        >
-          {keyedLines.map((keyedLine) => (
+        <code className={cn("font-mono !text-[12px]")}>
+          {keyedLines.map((keyedLine, lineIndex) => (
             <LineSpan
               key={keyedLine.key}
               keyedLine={keyedLine}
+              lineNumber={startingLineNumber + lineIndex}
               showLineNumbers={showLineNumbers}
             />
           ))}
