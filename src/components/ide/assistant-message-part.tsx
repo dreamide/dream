@@ -10,7 +10,9 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
+import { motion } from "motion/react";
 import {
+  type ComponentProps,
   startTransition,
   useCallback,
   useEffect,
@@ -218,6 +220,26 @@ const CHIP_DETAIL_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 py-2 text-[12px]";
 const RUN_COMMAND_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-[12px]";
+const CHIP_BUTTON_BASE_CLASSES =
+  "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-2.5 py-1 text-xs transition-colors";
+const CHIP_LAYOUT_TRANSITION = {
+  damping: 32,
+  duration: 0.18,
+  stiffness: 520,
+  type: "spring",
+} as const;
+
+const ChipButton = ({
+  className,
+  ...props
+}: ComponentProps<typeof motion.button>) => (
+  <motion.button
+    className={cn(CHIP_BUTTON_BASE_CLASSES, className)}
+    layout="size"
+    transition={CHIP_LAYOUT_TRANSITION}
+    {...props}
+  />
+);
 const STREAMING_WORD_INTERVAL_MS = 40;
 const STREAMING_MIN_INTERVAL_MS = 18;
 const STREAMING_BACKLOG_START_CHARS = 120;
@@ -967,9 +989,8 @@ export const ListFilesChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <button
+      <ChipButton
         className={cn(
-          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
             "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
             hasError,
@@ -995,7 +1016,7 @@ export const ListFilesChip = ({
             {hasError ? <span className="text-destructive">error</span> : null}
           </>
         ) : null}
-      </button>
+      </ChipButton>
       {expanded ? (
         <div
           className={getExpandedChipClasses(
@@ -1061,9 +1082,8 @@ export const AgentChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <button
+      <ChipButton
         className={cn(
-          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
             "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300",
             hasError,
@@ -1088,7 +1108,7 @@ export const AgentChip = ({
             {hasError ? <span className="text-destructive">error</span> : null}
           </>
         ) : null}
-      </button>
+      </ChipButton>
       {expanded ? (
         <div
           className={getExpandedChipClasses(
@@ -1214,9 +1234,8 @@ export const ReadFileChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <button
+      <ChipButton
         className={cn(
-          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
             "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
             hasError,
@@ -1237,7 +1256,7 @@ export const ReadFileChip = ({
             {hasError ? <span className="text-destructive">error</span> : null}
           </>
         ) : null}
-      </button>
+      </ChipButton>
       {expanded ? (
         <div
           className={getExpandedChipClasses(
@@ -1360,9 +1379,8 @@ export const SearchInFilesChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <button
+      <ChipButton
         className={cn(
-          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
             isToolReferenceSearch
               ? "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-400"
@@ -1411,7 +1429,7 @@ export const SearchInFilesChip = ({
             {hasError ? <span className="text-destructive">error</span> : null}
           </>
         ) : null}
-      </button>
+      </ChipButton>
       {expanded ? (
         <div
           className={getExpandedChipClasses(
@@ -1574,9 +1592,8 @@ export const RunCommandChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <button
+      <ChipButton
         className={cn(
-          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
             "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
             hasError,
@@ -1603,7 +1620,7 @@ export const RunCommandChip = ({
             {hasError ? <span className="text-destructive">error</span> : null}
           </>
         ) : null}
-      </button>
+      </ChipButton>
       {expanded ? (
         <div
           className={getExpandedChipClasses(
@@ -1718,9 +1735,8 @@ export const TaskOutputChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <button
+      <ChipButton
         className={cn(
-          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
             "border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
             hasError,
@@ -1743,7 +1759,7 @@ export const TaskOutputChip = ({
             {hasError ? <span className="text-destructive">error</span> : null}
           </>
         ) : null}
-      </button>
+      </ChipButton>
       {expanded ? (
         <div
           className={getExpandedChipClasses(
@@ -2035,9 +2051,8 @@ export const WriteFileChip = ({
 
   return (
     <div className={expanded ? "w-full" : undefined}>
-      <button
+      <ChipButton
         className={cn(
-          "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
           getChipToneClasses(
             "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
             hasError,
@@ -2070,7 +2085,7 @@ export const WriteFileChip = ({
             {hasError ? <span className="text-destructive">error</span> : null}
           </>
         ) : null}
-      </button>
+      </ChipButton>
       {expanded ? (
         <div
           className={getExpandedChipClasses(

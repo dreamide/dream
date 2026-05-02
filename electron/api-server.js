@@ -3030,12 +3030,16 @@ const gitQuietDiffHasChanges = async (repoRoot, args) => {
 };
 
 const formatGitFileSubject = (filePath) => {
-  const baseName = path.basename(filePath).trim();
-  if (!baseName) {
-    return "project files";
-  }
+  const baseName = path
+    .basename(filePath)
+    .replace(/\.[^.]+$/, "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 
-  return baseName;
+  return baseName || "project files";
 };
 
 const humanizeBranchName = (branch) => {
@@ -3071,19 +3075,46 @@ const describeGitChangeForMessage = (change) => {
   }
 };
 
-const getCommonTopLevelDirectory = (changes) => {
-  const directories = changes
-    .map((change) => change.path.split("/").filter(Boolean)[0])
-    .filter(Boolean);
+const formatCommitSubjectList = (changes) => {
+  const subjects = Array.from(
+    new Set(
+      changes
+        .map((change) => formatGitFileSubject(change.path))
+        .filter((subject) => subject !== "project files"),
+    ),
+  );
 
-  if (directories.length === 0) {
-    return null;
+  if (subjects.length === 0) {
+    return "project files";
   }
 
-  const [firstDirectory] = directories;
-  return directories.every((directory) => directory === firstDirectory)
-    ? firstDirectory
-    : null;
+  if (subjects.length === 1) {
+    return subjects[0];
+  }
+
+  if (subjects.length === 2) {
+    return `${subjects[0]} and ${subjects[1]}`;
+  }
+
+  return `${subjects[0]}, ${subjects[1]}, and ${
+    subjects.length - 2
+  } more files`;
+};
+
+const getCommitMessageVerb = (changes) => {
+  if (
+    changes.every(
+      (change) => change.status === "added" || change.status === "untracked",
+    )
+  ) {
+    return "Add";
+  }
+
+  if (changes.every((change) => change.status === "deleted")) {
+    return "Remove";
+  }
+
+  return "Update";
 };
 
 const buildGeneratedCommitMessage = (changes, customInstructions) => {
@@ -3092,11 +3123,11 @@ const buildGeneratedCommitMessage = (changes, customInstructions) => {
     return describeGitChangeForMessage(relevantChanges[0]);
   }
 
-  const commonDirectory = getCommonTopLevelDirectory(relevantChanges);
-  const subject = commonDirectory
-    ? `Update ${commonDirectory} files`
-    : relevantChanges.length > 0
-      ? `Update ${relevantChanges.length} files`
+  const subject =
+    relevantChanges.length > 0
+      ? `${getCommitMessageVerb(relevantChanges)} ${formatCommitSubjectList(
+          relevantChanges,
+        )}`
       : "Update project files";
 
   const instructions = normalizeGitActionText(customInstructions).toLowerCase();

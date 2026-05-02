@@ -13,9 +13,11 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +43,7 @@ import type {
   ProjectGitCreatePrResponse,
   ProjectGitPushNextStep,
   ProjectGitPushResponse,
+  ProjectGitStatusEntry,
   ProjectGitStatusResponse,
 } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
@@ -85,6 +88,109 @@ const getStatusRemovedLines = (status: ProjectGitStatusResponse | null) =>
   status?.changes.reduce((total, change) => total + change.removedLines, 0) ??
   0;
 
+const getCommitChanges = (
+  status: ProjectGitStatusResponse | null,
+  includeUnstaged: boolean,
+) =>
+  status?.changes.filter((change) =>
+    includeUnstaged ? change.staged || change.unstaged : change.staged,
+  ) ?? [];
+
+const getChangesAddedLines = (changes: ProjectGitStatusEntry[]) =>
+  changes.reduce((total, change) => total + change.addedLines, 0);
+
+const getChangesRemovedLines = (changes: ProjectGitStatusEntry[]) =>
+  changes.reduce((total, change) => total + change.removedLines, 0);
+
+const formatGitFileSubject = (filePath: string) => {
+  const baseName =
+    filePath
+      .split("/")
+      .filter(Boolean)
+      .pop()
+      ?.replace(/\.[^.]+$/, "")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase() ?? "";
+
+  return baseName || "project files";
+};
+
+const formatCommitSubjectList = (changes: ProjectGitStatusEntry[]) => {
+  const subjects = Array.from(
+    new Set(
+      changes
+        .map((change) => formatGitFileSubject(change.path))
+        .filter((subject) => subject !== "project files"),
+    ),
+  );
+
+  if (subjects.length === 0) {
+    return "project files";
+  }
+
+  if (subjects.length === 1) {
+    return subjects[0];
+  }
+
+  if (subjects.length === 2) {
+    return `${subjects[0]} and ${subjects[1]}`;
+  }
+
+  return `${subjects[0]}, ${subjects[1]}, and ${
+    subjects.length - 2
+  } more files`;
+};
+
+const getCommitMessageVerb = (changes: ProjectGitStatusEntry[]) => {
+  if (
+    changes.every(
+      (change) => change.status === "added" || change.status === "untracked",
+    )
+  ) {
+    return "Add";
+  }
+
+  if (changes.every((change) => change.status === "deleted")) {
+    return "Remove";
+  }
+
+  return "Update";
+};
+
+const describeGitChangeForMessage = (change: ProjectGitStatusEntry) => {
+  const fileSubject = formatGitFileSubject(change.path);
+  switch (change.status) {
+    case "added":
+    case "untracked":
+      return `Add ${fileSubject}`;
+    case "deleted":
+      return `Remove ${fileSubject}`;
+    case "renamed":
+      return `Rename ${formatGitFileSubject(
+        change.previousPath ?? "file",
+      )} to ${fileSubject}`;
+    case "copied":
+      return `Copy ${fileSubject}`;
+    default:
+      return `Update ${fileSubject}`;
+  }
+};
+
+const buildGeneratedCommitMessage = (changes: ProjectGitStatusEntry[]) => {
+  if (changes.length === 0) {
+    return "";
+  }
+
+  if (changes.length === 1 && changes[0]) {
+    return describeGitChangeForMessage(changes[0]);
+  }
+
+  return `${getCommitMessageVerb(changes)} ${formatCommitSubjectList(changes)}`;
+};
+
 const GitDeltaSummary = ({
   showFileCount = true,
   status,
@@ -107,12 +213,34 @@ const GitDeltaSummary = ({
   </div>
 );
 
+const GitChangesDeltaSummary = ({
+  changes,
+  showFileCount = true,
+}: {
+  changes: ProjectGitStatusEntry[];
+  showFileCount?: boolean;
+}) => (
+  <div className="flex shrink-0 items-center gap-2 font-mono text-sm tabular-nums">
+    {showFileCount ? (
+      <span className="text-muted-foreground">
+        {formatFileCount(changes.length)}
+      </span>
+    ) : null}
+    <span className="font-medium text-emerald-500">
+      {formatDelta(getChangesAddedLines(changes), "+")}
+    </span>
+    <span className="font-medium text-rose-500">
+      {formatDelta(getChangesRemovedLines(changes), "-")}
+    </span>
+  </div>
+);
+
 const GitMenuDeltaSummary = ({
   status,
 }: {
   status: ProjectGitStatusResponse | null;
 }) =>
-  status ? (
+  status && getStatusFileCount(status) > 0 ? (
     <span className="ml-auto flex shrink-0 items-center gap-1.5 font-mono text-xs tabular-nums">
       <span className="font-medium !text-emerald-500 group-focus/dropdown-menu-item:!text-emerald-500">
         {formatDelta(getStatusAddedLines(status), "+")}
@@ -184,9 +312,33 @@ const NextStepSelector = <Value extends string>({
 );
 
 const DialogIcon = ({ children }: { children: ReactNode }) => (
-  <div className="flex size-12 items-center justify-center rounded-xl bg-muted text-foreground [&_svg]:size-6">
+  <div className="flex size-5 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-5">
     {children}
   </div>
+);
+
+const GitDialogHeader = ({
+  icon,
+  subtitle,
+  title,
+}: {
+  icon: ReactNode;
+  subtitle?: ReactNode;
+  title: string;
+}) => (
+  <DialogHeader className="gap-1 text-left">
+    <div className="flex min-w-0 items-center gap-3">
+      <DialogIcon>{icon}</DialogIcon>
+      <div className="min-w-0">
+        <DialogTitle className="text-base leading-6">{title}</DialogTitle>
+        {subtitle ? (
+          <div className="truncate text-muted-foreground text-sm">
+            {subtitle}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  </DialogHeader>
 );
 
 const DialogMetricRow = ({
@@ -200,16 +352,6 @@ const DialogMetricRow = ({
     <div className="font-medium">{label}</div>
     <div className="min-w-0 text-right text-muted-foreground">{value}</div>
   </div>
-);
-
-const CustomInstructionsToggle = ({ onClick }: { onClick: () => void }) => (
-  <button
-    className="text-muted-foreground text-sm transition-colors hover:text-foreground"
-    onClick={onClick}
-    type="button"
-  >
-    Custom instructions
-  </button>
 );
 
 const ActionError = ({ error }: { error: string | null }) =>
@@ -235,28 +377,50 @@ const CommitDialog = ({
   status: ProjectGitStatusResponse | null;
 }) => {
   const [commitMessage, setCommitMessage] = useState("");
-  const [customInstructions, setCustomInstructions] = useState("");
+  const [autoGenerateMessage, setAutoGenerateMessage] = useState(true);
   const [includeUnstaged, setIncludeUnstaged] = useState(true);
-  const [showCustomInstructions, setShowCustomInstructions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const commitChanges = useMemo(
+    () => getCommitChanges(status, includeUnstaged),
+    [includeUnstaged, status],
+  );
+  const hasCommitChanges = commitChanges.length > 0;
+  const generatedCommitMessage = useMemo(
+    () => buildGeneratedCommitMessage(commitChanges),
+    [commitChanges],
+  );
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
+    setAutoGenerateMessage(true);
     setCommitMessage("");
-    setCustomInstructions("");
     setIncludeUnstaged(true);
-    setShowCustomInstructions(false);
     setError(null);
   }, [open]);
+
+  useEffect(() => {
+    if (open && autoGenerateMessage) {
+      setCommitMessage(generatedCommitMessage);
+    }
+  }, [autoGenerateMessage, generatedCommitMessage, open]);
+
+  const handleAutoGenerateMessageChange = useCallback(
+    (nextChecked: boolean | "indeterminate") => {
+      const nextAutoGenerateMessage = nextChecked === true;
+      setAutoGenerateMessage(nextAutoGenerateMessage);
+      setCommitMessage(nextAutoGenerateMessage ? generatedCommitMessage : "");
+    },
+    [generatedCommitMessage],
+  );
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (submitting) {
+      if (submitting || !commitMessage.trim() || !hasCommitChanges) {
         return;
       }
 
@@ -264,7 +428,6 @@ const CommitDialog = ({
       setError(null);
       try {
         await postJson<ProjectGitCommitResponse>("/api/project-git-commit", {
-          customInstructions,
           includeUnstaged,
           message: commitMessage,
           projectPath,
@@ -281,7 +444,7 @@ const CommitDialog = ({
     },
     [
       commitMessage,
-      customInstructions,
+      hasCommitChanges,
       includeUnstaged,
       onCompleted,
       onOpenChange,
@@ -293,12 +456,10 @@ const CommitDialog = ({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-5 sm:max-w-2xl">
-        <DialogHeader className="gap-4">
-          <DialogIcon>
-            <GitCommitHorizontal />
-          </DialogIcon>
-          <DialogTitle className="text-2xl">Commit your changes</DialogTitle>
-        </DialogHeader>
+        <GitDialogHeader
+          icon={<GitCommitHorizontal />}
+          title="Commit your changes"
+        />
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
@@ -313,7 +474,7 @@ const CommitDialog = ({
             />
             <DialogMetricRow
               label="Changes"
-              value={<GitDeltaSummary status={status} />}
+              value={<GitChangesDeltaSummary changes={commitChanges} />}
             />
           </div>
 
@@ -334,31 +495,38 @@ const CommitDialog = ({
               <label className="font-medium text-sm" htmlFor="commit-message">
                 Commit message
               </label>
-              <CustomInstructionsToggle
-                onClick={() => setShowCustomInstructions((current) => !current)}
-              />
+              <label
+                className="flex items-center gap-2 text-sm"
+                htmlFor="commit-auto-generate-message"
+              >
+                <Checkbox
+                  checked={autoGenerateMessage}
+                  id="commit-auto-generate-message"
+                  onCheckedChange={handleAutoGenerateMessageChange}
+                />
+                <span>Auto generate message</span>
+              </label>
             </div>
             <Textarea
               className="min-h-24 resize-none"
               id="commit-message"
+              readOnly={autoGenerateMessage}
               onChange={(event) => setCommitMessage(event.target.value)}
-              placeholder="Leave blank to autogenerate a commit message"
+              placeholder="Enter a commit message"
               value={commitMessage}
             />
-            {showCustomInstructions ? (
-              <Textarea
-                className="min-h-20 resize-none"
-                onChange={(event) => setCustomInstructions(event.target.value)}
-                placeholder="Optional generation instructions"
-                value={customInstructions}
-              />
-            ) : null}
           </div>
 
           <ActionError error={error} />
 
           <div className="flex justify-end">
-            <Button className="min-w-36" disabled={submitting} type="submit">
+            <Button
+              className="min-w-36"
+              disabled={
+                submitting || !commitMessage.trim() || !hasCommitChanges
+              }
+              type="submit"
+            >
               {submitting ? <Spinner className="size-4" /> : null}
               <span>Continue</span>
             </Button>
@@ -410,7 +578,6 @@ const PushDialog = ({
       try {
         await postJson<ProjectGitPushResponse>("/api/project-git-push", {
           commitMessage: null,
-          customInstructions: null,
           includeUnstaged: true,
           nextStep,
           projectPath,
@@ -431,12 +598,7 @@ const PushDialog = ({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-5 sm:max-w-2xl">
-        <DialogHeader className="gap-4">
-          <DialogIcon>
-            <UploadCloud />
-          </DialogIcon>
-          <DialogTitle className="text-2xl">Push changes</DialogTitle>
-        </DialogHeader>
+        <GitDialogHeader icon={<UploadCloud />} title="Push changes" />
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <DialogMetricRow
@@ -504,12 +666,10 @@ const CreatePrDialog = ({
 }) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [customInstructions, setCustomInstructions] = useState("");
   const [draft, setDraft] = useState(true);
   const [openPrPage, setOpenPrPage] = useState(false);
   const [nextStep, setNextStep] =
     useState<ProjectGitCreatePrNextStep>("create");
-  const [showCustomInstructions, setShowCustomInstructions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasChanges = getStatusFileCount(status) > 0;
@@ -523,13 +683,11 @@ const CreatePrDialog = ({
 
     setTitle("");
     setDescription("");
-    setCustomInstructions("");
     setDraft(true);
     setOpenPrPage(false);
     setNextStep(
       hasChanges ? "commit-push-create" : needsPush ? "push-create" : "create",
     );
-    setShowCustomInstructions(false);
     setError(null);
   }, [hasChanges, needsPush, open]);
 
@@ -548,7 +706,6 @@ const CreatePrDialog = ({
           {
             baseBranch,
             commitMessage: null,
-            customInstructions,
             description,
             draft,
             includeUnstaged: true,
@@ -572,7 +729,6 @@ const CreatePrDialog = ({
     },
     [
       baseBranch,
-      customInstructions,
       description,
       draft,
       nextStep,
@@ -588,15 +744,15 @@ const CreatePrDialog = ({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-5 sm:max-w-2xl">
-        <DialogHeader className="gap-4">
-          <DialogIcon>
-            <GitPullRequest />
-          </DialogIcon>
-          <DialogTitle className="text-2xl">Create PR</DialogTitle>
-          <div className="text-muted-foreground text-sm">
-            {baseBranch} -&gt; {branch ?? "current branch"}
-          </div>
-        </DialogHeader>
+        <GitDialogHeader
+          icon={<GitPullRequest />}
+          subtitle={
+            <>
+              {baseBranch} -&gt; {branch ?? "current branch"}
+            </>
+          }
+          title="Create PR"
+        />
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <DialogMetricRow
@@ -605,28 +761,15 @@ const CreatePrDialog = ({
           />
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <label className="font-medium text-sm" htmlFor="pr-title">
-                Title
-              </label>
-              <CustomInstructionsToggle
-                onClick={() => setShowCustomInstructions((current) => !current)}
-              />
-            </div>
+            <label className="font-medium text-sm" htmlFor="pr-title">
+              Title
+            </label>
             <Input
               id="pr-title"
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Leave blank to generate"
               value={title}
             />
-            {showCustomInstructions ? (
-              <Textarea
-                className="min-h-20 resize-none"
-                onChange={(event) => setCustomInstructions(event.target.value)}
-                placeholder="Optional generation instructions"
-                value={customInstructions}
-              />
-            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -795,9 +938,16 @@ const GitActionsMenuImpl = ({
     setProjectRightPanelOpen(projectId, true);
   }, [projectId, setProjectRightPanelOpen, setProjectRightPanelView]);
 
-  const handleOpenDialog = useCallback((dialog: GitActionDialog) => {
-    setActiveDialog(dialog);
-  }, []);
+  const handleOpenDialog = useCallback(
+    (dialog: GitActionDialog) => {
+      if (!hasGitChanges) {
+        return;
+      }
+
+      setActiveDialog(dialog);
+    },
+    [hasGitChanges],
+  );
 
   const handleActionCompleted = useCallback(() => {
     bumpProjectGitRefreshKey(projectId);
@@ -849,15 +999,24 @@ const GitActionsMenuImpl = ({
             Changes
             <GitMenuDeltaSummary status={status} />
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleOpenDialog("commit")}>
+          <DropdownMenuItem
+            disabled={!hasGitChanges}
+            onClick={() => handleOpenDialog("commit")}
+          >
             <GitCommitHorizontal className="size-4" />
             Commit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleOpenDialog("push")}>
+          <DropdownMenuItem
+            disabled={!hasGitChanges}
+            onClick={() => handleOpenDialog("push")}
+          >
             <UploadCloud className="size-4" />
             Push
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleOpenDialog("pr")}>
+          <DropdownMenuItem
+            disabled={!hasGitChanges}
+            onClick={() => handleOpenDialog("pr")}
+          >
             <GitPullRequest className="size-4" />
             Create pull request
           </DropdownMenuItem>
