@@ -126,6 +126,7 @@ import {
 } from "./assistant-message-part";
 import { getChipToolKind, isChipToolPart } from "./assistant-message-tools";
 import { BranchSwitcher } from "./branch-switcher";
+import { mergeChatMessageHistories } from "./chat-message-history";
 import { useIdeStore } from "./ide-store";
 import {
   CLAUDE_PERMISSION_MODE_OPTIONS,
@@ -846,6 +847,8 @@ export const ChatPanel = ({
   const setClaudePermissionMode = useIdeStore((s) => s.setClaudePermissionMode);
   const codexPermissionMode = useIdeStore((s) => s.codexPermissionMode);
   const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
+  const geminiPermissionMode = useIdeStore((s) => s.geminiPermissionMode);
+  const setGeminiPermissionMode = useIdeStore((s) => s.setGeminiPermissionMode);
   const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
@@ -968,10 +971,11 @@ export const ChatPanel = ({
   }, [messages]);
 
   useEffect(() => {
-    if (chatMessages.length > messages.length) {
-      setMessages(chatMessages);
+    const mergedMessages = mergeChatMessageHistories(chatMessages, messages);
+    if (mergedMessages !== messages) {
+      setMessages(mergedMessages);
     }
-  }, [chatMessages, messages.length, setMessages]);
+  }, [chatMessages, messages, setMessages]);
 
   useEffect(() => {
     setMessagesForChat(chat.id, messages);
@@ -1347,6 +1351,7 @@ export const ChatPanel = ({
             body: {
               claudePermissionMode,
               codexPermissionMode,
+              geminiPermissionMode,
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
               projectPath: project.path,
@@ -1370,6 +1375,7 @@ export const ChatPanel = ({
       allModelOptions,
       claudePermissionMode,
       codexPermissionMode,
+      geminiPermissionMode,
       clearError,
       chatMessages,
       providerModels,
@@ -1706,8 +1712,7 @@ export const ChatPanel = ({
                     </Select>
                   )}
 
-                  {selectedProvider === "openai" ||
-                  selectedProvider === "google" ? (
+                  {selectedProvider === "openai" ? (
                     <Select
                       onValueChange={(value) => {
                         setCodexPermissionMode(value as CodexPermissionMode);
@@ -1722,6 +1727,31 @@ export const ChatPanel = ({
                       </SelectTrigger>
                       <SelectContent className="text-xs" side="top">
                         {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
+                          <SelectItem
+                            className="text-xs"
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : selectedProvider === "google" ? (
+                    <Select
+                      onValueChange={(value) => {
+                        setGeminiPermissionMode(value as GeminiPermissionMode);
+                      }}
+                      value={geminiPermissionMode}
+                    >
+                      <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                        <Shield className="size-3.5 shrink-0" />
+                        <span className="truncate">
+                          {getGeminiPermissionModeLabel(geminiPermissionMode)}
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent className="text-xs" side="top">
+                        {GEMINI_PERMISSION_MODE_OPTIONS.map((option) => (
                           <SelectItem
                             className="text-xs"
                             key={option.value}

@@ -347,6 +347,82 @@ const GEMINI_CLI_MODEL_OPTIONS = [
   createModelOption("google", "gemini-3-pro-preview"),
 ];
 
+const GEMINI_MODELS_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+let geminiCliModelOptionsCache = {
+  expiresAt: 0,
+  models: GEMINI_CLI_MODEL_OPTIONS,
+};
+
+/**
+ * Parse the output of `gemini models` into ModelOption entries.
+ * Handles both JSON (array or `{ models: [...] }`) and plain-text output
+ * where each line may look like "- gemini-2.5-pro" or just "gemini-2.5-pro".
+ */
+const parseGeminiModelOptions = (output) => {
+  // --- JSON path ---
+  try {
+    const parsed = JSON.parse(output);
+    const list = Array.isArray(parsed) ? parsed : (parsed.models ?? []);
+    const ids = list
+      .map((entry) =>
+        typeof entry === "string"
+          ? entry.trim()
+          : (entry.name ?? entry.id ?? ""),
+      )
+      .filter(Boolean);
+    if (ids.length > 0) {
+      return ids.map((id) => createModelOption("google", id));
+    }
+  } catch {
+    // Not JSON — fall through to text parsing.
+  }
+
+  // --- Plain-text path ---
+  const ids = output
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^[-*•]\s*/, ""))
+    .filter((line) => /^gemini-\S+$/.test(line) || /^(auto|pro|flash(\-lite)?)$/.test(line));
+  return ids.map((id) => createModelOption("google", id));
+};
+
+/**
+ * Attempt to retrieve the list of available Gemini models from the CLI.
+ * Falls back to the built-in static list on any error.
+ *
+ * Results are cached for GEMINI_MODELS_CACHE_TTL_MS to avoid repeated
+ * subprocess invocations (mirrors the pattern used for Claude Code models).
+ */
+const fetchGeminiCliModelOptions = async () => {
+  if (Date.now() < geminiCliModelOptionsCache.expiresAt) {
+    return geminiCliModelOptionsCache.models;
+  }
+
+  try {
+    const result = await execFileAsync("gemini", ["models"], {
+      encoding: "utf8",
+      timeout: 10_000,
+      windowsHide: true,
+    });
+    const output = (result.stdout || result.stderr || "").trim();
+    const models = parseGeminiModelOptions(output);
+    if (models.length > 0) {
+      geminiCliModelOptionsCache = {
+        expiresAt: Date.now() + GEMINI_MODELS_CACHE_TTL_MS,
+        models,
+      };
+      return models;
+    }
+  } catch {
+    // `gemini models` is not supported by this CLI version — use static list.
+  }
+
+  geminiCliModelOptionsCache = {
+    expiresAt: Date.now() + GEMINI_MODELS_CACHE_TTL_MS,
+    models: GEMINI_CLI_MODEL_OPTIONS,
+  };
+  return GEMINI_CLI_MODEL_OPTIONS;
+};
+
 const normalizeClaudeCodeModel = (modelId) => {
   const trimmed = modelId.trim().toLowerCase();
   if (!trimmed) return "sonnet";
@@ -753,14 +829,34 @@ const fetchGoogleModels = async () => {
       version: null,
     };
   }
+
   const version = await getCliVersion("gemini");
 
-  return {
-    installed: true,
-    models: GEMINI_CLI_MODEL_OPTIONS,
-    source: "cli",
-    version,
-  };
+  try {
+    const models = await fetchGeminiCliModelOptions();
+    if (models.length === 0) {
+      return {
+        error: "Gemini CLI returned no models.",
+        installed: true,
+        models: [],
+        source: "unavailable",
+        version,
+      };
+    }
+
+    return { installed: true, models, source: "cli", version };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch Gemini models.",
+      installed: true,
+      models: [],
+      source: "unavailable",
+      version,
+    };
+  }
 };
 
 app.post("/api/provider-models", async (c) => {
@@ -790,6 +886,9 @@ const chatRequestBodySchema = z.object({
     ])
     .default("ask-permissions"),
   codexPermissionMode: z
+    .enum(["default", "auto-accept-edits", "full-access"])
+    .default("default"),
+  geminiPermissionMode: z
     .enum(["default", "auto-accept-edits", "full-access"])
     .default("default"),
   messages: z.array(z.unknown()),
@@ -1903,17 +2002,17 @@ const getGeminiCliSpawnErrorMessage = (error) => {
   return error instanceof Error ? error.message : "Gemini CLI request failed.";
 };
 
-const buildGeminiExecArgs = ({ codexPermissionMode, model }) => [
+const buildGeminiExecArgs = ({ geminiPermissionMode, model }) => [
   ...(model ? ["--model", model] : []),
   "--approval-mode",
-  GEMINI_APPROVAL_MODE_MAP[codexPermissionMode] ?? "default",
+  GEMINI_APPROVAL_MODE_MAP[geminiPermissionMode] ?? "default",
   "--prompt",
   "Continue the conversation using the full prompt and instructions provided on stdin.",
 ];
 
 const streamGeminiCliResponse = ({
   abortSignal,
-  codexPermissionMode,
+  geminiPermissionMode,
   messages,
   model,
   projectPath,
@@ -1965,7 +2064,7 @@ const streamGeminiCliResponse = ({
           projectPath,
           systemPrompt,
         });
-        const args = buildGeminiExecArgs({ codexPermissionMode, model });
+        const args = buildGeminiExecArgs({ geminiPermissionMode, model });
 
         child = spawn("gemini", args, {
           cwd: projectPath,
@@ -2020,6 +2119,7 @@ app.post("/api/chat", async (c) => {
   const {
     claudePermissionMode,
     codexPermissionMode,
+    geminiPermissionMode,
     model,
     modelLabel,
     projectPath,
@@ -2095,7 +2195,7 @@ app.post("/api/chat", async (c) => {
 
     return streamGeminiCliResponse({
       abortSignal: c.req.raw.signal,
-      codexPermissionMode,
+      geminiPermissionMode,
       messages,
       model,
       responseMessageMetadata,

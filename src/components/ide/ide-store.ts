@@ -22,6 +22,7 @@ import type {
   ProjectConfig,
   RightPanelView,
 } from "@/types/ide";
+import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   ensureActiveChatForProject,
   ensureActiveProject,
@@ -372,17 +373,6 @@ const shouldTouchChatUpdatedAt = (
   }
 
   return false;
-};
-
-const isStaleMessageSnapshot = (
-  previousMessages: UIMessage[] | undefined,
-  nextMessages: UIMessage[],
-) => {
-  if (!previousMessages || previousMessages.length === 0) {
-    return false;
-  }
-
-  return nextMessages.length < previousMessages.length;
 };
 
 const BROWSER_TAB_ID_PREFIX = "browser-tab";
@@ -1154,11 +1144,15 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         return state;
       }
       const previousMessages = state.messagesByChatId[chatId];
-      if (isStaleMessageSnapshot(previousMessages, messages)) {
-        return state;
-      }
+      const mergedMessages = mergeChatMessageHistories(
+        previousMessages,
+        messages,
+      );
 
-      const messagesChanged = !areMessagesEqual(previousMessages, messages);
+      const messagesChanged = !areMessagesEqual(
+        previousMessages,
+        mergedMessages,
+      );
 
       if (!messagesChanged) {
         return state;
@@ -1166,12 +1160,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       const touchUpdatedAt = shouldTouchChatUpdatedAt(
         previousMessages,
-        messages,
+        mergedMessages,
       );
 
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
       if (
-        messages.length > 0 &&
+        mergedMessages.length > 0 &&
         nextDraftChatIdByProject[chat.projectId] === chatId
       ) {
         nextDraftChatIdByProject[chat.projectId] = null;
@@ -1179,7 +1173,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       return {
         draftChatIdByProject: nextDraftChatIdByProject,
-        messagesByChatId: { ...state.messagesByChatId, [chatId]: messages },
+        messagesByChatId: {
+          ...state.messagesByChatId,
+          [chatId]: mergedMessages,
+        },
         chats: touchUpdatedAt
           ? state.chats.map((item) =>
               item.id === chatId
