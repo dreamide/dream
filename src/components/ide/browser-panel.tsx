@@ -521,7 +521,7 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
           )}
         >
           <FileExplorerPanel
-            active={props.active}
+            active={props.active && rightPanelView === "explorer"}
             projectId={props.project.id}
           />
         </div>

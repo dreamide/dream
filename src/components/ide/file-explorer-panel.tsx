@@ -1,4 +1,4 @@
-import { FileIcon, Files, RefreshCw } from "lucide-react";
+import { FileIcon, Files } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -14,7 +14,6 @@ import {
   FileTreeFile,
   FileTreeFolder,
 } from "@/components/ai-elements/file-tree";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
@@ -293,12 +292,8 @@ const FileExplorerPanelImpl = ({
       return;
     }
 
-    if (fileListsByProject[projectId]) {
-      return;
-    }
-
     void loadProjectFiles();
-  }, [active, fileListsByProject, loadProjectFiles, projectId, projectPath]);
+  }, [active, loadProjectFiles, projectId, projectPath]);
 
   useEffect(() => {
     if (!active) {
@@ -450,19 +445,9 @@ const FileExplorerPanelImpl = ({
           {activeProject.path}
         </button>
         <div className="flex justify-end">
-          <Button
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={() => void loadProjectFiles()}
-            size="icon-sm"
-            type="button"
-            variant="ghost"
-          >
-            {filesLoading ? (
-              <Spinner className="size-3.5 text-muted-foreground" />
-            ) : (
-              <RefreshCw className="size-3.5" />
-            )}
-          </Button>
+          {filesLoading ? (
+            <Spinner className="size-3.5 text-muted-foreground" />
+          ) : null}
         </div>
       </div>
 
