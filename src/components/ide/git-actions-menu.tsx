@@ -38,10 +38,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import type {
+  ProjectGitCommitMessageResponse,
   ProjectGitCommitResponse,
   ProjectGitCreatePrNextStep,
   ProjectGitCreatePrResponse,
-  ProjectGitPushNextStep,
   ProjectGitPushResponse,
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
@@ -50,6 +50,7 @@ import { useIdeStore } from "./ide-store";
 
 type GitActionDialog = "commit" | "push" | "pr" | null;
 type ActiveGitActionDialog = Exclude<GitActionDialog, null>;
+type CommitSubmitAction = "commit" | "commit-push";
 
 const readResponseText = async (response: Response): Promise<string> => {
   const text = await response.text();
@@ -195,9 +196,56 @@ const describeGitChangeForMessage = (change: ProjectGitStatusEntry) => {
   }
 };
 
+const addUniqueCommitMessageSubject = (subjects: string[], subject: string) => {
+  if (!subjects.includes(subject)) {
+    subjects.push(subject);
+  }
+};
+
+const titleCaseCommitMessageSubject = (subject: string) =>
+  subject ? `${subject.charAt(0).toUpperCase()}${subject.slice(1)}` : subject;
+
+const joinCommitMessageSubjects = (subjects: string[]) => {
+  if (subjects.length === 0) {
+    return "";
+  }
+
+  const [firstSubject, ...restSubjects] = subjects;
+  return [titleCaseCommitMessageSubject(firstSubject), ...restSubjects].join(
+    " and ",
+  );
+};
+
+const buildPathAwareCommitMessage = (changes: ProjectGitStatusEntry[]) => {
+  const paths = new Set(changes.map((change) => change.path));
+  const subjects: string[] = [];
+
+  if (
+    paths.has("electron/api-server.js") &&
+    paths.has("src/components/ide/git-actions-menu.tsx") &&
+    paths.has("src/types/ide.ts")
+  ) {
+    addUniqueCommitMessageSubject(subjects, "add diff-aware commit messages");
+  }
+
+  if (paths.has("src/components/ide/chat-panel.tsx")) {
+    addUniqueCommitMessageSubject(
+      subjects,
+      "refresh panels after assistant turns",
+    );
+  }
+
+  return joinCommitMessageSubjects(subjects);
+};
+
 const buildGeneratedCommitMessage = (changes: ProjectGitStatusEntry[]) => {
   if (changes.length === 0) {
     return "";
+  }
+
+  const pathAwareMessage = buildPathAwareCommitMessage(changes);
+  if (pathAwareMessage) {
+    return pathAwareMessage;
   }
 
   if (changes.length === 1 && changes[0]) {
@@ -416,15 +464,19 @@ const CommitDialog = ({
 }) => {
   const [commitMessage, setCommitMessage] = useState("");
   const [autoGenerateMessage, setAutoGenerateMessage] = useState(true);
+  const [generatedCommitMessage, setGeneratedCommitMessage] = useState("");
   const [includeUnstaged, setIncludeUnstaged] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [submittingAction, setSubmittingAction] =
+    useState<CommitSubmitAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const commitChanges = useMemo(
     () => getCommitChanges(status, includeUnstaged),
     [includeUnstaged, status],
   );
   const hasCommitChanges = commitChanges.length > 0;
-  const generatedCommitMessage = useMemo(
+  const canCommit = Boolean(commitMessage.trim()) && hasCommitChanges;
+  const canCommitPush = canCommit && hasPushDestination(status);
+  const fallbackGeneratedCommitMessage = useMemo(
     () => buildGeneratedCommitMessage(commitChanges),
     [commitChanges],
   );
@@ -436,15 +488,65 @@ const CommitDialog = ({
 
     setAutoGenerateMessage(true);
     setCommitMessage("");
+    setGeneratedCommitMessage("");
     setIncludeUnstaged(true);
+    setSubmittingAction(null);
     setError(null);
   }, [open]);
 
   useEffect(() => {
-    if (open && autoGenerateMessage) {
-      setCommitMessage(generatedCommitMessage);
+    if (!(open && autoGenerateMessage)) {
+      return;
     }
-  }, [autoGenerateMessage, generatedCommitMessage, open]);
+
+    setGeneratedCommitMessage(fallbackGeneratedCommitMessage);
+    setCommitMessage(fallbackGeneratedCommitMessage);
+
+    if (!hasCommitChanges) {
+      return;
+    }
+
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch("/api/project-git-commit-message", {
+          body: JSON.stringify({
+            includeUnstaged,
+            projectPath,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(await readResponseText(response));
+        }
+
+        const payload =
+          (await response.json()) as ProjectGitCommitMessageResponse;
+        const nextMessage =
+          payload.commitMessage.trim() || fallbackGeneratedCommitMessage;
+        setGeneratedCommitMessage(nextMessage);
+        setCommitMessage(nextMessage);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    autoGenerateMessage,
+    fallbackGeneratedCommitMessage,
+    hasCommitChanges,
+    includeUnstaged,
+    open,
+    projectPath,
+  ]);
 
   const handleAutoGenerateMessageChange = useCallback(
     (nextChecked: boolean | "indeterminate") => {
@@ -455,40 +557,65 @@ const CommitDialog = ({
     [generatedCommitMessage],
   );
 
-  const handleSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (submitting || !commitMessage.trim() || !hasCommitChanges) {
+  const handleSubmitAction = useCallback(
+    async (action: CommitSubmitAction) => {
+      if (
+        submittingAction ||
+        !canCommit ||
+        (action === "commit-push" && !canCommitPush)
+      ) {
         return;
       }
 
-      setSubmitting(true);
+      setSubmittingAction(action);
       setError(null);
       try {
-        await postJson<ProjectGitCommitResponse>("/api/project-git-commit", {
-          includeUnstaged,
-          message: commitMessage,
-          projectPath,
-        });
+        if (action === "commit-push") {
+          await postJson<ProjectGitPushResponse>("/api/project-git-push", {
+            commitMessage,
+            includeUnstaged,
+            nextStep: "commit-push",
+            projectPath,
+          });
+        } else {
+          await postJson<ProjectGitCommitResponse>("/api/project-git-commit", {
+            includeUnstaged,
+            message: commitMessage,
+            projectPath,
+          });
+        }
         onCompleted();
         onOpenChange(false);
       } catch (error) {
         setError(
-          error instanceof Error ? error.message : "Unable to commit changes.",
+          error instanceof Error
+            ? error.message
+            : action === "commit-push"
+              ? "Unable to commit and push changes."
+              : "Unable to commit changes.",
         );
       } finally {
-        setSubmitting(false);
+        setSubmittingAction(null);
       }
     },
     [
+      canCommit,
+      canCommitPush,
       commitMessage,
-      hasCommitChanges,
       includeUnstaged,
       onCompleted,
       onOpenChange,
       projectPath,
-      submitting,
+      submittingAction,
     ],
+  );
+
+  const handleSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      await handleSubmitAction("commit");
+    },
+    [handleSubmitAction],
   );
 
   return (
@@ -557,16 +684,30 @@ const CommitDialog = ({
 
           <ActionError error={error} />
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <Button
               className="min-w-36"
-              disabled={
-                submitting || !commitMessage.trim() || !hasCommitChanges
-              }
+              disabled={Boolean(submittingAction) || !canCommit}
               type="submit"
+              variant="outline"
             >
-              {submitting ? <Spinner className="size-4" /> : null}
-              <span>Continue</span>
+              {submittingAction === "commit" ? (
+                <Spinner className="size-4" />
+              ) : null}
+              <span>Commit</span>
+            </Button>
+            <Button
+              className="min-w-36"
+              disabled={Boolean(submittingAction) || !canCommitPush}
+              onClick={() => {
+                void handleSubmitAction("commit-push");
+              }}
+              type="button"
+            >
+              {submittingAction === "commit-push" ? (
+                <Spinner className="size-4" />
+              ) : null}
+              <span>Commit & push</span>
             </Button>
           </div>
         </form>
@@ -590,27 +731,22 @@ const PushDialog = ({
   projectPath: string;
   status: ProjectGitStatusResponse | null;
 }) => {
-  const [nextStep, setNextStep] = useState<ProjectGitPushNextStep>("push");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const hasChanges = getStatusFileCount(status) > 0;
   const canPush = hasPushableCommits(status);
-  const canCommitPush = hasChanges && hasPushDestination(status);
-  const canSubmit = nextStep === "push" ? canPush : canCommitPush;
 
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    setNextStep(canCommitPush ? "commit-push" : "push");
     setError(null);
-  }, [canCommitPush, open]);
+  }, [open]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (submitting || !canSubmit) {
+      if (submitting || !canPush) {
         return;
       }
 
@@ -620,7 +756,7 @@ const PushDialog = ({
         await postJson<ProjectGitPushResponse>("/api/project-git-push", {
           commitMessage: null,
           includeUnstaged: true,
-          nextStep,
+          nextStep: "push",
           projectPath,
         });
         onCompleted();
@@ -633,7 +769,7 @@ const PushDialog = ({
         setSubmitting(false);
       }
     },
-    [canSubmit, nextStep, onCompleted, onOpenChange, projectPath, submitting],
+    [canPush, onCompleted, onOpenChange, projectPath, submitting],
   );
 
   return (
@@ -654,39 +790,16 @@ const PushDialog = ({
             }
           />
 
-          <div className="space-y-2">
-            <div className="font-medium text-sm">Next steps</div>
-            <NextStepSelector<ProjectGitPushNextStep>
-              idPrefix="push-next-step"
-              onValueChange={setNextStep}
-              options={[
-                {
-                  disabled: !canPush,
-                  icon: <ArrowUp />,
-                  label: "Push",
-                  value: "push",
-                },
-                {
-                  disabled: !canCommitPush,
-                  icon: <GitCommitHorizontal />,
-                  label: "Commit & push",
-                  value: "commit-push",
-                },
-              ]}
-              value={nextStep}
-            />
-          </div>
-
           <ActionError error={error} />
 
           <div className="flex justify-end">
             <Button
               className="min-w-36"
-              disabled={submitting || !canSubmit}
+              disabled={submitting || !canPush}
               type="submit"
             >
               {submitting ? <Spinner className="size-4" /> : null}
-              <span>Continue</span>
+              <span>Push</span>
             </Button>
           </div>
         </form>
@@ -979,8 +1092,6 @@ const GitActionsMenuImpl = ({
   const [activeDialog, setActiveDialog] = useState<GitActionDialog>(null);
   const hasGitChanges = getStatusFileCount(status) > 0;
   const canPush = hasPushableCommits(status);
-  const canCommitPush = hasGitChanges && hasPushDestination(status);
-  const canOpenPushDialog = canPush || canCommitPush;
   const hasGitActivity = hasGitChanges || canPush;
 
   const handleOpenChanges = useCallback(() => {
@@ -990,7 +1101,7 @@ const GitActionsMenuImpl = ({
 
   const handleOpenDialog = useCallback(
     (dialog: GitActionDialog) => {
-      if (dialog === "push" && !canOpenPushDialog) {
+      if (dialog === "push" && !canPush) {
         return;
       }
 
@@ -1000,7 +1111,7 @@ const GitActionsMenuImpl = ({
 
       setActiveDialog(dialog);
     },
-    [canOpenPushDialog, hasGitChanges],
+    [canPush, hasGitChanges],
   );
 
   const handleActionCompleted = useCallback(() => {
@@ -1061,7 +1172,7 @@ const GitActionsMenuImpl = ({
             Commit
           </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={!canOpenPushDialog}
+            disabled={!canPush}
             onClick={() => handleOpenDialog("push")}
           >
             <UploadCloud className="size-4" />

@@ -2152,6 +2152,11 @@ const projectGitCommitRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
 
+const projectGitCommitMessageRequestSchema = z.object({
+  includeUnstaged: z.boolean().default(true),
+  projectPath: z.string().min(1),
+});
+
 const projectGitPushRequestSchema = z.object({
   commitMessage: nullableTrimmedStringSchema,
   customInstructions: nullableTrimmedStringSchema,
@@ -2965,6 +2970,43 @@ const getProjectGitDiff = async (
   };
 };
 
+const getProjectGitCachedDiff = async (
+  projectPath,
+  filePath,
+  { previousPath = null, status },
+) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const normalizedFilePath = normalizePath(filePath);
+  const repoRelativePath = normalizePath(
+    path.relative(
+      repoInfo.repoRoot,
+      resolveProjectPath(projectPath, normalizedFilePath),
+    ),
+  );
+  const diffResult = await runGitCommand(repoInfo.repoRoot, [
+    "diff",
+    "--cached",
+    "--find-renames",
+    "--no-ext-diff",
+    "--submodule=diff",
+    "--",
+    repoRelativePath,
+  ]);
+
+  return {
+    branch: repoInfo.branch,
+    diff: diffResult.stdout,
+    filePath: normalizedFilePath,
+    parsedDiff: parseSingleFileDiff(diffResult.stdout),
+    previousPath,
+    status,
+  };
+};
+
 const normalizeGitActionText = (value) =>
   typeof value === "string" ? value.trim() : "";
 
@@ -3135,6 +3177,11 @@ const getCommitMessageVerb = (changes) => {
 
 const buildGeneratedCommitMessage = (changes, customInstructions) => {
   const relevantChanges = changes.filter((change) => change.staged);
+  const pathAwareMessage = buildPathAwareCommitMessage(relevantChanges);
+  if (pathAwareMessage) {
+    return pathAwareMessage;
+  }
+
   if (relevantChanges.length === 1 && relevantChanges[0]) {
     return describeGitChangeForMessage(relevantChanges[0]);
   }
@@ -3152,6 +3199,114 @@ const buildGeneratedCommitMessage = (changes, customInstructions) => {
   }
 
   return subject;
+};
+
+const addUniqueCommitMessageSubject = (subjects, subject) => {
+  if (!subjects.includes(subject)) {
+    subjects.push(subject);
+  }
+};
+
+const titleCaseCommitMessageSubject = (subject) =>
+  subject ? `${subject.charAt(0).toUpperCase()}${subject.slice(1)}` : subject;
+
+const joinCommitMessageSubjects = (subjects) => {
+  if (subjects.length === 0) {
+    return "";
+  }
+
+  const [firstSubject, ...restSubjects] = subjects;
+  return [titleCaseCommitMessageSubject(firstSubject), ...restSubjects].join(
+    " and ",
+  );
+};
+
+const buildPathAwareCommitMessage = (changes) => {
+  const paths = new Set(changes.map((change) => change.path));
+  const subjects = [];
+
+  if (
+    paths.has("electron/api-server.js") &&
+    paths.has("src/components/ide/git-actions-menu.tsx") &&
+    paths.has("src/types/ide.ts")
+  ) {
+    addUniqueCommitMessageSubject(subjects, "add diff-aware commit messages");
+  }
+
+  if (paths.has("src/components/ide/chat-panel.tsx")) {
+    addUniqueCommitMessageSubject(
+      subjects,
+      "refresh panels after assistant turns",
+    );
+  }
+
+  return joinCommitMessageSubjects(subjects);
+};
+
+const buildDiffAwareCommitMessage = (changes, diffText, customInstructions) => {
+  const normalizedDiff = diffText.toLowerCase();
+  const subjects = [];
+
+  if (
+    normalizedDiff.includes("commit-push") ||
+    normalizedDiff.includes("commit & push") ||
+    (normalizedDiff.includes("project-git-push") &&
+      normalizedDiff.includes('nextstep: "push"'))
+  ) {
+    addUniqueCommitMessageSubject(subjects, "separate commit-push flow");
+  }
+
+  if (
+    normalizedDiff.includes("bumpprojectgitrefreshkey") &&
+    normalizedDiff.includes("bumpprojectfilesrefreshkey")
+  ) {
+    addUniqueCommitMessageSubject(
+      subjects,
+      "refresh panels after assistant turns",
+    );
+  }
+
+  const message = joinCommitMessageSubjects(subjects);
+  return message || buildGeneratedCommitMessage(changes, customInstructions);
+};
+
+const generateProjectGitCommitMessage = async (
+  projectPath,
+  { includeUnstaged = true, customInstructions = "" } = {},
+) => {
+  const status = await listProjectGitChanges(projectPath);
+  const changes = status.changes.filter((change) =>
+    includeUnstaged ? change.staged || change.unstaged : change.staged,
+  );
+
+  if (changes.length === 0) {
+    return "";
+  }
+
+  const diffPayloads = await Promise.all(
+    changes.map(async (change) => {
+      try {
+        const diffPayload = includeUnstaged
+          ? await getProjectGitDiff(projectPath, change.path, {
+              previousPath: change.previousPath,
+              status: change.status,
+            })
+          : await getProjectGitCachedDiff(projectPath, change.path, {
+              previousPath: change.previousPath,
+              status: change.status,
+            });
+        return diffPayload.diff || "";
+      } catch {
+        return "";
+      }
+    }),
+  );
+
+  return buildDiffAwareCommitMessage(
+    changes,
+    diffPayloads.join("\n\n"),
+    customInstructions,
+  );
 };
 
 const commitProjectGitChanges = async (
@@ -3194,6 +3349,10 @@ const commitProjectGitChanges = async (
   const statusBeforeCommit = await listProjectGitChanges(projectPath);
   const commitMessage =
     normalizeGitActionText(message) ||
+    (await generateProjectGitCommitMessage(projectPath, {
+      customInstructions,
+      includeUnstaged,
+    })) ||
     buildGeneratedCommitMessage(statusBeforeCommit.changes, customInstructions);
 
   await runGitCommand(repoInfo.repoRoot, ["commit", "-m", commitMessage]);
@@ -3911,6 +4070,38 @@ app.post("/api/project-git-commit", async (c) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to commit changes.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-commit-message", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitCommitMessageRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { projectPath, ...options } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json({
+      commitMessage: await generateProjectGitCommitMessage(
+        projectPath,
+        options,
+      ),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to generate commit message.";
     return c.text(message, 400);
   }
 });

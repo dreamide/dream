@@ -1391,15 +1391,20 @@ export const ChatPanel = ({
         await sendPromise;
       } finally {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
+        bumpProjectGitRefreshKey(project.id);
+        bumpProjectFilesRefreshKey(project.id);
       }
     },
     [
       allModelOptions,
+      bumpProjectFilesRefreshKey,
+      bumpProjectGitRefreshKey,
       claudePermissionMode,
       codexPermissionMode,
       clearError,
       chatMessages,
       providerModels,
+      project.id,
       project.path,
       selectedProvider,
       selectedReasoningEffort,

@@ -216,6 +216,10 @@ export interface ProjectGitCommitResponse {
   status: ProjectGitStatusResponse;
 }
 
+export interface ProjectGitCommitMessageResponse {
+  commitMessage: string;
+}
+
 export type ProjectGitPushNextStep = "push" | "commit-push";
 
 export interface ProjectGitPushRequest {
