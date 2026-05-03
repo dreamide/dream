@@ -940,7 +940,7 @@ const ProjectWorkspaceComponent = ({
           <Globe className="size-4" />
         </ToggleButton>
         <Button
-          aria-label="Open terminal"
+          aria-label="Terminal"
           className={cn(
             "size-8",
             terminalHiddenWithActiveSession
@@ -951,7 +951,7 @@ const ProjectWorkspaceComponent = ({
           )}
           onClick={handleOpenTerminal}
           size="icon"
-          title="Open terminal"
+          title="Terminal"
           variant="ghost"
         >
           <TerminalSquare className="size-4" />

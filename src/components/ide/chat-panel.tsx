@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import {
   type FormEvent,
+  type KeyboardEventHandler,
   memo,
   useCallback,
   useEffect,
@@ -897,6 +898,10 @@ export const ChatPanel = ({
   const scrollFrameRef = useRef<number | null>(null);
   const messagesRef = useRef(chatMessages);
 
+  // State for up/down arrow history cycling (derived from messages)
+  const historyIndexRef = useRef(-1);
+  const savedDraftRef = useRef("");
+
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
     [],
@@ -1342,6 +1347,68 @@ export const ChatPanel = ({
     scheduleConversationScroll("locked");
   }, [isActive, scheduleConversationScroll]);
 
+  const handlePromptKeyDown = useCallback<
+    KeyboardEventHandler<HTMLTextAreaElement>
+  >(
+    (e) => {
+      // Derive history from the existing chat messages
+      const history = messages
+        .filter((m) => m.role === "user")
+        .map((m) =>
+          m.parts
+            .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+            .map((p) => p.text.trim())
+            .join("\n\n"),
+        )
+        .filter((text) => text.length > 0);
+
+      if (e.key === "ArrowUp") {
+        const textarea = e.currentTarget;
+        // Only check cursor position when NOT already browsing history
+        if (historyIndexRef.current === -1) {
+          if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) {
+            return;
+          }
+        }
+        if (history.length === 0) {
+          return;
+        }
+
+        e.preventDefault();
+
+        if (historyIndexRef.current === -1) {
+          // Save current input before browsing history
+          savedDraftRef.current = promptText;
+          historyIndexRef.current = history.length - 1;
+        } else if (historyIndexRef.current > 0) {
+          historyIndexRef.current -= 1;
+        } else {
+          return; // Already at oldest entry
+        }
+
+        setPromptText(history[historyIndexRef.current]);
+      }
+
+      if (e.key === "ArrowDown") {
+        if (historyIndexRef.current === -1) {
+          return; // Not browsing history
+        }
+
+        e.preventDefault();
+
+        if (historyIndexRef.current < history.length - 1) {
+          historyIndexRef.current += 1;
+          setPromptText(history[historyIndexRef.current]);
+        } else {
+          // Past the end of history, restore saved draft
+          historyIndexRef.current = -1;
+          setPromptText(savedDraftRef.current);
+        }
+      }
+    },
+    [promptText, messages],
+  );
+
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       setLocalError(null);
@@ -1387,6 +1454,9 @@ export const ChatPanel = ({
         reasoningEffort: selectedReasoningEffort,
         reasoningLabel: selectedReasoningLabel,
       };
+      historyIndexRef.current = -1;
+      savedDraftRef.current = "";
+
       setPromptText("");
       useIdeStore.getState().setChatStreaming(submittedChatId, true);
       try {
@@ -1647,6 +1717,7 @@ export const ChatPanel = ({
                     <PromptInputTextarea
                       className="min-h-0 border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
                       onChange={(event) => setPromptText(event.target.value)}
+                      onKeyDown={handlePromptKeyDown}
                       placeholder="Ask anything..."
                       rows={1}
                       value={promptText}
