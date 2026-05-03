@@ -959,6 +959,49 @@ const createClaudeNativePermissionHandler = (writer) => {
   };
 };
 
+const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
+  "edit",
+  "glob",
+  "grep",
+  "ls",
+  "multiedit",
+  "notebookedit",
+  "read",
+  "write",
+]);
+
+const normalizeClaudeToolName = (toolName) =>
+  String(toolName ?? "")
+    .replace(/[\s_-]+/g, "")
+    .toLowerCase();
+
+const createClaudeAcceptEditsPermissionHandler = () => {
+  return async (toolName, input, options) => {
+    const normalizedToolName = normalizeClaudeToolName(toolName);
+    const toolUseID =
+      typeof options?.toolUseID === "string" ? options.toolUseID : undefined;
+
+    if (CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS.has(normalizedToolName)) {
+      return {
+        behavior: "allow",
+        ...(options?.suggestions
+          ? { updatedPermissions: options.suggestions }
+          : {}),
+        ...(toolUseID ? { toolUseID } : {}),
+        updatedInput: input,
+      };
+    }
+
+    return {
+      behavior: "deny",
+      interrupt: false,
+      message:
+        "Accept edits only auto-approves file read and edit tools. Switch to Bypass permissions to allow this action.",
+      ...(toolUseID ? { toolUseID } : {}),
+    };
+  };
+};
+
 const normalizePath = (value) => value.replace(/\\/g, "/");
 
 const getCodexCliSpawnErrorMessage = (error) => {
@@ -2105,6 +2148,12 @@ app.post("/api/chat", async (c) => {
       ...(claudePermissionMode === "ask-permissions"
         ? {
             canUseTool: createClaudeNativePermissionHandler(writer),
+            streamingInput: "auto",
+          }
+        : {}),
+      ...(claudePermissionMode === "accept-edits"
+        ? {
+            canUseTool: createClaudeAcceptEditsPermissionHandler(),
             streamingInput: "auto",
           }
         : {}),
