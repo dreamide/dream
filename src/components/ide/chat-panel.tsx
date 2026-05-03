@@ -142,7 +142,6 @@ import {
 } from "./ide-types";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
-type ChatMessagePart = UIMessage["parts"][number];
 
 type RenameTarget = {
   id: string;
@@ -362,168 +361,6 @@ const MessageHoverFooter = ({ message }: { message: UIMessage }) => {
       ) : null}
     </div>
   );
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const getNestedString = (
-  value: unknown,
-  paths: readonly (readonly string[])[],
-) => {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  for (const path of paths) {
-    let current: unknown = value;
-    for (const segment of path) {
-      if (!isRecord(current)) {
-        current = undefined;
-        break;
-      }
-      current = current[segment];
-    }
-
-    if (typeof current === "string" && current.trim().length > 0) {
-      return current;
-    }
-  }
-
-  return null;
-};
-
-const getFilePathFromWriteOutputText = (output: unknown) => {
-  if (typeof output !== "string") {
-    return null;
-  }
-
-  const match = output.match(
-    /(?:^|\b)(?:the\s+)?file\s+(.+?)\s+(?:has\s+been|was)\s+(?:updated|written|created)\b/i,
-  );
-  const rawPath = match?.[1]?.trim();
-  if (!rawPath) {
-    return null;
-  }
-
-  return rawPath.replace(/^[`'"]+|[`'".]+$/g, "");
-};
-
-const getWritePartFilePath = (part: ChatMessagePart) => {
-  const record = part as Record<string, unknown>;
-  return (
-    getNestedString(record.input, [
-      ["filePath"],
-      ["path"],
-      ["file_path"],
-      ["filename"],
-      ["name"],
-      ["file", "path"],
-      ["file", "filePath"],
-      ["file", "filename"],
-      ["file", "name"],
-    ]) ??
-    getNestedString(record.output, [
-      ["filePath"],
-      ["path"],
-      ["file_path"],
-      ["filename"],
-      ["name"],
-      ["file"],
-      ["file", "path"],
-      ["file", "filePath"],
-      ["file", "filename"],
-      ["file", "name"],
-    ]) ??
-    getFilePathFromWriteOutputText(record.output)
-  );
-};
-
-const getSavedWriteDiff = (part: ChatMessagePart) =>
-  getNestedString((part as Record<string, unknown>).output, [
-    ["diff"],
-    ["patch"],
-    ["changes", "diff"],
-    ["file", "diff"],
-  ]);
-
-const toRelativeProjectPath = (projectPath: string, filePath: string) => {
-  const normalizedProjectPath = projectPath
-    .replace(/\\/g, "/")
-    .replace(/\/$/, "");
-  const normalizedFilePath = filePath.replace(/\\/g, "/");
-
-  if (
-    normalizedFilePath
-      .toLowerCase()
-      .startsWith(`${normalizedProjectPath.toLowerCase()}/`)
-  ) {
-    return normalizedFilePath.slice(normalizedProjectPath.length + 1);
-  }
-
-  return normalizedFilePath;
-};
-
-const readResponseText = async (response: Response) => {
-  try {
-    return await response.text();
-  } catch {
-    return "Request failed.";
-  }
-};
-
-const withSavedWriteDiff = (
-  output: unknown,
-  filePath: string,
-  diff: string,
-) => {
-  if (isRecord(output)) {
-    return {
-      ...output,
-      diff,
-      diffFormat: "unified",
-      filePath,
-    };
-  }
-
-  return {
-    diff,
-    diffFormat: "unified",
-    filePath,
-    message: typeof output === "string" ? output : undefined,
-  };
-};
-
-const addSavedWriteDiffToMessages = (
-  currentMessages: UIMessage[],
-  messageId: string,
-  partIndex: number,
-  filePath: string,
-  diff: string,
-) => {
-  let changed = false;
-  const nextMessages = currentMessages.map((message) => {
-    if (message.id !== messageId) {
-      return message;
-    }
-
-    const part = message.parts[partIndex];
-    if (!part || getSavedWriteDiff(part)) {
-      return message;
-    }
-
-    changed = true;
-    const partRecord = part as Record<string, unknown>;
-    const nextParts = [...message.parts];
-    nextParts[partIndex] = {
-      ...part,
-      output: withSavedWriteDiff(partRecord.output, filePath, diff),
-    } as ChatMessagePart;
-
-    return { ...message, parts: nextParts };
-  });
-
-  return changed ? nextMessages : currentMessages;
 };
 
 const addMetadataToMessage = (
@@ -890,9 +727,6 @@ export const ChatPanel = ({
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const savedWriteDiffsRef = useRef(new Map<string, string>());
-  const loadingWriteDiffsRef = useRef(new Set<string>());
-  const failedWriteDiffsRef = useRef(new Set<string>());
   const refreshedWriteEventsRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
   const conversationContextRef = useRef<StickToBottomContext | null>(null);
@@ -1029,17 +863,9 @@ export const ChatPanel = ({
     };
   }, [chat.id, setMessagesForChat]);
 
-  // Some provider-backed write tools only return a success string. Capture the
-  // live Git diff while it exists and write it back into the chat message so the
-  // chip remains inspectable after reloads or later Git operations.
+  // Refresh project panels when completed write tools appear.
   useEffect(() => {
     let shouldRefreshProjectPanels = false;
-    const pendingCachedDiffs: Array<{
-      diff: string;
-      filePath: string;
-      messageId: string;
-      partIndex: number;
-    }> = [];
 
     for (const message of messages) {
       if (message.role !== "assistant") {
@@ -1062,116 +888,6 @@ export const ChatPanel = ({
           refreshedWriteEventsRef.current.add(writeRefreshKey);
           shouldRefreshProjectPanels = true;
         }
-
-        if (getSavedWriteDiff(part)) {
-          continue;
-        }
-
-        const filePath = getWritePartFilePath(part);
-        if (!filePath) {
-          continue;
-        }
-
-        const cacheKey = `${chat.id}:${message.id}:${partIndex}:${filePath}`;
-        const cachedDiff = savedWriteDiffsRef.current.get(cacheKey);
-        if (cachedDiff) {
-          pendingCachedDiffs.push({
-            diff: cachedDiff,
-            filePath,
-            messageId: message.id,
-            partIndex,
-          });
-          continue;
-        }
-
-        if (
-          loadingWriteDiffsRef.current.has(cacheKey) ||
-          failedWriteDiffsRef.current.has(cacheKey)
-        ) {
-          continue;
-        }
-
-        loadingWriteDiffsRef.current.add(cacheKey);
-        void (async () => {
-          try {
-            const relativeFilePath = toRelativeProjectPath(
-              project.path,
-              filePath,
-            );
-            const statusResponse = await fetch("/api/project-git-status", {
-              body: JSON.stringify({ projectPath: project.path }),
-              headers: { "Content-Type": "application/json" },
-              method: "POST",
-            });
-
-            if (!statusResponse.ok) {
-              throw new Error(await readResponseText(statusResponse));
-            }
-
-            const statusPayload = (await statusResponse.json()) as {
-              changes?: Array<{
-                path: string;
-                previousPath: string | null;
-                status: string;
-              }>;
-            };
-            const change = statusPayload.changes?.find((entry) => {
-              const normalizedEntryPath = entry.path.replace(/\\/g, "/");
-              const normalizedPreviousPath = entry.previousPath?.replace(
-                /\\/g,
-                "/",
-              );
-              return (
-                normalizedEntryPath.toLowerCase() ===
-                  relativeFilePath.toLowerCase() ||
-                normalizedPreviousPath?.toLowerCase() ===
-                  relativeFilePath.toLowerCase()
-              );
-            });
-
-            if (!change) {
-              throw new Error("No Git diff is available for this file.");
-            }
-
-            const diffResponse = await fetch("/api/project-git-diff", {
-              body: JSON.stringify({
-                filePath: change.path,
-                previousPath: change.previousPath,
-                projectPath: project.path,
-                status: change.status,
-              }),
-              headers: { "Content-Type": "application/json" },
-              method: "POST",
-            });
-
-            if (!diffResponse.ok) {
-              throw new Error(await readResponseText(diffResponse));
-            }
-
-            const diffPayload = (await diffResponse.json()) as {
-              diff?: string;
-            };
-            const diff = diffPayload.diff?.trim();
-            if (!diff) {
-              throw new Error("No Git diff is available for this file.");
-            }
-
-            savedWriteDiffsRef.current.set(cacheKey, diff);
-            setMessages((currentMessages) =>
-              addSavedWriteDiffToMessages(
-                currentMessages,
-                message.id,
-                partIndex,
-                filePath,
-                diff,
-              ),
-            );
-          } catch {
-            failedWriteDiffsRef.current.add(cacheKey);
-          } finally {
-            loadingWriteDiffsRef.current.delete(cacheKey);
-          }
-        })();
       }
     }
 
@@ -1179,30 +895,12 @@ export const ChatPanel = ({
       bumpProjectGitRefreshKey(project.id);
       bumpProjectFilesRefreshKey(project.id);
     }
-
-    if (pendingCachedDiffs.length > 0) {
-      setMessages((currentMessages) =>
-        pendingCachedDiffs.reduce(
-          (nextMessages, { diff, filePath, messageId, partIndex }) =>
-            addSavedWriteDiffToMessages(
-              nextMessages,
-              messageId,
-              partIndex,
-              filePath,
-              diff,
-            ),
-          currentMessages,
-        ),
-      );
-    }
   }, [
     bumpProjectFilesRefreshKey,
     bumpProjectGitRefreshKey,
     chat.id,
     messages,
     project.id,
-    project.path,
-    setMessages,
   ]);
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.

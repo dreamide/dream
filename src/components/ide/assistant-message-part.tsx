@@ -67,7 +67,6 @@ import {
 } from "./assistant-message-tools";
 import { IdeDiffViewer } from "./diff-viewer";
 import { stringifyPart } from "./ide-state";
-import { useIdeStore } from "./ide-store";
 import { MaterialFileIcon } from "./material-file-icon";
 
 type ToolApprovalHandler = (response: {
@@ -905,31 +904,6 @@ const getWriteFileStateLabel = (
   }
 
   return null;
-};
-
-const toRelativeProjectPath = (projectPath: string, filePath: string) => {
-  const normalizedProjectPath = projectPath
-    .replace(/\\/g, "/")
-    .replace(/\/$/, "");
-  const normalizedFilePath = filePath.replace(/\\/g, "/");
-
-  if (
-    normalizedFilePath
-      .toLowerCase()
-      .startsWith(`${normalizedProjectPath.toLowerCase()}/`)
-  ) {
-    return normalizedFilePath.slice(normalizedProjectPath.length + 1);
-  }
-
-  return normalizedFilePath;
-};
-
-const readResponseText = async (response: Response) => {
-  try {
-    return await response.text();
-  } catch {
-    return "Request failed.";
-  }
 };
 
 const getFilePathFromOutputText = (output: unknown) => {
@@ -2055,13 +2029,7 @@ export const WriteFileChip = ({
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
-  const activeProjectPath = useIdeStore(
-    (s) => s.getActiveProject()?.path ?? null,
-  );
-  const diffProjectPath = projectPath ?? activeProjectPath;
-  const [gitDiff, setGitDiff] = useState<string | null>(null);
-  const [gitDiffError, setGitDiffError] = useState<string | null>(null);
-  const [gitDiffLoading, setGitDiffLoading] = useState(false);
+  void projectPath;
 
   const filePath =
     getStringFromPaths(part.input, [
@@ -2142,13 +2110,7 @@ export const WriteFileChip = ({
   const approvalId = part.approval?.id;
   const canExpand =
     !isApprovalRequested &&
-    (hasError ||
-      savedDiff !== null ||
-      content !== null ||
-      hasOutput ||
-      gitDiff !== null ||
-      gitDiffLoading ||
-      Boolean(gitDiffError));
+    (hasError || savedDiff !== null || content !== null || hasOutput);
   const previewLanguage = inferLanguage(filePath ?? filename);
   const normalizedContent =
     content !== null ? normalizeEmbeddedLineNumbers(content) : null;
@@ -2159,7 +2121,7 @@ export const WriteFileChip = ({
     (previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
       : null);
-  const displayDiffCode = diffCode ?? gitDiff;
+  const displayDiffCode = diffCode;
   const displayFilename =
     filename === "file" && isRunning ? "Writing" : filename;
   const parsedDiff = useMemo(
@@ -2180,99 +2142,6 @@ export const WriteFileChip = ({
       setExpanded(true);
     }
   }, [defaultExpanded]);
-
-  useEffect(() => {
-    if (
-      isRunning ||
-      !showFileDetails ||
-      diffCode !== null ||
-      !diffProjectPath ||
-      !filePath
-    ) {
-      return;
-    }
-
-    const relativeFilePath = toRelativeProjectPath(diffProjectPath, filePath);
-    let cancelled = false;
-
-    const loadGitDiff = async () => {
-      setGitDiffLoading(true);
-      setGitDiffError(null);
-
-      try {
-        const statusResponse = await fetch("/api/project-git-status", {
-          body: JSON.stringify({ projectPath: diffProjectPath }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-
-        if (!statusResponse.ok) {
-          throw new Error(await readResponseText(statusResponse));
-        }
-
-        const statusPayload = (await statusResponse.json()) as {
-          changes?: Array<{
-            path: string;
-            previousPath: string | null;
-            status: string;
-          }>;
-        };
-        const change = statusPayload.changes?.find((entry) => {
-          const normalizedEntryPath = entry.path.replace(/\\/g, "/");
-          const normalizedPreviousPath = entry.previousPath?.replace(
-            /\\/g,
-            "/",
-          );
-          return (
-            normalizedEntryPath.toLowerCase() ===
-              relativeFilePath.toLowerCase() ||
-            normalizedPreviousPath?.toLowerCase() ===
-              relativeFilePath.toLowerCase()
-          );
-        });
-
-        if (!change) {
-          throw new Error("No Git diff is available for this file.");
-        }
-
-        const diffResponse = await fetch("/api/project-git-diff", {
-          body: JSON.stringify({
-            filePath: change.path,
-            previousPath: change.previousPath,
-            projectPath: diffProjectPath,
-            status: change.status,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-
-        if (!diffResponse.ok) {
-          throw new Error(await readResponseText(diffResponse));
-        }
-
-        const diffPayload = (await diffResponse.json()) as { diff?: string };
-        if (!cancelled) {
-          setGitDiff(diffPayload.diff?.trim() || null);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setGitDiffError(
-            error instanceof Error ? error.message : "Unable to load Git diff.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setGitDiffLoading(false);
-        }
-      }
-    };
-
-    void loadGitDiff();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [diffCode, diffProjectPath, filePath, isRunning, showFileDetails]);
 
   return (
     <div className={expanded || isApprovalRequested ? "w-full" : undefined}>
@@ -2390,14 +2259,6 @@ export const WriteFileChip = ({
                 </CodeBlock>
               )}
             </div>
-          ) : gitDiffLoading ? (
-            <p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
-              Loading file changes…
-            </p>
-          ) : gitDiffError && !hasOutput ? (
-            <p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
-              {gitDiffError}
-            </p>
           ) : content !== null && filePath ? (
             <div>
               <CodeBlock
