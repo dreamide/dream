@@ -40,7 +40,6 @@ import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import type {
   AiProvider,
-  ProjectGitCommitMessageResponse,
   ProjectGitCommitResponse,
   ProjectGitCreatePrNextStep,
   ProjectGitCreatePrResponse,
@@ -48,6 +47,11 @@ import type {
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
 } from "@/types/ide";
+import {
+  generateCachedProjectCommitMessage,
+  getCachedProjectCommitMessage,
+  getCommitChanges,
+} from "./git-commit-message-cache";
 import { useIdeStore } from "./ide-store";
 
 type GitActionDialog = "commit" | "push" | "pr" | null;
@@ -90,14 +94,6 @@ const getStatusRemovedLines = (status: ProjectGitStatusResponse | null) =>
   status?.removedLines ??
   status?.changes.reduce((total, change) => total + change.removedLines, 0) ??
   0;
-
-const getCommitChanges = (
-  status: ProjectGitStatusResponse | null,
-  includeUnstaged: boolean,
-) =>
-  status?.changes.filter((change) =>
-    includeUnstaged ? change.staged || change.unstaged : change.staged,
-  ) ?? [];
 
 const getChangesAddedLines = (changes: ProjectGitStatusEntry[]) =>
   changes.reduce((total, change) => total + change.addedLines, 0);
@@ -456,6 +452,7 @@ const CommitDialog = ({
   open,
   projectPath,
   provider,
+  refreshToken,
   status,
 }: {
   branch: string | null;
@@ -464,6 +461,7 @@ const CommitDialog = ({
   open: boolean;
   projectPath: string;
   provider: AiProvider;
+  refreshToken: number;
   status: ProjectGitStatusResponse | null;
 }) => {
   const [commitMessage, setCommitMessage] = useState("");
@@ -507,60 +505,61 @@ const CommitDialog = ({
       return;
     }
 
-    setCommitMessage("");
-
     if (!hasCommitChanges) {
+      setCommitMessage("");
       setGeneratingCommitMessage(false);
       return;
     }
 
-    const controller = new AbortController();
+    const cachedMessage = getCachedProjectCommitMessage({
+      changes: commitChanges,
+      includeUnstaged,
+      projectPath,
+      provider,
+      refreshToken,
+    });
+    if (cachedMessage !== undefined) {
+      setCommitMessage(cachedMessage);
+      setGeneratingCommitMessage(false);
+      return;
+    }
+
+    let ignore = false;
+    setCommitMessage("");
     setGeneratingCommitMessage(true);
-    void (async () => {
-      try {
-        const response = await fetch("/api/project-git-commit-message", {
-          body: JSON.stringify({
-            includeUnstaged,
-            projectPath,
-            provider,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(await readResponseText(response));
-        }
-
-        const payload =
-          (await response.json()) as ProjectGitCommitMessageResponse;
-        const nextMessage =
-          payload.commitMessage.trim() || fallbackGeneratedCommitMessage;
-        setCommitMessage(nextMessage);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
+    void generateCachedProjectCommitMessage({
+      changes: commitChanges,
+      fallbackMessage: fallbackGeneratedCommitMessage,
+      includeUnstaged,
+      projectPath,
+      provider,
+      refreshToken,
+    })
+      .then((nextMessage) => {
+        if (ignore) {
           return;
         }
-        setCommitMessage(fallbackGeneratedCommitMessage);
-      } finally {
-        if (!controller.signal.aborted) {
+        setCommitMessage(nextMessage);
+      })
+      .finally(() => {
+        if (!ignore) {
           setGeneratingCommitMessage(false);
         }
-      }
-    })();
+      });
 
     return () => {
-      controller.abort();
+      ignore = true;
     };
   }, [
     autoGenerateMessage,
+    commitChanges,
     fallbackGeneratedCommitMessage,
     hasCommitChanges,
     includeUnstaged,
     open,
     projectPath,
     provider,
+    refreshToken,
   ]);
 
   const handleAutoGenerateMessageChange = useCallback(
@@ -568,7 +567,9 @@ const CommitDialog = ({
       const nextAutoGenerateMessage = nextChecked === true;
       setAutoGenerateMessage(nextAutoGenerateMessage);
       setGeneratingCommitMessage(false);
-      setCommitMessage("");
+      if (!nextAutoGenerateMessage) {
+        setCommitMessage("");
+      }
     },
     [],
   );
@@ -1051,6 +1052,7 @@ const GitActionDialogHost = ({
   onPrCompleted,
   projectPath,
   provider,
+  refreshToken,
   status,
 }: {
   action: ActiveGitActionDialog;
@@ -1060,6 +1062,7 @@ const GitActionDialogHost = ({
   onPrCompleted: (url: string | null, shouldOpen: boolean) => void;
   projectPath: string;
   provider: AiProvider;
+  refreshToken: number;
   status: ProjectGitStatusResponse | null;
 }) => {
   if (action === "commit") {
@@ -1071,6 +1074,7 @@ const GitActionDialogHost = ({
         open
         projectPath={projectPath}
         provider={provider}
+        refreshToken={refreshToken}
         status={status}
       />
     );
@@ -1232,6 +1236,7 @@ const GitActionsMenuImpl = ({
           onPrCompleted={handlePrCompleted}
           projectPath={projectPath}
           provider={provider}
+          refreshToken={gitRefreshKey}
           status={status}
         />
       ) : null}

@@ -128,6 +128,7 @@ import {
 import { getChipToolKind, isChipToolPart } from "./assistant-message-tools";
 import { BranchSwitcher } from "./branch-switcher";
 import { mergeChatMessageHistories } from "./chat-message-history";
+import { warmProjectCommitMessage } from "./git-commit-message-cache";
 import { useIdeStore } from "./ide-store";
 import {
   CLAUDE_PERMISSION_MODE_OPTIONS,
@@ -1356,7 +1357,10 @@ export const ChatPanel = ({
         .filter((m) => m.role === "user")
         .map((m) =>
           m.parts
-            .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+            .filter(
+              (p): p is Extract<typeof p, { type: "text" }> =>
+                p.type === "text",
+            )
             .map((p) => p.text.trim())
             .join("\n\n"),
         )
@@ -1493,8 +1497,15 @@ export const ChatPanel = ({
         await sendPromise;
       } finally {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
+        const nextGitRefreshKey =
+          (useIdeStore.getState().projectGitRefreshKeys[project.id] ?? 0) + 1;
         bumpProjectGitRefreshKey(project.id);
         bumpProjectFilesRefreshKey(project.id);
+        void warmProjectCommitMessage({
+          projectPath: project.path,
+          provider: project.provider,
+          refreshToken: nextGitRefreshKey,
+        });
       }
     },
     [
@@ -1508,6 +1519,7 @@ export const ChatPanel = ({
       providerModels,
       project.id,
       project.path,
+      project.provider,
       selectedProvider,
       selectedReasoningEffort,
       selectedReasoningLabel,

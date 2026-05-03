@@ -845,6 +845,9 @@ const REASONING_TOOL_STEP_LIMIT = 50;
 const COMMIT_MESSAGE_CODEX_MODEL = "gpt-5.4-mini";
 const COMMIT_MESSAGE_CLAUDE_MODEL = "haiku";
 const COMMIT_MESSAGE_DIFF_MAX_CHARS = 18_000;
+const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 50;
+const commitMessageCache = new Map();
+const commitMessageRequests = new Map();
 
 const waitForToolApproval = ({ id, provider, request, signal }) =>
   new Promise((resolve) => {
@@ -4284,6 +4287,47 @@ const buildCommitMessagePrompt = ({ changes, diffText, fallbackMessage }) => {
     .join("\n");
 };
 
+const getCommitMessageCacheKey = ({
+  changes,
+  customInstructions,
+  diffText,
+  includeUnstaged,
+  projectPath,
+  provider,
+}) =>
+  hashContent(
+    JSON.stringify({
+      changes: changes
+        .map((change) => ({
+          addedLines: change.addedLines,
+          path: change.path,
+          previousPath: change.previousPath,
+          removedLines: change.removedLines,
+          staged: change.staged,
+          status: change.status,
+          unstaged: change.unstaged,
+        }))
+        .sort((a, b) => a.path.localeCompare(b.path)),
+      customInstructions: normalizeGitActionText(customInstructions),
+      diffHash: hashContent(diffText),
+      includeUnstaged,
+      projectPath: path.resolve(projectPath),
+      provider,
+    }),
+  );
+
+const setCommitMessageCacheEntry = (key, value) => {
+  commitMessageCache.set(key, value);
+  if (commitMessageCache.size <= COMMIT_MESSAGE_CACHE_MAX_ENTRIES) {
+    return;
+  }
+
+  const oldestKey = commitMessageCache.keys().next().value;
+  if (oldestKey) {
+    commitMessageCache.delete(oldestKey);
+  }
+};
+
 const generateClaudeCommitMessage = async ({
   diffText,
   fallbackMessage,
@@ -4505,7 +4549,29 @@ const generateProjectGitCommitMessage = async (
     return fallbackMessage;
   }
 
-  try {
+  const cacheKey = getCommitMessageCacheKey({
+    changes,
+    customInstructions,
+    diffText,
+    includeUnstaged,
+    projectPath,
+    provider,
+  });
+  const cachedMessage = commitMessageCache.get(cacheKey);
+  if (cachedMessage) {
+    return cachedMessage;
+  }
+
+  const existingRequest = commitMessageRequests.get(cacheKey);
+  if (existingRequest) {
+    try {
+      return await existingRequest;
+    } catch {
+      return fallbackMessage;
+    }
+  }
+
+  const request = (async () => {
     const aiMessage = await generateAiCommitMessage({
       changes,
       diffText,
@@ -4515,9 +4581,19 @@ const generateProjectGitCommitMessage = async (
     });
 
     return aiMessage || fallbackMessage;
+  })();
+  commitMessageRequests.set(cacheKey, request);
+
+  try {
+    const message = await request;
+    setCommitMessageCacheEntry(cacheKey, message);
+    return message;
   } catch (error) {
     console.warn("[git] AI commit message generation failed:", error);
+    setCommitMessageCacheEntry(cacheKey, fallbackMessage);
     return fallbackMessage;
+  } finally {
+    commitMessageRequests.delete(cacheKey);
   }
 };
 
