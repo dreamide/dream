@@ -4,6 +4,7 @@ import {
   Code,
   GitBranch,
   GitCommitHorizontal,
+  GitFork,
   GitPullRequest,
   UploadCloud,
 } from "lucide-react";
@@ -1187,7 +1188,7 @@ const GitActionsMenuImpl = ({
             />
           }
         >
-          <GitBranch className="size-4" />
+          <GitFork className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
