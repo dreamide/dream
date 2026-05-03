@@ -640,7 +640,7 @@ const ChatMessage = memo(
             </SourcesContent>
           </Sources>
         ) : null}
-        <MessageContent className="gap-3">
+        <MessageContent className="w-full gap-3">
           {(() => {
             const elements: React.ReactNode[] = [];
             let chipGroup: {

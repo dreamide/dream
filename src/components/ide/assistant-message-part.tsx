@@ -2,6 +2,7 @@ import { parsePatchFiles } from "@pierre/diffs";
 import {
   BotIcon,
   CheckIcon,
+  ClockIcon,
   EyeIcon,
   FolderIcon,
   PenLineIcon,
@@ -32,10 +33,8 @@ import {
 } from "@/components/ai-elements/code-block";
 import {
   Confirmation,
-  ConfirmationAccepted,
   ConfirmationAction,
   ConfirmationActions,
-  ConfirmationRejected,
   ConfirmationRequest,
 } from "@/components/ai-elements/confirmation";
 import {
@@ -94,6 +93,7 @@ const ActionApproval = ({
   approval,
   approveLabel = "Approve",
   children,
+  className,
   onToolApproval,
   rejectLabel = "Reject",
   state,
@@ -101,30 +101,27 @@ const ActionApproval = ({
   approval: NonNullable<ToolLikePart["approval"]>;
   approveLabel?: string;
   children: ReactNode;
+  className?: string;
   onToolApproval: ToolApprovalHandler;
   rejectLabel?: string;
   state: ToolPart["state"];
 }) => {
   const approvalId = approval.id;
 
+  if (state !== "approval-requested") {
+    return null;
+  }
+
   return (
     <Confirmation
       approval={approval as Parameters<typeof Confirmation>[0]["approval"]}
+      className={cn(
+        "w-full max-w-full gap-3 border-emerald-500/40 bg-emerald-500/10 shadow-sm text-foreground dark:border-emerald-400/30 dark:bg-emerald-400/10",
+        className,
+      )}
       state={state}
     >
       <ConfirmationRequest>{children}</ConfirmationRequest>
-      <ConfirmationAccepted>
-        <span className="flex items-center gap-1.5 text-green-700 text-sm">
-          <CheckIcon className="size-4" />
-          Approved
-        </span>
-      </ConfirmationAccepted>
-      <ConfirmationRejected>
-        <span className="flex items-center gap-1.5 text-red-700 text-sm">
-          <XIcon className="size-4" />
-          Rejected
-        </span>
-      </ConfirmationRejected>
       <ConfirmationActions>
         <ConfirmationAction
           variant="outline"
@@ -139,6 +136,7 @@ const ActionApproval = ({
         </ConfirmationAction>
         <ConfirmationAction
           variant="default"
+          className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400"
           onClick={() =>
             onToolApproval({
               approved: true,
@@ -151,6 +149,50 @@ const ActionApproval = ({
         </ConfirmationAction>
       </ConfirmationActions>
     </Confirmation>
+  );
+};
+
+const isApprovalResponseState = (state: ToolPart["state"]) =>
+  state === "approval-responded" ||
+  state === "output-denied" ||
+  state === "output-available";
+
+const ApprovalStatusLabel = ({
+  approval,
+  state,
+}: {
+  approval?: ToolLikePart["approval"];
+  state: ToolPart["state"];
+}) => {
+  if (!approval) {
+    return null;
+  }
+
+  if (state === "approval-requested") {
+    return null;
+  }
+
+  if (
+    !isApprovalResponseState(state) ||
+    typeof approval.approved !== "boolean"
+  ) {
+    return null;
+  }
+
+  if (approval.approved) {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 text-xs dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-300">
+        <CheckIcon className="size-3" />
+        Approved
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/25 bg-red-500/10 px-2 py-0.5 font-medium text-red-700 text-xs dark:border-red-400/25 dark:bg-red-400/10 dark:text-red-300">
+      <XIcon className="size-3" />
+      Rejected
+    </span>
   );
 };
 
@@ -1719,7 +1761,7 @@ export const RunCommandChip = ({
   const hasRawOutput = output !== undefined;
   const approvalId = part.approval?.id;
   const canExpand =
-    hasError || isApprovalRequested || hasRawOutput || command !== null;
+    !isApprovalRequested && (hasError || hasRawOutput || command !== null);
 
   useEffect(() => {
     if (defaultExpanded) {
@@ -1736,41 +1778,60 @@ export const RunCommandChip = ({
   }, [command]);
 
   return (
-    <div className={expanded ? "w-full" : undefined}>
-      <ChipButton
-        className={cn(
-          getChipToneClasses(
-            "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
-            hasError,
-          ),
-          canExpand && "cursor-pointer",
-          isRunning && "animate-pulse",
-        )}
-        onClick={() => canExpand && setExpanded(!expanded)}
-        aria-label={displayCommand ?? (isRunning ? "Running" : "Command")}
-        type="button"
-      >
-        <TerminalIcon className="size-3.5 shrink-0" />
-        {!isRunning ? (
-          <>
-            <span className="max-w-64 truncate font-medium">
-              {displayCommand ?? "Command"}
+    <div className={expanded || isApprovalRequested ? "w-full" : undefined}>
+      <div className="flex items-center gap-2">
+        <ChipButton
+          className={cn(
+            getChipToneClasses(
+              "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
+              hasError,
+            ),
+            canExpand && "cursor-pointer",
+            (isRunning || isApprovalRequested) && "animate-pulse",
+          )}
+          onClick={() => canExpand && setExpanded(!expanded)}
+          aria-label={displayCommand ?? (isRunning ? "Running" : "Command")}
+          type="button"
+        >
+          <TerminalIcon className="size-3.5 shrink-0" />
+          {!isRunning ? (
+            <>
+              <span className="max-w-64 truncate font-medium">
+                {displayCommand ?? "Command"}
+              </span>
+              {exitCode !== null ? (
+                <span className={CHIP_SUBTEXT_CLASSES}>exit {exitCode}</span>
+              ) : null}
+              {status === "running" ? (
+                <span className={CHIP_SUBTEXT_CLASSES}>running</span>
+              ) : null}
+              {hasError ? (
+                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+              ) : null}
+            </>
+          ) : null}
+        </ChipButton>
+        <ApprovalStatusLabel approval={part.approval} state={state} />
+      </div>
+      {approvalId && part.approval && onToolApproval ? (
+        <ActionApproval
+          approval={part.approval}
+          className="mt-2"
+          onToolApproval={onToolApproval}
+          state={state}
+        >
+          <span className="flex items-center gap-2 text-sm">
+            <ClockIcon className="size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
+            <span>
+              Allow running{" "}
+              <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
+                {displayCommand ?? command ?? "command"}
+              </code>
+              ?
             </span>
-            {exitCode !== null ? (
-              <span className={CHIP_SUBTEXT_CLASSES}>exit {exitCode}</span>
-            ) : null}
-            {status === "running" ? (
-              <span className={CHIP_SUBTEXT_CLASSES}>running</span>
-            ) : null}
-            {isApprovalRequested ? (
-              <span className="text-yellow-600">approval</span>
-            ) : null}
-            {hasError ? (
-              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
-            ) : null}
-          </>
-        ) : null}
-      </ChipButton>
+          </span>
+        </ActionApproval>
+      ) : null}
       {expanded ? (
         <div
           className={getExpandedChipClasses(
@@ -1779,21 +1840,6 @@ export const RunCommandChip = ({
           )}
           style={{ borderColor: "currentColor" }}
         >
-          {approvalId && part.approval && onToolApproval ? (
-            <ActionApproval
-              approval={part.approval}
-              onToolApproval={onToolApproval}
-              state={state}
-            >
-              <span className="text-sm">
-                Allow running{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                  {displayCommand ?? command ?? "command"}
-                </code>
-                ?
-              </span>
-            </ActionApproval>
-          ) : null}
           {hasError ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
               {part.errorText}
@@ -2093,11 +2139,14 @@ export const WriteFileChip = ({
   const outputMessage = formatWriteOutputMessage(output);
   const approvalId = part.approval?.id;
   const canExpand =
-    hasError ||
-    isApprovalRequested ||
-    savedDiff !== null ||
-    content !== null ||
-    hasOutput;
+    !isApprovalRequested &&
+    (hasError ||
+      savedDiff !== null ||
+      content !== null ||
+      hasOutput ||
+      gitDiff !== null ||
+      gitDiffLoading ||
+      Boolean(gitDiffError));
   const previewLanguage = inferLanguage(filePath ?? filename);
   const normalizedContent =
     content !== null ? normalizeEmbeddedLineNumbers(content) : null;
@@ -2122,6 +2171,8 @@ export const WriteFileChip = ({
     previousContent,
   );
   const writeDiffStats = getDiffStats(parsedDiff);
+  const showFileDetails = expanded && !isApprovalRequested;
+
   useEffect(() => {
     if (defaultExpanded) {
       setExpanded(true);
@@ -2131,7 +2182,7 @@ export const WriteFileChip = ({
   useEffect(() => {
     if (
       isRunning ||
-      !expanded ||
+      !showFileDetails ||
       diffCode !== null ||
       !diffProjectPath ||
       !filePath
@@ -2219,10 +2270,10 @@ export const WriteFileChip = ({
     return () => {
       cancelled = true;
     };
-  }, [diffCode, diffProjectPath, expanded, filePath, isRunning]);
+  }, [diffCode, diffProjectPath, filePath, isRunning, showFileDetails]);
 
   return (
-    <div className={expanded ? "w-full" : undefined}>
+    <div className={expanded || isApprovalRequested ? "w-full" : undefined}>
       <div
         className={cn(
           "flex items-center gap-2",
@@ -2235,9 +2286,8 @@ export const WriteFileChip = ({
               "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
               hasError,
             ),
-            isApprovalRequested && "border-yellow-500/50 bg-yellow-500/5",
             canExpand && "cursor-pointer",
-            isRunning && "animate-pulse",
+            (isRunning || isApprovalRequested) && "animate-pulse",
           )}
           onClick={() => canExpand && setExpanded(!expanded)}
           aria-label={displayFilename}
@@ -2254,27 +2304,51 @@ export const WriteFileChip = ({
                   {writeFileStateLabel}
                 </span>
               ) : null}
-              {isApprovalRequested ? (
-                <span className="text-yellow-600">approval</span>
-              ) : null}
               {hasError ? (
                 <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
               ) : null}
             </>
           ) : null}
         </ChipButton>
-        {expanded && writeDiffStats ? (
-          <span className="flex shrink-0 items-center gap-1 font-medium text-xs">
-            <span className="text-emerald-600 dark:text-emerald-400">
-              +{writeDiffStats.additions}
+        <div
+          className={cn(
+            "flex shrink-0 items-center gap-2",
+            expanded && "ml-auto",
+          )}
+        >
+          {showFileDetails && writeDiffStats ? (
+            <span className="flex shrink-0 items-center gap-1 font-medium text-xs">
+              <span className="text-emerald-600 dark:text-emerald-400">
+                +{writeDiffStats.additions}
+              </span>
+              <span className="text-red-600 dark:text-red-400">
+                -{writeDiffStats.deletions}
+              </span>
             </span>
-            <span className="text-red-600 dark:text-red-400">
-              -{writeDiffStats.deletions}
+          ) : null}
+          <ApprovalStatusLabel approval={part.approval} state={state} />
+        </div>
+      </div>
+      {approvalId && part.approval && onToolApproval ? (
+        <ActionApproval
+          approval={part.approval}
+          className="mt-2"
+          onToolApproval={onToolApproval}
+          state={state}
+        >
+          <span className="flex items-center gap-2 text-sm">
+            <ClockIcon className="size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
+            <span>
+              Allow writing to{" "}
+              <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
+                {filePath ?? "file"}
+              </code>
+              ?
             </span>
           </span>
-        ) : null}
-      </div>
-      {expanded ? (
+        </ActionApproval>
+      ) : null}
+      {showFileDetails ? (
         <div
           className={getExpandedChipClasses(
             "text-purple-700 dark:text-purple-400",
@@ -2282,22 +2356,6 @@ export const WriteFileChip = ({
           )}
           style={{ borderColor: "currentColor" }}
         >
-          {/* Approval UI */}
-          {approvalId && part.approval && onToolApproval ? (
-            <ActionApproval
-              approval={part.approval}
-              onToolApproval={onToolApproval}
-              state={state}
-            >
-              <span className="text-sm">
-                Allow writing to{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                  {filePath ?? "file"}
-                </code>
-                ?
-              </span>
-            </ActionApproval>
-          ) : null}
           {/* Error */}
           {hasError ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
