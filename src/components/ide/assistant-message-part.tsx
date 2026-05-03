@@ -2,12 +2,12 @@ import { parsePatchFiles } from "@pierre/diffs";
 import {
   BotIcon,
   CheckIcon,
-  ClockIcon,
   EyeIcon,
   FolderIcon,
   PenLineIcon,
   SearchIcon,
   TerminalIcon,
+  TriangleAlertIcon,
   WrenchIcon,
   XIcon,
 } from "lucide-react";
@@ -121,7 +121,12 @@ const ActionApproval = ({
       )}
       state={state}
     >
-      <ConfirmationRequest>{children}</ConfirmationRequest>
+      <ConfirmationRequest>
+        <div className="flex min-w-0 items-start text-sm">
+          <TriangleAlertIcon className="mt-0.5 mr-3 size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
+          <div className="min-w-0 flex-1">{children}</div>
+        </div>
+      </ConfirmationRequest>
       <ConfirmationActions>
         <ConfirmationAction
           variant="outline"
@@ -1820,15 +1825,12 @@ export const RunCommandChip = ({
           onToolApproval={onToolApproval}
           state={state}
         >
-          <span className="flex items-center gap-2 text-sm">
-            <ClockIcon className="size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
-            <span>
-              Allow running{" "}
-              <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
-                {displayCommand ?? command ?? "command"}
-              </code>
-              ?
-            </span>
+          <span>
+            Allow running{" "}
+            <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
+              {displayCommand ?? command ?? "command"}
+            </code>
+            ?
           </span>
         </ActionApproval>
       ) : null}
@@ -2336,15 +2338,12 @@ export const WriteFileChip = ({
           onToolApproval={onToolApproval}
           state={state}
         >
-          <span className="flex items-center gap-2 text-sm">
-            <ClockIcon className="size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
-            <span>
-              Allow writing to{" "}
-              <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
-                {filePath ?? "file"}
-              </code>
-              ?
-            </span>
+          <span>
+            Allow writing to{" "}
+            <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
+              {filePath ?? "file"}
+            </code>
+            ?
           </span>
         </ActionApproval>
       ) : null}
