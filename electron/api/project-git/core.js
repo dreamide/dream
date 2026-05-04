@@ -144,7 +144,7 @@ const getPreferredGitRemote = async (repoRoot) => {
   return remotes.includes("origin") ? "origin" : remotes[0];
 };
 
-const gitRefExists = async (repoRoot, ref) => {
+export const gitRefExists = async (repoRoot, ref) => {
   const result = await runGitCommand(
     repoRoot,
     ["show-ref", "--verify", "--quiet", ref],
@@ -226,7 +226,7 @@ const getGitAheadBehindCounts = async (repoRoot, upstreamBranch) => {
   };
 };
 
-const getProjectGitMetadata = async (repoRoot, branch) => {
+export const getProjectGitMetadata = async (repoRoot, branch) => {
   const remoteName = await getPreferredGitRemote(repoRoot);
   const [baseBranch, upstreamBranch] = await Promise.all([
     getGitDefaultBranch(repoRoot, remoteName),

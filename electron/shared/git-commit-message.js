@@ -112,6 +112,13 @@ export const buildPathAwareCommitMessage = (changes) => {
     return "Modularize Electron API server routes";
   }
 
+  if (
+    paths.has("electron/api/project-git/actions.js") &&
+    paths.has("electron/api/project-git/core.js")
+  ) {
+    return "Fix project Git push preview metadata";
+  }
+
   return "";
 };
 

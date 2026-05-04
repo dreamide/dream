@@ -13,6 +13,8 @@ import {
   getGitRepositoryInfo,
   getProjectGitCachedDiff,
   getProjectGitDiff,
+  getProjectGitMetadata,
+  gitRefExists,
   listProjectGitChanges,
   runGhCommand,
   runGitCommand,
@@ -38,6 +40,14 @@ const getGitActionBranchName = (branch) => {
 
   return normalizedBranch;
 };
+
+const humanizeBranchName = (branch) =>
+  normalizeGitActionText(branch)
+    .replace(/^refs\/heads\//, "")
+    .replace(/[._/-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase()) || "Changes";
 
 const ensureProjectGitRepository = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
