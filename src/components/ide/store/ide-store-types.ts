@@ -1,0 +1,184 @@
+import type { UIMessage } from "ai";
+import type {
+  AiProvider,
+  AppSettings,
+  BrowserTabState,
+  ChatConfig,
+  ChatSortOrder,
+  PanelSizes,
+  PanelVisibility,
+  ProjectConfig,
+  RightPanelView,
+} from "@/types/ide";
+import type {
+  ClaudePermissionMode,
+  CodexPermissionMode,
+  ProviderModelState,
+  SettingsSection,
+} from "../ide-types";
+
+export interface IdeState {
+  // Persisted state
+  projects: ProjectConfig[];
+  closedProjects: ProjectConfig[];
+  activeProjectId: string | null;
+  chats: ChatConfig[];
+  chatSort: ChatSortOrder;
+  settings: AppSettings;
+  messagesByChatId: Record<string, UIMessage[]>;
+
+  // Runtime state
+  streamingChatIds: Record<string, boolean>;
+  draftChatIdByProject: Record<string, string | null>;
+  terminalOutput: Record<string, string>;
+  terminalStatus: Record<string, "running" | "stopped">;
+  terminalTransport: Record<string, "pty" | "pipe">;
+  terminalShell: Record<string, string>;
+  terminalSessionNames: Record<string, string>;
+  nextTerminalOrdinalByProject: Record<string, number>;
+  projectTerminalSessionIds: Record<string, string[]>;
+  activeTerminalSessionIdByProject: Record<string, string | null>;
+  projectTerminalPanelOpenByProject: Record<string, boolean>;
+  outputPanelOpen: boolean;
+  claudePermissionMode: ClaudePermissionMode;
+  codexPermissionMode: CodexPermissionMode;
+  browserError: string | null;
+  browserLoading: Record<string, boolean>;
+  browserTabsByProject: Record<string, BrowserTabState[]>;
+  activeBrowserTabIdByProject: Record<string, string | null>;
+  projectGitRefreshKeys: Record<string, number>;
+  projectFilesRefreshKeys: Record<string, number>;
+  projectFileOpenRequests: Record<
+    string,
+    { filePath: string; requestId: number }
+  >;
+  stateHydrated: boolean;
+  isMacOs: boolean;
+  isElectron: boolean;
+  appReady: boolean;
+
+  // Settings dialog state
+  settingsOpen: boolean;
+  settingsSection: SettingsSection;
+  modelSearchQuery: string;
+  providerModels: {
+    openai: ProviderModelState;
+    anthropic: ProviderModelState;
+    fetchedAt: string | null;
+  };
+
+  // Derived
+  getActiveProject: () => ProjectConfig | null;
+  getChatsForProject: (projectId: string) => ChatConfig[];
+  getActiveChat: () => ChatConfig | null;
+  getBrowserTabs: (projectId: string | null | undefined) => BrowserTabState[];
+  getActiveBrowserTab: (projectId?: string | null) => BrowserTabState | null;
+
+  // Actions - projects
+  setProjects: (projects: ProjectConfig[]) => void;
+  setActiveProjectId: (id: string | null) => void;
+  addProject: (path: string) => void;
+  closeProject: (projectId: string) => void;
+  updateProject: (
+    projectId: string,
+    updater: (project: ProjectConfig) => ProjectConfig,
+  ) => void;
+  addChat: (projectId: string, title?: string) => void;
+  setActiveChatId: (projectId: string, chatId: string | null) => void;
+  updateChat: (
+    chatId: string,
+    updater: (chat: ChatConfig) => ChatConfig,
+  ) => void;
+  deleteChat: (chatId: string) => void;
+  permanentlyDeleteChats: (chatIds: string[]) => void;
+  restoreChats: (chatIds: string[]) => void;
+  setMessagesForChat: (chatId: string, messages: UIMessage[]) => void;
+  setChatSort: (sortOrder: ChatSortOrder) => void;
+
+  // Actions - panels
+  togglePanel: (panel: keyof PanelVisibility) => void;
+  setPanelSizes: (
+    updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
+  ) => void;
+  setProjectPanelSizes: (
+    projectId: string,
+    updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
+  ) => void;
+  setProjectChatHistoryPanelOpen: (projectId: string, open: boolean) => void;
+  setProjectRightPanelOpen: (projectId: string, open: boolean) => void;
+  setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
+  openProjectFile: (projectId: string, filePath: string) => void;
+  setOutputPanelOpen: (open: boolean) => void;
+  setClaudePermissionMode: (value: ClaudePermissionMode) => void;
+  setCodexPermissionMode: (value: CodexPermissionMode) => void;
+
+  // Actions - settings
+  setSettings: (
+    updater: AppSettings | ((prev: AppSettings) => AppSettings),
+  ) => void;
+  setSettingsOpen: (open: boolean) => void;
+  setSettingsSection: (section: SettingsSection) => void;
+  setModelSearchQuery: (query: string) => void;
+
+  // Actions - provider management
+  toggleProviderModel: (provider: AiProvider, model: string) => void;
+  refreshProviderModels: () => Promise<void>;
+  setProviderModels: (
+    updater:
+      | IdeState["providerModels"]
+      | ((prev: IdeState["providerModels"]) => IdeState["providerModels"]),
+  ) => void;
+
+  // Actions - runtime
+  appendTerminalOutput: (projectId: string, chunk: string) => void;
+  clearTerminalOutput: (projectId: string) => void;
+  setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
+  setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
+  setTerminalShell: (projectId: string, shell: string) => void;
+  setTerminalSessionName: (sessionId: string, name: string) => void;
+  setChatStreaming: (chatId: string, streaming: boolean) => void;
+  bumpProjectGitRefreshKey: (projectId: string) => void;
+  bumpProjectFilesRefreshKey: (projectId: string) => void;
+  setBrowserError: (error: string | null) => void;
+  setBrowserLoading: (id: string, loading: boolean) => void;
+  ensureBrowserTabs: (projectId: string, initialUrl?: string) => void;
+  createBrowserTab: (projectId: string, initialUrl?: string) => string | null;
+  updateBrowserTab: (
+    projectId: string,
+    tabId: string,
+    updater: (tab: BrowserTabState) => BrowserTabState,
+  ) => void;
+  closeBrowserTab: (projectId: string, tabId: string) => string | null;
+  reorderBrowserTabs: (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => void;
+  setActiveBrowserTab: (projectId: string, tabId: string | null) => void;
+  setIsMacOs: (value: boolean) => void;
+  setIsElectron: (value: boolean) => void;
+  setAppReady: (value: boolean) => void;
+  openExternalUrl: (url: string) => void;
+
+  // Actions - runner
+  startRunner: () => Promise<void>;
+  stopRunner: () => Promise<void>;
+
+  // Actions - terminal
+  openProjectTerminal: (projectId: string) => Promise<void>;
+  addProjectTerminal: (projectId: string) => Promise<void>;
+  setActiveProjectTerminalId: (
+    projectId: string,
+    sessionId: string | null,
+  ) => void;
+  reorderProjectTerminals: (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => void;
+  closeProjectTerminal: (projectId: string, sessionId: string) => Promise<void>;
+
+  // Actions - hydration & persistence
+  hydrate: () => Promise<void>;
+  persist: () => void;
+}

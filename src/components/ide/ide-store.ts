@@ -1,4 +1,3 @@
-import type { UIMessage } from "ai";
 import { create } from "zustand";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -6,40 +5,19 @@ import {
   createProjectConfig,
   DEFAULT_SETTINGS,
   getDefaultModelSelection,
-  getPreferredDefaultModel,
-  normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
-import { dedupeModelOptions } from "@/lib/models";
-import type {
-  AiProvider,
-  AppSettings,
-  BrowserTabState,
-  ChatConfig,
-  ChatSortOrder,
-  PanelSizes,
-  PanelVisibility,
-  PersistedIdeState,
-  ProjectConfig,
-  RightPanelView,
-} from "@/types/ide";
+import type { ProjectConfig } from "@/types/ide";
 import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   ensureActiveChatForProject,
   ensureActiveProject,
   getChatsForProject,
-  mergePersistedState,
   normalizeProjectPathKey,
 } from "./ide-state";
 import {
-  type ClaudePermissionMode,
-  type CodexPermissionMode,
   createProjectTerminalSessionId,
-  dedupeModels,
   getBrowserTerminalSessionId,
-  type ProviderModelState,
   type ProviderModelsResponse,
-  type SettingsSection,
-  STATE_STORAGE_KEY,
 } from "./ide-types";
 import {
   areMessagesEqual,
@@ -52,209 +30,26 @@ import {
   shouldTouchChatUpdatedAt,
   updateProjectUiInList,
 } from "./store";
-
-// ---------------------------------------------------------------------------
-// Store shape
-// ---------------------------------------------------------------------------
-
-interface IdeState {
-  // Persisted state
-  projects: ProjectConfig[];
-  closedProjects: ProjectConfig[];
-  activeProjectId: string | null;
-  chats: ChatConfig[];
-  chatSort: ChatSortOrder;
-  settings: AppSettings;
-  messagesByChatId: Record<string, UIMessage[]>;
-
-  // Runtime state
-  streamingChatIds: Record<string, boolean>;
-  draftChatIdByProject: Record<string, string | null>;
-  terminalOutput: Record<string, string>;
-  terminalStatus: Record<string, "running" | "stopped">;
-  terminalTransport: Record<string, "pty" | "pipe">;
-  terminalShell: Record<string, string>;
-  terminalSessionNames: Record<string, string>;
-  nextTerminalOrdinalByProject: Record<string, number>;
-  projectTerminalSessionIds: Record<string, string[]>;
-  activeTerminalSessionIdByProject: Record<string, string | null>;
-  projectTerminalPanelOpenByProject: Record<string, boolean>;
-  outputPanelOpen: boolean;
-  claudePermissionMode: ClaudePermissionMode;
-  codexPermissionMode: CodexPermissionMode;
-  browserError: string | null;
-  browserLoading: Record<string, boolean>;
-  browserTabsByProject: Record<string, BrowserTabState[]>;
-  activeBrowserTabIdByProject: Record<string, string | null>;
-  projectGitRefreshKeys: Record<string, number>;
-  projectFilesRefreshKeys: Record<string, number>;
-  projectFileOpenRequests: Record<
-    string,
-    { filePath: string; requestId: number }
-  >;
-  stateHydrated: boolean;
-  isMacOs: boolean;
-  isElectron: boolean;
-  appReady: boolean;
-
-  // Settings dialog state
-  settingsOpen: boolean;
-  settingsSection: SettingsSection;
-  modelSearchQuery: string;
-  providerModels: {
-    openai: ProviderModelState;
-    anthropic: ProviderModelState;
-    fetchedAt: string | null;
-  };
-
-  // Derived (computed inline via getters, but activeProject is common enough)
-  getActiveProject: () => ProjectConfig | null;
-  getChatsForProject: (projectId: string) => ChatConfig[];
-  getActiveChat: () => ChatConfig | null;
-  getBrowserTabs: (projectId: string | null | undefined) => BrowserTabState[];
-  getActiveBrowserTab: (projectId?: string | null) => BrowserTabState | null;
-
-  // Actions – projects
-  setProjects: (projects: ProjectConfig[]) => void;
-  setActiveProjectId: (id: string | null) => void;
-  addProject: (path: string) => void;
-  closeProject: (projectId: string) => void;
-  updateProject: (
-    projectId: string,
-    updater: (project: ProjectConfig) => ProjectConfig,
-  ) => void;
-  addChat: (projectId: string, title?: string) => void;
-  setActiveChatId: (projectId: string, chatId: string | null) => void;
-  updateChat: (
-    chatId: string,
-    updater: (chat: ChatConfig) => ChatConfig,
-  ) => void;
-  deleteChat: (chatId: string) => void;
-  permanentlyDeleteChats: (chatIds: string[]) => void;
-  restoreChats: (chatIds: string[]) => void;
-  setMessagesForChat: (chatId: string, messages: UIMessage[]) => void;
-  setChatSort: (sortOrder: ChatSortOrder) => void;
-
-  // Actions – panels
-  togglePanel: (panel: keyof PanelVisibility) => void;
-  setPanelSizes: (
-    updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
-  ) => void;
-  setProjectPanelSizes: (
-    projectId: string,
-    updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
-  ) => void;
-  setProjectChatHistoryPanelOpen: (projectId: string, open: boolean) => void;
-  setProjectRightPanelOpen: (projectId: string, open: boolean) => void;
-  setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
-  openProjectFile: (projectId: string, filePath: string) => void;
-  setOutputPanelOpen: (open: boolean) => void;
-  setClaudePermissionMode: (value: ClaudePermissionMode) => void;
-  setCodexPermissionMode: (value: CodexPermissionMode) => void;
-
-  // Actions – settings
-  setSettings: (
-    updater: AppSettings | ((prev: AppSettings) => AppSettings),
-  ) => void;
-  setSettingsOpen: (open: boolean) => void;
-  setSettingsSection: (section: SettingsSection) => void;
-  setModelSearchQuery: (query: string) => void;
-
-  // Actions – provider management
-  toggleProviderModel: (provider: AiProvider, model: string) => void;
-  refreshProviderModels: () => Promise<void>;
-  setProviderModels: (
-    updater:
-      | IdeState["providerModels"]
-      | ((prev: IdeState["providerModels"]) => IdeState["providerModels"]),
-  ) => void;
-
-  // Actions – runtime
-  appendTerminalOutput: (projectId: string, chunk: string) => void;
-  clearTerminalOutput: (projectId: string) => void;
-  setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
-  setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
-  setTerminalShell: (projectId: string, shell: string) => void;
-  setTerminalSessionName: (sessionId: string, name: string) => void;
-  setChatStreaming: (chatId: string, streaming: boolean) => void;
-  bumpProjectGitRefreshKey: (projectId: string) => void;
-  bumpProjectFilesRefreshKey: (projectId: string) => void;
-  setBrowserError: (error: string | null) => void;
-  setBrowserLoading: (id: string, loading: boolean) => void;
-  ensureBrowserTabs: (projectId: string, initialUrl?: string) => void;
-  createBrowserTab: (projectId: string, initialUrl?: string) => string | null;
-  updateBrowserTab: (
-    projectId: string,
-    tabId: string,
-    updater: (tab: BrowserTabState) => BrowserTabState,
-  ) => void;
-  closeBrowserTab: (projectId: string, tabId: string) => string | null;
-  reorderBrowserTabs: (
-    projectId: string,
-    fromIndex: number,
-    toIndex: number,
-  ) => void;
-  setActiveBrowserTab: (projectId: string, tabId: string | null) => void;
-  setIsMacOs: (value: boolean) => void;
-  setIsElectron: (value: boolean) => void;
-  setAppReady: (value: boolean) => void;
-  openExternalUrl: (url: string) => void;
-
-  // Actions – runner
-  startRunner: () => Promise<void>;
-  stopRunner: () => Promise<void>;
-
-  // Actions – terminal
-  openProjectTerminal: (projectId: string) => Promise<void>;
-  addProjectTerminal: (projectId: string) => Promise<void>;
-  setActiveProjectTerminalId: (
-    projectId: string,
-    sessionId: string | null,
-  ) => void;
-  reorderProjectTerminals: (
-    projectId: string,
-    fromIndex: number,
-    toIndex: number,
-  ) => void;
-  closeProjectTerminal: (projectId: string, sessionId: string) => Promise<void>;
-
-  // Actions – hydration & persistence
-  hydrate: () => Promise<void>;
-  persist: () => void;
-}
+import {
+  createPersistedIdeState,
+  loadPersistedIdeState,
+  savePersistedIdeState,
+} from "./store/ide-store-persistence";
+import type { IdeState } from "./store/ide-store-types";
+import {
+  areSettingsSelectionsEqual,
+  DEFAULT_PROVIDER_MODELS,
+  getPermissionModesForAutoAccept,
+  getProviderModelsErrorState,
+  getProviderModelsFromResponse,
+  markProviderModelsLoading,
+  reconcileSettingsWithProviderModels,
+  toggleProviderModelInSettings,
+} from "./store/provider-model-state";
 
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
-
-const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
-  anthropic: {
-    error: null,
-    installed: false,
-    loading: false,
-    models: [],
-    source: "unavailable",
-    version: null,
-  },
-  fetchedAt: null,
-  openai: {
-    error: null,
-    installed: false,
-    loading: false,
-    models: [],
-    source: "unavailable",
-    version: null,
-  },
-};
-
-const getPermissionModesForAutoAccept = (
-  autoAcceptPermissions: boolean,
-): Pick<IdeState, "claudePermissionMode" | "codexPermissionMode"> => ({
-  claudePermissionMode: autoAcceptPermissions
-    ? "accept-edits"
-    : "ask-permissions",
-  codexPermissionMode: autoAcceptPermissions ? "auto-accept-edits" : "default",
-});
 
 export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Persisted state ─────────────────────────────────────────────────
@@ -1189,51 +984,19 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Actions: provider management ────────────────────────────────────
   toggleProviderModel: (provider, model) => {
     set((state) => {
-      const prev = state.settings;
-      if (provider === "openai") {
-        const current = dedupeModels(prev.openAiSelectedModels);
-        const next = current.includes(model)
-          ? current.filter((v) => v !== model)
-          : [...current, model];
-        const nextSettings = {
-          ...prev,
-          openAiSelectedModels: next,
-        };
-        return {
-          settings: {
-            ...nextSettings,
-            defaultModel: getPreferredDefaultModel(nextSettings),
-          },
-        };
-      }
-      const current = dedupeModels(prev.anthropicSelectedModels);
-      const next = current.includes(model)
-        ? current.filter((v) => v !== model)
-        : [...current, model];
-      const nextSettings = {
-        ...prev,
-        anthropicSelectedModels: next,
-      };
       return {
-        settings: {
-          ...nextSettings,
-          defaultModel: getPreferredDefaultModel(nextSettings),
-        },
+        settings: toggleProviderModelInSettings(
+          state.settings,
+          provider,
+          model,
+        ),
       };
     });
   },
 
   refreshProviderModels: async () => {
     set((state) => ({
-      providerModels: {
-        ...state.providerModels,
-        anthropic: {
-          ...state.providerModels.anthropic,
-          error: null,
-          loading: true,
-        },
-        openai: { ...state.providerModels.openai, error: null, loading: true },
-      },
+      providerModels: markProviderModelsLoading(state.providerModels),
     }));
 
     try {
@@ -1243,101 +1006,31 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         throw new Error(`Model fetch failed (${response.status}).`);
 
       const payload = (await response.json()) as ProviderModelsResponse;
-      const nextOpenAiModels = dedupeModelOptions(payload.openai.models);
-      const nextAnthropicModels = dedupeModelOptions(payload.anthropic.models);
-      const nextOpenAiModelIds = nextOpenAiModels.map((model) => model.id);
-      const nextAnthropicModelIds = nextAnthropicModels.map(
-        (model) => model.id,
-      );
+      const providerModels = getProviderModelsFromResponse(payload);
 
-      set({
-        providerModels: {
-          anthropic: {
-            error: payload.anthropic.error ?? null,
-            installed: payload.anthropic.installed,
-            loading: false,
-            models: nextAnthropicModels,
-            source: payload.anthropic.source,
-            version: payload.anthropic.version ?? null,
-          },
-          fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
-          openai: {
-            error: payload.openai.error ?? null,
-            installed: payload.openai.installed,
-            loading: false,
-            models: nextOpenAiModels,
-            source: payload.openai.source,
-            version: payload.openai.version ?? null,
-          },
-        },
-      });
+      set({ providerModels });
 
       // Reconcile selected models
       set((state) => {
-        const prev = state.settings;
-        const currentOpenAiSelected = dedupeModels(
-          prev.openAiSelectedModels,
-        ).filter((m) => nextOpenAiModelIds.includes(m));
-        const currentAnthropicSelected = dedupeModels(
-          prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
-        ).filter((m) => nextAnthropicModelIds.includes(m));
+        const nextSettings = reconcileSettingsWithProviderModels(
+          state.settings,
+          providerModels,
+        );
 
-        const openAiSelectedModels =
-          currentOpenAiSelected.length > 0 ? currentOpenAiSelected : [];
-        const anthropicSelectedModels =
-          currentAnthropicSelected.length > 0 ? currentAnthropicSelected : [];
-        const nextSettings = {
-          ...prev,
-          anthropicSelectedModels,
-          openAiSelectedModels,
-        };
-        const defaultModel = getPreferredDefaultModel(nextSettings);
-
-        if (
-          defaultModel === prev.defaultModel &&
-          openAiSelectedModels.length === prev.openAiSelectedModels.length &&
-          anthropicSelectedModels.length ===
-            prev.anthropicSelectedModels.length &&
-          openAiSelectedModels.every(
-            (m, i) => prev.openAiSelectedModels[i] === m,
-          ) &&
-          anthropicSelectedModels.every(
-            (m, i) => prev.anthropicSelectedModels[i] === m,
-          )
-        ) {
+        if (areSettingsSelectionsEqual(nextSettings, state.settings)) {
           return state;
         }
 
-        return {
-          settings: {
-            ...nextSettings,
-            defaultModel,
-          },
-        };
+        return { settings: nextSettings };
       });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to fetch models.";
       set((state) => ({
-        providerModels: {
-          anthropic: {
-            error: message,
-            installed: state.providerModels.anthropic.installed,
-            loading: false,
-            models: state.providerModels.anthropic.models,
-            source: state.providerModels.anthropic.source,
-            version: state.providerModels.anthropic.version,
-          },
-          fetchedAt: state.providerModels.fetchedAt,
-          openai: {
-            error: message,
-            installed: state.providerModels.openai.installed,
-            loading: false,
-            models: state.providerModels.openai.models,
-            source: state.providerModels.openai.source,
-            version: state.providerModels.openai.version,
-          },
-        },
+        providerModels: getProviderModelsErrorState(
+          state.providerModels,
+          message,
+        ),
       }));
     }
   },
@@ -1931,47 +1624,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Actions: hydration & persistence ────────────────────────────────
   hydrate: async () => {
-    const desktopApi = getDesktopApi();
-    let loaded: PersistedIdeState;
-
-    if (desktopApi) {
-      const rawState = await desktopApi.loadState();
-      loaded = mergePersistedState(rawState);
-    } else {
-      const rawState = localStorage.getItem(STATE_STORAGE_KEY);
-      if (!rawState) {
-        loaded = {
-          activeProjectId: null,
-          activeBrowserTabIdByProject: {},
-          browserTabsByProject: {},
-          chats: [],
-          closedProjects: [],
-          messagesByChatId: {},
-          projects: [],
-          settings: DEFAULT_SETTINGS,
-          chatSort: "recent",
-        };
-      } else {
-        try {
-          loaded = mergePersistedState(
-            JSON.parse(rawState) as PersistedIdeState,
-          );
-        } catch {
-          loaded = {
-            activeProjectId: null,
-            activeBrowserTabIdByProject: {},
-            browserTabsByProject: {},
-            chats: [],
-            closedProjects: [],
-            messagesByChatId: {},
-            projects: [],
-            settings: DEFAULT_SETTINGS,
-            chatSort: "recent",
-          };
-        }
-      }
-    }
-
+    const loaded = await loadPersistedIdeState();
     const nextActiveProjectId = ensureActiveProject(
       loaded.projects,
       loaded.activeProjectId,
@@ -2009,76 +1662,19 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     } = get();
     if (!stateHydrated) return;
 
-    const allProjects = [...projects, ...closedProjects];
-    const knownProjectIds = new Set(allProjects.map((project) => project.id));
-    const persistedChats = chats.filter((chat) => {
-      if (!knownProjectIds.has(chat.projectId)) {
-        return false;
-      }
-
-      const messageCount = messagesByChatId[chat.id]?.length ?? 0;
-      if (
-        draftChatIdByProject[chat.projectId] === chat.id &&
-        messageCount === 0
-      ) {
-        return false;
-      }
-
-      return chat.deletedAt !== null || messageCount > 0;
-    });
-    const persistedMessagesByChatId = Object.fromEntries(
-      persistedChats.map((chat) => [chat.id, messagesByChatId[chat.id] ?? []]),
-    );
-    const sanitizeProjectForPersistence = (project: ProjectConfig) => ({
-      ...project,
-      ui: {
-        ...project.ui,
-        activeChatId: ensureActiveChatForProject(
-          persistedChats,
-          project.id,
-          project.ui.activeChatId,
-        ),
-      },
-    });
-    const persistedProjects = projects.map(sanitizeProjectForPersistence);
-    const persistedClosedProjects = closedProjects.map(
-      sanitizeProjectForPersistence,
-    );
-    const persistedBrowserTabsByProject = Object.fromEntries(
-      Object.entries(browserTabsByProject).filter(
-        ([projectId, tabs]) =>
-          knownProjectIds.has(projectId) && tabs.length > 0,
-      ),
-    );
-    const persistedActiveBrowserTabIdByProject = Object.fromEntries(
-      Object.entries(persistedBrowserTabsByProject).map(([projectId, tabs]) => {
-        const activeTabId = activeBrowserTabIdByProject[projectId] ?? null;
-        return [
-          projectId,
-          activeTabId && tabs.some((tab) => tab.id === activeTabId)
-            ? activeTabId
-            : (tabs[0]?.id ?? null),
-        ];
-      }),
-    );
-
-    const nextState: PersistedIdeState = {
-      activeProjectId: ensureActiveProject(projects, activeProjectId),
-      activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,
-      browserTabsByProject: persistedBrowserTabsByProject,
-      chats: persistedChats,
+    const nextState = createPersistedIdeState({
+      activeBrowserTabIdByProject,
+      activeProjectId,
+      browserTabsByProject,
+      chats,
       chatSort,
-      closedProjects: persistedClosedProjects,
-      messagesByChatId: persistedMessagesByChatId,
-      projects: persistedProjects,
+      closedProjects,
+      draftChatIdByProject,
+      messagesByChatId,
+      projects,
       settings,
-    };
+    });
 
-    const desktopApi = getDesktopApi();
-    if (desktopApi) {
-      void desktopApi.saveState(nextState);
-    } else {
-      localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(nextState));
-    }
+    savePersistedIdeState(nextState);
   },
 }));
