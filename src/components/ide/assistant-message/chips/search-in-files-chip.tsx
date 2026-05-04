@@ -82,7 +82,7 @@ export const SearchInFilesChip = ({
   const canExpand = hasError || hasRawOutput;
   const label = query ?? "Search";
   const SearchChipIcon = isToolReferenceSearch ? WrenchIcon : SearchIcon;
-  const tone = isToolReferenceSearch ? "stone" : "blue";
+  const tone = isToolReferenceSearch ? "slate" : "blue";
 
   useEffect(() => {
     if (defaultExpanded) {

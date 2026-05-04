@@ -364,49 +364,15 @@ const VirtualizedChatMessages = ({
   showReasoningSummaries: boolean;
 }) => {
   const conversationContext = useStickToBottomContext();
-  const measureFrameRef = useRef<number | null>(null);
-  const lastMessage = messages[messages.length - 1];
-  const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
-  const streamMeasureKey = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
-    lastPart && "text" in lastPart ? (lastPart.text as string).length : 0
-  }`;
-  const layoutMeasureKey = `${messages.length}:${expandToolCalls}:${showReasoningSummaries}`;
   const rowVirtualizer = useVirtualizer<HTMLElement, HTMLDivElement>({
     count: messages.length,
     estimateSize: () => CHAT_MESSAGE_ESTIMATED_HEIGHT_PX,
     getItemKey: (index) => messages[index]?.id ?? index,
     getScrollElement: () => conversationContext.scrollRef.current,
     overscan: CHAT_MESSAGE_VIRTUAL_OVERSCAN,
+    useAnimationFrameWithResizeObserver: true,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
-
-  useEffect(() => {
-    void layoutMeasureKey;
-    rowVirtualizer.measure();
-  }, [layoutMeasureKey, rowVirtualizer]);
-
-  useEffect(() => {
-    if (!isStreaming) {
-      return;
-    }
-    void streamMeasureKey;
-
-    if (measureFrameRef.current !== null) {
-      return;
-    }
-
-    measureFrameRef.current = window.requestAnimationFrame(() => {
-      measureFrameRef.current = null;
-      rowVirtualizer.measure();
-    });
-
-    return () => {
-      if (measureFrameRef.current !== null) {
-        window.cancelAnimationFrame(measureFrameRef.current);
-        measureFrameRef.current = null;
-      }
-    };
-  }, [isStreaming, rowVirtualizer, streamMeasureKey]);
 
   return (
     <div

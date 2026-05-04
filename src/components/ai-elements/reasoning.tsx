@@ -175,7 +175,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-slate-700 text-xs transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-950",
+          "inline-flex w-fit items-center gap-1.5 rounded-full border border-stone-300 bg-stone-100 px-2.5 py-1 text-stone-700 text-xs transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-950",
           className,
         )}
         disabled={!hasContent}
@@ -213,7 +213,7 @@ export const ReasoningContent = memo(
     return (
       <CollapsibleContent
         className={cn(
-          "dream-markdown-code-size mt-2 border-current border-l pl-3 text-slate-700 text-sm dark:text-slate-300",
+          "dream-markdown-code-size mt-2 border-current border-l pl-3 text-stone-700 text-sm dark:text-stone-300",
           "outline-none",
           className,
         )}
