@@ -14,6 +14,7 @@ import {
   PenLineIcon,
   SearchIcon,
   TerminalIcon,
+  TriangleAlertIcon,
   WrenchIcon,
 } from "lucide-react";
 import { memo, type ReactNode, useCallback, useEffect, useState } from "react";
@@ -568,13 +569,26 @@ const ToolChipRow = ({
   </div>
 );
 
+type ToolGroupSummary =
+  | {
+      count: number;
+      kind: ChipToolKind;
+      type: "tool";
+    }
+  | {
+      count: number;
+      type: "error";
+    };
+type ToolSummary = Extract<ToolGroupSummary, { type: "tool" }>;
+type ErrorSummary = Extract<ToolGroupSummary, { type: "error" }>;
+
+const hasToolPartError = (part: ToolLikePart) =>
+  Boolean(part.errorText) || part.state === "output-error";
+
 const summarizeToolGroup = (group: ToolChipItem[]) => {
-  const summaries: {
-    count: number;
-    hasError: boolean;
-    kind: ChipToolKind;
-  }[] = [];
-  const summaryByKind = new Map<ChipToolKind, (typeof summaries)[number]>();
+  const summaries: ToolGroupSummary[] = [];
+  const summaryByKind = new Map<ChipToolKind, ToolSummary>();
+  let errorSummary: ErrorSummary | null = null;
 
   for (const item of group) {
     const chipPart = item.part as ToolLikePart;
@@ -583,17 +597,30 @@ const summarizeToolGroup = (group: ToolChipItem[]) => {
       continue;
     }
 
-    const existing = summaryByKind.get(kind);
-    if (existing) {
-      existing.count += 1;
-      existing.hasError ||= Boolean(chipPart.errorText);
+    if (hasToolPartError(chipPart)) {
+      if (errorSummary) {
+        errorSummary.count += 1;
+        continue;
+      }
+
+      errorSummary = {
+        count: 1,
+        type: "error",
+      };
+      summaries.push(errorSummary);
       continue;
     }
 
-    const summary = {
+    const existing = summaryByKind.get(kind);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+
+    const summary: ToolSummary = {
       count: 1,
-      hasError: Boolean(chipPart.errorText),
       kind,
+      type: "tool",
     };
     summaryByKind.set(kind, summary);
     summaries.push(summary);
@@ -626,21 +653,28 @@ const ToolCallGroup = ({
         type="button"
       >
         <span className="flex min-w-0 flex-wrap items-center gap-2">
-          {summaries.map(({ count, hasError, kind }) => {
-            const { Icon, label, tone } = TOOL_GROUP_META[kind];
+          {summaries.map((summary) => {
+            const isErrorSummary = summary.type === "error";
+            const { Icon, label, tone } = isErrorSummary
+              ? {
+                  Icon: TriangleAlertIcon,
+                  label: "Error",
+                  tone: "stone" as const,
+                }
+              : TOOL_GROUP_META[summary.kind];
 
             return (
               <span
                 className={cn(
                   CHIP_BUTTON_BASE_CLASSES,
-                  getChipToneClasses(tone, hasError),
+                  getChipToneClasses(tone, isErrorSummary),
                   "pointer-events-none font-mono tabular-nums",
                 )}
-                key={kind}
-                title={`${count} ${label} ${count === 1 ? "call" : "calls"}`}
+                key={isErrorSummary ? "error" : summary.kind}
+                title={`${summary.count} ${label} ${summary.count === 1 ? "call" : "calls"}`}
               >
                 <Icon className="size-3.5 shrink-0" />
-                <span className="font-medium">{count}</span>
+                <span className="font-medium">{summary.count}</span>
               </span>
             );
           })}
