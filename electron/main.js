@@ -1118,6 +1118,31 @@ const browserState = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function getNodeExecutable() {
+  const candidates = [
+    process.env.npm_node_execpath,
+    process.env.NODE,
+    process.env.NODE_BINARY,
+    "node",
+  ];
+
+  for (const candidate of candidates) {
+    const executable = candidate?.trim();
+    if (!executable) {
+      continue;
+    }
+
+    const executableName = path.basename(executable).toLowerCase();
+    if (executableName.includes("electron")) {
+      continue;
+    }
+
+    return executable;
+  }
+
+  return "node";
+}
+
 function sendToRenderer(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -2052,7 +2077,7 @@ async function startRendererServerIfNeeded() {
     );
 
     viteDevProcess = spawnProcess(
-      process.execPath,
+      getNodeExecutable(),
       [
         viteCli,
         "--host",
@@ -3161,7 +3186,7 @@ app.on("before-quit", async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (process.platform !== "darwin" || isDevelopment) {
     app.quit();
   }
 });
