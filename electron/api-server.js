@@ -3136,6 +3136,10 @@ const projectGitPushRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
 
+const projectGitPushPreviewRequestSchema = z.object({
+  projectPath: z.string().min(1),
+});
+
 const projectGitCreatePullRequestSchema = z.object({
   baseBranch: nullableTrimmedStringSchema,
   commitMessage: nullableTrimmedStringSchema,
@@ -4727,6 +4731,103 @@ const getPullRequestBaseRef = async (repoRoot, remoteName, baseBranch) => {
   return null;
 };
 
+const parseGitPushPreviewCommit = (line) => {
+  const [
+    hash = "",
+    shortHash = "",
+    subject = "",
+    authorName = "",
+    authorDate = "",
+  ] = line.split("\x1f");
+
+  return {
+    authorDate,
+    authorName,
+    hash,
+    shortHash,
+    subject,
+  };
+};
+
+const readGitCommitCount = async (repoRoot, rangeRef) => {
+  const args = rangeRef
+    ? ["rev-list", "--count", rangeRef]
+    : ["rev-list", "--count", "HEAD"];
+  const result = await runGitCommand(repoRoot, args, { allowFailure: true });
+  if (!result.ok) {
+    return 0;
+  }
+
+  return Number.parseInt(result.stdout.trim(), 10) || 0;
+};
+
+const readGitPushPreviewCommits = async (repoRoot, rangeRef) => {
+  const args = [
+    "log",
+    "--max-count=50",
+    "--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%aI",
+    ...(rangeRef ? [rangeRef] : ["HEAD"]),
+  ];
+  const result = await runGitCommand(repoRoot, args, { allowFailure: true });
+  if (!result.ok) {
+    return [];
+  }
+
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(parseGitPushPreviewCommit);
+};
+
+const getProjectGitPushPreview = async (projectPath) => {
+  const repoInfo = await ensureProjectGitRepository(projectPath);
+  const branch = getGitActionBranchName(repoInfo.branch);
+  if (!branch) {
+    throw new Error("Cannot push from a detached HEAD.");
+  }
+
+  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, branch);
+  if (!metadata.upstreamBranch && !metadata.remoteName) {
+    throw new Error("No Git remote is configured for this repository.");
+  }
+
+  const remoteBranchRef =
+    metadata.remoteName &&
+    (await gitRefExists(
+      repoInfo.repoRoot,
+      `refs/remotes/${metadata.remoteName}/${branch}`,
+    ))
+      ? `${metadata.remoteName}/${branch}`
+      : null;
+  const baseRef =
+    metadata.upstreamBranch ||
+    remoteBranchRef ||
+    (await getPullRequestBaseRef(
+      repoInfo.repoRoot,
+      metadata.remoteName,
+      metadata.baseBranch,
+    ));
+  const rangeRef = baseRef ? `${baseRef}..HEAD` : null;
+  const [commits, totalCommits] = await Promise.all([
+    readGitPushPreviewCommits(repoInfo.repoRoot, rangeRef),
+    readGitCommitCount(repoInfo.repoRoot, rangeRef),
+  ]);
+
+  return {
+    aheadCount: metadata.upstreamBranch ? metadata.aheadCount : totalCommits,
+    baseRef,
+    behindCount: metadata.behindCount,
+    branch,
+    commits,
+    remoteName: metadata.remoteName,
+    target: metadata.upstreamBranch ?? `${metadata.remoteName}/${branch}`,
+    totalCommits,
+    truncated: commits.length < totalCommits,
+    upstreamBranch: metadata.upstreamBranch,
+  };
+};
+
 const readPullRequestCommitSubjects = async (repoRoot, baseRef) => {
   const args = baseRef
     ? ["log", "--pretty=%s", `${baseRef}..HEAD`]
@@ -5418,6 +5519,31 @@ app.post("/api/project-git-push", async (c) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to push changes.";
+    return c.text(message, 400);
+  }
+});
+
+app.post("/api/project-git-push-preview", async (c) => {
+  let rawBody;
+  try {
+    rawBody = await c.req.json();
+  } catch {
+    return c.text("Invalid JSON payload.", 400);
+  }
+
+  const parsed = projectGitPushPreviewRequestSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return c.text(parsed.error.message, 400);
+  }
+
+  const { projectPath } = parsed.data;
+
+  try {
+    await ensureProjectDirectory(projectPath);
+    return c.json(await getProjectGitPushPreview(projectPath));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to preview push.";
     return c.text(message, 400);
   }
 });

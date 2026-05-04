@@ -43,6 +43,7 @@ import type {
   ProjectGitCommitResponse,
   ProjectGitCreatePrNextStep,
   ProjectGitCreatePrResponse,
+  ProjectGitPushPreviewResponse,
   ProjectGitPushResponse,
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
@@ -70,6 +71,7 @@ import {
   hasPushableCommits,
   hasPushDestination,
   postJson,
+  readResponseText,
 } from "./git-actions";
 
 const GitDeltaSummary = ({
@@ -248,6 +250,18 @@ const ActionError = ({ error }: { error: string | null }) =>
       {error}
     </div>
   ) : null;
+
+const formatCommitDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    month: "short",
+  }).format(date);
+};
 
 const CommitDialog = ({
   branch,
@@ -565,6 +579,11 @@ const PushDialog = ({
 }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ProjectGitPushPreviewResponse | null>(
+    null,
+  );
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const canPush = hasPushableCommits(status);
 
   useEffect(() => {
@@ -574,6 +593,57 @@ const PushDialog = ({
 
     setError(null);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const controller = new AbortController();
+    setPreview(null);
+    setPreviewError(null);
+    setPreviewLoading(true);
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/project-git-push-preview", {
+          body: JSON.stringify({ projectPath }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(await readResponseText(response));
+        }
+
+        const payload =
+          (await response.json()) as ProjectGitPushPreviewResponse;
+        if (!controller.signal.aborted) {
+          setPreview(payload);
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        if (!controller.signal.aborted) {
+          setPreviewError(
+            error instanceof Error
+              ? error.message
+              : "Unable to preview commits.",
+          );
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setPreviewLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [open, projectPath]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -610,17 +680,100 @@ const PushDialog = ({
         <GitDialogHeader icon={<UploadCloud />} title="Push changes" />
 
         <form className="space-y-5" onSubmit={handleSubmit}>
-          <DialogMetricRow
-            label={
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <GitBranch className="size-4" />
-                Branch
-              </span>
-            }
-            value={
-              <span className="text-foreground">{branch ?? "Unknown"}</span>
-            }
-          />
+          <div className="space-y-2">
+            <DialogMetricRow
+              label={
+                <span className="inline-flex items-center gap-2 text-muted-foreground">
+                  <GitBranch className="size-4" />
+                  Branch
+                </span>
+              }
+              value={
+                <span className="text-foreground">{branch ?? "Unknown"}</span>
+              }
+            />
+            <DialogMetricRow
+              label="Destination"
+              value={
+                previewLoading ? (
+                  <span>Loading...</span>
+                ) : preview?.target ? (
+                  <span className="font-mono text-foreground">
+                    {preview.target}
+                  </span>
+                ) : (
+                  <span>
+                    {status?.upstreamBranch ?? status?.remoteName ?? "-"}
+                  </span>
+                )
+              }
+            />
+            <DialogMetricRow
+              label="Commits"
+              value={
+                previewLoading ? (
+                  <span>Loading...</span>
+                ) : preview ? (
+                  <span className="text-foreground">
+                    {preview.totalCommits}
+                    {preview.behindCount > 0 ? (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ahead, {preview.behindCount} behind
+                      </span>
+                    ) : null}
+                  </span>
+                ) : (
+                  <span>{status?.aheadCount ?? 0}</span>
+                )
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="font-medium text-sm">Commits to push</div>
+            <div className="max-h-64 overflow-auto rounded-md border border-foreground/10 bg-muted/20">
+              {previewLoading ? (
+                <div className="flex items-center gap-2 px-3 py-3 text-muted-foreground text-sm">
+                  <Spinner className="size-4" />
+                  <span>Loading commits...</span>
+                </div>
+              ) : previewError ? (
+                <div className="px-3 py-3 text-destructive text-sm">
+                  {previewError}
+                </div>
+              ) : preview && preview.commits.length > 0 ? (
+                <div className="divide-y divide-foreground/10">
+                  {preview.commits.map((commit) => (
+                    <div
+                      className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm"
+                      key={commit.hash || commit.shortHash}
+                    >
+                      <span className="font-mono text-muted-foreground text-xs">
+                        {commit.shortHash}
+                      </span>
+                      <span className="min-w-0 truncate text-foreground">
+                        {commit.subject || "(no subject)"}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {formatCommitDate(commit.authorDate)}
+                      </span>
+                    </div>
+                  ))}
+                  {preview.truncated ? (
+                    <div className="px-3 py-2 text-muted-foreground text-xs">
+                      Showing first {preview.commits.length} of{" "}
+                      {preview.totalCommits} commits.
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="px-3 py-3 text-muted-foreground text-sm">
+                  No commits to push.
+                </div>
+              )}
+            </div>
+          </div>
 
           <ActionError error={error} />
 

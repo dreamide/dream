@@ -220,6 +220,27 @@ export interface ProjectGitCommitMessageResponse {
   commitMessage: string;
 }
 
+export interface ProjectGitPushPreviewCommit {
+  authorDate: string;
+  authorName: string;
+  hash: string;
+  shortHash: string;
+  subject: string;
+}
+
+export interface ProjectGitPushPreviewResponse {
+  aheadCount: number;
+  baseRef: string | null;
+  behindCount: number;
+  branch: string;
+  commits: ProjectGitPushPreviewCommit[];
+  remoteName: string | null;
+  target: string;
+  totalCommits: number;
+  truncated: boolean;
+  upstreamBranch: string | null;
+}
+
 export type ProjectGitPushNextStep = "push" | "commit-push";
 
 export interface ProjectGitPushRequest {
