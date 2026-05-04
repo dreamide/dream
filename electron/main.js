@@ -146,6 +146,7 @@ const DEFAULT_PERSISTED_STATE = {
     autoAcceptPermissions: false,
     defaultModel: "",
     expandToolCalls: false,
+    groupToolCalls: false,
     openAiSelectedModels: [],
     showReasoningSummaries: true,
     shellPath: "",
@@ -513,6 +514,12 @@ function saveStateToRelationalDatabase(database, state) {
       database,
       "settings.expandToolCalls",
       settings.expandToolCalls === true,
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.groupToolCalls",
+      settings.groupToolCalls === true,
       now,
     );
     writeConfig(
@@ -906,6 +913,10 @@ function loadStateFromRelationalDatabase(database) {
           ? config["settings.expandToolCalls"]
           : config["settings.expandShellToolParts"] === true ||
             config["settings.expandEditToolParts"] === true,
+      groupToolCalls:
+        typeof config["settings.groupToolCalls"] === "boolean"
+          ? config["settings.groupToolCalls"]
+          : false,
       openAiSelectedModels: Array.isArray(
         config["settings.openAiSelectedModels"],
       )
