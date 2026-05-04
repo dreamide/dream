@@ -8,6 +8,7 @@ import {
   resolveCodexCliLaunch,
 } from "../chat/codex-cli-launch.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
+import { readCodexModelsCache } from "../providers/codex-auth.js";
 import {
   getGitCommandErrorMessage,
   getGitRepositoryInfo,
@@ -21,7 +22,7 @@ import {
 } from "./core.js";
 import { hashContent, normalizePath } from "./files.js";
 
-const COMMIT_MESSAGE_CODEX_MODEL = "gpt-5";
+const COMMIT_MESSAGE_CODEX_MODEL_CANDIDATES = ["gpt-5-mini"];
 const COMMIT_MESSAGE_CLAUDE_MODEL = "sonnet";
 const COMMIT_MESSAGE_DIFF_MAX_CHARS = 20_000;
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 30;
@@ -214,6 +215,25 @@ const generateClaudeCommitMessage = async ({
   return sanitizeGeneratedCommitMessage(result.text);
 };
 
+const getCachedCodexModelIds = async () => {
+  const cachedModels = await readCodexModelsCache();
+  return new Set(
+    cachedModels
+      .flatMap((entry) => [entry?.slug, entry?.id])
+      .filter((id) => typeof id === "string" && id.trim())
+      .map((id) => id.trim().toLowerCase()),
+  );
+};
+
+const getPreferredCodexCommitMessageModel = async () => {
+  const modelIds = await getCachedCodexModelIds();
+  return (
+    COMMIT_MESSAGE_CODEX_MODEL_CANDIDATES.find((model) =>
+      modelIds.has(model.toLowerCase()),
+    ) ?? ""
+  );
+};
+
 const generateCodexCommitMessage = async ({
   diffText,
   fallbackMessage,
@@ -277,8 +297,11 @@ const generateCodexCommitMessage = async ({
       }
     };
 
-    void resolveCodexCliLaunch()
-      .then((launch) => {
+    void Promise.all([
+      resolveCodexCliLaunch(),
+      getPreferredCodexCommitMessageModel(),
+    ])
+      .then(([launch, model]) => {
         const child = spawn(
           launch.command,
           [
@@ -288,8 +311,7 @@ const generateCodexCommitMessage = async ({
             "--cd",
             projectPath,
             "--skip-git-repo-check",
-            "--model",
-            COMMIT_MESSAGE_CODEX_MODEL,
+            ...(model ? ["--model", model] : []),
             "-c",
             'sandbox_mode="read-only"',
             "-c",
