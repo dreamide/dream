@@ -1,6 +1,22 @@
 import type { UIMessage } from "ai";
-import { CheckIcon, CopyIcon, PaperclipIcon } from "lucide-react";
-import { memo, useCallback, useEffect, useState } from "react";
+import {
+  BotIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  EyeIcon,
+  FileTextIcon,
+  FolderIcon,
+  GlobeIcon,
+  type LucideIcon,
+  PaperclipIcon,
+  PenLineIcon,
+  SearchIcon,
+  TerminalIcon,
+  WrenchIcon,
+} from "lucide-react";
+import { memo, type ReactNode, useCallback, useEffect, useState } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import {
   Attachment,
@@ -22,7 +38,13 @@ import {
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { AiProvider } from "@/types/ide";
+import {
+  CHIP_BUTTON_BASE_CLASSES,
+  type ChipTone,
+  getChipToneClasses,
+} from "../assistant-message/shared";
 import {
   AgentChip,
   AssistantMessagePart,
@@ -34,7 +56,12 @@ import {
   WebFetchChip,
   WriteFileChip,
 } from "../assistant-message-part";
-import { getChipToolKind, isChipToolPart } from "../assistant-message-tools";
+import {
+  type ChipToolKind,
+  getChipToolKind,
+  isChipToolPart,
+  type ToolLikePart,
+} from "../assistant-message-tools";
 
 export type RenameTarget = {
   id: string;
@@ -361,9 +388,291 @@ export type ToolApprovalResponder = (response: {
   scope?: "once" | "session";
 }) => void;
 
+type ToolChipItem = {
+  index: number;
+  part: UIMessage["parts"][number];
+};
+
+type ToolChipRenderContext = {
+  addToolApprovalResponse: ToolApprovalResponder;
+  expandToolCalls: boolean;
+  messageId: string;
+  projectPath: string;
+};
+
+const TOOL_GROUP_META: Record<
+  ChipToolKind,
+  {
+    Icon: LucideIcon;
+    label: string;
+    tone: ChipTone;
+  }
+> = {
+  agent: {
+    Icon: BotIcon,
+    label: "Agent",
+    tone: "slate",
+  },
+  command: {
+    Icon: TerminalIcon,
+    label: "Command",
+    tone: "lime",
+  },
+  list: {
+    Icon: FolderIcon,
+    label: "List",
+    tone: "blue",
+  },
+  read: {
+    Icon: EyeIcon,
+    label: "Read",
+    tone: "green",
+  },
+  search: {
+    Icon: SearchIcon,
+    label: "Search",
+    tone: "blue",
+  },
+  taskOutput: {
+    Icon: FileTextIcon,
+    label: "Task output",
+    tone: "amber",
+  },
+  toolSearch: {
+    Icon: WrenchIcon,
+    label: "Tool search",
+    tone: "slate",
+  },
+  webFetch: {
+    Icon: GlobeIcon,
+    label: "Web fetch",
+    tone: "cyan",
+  },
+  write: {
+    Icon: PenLineIcon,
+    label: "Write",
+    tone: "purple",
+  },
+};
+
+const renderToolChip = (
+  { index, part }: ToolChipItem,
+  {
+    addToolApprovalResponse,
+    expandToolCalls,
+    messageId,
+    projectPath,
+  }: ToolChipRenderContext,
+) => {
+  const key = getMessagePartKey(
+    messageId,
+    part as Record<string, unknown>,
+    index,
+  );
+  const chipPart = part as ToolLikePart;
+  const chipToolKind = getChipToolKind(chipPart);
+
+  if (chipToolKind === "command") {
+    return (
+      <RunCommandChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        onToolApproval={addToolApprovalResponse}
+        part={chipPart}
+      />
+    );
+  }
+  if (chipToolKind === "agent") {
+    return (
+      <AgentChip defaultExpanded={expandToolCalls} key={key} part={chipPart} />
+    );
+  }
+  if (chipToolKind === "read") {
+    return (
+      <ReadFileChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        part={chipPart}
+        projectPath={projectPath}
+      />
+    );
+  }
+  if (chipToolKind === "list") {
+    return (
+      <ListFilesChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        part={chipPart}
+        projectPath={projectPath}
+      />
+    );
+  }
+  if (chipToolKind === "write") {
+    return (
+      <WriteFileChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        onToolApproval={addToolApprovalResponse}
+        part={chipPart}
+        projectPath={projectPath}
+      />
+    );
+  }
+  if (chipToolKind === "taskOutput") {
+    return (
+      <TaskOutputChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        part={chipPart}
+      />
+    );
+  }
+  if (chipToolKind === "toolSearch") {
+    return (
+      <SearchInFilesChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        part={chipPart}
+      />
+    );
+  }
+  if (chipToolKind === "webFetch") {
+    return (
+      <WebFetchChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        onToolApproval={addToolApprovalResponse}
+        part={chipPart}
+      />
+    );
+  }
+
+  return (
+    <SearchInFilesChip
+      defaultExpanded={expandToolCalls}
+      key={key}
+      part={chipPart}
+    />
+  );
+};
+
+const ToolChipRow = ({
+  context,
+  group,
+}: {
+  context: ToolChipRenderContext;
+  group: ToolChipItem[];
+}) => (
+  <div className="my-1.5 flex flex-wrap items-start gap-2">
+    {group.map((item) => renderToolChip(item, context))}
+  </div>
+);
+
+const summarizeToolGroup = (group: ToolChipItem[]) => {
+  const summaries: {
+    count: number;
+    hasError: boolean;
+    kind: ChipToolKind;
+  }[] = [];
+  const summaryByKind = new Map<ChipToolKind, (typeof summaries)[number]>();
+
+  for (const item of group) {
+    const chipPart = item.part as ToolLikePart;
+    const kind = getChipToolKind(chipPart);
+    if (!kind) {
+      continue;
+    }
+
+    const existing = summaryByKind.get(kind);
+    if (existing) {
+      existing.count += 1;
+      existing.hasError ||= Boolean(chipPart.errorText);
+      continue;
+    }
+
+    const summary = {
+      count: 1,
+      hasError: Boolean(chipPart.errorText),
+      kind,
+    };
+    summaryByKind.set(kind, summary);
+    summaries.push(summary);
+  }
+
+  return summaries;
+};
+
+const ToolCallGroup = ({
+  context,
+  defaultExpanded,
+  group,
+}: {
+  context: ToolChipRenderContext;
+  defaultExpanded: boolean;
+  group: ToolChipItem[];
+}) => {
+  const hasApprovalRequest = group.some(
+    ({ part }) => (part as ToolLikePart).state === "approval-requested",
+  );
+  const [expanded, setExpanded] = useState(
+    defaultExpanded || hasApprovalRequest,
+  );
+  const summaries = summarizeToolGroup(group);
+
+  useEffect(() => {
+    if (defaultExpanded || hasApprovalRequest) {
+      setExpanded(true);
+    }
+  }, [defaultExpanded, hasApprovalRequest]);
+
+  if (group.length < 2 || summaries.length === 0) {
+    return <ToolChipRow context={context} group={group} />;
+  }
+
+  return (
+    <div className="my-1.5 space-y-2">
+      <button
+        aria-expanded={expanded}
+        aria-label={`${expanded ? "Collapse" : "Expand"} ${group.length} tool calls`}
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50"
+        onClick={() => setExpanded((current) => !current)}
+        type="button"
+      >
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          {summaries.map(({ count, hasError, kind }) => {
+            const { Icon, label, tone } = TOOL_GROUP_META[kind];
+
+            return (
+              <span
+                className={cn(
+                  CHIP_BUTTON_BASE_CLASSES,
+                  getChipToneClasses(tone, hasError),
+                  "pointer-events-none font-mono tabular-nums",
+                )}
+                key={kind}
+                title={`${count} ${label} ${count === 1 ? "call" : "calls"}`}
+              >
+                <Icon className="size-3.5 shrink-0" />
+                <span className="font-medium">{count}</span>
+              </span>
+            );
+          })}
+        </span>
+        {expanded ? (
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+        )}
+      </button>
+      {expanded ? <ToolChipRow context={context} group={group} /> : null}
+    </div>
+  );
+};
+
 type ChatMessageProps = {
   addToolApprovalResponse: ToolApprovalResponder;
   expandToolCalls: boolean;
+  groupToolCalls: boolean;
   isLastMessage: boolean;
   isStreaming: boolean;
   message: UIMessage;
@@ -375,6 +684,7 @@ export const ChatMessage = memo(
   ({
     addToolApprovalResponse,
     expandToolCalls,
+    groupToolCalls,
     isLastMessage,
     isStreaming,
     message,
@@ -431,119 +741,33 @@ export const ChatMessage = memo(
         ) : null}
         <MessageContent className="w-full gap-3">
           {(() => {
-            const elements: React.ReactNode[] = [];
-            let chipGroup: {
-              part: (typeof nonSourceParts)[number];
-              index: number;
-            }[] = [];
+            const elements: ReactNode[] = [];
+            const toolChipContext: ToolChipRenderContext = {
+              addToolApprovalResponse,
+              expandToolCalls,
+              messageId: message.id,
+              projectPath,
+            };
+            let chipGroup: ToolChipItem[] = [];
 
             const flushChipGroup = () => {
               if (chipGroup.length === 0) return;
               const group = chipGroup;
               elements.push(
-                <div
-                  className="my-1.5 flex flex-wrap items-start gap-2"
-                  key={`chip-group-${group[0].index}`}
-                >
-                  {group.map(({ part: chipPart, index: chipIndex }) => {
-                    const key = getMessagePartKey(
-                      message.id,
-                      chipPart as Record<string, unknown>,
-                      chipIndex,
-                    );
-                    const chipPart_ = chipPart as Parameters<
-                      typeof ReadFileChip
-                    >[0]["part"];
-                    const chipToolKind = getChipToolKind(chipPart_);
-
-                    if (chipToolKind === "command") {
-                      return (
-                        <RunCommandChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          onToolApproval={addToolApprovalResponse}
-                          part={chipPart_}
-                        />
-                      );
-                    }
-                    if (chipToolKind === "agent") {
-                      return (
-                        <AgentChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          part={chipPart_}
-                        />
-                      );
-                    }
-                    if (chipToolKind === "read") {
-                      return (
-                        <ReadFileChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          part={chipPart_}
-                          projectPath={projectPath}
-                        />
-                      );
-                    }
-                    if (chipToolKind === "list") {
-                      return (
-                        <ListFilesChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          part={chipPart_}
-                          projectPath={projectPath}
-                        />
-                      );
-                    }
-                    if (chipToolKind === "write") {
-                      return (
-                        <WriteFileChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          onToolApproval={addToolApprovalResponse}
-                          part={chipPart_}
-                          projectPath={projectPath}
-                        />
-                      );
-                    }
-                    if (chipToolKind === "taskOutput") {
-                      return (
-                        <TaskOutputChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          part={chipPart_}
-                        />
-                      );
-                    }
-                    if (chipToolKind === "toolSearch") {
-                      return (
-                        <SearchInFilesChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          part={chipPart_}
-                        />
-                      );
-                    }
-                    if (chipToolKind === "webFetch") {
-                      return (
-                        <WebFetchChip
-                          defaultExpanded={expandToolCalls}
-                          key={key}
-                          onToolApproval={addToolApprovalResponse}
-                          part={chipPart_}
-                        />
-                      );
-                    }
-
-                    return (
-                      <SearchInFilesChip
-                        defaultExpanded={expandToolCalls}
-                        key={key}
-                        part={chipPart_}
-                      />
-                    );
-                  })}
-                </div>,
+                groupToolCalls ? (
+                  <ToolCallGroup
+                    context={toolChipContext}
+                    defaultExpanded={expandToolCalls}
+                    group={group}
+                    key={`chip-group-${group[0].index}`}
+                  />
+                ) : (
+                  <ToolChipRow
+                    context={toolChipContext}
+                    group={group}
+                    key={`chip-group-${group[0].index}`}
+                  />
+                ),
               );
               chipGroup = [];
             };
@@ -615,6 +839,7 @@ export const ChatMessage = memo(
   (prev: ChatMessageProps, next: ChatMessageProps) =>
     prev.message === next.message &&
     prev.expandToolCalls === next.expandToolCalls &&
+    prev.groupToolCalls === next.groupToolCalls &&
     prev.isLastMessage === next.isLastMessage &&
     prev.isStreaming === next.isStreaming &&
     prev.projectPath === next.projectPath &&

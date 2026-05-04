@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoAcceptPermissions: false,
   defaultModel: "",
   expandToolCalls: false,
+  groupToolCalls: false,
   openAiSelectedModels: [],
   showReasoningSummaries: true,
   shellPath: "",

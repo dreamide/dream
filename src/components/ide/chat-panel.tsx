@@ -351,6 +351,7 @@ const CHAT_MESSAGE_VIRTUAL_OVERSCAN = 8;
 const VirtualizedChatMessages = ({
   addToolApprovalResponse,
   expandToolCalls,
+  groupToolCalls,
   isStreaming,
   messages,
   projectPath,
@@ -358,6 +359,7 @@ const VirtualizedChatMessages = ({
 }: {
   addToolApprovalResponse: ToolApprovalResponder;
   expandToolCalls: boolean;
+  groupToolCalls: boolean;
   isStreaming: boolean;
   messages: UIMessage[];
   projectPath: string;
@@ -396,6 +398,7 @@ const VirtualizedChatMessages = ({
             <ChatMessage
               addToolApprovalResponse={addToolApprovalResponse}
               expandToolCalls={expandToolCalls}
+              groupToolCalls={groupToolCalls}
               isLastMessage={virtualItem.index === messages.length - 1}
               isStreaming={isStreaming}
               message={message}
@@ -1170,6 +1173,7 @@ export const ChatPanel = ({
               <VirtualizedChatMessages
                 addToolApprovalResponse={addToolApprovalResponse}
                 expandToolCalls={settings.expandToolCalls}
+                groupToolCalls={settings.groupToolCalls}
                 isStreaming={isStreaming}
                 messages={messages}
                 projectPath={project.path}

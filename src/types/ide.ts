@@ -49,6 +49,7 @@ export interface AppSettings {
   autoAcceptPermissions: boolean;
   defaultModel: string;
   expandToolCalls: boolean;
+  groupToolCalls: boolean;
   openAiSelectedModels: string[];
   anthropicSelectedModels: string[];
   showReasoningSummaries: boolean;

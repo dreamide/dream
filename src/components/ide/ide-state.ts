@@ -386,6 +386,10 @@ export const mergePersistedState = (
           ? rawSettings.expandShellToolParts === true ||
             rawSettings.expandEditToolParts === true
           : DEFAULT_SETTINGS.expandToolCalls,
+    groupToolCalls:
+      typeof rawSettings.groupToolCalls === "boolean"
+        ? rawSettings.groupToolCalls
+        : DEFAULT_SETTINGS.groupToolCalls,
     openAiSelectedModels: dedupeModels(
       Array.isArray(rawSettings.openAiSelectedModels)
         ? rawSettings.openAiSelectedModels

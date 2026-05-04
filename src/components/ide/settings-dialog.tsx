@@ -407,6 +407,17 @@ export const SettingsDialog = () => {
                         }
                       />
                       <SettingsSwitchRow
+                        checked={settings.groupToolCalls}
+                        description="Collapse adjacent tool calls into compact count chips"
+                        label="Group tool calls"
+                        onCheckedChange={(checked) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            groupToolCalls: checked,
+                          }))
+                        }
+                      />
+                      <SettingsSwitchRow
                         checked={settings.expandToolCalls}
                         description="Show tool calls expanded by default"
                         label="Expand tool calls"
