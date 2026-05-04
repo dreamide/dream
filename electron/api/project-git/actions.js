@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { generateText } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
-import { buildGeneratedCommitMessage } from "../../shared/git-commit-message.js";
 import {
   getCodexCliSpawnErrorMessage,
   resolveCodexCliLaunch,
@@ -129,17 +128,22 @@ const truncateCommitMessageDiff = (diffText) => {
   )}\n\n[diff truncated]`;
 };
 
-const buildCommitMessagePrompt = ({ changes, diffText, fallbackMessage }) => {
+const buildCommitMessagePrompt = ({
+  changes,
+  customInstructions = "",
+  diffText,
+}) => {
   const changedFiles = changes
     .map((change) => `- ${change.status}: ${change.path}`)
     .join("\n");
+  const instructions = normalizeGitActionText(customInstructions);
 
   return [
     "Generate one concise git commit subject for these changes.",
     "Use imperative mood, no markdown, no quotes, no trailing period.",
     "Be specific about behavior, not just filenames.",
     "Return only the commit subject.",
-    fallbackMessage ? `Reasonable fallback: ${fallbackMessage}` : null,
+    instructions ? `User instructions: ${instructions}` : null,
     "",
     "Changed files:",
     changedFiles,
@@ -194,8 +198,8 @@ const setCommitMessageCacheEntry = (key, value) => {
 };
 
 const generateClaudeCommitMessage = async ({
+  customInstructions,
   diffText,
-  fallbackMessage,
   changes,
   projectPath,
 }) => {
@@ -206,7 +210,7 @@ const generateClaudeCommitMessage = async ({
       persistSession: false,
       permissionMode: "plan",
     }),
-    prompt: buildCommitMessagePrompt({ changes, diffText, fallbackMessage }),
+    prompt: buildCommitMessagePrompt({ changes, customInstructions, diffText }),
     system:
       "You write concise, accurate git commit subjects. Return only the subject line.",
     temperature: 0.2,
@@ -235,8 +239,8 @@ const getPreferredCodexCommitMessageModel = async () => {
 };
 
 const generateCodexCommitMessage = async ({
+  customInstructions,
   diffText,
-  fallbackMessage,
   changes,
   projectPath,
 }) =>
@@ -247,7 +251,7 @@ const generateCodexCommitMessage = async ({
 
     const prompt = [
       "You write concise, accurate git commit subjects.",
-      buildCommitMessagePrompt({ changes, diffText, fallbackMessage }),
+      buildCommitMessagePrompt({ changes, customInstructions, diffText }),
     ].join("\n\n");
 
     const finishWithText = () => {
@@ -370,24 +374,24 @@ const generateCodexCommitMessage = async ({
 
 const generateAiCommitMessage = async ({
   provider,
+  customInstructions,
   diffText,
-  fallbackMessage,
   changes,
   projectPath,
 }) => {
   if (provider === "anthropic") {
     return generateClaudeCommitMessage({
       changes,
+      customInstructions,
       diffText,
-      fallbackMessage,
       projectPath,
     });
   }
 
   return generateCodexCommitMessage({
     changes,
+    customInstructions,
     diffText,
-    fallbackMessage,
     projectPath,
   });
 };
@@ -425,13 +429,9 @@ export const generateProjectGitCommitMessage = async (
   );
 
   const diffText = diffPayloads.join("\n\n");
-  const fallbackMessage = buildGeneratedCommitMessage(
-    changes,
-    customInstructions,
-  );
 
   if (!diffText.trim()) {
-    return fallbackMessage;
+    return "";
   }
 
   const cacheKey = getCommitMessageCacheKey({
@@ -452,31 +452,32 @@ export const generateProjectGitCommitMessage = async (
     try {
       return await existingRequest;
     } catch {
-      return fallbackMessage;
+      return "";
     }
   }
 
   const request = (async () => {
     const aiMessage = await generateAiCommitMessage({
       changes,
+      customInstructions,
       diffText,
-      fallbackMessage,
       projectPath,
       provider,
     });
 
-    return aiMessage || fallbackMessage;
+    return aiMessage || "";
   })();
   commitMessageRequests.set(cacheKey, request);
 
   try {
     const message = await request;
-    setCommitMessageCacheEntry(cacheKey, message);
+    if (message) {
+      setCommitMessageCacheEntry(cacheKey, message);
+    }
     return message;
   } catch (error) {
     console.warn("[git] AI commit message generation failed:", error);
-    setCommitMessageCacheEntry(cacheKey, fallbackMessage);
-    return fallbackMessage;
+    return "";
   } finally {
     commitMessageRequests.delete(cacheKey);
   }
@@ -519,17 +520,16 @@ export const commitProjectGitChanges = async (
     );
   }
 
-  const statusBeforeCommit = await listProjectGitChanges(projectPath);
-  const commitMessageChanges = statusBeforeCommit.changes.filter((change) =>
-    includeUnstaged ? change.staged || change.unstaged : change.staged,
-  );
   const commitMessage =
     normalizeGitActionText(message) ||
     (await generateProjectGitCommitMessage(projectPath, {
       customInstructions,
       includeUnstaged,
-    })) ||
-    buildGeneratedCommitMessage(commitMessageChanges, customInstructions);
+    }));
+
+  if (!commitMessage) {
+    throw new Error("Commit message is required.");
+  }
 
   await runGitCommand(repoInfo.repoRoot, ["commit", "-m", commitMessage]);
   const commitHashResult = await runGitCommand(

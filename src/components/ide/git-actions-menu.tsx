@@ -60,7 +60,6 @@ type ActiveGitActionDialog = Exclude<GitActionDialog, null>;
 type CommitSubmitAction = "commit" | "commit-push";
 
 import {
-  buildGeneratedCommitMessage,
   formatDelta,
   formatFileCount,
   getChangesAddedLines,
@@ -337,10 +336,6 @@ const CommitDialog = ({
     hasCommitChanges &&
     !generatingCommitMessage;
   const canCommitPush = canCommit && hasPushDestination(status);
-  const fallbackGeneratedCommitMessage = useMemo(
-    () => buildGeneratedCommitMessage(commitChanges),
-    [commitChanges],
-  );
 
   useEffect(() => {
     if (!open) {
@@ -385,7 +380,6 @@ const CommitDialog = ({
     setGeneratingCommitMessage(true);
     void generateCachedProjectCommitMessage({
       changes: commitChanges,
-      fallbackMessage: fallbackGeneratedCommitMessage,
       includeUnstaged,
       projectPath,
       provider,
@@ -409,7 +403,6 @@ const CommitDialog = ({
   }, [
     autoGenerateMessage,
     commitChanges,
-    fallbackGeneratedCommitMessage,
     hasCommitChanges,
     includeUnstaged,
     open,

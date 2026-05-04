@@ -49,16 +49,6 @@ export const getChangesAddedLines = (changes: ProjectGitStatusEntry[]) =>
 export const getChangesRemovedLines = (changes: ProjectGitStatusEntry[]) =>
   changes.reduce((total, change) => total + change.removedLines, 0);
 
-export {
-  buildGeneratedCommitMessage,
-  buildPathAwareCommitMessage,
-  describeGitChangeForMessage,
-  formatCommitSubjectList,
-  formatGitFileSubject,
-  getCommitMessageVerb,
-  getGitFileSubjectOverride,
-} from "../../../../electron/shared/git-commit-message.js";
-
 export const hasPushDestination = (status: ProjectGitStatusResponse | null) =>
   Boolean(status?.upstreamBranch || status?.remoteName);
 

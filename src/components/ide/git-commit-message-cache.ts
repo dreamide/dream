@@ -4,7 +4,6 @@ import type {
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
 } from "@/types/ide";
-import { buildGeneratedCommitMessage } from "../../../electron/shared/git-commit-message.js";
 
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 50;
 const COMMIT_MESSAGE_CACHE_VERSION = 2;
@@ -17,9 +16,7 @@ type CommitMessageCacheParams = {
   refreshToken: number;
 };
 
-type GenerateCommitMessageParams = CommitMessageCacheParams & {
-  fallbackMessage: string;
-};
+type GenerateCommitMessageParams = CommitMessageCacheParams;
 
 type WarmCommitMessageParams = {
   includeUnstaged?: boolean;
@@ -122,16 +119,18 @@ export const generateCachedProjectCommitMessage = (
 
       const payload =
         (await response.json()) as ProjectGitCommitMessageResponse;
-      return payload.commitMessage.trim() || params.fallbackMessage;
+      return payload.commitMessage.trim();
     } catch {
-      return params.fallbackMessage;
+      return "";
     }
   })();
 
   commitMessageRequests.set(cacheKey, request);
   void request
     .then((message) => {
-      setCommitMessageCacheEntry(cacheKey, message);
+      if (message) {
+        setCommitMessageCacheEntry(cacheKey, message);
+      }
     })
     .finally(() => {
       if (commitMessageRequests.get(cacheKey) === request) {
@@ -156,7 +155,6 @@ export const warmProjectCommitMessageForStatus = async ({
 
   return await generateCachedProjectCommitMessage({
     changes,
-    fallbackMessage: buildGeneratedCommitMessage(changes),
     includeUnstaged,
     projectPath,
     provider,
