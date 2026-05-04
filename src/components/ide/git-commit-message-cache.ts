@@ -6,7 +6,7 @@ import type {
 } from "@/types/ide";
 
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 50;
-const COMMIT_MESSAGE_CACHE_VERSION = 2;
+const COMMIT_MESSAGE_CACHE_VERSION = 3;
 
 type CommitMessageCacheParams = {
   changes: ProjectGitStatusEntry[];

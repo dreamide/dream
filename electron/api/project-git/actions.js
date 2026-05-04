@@ -25,7 +25,7 @@ const COMMIT_MESSAGE_CODEX_MODEL_CANDIDATES = ["gpt-5-mini"];
 const COMMIT_MESSAGE_CLAUDE_MODEL = "sonnet";
 const COMMIT_MESSAGE_DIFF_MAX_CHARS = 20_000;
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 30;
-const COMMIT_MESSAGE_CACHE_VERSION = 2;
+const COMMIT_MESSAGE_CACHE_VERSION = 3;
 const commitMessageCache = new Map();
 const commitMessageRequests = new Map();
 
