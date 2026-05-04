@@ -1,77 +1,19 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
-  AlertCircle,
-  Ellipsis,
-  FilePenLine,
-  Shield,
-  Trash2,
-  X,
-} from "lucide-react";
-import {
   type FormEvent,
-  type KeyboardEventHandler,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import type { StickToBottomContext } from "use-stick-to-bottom";
-import {
-  Context,
-  ContextCacheUsage,
-  ContextContent,
-  ContextContentBody,
-  ContextContentHeader,
-  ContextInputUsage,
-  ContextOutputUsage,
-  ContextReasoningUsage,
-  ContextTrigger,
-} from "@/components/ai-elements/context";
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import {
-  PromptInput,
-  PromptInputActionAddAttachments,
-  PromptInputActionMenu,
-  PromptInputActionMenuContent,
-  PromptInputActionMenuTrigger,
-  PromptInputBody,
-  PromptInputFooter,
-  type PromptInputMessage,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputTools,
-} from "@/components/ai-elements/prompt-input";
-import { ProviderIcon } from "@/components/ai-elements/provider-icons";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import Sparkles from "@/components/ui/sparkles";
+import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
@@ -82,9 +24,8 @@ import {
   getModelContextWindow,
   getModelReasoningEfforts,
 } from "@/lib/models";
-import type { ChatConfig, ProjectConfig, ReasoningEffort } from "@/types/ide";
+import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { getChipToolKind } from "./assistant-message-tools";
-import { BranchSwitcher } from "./branch-switcher";
 import {
   addMetadataToMessage,
   CHAT_CONTENT_BOTTOM_PADDING_PX,
@@ -93,26 +34,25 @@ import {
   ConversationScrollMemory,
   inferChatTitle,
   PROVIDER_LABELS,
-  PromptAttachments,
   type RenameTarget,
-  scrollElementToChatBottom,
   type ToolApprovalResponder,
 } from "./chat";
-import { UsageLimitsPopover } from "./chat/usage-limits-popover";
+import { ChatComposer, type ChatPanelModelOption } from "./chat/chat-composer";
+import { ChatErrorBanner } from "./chat/chat-error-banner";
+import { ChatPanelHeader } from "./chat/chat-panel-header";
+import {
+  useChatAutoScroll,
+  useChatMessageSync,
+  usePromptHistoryNavigation,
+} from "./chat/chat-panel-hooks";
+import { RenameChatDialog } from "./chat/rename-chat-dialog";
 import { VirtualizedChatMessages } from "./chat/virtualized-chat-messages";
-import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   getCommitChanges,
   warmProjectCommitMessageForStatus,
 } from "./git-commit-message-cache";
 import { useIdeStore } from "./ide-store";
 import {
-  CLAUDE_PERMISSION_MODE_OPTIONS,
-  type ClaudePermissionMode,
-  CODEX_PERMISSION_MODE_OPTIONS,
-  type CodexPermissionMode,
-  getClaudePermissionModeLabel,
-  getCodexPermissionModeLabel,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
@@ -162,7 +102,7 @@ export const ChatPanel = ({
     gitRefreshKey,
   );
   const connectedProviders = getConnectedProviders(settings);
-  const allModelOptions = useMemo(() => {
+  const allModelOptions = useMemo<ChatPanelModelOption[]>(() => {
     return connectedProviders.flatMap((provider) =>
       getModelOptionsForProvider(
         provider,
@@ -172,7 +112,7 @@ export const ChatPanel = ({
         id: model.id,
         label: model.label,
         provider,
-        reasoningEfforts: model.reasoningEfforts,
+        reasoningEfforts: model.reasoningEfforts ?? [],
       })),
     );
   }, [connectedProviders, providerModels, settings]);
@@ -193,13 +133,6 @@ export const ChatPanel = ({
   const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
   const warmedCommitMessageKeysRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
-  const conversationContextRef = useRef<StickToBottomContext | null>(null);
-  const scrollFrameRef = useRef<number | null>(null);
-  const messagesRef = useRef(chatMessages);
-
-  // State for up/down arrow history cycling (derived from messages)
-  const historyIndexRef = useRef(-1);
-  const savedDraftRef = useRef("");
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -303,29 +236,13 @@ export const ChatPanel = ({
     [addAiSdkToolApprovalResponse],
   );
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  useEffect(() => {
-    const mergedMessages = mergeChatMessageHistories(chatMessages, messages);
-    if (mergedMessages !== messages) {
-      setMessages(mergedMessages);
-    }
-  }, [chatMessages, messages, setMessages]);
-
-  useEffect(() => {
-    setMessagesForChat(chat.id, messages);
-  }, [chat.id, messages, setMessagesForChat]);
-
-  useEffect(() => {
-    return () => {
-      const latestMessages = messagesRef.current;
-      if (latestMessages.length > 0) {
-        setMessagesForChat(chat.id, latestMessages);
-      }
-    };
-  }, [chat.id, setMessagesForChat]);
+  useChatMessageSync({
+    chatId: chat.id,
+    chatMessages,
+    messages,
+    setMessages,
+    setMessagesForChat,
+  });
 
   // Refresh project panels when completed write tools appear.
   useEffect(() => {
@@ -501,125 +418,20 @@ export const ChatPanel = ({
       ? `anthropic:${selectedModel}`
       : `openai:${selectedModel}`;
 
-  const scheduleConversationScroll = useCallback(
-    (mode: "force" | "locked") => {
-      if (!isActive || scrollFrameRef.current !== null) {
-        return;
-      }
-
-      scrollFrameRef.current = window.requestAnimationFrame(() => {
-        scrollFrameRef.current = null;
-        const conversationContext = conversationContextRef.current;
-        const element = conversationContext?.scrollRef.current;
-        if (!conversationContext || !element) {
-          return;
-        }
-        if (mode === "locked" && conversationContext.escapedFromLock) {
-          return;
-        }
-
-        scrollElementToChatBottom(element);
-        void conversationContext.scrollToBottom({
-          animation: "instant",
-          ignoreEscapes: true,
-        });
-      });
-    },
-    [isActive],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (scrollFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollFrameRef.current);
-        scrollFrameRef.current = null;
-      }
-    };
-  }, []);
-
-  const scrollConversationToBottom = useCallback(() => {
-    if (!isActive) {
-      return;
-    }
-
-    scheduleConversationScroll("force");
-  }, [isActive, scheduleConversationScroll]);
-
-  const scrollConversationToBottomIfLocked = useCallback(() => {
-    if (!isActive) {
-      return;
-    }
-
-    scheduleConversationScroll("locked");
-  }, [isActive, scheduleConversationScroll]);
-
-  const handlePromptKeyDown = useCallback<
-    KeyboardEventHandler<HTMLTextAreaElement>
-  >(
-    (e) => {
-      // Derive history from the existing chat messages
-      const history = messages
-        .filter((m) => m.role === "user")
-        .map((m) =>
-          m.parts
-            .filter(
-              (p): p is Extract<typeof p, { type: "text" }> =>
-                p.type === "text",
-            )
-            .map((p) => p.text.trim())
-            .join("\n\n"),
-        )
-        .filter((text) => text.length > 0);
-
-      if (e.key === "ArrowUp") {
-        const textarea = e.currentTarget;
-        // Only check cursor position when NOT already browsing history
-        if (historyIndexRef.current === -1) {
-          if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) {
-            return;
-          }
-        }
-        if (history.length === 0) {
-          return;
-        }
-
-        e.preventDefault();
-
-        if (historyIndexRef.current === -1) {
-          // Save current input before browsing history
-          savedDraftRef.current = promptText;
-          historyIndexRef.current = history.length - 1;
-        } else if (historyIndexRef.current > 0) {
-          historyIndexRef.current -= 1;
-        } else {
-          return; // Already at oldest entry
-        }
-
-        setPromptText(history[historyIndexRef.current]);
-      }
-
-      if (e.key === "ArrowDown") {
-        if (historyIndexRef.current === -1) {
-          return; // Not browsing history
-        }
-
-        e.preventDefault();
-
-        if (historyIndexRef.current < history.length - 1) {
-          historyIndexRef.current += 1;
-          setPromptText(history[historyIndexRef.current]);
-        } else {
-          // Past the end of history, restore saved draft
-          historyIndexRef.current = -1;
-          setPromptText(savedDraftRef.current);
-        }
-      }
-    },
-    [promptText, messages],
-  );
-
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
+  const { conversationContextRef, scrollConversationToBottom } =
+    useChatAutoScroll({
+      isActive,
+      isProcessing,
+      messages,
+    });
+  const { handlePromptKeyDown, resetPromptHistory } =
+    usePromptHistoryNavigation({
+      messages,
+      promptText,
+      setPromptText,
+    });
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -670,8 +482,7 @@ export const ChatPanel = ({
         reasoningEffort: selectedReasoningEffort,
         reasoningLabel: selectedReasoningLabel,
       };
-      historyIndexRef.current = -1;
-      savedDraftRef.current = "";
+      resetPromptHistory();
 
       setPromptText("");
       useIdeStore.getState().setChatStreaming(submittedChatId, true);
@@ -728,6 +539,7 @@ export const ChatPanel = ({
       providerModels,
       project.id,
       project.path,
+      resetPromptHistory,
       selectedProvider,
       selectedReasoningEffort,
       selectedReasoningLabel,
@@ -766,89 +578,21 @@ export const ChatPanel = ({
     [closeRenameDialog, renameTarget, renameValue, updateChat],
   );
 
-  const wasProcessingRef = useRef(isProcessing);
-
-  // Build a fingerprint that changes whenever new data arrives.
-  const lastMessage = messages[messages.length - 1];
   const showChatHeader = messages.length > 0;
   const canShowChatMenu = !isDraftChat || messages.length > 0;
-  const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
-  const streamFingerprint = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
-    lastPart && "text" in lastPart ? (lastPart.text as string).length : 0
-  }`;
-
-  useEffect(() => {
-    const wasProcessing = wasProcessingRef.current;
-    wasProcessingRef.current = isProcessing;
-
-    if (isProcessing && !wasProcessing) {
-      scrollConversationToBottom();
-      return;
-    }
-
-    if (!isProcessing && wasProcessing) {
-      scrollConversationToBottomIfLocked();
-    }
-  }, [
-    isProcessing,
-    scrollConversationToBottom,
-    scrollConversationToBottomIfLocked,
-  ]);
-
-  useEffect(() => {
-    void streamFingerprint;
-
-    if (!isProcessing) {
-      return;
-    }
-
-    scrollConversationToBottomIfLocked();
-  }, [isProcessing, scrollConversationToBottomIfLocked, streamFingerprint]);
 
   return (
     <>
       <div id={panelDomId} className="flex h-full min-h-0 flex-col">
         {showChatHeader ? (
-          <div className="shrink-0 px-2 pt-2">
-            <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 pb-2">
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-sm">{chat.title}</p>
-              </div>
-
-              {canShowChatMenu ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  <DropdownMenu
-                    onOpenChange={setChatMenuOpen}
-                    open={chatMenuOpen}
-                  >
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          aria-label={`${chat.title} actions`}
-                          className="h-8 w-8 p-0"
-                          size="icon-sm"
-                          type="button"
-                          variant="ghost"
-                        />
-                      }
-                    >
-                      <Ellipsis className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem onClick={handleRenameChat}>
-                        <FilePenLine className="size-4" />
-                        Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => deleteChat(chat.id)}>
-                        <Trash2 className="size-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ) : null}
-            </div>
-          </div>
+          <ChatPanelHeader
+            canShowChatMenu={canShowChatMenu}
+            chatMenuOpen={chatMenuOpen}
+            onChatMenuOpenChange={setChatMenuOpen}
+            onDeleteChat={() => deleteChat(chat.id)}
+            onRenameChat={handleRenameChat}
+            title={chat.title}
+          />
         ) : null}
 
         <Conversation
@@ -893,290 +637,70 @@ export const ChatPanel = ({
         </Conversation>
 
         {localError ? (
-          <div className="shrink-0 px-2 pb-1">
-            <div className="mx-auto flex w-full max-w-[700px] items-start gap-2 rounded-md border border-red-500/20 bg-red-500/8 px-3 py-2 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              <span className="min-w-0 flex-1 break-words">{localError}</span>
-              <button
-                type="button"
-                className="mt-0.5 shrink-0 rounded p-0.5 hover:bg-red-500/10"
-                onClick={() => {
-                  setLocalError(null);
-                  clearError();
-                }}
-              >
-                <X className="size-3.5" />
-              </button>
-            </div>
-          </div>
+          <ChatErrorBanner
+            error={localError}
+            onDismiss={() => {
+              setLocalError(null);
+              clearError();
+            }}
+          />
         ) : null}
 
-        <div id={promptDomId} className="shrink-0 px-2 pb-2">
-          <div className="mx-auto w-full max-w-[700px]">
-            <Sparkles
-              density={70}
-              disabled={!isProcessing}
-              height={30}
-              sway={0}
-              speed={2}
-              palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}
-            >
-              <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
-                {/* ── Prompt Input ──────────────────────────────────────── */}
-                <PromptInput
-                  id={promptInputDomId}
-                  className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
-                  onSubmit={handleSubmit}
-                >
-                  <PromptInputBody>
-                    <PromptAttachments />
-                    <PromptInputTextarea
-                      className="min-h-0 border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
-                      onChange={(event) => setPromptText(event.target.value)}
-                      onKeyDown={handlePromptKeyDown}
-                      placeholder="Ask anything..."
-                      rows={1}
-                      value={promptText}
-                    />
-                  </PromptInputBody>
-                  <PromptInputFooter className="items-center">
-                    <PromptInputTools>
-                      <PromptInputActionMenu>
-                        <PromptInputActionMenuTrigger tooltip="Attach file" />
-                        <PromptInputActionMenuContent>
-                          <PromptInputActionAddAttachments />
-                        </PromptInputActionMenuContent>
-                      </PromptInputActionMenu>
-                    </PromptInputTools>
-                    <div className="ml-auto flex items-center gap-2">
-                      <PromptInputSubmit
-                        className="size-8 rounded-md"
-                        disabled={
-                          !isProcessing &&
-                          (!isProviderInstalled ||
-                            selectedModel === "" ||
-                            promptText.trim() === "")
-                        }
-                        onStop={stop}
-                        status={status}
-                      />
-                    </div>
-                  </PromptInputFooter>
-                </PromptInput>
-
-                {/* ── Options Row ───────────────────────────────────────── */}
-                <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
-                  {/* Model selector */}
-                  <Select
-                    onValueChange={(value) => {
-                      if (typeof value !== "string") return;
-                      const matchingOptions = allModelOptions.filter(
-                        (option) => option.id === value,
-                      );
-                      const nextOption =
-                        matchingOptions.find(
-                          (option) => option.provider === chat.provider,
-                        ) ?? matchingOptions[0];
-                      if (!nextOption) return;
-
-                      updateChat(chat.id, (current) => ({
-                        ...current,
-                        model: nextOption.id,
-                        provider: nextOption.provider,
-                        remoteConversationId: null,
-                        remoteConversationModel: null,
-                        remoteConversationProjectPath: null,
-                      }));
-                    }}
-                    value={selectedModelValue}
-                  >
-                    <SelectTrigger
-                      className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                      disabled={allModelOptions.length === 0}
-                    >
-                      <SelectValue placeholder="Model">
-                        <span className="flex items-center gap-1.5">
-                          <ProviderIcon
-                            className="size-3.5 shrink-0 text-muted-foreground/70"
-                            provider={selectedProvider}
-                          />
-                          <span className="truncate">{selectedModelLabel}</span>
-                        </span>
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent
-                      alignItemWithTrigger={false}
-                      className="text-xs"
-                      side="top"
-                    >
-                      {allModelOptions.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={`${option.provider}:${option.id}`}
-                          value={option.id}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <ProviderIcon
-                              className="size-3.5 shrink-0 text-muted-foreground/70"
-                              provider={option.provider}
-                            />
-                            <span className="truncate">{option.label}</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Reasoning effort selector */}
-                  {reasoningEffortOptions.length > 0 && (
-                    <Select
-                      onValueChange={(value) => {
-                        updateChat(chat.id, (current) => ({
-                          ...current,
-                          reasoningEffort: value as ReasoningEffort,
-                        }));
-                      }}
-                      value={selectedReasoningEffort}
-                    >
-                      <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                        <span className="truncate">
-                          {selectedReasoningLabel}
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent className="text-xs" side="top">
-                        {reasoningEffortOptions.map((option) => (
-                          <SelectItem
-                            className="text-xs"
-                            key={option.value}
-                            value={option.value}
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-
-                  {selectedProvider === "openai" ? (
-                    <Select
-                      onValueChange={(value) => {
-                        setCodexPermissionMode(value as CodexPermissionMode);
-                      }}
-                      value={codexPermissionMode}
-                    >
-                      <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                        <Shield className="size-3.5 shrink-0" />
-                        <span className="truncate">
-                          {getCodexPermissionModeLabel(codexPermissionMode)}
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent className="text-xs" side="top">
-                        {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
-                          <SelectItem
-                            className="text-xs"
-                            key={option.value}
-                            value={option.value}
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : selectedProvider === "anthropic" ? (
-                    <Select
-                      onValueChange={(value) => {
-                        setClaudePermissionMode(value as ClaudePermissionMode);
-                      }}
-                      value={claudePermissionMode}
-                    >
-                      <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                        <Shield className="size-3.5 shrink-0" />
-                        <span className="truncate">
-                          {getClaudePermissionModeLabel(claudePermissionMode)}
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent className="text-xs" side="top">
-                        {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
-                          <SelectItem
-                            className="text-xs"
-                            key={option.value}
-                            value={option.value}
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : null}
-                  <div className="ml-auto flex items-center gap-1">
-                    <UsageLimitsPopover provider={selectedProvider} />
-                    <Context
-                      maxTokens={contextWindow}
-                      modelId={modelId}
-                      usedTokens={estimatedUsedTokens}
-                    >
-                      <ContextTrigger className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
-                      <ContextContent side="top" align="end">
-                        <ContextContentHeader />
-                        <ContextContentBody className="space-y-1.5">
-                          <ContextInputUsage />
-                          <ContextOutputUsage />
-                          <ContextReasoningUsage />
-                          <ContextCacheUsage />
-                        </ContextContentBody>
-                      </ContextContent>
-                    </Context>
-                  </div>
-                </div>
-              </div>
-            </Sparkles>
-            <div className="mt-1 flex justify-end">
-              <BranchSwitcher
-                projectId={project.id}
-                projectPath={project.path}
-              />
-            </div>
-          </div>
-        </div>
+        <ChatComposer
+          allModelOptions={allModelOptions}
+          chatProvider={chat.provider}
+          claudePermissionMode={claudePermissionMode}
+          codexPermissionMode={codexPermissionMode}
+          contextWindow={contextWindow}
+          estimatedUsedTokens={estimatedUsedTokens}
+          isProcessing={isProcessing}
+          isProviderInstalled={isProviderInstalled}
+          modelId={modelId}
+          onClaudePermissionModeChange={setClaudePermissionMode}
+          onCodexPermissionModeChange={setCodexPermissionMode}
+          onModelChange={(nextOption) => {
+            updateChat(chat.id, (current) => ({
+              ...current,
+              model: nextOption.id,
+              provider: nextOption.provider,
+              remoteConversationId: null,
+              remoteConversationModel: null,
+              remoteConversationProjectPath: null,
+            }));
+          }}
+          onPromptKeyDown={handlePromptKeyDown}
+          onPromptTextChange={setPromptText}
+          onReasoningEffortChange={(reasoningEffort) => {
+            updateChat(chat.id, (current) => ({
+              ...current,
+              reasoningEffort,
+            }));
+          }}
+          onStop={stop}
+          onSubmit={handleSubmit}
+          promptDomId={promptDomId}
+          promptInputDomId={promptInputDomId}
+          promptText={promptText}
+          projectId={project.id}
+          projectPath={project.path}
+          reasoningEffortOptions={reasoningEffortOptions}
+          selectedModel={selectedModel}
+          selectedModelLabel={selectedModelLabel}
+          selectedModelValue={selectedModelValue}
+          selectedProvider={selectedProvider}
+          selectedReasoningEffort={selectedReasoningEffort}
+          selectedReasoningLabel={selectedReasoningLabel}
+          status={status}
+        />
       </div>
 
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
-            closeRenameDialog();
-          }
-        }}
+      <RenameChatDialog
+        onClose={closeRenameDialog}
+        onRenameValueChange={setRenameValue}
+        onSubmit={handleRenameSubmit}
         open={renameTarget !== null}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <form className="space-y-4" onSubmit={handleRenameSubmit}>
-            <DialogHeader>
-              <DialogTitle>Rename chat</DialogTitle>
-              <DialogDescription>
-                Choose a new name for this chat.
-              </DialogDescription>
-            </DialogHeader>
-            <Input
-              autoFocus
-              onChange={(event) => setRenameValue(event.target.value)}
-              placeholder="Enter a name"
-              value={renameValue}
-            />
-            <DialogFooter>
-              <Button
-                onClick={closeRenameDialog}
-                type="button"
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button disabled={renameValue.trim().length === 0} type="submit">
-                Save
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        renameValue={renameValue}
+      />
     </>
   );
 };
