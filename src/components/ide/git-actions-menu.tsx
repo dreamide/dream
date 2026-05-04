@@ -232,15 +232,22 @@ const GitDialogHeader = ({
 );
 
 const DialogMetricRow = ({
+  icon,
   label,
   value,
 }: {
-  label: ReactNode;
+  icon: ReactNode;
+  label: string;
   value: ReactNode;
 }) => (
   <div className="flex min-h-8 items-center justify-between gap-4 text-sm">
-    <div className="font-medium">{label}</div>
-    <div className="min-w-0 text-right text-muted-foreground">{value}</div>
+    <div className="inline-flex items-center gap-2 font-medium text-muted-foreground">
+      <span className="flex size-4 shrink-0 items-center justify-center">
+        {icon}
+      </span>
+      <span>{label}</span>
+    </div>
+    <div className="min-w-0 text-right font-mono text-foreground">{value}</div>
   </div>
 );
 
@@ -464,15 +471,12 @@ const CommitDialog = ({
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <DialogMetricRow
+              icon={<GitBranch className="size-4" />}
               label="Branch"
-              value={
-                <span className="inline-flex min-w-0 items-center gap-2 text-foreground">
-                  <GitBranch className="size-4 shrink-0" />
-                  <span className="truncate">{branch ?? "Unknown"}</span>
-                </span>
-              }
+              value={<span className="truncate">{branch ?? "Unknown"}</span>}
             />
             <DialogMetricRow
+              icon={<Code className="size-4" />}
               label="Changes"
               value={<GitChangesDeltaSummary changes={commitChanges} />}
             />
@@ -682,17 +686,14 @@ const PushDialog = ({
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <DialogMetricRow
-              label={
-                <span className="inline-flex items-center gap-2 text-muted-foreground">
-                  <GitBranch className="size-4" />
-                  Branch
-                </span>
-              }
+              icon={<GitBranch className="size-4" />}
+              label="Branch"
               value={
                 <span className="text-foreground">{branch ?? "Unknown"}</span>
               }
             />
             <DialogMetricRow
+              icon={<GitFork className="size-4" />}
               label="Destination"
               value={
                 previewLoading ? (
@@ -709,6 +710,7 @@ const PushDialog = ({
               }
             />
             <DialogMetricRow
+              icon={<GitCommitHorizontal className="size-4" />}
               label="Commits"
               value={
                 previewLoading ? (
@@ -730,50 +732,37 @@ const PushDialog = ({
             />
           </div>
 
-          <div className="space-y-2">
-            <div className="font-medium text-sm">Commits to push</div>
+          {preview && preview.commits.length > 0 ? (
             <div className="max-h-64 overflow-auto rounded-md border border-foreground/10 bg-muted/20">
-              {previewLoading ? (
-                <div className="flex items-center gap-2 px-3 py-3 text-muted-foreground text-sm">
-                  <Spinner className="size-4" />
-                  <span>Loading commits...</span>
-                </div>
-              ) : previewError ? (
-                <div className="px-3 py-3 text-destructive text-sm">
-                  {previewError}
-                </div>
-              ) : preview && preview.commits.length > 0 ? (
-                <div className="divide-y divide-foreground/10">
-                  {preview.commits.map((commit) => (
-                    <div
-                      className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm"
-                      key={commit.hash || commit.shortHash}
-                    >
-                      <span className="font-mono text-muted-foreground text-xs">
-                        {commit.shortHash}
-                      </span>
-                      <span className="min-w-0 truncate text-foreground">
-                        {commit.subject || "(no subject)"}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {formatCommitDate(commit.authorDate)}
-                      </span>
-                    </div>
-                  ))}
-                  {preview.truncated ? (
-                    <div className="px-3 py-2 text-muted-foreground text-xs">
-                      Showing first {preview.commits.length} of{" "}
-                      {preview.totalCommits} commits.
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="px-3 py-3 text-muted-foreground text-sm">
-                  No commits to push.
-                </div>
-              )}
+              <div className="divide-y divide-foreground/10">
+                {preview.commits.map((commit) => (
+                  <div
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm"
+                    key={commit.hash || commit.shortHash}
+                  >
+                    <span className="font-mono text-muted-foreground text-xs">
+                      {commit.shortHash}
+                    </span>
+                    <span className="min-w-0 truncate text-foreground">
+                      {commit.subject || "(no subject)"}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {formatCommitDate(commit.authorDate)}
+                    </span>
+                  </div>
+                ))}
+                {preview.truncated ? (
+                  <div className="px-3 py-2 text-muted-foreground text-xs">
+                    Showing first {preview.commits.length} of{" "}
+                    {preview.totalCommits} commits.
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
+          ) : null}
+          {previewError ? (
+            <div className="text-destructive text-sm">{previewError}</div>
+          ) : null}
 
           <ActionError error={error} />
 
@@ -900,6 +889,7 @@ const CreatePrDialog = ({
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <DialogMetricRow
+            icon={<Code className="size-4" />}
             label="Changes"
             value={<GitDeltaSummary status={status} />}
           />
