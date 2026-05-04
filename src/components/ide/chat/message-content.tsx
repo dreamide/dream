@@ -10,6 +10,7 @@ import {
 import { MessageResponse } from "@/components/ai-elements/message";
 import { usePromptInputAttachments } from "@/components/ai-elements/prompt-input";
 import { Badge } from "@/components/ui/badge";
+import { MarkdownFileLink } from "./markdown-file-link";
 
 export const PromptAttachments = () => {
   const attachments = usePromptInputAttachments();
@@ -35,7 +36,13 @@ export const PromptAttachments = () => {
   );
 };
 
-export const UserMessageContent = ({ message }: { message: UIMessage }) => {
+export const UserMessageContent = ({
+  message,
+  projectPath,
+}: {
+  message: UIMessage;
+  projectPath: string;
+}) => {
   const parts = Array.isArray(message.parts) ? message.parts : [];
   const attachments = parts.flatMap((part) => {
     if (!part || typeof part !== "object" || part.type !== "file") {
@@ -76,7 +83,17 @@ export const UserMessageContent = ({ message }: { message: UIMessage }) => {
           ))}
         </div>
       ) : null}
-      {text ? <MessageResponse>{text}</MessageResponse> : null}
+      {text ? (
+        <MessageResponse
+          components={{
+            a: (props) => (
+              <MarkdownFileLink {...props} projectPath={projectPath} />
+            ),
+          }}
+        >
+          {text}
+        </MessageResponse>
+      ) : null}
     </>
   );
 };

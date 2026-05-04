@@ -126,16 +126,22 @@ export const AssistantMessagePart = ({
   part,
   isStreaming = false,
   onToolApproval,
+  projectPath,
   showReasoningSummaries = true,
 }: {
   part: MessagePart;
   isStreaming?: boolean;
   onToolApproval?: ToolApprovalHandler;
+  projectPath: string;
   showReasoningSummaries?: boolean;
 }) => {
   if (part.type === "text") {
     return (
-      <StreamingMessageResponse isStreaming={isStreaming} text={part.text} />
+      <StreamingMessageResponse
+        isStreaming={isStreaming}
+        projectPath={projectPath}
+        text={part.text}
+      />
     );
   }
 

@@ -121,7 +121,7 @@ export const ChatMessage = memo(
       return (
         <Message className="relative" from="user">
           <MessageContent>
-            <UserMessageContent message={message} />
+            <UserMessageContent message={message} projectPath={projectPath} />
           </MessageContent>
           <MessageHoverFooter message={message} />
         </Message>
@@ -244,6 +244,7 @@ export const ChatMessage = memo(
                     isStreaming={isPartStreaming}
                     onToolApproval={addToolApprovalResponse}
                     part={part}
+                    projectPath={projectPath}
                     showReasoningSummaries={showReasoningSummaries}
                   />,
                 );

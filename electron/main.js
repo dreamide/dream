@@ -1427,7 +1427,9 @@ function createBrowserSession(tabId, projectId) {
   });
 
   view.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isHttpUrl(url)) {
+      shell.openExternal(url);
+    }
     return { action: "deny" };
   });
 
@@ -2139,7 +2141,9 @@ async function createMainWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isHttpUrl(url)) {
+      shell.openExternal(url);
+    }
     return { action: "deny" };
   });
 

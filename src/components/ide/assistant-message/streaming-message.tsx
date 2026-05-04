@@ -2,10 +2,15 @@ import {
   startTransition,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
-import { MessageResponse } from "@/components/ai-elements/message";
+import {
+  MessageResponse,
+  type MessageResponseProps,
+} from "@/components/ai-elements/message";
+import { MarkdownFileLink } from "../chat/markdown-file-link";
 
 export const STREAMING_WORD_INTERVAL_MS = 40;
 export const STREAMING_MIN_INTERVAL_MS = 18;
@@ -109,9 +114,11 @@ export const getNextStreamingFrame = (
 
 export const StreamingMessageResponse = ({
   isStreaming,
+  projectPath,
   text,
 }: {
   isStreaming: boolean;
+  projectPath: string;
   text: string;
 }) => {
   const hasStreamedRef = useRef(isStreaming);
@@ -205,5 +212,18 @@ export const StreamingMessageResponse = ({
     };
   }, []);
 
-  return <MessageResponse>{visibleText}</MessageResponse>;
+  const markdownComponents = useMemo<
+    NonNullable<MessageResponseProps["components"]>
+  >(
+    () => ({
+      a: (props) => <MarkdownFileLink {...props} projectPath={projectPath} />,
+    }),
+    [projectPath],
+  );
+
+  return (
+    <MessageResponse components={markdownComponents}>
+      {visibleText}
+    </MessageResponse>
+  );
 };
