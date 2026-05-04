@@ -6,6 +6,8 @@ import {
   fetchClaudeCodeModelOptionsFromDocs,
   getModelReasoningEfforts,
   normalizeReasoningEfforts,
+  selectLowCostAnthropicModel,
+  selectLowCostOpenAiModel,
 } from "./model-options.js";
 
 const OPENAI_CODEX_CHATGPT_MODELS_URL =
@@ -17,6 +19,26 @@ const dedupeAndSort = (models) => {
     .sort((a, b) => a.id.localeCompare(b.id))
     .reverse();
 };
+
+const createOpenAiModelOptionsFromCodexEntries = (entries) =>
+  (entries ?? []).flatMap((entry) => {
+    const rawId = entry?.slug ?? entry?.id;
+    const id = typeof rawId === "string" ? rawId.trim() : "";
+    if (!id) return [];
+    const reasoningEfforts = normalizeReasoningEfforts(
+      entry.supported_reasoning_levels ?? entry.reasoningEfforts,
+    );
+    return [
+      createModelOption(
+        "openai",
+        id,
+        entry.display_name ?? entry.label,
+        reasoningEfforts.length > 0
+          ? reasoningEfforts
+          : getModelReasoningEfforts("openai", id),
+      ),
+    ];
+  });
 
 const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
   const cachedModels = await readCodexModelsCache();
@@ -43,28 +65,17 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
   const payload = await response.json();
   const modelIds = (payload.models ?? []).flatMap((entry) => {
     const id = entry.slug?.trim() ?? "";
-    if (!id) return [];
     const cachedEntry = cachedModelsById.get(id);
-    const entryReasoningEfforts = normalizeReasoningEfforts(
-      entry.supported_reasoning_levels,
-    );
-    const cachedReasoningEfforts = normalizeReasoningEfforts(
-      cachedEntry?.supported_reasoning_levels,
-    );
-    const reasoningEfforts =
-      entryReasoningEfforts.length > 0
-        ? entryReasoningEfforts
-        : cachedReasoningEfforts;
-    return [
-      createModelOption(
-        "openai",
-        id,
-        entry.display_name ?? cachedEntry?.display_name,
-        reasoningEfforts.length > 0
-          ? reasoningEfforts
-          : getModelReasoningEfforts("openai", id),
-      ),
-    ];
+    return createOpenAiModelOptionsFromCodexEntries([
+      {
+        ...entry,
+        display_name: entry.display_name ?? cachedEntry?.display_name,
+        supported_reasoning_levels:
+          normalizeReasoningEfforts(entry.supported_reasoning_levels).length > 0
+            ? entry.supported_reasoning_levels
+            : cachedEntry?.supported_reasoning_levels,
+      },
+    ]);
   });
   return dedupeAndSort(modelIds);
 };
@@ -119,6 +130,29 @@ export const fetchOpenAiModels = async () => {
     };
   }
 };
+
+export const fetchOpenAiLowCostModel = async () => {
+  const accessToken = await readCodexAccessToken();
+  if (accessToken) {
+    try {
+      const models = await fetchOpenAiModelsWithCodexChatgpt(accessToken);
+      const model = selectLowCostOpenAiModel(models);
+      if (model) {
+        return model;
+      }
+    } catch {
+      // Fall back to the local Codex model cache below.
+    }
+  }
+
+  const cachedModels = createOpenAiModelOptionsFromCodexEntries(
+    await readCodexModelsCache(),
+  );
+  return selectLowCostOpenAiModel(dedupeAndSort(cachedModels));
+};
+
+export const fetchAnthropicLowCostModel = async () =>
+  selectLowCostAnthropicModel(await fetchClaudeCodeModelOptionsFromDocs());
 
 export const fetchAnthropicModels = async () => {
   const installed = await isCliCommandAvailable("claude");

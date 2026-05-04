@@ -7,7 +7,10 @@ import {
   resolveCodexCliLaunch,
 } from "../chat/codex-cli-launch.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
-import { readCodexModelsCache } from "../providers/codex-auth.js";
+import {
+  fetchAnthropicLowCostModel,
+  fetchOpenAiLowCostModel,
+} from "../providers/provider-models.js";
 import {
   getGitCommandErrorMessage,
   getGitRepositoryInfo,
@@ -21,8 +24,6 @@ import {
 } from "./core.js";
 import { hashContent, normalizePath } from "./files.js";
 
-const COMMIT_MESSAGE_CODEX_MODEL_CANDIDATES = ["gpt-5-mini"];
-const COMMIT_MESSAGE_CLAUDE_MODEL = "sonnet";
 const COMMIT_MESSAGE_DIFF_MAX_CHARS = 20_000;
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 30;
 const COMMIT_MESSAGE_CACHE_VERSION = 3;
@@ -203,8 +204,9 @@ const generateClaudeCommitMessage = async ({
   changes,
   projectPath,
 }) => {
+  const model = (await fetchAnthropicLowCostModel()) || "haiku";
   const result = await generateText({
-    model: claudeCode(COMMIT_MESSAGE_CLAUDE_MODEL, {
+    model: claudeCode(model, {
       continue: false,
       cwd: projectPath,
       persistSession: false,
@@ -217,25 +219,6 @@ const generateClaudeCommitMessage = async ({
   });
 
   return sanitizeGeneratedCommitMessage(result.text);
-};
-
-const getCachedCodexModelIds = async () => {
-  const cachedModels = await readCodexModelsCache();
-  return new Set(
-    cachedModels
-      .flatMap((entry) => [entry?.slug, entry?.id])
-      .filter((id) => typeof id === "string" && id.trim())
-      .map((id) => id.trim().toLowerCase()),
-  );
-};
-
-const getPreferredCodexCommitMessageModel = async () => {
-  const modelIds = await getCachedCodexModelIds();
-  return (
-    COMMIT_MESSAGE_CODEX_MODEL_CANDIDATES.find((model) =>
-      modelIds.has(model.toLowerCase()),
-    ) ?? ""
-  );
 };
 
 const generateCodexCommitMessage = async ({
@@ -301,10 +284,7 @@ const generateCodexCommitMessage = async ({
       }
     };
 
-    void Promise.all([
-      resolveCodexCliLaunch(),
-      getPreferredCodexCommitMessageModel(),
-    ])
+    void Promise.all([resolveCodexCliLaunch(), fetchOpenAiLowCostModel()])
       .then(([launch, model]) => {
         const child = spawn(
           launch.command,

@@ -14,6 +14,14 @@ export const CLAUDE_REASONING_EFFORT_MAP = {
   xhigh: "high",
 };
 
+export const OPENAI_LOW_COST_MODEL_CANDIDATES = [
+  "gpt-5-mini",
+  "gpt-5-nano",
+  "gpt-4.1-mini",
+  "gpt-4o-mini",
+];
+export const ANTHROPIC_LOW_COST_MODEL_CANDIDATES = ["haiku"];
+
 export const normalizeReasoningEfforts = (value) => {
   if (!Array.isArray(value)) {
     return [];
@@ -219,6 +227,44 @@ export const dedupeModelOptions = (models) => {
     });
   }
   return Array.from(seen.values());
+};
+
+export const selectLowCostOpenAiModel = (models) => {
+  const modelIds = models.map((model) => model?.id?.trim()).filter(Boolean);
+  const modelIdsByLowercase = new Map(
+    modelIds.map((id) => [id.toLowerCase(), id]),
+  );
+
+  for (const candidate of OPENAI_LOW_COST_MODEL_CANDIDATES) {
+    const matched = modelIdsByLowercase.get(candidate.toLowerCase());
+    if (matched) {
+      return matched;
+    }
+  }
+
+  return (
+    modelIds.find((id) => /\bmini\b/i.test(id.replace(/[-_.]/g, " "))) ??
+    modelIds.find((id) => /\bnano\b/i.test(id.replace(/[-_.]/g, " "))) ??
+    ""
+  );
+};
+
+export const selectLowCostAnthropicModel = (models) => {
+  const modelIds = models.map((model) => model?.id?.trim()).filter(Boolean);
+  const modelIdsByLowercase = new Map(
+    modelIds.map((id) => [id.toLowerCase(), id]),
+  );
+
+  for (const candidate of ANTHROPIC_LOW_COST_MODEL_CANDIDATES) {
+    const matched = modelIdsByLowercase.get(candidate.toLowerCase());
+    if (matched) {
+      return matched;
+    }
+  }
+
+  return (
+    modelIds.find((id) => /\bhaiku\b/i.test(id.replace(/[-_.]/g, " "))) ?? ""
+  );
 };
 
 const CLAUDE_CODE_MODEL_LABELS = {
