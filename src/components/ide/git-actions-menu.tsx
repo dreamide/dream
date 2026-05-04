@@ -81,7 +81,7 @@ const GitDeltaSummary = ({
   showFileCount?: boolean;
   status: ProjectGitStatusResponse | null;
 }) => (
-  <div className="flex shrink-0 items-center gap-2 font-mono text-sm tabular-nums">
+  <div className="flex shrink-0 items-center gap-2 font-mono text-xs tabular-nums">
     {showFileCount ? (
       <span className="text-muted-foreground">
         {formatFileCount(getStatusFileCount(status))}
@@ -103,7 +103,7 @@ const GitChangesDeltaSummary = ({
   changes: ProjectGitStatusEntry[];
   showFileCount?: boolean;
 }) => (
-  <div className="flex shrink-0 items-center gap-2 font-mono text-sm tabular-nums">
+  <div className="flex shrink-0 items-center gap-2 font-mono text-xs tabular-nums">
     {showFileCount ? (
       <span className="text-muted-foreground">
         {formatFileCount(changes.length)}
@@ -247,7 +247,9 @@ const DialogMetricRow = ({
       </span>
       <span>{label}</span>
     </div>
-    <div className="min-w-0 text-right font-mono text-foreground">{value}</div>
+    <div className="min-w-0 text-right font-mono text-foreground text-xs">
+      {value}
+    </div>
   </div>
 );
 
