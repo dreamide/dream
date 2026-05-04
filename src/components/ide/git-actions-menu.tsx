@@ -260,6 +260,35 @@ const ActionError = ({ error }: { error: string | null }) =>
     </div>
   ) : null;
 
+const normalizeBranchComparisonName = (value: string | null | undefined) => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed
+    .replace(/^refs\/heads\//, "")
+    .replace(/^refs\/remotes\/[^/]+\//, "");
+};
+
+const getPullRequestBranchError = (
+  headBranch: string | null,
+  baseBranch: string,
+) => {
+  const normalizedHead = normalizeBranchComparisonName(headBranch);
+  const normalizedBase = normalizeBranchComparisonName(baseBranch);
+
+  if (!normalizedHead) {
+    return "Cannot create a pull request from a detached HEAD.";
+  }
+
+  if (normalizedBase && normalizedHead === normalizedBase) {
+    return `Cannot create a pull request from ${headBranch} to ${baseBranch}. Push changes instead, or switch to a feature branch.`;
+  }
+
+  return null;
+};
+
 const formatCommitDate = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -810,6 +839,7 @@ const CreatePrDialog = ({
   const hasChanges = getStatusFileCount(status) > 0;
   const needsPush = !status?.upstreamBranch || (status.aheadCount ?? 0) > 0;
   const baseBranch = status?.baseBranch ?? "main";
+  const branchError = getPullRequestBranchError(branch, baseBranch);
 
   useEffect(() => {
     if (!open) {
@@ -830,6 +860,10 @@ const CreatePrDialog = ({
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (submitting) {
+        return;
+      }
+      if (branchError) {
+        setError(branchError);
         return;
       }
 
@@ -864,6 +898,7 @@ const CreatePrDialog = ({
     },
     [
       baseBranch,
+      branchError,
       description,
       draft,
       nextStep,
@@ -928,17 +963,19 @@ const CreatePrDialog = ({
               onValueChange={setNextStep}
               options={[
                 {
+                  disabled: Boolean(branchError),
                   icon: <GitPullRequest />,
                   label: "Create PR",
                   value: "create",
                 },
                 {
+                  disabled: Boolean(branchError),
                   icon: <ArrowUp />,
                   label: "Push & create PR",
                   value: "push-create",
                 },
                 {
-                  disabled: !hasChanges,
+                  disabled: !hasChanges || Boolean(branchError),
                   icon: <GitCommitHorizontal />,
                   label: "Commit, push & create PR",
                   value: "commit-push-create",
@@ -948,7 +985,7 @@ const CreatePrDialog = ({
             />
           </div>
 
-          <ActionError error={error} />
+          <ActionError error={error ?? branchError} />
 
           <div className="flex flex-wrap items-center gap-4">
             <label
@@ -975,7 +1012,7 @@ const CreatePrDialog = ({
             </label>
             <Button
               className="ml-auto min-w-36"
-              disabled={submitting}
+              disabled={submitting || Boolean(branchError)}
               type="submit"
             >
               {submitting ? <Spinner className="size-4" /> : null}
@@ -1080,6 +1117,7 @@ const GitActionsMenuImpl = ({
   const [activeDialog, setActiveDialog] = useState<GitActionDialog>(null);
   const hasGitChanges = getStatusFileCount(status) > 0;
   const canPush = hasPushableCommits(status);
+  const canCreatePr = hasGitChanges || canPush;
   const hasGitActivity = hasGitChanges || canPush;
 
   const handleOpenChanges = useCallback(() => {
@@ -1093,13 +1131,17 @@ const GitActionsMenuImpl = ({
         return;
       }
 
-      if (dialog !== "push" && !hasGitChanges) {
+      if (dialog === "commit" && !hasGitChanges) {
+        return;
+      }
+
+      if (dialog === "pr" && !canCreatePr) {
         return;
       }
 
       setActiveDialog(dialog);
     },
-    [canPush, hasGitChanges],
+    [canCreatePr, canPush, hasGitChanges],
   );
 
   const handleActionCompleted = useCallback(() => {
@@ -1167,7 +1209,7 @@ const GitActionsMenuImpl = ({
             Push
           </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={!hasGitChanges}
+            disabled={!canCreatePr}
             onClick={() => handleOpenDialog("pr")}
           >
             <GitPullRequest className="size-4" />
