@@ -46,6 +46,7 @@ export const CHIP_TOOL_NAME_ALIASES = {
   search: new Set(["glob", "grep", "search", "search-in-files"]),
   taskOutput: new Set(["task-output", "taskoutput", "task-result"]),
   toolSearch: new Set(["tool-search"]),
+  webFetch: new Set(["fetch", "web-fetch", "webfetch"]),
   write: new Set([
     "edit",
     "multi-edit",
@@ -82,6 +83,9 @@ export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
   }
   if (CHIP_TOOL_NAME_ALIASES.toolSearch.has(toolName)) {
     return "toolSearch";
+  }
+  if (CHIP_TOOL_NAME_ALIASES.webFetch.has(toolName)) {
+    return "webFetch";
   }
   if (CHIP_TOOL_NAME_ALIASES.list.has(toolName)) {
     return "list";

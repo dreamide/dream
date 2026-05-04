@@ -31,6 +31,7 @@ import {
   RunCommandChip,
   SearchInFilesChip,
   TaskOutputChip,
+  WebFetchChip,
   WriteFileChip,
 } from "../assistant-message-part";
 import { getChipToolKind, isChipToolPart } from "../assistant-message-tools";
@@ -518,6 +519,16 @@ export const ChatMessage = memo(
                         <SearchInFilesChip
                           defaultExpanded={expandToolCalls}
                           key={key}
+                          part={chipPart_}
+                        />
+                      );
+                    }
+                    if (chipToolKind === "webFetch") {
+                      return (
+                        <WebFetchChip
+                          defaultExpanded={expandToolCalls}
+                          key={key}
+                          onToolApproval={addToolApprovalResponse}
                           part={chipPart_}
                         />
                       );
