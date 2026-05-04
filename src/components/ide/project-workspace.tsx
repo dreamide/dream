@@ -10,17 +10,12 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
-import { DEFAULT_PANEL_SIZES } from "@/lib/ide-defaults";
 import {
   isModalBrowserHidden,
   useModalBrowserHidden,
 } from "@/lib/modal-visibility";
 import { cn } from "@/lib/utils";
-import type {
-  BrowserBounds,
-  BrowserTabState,
-  ProjectConfig,
-} from "@/types/ide";
+import type { BrowserBounds, ProjectConfig } from "@/types/ide";
 import { BrowserPanel } from "./browser-panel";
 import { ChatPanel } from "./chat-panel";
 import { GitActionsMenu } from "./git-actions-menu";
@@ -31,37 +26,31 @@ import {
   ToggleButton,
 } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import { type RightPanelView, TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
+import type { RightPanelView } from "./ide-types";
 import { ProjectSidebar } from "./projects-panel";
 import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
-const CHAT_PANEL_MIN_WIDTH_PX = 400;
-const BROWSER_PANEL_DEFAULT_WIDTH_PX = DEFAULT_PANEL_SIZES.rightPanelWidth;
-const BROWSER_PANEL_MIN_WIDTH_PX = 320;
-const CHAT_PANEL_MIN_HEIGHT_PX = 180;
-const TERMINAL_PANEL_DEFAULT_HEIGHT_PX = DEFAULT_PANEL_SIZES.terminalHeight;
-const TERMINAL_PANEL_MIN_HEIGHT_PX = TERMINAL_MIN_HEIGHT_PX + 16;
-const PANEL_RESIZE_HANDLE_SIZE_PX = 1;
-const PANEL_EDGE_PADDING_PX = 8;
-const WORKSPACE_SIDE_NAV_WIDTH_PX = 48;
-const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
-const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
-const CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX = 400;
-const CHAT_HISTORY_PANEL_MAX_WIDTH_PX = 500;
-const CHAT_HISTORY_PANEL_MIN_WIDTH_PX = 200;
-
-/** Duration (ms) for panel slide animations. */
-const PANEL_TRANSITION_MS = 200;
-const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-const RIGHT_PANEL_TRANSITION = `${PANEL_TRANSITION}, flex-basis ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-grow ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), flex-shrink ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-const TERMINAL_PANEL_TRANSITION = `height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-const CHAT_KEEP_ALIVE_LIMIT = 10;
-
-const clampChatHistoryPanelWidth = (width: number) =>
-  Math.max(
-    CHAT_HISTORY_PANEL_MIN_WIDTH_PX,
-    Math.min(CHAT_HISTORY_PANEL_MAX_WIDTH_PX, width),
-  );
+import {
+  BROWSER_PANEL_DEFAULT_WIDTH_PX,
+  BROWSER_PANEL_MIN_WIDTH_PX,
+  CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
+  CHAT_HISTORY_PANEL_MAX_WIDTH_PX,
+  CHAT_HISTORY_PANEL_MIN_WIDTH_PX,
+  CHAT_KEEP_ALIVE_LIMIT,
+  CHAT_PANEL_MIN_HEIGHT_PX,
+  CHAT_PANEL_MIN_WIDTH_PX,
+  clampChatHistoryPanelWidth,
+  EMPTY_BROWSER_TABS,
+  EMPTY_TERMINAL_SESSION_IDS,
+  PANEL_EDGE_PADDING_PX,
+  PANEL_RESIZE_HANDLE_SIZE_PX,
+  PANEL_TRANSITION,
+  RIGHT_PANEL_TRANSITION,
+  TERMINAL_PANEL_DEFAULT_HEIGHT_PX,
+  TERMINAL_PANEL_MIN_HEIGHT_PX,
+  TERMINAL_PANEL_TRANSITION,
+  WORKSPACE_SIDE_NAV_WIDTH_PX,
+} from "./workspace";
 
 export interface ProjectWorkspaceProps {
   active: boolean;
