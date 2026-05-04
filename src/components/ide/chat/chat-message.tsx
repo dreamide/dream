@@ -287,7 +287,9 @@ const MessageHoverFooter = ({
     .filter(Boolean)
     .join(" · ");
   const positionClassName =
-    message.role === "user" ? "right-0 justify-end" : "left-0 justify-start";
+    message.role === "user"
+      ? "ml-auto justify-end text-right"
+      : "mr-auto justify-start text-left";
 
   useEffect(() => {
     if (!isRunning) {
@@ -320,7 +322,7 @@ const MessageHoverFooter = ({
 
   return (
     <div
-      className={`${positionClassName} pointer-events-none absolute top-full z-10 mt-1 flex items-center gap-2 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100`}
+      className={`${positionClassName} pointer-events-none flex min-h-6 max-w-full items-center gap-2 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100`}
     >
       {footerText ? <span>{footerText}</span> : null}
       {text && !isRunning ? (
