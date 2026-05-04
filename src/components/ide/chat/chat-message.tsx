@@ -81,6 +81,32 @@ const formatMessageTime = (value: string | undefined) => {
   }).format(date);
 };
 
+const formatRunningDuration = (startedAt: number, now: number) => {
+  const totalSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+
+  return `${seconds}s`;
+};
+
+const getMessageCreatedAtTime = (value: string | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? null : time;
+};
+
 export const ConversationScrollMemory = ({
   isActive,
 }: {
@@ -209,18 +235,45 @@ const getMessageText = (message: UIMessage) =>
     })
     .join("\n\n");
 
-const MessageHoverFooter = ({ message }: { message: UIMessage }) => {
+const MessageHoverFooter = ({
+  isRunning = false,
+  message,
+}: {
+  isRunning?: boolean;
+  message: UIMessage;
+}) => {
   const [copied, setCopied] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [fallbackStartedAt] = useState(() => Date.now());
   const metadata = message.metadata as ChatMessageMetadata | undefined;
   const modelLabel = metadata?.modelLabel;
   const reasoningLabel = metadata?.reasoningLabel;
-  const time = formatMessageTime(metadata?.createdAt);
+  const startedAt =
+    getMessageCreatedAtTime(metadata?.createdAt) ?? fallbackStartedAt;
+  const time = isRunning
+    ? `Running ${formatRunningDuration(startedAt, now)}`
+    : formatMessageTime(metadata?.createdAt);
   const text = getMessageText(message);
   const footerText = [modelLabel, reasoningLabel, time]
     .filter(Boolean)
     .join(" · ");
   const positionClassName =
     message.role === "user" ? "right-0 justify-end" : "left-0 justify-start";
+
+  useEffect(() => {
+    if (!isRunning) {
+      return;
+    }
+
+    setNow(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isRunning]);
 
   const copyMessage = useCallback(async () => {
     if (!text) {
@@ -241,7 +294,7 @@ const MessageHoverFooter = ({ message }: { message: UIMessage }) => {
       className={`${positionClassName} pointer-events-none absolute top-full z-10 mt-1 flex items-center gap-2 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100`}
     >
       {footerText ? <span>{footerText}</span> : null}
-      {text ? (
+      {text && !isRunning ? (
         <button
           aria-label="Copy message"
           className="pointer-events-auto rounded p-1 transition-colors hover:bg-accent hover:text-foreground"
@@ -540,7 +593,10 @@ export const ChatMessage = memo(
             return elements;
           })()}
         </MessageContent>
-        <MessageHoverFooter message={message} />
+        <MessageHoverFooter
+          isRunning={isStreaming && isLastMessage}
+          message={message}
+        />
       </Message>
     );
   },
