@@ -10,13 +10,13 @@ type ParsedFileDiff = FileDiffProps<undefined>["fileDiff"];
 const DIFF_UNMODIFIED_LINES_CSS = `
 [data-separator='line-info'] {
   margin-block: 0;
-  background-color: light-dark(#f6f8fb, #20252c);
+  background-color: var(--color-muted);
 }
 
 [data-separator='line-info'] [data-separator-wrapper],
 [data-separator='line-info'] [data-expand-button],
 [data-separator='line-info'] [data-separator-content] {
-  background-color: light-dark(#f6f8fb, #20252c);
+  background-color: var(--color-muted);
 }
 
 [data-separator='line-info'] [data-separator-content] {
