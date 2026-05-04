@@ -12,7 +12,6 @@ import {
   clipboard,
   dialog,
   ipcMain,
-  Menu,
   shell,
   WebContentsView,
 } from "electron";
@@ -20,6 +19,7 @@ import { spawn as spawnPty } from "node-pty";
 import sirv from "sirv";
 
 import { startApiServer } from "./api-server.js";
+import { configureApplicationMenu } from "./app-menu.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,78 +60,6 @@ const WINDOWS_CMD_PATH =
 
 app.setName(APP_NAME);
 app.setPath("userData", APP_USER_DATA_PATH);
-
-function configureApplicationMenu() {
-  if (process.platform !== "darwin") {
-    return;
-  }
-
-  app.setAboutPanelOptions({
-    applicationName: APP_NAME,
-    applicationVersion: app.getVersion(),
-  });
-
-  Menu.setApplicationMenu(
-    Menu.buildFromTemplate([
-      {
-        label: APP_NAME,
-        submenu: [
-          { label: `About ${APP_NAME}`, role: "about" },
-          { type: "separator" },
-          { role: "services" },
-          { type: "separator" },
-          { label: `Hide ${APP_NAME}`, role: "hide" },
-          { role: "hideOthers" },
-          { role: "unhide" },
-          { type: "separator" },
-          { label: `Quit ${APP_NAME}`, role: "quit" },
-        ],
-      },
-      {
-        label: "Edit",
-        submenu: [
-          { role: "undo" },
-          { role: "redo" },
-          { type: "separator" },
-          { role: "cut" },
-          { role: "copy" },
-          { role: "paste" },
-          { role: "pasteAndMatchStyle" },
-          { role: "delete" },
-          { role: "selectAll" },
-        ],
-      },
-      {
-        label: "View",
-        submenu: [
-          { role: "reload" },
-          { role: "forceReload" },
-          { role: "toggleDevTools" },
-          { type: "separator" },
-          { role: "resetZoom" },
-          { role: "zoomIn" },
-          { role: "zoomOut" },
-          { type: "separator" },
-          { role: "togglefullscreen" },
-        ],
-      },
-      {
-        label: "Window",
-        submenu: [
-          { role: "minimize" },
-          { role: "zoom" },
-          { type: "separator" },
-          { role: "front" },
-        ],
-      },
-      {
-        label: "Help",
-        role: "help",
-        submenu: [],
-      },
-    ]),
-  );
-}
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
@@ -3148,7 +3076,7 @@ ipcMain.on("browser:update", (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
-  configureApplicationMenu();
+  configureApplicationMenu(app, APP_NAME);
 
   if (process.platform === "darwin" && existsSync(appIconPath)) {
     app.dock?.setIcon(appIconPath);
