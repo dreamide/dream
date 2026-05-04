@@ -1183,13 +1183,15 @@ export const ChatPanel = ({
         >
           <ConversationContent
             id={conversationContentDomId}
-            className={`relative mx-auto block w-full max-w-[700px] px-0 pt-3${
-              messages.length === 0 ? " min-h-full" : ""
-            }`}
+            className={
+              messages.length === 0
+                ? "mx-auto flex min-h-full w-full max-w-[700px] flex-col px-0 pt-3"
+                : "relative mx-auto block w-full max-w-[700px] px-0 pt-3"
+            }
             style={{ paddingBottom: CHAT_CONTENT_BOTTOM_PADDING_PX }}
           >
             {messages.length === 0 ? (
-              <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 text-center">
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
                 <img
                   alt=""
                   className="size-16"
