@@ -302,6 +302,11 @@ export const CHIP_TONE_CLASSES = {
       "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
     expanded: "text-green-700 dark:text-green-400",
   },
+  emerald: {
+    button:
+      "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+    expanded: "text-emerald-700 dark:text-emerald-300",
+  },
   lime: {
     button:
       "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
@@ -316,6 +321,11 @@ export const CHIP_TONE_CLASSES = {
     button:
       "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
     expanded: "text-purple-700 dark:text-purple-400",
+  },
+  violet: {
+    button:
+      "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300",
+    expanded: "text-violet-700 dark:text-violet-300",
   },
   slate: {
     button:

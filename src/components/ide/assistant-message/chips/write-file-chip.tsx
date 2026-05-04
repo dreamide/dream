@@ -272,7 +272,7 @@ export const WriteFileChip = ({
           hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
           aria-label={displayFilename}
-          tone="yellow"
+          tone="violet"
           type="button"
         >
           <PenLineIcon className="size-3.5 shrink-0" />
@@ -329,7 +329,7 @@ export const WriteFileChip = ({
       ) : null}
       {showFileDetails ? (
         <div
-          className={getExpandedChipClasses("yellow", hasError)}
+          className={getExpandedChipClasses("violet", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {/* Error */}

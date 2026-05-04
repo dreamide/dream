@@ -152,7 +152,7 @@ export const ReadFileChip = ({
         hasError={hasError}
         onClick={() => canExpand && setExpanded(!expanded)}
         aria-label={displayFilename}
-        tone="green"
+        tone="emerald"
         type="button"
       >
         <EyeIcon className="size-3.5 shrink-0" />
@@ -172,7 +172,7 @@ export const ReadFileChip = ({
       </ChipButton>
       {expanded ? (
         <div
-          className={getExpandedChipClasses("green", hasError)}
+          className={getExpandedChipClasses("emerald", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (

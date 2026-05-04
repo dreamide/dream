@@ -427,7 +427,7 @@ const TOOL_GROUP_META: Record<
   read: {
     Icon: EyeIcon,
     label: "Read",
-    tone: "green",
+    tone: "emerald",
   },
   search: {
     Icon: SearchIcon,
@@ -452,7 +452,7 @@ const TOOL_GROUP_META: Record<
   write: {
     Icon: PenLineIcon,
     label: "Write",
-    tone: "yellow",
+    tone: "violet",
   },
 };
 
