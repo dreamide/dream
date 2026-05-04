@@ -1,4 +1,5 @@
 import { useChat } from "@ai-sdk/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   AlertCircle,
@@ -18,7 +19,10 @@ import {
   useRef,
   useState,
 } from "react";
-import type { StickToBottomContext } from "use-stick-to-bottom";
+import {
+  type StickToBottomContext,
+  useStickToBottomContext,
+} from "use-stick-to-bottom";
 import {
   Context,
   ContextCacheUsage,
@@ -338,6 +342,104 @@ const UsageLimitsPopover = ({
         </div>
       </PopoverContent>
     </Popover>
+  );
+};
+
+const CHAT_MESSAGE_ESTIMATED_HEIGHT_PX = 180;
+const CHAT_MESSAGE_VIRTUAL_OVERSCAN = 8;
+
+const VirtualizedChatMessages = ({
+  addToolApprovalResponse,
+  expandToolCalls,
+  isStreaming,
+  messages,
+  projectPath,
+  showReasoningSummaries,
+}: {
+  addToolApprovalResponse: ToolApprovalResponder;
+  expandToolCalls: boolean;
+  isStreaming: boolean;
+  messages: UIMessage[];
+  projectPath: string;
+  showReasoningSummaries: boolean;
+}) => {
+  const conversationContext = useStickToBottomContext();
+  const measureFrameRef = useRef<number | null>(null);
+  const lastMessage = messages[messages.length - 1];
+  const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
+  const streamMeasureKey = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
+    lastPart && "text" in lastPart ? (lastPart.text as string).length : 0
+  }`;
+  const layoutMeasureKey = `${messages.length}:${expandToolCalls}:${showReasoningSummaries}`;
+  const rowVirtualizer = useVirtualizer<HTMLElement, HTMLDivElement>({
+    count: messages.length,
+    estimateSize: () => CHAT_MESSAGE_ESTIMATED_HEIGHT_PX,
+    getItemKey: (index) => messages[index]?.id ?? index,
+    getScrollElement: () => conversationContext.scrollRef.current,
+    overscan: CHAT_MESSAGE_VIRTUAL_OVERSCAN,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+
+  useEffect(() => {
+    void layoutMeasureKey;
+    rowVirtualizer.measure();
+  }, [layoutMeasureKey, rowVirtualizer]);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      return;
+    }
+    void streamMeasureKey;
+
+    if (measureFrameRef.current !== null) {
+      return;
+    }
+
+    measureFrameRef.current = window.requestAnimationFrame(() => {
+      measureFrameRef.current = null;
+      rowVirtualizer.measure();
+    });
+
+    return () => {
+      if (measureFrameRef.current !== null) {
+        window.cancelAnimationFrame(measureFrameRef.current);
+        measureFrameRef.current = null;
+      }
+    };
+  }, [isStreaming, rowVirtualizer, streamMeasureKey]);
+
+  return (
+    <div
+      className="relative w-full"
+      style={{ height: rowVirtualizer.getTotalSize() }}
+    >
+      {virtualItems.map((virtualItem) => {
+        const message = messages[virtualItem.index];
+        if (!message) {
+          return null;
+        }
+
+        return (
+          <div
+            className="absolute left-0 top-0 w-full pb-4"
+            data-index={virtualItem.index}
+            key={virtualItem.key}
+            ref={rowVirtualizer.measureElement}
+            style={{ transform: `translateY(${virtualItem.start}px)` }}
+          >
+            <ChatMessage
+              addToolApprovalResponse={addToolApprovalResponse}
+              expandToolCalls={expandToolCalls}
+              isLastMessage={virtualItem.index === messages.length - 1}
+              isStreaming={isStreaming}
+              message={message}
+              projectPath={projectPath}
+              showReasoningSummaries={showReasoningSummaries}
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 };
 
@@ -1081,7 +1183,7 @@ export const ChatPanel = ({
         >
           <ConversationContent
             id={conversationContentDomId}
-            className={`mx-auto w-full max-w-[700px] gap-4 px-0 pt-3${
+            className={`relative mx-auto block w-full max-w-[700px] px-0 pt-3${
               messages.length === 0 ? " min-h-full" : ""
             }`}
             style={{ paddingBottom: CHAT_CONTENT_BOTTOM_PADDING_PX }}
@@ -1097,18 +1199,14 @@ export const ChatPanel = ({
                 <p className="font-medium text-lg">Build anything</p>
               </div>
             ) : (
-              messages.map((message, messageIndex) => (
-                <ChatMessage
-                  addToolApprovalResponse={addToolApprovalResponse}
-                  expandToolCalls={settings.expandToolCalls}
-                  isLastMessage={messageIndex === messages.length - 1}
-                  isStreaming={isStreaming}
-                  key={message.id}
-                  message={message}
-                  projectPath={project.path}
-                  showReasoningSummaries={settings.showReasoningSummaries}
-                />
-              ))
+              <VirtualizedChatMessages
+                addToolApprovalResponse={addToolApprovalResponse}
+                expandToolCalls={settings.expandToolCalls}
+                isStreaming={isStreaming}
+                messages={messages}
+                projectPath={project.path}
+                showReasoningSummaries={settings.showReasoningSummaries}
+              />
             )}
           </ConversationContent>
           <ConversationScrollMemory isActive={isActive} />
