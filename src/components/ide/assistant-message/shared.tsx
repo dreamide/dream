@@ -788,6 +788,9 @@ export const buildLineDiff = (previousContent: string, nextContent: string) => {
   return lines.join("\n");
 };
 
+const getDiffLineCount = (content: string) =>
+  content.length === 0 ? 0 : content.split("\n").length;
+
 export const buildWriteDiff = ({
   content,
   filePath,
@@ -801,10 +804,13 @@ export const buildWriteDiff = ({
 }) => {
   const nextContent =
     mode === "append" ? `${previousContent}${content}` : content;
+  const previousLineCount = getDiffLineCount(previousContent);
+  const nextLineCount = getDiffLineCount(nextContent);
+
   return [
     `--- ${filePath}`,
     `+++ ${filePath}`,
-    "@@",
+    `@@ -1,${previousLineCount} +1,${nextLineCount} @@`,
     buildLineDiff(previousContent, nextContent),
   ].join("\n");
 };

@@ -36,6 +36,70 @@ import {
   type ToolApprovalHandler,
 } from "../shared";
 
+const getEditDiffFromInput = (
+  input: unknown,
+  filePath: string | null,
+): string | null => {
+  if (!filePath) {
+    return null;
+  }
+
+  const oldString = getStringFromPaths(
+    input,
+    [["old_string"], ["oldString"], ["oldText"], ["old"]],
+    { allowEmpty: true },
+  );
+  const newString = getStringFromPaths(
+    input,
+    [["new_string"], ["newString"], ["newText"], ["new"]],
+    { allowEmpty: true },
+  );
+
+  if (oldString !== null && newString !== null) {
+    return buildWriteDiff({
+      content: newString,
+      filePath,
+      mode: null,
+      previousContent: oldString,
+    });
+  }
+
+  if (
+    input &&
+    typeof input === "object" &&
+    "edits" in input &&
+    Array.isArray(input.edits)
+  ) {
+    const previousContent = input.edits
+      .map((edit) =>
+        getStringFromPaths(edit, [["old_string"], ["oldString"]], {
+          allowEmpty: true,
+        }),
+      )
+      .filter(isString)
+      .join("\n");
+    const nextContent = input.edits
+      .map((edit) =>
+        getStringFromPaths(edit, [["new_string"], ["newString"]], {
+          allowEmpty: true,
+        }),
+      )
+      .filter(isString)
+      .join("\n");
+
+    if (previousContent || nextContent) {
+      return buildWriteDiff({
+        content: nextContent,
+        filePath,
+        mode: null,
+        previousContent,
+      });
+    }
+  }
+
+  return null;
+};
+
 export const WriteFileChip = ({
   defaultExpanded = false,
   part,
@@ -144,7 +208,7 @@ export const WriteFileChip = ({
     savedDiff ??
     (previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
-      : null);
+      : getEditDiffFromInput(part.input, filePath));
   const displayDiffCode = diffCode;
   const displayFilename =
     filename === "file" && isRunning ? "Writing" : filename;
