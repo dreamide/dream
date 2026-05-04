@@ -604,26 +604,13 @@ const summarizeToolGroup = (group: ToolChipItem[]) => {
 
 const ToolCallGroup = ({
   context,
-  defaultExpanded,
   group,
 }: {
   context: ToolChipRenderContext;
-  defaultExpanded: boolean;
   group: ToolChipItem[];
 }) => {
-  const hasApprovalRequest = group.some(
-    ({ part }) => (part as ToolLikePart).state === "approval-requested",
-  );
-  const [expanded, setExpanded] = useState(
-    defaultExpanded || hasApprovalRequest,
-  );
+  const [expanded, setExpanded] = useState(false);
   const summaries = summarizeToolGroup(group);
-
-  useEffect(() => {
-    if (defaultExpanded || hasApprovalRequest) {
-      setExpanded(true);
-    }
-  }, [defaultExpanded, hasApprovalRequest]);
 
   if (group.length < 2 || summaries.length === 0) {
     return <ToolChipRow context={context} group={group} />;
@@ -757,7 +744,6 @@ export const ChatMessage = memo(
                 groupToolCalls ? (
                   <ToolCallGroup
                     context={toolChipContext}
-                    defaultExpanded={expandToolCalls}
                     group={group}
                     key={`chip-group-${group[0].index}`}
                   />
