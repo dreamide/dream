@@ -1,12 +1,10 @@
-import { ChevronDown, ChevronRight, FileIcon } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
   CodeBlockActions,
   CodeBlockCopyButton,
-  CodeBlockFilename,
   CodeBlockHeader,
-  CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -149,11 +147,7 @@ const ExpandedDiffBody = ({
               startingLineNumber={1}
               style={{ contentVisibility: "visible" }}
             >
-              <CodeBlockHeader className="shrink-0 border-0 bg-transparent px-3 py-2">
-                <CodeBlockTitle>
-                  <FileIcon size={14} />
-                  <CodeBlockFilename>{change.path}</CodeBlockFilename>
-                </CodeBlockTitle>
+              <CodeBlockHeader className="flex shrink-0 justify-end border-0 bg-transparent px-3 py-2">
                 <CodeBlockActions>
                   <CodeBlockCopyButton />
                 </CodeBlockActions>
