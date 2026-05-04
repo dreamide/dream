@@ -12,7 +12,6 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
-  getChipToneClasses,
   getExpandedChipClasses,
   isRecord,
   isString,
@@ -83,6 +82,7 @@ export const SearchInFilesChip = ({
   const canExpand = hasError || hasRawOutput;
   const label = query ?? "Search";
   const SearchChipIcon = isToolReferenceSearch ? WrenchIcon : SearchIcon;
+  const tone = isToolReferenceSearch ? "stone" : "blue";
 
   useEffect(() => {
     if (defaultExpanded) {
@@ -94,17 +94,13 @@ export const SearchInFilesChip = ({
     <div className={expanded ? "w-full" : undefined}>
       <ChipButton
         className={cn(
-          getChipToneClasses(
-            isToolReferenceSearch
-              ? "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-400"
-              : "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
-            hasError,
-          ),
           canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
+        hasError={hasError}
         onClick={() => canExpand && setExpanded(!expanded)}
         aria-label={label}
+        tone={tone}
         type="button"
       >
         <SearchChipIcon className="size-3.5 shrink-0" />
@@ -147,12 +143,7 @@ export const SearchInFilesChip = ({
       </ChipButton>
       {expanded ? (
         <div
-          className={getExpandedChipClasses(
-            isToolReferenceSearch
-              ? "text-orange-700 dark:text-orange-400"
-              : "text-blue-700 dark:text-blue-400",
-            hasError,
-          )}
+          className={getExpandedChipClasses(tone, hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (

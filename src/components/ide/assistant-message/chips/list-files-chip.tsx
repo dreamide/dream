@@ -9,7 +9,6 @@ import {
   ChipButton,
   FileTree,
   FileTreeNodeView,
-  getChipToneClasses,
   getExpandedChipClasses,
   isRecord,
   isString,
@@ -112,15 +111,13 @@ export const ListFilesChip = ({
     <div className={expanded ? "w-full" : undefined}>
       <ChipButton
         className={cn(
-          getChipToneClasses(
-            "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
-            hasError,
-          ),
           canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
+        hasError={hasError}
         onClick={() => canExpand && setExpanded(!expanded)}
         aria-label={displayLabel}
+        tone="amber"
         type="button"
       >
         <Icon className="size-3.5 shrink-0" />
@@ -142,10 +139,7 @@ export const ListFilesChip = ({
       </ChipButton>
       {expanded ? (
         <div
-          className={getExpandedChipClasses(
-            "text-amber-700 dark:text-amber-400",
-            hasError,
-          )}
+          className={getExpandedChipClasses("amber", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (

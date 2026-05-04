@@ -11,7 +11,6 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
-  getChipToneClasses,
   getExpandedChipClasses,
   getStringFromPaths,
   isRecord,
@@ -86,14 +85,12 @@ export const WebFetchChip = ({
         <ChipButton
           aria-label={displayUrl ? `Web Fetch ${displayUrl}` : "Web Fetch"}
           className={cn(
-            getChipToneClasses(
-              "border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
-              hasError,
-            ),
             canExpand && "cursor-pointer",
             (isRunning || isApprovalRequested) && "animate-pulse",
           )}
+          hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
+          tone="cyan"
           type="button"
         >
           <GlobeIcon className="size-3.5 shrink-0" />
@@ -133,10 +130,7 @@ export const WebFetchChip = ({
       ) : null}
       {expanded ? (
         <div
-          className={getExpandedChipClasses(
-            "text-cyan-700 dark:text-cyan-300",
-            hasError,
-          )}
+          className={getExpandedChipClasses("cyan", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {isRecord(part.input) ? (

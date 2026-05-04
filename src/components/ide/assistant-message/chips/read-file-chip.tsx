@@ -17,7 +17,6 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
-  getChipToneClasses,
   getExpandedChipClasses,
   getNumberFromPaths,
   getStringFromPaths,
@@ -118,15 +117,13 @@ export const ReadFileChip = ({
     <div className={expanded ? "w-full" : undefined}>
       <ChipButton
         className={cn(
-          getChipToneClasses(
-            "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
-            hasError,
-          ),
           canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
+        hasError={hasError}
         onClick={() => canExpand && setExpanded(!expanded)}
         aria-label={displayFilename}
+        tone="green"
         type="button"
       >
         <EyeIcon className="size-3.5 shrink-0" />
@@ -146,10 +143,7 @@ export const ReadFileChip = ({
       </ChipButton>
       {expanded ? (
         <div
-          className={getExpandedChipClasses(
-            "text-green-700 dark:text-green-400",
-            hasError,
-          )}
+          className={getExpandedChipClasses("green", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (

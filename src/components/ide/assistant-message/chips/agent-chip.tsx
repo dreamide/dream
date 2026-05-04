@@ -11,7 +11,6 @@ import {
   ChipButton,
   formatToolName,
   getAgentOutputText,
-  getChipToneClasses,
   getExpandedChipClasses,
   getStringFromPaths,
   isRecord,
@@ -53,15 +52,13 @@ export const AgentChip = ({
     <div className={expanded ? "w-full" : undefined}>
       <ChipButton
         className={cn(
-          getChipToneClasses(
-            "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300",
-            hasError,
-          ),
           canExpand && "cursor-pointer",
           isRunning && "animate-pulse",
         )}
+        hasError={hasError}
         onClick={() => canExpand && setExpanded(!expanded)}
         aria-label={displayDescription}
+        tone="slate"
         type="button"
       >
         <BotIcon className="size-3.5 shrink-0" />
@@ -84,10 +81,7 @@ export const AgentChip = ({
       </ChipButton>
       {expanded ? (
         <div
-          className={getExpandedChipClasses(
-            "text-slate-700 dark:text-slate-300",
-            hasError,
-          )}
+          className={getExpandedChipClasses("slate", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {isRecord(part.input) ? (

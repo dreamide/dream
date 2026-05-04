@@ -22,7 +22,6 @@ import {
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   formatWriteOutputMessage,
-  getChipToneClasses,
   getDiffStats,
   getExpandedChipClasses,
   getFilePathFromOutputText,
@@ -241,15 +240,13 @@ export const WriteFileChip = ({
       >
         <ChipButton
           className={cn(
-            getChipToneClasses(
-              "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
-              hasError,
-            ),
             canExpand && "cursor-pointer",
             (isRunning || isApprovalRequested) && "animate-pulse",
           )}
+          hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
           aria-label={displayFilename}
+          tone="purple"
           type="button"
         >
           <PenLineIcon className="size-3.5 shrink-0" />
@@ -306,10 +303,7 @@ export const WriteFileChip = ({
       ) : null}
       {showFileDetails ? (
         <div
-          className={getExpandedChipClasses(
-            "text-purple-700 dark:text-purple-400",
-            hasError,
-          )}
+          className={getExpandedChipClasses("purple", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {/* Error */}

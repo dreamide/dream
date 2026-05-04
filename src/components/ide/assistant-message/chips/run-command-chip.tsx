@@ -18,7 +18,6 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
-  getChipToneClasses,
   getCommandWithoutShellPrefix,
   getExpandedChipClasses,
   isRecord,
@@ -99,15 +98,13 @@ export const RunCommandChip = ({
       <div className="flex items-center gap-2">
         <ChipButton
           className={cn(
-            getChipToneClasses(
-              "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
-              hasError,
-            ),
             canExpand && "cursor-pointer",
             (isRunning || isApprovalRequested) && "animate-pulse",
           )}
+          hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
           aria-label={displayCommand ?? (isRunning ? "Running" : "Command")}
+          tone="lime"
           type="button"
         >
           <TerminalIcon className="size-3.5 shrink-0" />
@@ -148,10 +145,7 @@ export const RunCommandChip = ({
       ) : null}
       {expanded ? (
         <div
-          className={getExpandedChipClasses(
-            "text-lime-700 dark:text-lime-300",
-            hasError,
-          )}
+          className={getExpandedChipClasses("lime", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (

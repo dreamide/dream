@@ -281,17 +281,60 @@ export const TOOL_STATE_LABELS: Record<ToolPart["state"], string> = {
 
 export const CHIP_ERROR_CLASSES =
   "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10";
-export const getChipToneClasses = (
-  defaultClasses: string,
-  hasError: boolean,
-) => (hasError ? CHIP_ERROR_CLASSES : defaultClasses);
-export const getExpandedChipClasses = (
-  defaultTextClasses: string,
-  hasError: boolean,
-) =>
+export const CHIP_TONE_CLASSES = {
+  amber: {
+    button:
+      "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
+    expanded: "text-amber-700 dark:text-amber-400",
+  },
+  blue: {
+    button:
+      "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
+    expanded: "text-blue-700 dark:text-blue-400",
+  },
+  cyan: {
+    button:
+      "border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
+    expanded: "text-cyan-700 dark:text-cyan-300",
+  },
+  green: {
+    button:
+      "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
+    expanded: "text-green-700 dark:text-green-400",
+  },
+  lime: {
+    button:
+      "border-lime-300 bg-lime-50 text-lime-700 dark:border-lime-700 dark:bg-lime-950 dark:text-lime-300",
+    expanded: "text-lime-700 dark:text-lime-300",
+  },
+  orange: {
+    button:
+      "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-400",
+    expanded: "text-orange-700 dark:text-orange-400",
+  },
+  purple: {
+    button:
+      "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
+    expanded: "text-purple-700 dark:text-purple-400",
+  },
+  slate: {
+    button:
+      "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300",
+    expanded: "text-slate-700 dark:text-slate-300",
+  },
+  stone: {
+    button:
+      "border-stone-300 bg-stone-50 text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300",
+    expanded: "text-stone-700 dark:text-stone-300",
+  },
+} as const;
+export type ChipTone = keyof typeof CHIP_TONE_CLASSES;
+export const getChipToneClasses = (tone: ChipTone, hasError: boolean) =>
+  hasError ? CHIP_ERROR_CLASSES : CHIP_TONE_CLASSES[tone].button;
+export const getExpandedChipClasses = (tone: ChipTone, hasError: boolean) =>
   cn(
     "mt-2 space-y-2 border-l pl-2",
-    hasError ? "text-destructive" : defaultTextClasses,
+    hasError ? "text-destructive" : CHIP_TONE_CLASSES[tone].expanded,
   );
 export const CHIP_DETAIL_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 py-2 text-[12px]";
@@ -310,10 +353,19 @@ export const CHIP_LAYOUT_TRANSITION = {
 
 export const ChipButton = ({
   className,
+  hasError = false,
+  tone,
   ...props
-}: ComponentProps<typeof motion.button>) => (
+}: ComponentProps<typeof motion.button> & {
+  hasError?: boolean;
+  tone?: ChipTone;
+}) => (
   <motion.button
-    className={cn(CHIP_BUTTON_BASE_CLASSES, className)}
+    className={cn(
+      CHIP_BUTTON_BASE_CLASSES,
+      tone ? getChipToneClasses(tone, hasError) : undefined,
+      className,
+    )}
     layout="size"
     transition={CHIP_LAYOUT_TRANSITION}
     {...props}
