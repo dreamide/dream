@@ -1,6 +1,25 @@
 import type { UIMessage } from "ai";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 
+const areMessagePartsEqual = (
+  left: UIMessage["parts"][number],
+  right: UIMessage["parts"][number],
+) => {
+  if (left === right) {
+    return true;
+  }
+
+  if (left.type !== right.type) {
+    return false;
+  }
+
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+};
+
 export const areMessagesEqual = (
   left: UIMessage[] | undefined,
   right: UIMessage[],
@@ -19,22 +38,10 @@ export const areMessagesEqual = (
     if (l === r) continue;
     if (l.id !== r.id || l.role !== r.role) return false;
     if (l.parts.length !== r.parts.length) return false;
-    if (l.parts !== r.parts) {
-      // Check the last part for streaming changes (text growth, tool result)
-      const lp = l.parts[l.parts.length - 1] as Record<string, unknown>;
-      const rp = r.parts[r.parts.length - 1] as Record<string, unknown>;
-      if (lp !== rp) {
-        if (lp?.type !== rp?.type) return false;
-        if (
-          lp?.type === "text" &&
-          (lp as { text: string }).text !== (rp as { text: string }).text
-        )
-          return false;
-        if (
-          lp?.type === "tool-invocation" &&
-          lp?.toolInvocation !== rp?.toolInvocation
-        )
-          return false;
+
+    for (let partIndex = 0; partIndex < l.parts.length; partIndex++) {
+      if (!areMessagePartsEqual(l.parts[partIndex], r.parts[partIndex])) {
+        return false;
       }
     }
   }
