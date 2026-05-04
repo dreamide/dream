@@ -212,6 +212,13 @@ const FileExplorerPanelImpl = ({
   const projectFilesRefreshKey = useIdeStore((s) =>
     projectId ? (s.projectFilesRefreshKeys[projectId] ?? 0) : 0,
   );
+  const fileOpenRequest = useIdeStore((s) =>
+    projectId ? (s.projectFileOpenRequests[projectId] ?? null) : null,
+  );
+  const fileOpenRequestPath = fileOpenRequest?.filePath ?? null;
+  const fileOpenRequestKey = fileOpenRequest
+    ? `${fileOpenRequest.requestId}:${fileOpenRequest.filePath}`
+    : "";
   const files = projectId ? (fileListsByProject[projectId] ?? []) : [];
   const selectedFilePath = projectId
     ? (selectedFileByProject[projectId] ?? null)
@@ -313,6 +320,19 @@ const FileExplorerPanelImpl = ({
     projectId,
     projectPath,
   ]);
+
+  useEffect(() => {
+    void fileOpenRequestKey;
+    if (!active || !projectId || !fileOpenRequestPath) {
+      return;
+    }
+
+    setSelectedFileByProject((current) => ({
+      ...current,
+      [projectId]: fileOpenRequestPath,
+    }));
+    setFileError(null);
+  }, [active, fileOpenRequestKey, fileOpenRequestPath, projectId]);
 
   useEffect(() => {
     if (!active) {

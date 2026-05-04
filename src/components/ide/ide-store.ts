@@ -88,6 +88,10 @@ interface IdeState {
   activeBrowserTabIdByProject: Record<string, string | null>;
   projectGitRefreshKeys: Record<string, number>;
   projectFilesRefreshKeys: Record<string, number>;
+  projectFileOpenRequests: Record<
+    string,
+    { filePath: string; requestId: number }
+  >;
   stateHydrated: boolean;
   isMacOs: boolean;
   isElectron: boolean;
@@ -143,6 +147,7 @@ interface IdeState {
   setProjectChatHistoryPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
+  openProjectFile: (projectId: string, filePath: string) => void;
   setOutputPanelOpen: (open: boolean) => void;
   setClaudePermissionMode: (value: ClaudePermissionMode) => void;
   setCodexPermissionMode: (value: CodexPermissionMode) => void;
@@ -282,6 +287,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   activeBrowserTabIdByProject: {},
   projectGitRefreshKeys: {},
   projectFilesRefreshKeys: {},
+  projectFileOpenRequests: {},
   stateHydrated: false,
   isMacOs: false,
   isElectron: false,
@@ -564,6 +570,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       const nextProjectFilesRefreshKeys = {
         ...state.projectFilesRefreshKeys,
       };
+      const nextProjectFileOpenRequests = {
+        ...state.projectFileOpenRequests,
+      };
       const nextTerminalOrdinalByProject = {
         ...state.nextTerminalOrdinalByProject,
       };
@@ -586,6 +595,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
       delete nextProjectGitRefreshKeys[projectId];
       delete nextProjectFilesRefreshKeys[projectId];
+      delete nextProjectFileOpenRequests[projectId];
       delete nextTerminalOrdinalByProject[projectId];
       delete nextProjectTerminalSessionIds[projectId];
       delete nextActiveTerminalSessionIdByProject[projectId];
@@ -653,6 +663,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         draftChatIdByProject: nextDraftChatIdByProject,
         projectGitRefreshKeys: nextProjectGitRefreshKeys,
         projectFilesRefreshKeys: nextProjectFilesRefreshKeys,
+        projectFileOpenRequests: nextProjectFileOpenRequests,
         projects: nextOpenProjects,
       };
     });
@@ -1097,6 +1108,52 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       }
 
       return shouldPersist ? nextState : state;
+    });
+
+    if (shouldPersist) {
+      get().persist();
+    }
+  },
+  openProjectFile: (projectId, filePath) => {
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    const normalizedFilePath =
+      typeof filePath === "string" ? filePath.trim() : "";
+    if (!normalizedProjectId || !normalizedFilePath) {
+      return;
+    }
+
+    let shouldPersist = false;
+
+    set((state) => {
+      if (
+        !state.projects.some((project) => project.id === normalizedProjectId)
+      ) {
+        return state;
+      }
+
+      const currentRequest = state.projectFileOpenRequests[normalizedProjectId];
+
+      shouldPersist = true;
+
+      return {
+        projectFileOpenRequests: {
+          ...state.projectFileOpenRequests,
+          [normalizedProjectId]: {
+            filePath: normalizedFilePath,
+            requestId: (currentRequest?.requestId ?? 0) + 1,
+          },
+        },
+        projects: updateProjectUiInList(
+          state.projects,
+          normalizedProjectId,
+          (project) => ({
+            ...project.ui,
+            rightPanelOpen: true,
+            rightPanelView: "explorer",
+          }),
+        ),
+      };
     });
 
     if (shouldPersist) {

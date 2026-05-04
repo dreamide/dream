@@ -513,12 +513,14 @@ export const CodeBlock = ({
 export type CodeBlockCopyButtonProps = ComponentProps<typeof Button> & {
   onCopy?: () => void;
   onError?: (error: Error) => void;
+  text?: string;
   timeout?: number;
 };
 
 export const CodeBlockCopyButton = ({
   onCopy,
   onError,
+  text,
   timeout = 2000,
   children,
   className,
@@ -527,11 +529,12 @@ export const CodeBlockCopyButton = ({
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
   const { code } = useContext(CodeBlockContext);
+  const copyValue = text ?? code;
 
   const copyToClipboard = useCallback(async () => {
     try {
       if (!isCopied) {
-        await copyTextToClipboard(code);
+        await copyTextToClipboard(copyValue);
         setIsCopied(true);
         onCopy?.();
         timeoutRef.current = window.setTimeout(
@@ -542,7 +545,7 @@ export const CodeBlockCopyButton = ({
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [code, onCopy, onError, timeout, isCopied]);
+  }, [copyValue, onCopy, onError, timeout, isCopied]);
 
   useEffect(
     () => () => {

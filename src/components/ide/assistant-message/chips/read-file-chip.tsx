@@ -1,5 +1,5 @@
-import { EyeIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ExternalLinkIcon, EyeIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CodeBlock,
   CodeBlockActions,
@@ -9,8 +9,11 @@ import {
   CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ToolLikePart } from "../../assistant-message-tools";
+import { normalizeProjectPathKey } from "../../ide-state";
+import { useIdeStore } from "../../ide-store";
 import { MaterialFileIcon } from "../../material-file-icon";
 import {
   CHIP_DETAIL_HEADER_CLASSES,
@@ -29,11 +32,15 @@ import {
 export const ReadFileChip = ({
   defaultExpanded = false,
   part,
+  projectPath,
 }: {
   defaultExpanded?: boolean;
   part: ToolLikePart;
+  projectPath?: string | null;
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const projects = useIdeStore((s) => s.projects);
+  const openProjectFile = useIdeStore((s) => s.openProjectFile);
   const output = part.output;
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
@@ -85,6 +92,7 @@ export const ReadFileChip = ({
     ]) ??
     getStringFromPaths(output, [["filename"], ["name"], ["file", "name"]]) ??
     "file";
+  const headerFilePath = filePath ?? filename;
   const normalizedContent =
     content !== null ? normalizeEmbeddedLineNumbers(content, start) : null;
   const hasRawOutput = output !== undefined;
@@ -106,6 +114,27 @@ export const ReadFileChip = ({
         ? `Line ${displayStart}`
         : `Lines ${displayStart}-${displayEnd}`
       : null;
+  const projectId = useMemo(() => {
+    if (!projectPath) {
+      return null;
+    }
+
+    const projectPathKey = normalizeProjectPathKey(projectPath);
+    return (
+      projects.find(
+        (project) => normalizeProjectPathKey(project.path) === projectPathKey,
+      )?.id ?? null
+    );
+  }, [projectPath, projects]);
+  const canOpenFile = Boolean(projectId && filePath);
+
+  const handleOpenFile = useCallback(() => {
+    if (!projectId || !filePath) {
+      return;
+    }
+
+    openProjectFile(projectId, filePath);
+  }, [filePath, openProjectFile, projectId]);
 
   useEffect(() => {
     if (defaultExpanded) {
@@ -161,19 +190,39 @@ export const ReadFileChip = ({
               style={{ contentVisibility: "visible" }}
             >
               <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                <CodeBlockTitle>
+                <CodeBlockTitle className="min-w-0 flex-1">
                   <MaterialFileIcon
                     className="size-3.5"
-                    path={filePath ?? filename}
+                    path={headerFilePath}
                   />
-                  <CodeBlockFilename>{filename}</CodeBlockFilename>
+                  <CodeBlockFilename
+                    className="min-w-0 break-all"
+                    title={headerFilePath}
+                  >
+                    {headerFilePath}
+                  </CodeBlockFilename>
                   {lineRangeLabel ? (
-                    <Badge variant="secondary" className="ml-1 text-sm">
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 px-1.5 py-0 text-[11px]"
+                    >
                       {lineRangeLabel}
                     </Badge>
                   ) : null}
                 </CodeBlockTitle>
                 <CodeBlockActions>
+                  <Button
+                    aria-label={`Open ${filename} in Files`}
+                    className="shrink-0"
+                    disabled={!canOpenFile}
+                    onClick={handleOpenFile}
+                    size="icon-xs"
+                    title="Open in Files"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <ExternalLinkIcon className="size-3.5" />
+                  </Button>
                   <CodeBlockCopyButton />
                 </CodeBlockActions>
               </CodeBlockHeader>

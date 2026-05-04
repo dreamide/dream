@@ -481,6 +481,7 @@ export const ChatMessage = memo(
                           defaultExpanded={expandToolCalls}
                           key={key}
                           part={chipPart_}
+                          projectPath={projectPath}
                         />
                       );
                     }
