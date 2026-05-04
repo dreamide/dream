@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { StoreApi } from "zustand";
 import type {
   AiProvider,
   AppSettings,
@@ -182,3 +183,6 @@ export interface IdeState {
   hydrate: () => Promise<void>;
   persist: () => void;
 }
+
+export type IdeStoreSet = StoreApi<IdeState>["setState"];
+export type IdeStoreGet = StoreApi<IdeState>["getState"];
