@@ -1,42 +1,13 @@
-import {
-  Code,
-  Files,
-  Globe,
-  History,
-  MessageSquarePlus,
-  Settings,
-  TerminalSquare,
-} from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { getDesktopApi } from "@/lib/electron";
-import {
-  isModalBrowserHidden,
-  useModalBrowserHidden,
-} from "@/lib/modal-visibility";
-import { cn } from "@/lib/utils";
-import type { BrowserBounds, ProjectConfig } from "@/types/ide";
-import { BrowserPanel } from "./browser-panel";
-import { ChatPanel } from "./chat-panel";
-import { GitActionsMenu } from "./git-actions-menu";
-import {
-  AppShellPlaceholder,
-  HorizontalResizablePanel,
-  PanelResizeHandle,
-  ToggleButton,
-} from "./ide-helpers";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import type { ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import type { RightPanelView } from "./ide-types";
-import { ProjectSidebar } from "./projects-panel";
-import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
 import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
   BROWSER_PANEL_MIN_WIDTH_PX,
   CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
   CHAT_HISTORY_PANEL_MAX_WIDTH_PX,
-  CHAT_HISTORY_PANEL_MIN_WIDTH_PX,
-  CHAT_KEEP_ALIVE_LIMIT,
   CHAT_PANEL_MIN_HEIGHT_PX,
   CHAT_PANEL_MIN_WIDTH_PX,
   clampChatHistoryPanelWidth,
@@ -51,6 +22,17 @@ import {
   TERMINAL_PANEL_TRANSITION,
   WORKSPACE_SIDE_NAV_WIDTH_PX,
 } from "./workspace";
+import { WorkspaceChatStack } from "./workspace/chat-stack";
+import { WorkspaceHistoryPanel } from "./workspace/history-panel";
+import { WorkspaceRightPanel } from "./workspace/right-panel";
+import { WorkspaceRightRail } from "./workspace/right-rail";
+import { WorkspaceSideNav } from "./workspace/side-nav";
+import { WorkspaceTerminalDock } from "./workspace/terminal-dock";
+import {
+  useActiveBrowserTab,
+  useWorkspaceBrowserSync,
+} from "./workspace/use-browser-sync";
+import { useMountedProjectChats } from "./workspace/use-mounted-chats";
 
 export interface ProjectWorkspaceProps {
   active: boolean;
@@ -102,36 +84,22 @@ const ProjectWorkspaceComponent = ({
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
 
   // ── Local workspace state ───────────────────────────────────────────
-  const [recentMountedChatIds, setRecentMountedChatIds] = useState<string[]>(
-    [],
-  );
   const [historyPanelWidth, setHistoryPanelWidth] = useState(() =>
     clampChatHistoryPanelWidth(
       projectPanelSizes.chatHistoryPanelWidth ??
         CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
     ),
   );
-  const [browserResizeHidden, setBrowserResizeHidden] = useState(false);
-  const modalBrowserHidden = useModalBrowserHidden();
 
   // ── Derived values ──────────────────────────────────────────────────
   const middleVisible = true;
-  const activeBrowserTab = useMemo(() => {
-    if (browserTabs.length === 0) {
-      return null;
-    }
-
-    if (activeBrowserTabId) {
-      const activeTab = browserTabs.find(
-        (tab) => tab.id === activeBrowserTabId,
-      );
-      if (activeTab) {
-        return activeTab;
-      }
-    }
-
-    return browserTabs[0] ?? null;
-  }, [activeBrowserTabId, browserTabs]);
+  const activeBrowserTab = useActiveBrowserTab(browserTabs, activeBrowserTabId);
+  const mountedChats = useMountedProjectChats({
+    activeChatId,
+    chats,
+    projectId,
+    streamingChatIds,
+  });
   const hasProjectTerminalSessions = projectTerminalSessionIds.length > 0;
   const terminalPanelVisible =
     activeProjectTerminalPanelOpen && hasProjectTerminalSessions;
@@ -170,66 +138,6 @@ const ProjectWorkspaceComponent = ({
     setHistoryPanelWidth(savedHistoryPanelWidth);
   }, [savedHistoryPanelWidth]);
 
-  useEffect(() => {
-    if (!activeChatId) {
-      return;
-    }
-
-    setRecentMountedChatIds((current) => [
-      activeChatId,
-      ...current
-        .filter((chatId) => chatId !== activeChatId)
-        .slice(0, CHAT_KEEP_ALIVE_LIMIT - 1),
-    ]);
-  }, [activeChatId]);
-
-  const mountedChats = useMemo(() => {
-    const mountedChatIds = new Set<string>();
-    const projectChats = chats.filter(
-      (chat) => chat.projectId === projectId && chat.deletedAt === null,
-    );
-    const nextChats = [] as typeof chats;
-
-    if (activeChatId) {
-      const activeMountedChat = projectChats.find(
-        (chat) => chat.id === activeChatId,
-      );
-      if (activeMountedChat) {
-        mountedChatIds.add(activeMountedChat.id);
-        nextChats.push(activeMountedChat);
-      }
-    }
-
-    // Keep streaming chats mounted even when they are not recently viewed.
-    for (const chat of projectChats) {
-      if (!streamingChatIds[chat.id] || mountedChatIds.has(chat.id)) {
-        continue;
-      }
-
-      mountedChatIds.add(chat.id);
-      nextChats.push(chat);
-    }
-
-    for (const chatId of recentMountedChatIds) {
-      if (
-        mountedChatIds.size >= CHAT_KEEP_ALIVE_LIMIT ||
-        mountedChatIds.has(chatId)
-      ) {
-        continue;
-      }
-
-      const recentChat = projectChats.find((chat) => chat.id === chatId);
-      if (!recentChat) {
-        continue;
-      }
-
-      mountedChatIds.add(recentChat.id);
-      nextChats.push(recentChat);
-    }
-
-    return nextChats;
-  }, [activeChatId, chats, projectId, recentMountedChatIds, streamingChatIds]);
-
   // ── Refs ─────────────────────────────────────────────────────────────
   const browserHostRef = useRef<HTMLDivElement | null>(null);
   const historyPanelWidthRef = useRef(historyPanelWidth);
@@ -248,6 +156,25 @@ const ProjectWorkspaceComponent = ({
     rightWidthRef.current = projectPanelSizes.rightPanelWidth;
     terminalHeightRef.current = projectPanelSizes.terminalHeight;
   }
+
+  const markRightPanelDragging = useCallback(() => {
+    isDraggingRef.current = true;
+  }, []);
+
+  const {
+    browserResizeHidden,
+    hideBrowserForRightResize,
+    restoreBrowserAfterRightResize,
+    syncBrowserBounds,
+  } = useWorkspaceBrowserSync({
+    active,
+    activeBrowserTab,
+    browserHostRef,
+    onResizeStart: markRightPanelDragging,
+    projectId,
+    rightPanelView,
+    rightVisible,
+  });
 
   useEffect(() => {
     if (!active || !historyOpen) {
@@ -502,140 +429,13 @@ const ProjectWorkspaceComponent = ({
     terminalPanelTransitionEnabledRef.current = true;
   });
 
-  // Browser bounds sync
-  const lastSentBrowserUrlRef = useRef<string | null>(null);
-  const lastSentBrowserTabIdRef = useRef<string | null>(null);
-  const browserResizeHiddenRef = useRef(false);
-  const syncBrowserBounds = useCallback(
-    (reload = false) => {
-      const desktopApi = getDesktopApi();
-      if (!desktopApi) return;
-
-      if (!active) {
-        return;
-      }
-
-      if (browserResizeHiddenRef.current) {
-        return;
-      }
-
-      if (
-        !activeBrowserTab?.url ||
-        !rightVisible ||
-        rightPanelView !== "browser" ||
-        isModalBrowserHidden()
-      ) {
-        lastSentBrowserUrlRef.current = null;
-        lastSentBrowserTabIdRef.current = null;
-        desktopApi.updateBrowser({
-          projectId,
-          tabId: activeBrowserTab?.id,
-          visible: false,
-        });
-        return;
-      }
-
-      const host = browserHostRef.current;
-      if (!host) return;
-
-      const rect = host.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) {
-        desktopApi.updateBrowser({
-          projectId,
-          tabId: activeBrowserTab.id,
-          visible: false,
-        });
-        return;
-      }
-
-      const bounds: BrowserBounds = {
-        height: rect.height,
-        width: rect.width,
-        x: rect.x,
-        y: rect.y,
-      };
-
-      const urlChanged = activeBrowserTab.url !== lastSentBrowserUrlRef.current;
-      const tabChanged =
-        activeBrowserTab.id !== lastSentBrowserTabIdRef.current;
-      const sendUrl = reload || urlChanged || tabChanged;
-      if (sendUrl) {
-        lastSentBrowserUrlRef.current = activeBrowserTab.url;
-        lastSentBrowserTabIdRef.current = activeBrowserTab.id;
-      }
-
-      desktopApi.updateBrowser({
-        bounds,
-        projectId,
-        tabId: activeBrowserTab.id,
-        ...(reload ? { reload: true } : {}),
-        ...(sendUrl ? { url: activeBrowserTab.url } : {}),
-        visible: true,
-      });
-    },
-    [active, activeBrowserTab, projectId, rightPanelView, rightVisible],
-  );
-
-  const hideBrowserForRightResize = useCallback(() => {
-    isDraggingRef.current = true;
-
-    if (
-      !active ||
-      !activeBrowserTab?.url ||
-      !rightVisible ||
-      rightPanelView !== "browser"
-    ) {
-      return;
-    }
-
-    lastSentBrowserUrlRef.current = null;
-    lastSentBrowserTabIdRef.current = null;
-    browserResizeHiddenRef.current = true;
-    setBrowserResizeHidden(true);
-    getDesktopApi()?.updateBrowser({
-      projectId,
-      tabId: activeBrowserTab.id,
-      visible: false,
-    });
-  }, [active, activeBrowserTab, projectId, rightPanelView, rightVisible]);
-
   const handleRightResizeEndWithBrowserSync = useCallback(
     (width: number) => {
       handleRightResizeEnd(width);
-
-      window.requestAnimationFrame(() => {
-        browserResizeHiddenRef.current = false;
-        syncBrowserBounds();
-        setBrowserResizeHidden(false);
-      });
+      restoreBrowserAfterRightResize();
     },
-    [handleRightResizeEnd, syncBrowserBounds],
+    [handleRightResizeEnd, restoreBrowserAfterRightResize],
   );
-
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-
-    const desktopApi = getDesktopApi();
-    if (!desktopApi) return;
-
-    const update = () => syncBrowserBounds();
-    const observer = new ResizeObserver(update);
-    const host = browserHostRef.current;
-    if (host) {
-      observer.observe(host);
-    }
-
-    window.addEventListener("resize", update);
-    const frame = window.requestAnimationFrame(update);
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [active, syncBrowserBounds]);
 
   useEffect(() => {
     const update = () => syncHorizontalPanelWidths();
@@ -655,35 +455,6 @@ const ProjectWorkspaceComponent = ({
     };
   }, [syncHorizontalPanelWidths]);
 
-  useEffect(() => {
-    void activeBrowserTab?.id;
-    void activeBrowserTab?.url;
-    void modalBrowserHidden;
-    syncBrowserBounds();
-  }, [
-    activeBrowserTab?.id,
-    activeBrowserTab?.url,
-    modalBrowserHidden,
-    syncBrowserBounds,
-  ]);
-
-  useEffect(() => {
-    return () => {
-      const desktopApi = getDesktopApi();
-      if (!desktopApi) return;
-      const activeProjectId = useIdeStore.getState().activeProjectId;
-      if (activeProjectId && activeProjectId !== projectId) {
-        return;
-      }
-
-      desktopApi.updateBrowser({
-        projectId,
-        tabId: activeBrowserTab?.id,
-        visible: false,
-      });
-    };
-  }, [activeBrowserTab?.id, projectId]);
-
   const rightPanelMaxWidth = getRightPanelMaxWidth();
   const boundedRightPanelMaxWidth = Number.isFinite(rightPanelMaxWidth)
     ? rightPanelMaxWidth
@@ -691,91 +462,27 @@ const ProjectWorkspaceComponent = ({
 
   return (
     <div className="relative flex h-full" ref={horizontalPanelsRef}>
-      <aside className="flex w-12 shrink-0 flex-col items-center py-2">
-        <div className="flex flex-col items-center gap-1">
-          <Button
-            aria-label="Chat history"
-            className={cn(
-              "size-8",
-              historyOpen
-                ? "text-foreground hover:text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() =>
-              setProjectChatHistoryPanelOpen(projectId, !historyOpen)
-            }
-            ref={historyButtonRef}
-            size="icon"
-            title="Chat history"
-            variant="ghost"
-          >
-            <History className="size-4" />
-          </Button>
-          <Button
-            aria-label="New chat"
-            className="size-8 text-muted-foreground hover:text-foreground"
-            onClick={handleAddChat}
-            size="icon"
-            title="New chat"
-            variant="ghost"
-          >
-            <MessageSquarePlus className="size-4" />
-          </Button>
-        </div>
+      <WorkspaceSideNav
+        historyButtonRef={historyButtonRef}
+        historyOpen={historyOpen}
+        onAddChat={handleAddChat}
+        onOpenSettings={handleOpenSettings}
+        onToggleHistory={() =>
+          setProjectChatHistoryPanelOpen(projectId, !historyOpen)
+        }
+      />
 
-        <Button
-          aria-label="Settings"
-          className="mt-auto size-8 text-muted-foreground hover:text-foreground"
-          onClick={handleOpenSettings}
-          size="icon"
-          title="Settings"
-          variant="ghost"
-        >
-          <Settings className="size-4" />
-        </Button>
-      </aside>
-
-      <div
-        aria-hidden={!historyOpen}
-        className="absolute top-0 bottom-0 z-30 overflow-hidden"
-        inert={!historyOpen}
-        ref={historyPanelRef}
-        style={{
-          boxSizing: "border-box",
-          left: WORKSPACE_SIDE_NAV_WIDTH_PX,
-          maxWidth: historyOpen ? CHAT_HISTORY_PANEL_MAX_WIDTH_PX : 0,
-          minWidth: historyOpen ? CHAT_HISTORY_PANEL_MIN_WIDTH_PX : 0,
-          opacity: historyOpen ? 1 : 0,
-          pointerEvents: historyOpen ? "auto" : "none",
-          transition: PANEL_TRANSITION,
-          width: historyOpen ? historyPanelWidth : 0,
-          willChange: "width, opacity",
-        }}
-      >
-        <div
-          className="flex h-full"
-          style={{ minWidth: CHAT_HISTORY_PANEL_MIN_WIDTH_PX }}
-        >
-          <div className="min-w-0 flex-1 py-2">
-            {active && historyOpen ? (
-              <ProjectSidebar
-                className="h-full"
-                onChatSelect={closeHistoryPanel}
-                project={project}
-              />
-            ) : null}
-          </div>
-          {historyOpen ? (
-            <PanelResizeHandle
-              onDoubleClick={closeHistoryPanel}
-              onResize={handleHistoryResize}
-              onResizeEnd={finishHistoryResize}
-              onResizeStart={handleHistoryResizeStart}
-              side="right"
-            />
-          ) : null}
-        </div>
-      </div>
+      <WorkspaceHistoryPanel
+        active={active}
+        historyOpen={historyOpen}
+        historyPanelRef={historyPanelRef}
+        historyPanelWidth={historyPanelWidth}
+        onChatSelect={closeHistoryPanel}
+        onResize={handleHistoryResize}
+        onResizeEnd={finishHistoryResize}
+        onResizeStart={handleHistoryResizeStart}
+        project={project}
+      />
 
       {/* ─── MIDDLE: Chat + Terminal ─── */}
       <div
@@ -789,164 +496,60 @@ const ProjectWorkspaceComponent = ({
           ref={middlePanelRef}
           className="flex h-full w-full flex-col rounded-lg"
         >
-          {/* Chat area */}
-          <div
-            className="min-h-0 flex-1"
-            style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
-          >
-            {mountedChats.length > 0 ? (
-              mountedChats.map((chat) => {
-                const isVisible = chat.id === activeChatId;
+          <WorkspaceChatStack
+            active={active}
+            activeChatId={activeChatId}
+            mountedChats={mountedChats}
+            project={project}
+          />
 
-                return (
-                  <div
-                    aria-hidden={!isVisible}
-                    inert={!isVisible}
-                    key={chat.id}
-                    className={
-                      isVisible ? "flex h-full min-h-0 flex-col" : "hidden"
-                    }
-                  >
-                    <ChatPanel
-                      isActive={active && isVisible}
-                      project={project}
-                      chat={chat}
-                    />
-                  </div>
-                );
-              })
-            ) : (
-              <div className="h-full p-3">
-                <AppShellPlaceholder message="Create a chat to start a separate conversation for this project." />
-              </div>
-            )}
-          </div>
-
-          {/* Terminal area */}
-          <div
-            ref={terminalPanelWrapperRef}
-            className="shrink-0 overflow-hidden"
-            style={{
-              height: terminalPanelVisible
-                ? terminalHeightRef.current + PANEL_RESIZE_HANDLE_SIZE_PX
-                : 0,
-              maxHeight: `calc(100% - ${CHAT_PANEL_MIN_HEIGHT_PX}px)`,
-              opacity: terminalPanelVisible ? 1 : 0,
-              pointerEvents: terminalPanelVisible ? "auto" : "none",
-              transition: terminalPanelTransition,
-              willChange: "height, opacity",
-            }}
-          >
-            <PanelResizeHandle
-              onDoubleClick={handleOpenTerminal}
-              onResize={handleTerminalResize}
-              onResizeEnd={handleTerminalResizeEnd}
-              onResizeStart={handleTerminalResizeStart}
-              side="top"
-            />
-            <div
-              ref={terminalPanelRef}
-              className="relative shrink-0 overflow-hidden"
-              style={{
-                height: terminalPanelVisible ? terminalHeightRef.current : 0,
-                minHeight: terminalPanelVisible
-                  ? TERMINAL_PANEL_MIN_HEIGHT_PX
-                  : 0,
-                maxHeight: `calc(100% - ${PANEL_RESIZE_HANDLE_SIZE_PX}px)`,
-                transition: terminalPanelTransition,
-                willChange: "height, opacity",
-              }}
-            >
-              {hasProjectTerminalSessions ? (
-                <div className="absolute inset-0 min-h-0">
-                  <ProjectTerminalTabsPanel
-                    active={active && terminalPanelVisible}
-                    projectId={projectId}
-                  />
-                </div>
-              ) : null}
-            </div>
-          </div>
+          <WorkspaceTerminalDock
+            active={active}
+            hasProjectTerminalSessions={hasProjectTerminalSessions}
+            onOpenTerminal={handleOpenTerminal}
+            onResize={handleTerminalResize}
+            onResizeEnd={handleTerminalResizeEnd}
+            onResizeStart={handleTerminalResizeStart}
+            projectId={projectId}
+            terminalHeight={terminalHeightRef.current}
+            terminalPanelRef={terminalPanelRef}
+            terminalPanelTransition={terminalPanelTransition}
+            terminalPanelVisible={terminalPanelVisible}
+            terminalPanelWrapperRef={terminalPanelWrapperRef}
+          />
         </div>
       </div>
 
       {/* ─── RIGHT: Browser / Explorer ─── */}
-      <HorizontalResizablePanel
-        className={cn(middleVisible ? "" : "min-w-0")}
-        contentClassName="pb-2"
-        contentMinWidth={BROWSER_PANEL_MIN_WIDTH_PX}
-        handleSide="left"
+      <WorkspaceRightPanel
+        active={active}
+        browserHostRef={browserHostRef}
+        browserResizeHidden={browserResizeHidden}
         handleVisible={middleVisible}
         maxWidth={boundedRightPanelMaxWidth}
-        minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
-        onHandleDoubleClick={handleToggleRightPanel}
         onResizeEnd={handleRightResizeEndWithBrowserSync}
         onResizeStart={hideBrowserForRightResize}
+        onSyncBrowserBounds={syncBrowserBounds}
+        onToggleRightPanel={handleToggleRightPanel}
         open={rightVisible}
-        panelRef={rightPanelRef}
-        style={{
-          flex: middleVisible ? undefined : rightVisible ? "1 1 0%" : "0 0 0px",
-          paddingRight: 0,
-          paddingLeft: rightVisible && !middleVisible ? 8 : 0,
-          willChange: middleVisible
-            ? "width, opacity, padding"
-            : "flex-basis, opacity, padding",
-        }}
-        transition={rightPanelTransition}
+        project={project}
+        rightPanelRef={rightPanelRef}
+        rightPanelTransition={rightPanelTransition}
+        rightPanelView={rightPanelView}
         width={rightWidthRef.current}
         widthRef={rightWidthRef}
-      >
-        <BrowserPanel
-          active={active}
-          browserHostRef={browserHostRef}
-          browserResizeHidden={browserResizeHidden}
-          onSyncBrowserBounds={syncBrowserBounds}
-          project={project}
-          rightPanelView={rightPanelView}
-        />
-      </HorizontalResizablePanel>
+      />
 
-      <aside className="flex w-12 shrink-0 flex-col items-center gap-1 py-2">
-        <ToggleButton
-          active={rightVisible && rightPanelView === "changes"}
-          onClick={() => handleSelectRightPanelView("changes")}
-          title="Changes"
-        >
-          <Code className="size-4" />
-        </ToggleButton>
-        <ToggleButton
-          active={rightVisible && rightPanelView === "explorer"}
-          onClick={() => handleSelectRightPanelView("explorer")}
-          title="Files"
-        >
-          <Files className="size-4" />
-        </ToggleButton>
-        <ToggleButton
-          active={rightVisible && rightPanelView === "browser"}
-          onClick={() => handleSelectRightPanelView("browser")}
-          title="Browser"
-        >
-          <Globe className="size-4" />
-        </ToggleButton>
-        <Button
-          aria-label="Terminal"
-          className={cn(
-            "size-8",
-            terminalHiddenWithActiveSession
-              ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-              : hasProjectTerminalSessions
-                ? "text-foreground hover:text-foreground"
-                : "text-muted-foreground/50 hover:text-foreground",
-          )}
-          onClick={handleOpenTerminal}
-          size="icon"
-          title="Terminal"
-          variant="ghost"
-        >
-          <TerminalSquare className="size-4" />
-        </Button>
-        <GitActionsMenu projectId={projectId} projectPath={project.path} />
-      </aside>
+      <WorkspaceRightRail
+        hasProjectTerminalSessions={hasProjectTerminalSessions}
+        onOpenTerminal={handleOpenTerminal}
+        onSelectRightPanelView={handleSelectRightPanelView}
+        projectId={projectId}
+        projectPath={project.path}
+        rightPanelView={rightPanelView}
+        rightVisible={rightVisible}
+        terminalHiddenWithActiveSession={terminalHiddenWithActiveSession}
+      />
     </div>
   );
 };
