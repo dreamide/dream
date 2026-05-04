@@ -651,7 +651,11 @@ const ToolCallGroup = ({
           <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
         )}
       </button>
-      {expanded ? <ToolChipRow context={context} group={group} /> : null}
+      {expanded ? (
+        <div className="mt-2 space-y-2 border-border border-l pl-2">
+          <ToolChipRow context={context} group={group} />
+        </div>
+      ) : null}
     </div>
   );
 };
