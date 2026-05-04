@@ -26,6 +26,10 @@ type WarmCommitMessageParams = {
   refreshToken: number;
 };
 
+type WarmCommitMessageForStatusParams = WarmCommitMessageParams & {
+  status: ProjectGitStatusResponse | null;
+};
+
 const commitMessageCache = new Map<string, string>();
 const commitMessageRequests = new Map<string, Promise<string>>();
 
@@ -287,6 +291,28 @@ export const generateCachedProjectCommitMessage = (
   return request;
 };
 
+export const warmProjectCommitMessageForStatus = async ({
+  includeUnstaged = true,
+  projectPath,
+  provider,
+  refreshToken,
+  status,
+}: WarmCommitMessageForStatusParams) => {
+  const changes = getCommitChanges(status, includeUnstaged);
+  if (changes.length === 0) {
+    return "";
+  }
+
+  return await generateCachedProjectCommitMessage({
+    changes,
+    fallbackMessage: buildGeneratedCommitMessage(changes),
+    includeUnstaged,
+    projectPath,
+    provider,
+    refreshToken,
+  });
+};
+
 export const warmProjectCommitMessage = async ({
   includeUnstaged = true,
   projectPath,
@@ -304,19 +330,12 @@ export const warmProjectCommitMessage = async ({
       throw new Error(await readResponseText(statusResponse));
     }
 
-    const status = (await statusResponse.json()) as ProjectGitStatusResponse;
-    const changes = getCommitChanges(status, includeUnstaged);
-    if (changes.length === 0) {
-      return "";
-    }
-
-    return await generateCachedProjectCommitMessage({
-      changes,
-      fallbackMessage: buildGeneratedCommitMessage(changes),
+    return await warmProjectCommitMessageForStatus({
       includeUnstaged,
       projectPath,
       provider,
       refreshToken,
+      status: (await statusResponse.json()) as ProjectGitStatusResponse,
     });
   } catch {
     return "";

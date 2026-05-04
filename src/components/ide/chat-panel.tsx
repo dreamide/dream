@@ -100,7 +100,10 @@ import {
   type ToolApprovalResponder,
 } from "./chat";
 import { mergeChatMessageHistories } from "./chat-message-history";
-import { warmProjectCommitMessage } from "./git-commit-message-cache";
+import {
+  getCommitChanges,
+  warmProjectCommitMessageForStatus,
+} from "./git-commit-message-cache";
 import { useIdeStore } from "./ide-store";
 import {
   CLAUDE_PERMISSION_MODE_OPTIONS,
@@ -153,7 +156,10 @@ export const ChatPanel = ({
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  useProjectGitStatus(project.path, gitRefreshKey);
+  const { status: projectGitStatus } = useProjectGitStatus(
+    project.path,
+    gitRefreshKey,
+  );
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo(() => {
     return connectedProviders.flatMap((provider) =>
@@ -183,6 +189,8 @@ export const ChatPanel = ({
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const refreshedWriteEventsRef = useRef(new Set<string>());
+  const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
+  const warmedCommitMessageKeysRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
   const conversationContextRef = useRef<StickToBottomContext | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
@@ -347,6 +355,9 @@ export const ChatPanel = ({
     }
 
     if (shouldRefreshProjectPanels) {
+      const nextGitRefreshKey =
+        (useIdeStore.getState().projectGitRefreshKeys[project.id] ?? 0) + 1;
+      pendingCommitMessageWarmRefreshTokensRef.current.add(nextGitRefreshKey);
       bumpProjectGitRefreshKey(project.id);
       bumpProjectFilesRefreshKey(project.id);
     }
@@ -357,6 +368,46 @@ export const ChatPanel = ({
     messages,
     project.id,
   ]);
+
+  useEffect(() => {
+    if (!projectGitStatus) {
+      return;
+    }
+
+    if (!pendingCommitMessageWarmRefreshTokensRef.current.has(gitRefreshKey)) {
+      return;
+    }
+
+    pendingCommitMessageWarmRefreshTokensRef.current.delete(gitRefreshKey);
+    const changes = getCommitChanges(projectGitStatus, true);
+    if (changes.length === 0) {
+      return;
+    }
+
+    const warmKey = JSON.stringify({
+      changes: changes.map((change) => ({
+        addedLines: change.addedLines,
+        path: change.path,
+        removedLines: change.removedLines,
+        staged: change.staged,
+        unstaged: change.unstaged,
+      })),
+      projectPath: project.path,
+      provider: project.provider,
+      refreshToken: gitRefreshKey,
+    });
+    if (warmedCommitMessageKeysRef.current.has(warmKey)) {
+      return;
+    }
+
+    warmedCommitMessageKeysRef.current.add(warmKey);
+    void warmProjectCommitMessageForStatus({
+      projectPath: project.path,
+      provider: project.provider,
+      refreshToken: gitRefreshKey,
+      status: projectGitStatus,
+    });
+  }, [gitRefreshKey, project.path, project.provider, projectGitStatus]);
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
   useEffect(() => {
@@ -652,13 +703,9 @@ export const ChatPanel = ({
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
         const nextGitRefreshKey =
           (useIdeStore.getState().projectGitRefreshKeys[project.id] ?? 0) + 1;
+        pendingCommitMessageWarmRefreshTokensRef.current.add(nextGitRefreshKey);
         bumpProjectGitRefreshKey(project.id);
         bumpProjectFilesRefreshKey(project.id);
-        void warmProjectCommitMessage({
-          projectPath: project.path,
-          provider: project.provider,
-          refreshToken: nextGitRefreshKey,
-        });
       }
     },
     [
@@ -672,7 +719,6 @@ export const ChatPanel = ({
       providerModels,
       project.id,
       project.path,
-      project.provider,
       selectedProvider,
       selectedReasoningEffort,
       selectedReasoningLabel,
