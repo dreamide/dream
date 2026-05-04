@@ -327,6 +327,11 @@ export const CHIP_TONE_CLASSES = {
       "border-stone-300 bg-stone-50 text-stone-700 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-300",
     expanded: "text-stone-700 dark:text-stone-300",
   },
+  yellow: {
+    button:
+      "border-yellow-300 bg-yellow-50 text-yellow-700 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-300",
+    expanded: "text-yellow-700 dark:text-yellow-300",
+  },
 } as const;
 export type ChipTone = keyof typeof CHIP_TONE_CLASSES;
 export const getChipToneClasses = (tone: ChipTone, hasError: boolean) =>

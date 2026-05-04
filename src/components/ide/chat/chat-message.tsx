@@ -452,7 +452,7 @@ const TOOL_GROUP_META: Record<
   write: {
     Icon: PenLineIcon,
     label: "Write",
-    tone: "purple",
+    tone: "yellow",
   },
 };
 
