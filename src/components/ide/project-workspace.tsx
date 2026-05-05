@@ -80,8 +80,6 @@ const ProjectWorkspaceComponent = ({
   );
   const addChat = useIdeStore((s) => s.addChat);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
 
   // ── Local workspace state ───────────────────────────────────────────
   const [historyPanelWidth, setHistoryPanelWidth] = useState(() =>
@@ -333,11 +331,6 @@ const ProjectWorkspaceComponent = ({
     void openProjectTerminal(projectId);
   }, [openProjectTerminal, projectId]);
 
-  const handleOpenSettings = useCallback(() => {
-    setSettingsSection("appearance");
-    setSettingsOpen(true);
-  }, [setSettingsOpen, setSettingsSection]);
-
   const handleToggleRightPanel = useCallback(() => {
     setProjectRightPanelOpen(projectId, !rightVisible);
   }, [projectId, rightVisible, setProjectRightPanelOpen]);
@@ -466,7 +459,6 @@ const ProjectWorkspaceComponent = ({
         historyButtonRef={historyButtonRef}
         historyOpen={historyOpen}
         onAddChat={handleAddChat}
-        onOpenSettings={handleOpenSettings}
         onToggleHistory={() =>
           setProjectChatHistoryPanelOpen(projectId, !historyOpen)
         }

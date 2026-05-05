@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -15,6 +14,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -267,17 +267,20 @@ export const ProjectSidebar = ({
         <DialogContent className="sm:max-w-sm">
           <form className="space-y-4" onSubmit={handleEditSubmit}>
             <DialogHeader>
-              <DialogTitle>Edit</DialogTitle>
-              <DialogDescription>
-                Update the name for this chat.
-              </DialogDescription>
+              <DialogTitle className="text-base leading-6">
+                Edit chat
+              </DialogTitle>
             </DialogHeader>
-            <Input
-              autoFocus
-              onChange={(event) => setEditValue(event.target.value)}
-              placeholder="Enter a name"
-              value={editValue}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="projects-panel-edit-chat-name">Name</Label>
+              <Input
+                autoFocus
+                id="projects-panel-edit-chat-name"
+                onChange={(event) => setEditValue(event.target.value)}
+                placeholder="Enter a name"
+                value={editValue}
+              />
+            </div>
             <DialogFooter>
               <Button onClick={closeEditDialog} type="button" variant="outline">
                 Cancel

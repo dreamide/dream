@@ -3,12 +3,12 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export type ProjectEditTarget = {
   id: string;
@@ -39,17 +39,20 @@ export const ProjectEditDialog = ({
     <DialogContent className="sm:max-w-sm">
       <form className="space-y-4" onSubmit={onSubmit}>
         <DialogHeader>
-          <DialogTitle>Edit</DialogTitle>
-          <DialogDescription>
-            Update the name for this project.
-          </DialogDescription>
+          <DialogTitle className="text-base leading-6">
+            Edit project
+          </DialogTitle>
         </DialogHeader>
-        <Input
-          autoFocus
-          onChange={(event) => onValueChange(event.target.value)}
-          placeholder="Enter a name"
-          value={value}
-        />
+        <div className="space-y-2">
+          <Label htmlFor="edit-project-name">Name</Label>
+          <Input
+            autoFocus
+            id="edit-project-name"
+            onChange={(event) => onValueChange(event.target.value)}
+            placeholder="Enter a name"
+            value={value}
+          />
+        </div>
         <DialogFooter>
           <Button onClick={onClose} type="button" variant="outline">
             Cancel
