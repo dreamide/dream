@@ -20,10 +20,7 @@ export const IdeHeader = () => {
   return (
     <header
       id="app-titlebar"
-      className={cn(
-        "flex shrink-0 flex-col text-foreground [-webkit-app-region:drag]",
-        isMacOs ? "pr-3" : "pr-0",
-      )}
+      className="flex shrink-0 flex-col text-foreground [-webkit-app-region:drag]"
     >
       <div className="flex h-12 items-center gap-2 [-webkit-app-region:drag]">
         <div
@@ -36,16 +33,18 @@ export const IdeHeader = () => {
         <ProjectTabs />
 
         {appReady ? (
-          <Button
-            aria-label="Settings"
-            className="mr-1 size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-            onClick={openSettings}
-            size="icon"
-            title="Settings"
-            variant="ghost"
-          >
-            <Settings className="size-4" />
-          </Button>
+          <div className="flex w-12 shrink-0 justify-center">
+            <Button
+              aria-label="Settings"
+              className="size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+              onClick={openSettings}
+              size="icon"
+              title="Settings"
+              variant="ghost"
+            >
+              <Settings className="size-4" />
+            </Button>
+          </div>
         ) : null}
 
         {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
