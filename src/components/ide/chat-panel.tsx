@@ -531,6 +531,15 @@ export const ChatPanel = ({
             // Keep the default title when background title generation fails.
           });
       }
+      const finishStreaming = () => {
+        useIdeStore.getState().setChatStreaming(submittedChatId, false);
+        const nextGitRefreshKey =
+          (useIdeStore.getState().projectGitRefreshKeys[project.id] ?? 0) + 1;
+        pendingCommitMessageWarmRefreshTokensRef.current.add(nextGitRefreshKey);
+        bumpProjectGitRefreshKey(project.id);
+        bumpProjectFilesRefreshKey(project.id);
+      };
+
       try {
         const sendPromise = sendMessage(
           {
@@ -564,14 +573,10 @@ export const ChatPanel = ({
           },
         );
         scrollConversationToBottom();
-        await sendPromise;
-      } finally {
-        useIdeStore.getState().setChatStreaming(submittedChatId, false);
-        const nextGitRefreshKey =
-          (useIdeStore.getState().projectGitRefreshKeys[project.id] ?? 0) + 1;
-        pendingCommitMessageWarmRefreshTokensRef.current.add(nextGitRefreshKey);
-        bumpProjectGitRefreshKey(project.id);
-        bumpProjectFilesRefreshKey(project.id);
+        void sendPromise.finally(finishStreaming);
+      } catch (error) {
+        finishStreaming();
+        throw error;
       }
     },
     [
