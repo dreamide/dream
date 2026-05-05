@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -51,6 +52,7 @@ export const ChatPanelHeader = ({
                 <FilePenLine className="size-4" />
                 Edit
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onDeleteChat}>
                 <Trash2 className="size-4" />
                 Delete
