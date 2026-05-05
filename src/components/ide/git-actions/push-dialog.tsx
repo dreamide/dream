@@ -184,11 +184,11 @@ export const PushDialog = ({
           </div>
 
           {preview && preview.commits.length > 0 ? (
-            <div className="max-h-64 overflow-auto rounded-md border border-foreground/10 bg-muted/20">
-              <div className="divide-y divide-foreground/10">
+            <div className="overflow-hidden rounded-md border border-foreground/10 bg-muted/20">
+              <div className="max-h-[12.5rem] divide-y divide-foreground/10 overflow-y-auto">
                 {preview.commits.map((commit) => (
                   <div
-                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-3 py-2 text-sm"
+                    className="grid h-10 grid-cols-[auto_1fr_auto] items-center gap-3 px-3 text-sm"
                     key={commit.hash || commit.shortHash}
                   >
                     <span className="font-mono text-muted-foreground text-xs">
@@ -202,13 +202,13 @@ export const PushDialog = ({
                     </span>
                   </div>
                 ))}
-                {preview.truncated ? (
-                  <div className="px-3 py-2 text-muted-foreground text-xs">
-                    Showing first {preview.commits.length} of{" "}
-                    {preview.totalCommits} commits.
-                  </div>
-                ) : null}
               </div>
+              {preview.truncated ? (
+                <div className="border-foreground/10 border-t px-3 py-2 text-muted-foreground text-xs">
+                  Showing first {preview.commits.length} of{" "}
+                  {preview.totalCommits} commits.
+                </div>
+              ) : null}
             </div>
           ) : null}
           {previewError ? (
