@@ -5,7 +5,6 @@ import {
   Empty,
   EmptyContent,
   EmptyHeader,
-  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -53,13 +52,8 @@ const EmptyProjectWorkspace = () => {
 
   return (
     <Empty className="h-full gap-6 rounded-none border-0 p-6">
-      <EmptyHeader className="max-w-xl">
-        <EmptyMedia
-          className="size-12 rounded-md border bg-background text-muted-foreground"
-          variant="icon"
-        >
-          <FolderOpen className="size-6" />
-        </EmptyMedia>
+      <EmptyHeader className="max-w-xl gap-4">
+        <img alt="" className="size-16" draggable={false} src="/icon.png" />
         <EmptyTitle>Open a project to start</EmptyTitle>
       </EmptyHeader>
 
