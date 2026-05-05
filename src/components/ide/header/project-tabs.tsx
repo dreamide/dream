@@ -341,16 +341,18 @@ export const ProjectTabs = () => {
           <StandardTabs
             activeId={activeProjectId}
             after={
-              <Button
-                aria-label="Add project"
-                className="mb-px text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-                onClick={handleAddProject}
-                size="icon-sm"
-                title="Add project"
-                variant="ghost"
-              >
-                <Plus className="size-4 shrink-0" />
-              </Button>
+              projectTabItems.length > 0 ? (
+                <Button
+                  aria-label="Add project"
+                  className="mb-px text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+                  onClick={handleAddProject}
+                  size="icon-sm"
+                  title="Add project"
+                  variant="ghost"
+                >
+                  <Plus className="size-4 shrink-0" />
+                </Button>
+              ) : null
             }
             ariaLabel="Projects"
             interactiveClassName="[-webkit-app-region:no-drag]"
