@@ -1,4 +1,4 @@
-import { FilePenLine, Search, Trash2 } from "lucide-react";
+import { Ellipsis, FilePenLine, Search, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   InputGroup,
@@ -216,37 +223,46 @@ export const ProjectSidebar = ({
                         {formatLastActiveTime(lastActiveAt)}
                       </span>
                     </button>
-                    <div className="-translate-y-1/2 absolute top-1/2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                      <Button
-                        aria-label={`Edit ${chat.title}`}
-                        className="size-7 rounded-md p-0 text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                        onClick={() => {
-                          setEditTarget(chat);
-                          setEditValue(chat.title);
-                        }}
-                        size="icon-sm"
-                        title="Edit chat"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <FilePenLine className="size-3.5" />
-                      </Button>
-                      <Button
-                        aria-label={`Delete ${chat.title}`}
-                        className="size-7 rounded-md p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => {
-                          if (editTarget?.id === chat.id) {
-                            closeEditDialog();
+                    <div className="-translate-y-1/2 absolute top-1/2 right-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              aria-label={`${chat.title} actions`}
+                              className="size-7 rounded-md p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                              size="icon-sm"
+                              title="Chat actions"
+                              type="button"
+                              variant="ghost"
+                            />
                           }
-                          deleteChat(chat.id);
-                        }}
-                        size="icon-sm"
-                        title="Delete chat"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                        >
+                          <Ellipsis className="size-3.5" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setEditTarget(chat);
+                              setEditValue(chat.title);
+                            }}
+                          >
+                            <FilePenLine className="size-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => {
+                              if (editTarget?.id === chat.id) {
+                                closeEditDialog();
+                              }
+                              deleteChat(chat.id);
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 );

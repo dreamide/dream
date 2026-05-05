@@ -197,7 +197,9 @@ const ProjectWorkspaceComponent = ({
         historyPanelRef.current?.contains(target) ||
         historyButtonRef.current?.contains(target) ||
         (target instanceof Element &&
-          target.closest('[data-slot="dialog-content"]'))
+          target.closest(
+            '[data-slot="dialog-content"], [data-slot="dropdown-menu-content"]',
+          ))
       ) {
         return;
       }
