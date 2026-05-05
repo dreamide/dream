@@ -523,6 +523,7 @@ export const ChatComposer = ({
         >
           <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
             <PromptInput
+              clearOnSubmit="immediate"
               id={promptInputDomId}
               className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
               onSubmit={handleComposerSubmit}

@@ -45,6 +45,7 @@ export type PromptInputProps = Omit<
   maxFiles?: number;
   // bytes
   maxFileSize?: number;
+  clearOnSubmit?: "after-success" | "immediate";
   onError?: (err: {
     code: "max_files" | "max_file_size" | "accept";
     message: string;
@@ -63,6 +64,7 @@ export const PromptInput = ({
   syncHiddenInput,
   maxFiles,
   maxFileSize,
+  clearOnSubmit = "after-success",
   onError,
   onSubmit,
   children,
@@ -250,6 +252,13 @@ export const PromptInput = ({
     clearReferencedSources();
   }, [clearAttachments, clearReferencedSources]);
 
+  const clearInputState = useCallback(() => {
+    clear();
+    if (usingProvider) {
+      controller.textInput.clear();
+    }
+  }, [clear, controller, usingProvider]);
+
   useEffect(() => {
     if (!usingProvider) {
       return;
@@ -410,27 +419,29 @@ export const PromptInput = ({
           event,
         );
 
+        if (clearOnSubmit === "immediate") {
+          clearInputState();
+        }
+
         if (result instanceof Promise) {
           try {
             await result;
-            clear();
-            if (usingProvider) {
-              controller.textInput.clear();
+            if (clearOnSubmit === "after-success") {
+              clearInputState();
             }
           } catch {
             // Don't clear on error - user may want to retry
           }
         } else {
-          clear();
-          if (usingProvider) {
-            controller.textInput.clear();
+          if (clearOnSubmit === "after-success") {
+            clearInputState();
           }
         }
       } catch {
         // Don't clear on error - user may want to retry
       }
     },
-    [usingProvider, controller, files, onSubmit, clear],
+    [files, onSubmit, clearOnSubmit, clearInputState],
   );
 
   const inner = (
