@@ -1,5 +1,6 @@
 import { Folder, FolderOpen, History } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
+import dreamSvg from "@/assets/dream.svg";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -53,8 +54,8 @@ const EmptyProjectWorkspace = () => {
   return (
     <Empty className="h-full gap-6 rounded-none border-0 p-6">
       <EmptyHeader className="max-w-xl gap-4">
-        <img alt="" className="size-16" draggable={false} src="/icon.png" />
-        <EmptyTitle>Open a project to start</EmptyTitle>
+        <img alt="" className="size-16" draggable={false} src={dreamSvg} />
+        <EmptyTitle>Get started</EmptyTitle>
       </EmptyHeader>
 
       <EmptyContent className="max-w-xl gap-5">

@@ -24,6 +24,7 @@ import {
   getModelContextWindow,
   getModelReasoningEfforts,
 } from "@/lib/models";
+import dreamSvg from "@/assets/dream.svg";
 import type {
   ChatConfig,
   ChatTitleResponse,
@@ -662,7 +663,7 @@ export const ChatPanel = ({
                   alt=""
                   className="size-16"
                   draggable={false}
-                  src="/icon.png"
+                  src={dreamSvg}
                 />
                 <p className="font-medium text-lg">Build anything</p>
               </div>
