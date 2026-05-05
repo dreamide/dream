@@ -58,7 +58,7 @@ const EmptyProjectWorkspace = () => {
         <EmptyTitle>Get started</EmptyTitle>
       </EmptyHeader>
 
-      <EmptyContent className="max-w-xl gap-5">
+      <EmptyContent className="max-w-xl gap-10">
         <Button onClick={() => void handleOpenFolder()} size="lg">
           <FolderOpen className="size-4" />
           Open Folder
@@ -73,7 +73,7 @@ const EmptyProjectWorkspace = () => {
             <div className="grid w-full gap-1">
               {recentProjects.map((project) => (
                 <button
-                  className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-md border border-transparent px-3 py-2 text-left transition-colors hover:border-border hover:bg-background focus-visible:border-foreground/20 focus-visible:outline-none"
+                  className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-md border border-transparent px-3 py-2 text-left hover:border-border hover:bg-background focus-visible:border-foreground/20 focus-visible:outline-none"
                   key={project.id}
                   onClick={() => addProject(project.path)}
                   type="button"
