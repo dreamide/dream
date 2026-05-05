@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import dreamSvg from "@/assets/dream.svg";
 import {
   Conversation,
   ConversationContent,
@@ -24,7 +25,6 @@ import {
   getModelContextWindow,
   getModelReasoningEfforts,
 } from "@/lib/models";
-import dreamSvg from "@/assets/dream.svg";
 import type {
   ChatConfig,
   ChatTitleResponse,
@@ -672,6 +672,7 @@ export const ChatPanel = ({
                 addToolApprovalResponse={addToolApprovalResponse}
                 expandToolCalls={settings.expandToolCalls}
                 groupToolCalls={settings.groupToolCalls}
+                isActive={isActive}
                 isStreaming={isStreaming}
                 messages={messages}
                 projectPath={project.path}
