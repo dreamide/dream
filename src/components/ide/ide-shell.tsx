@@ -52,7 +52,7 @@ const EmptyProjectWorkspace = () => {
   }, [addProject]);
 
   return (
-    <Empty className="h-full gap-6 rounded-none border-0 bg-background/55 p-6">
+    <Empty className="h-full gap-6 rounded-none border-0 p-6">
       <EmptyHeader className="max-w-xl">
         <EmptyMedia
           className="size-12 rounded-md border bg-background text-muted-foreground"
