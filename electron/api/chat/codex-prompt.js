@@ -405,6 +405,7 @@ export const serializeCodexMessage = (message) => {
 
 export const buildCodexConversationPrompt = ({
   currentTurnAttachments,
+  currentTurnProjectReferences,
   messages,
   projectPath,
   systemPrompt,
@@ -419,6 +420,7 @@ export const buildCodexConversationPrompt = ({
     `Active project: ${projectPath}`,
     "You are running through the real Codex CLI with native shell and git access.",
     transcript ? `Conversation transcript:\n\n${transcript}` : null,
+    currentTurnProjectReferences,
     currentTurnAttachments,
     "Continue the conversation naturally and complete the user's latest request.",
   ]
@@ -429,12 +431,17 @@ export const buildCodexConversationPrompt = ({
 export const getLatestUserPrompt = (
   messages,
   currentTurnAttachments = null,
+  currentTurnProjectReferences = null,
 ) => {
   const latestUserMessage = getLatestUserMessage(messages);
   if (!latestUserMessage) {
-    return currentTurnAttachments || "";
+    return [currentTurnProjectReferences, currentTurnAttachments]
+      .filter(Boolean)
+      .join("\n\n");
   }
 
   const serialized = serializeCodexMessage(latestUserMessage);
-  return [serialized, currentTurnAttachments].filter(Boolean).join("\n\n");
+  return [serialized, currentTurnProjectReferences, currentTurnAttachments]
+    .filter(Boolean)
+    .join("\n\n");
 };

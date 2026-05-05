@@ -29,6 +29,7 @@ export const streamCodexAppServerResponse = ({
   codexPermissionMode,
   messages,
   model,
+  projectReferencesPrompt,
   projectPath,
   reasoningEffort,
   responseMessageMetadata,
@@ -542,6 +543,7 @@ export const streamCodexAppServerResponse = ({
             );
             const fullPrompt = buildCodexConversationPrompt({
               currentTurnAttachments: preparedAttachments?.promptText ?? null,
+              currentTurnProjectReferences: projectReferencesPrompt,
               messages,
               projectPath,
               systemPrompt,

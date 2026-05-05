@@ -10,6 +10,8 @@ import {
 import { MessageResponse } from "@/components/ai-elements/message";
 import { usePromptInputAttachments } from "@/components/ai-elements/prompt-input";
 import { Badge } from "@/components/ui/badge";
+import type { ProjectReference } from "@/types/ide";
+import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
 import { MarkdownFileLink } from "./markdown-file-link";
 
 export const PromptAttachments = () => {
@@ -64,9 +66,41 @@ export const UserMessageContent = ({
     ];
   });
   const text = getMessageText(message);
+  const metadata = message.metadata as
+    | { projectReferences?: ProjectReference[] }
+    | undefined;
+  const projectReferences = Array.isArray(metadata?.projectReferences)
+    ? metadata.projectReferences
+    : [];
 
   return (
     <>
+      {projectReferences.length > 0 ? (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {projectReferences.map((reference) => (
+            <Badge
+              className="max-w-full gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 font-medium text-blue-700 dark:text-blue-300"
+              key={`${reference.kind}:${reference.path}`}
+              variant="secondary"
+            >
+              {reference.kind === "folder" ? (
+                <MaterialFolderIcon
+                  className="size-3.5 shrink-0"
+                  name={reference.name}
+                />
+              ) : (
+                <MaterialFileIcon
+                  className="size-3.5 shrink-0"
+                  path={reference.path}
+                />
+              )}
+              <span className="truncate font-mono text-xs">
+                {reference.path}
+              </span>
+            </Badge>
+          ))}
+        </div>
+      ) : null}
       {attachments.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map(({ key, label }) => (

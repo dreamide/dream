@@ -163,6 +163,7 @@ export const streamClaudeResponse = async ({
   claudePermissionMode,
   messages,
   model,
+  projectReferencesPrompt,
   projectPath,
   reasoningEffort,
   responseMessageMetadata,
@@ -222,7 +223,9 @@ export const streamClaudeResponse = async ({
             ? REASONING_TOOL_STEP_LIMIT
             : DEFAULT_TOOL_STEP_LIMIT,
         ),
-        system: SYSTEM_PROMPT,
+        system: [SYSTEM_PROMPT, projectReferencesPrompt]
+          .filter(Boolean)
+          .join("\n\n"),
         ...(usesReasoningModel ? {} : { temperature: 0.2 }),
         tools: createClaudeProjectTools({ claudePermissionMode, projectPath }),
       });

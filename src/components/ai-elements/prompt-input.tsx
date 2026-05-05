@@ -9,6 +9,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { InputGroup } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
+import type { ProjectReference } from "@/types/ide";
 import {
   LocalAttachmentsContext,
   LocalReferencedSourcesContext,
@@ -26,6 +27,7 @@ export * from "./prompt-input-textarea";
 export interface PromptInputMessage {
   text: string;
   files: FileUIPart[];
+  references: ProjectReference[];
 }
 
 export type PromptInputProps = Omit<
@@ -403,7 +405,10 @@ export const PromptInput = ({
           }),
         );
 
-        const result = onSubmit({ files: convertedFiles, text }, event);
+        const result = onSubmit(
+          { files: convertedFiles, references: [], text },
+          event,
+        );
 
         if (result instanceof Promise) {
           try {

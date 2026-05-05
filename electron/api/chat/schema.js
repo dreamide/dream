@@ -15,6 +15,16 @@ export const chatRequestBodySchema = z.object({
   messages: z.array(z.unknown()),
   model: z.string().min(1),
   modelLabel: z.string().min(1).optional(),
+  projectReferences: z
+    .array(
+      z.object({
+        kind: z.enum(["file", "folder"]),
+        name: z.string().min(1).optional(),
+        parentPath: z.string().optional(),
+        path: z.string().min(1),
+      }),
+    )
+    .default([]),
   projectPath: z.string().min(1),
   provider: z.enum(["openai", "anthropic"]),
   remoteConversationId: z.string().nullable().optional(),
@@ -27,6 +37,24 @@ export const chatRequestBodySchema = z.object({
   chatId: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
 });
+
+export const formatProjectReferencesForPrompt = (projectReferences) => {
+  if (!Array.isArray(projectReferences) || projectReferences.length === 0) {
+    return null;
+  }
+
+  const lines = projectReferences.map((reference) => {
+    const kind = reference.kind === "folder" ? "folder" : "file";
+    const name = reference.name ? ` (${reference.name})` : "";
+    return `- ${kind}${name}: ${reference.path}`;
+  });
+
+  return [
+    "Current turn project references:",
+    ...lines,
+    "Use these referenced project paths as the user's selected context. Read referenced files or inspect referenced folders with the project tools before making claims about their contents.",
+  ].join("\n");
+};
 
 export const chatTitleRequestBodySchema = z.object({
   fallbackModel: z.string().min(1).optional(),

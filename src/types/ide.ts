@@ -29,6 +29,13 @@ export interface ChatTitleResponse {
   title: string;
 }
 
+export interface ProjectReference {
+  kind: "file" | "folder";
+  name: string;
+  parentPath: string;
+  path: string;
+}
+
 export interface ProjectConfig {
   id: string;
   icon: ProjectIconInfo | null;

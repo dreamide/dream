@@ -28,6 +28,7 @@ export const streamCodexCliResponse = ({
   codexPermissionMode,
   messages,
   model,
+  projectReferencesPrompt,
   projectPath,
   reasoningEffort,
   responseMessageMetadata,
@@ -335,6 +336,7 @@ export const streamCodexCliResponse = ({
             preparedAttachments = attachments;
             fullPrompt = buildCodexConversationPrompt({
               currentTurnAttachments: attachments?.promptText ?? null,
+              currentTurnProjectReferences: projectReferencesPrompt,
               messages,
               projectPath,
               systemPrompt,
@@ -342,6 +344,7 @@ export const streamCodexCliResponse = ({
             latestUserPrompt = getLatestUserPrompt(
               messages,
               attachments?.promptText ?? null,
+              projectReferencesPrompt,
             );
             runAttempt(initialSessionId);
           })

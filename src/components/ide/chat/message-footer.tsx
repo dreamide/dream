@@ -1,12 +1,14 @@
 import type { UIMessage } from "ai";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import type { ProjectReference } from "@/types/ide";
 import { getMessageText } from "./message-content";
 
 export type ChatMessageMetadata = {
   createdAt?: string;
   model?: string;
   modelLabel?: string;
+  projectReferences?: ProjectReference[];
   reasoningEffort?: string;
   reasoningLabel?: string;
   remoteConversationId?: string;

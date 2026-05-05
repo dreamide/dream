@@ -136,6 +136,14 @@ const ProjectWorkspaceComponent = ({
     setHistoryPanelWidth(savedHistoryPanelWidth);
   }, [savedHistoryPanelWidth]);
 
+  useEffect(() => {
+    if (!active || activeChatId) {
+      return;
+    }
+
+    addChat(projectId);
+  }, [active, activeChatId, addChat, projectId]);
+
   // ── Refs ─────────────────────────────────────────────────────────────
   const browserHostRef = useRef<HTMLDivElement | null>(null);
   const historyPanelWidthRef = useRef(historyPanelWidth);

@@ -5,6 +5,7 @@ import { streamCodexCliResponse } from "./chat/codex-cli-stream.js";
 import {
   chatRequestBodySchema,
   chatTitleRequestBodySchema,
+  formatProjectReferencesForPrompt,
   SYSTEM_PROMPT,
 } from "./chat/schema.js";
 import { generateChatTitle } from "./chat/title.js";
@@ -123,6 +124,7 @@ export const registerChatRoutes = (app) => {
       messages,
       model,
       modelLabel,
+      projectReferences,
       projectPath,
       provider,
       reasoningEffort,
@@ -140,6 +142,8 @@ export const registerChatRoutes = (app) => {
       reasoningEffort,
       reasoningLabel: reasoningLabel ?? reasoningEffort,
     };
+    const projectReferencesPrompt =
+      formatProjectReferencesForPrompt(projectReferences);
 
     const projectPathError = await validateProjectPath(projectPath);
     if (projectPathError) {
@@ -159,6 +163,7 @@ export const registerChatRoutes = (app) => {
           codexPermissionMode,
           messages,
           model,
+          projectReferencesPrompt,
           projectPath,
           reasoningEffort,
           responseMessageMetadata,
@@ -172,6 +177,7 @@ export const registerChatRoutes = (app) => {
         codexPermissionMode,
         messages,
         model,
+        projectReferencesPrompt,
         projectPath,
         reasoningEffort,
         remoteConversationId,
@@ -191,6 +197,7 @@ export const registerChatRoutes = (app) => {
       claudePermissionMode,
       messages,
       model,
+      projectReferencesPrompt,
       projectPath,
       reasoningEffort,
       responseMessageMetadata,

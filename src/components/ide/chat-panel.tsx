@@ -24,7 +24,12 @@ import {
   getModelContextWindow,
   getModelReasoningEfforts,
 } from "@/lib/models";
-import type { ChatConfig, ChatTitleResponse, ProjectConfig } from "@/types/ide";
+import type {
+  ChatConfig,
+  ChatTitleResponse,
+  ProjectConfig,
+  ProjectReference,
+} from "@/types/ide";
 import { getChipToolKind } from "./assistant-message-tools";
 import {
   addMetadataToMessage,
@@ -57,6 +62,11 @@ import {
 } from "./ide-types";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
+
+const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
+  references
+    .map((reference) => `- ${reference.kind}: ${reference.path}`)
+    .join("\n");
 
 export const ChatPanel = ({
   isActive,
@@ -463,7 +473,12 @@ export const ChatPanel = ({
         return;
       }
 
-      if (!prompt.text.trim() && prompt.files.length === 0) {
+      const projectReferences = prompt.references ?? [];
+      if (
+        !prompt.text.trim() &&
+        prompt.files.length === 0 &&
+        projectReferences.length === 0
+      ) {
         return;
       }
 
@@ -486,7 +501,9 @@ export const ChatPanel = ({
           body: JSON.stringify({
             fallbackModel: activeModel,
             projectPath: project.path,
-            promptText: prompt.text,
+            promptText:
+              prompt.text ||
+              `Referenced project paths:\n${formatProjectReferencesForPrompt(projectReferences)}`,
             provider: activeProvider,
           }),
           headers: { "Content-Type": "application/json" },
@@ -521,6 +538,7 @@ export const ChatPanel = ({
               createdAt: new Date().toISOString(),
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
+              projectReferences,
               reasoningEffort: selectedReasoningEffort,
               reasoningLabel: selectedReasoningLabel,
             },
@@ -532,6 +550,7 @@ export const ChatPanel = ({
               codexPermissionMode,
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
+              projectReferences,
               projectPath: project.path,
               provider: activeProvider,
               reasoningEffort: selectedReasoningEffort,
