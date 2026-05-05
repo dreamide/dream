@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html class="dark" data-base-color="zinc" lang="en" style="color-scheme: dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -21,6 +21,12 @@
 
       html,
       body {
+        background: oklch(0.141 0.005 285.823);
+        color: oklch(0.985 0 0);
+      }
+
+      html.light,
+      html.light body {
         background: oklch(1 0 0);
         color: oklch(0.145 0 0);
       }
@@ -70,6 +76,7 @@
                 : "dark";
 
           root.classList.toggle("dark", resolvedTheme === "dark");
+          root.classList.toggle("light", resolvedTheme === "light");
           root.style.colorScheme = resolvedTheme;
 
           const rawUiPreferences = localStorage.getItem(UI_KEY);
@@ -85,6 +92,7 @@
           }
         } catch {
           root.classList.add("dark");
+          root.classList.remove("light");
           root.style.colorScheme = "dark";
           root.setAttribute("data-base-color", "zinc");
         }

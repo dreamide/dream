@@ -44,6 +44,7 @@ const rendererStartupTimeoutMs = Number(
 const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
 const APP_USER_DATA_PATH = path.join(app.getPath("appData"), APP_NAME);
+const DEFAULT_WINDOW_BACKGROUND = "#09090b";
 
 app.setName(APP_NAME);
 app.setPath("userData", APP_USER_DATA_PATH);
@@ -139,7 +140,7 @@ async function pickDirectory() {
 
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
-    backgroundColor: "#f8fafc",
+    backgroundColor: DEFAULT_WINDOW_BACKGROUND,
     height: 1080,
     minHeight: 720,
     minWidth: 1180,
