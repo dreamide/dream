@@ -239,20 +239,9 @@ export const ProjectTabs = () => {
     updateProject,
   });
 
-  const handleAddProject = useCallback(async () => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi) {
-      window.alert("Open this app inside Electron to add project folders.");
-      return;
-    }
-
-    const selectedPath = await desktopApi.pickProjectDirectory();
-    if (!selectedPath) {
-      return;
-    }
-
-    useIdeStore.getState().addProject(selectedPath);
-  }, []);
+  const handleAddProject = useCallback(() => {
+    setActiveProjectId(null);
+  }, [setActiveProjectId]);
 
   const handleOpenProjectInEditor = useCallback(
     (
@@ -355,7 +344,7 @@ export const ProjectTabs = () => {
               <Button
                 aria-label="Add project"
                 className="mb-px text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-                onClick={() => void handleAddProject()}
+                onClick={handleAddProject}
                 size="icon-sm"
                 title="Add project"
                 variant="ghost"

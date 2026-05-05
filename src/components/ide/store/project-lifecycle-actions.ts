@@ -27,10 +27,10 @@ export const createProjectLifecycleActions = (
 > => ({
   setProjects: (projects: ProjectConfig[]) => {
     set((state) => {
-      const nextActiveProjectId = ensureActiveProject(
-        projects,
-        state.activeProjectId,
-      );
+      const nextActiveProjectId =
+        state.activeProjectId === null
+          ? null
+          : ensureActiveProject(projects, state.activeProjectId);
       let nextChats = state.chats;
       let nextMessagesByChatId = state.messagesByChatId;
       const nextProjects = projects.map((project) => {
@@ -76,6 +76,14 @@ export const createProjectLifecycleActions = (
 
   setActiveProjectId: (id: string | null) => {
     set((state) => {
+      if (id === null) {
+        return state.activeProjectId === null
+          ? state
+          : {
+              activeProjectId: null,
+            };
+      }
+
       const nextActiveProjectId = ensureActiveProject(state.projects, id);
 
       if (nextActiveProjectId === state.activeProjectId) {
