@@ -20,7 +20,7 @@ import {
   ToolChipRow,
 } from "./tool-call-groups";
 
-export type RenameTarget = {
+export type EditTarget = {
   id: string;
   name: string;
 };
@@ -65,15 +65,6 @@ export const ConversationScrollMemory = ({
   }, [isActive, scrollRef, scrollToBottom]);
 
   return null;
-};
-
-export const inferChatTitle = (promptText: string): string => {
-  const collapsed = promptText.replace(/\s+/g, " ").trim();
-  if (!collapsed) {
-    return "New chat";
-  }
-
-  return collapsed.slice(0, 60);
 };
 
 export { PromptAttachments } from "./message-content";

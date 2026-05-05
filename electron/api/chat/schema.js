@@ -28,6 +28,13 @@ export const chatRequestBodySchema = z.object({
   threadId: z.string().min(1).optional(),
 });
 
+export const chatTitleRequestBodySchema = z.object({
+  fallbackModel: z.string().min(1).optional(),
+  projectPath: z.string().min(1),
+  promptText: z.string(),
+  provider: z.enum(["openai", "anthropic"]),
+});
+
 export const SYSTEM_PROMPT = `You are an expert coding copilot embedded in a desktop IDE.
 
 Your primary responsibility is to safely edit files inside the active project.

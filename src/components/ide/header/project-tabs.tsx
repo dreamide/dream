@@ -18,9 +18,9 @@ import {
 } from "../standard-tabs";
 import { ProjectActionsMenu } from "./project-actions-menu";
 import {
-  ProjectRenameDialog,
-  type ProjectRenameTarget,
-} from "./project-rename-dialog";
+  ProjectEditDialog,
+  type ProjectEditTarget,
+} from "./project-edit-dialog";
 import { ProjectTabFrame } from "./project-tab-frame";
 import {
   areProjectIconsEqual,
@@ -229,10 +229,8 @@ export const ProjectTabs = () => {
   const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(
     null,
   );
-  const [renameTarget, setRenameTarget] = useState<ProjectRenameTarget | null>(
-    null,
-  );
-  const [renameValue, setRenameValue] = useState("");
+  const [editTarget, setEditTarget] = useState<ProjectEditTarget | null>(null);
+  const [editValue, setEditValue] = useState("");
   const desktopApi = getDesktopApi();
 
   useProjectIconScanner({
@@ -275,28 +273,28 @@ export const ProjectTabs = () => {
     [desktopApi],
   );
 
-  const closeRenameDialog = useCallback(() => {
-    setRenameTarget(null);
-    setRenameValue("");
+  const closeEditDialog = useCallback(() => {
+    setEditTarget(null);
+    setEditValue("");
   }, []);
 
-  const handleRenameSubmit = useCallback(
+  const handleEditSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      const nextName = renameValue.trim();
-      if (!renameTarget || !nextName) {
+      const nextName = editValue.trim();
+      if (!editTarget || !nextName) {
         return;
       }
 
-      updateProject(renameTarget.id, (current) => ({
+      updateProject(editTarget.id, (current) => ({
         ...current,
         name: nextName,
       }));
 
-      closeRenameDialog();
+      closeEditDialog();
     },
-    [closeRenameDialog, renameTarget, renameValue, updateProject],
+    [closeEditDialog, editTarget, editValue, updateProject],
   );
 
   const projectTabItems = useMemo<ProjectTabItem[]>(
@@ -381,8 +379,8 @@ export const ProjectTabs = () => {
                 setOpen={(open) =>
                   setOpenProjectMenuId(open ? project.id : null)
                 }
-                setRenameTarget={setRenameTarget}
-                setRenameValue={setRenameValue}
+                setEditTarget={setEditTarget}
+                setEditValue={setEditValue}
               />
             )}
             renderFrame={(project, tab) => (
@@ -394,12 +392,12 @@ export const ProjectTabs = () => {
         ) : null}
       </div>
 
-      <ProjectRenameDialog
-        onClose={closeRenameDialog}
-        onSubmit={handleRenameSubmit}
-        onValueChange={setRenameValue}
-        target={renameTarget}
-        value={renameValue}
+      <ProjectEditDialog
+        onClose={closeEditDialog}
+        onSubmit={handleEditSubmit}
+        onValueChange={setEditValue}
+        target={editTarget}
+        value={editValue}
       />
     </>
   );

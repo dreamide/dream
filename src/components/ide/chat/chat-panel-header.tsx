@@ -12,7 +12,7 @@ export interface ChatPanelHeaderProps {
   chatMenuOpen: boolean;
   onChatMenuOpenChange: (open: boolean) => void;
   onDeleteChat: () => void;
-  onRenameChat: () => void;
+  onEditChat: () => void;
   title: string;
 }
 
@@ -21,7 +21,7 @@ export const ChatPanelHeader = ({
   chatMenuOpen,
   onChatMenuOpenChange,
   onDeleteChat,
-  onRenameChat,
+  onEditChat,
   title,
 }: ChatPanelHeaderProps) => (
   <div className="shrink-0 px-2 pt-2">
@@ -47,9 +47,9 @@ export const ChatPanelHeader = ({
               <Ellipsis className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={onRenameChat}>
+              <DropdownMenuItem onClick={onEditChat}>
                 <FilePenLine className="size-4" />
-                Rename
+                Edit
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onDeleteChat}>
                 <Trash2 className="size-4" />

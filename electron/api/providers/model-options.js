@@ -15,10 +15,8 @@ export const CLAUDE_REASONING_EFFORT_MAP = {
 };
 
 export const OPENAI_LOW_COST_MODEL_CANDIDATES = [
-  "gpt-5-mini",
-  "gpt-5-nano",
-  "gpt-4.1-mini",
-  "gpt-4o-mini",
+  "gpt-5.4-nano",
+  "gpt-5.4-mini",
 ];
 export const ANTHROPIC_LOW_COST_MODEL_CANDIDATES = ["haiku"];
 
@@ -242,11 +240,7 @@ export const selectLowCostOpenAiModel = (models) => {
     }
   }
 
-  return (
-    modelIds.find((id) => /\bmini\b/i.test(id.replace(/[-_.]/g, " "))) ??
-    modelIds.find((id) => /\bnano\b/i.test(id.replace(/[-_.]/g, " "))) ??
-    ""
-  );
+  return "";
 };
 
 export const selectLowCostAnthropicModel = (models) => {

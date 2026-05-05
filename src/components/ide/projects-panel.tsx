@@ -1,4 +1,4 @@
-import { Pencil, Search, Trash2 } from "lucide-react";
+import { FilePenLine, Search, Trash2 } from "lucide-react";
 import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,8 +76,8 @@ export const ProjectSidebar = ({
   const deleteChat = useIdeStore((s) => s.deleteChat);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [renameTarget, setRenameTarget] = useState<ChatConfig | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [editTarget, setEditTarget] = useState<ChatConfig | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
     const draftChatId = draftChatIdByProject[project.id] ?? null;
@@ -116,27 +116,27 @@ export const ProjectSidebar = ({
 
   const activeChatId = projectUi.activeChatId;
 
-  const closeRenameDialog = useCallback(() => {
-    setRenameTarget(null);
-    setRenameValue("");
+  const closeEditDialog = useCallback(() => {
+    setEditTarget(null);
+    setEditValue("");
   }, []);
 
-  const handleRenameSubmit = useCallback(
+  const handleEditSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      const nextName = renameValue.trim();
-      if (!renameTarget || !nextName) {
+      const nextName = editValue.trim();
+      if (!editTarget || !nextName) {
         return;
       }
 
-      updateChat(renameTarget.id, (current) => ({
+      updateChat(editTarget.id, (current) => ({
         ...current,
         title: nextName,
       }));
-      closeRenameDialog();
+      closeEditDialog();
     },
-    [closeRenameDialog, renameTarget, renameValue, updateChat],
+    [closeEditDialog, editTarget, editValue, updateChat],
   );
 
   return (
@@ -218,25 +218,25 @@ export const ProjectSidebar = ({
                     </button>
                     <div className="-translate-y-1/2 absolute top-1/2 right-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <Button
-                        aria-label={`Rename ${chat.title}`}
+                        aria-label={`Edit ${chat.title}`}
                         className="size-7 rounded-md p-0 text-muted-foreground hover:bg-background/80 hover:text-foreground"
                         onClick={() => {
-                          setRenameTarget(chat);
-                          setRenameValue(chat.title);
+                          setEditTarget(chat);
+                          setEditValue(chat.title);
                         }}
                         size="icon-sm"
-                        title="Rename chat"
+                        title="Edit chat"
                         type="button"
                         variant="ghost"
                       >
-                        <Pencil className="size-3.5" />
+                        <FilePenLine className="size-3.5" />
                       </Button>
                       <Button
                         aria-label={`Delete ${chat.title}`}
                         className="size-7 rounded-md p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => {
-                          if (renameTarget?.id === chat.id) {
-                            closeRenameDialog();
+                          if (editTarget?.id === chat.id) {
+                            closeEditDialog();
                           }
                           deleteChat(chat.id);
                         }}
@@ -259,34 +259,30 @@ export const ProjectSidebar = ({
       <Dialog
         onOpenChange={(open) => {
           if (!open) {
-            closeRenameDialog();
+            closeEditDialog();
           }
         }}
-        open={renameTarget !== null}
+        open={editTarget !== null}
       >
         <DialogContent className="sm:max-w-sm">
-          <form className="space-y-4" onSubmit={handleRenameSubmit}>
+          <form className="space-y-4" onSubmit={handleEditSubmit}>
             <DialogHeader>
-              <DialogTitle>Rename chat</DialogTitle>
+              <DialogTitle>Edit</DialogTitle>
               <DialogDescription>
-                Choose a new name for this chat.
+                Update the name for this chat.
               </DialogDescription>
             </DialogHeader>
             <Input
               autoFocus
-              onChange={(event) => setRenameValue(event.target.value)}
+              onChange={(event) => setEditValue(event.target.value)}
               placeholder="Enter a name"
-              value={renameValue}
+              value={editValue}
             />
             <DialogFooter>
-              <Button
-                onClick={closeRenameDialog}
-                type="button"
-                variant="outline"
-              >
+              <Button onClick={closeEditDialog} type="button" variant="outline">
                 Cancel
               </Button>
-              <Button disabled={renameValue.trim().length === 0} type="submit">
+              <Button disabled={editValue.trim().length === 0} type="submit">
                 Save
               </Button>
             </DialogFooter>

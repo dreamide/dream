@@ -2,7 +2,12 @@ import { promises as fs } from "node:fs";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCodexCliResponse } from "./chat/codex-cli-stream.js";
-import { chatRequestBodySchema, SYSTEM_PROMPT } from "./chat/schema.js";
+import {
+  chatRequestBodySchema,
+  chatTitleRequestBodySchema,
+  SYSTEM_PROMPT,
+} from "./chat/schema.js";
+import { generateChatTitle } from "./chat/title.js";
 import { readCodexAccessToken } from "./providers/codex-auth.js";
 import { isCliCommandAvailable } from "./shared/cli.js";
 
@@ -50,6 +55,54 @@ const validateClaudeReady = async () => {
 };
 
 export const registerChatRoutes = (app) => {
+  app.post("/api/chat-title", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = chatTitleRequestBodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { fallbackModel, projectPath, promptText, provider } = parsed.data;
+    const projectPathError = await validateProjectPath(projectPath);
+    if (projectPathError) {
+      return c.text(projectPathError.message, projectPathError.status);
+    }
+
+    if (provider === "openai") {
+      const codexError = await validateCodexReady();
+      if (codexError) {
+        return c.text(codexError.message, codexError.status);
+      }
+    } else {
+      const claudeError = await validateClaudeReady();
+      if (claudeError) {
+        return c.text(claudeError.message, claudeError.status);
+      }
+    }
+
+    try {
+      const title = await generateChatTitle({
+        fallbackModel,
+        projectPath,
+        promptText,
+        provider,
+      });
+      return c.json({ title });
+    } catch (error) {
+      const detail =
+        error instanceof Error && error.message
+          ? error.message
+          : "Chat title generation failed.";
+      return c.text(detail, 500);
+    }
+  });
+
   app.post("/api/chat", async (c) => {
     let rawBody;
     try {

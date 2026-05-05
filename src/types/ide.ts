@@ -25,6 +25,10 @@ export interface ChatConfig {
   remoteConversationProjectPath: string | null;
 }
 
+export interface ChatTitleResponse {
+  title: string;
+}
+
 export interface ProjectConfig {
   id: string;
   icon: ProjectIconInfo | null;

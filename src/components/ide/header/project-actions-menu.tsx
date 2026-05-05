@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { DetectedEditor } from "@/types/ide";
 import { OpenInEditorIcon } from "./open-in-editor-icon";
-import type { ProjectRenameTarget } from "./project-rename-dialog";
+import type { ProjectEditTarget } from "./project-edit-dialog";
 import type { ProjectTabItem } from "./project-tabs";
 
 export const ProjectActionsMenu = ({
@@ -23,9 +23,9 @@ export const ProjectActionsMenu = ({
   onOpenInEditor,
   open,
   project,
+  setEditTarget,
+  setEditValue,
   setOpen,
-  setRenameTarget,
-  setRenameValue,
 }: {
   closeProject: (projectId: string) => void;
   editors: DetectedEditor[];
@@ -38,9 +38,9 @@ export const ProjectActionsMenu = ({
   ) => void;
   open: boolean;
   project: ProjectTabItem;
+  setEditTarget: (target: ProjectEditTarget) => void;
+  setEditValue: (value: string) => void;
   setOpen: (open: boolean) => void;
-  setRenameTarget: (target: ProjectRenameTarget) => void;
-  setRenameValue: (value: string) => void;
 }) => (
   <div
     className={cn(
@@ -74,11 +74,11 @@ export const ProjectActionsMenu = ({
       >
         <DropdownMenuItem
           onClick={() => {
-            setRenameTarget({
+            setEditTarget({
               id: project.id,
               name: project.label,
             });
-            setRenameValue(project.label);
+            setEditValue(project.label);
           }}
         >
           <FilePenLine className="size-4" />

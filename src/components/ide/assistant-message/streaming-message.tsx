@@ -22,6 +22,16 @@ export const STREAMING_MAX_CHARS_PER_TICK = 140;
 export const STREAMING_FINISHED_INTERVAL_MS = 8;
 export const STREAMING_FINISHED_MIN_CHARS_PER_TICK = 240;
 export const STREAMING_FINISHED_MAX_CHARS_PER_TICK = 1200;
+export const STREAMING_TEXT_FADE_DURATION_MS = 180;
+export const STREAMING_TEXT_FADE_SETTLE_MS = 120;
+
+const streamingTextAnimation = {
+  animation: "fadeIn",
+  duration: STREAMING_TEXT_FADE_DURATION_MS,
+  easing: "ease-out",
+  sep: "word",
+  stagger: 16,
+} as const;
 
 export const getNextStreamingWordToken = (text: string) =>
   text.match(/^(\s+|\S+\s*)/)?.[0] ?? text.slice(0, 1);
@@ -126,8 +136,31 @@ export const StreamingMessageResponse = ({
   const targetTextRef = useRef(text);
   const visibleTextRef = useRef(isStreaming ? "" : text);
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animationTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const tickRef = useRef<() => void>(() => {});
   const [visibleText, setVisibleText] = useState(visibleTextRef.current);
+  const [animateStreamedText, setAnimateStreamedText] = useState(false);
+
+  const keepTextAnimationActive = useCallback(
+    (settleAfterFinalTick: boolean) => {
+      if (animationTimeoutIdRef.current !== null) {
+        clearTimeout(animationTimeoutIdRef.current);
+        animationTimeoutIdRef.current = null;
+      }
+
+      setAnimateStreamedText(true);
+
+      if (settleAfterFinalTick) {
+        animationTimeoutIdRef.current = setTimeout(() => {
+          animationTimeoutIdRef.current = null;
+          setAnimateStreamedText(false);
+        }, STREAMING_TEXT_FADE_DURATION_MS + STREAMING_TEXT_FADE_SETTLE_MS);
+      }
+    },
+    [],
+  );
 
   const scheduleTick = useCallback((delayMs: number) => {
     if (timeoutIdRef.current !== null) {
@@ -171,6 +204,7 @@ export const StreamingMessageResponse = ({
     }
 
     visibleTextRef.current = nextText;
+    keepTextAnimationActive(nextText === targetText);
     startTransition(() => {
       setVisibleText(nextText);
     });
@@ -209,6 +243,10 @@ export const StreamingMessageResponse = ({
         clearTimeout(timeoutIdRef.current);
         timeoutIdRef.current = null;
       }
+      if (animationTimeoutIdRef.current !== null) {
+        clearTimeout(animationTimeoutIdRef.current);
+        animationTimeoutIdRef.current = null;
+      }
     };
   }, []);
 
@@ -222,7 +260,11 @@ export const StreamingMessageResponse = ({
   );
 
   return (
-    <MessageResponse components={markdownComponents}>
+    <MessageResponse
+      animated={streamingTextAnimation}
+      components={markdownComponents}
+      isAnimating={animateStreamedText}
+    >
       {visibleText}
     </MessageResponse>
   );

@@ -24,7 +24,7 @@ import {
   getModelContextWindow,
   getModelReasoningEfforts,
 } from "@/lib/models";
-import type { ChatConfig, ProjectConfig } from "@/types/ide";
+import type { ChatConfig, ChatTitleResponse, ProjectConfig } from "@/types/ide";
 import { getChipToolKind } from "./assistant-message-tools";
 import {
   addMetadataToMessage,
@@ -32,9 +32,8 @@ import {
   CHAT_STREAM_UPDATE_THROTTLE_MS,
   type ChatMessageMetadata,
   ConversationScrollMemory,
-  inferChatTitle,
+  type EditTarget,
   PROVIDER_LABELS,
-  type RenameTarget,
   type ToolApprovalResponder,
 } from "./chat";
 import { ChatComposer, type ChatPanelModelOption } from "./chat/chat-composer";
@@ -45,7 +44,7 @@ import {
   useChatMessageSync,
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
-import { RenameChatDialog } from "./chat/rename-chat-dialog";
+import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { VirtualizedChatMessages } from "./chat/virtualized-chat-messages";
 import {
   getCommitChanges,
@@ -127,8 +126,8 @@ export const ChatPanel = ({
   const [localError, setLocalError] = useState<string | null>(null);
   const [promptText, setPromptText] = useState("");
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+  const [editValue, setEditValue] = useState("");
   const refreshedWriteEventsRef = useRef(new Set<string>());
   const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
   const warmedCommitMessageKeysRef = useRef(new Set<string>());
@@ -468,14 +467,10 @@ export const ChatPanel = ({
         return;
       }
 
-      if (chatMessages.length === 0) {
-        updateChat(chat.id, (current) => ({
-          ...current,
-          title: inferChatTitle(prompt.text),
-        }));
-      }
-
       const submittedChatId = chat.id;
+      const shouldGenerateTitle =
+        chatMessages.length === 0 && chat.title === "New chat";
+      const titleBeforeGeneration = chat.title;
       pendingAssistantMetadataRef.current = {
         model: activeModel,
         modelLabel: activeOption?.label ?? activeModel,
@@ -486,6 +481,38 @@ export const ChatPanel = ({
 
       setPromptText("");
       useIdeStore.getState().setChatStreaming(submittedChatId, true);
+      if (shouldGenerateTitle) {
+        void fetch("/api/chat-title", {
+          body: JSON.stringify({
+            fallbackModel: activeModel,
+            projectPath: project.path,
+            promptText: prompt.text,
+            provider: activeProvider,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              return "";
+            }
+            const payload = (await response.json()) as ChatTitleResponse;
+            return payload.title.trim();
+          })
+          .then((generatedTitle) => {
+            if (!generatedTitle) {
+              return;
+            }
+            updateChat(submittedChatId, (current) =>
+              current.title === titleBeforeGeneration
+                ? { ...current, title: generatedTitle }
+                : current,
+            );
+          })
+          .catch(() => {
+            // Keep the default title when background title generation fails.
+          });
+      }
       try {
         const sendPromise = sendMessage(
           {
@@ -550,32 +577,32 @@ export const ChatPanel = ({
     ],
   );
 
-  const closeRenameDialog = useCallback(() => {
-    setRenameTarget(null);
-    setRenameValue("");
+  const closeEditDialog = useCallback(() => {
+    setEditTarget(null);
+    setEditValue("");
   }, []);
 
-  const handleRenameChat = useCallback(() => {
-    setRenameTarget({ id: chat.id, name: chat.title });
-    setRenameValue(chat.title);
+  const handleEditChat = useCallback(() => {
+    setEditTarget({ id: chat.id, name: chat.title });
+    setEditValue(chat.title);
   }, [chat.id, chat.title]);
 
-  const handleRenameSubmit = useCallback(
+  const handleEditSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      const nextName = renameValue.trim();
-      if (!renameTarget || !nextName) {
+      const nextName = editValue.trim();
+      if (!editTarget || !nextName) {
         return;
       }
 
-      updateChat(renameTarget.id, (current) => ({
+      updateChat(editTarget.id, (current) => ({
         ...current,
         title: nextName,
       }));
-      closeRenameDialog();
+      closeEditDialog();
     },
-    [closeRenameDialog, renameTarget, renameValue, updateChat],
+    [closeEditDialog, editTarget, editValue, updateChat],
   );
 
   const showChatHeader = messages.length > 0;
@@ -590,7 +617,7 @@ export const ChatPanel = ({
             chatMenuOpen={chatMenuOpen}
             onChatMenuOpenChange={setChatMenuOpen}
             onDeleteChat={() => deleteChat(chat.id)}
-            onRenameChat={handleRenameChat}
+            onEditChat={handleEditChat}
             title={chat.title}
           />
         ) : null}
@@ -694,12 +721,12 @@ export const ChatPanel = ({
         />
       </div>
 
-      <RenameChatDialog
-        onClose={closeRenameDialog}
-        onRenameValueChange={setRenameValue}
-        onSubmit={handleRenameSubmit}
-        open={renameTarget !== null}
-        renameValue={renameValue}
+      <EditChatDialog
+        editValue={editValue}
+        onClose={closeEditDialog}
+        onEditValueChange={setEditValue}
+        onSubmit={handleEditSubmit}
+        open={editTarget !== null}
       />
     </>
   );

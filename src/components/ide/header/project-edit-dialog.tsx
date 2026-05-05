@@ -1,4 +1,4 @@
-import type { FormEventHandler } from "react";
+import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,48 +10,51 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-export interface RenameChatDialogProps {
-  onClose: () => void;
-  onRenameValueChange: (value: string) => void;
-  onSubmit: FormEventHandler<HTMLFormElement>;
-  open: boolean;
-  renameValue: string;
-}
+export type ProjectEditTarget = {
+  id: string;
+  name: string;
+};
 
-export const RenameChatDialog = ({
+export const ProjectEditDialog = ({
   onClose,
-  onRenameValueChange,
   onSubmit,
-  open,
-  renameValue,
-}: RenameChatDialogProps) => (
+  onValueChange,
+  target,
+  value,
+}: {
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onValueChange: (value: string) => void;
+  target: ProjectEditTarget | null;
+  value: string;
+}) => (
   <Dialog
-    onOpenChange={(nextOpen) => {
-      if (!nextOpen) {
+    onOpenChange={(open) => {
+      if (!open) {
         onClose();
       }
     }}
-    open={open}
+    open={target !== null}
   >
     <DialogContent className="sm:max-w-sm">
       <form className="space-y-4" onSubmit={onSubmit}>
         <DialogHeader>
-          <DialogTitle>Rename chat</DialogTitle>
+          <DialogTitle>Edit</DialogTitle>
           <DialogDescription>
-            Choose a new name for this chat.
+            Update the name for this project.
           </DialogDescription>
         </DialogHeader>
         <Input
           autoFocus
-          onChange={(event) => onRenameValueChange(event.target.value)}
+          onChange={(event) => onValueChange(event.target.value)}
           placeholder="Enter a name"
-          value={renameValue}
+          value={value}
         />
         <DialogFooter>
           <Button onClick={onClose} type="button" variant="outline">
             Cancel
           </Button>
-          <Button disabled={renameValue.trim().length === 0} type="submit">
+          <Button disabled={value.trim().length === 0} type="submit">
             Save
           </Button>
         </DialogFooter>
