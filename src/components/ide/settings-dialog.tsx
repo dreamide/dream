@@ -408,7 +408,7 @@ export const SettingsDialog = () => {
                       />
                       <SettingsSwitchRow
                         checked={settings.groupToolCalls}
-                        description="Collapse adjacent tool calls into compact count chips"
+                        description="Collapse tool calls into compact count chips"
                         label="Group tool calls"
                         onCheckedChange={(checked) =>
                           setSettings((previous) => ({
