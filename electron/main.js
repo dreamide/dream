@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  nativeTheme,
   shell,
 } from "electron";
 
@@ -44,12 +45,71 @@ const rendererStartupTimeoutMs = Number(
 const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
 const APP_USER_DATA_PATH = path.join(app.getPath("appData"), APP_NAME);
-const DEFAULT_WINDOW_BACKGROUND = "#09090b";
+const THEME_PREFERENCES_PATH = path.join(
+  APP_USER_DATA_PATH,
+  "theme-preferences.json",
+);
+const DARK_WINDOW_BACKGROUND = "#09090b";
+const LIGHT_WINDOW_BACKGROUND = "#ffffff";
 
 app.setName(APP_NAME);
 app.setPath("userData", APP_USER_DATA_PATH);
 
 let mainWindow = null;
+
+function normalizeThemePreference(value) {
+  return value === "light" || value === "dark" || value === "system"
+    ? value
+    : "dark";
+}
+
+function loadThemePreference() {
+  try {
+    if (!existsSync(THEME_PREFERENCES_PATH)) {
+      return "dark";
+    }
+
+    const parsed = JSON.parse(readFileSync(THEME_PREFERENCES_PATH, "utf8"));
+    return normalizeThemePreference(parsed?.theme);
+  } catch {
+    return "dark";
+  }
+}
+
+function saveThemePreference(theme) {
+  try {
+    mkdirSync(APP_USER_DATA_PATH, { recursive: true });
+    writeFileSync(
+      THEME_PREFERENCES_PATH,
+      JSON.stringify({ theme: normalizeThemePreference(theme) }),
+    );
+  } catch (error) {
+    console.error("Failed to save theme preference:", error);
+  }
+}
+
+function getResolvedThemePreference(theme = loadThemePreference()) {
+  const normalizedTheme = normalizeThemePreference(theme);
+  if (normalizedTheme === "system") {
+    return nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  }
+
+  return normalizedTheme;
+}
+
+function getWindowBackground(theme = loadThemePreference()) {
+  return getResolvedThemePreference(theme) === "dark"
+    ? DARK_WINDOW_BACKGROUND
+    : LIGHT_WINDOW_BACKGROUND;
+}
+
+function applyWindowThemeBackground(theme = loadThemePreference()) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  mainWindow.setBackgroundColor(getWindowBackground(theme));
+}
 
 function sendToRenderer(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -140,7 +200,7 @@ async function pickDirectory() {
 
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
-    backgroundColor: DEFAULT_WINDOW_BACKGROUND,
+    backgroundColor: getWindowBackground(),
     height: 1080,
     minHeight: 720,
     minWidth: 1180,
@@ -218,6 +278,17 @@ ipcMain.handle("projects:pick-directory", pickDirectory);
 ipcMain.handle("state:load", () => loadPersistedState());
 
 ipcMain.handle("state:save", (_event, state) => savePersistedState(state));
+
+ipcMain.handle("theme:set", (_event, { theme } = {}) => {
+  const normalizedTheme = normalizeThemePreference(theme);
+  saveThemePreference(normalizedTheme);
+  applyWindowThemeBackground(normalizedTheme);
+  return true;
+});
+
+nativeTheme.on("updated", () => {
+  applyWindowThemeBackground();
+});
 
 // Window controls (Windows/Linux frameless window)
 ipcMain.handle("window:minimize", () => {

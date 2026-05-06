@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld("dream", {
 
   loadState: () => ipcRenderer.invoke("state:load"),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
+  setThemePreference: (theme) => ipcRenderer.invoke("theme:set", { theme }),
 
   getDefaultTerminalShell: () =>
     ipcRenderer.invoke("terminal:get-default-shell"),
