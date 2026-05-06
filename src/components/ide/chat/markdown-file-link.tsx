@@ -10,7 +10,13 @@ type MarkdownFileLinkProps = ComponentProps<"a"> & {
 const stripLineSuffix = (value: string) =>
   value.replace(/:(\d+)(?::\d+)?$/, "");
 
+const getLineSuffix = (value: string) =>
+  value.match(/:(\d+)(?::\d+)?$/)?.[0] ?? "";
+
 const normalizePath = (value: string) => value.replace(/\\/g, "/");
+
+const normalizeFilePathCandidate = (value: string) =>
+  normalizePath(decodePath(value)).replace(/^\/([a-z]:\/)/i, "$1");
 
 const decodePath = (value: string) => {
   try {
@@ -38,7 +44,7 @@ export const getProjectFilePathFromHref = (
     ? withoutFragment.slice("file://".length)
     : withoutFragment;
   const candidatePath = stripLineSuffix(
-    normalizePath(decodePath(withoutFileScheme)),
+    normalizeFilePathCandidate(withoutFileScheme),
   );
 
   if (candidatePath === normalizedProjectPath) {
@@ -58,6 +64,44 @@ export const getProjectFilePathFromHref = (
 
   return null;
 };
+
+const unwrapMarkdownLinkDestination = (value: string) => {
+  const trimmed = value.trim();
+  return trimmed.startsWith("<") && trimmed.endsWith(">")
+    ? trimmed.slice(1, -1).trim()
+    : trimmed;
+};
+
+const escapeMarkdownLinkDestination = (value: string) =>
+  value.replace(/>/g, "%3E");
+
+const toSafeRelativeMarkdownDestination = (value: string) =>
+  value.startsWith("/") || value.startsWith("./") || value.startsWith("../")
+    ? value
+    : `./${value}`;
+
+export const normalizeProjectFileLinksInMarkdown = (
+  value: string,
+  projectPath: string,
+) =>
+  value.replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, (match, label, href) => {
+    const unwrappedHref = unwrapMarkdownLinkDestination(href);
+    const projectFilePath = getProjectFilePathFromHref(
+      unwrappedHref,
+      projectPath,
+    );
+
+    if (!projectFilePath) {
+      return match;
+    }
+
+    const lineSuffix = getLineSuffix(
+      normalizeFilePathCandidate(unwrappedHref.split("#", 1)[0] ?? ""),
+    );
+    return `[${label}](<${escapeMarkdownLinkDestination(
+      toSafeRelativeMarkdownDestination(projectFilePath),
+    )}${lineSuffix}>)`;
+  });
 
 export const MarkdownFileLink = ({
   href,

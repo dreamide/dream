@@ -10,7 +10,10 @@ import {
   MessageResponse,
   type MessageResponseProps,
 } from "@/components/ai-elements/message";
-import { MarkdownFileLink } from "../chat/markdown-file-link";
+import {
+  MarkdownFileLink,
+  normalizeProjectFileLinksInMarkdown,
+} from "../chat/markdown-file-link";
 
 export const STREAMING_WORD_INTERVAL_MS = 40;
 export const STREAMING_MIN_INTERVAL_MS = 18;
@@ -258,6 +261,10 @@ export const StreamingMessageResponse = ({
     }),
     [projectPath],
   );
+  const markdownText = useMemo(
+    () => normalizeProjectFileLinksInMarkdown(visibleText, projectPath),
+    [projectPath, visibleText],
+  );
 
   return (
     <MessageResponse
@@ -265,7 +272,7 @@ export const StreamingMessageResponse = ({
       components={markdownComponents}
       isAnimating={animateStreamedText}
     >
-      {visibleText}
+      {markdownText}
     </MessageResponse>
   );
 };

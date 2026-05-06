@@ -12,7 +12,10 @@ import { usePromptInputAttachments } from "@/components/ai-elements/prompt-input
 import { Badge } from "@/components/ui/badge";
 import type { ProjectReference } from "@/types/ide";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
-import { MarkdownFileLink } from "./markdown-file-link";
+import {
+  MarkdownFileLink,
+  normalizeProjectFileLinksInMarkdown,
+} from "./markdown-file-link";
 
 export const PromptAttachments = () => {
   const attachments = usePromptInputAttachments();
@@ -125,7 +128,7 @@ export const UserMessageContent = ({
             ),
           }}
         >
-          {text}
+          {normalizeProjectFileLinksInMarkdown(text, projectPath)}
         </MessageResponse>
       ) : null}
     </>
