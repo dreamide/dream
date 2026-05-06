@@ -187,17 +187,30 @@ export const ChatPanel = ({
       const metadata = message.metadata as ChatMessageMetadata | undefined;
       const pendingMetadata = pendingAssistantMetadataRef.current;
       pendingAssistantMetadataRef.current = null;
+      const completedAt = new Date().toISOString();
+      const messageMetadata =
+        (message.metadata as Record<string, unknown> | undefined) ?? {};
       const finalAssistantMessage: UIMessage = pendingMetadata
         ? {
             ...message,
             metadata: {
+              ...messageMetadata,
               ...pendingMetadata,
+              completedAt:
+                typeof metadata?.completedAt === "string" &&
+                metadata.completedAt
+                  ? metadata.completedAt
+                  : completedAt,
               createdAt:
                 typeof metadata?.createdAt === "string" && metadata.createdAt
                   ? metadata.createdAt
-                  : new Date().toISOString(),
-              ...((message.metadata as Record<string, unknown> | undefined) ??
-                {}),
+                  : pendingMetadata.createdAt || completedAt,
+              startedAt:
+                typeof metadata?.startedAt === "string" && metadata.startedAt
+                  ? metadata.startedAt
+                  : pendingMetadata.startedAt ||
+                    pendingMetadata.createdAt ||
+                    completedAt,
             },
           }
         : message;
@@ -503,11 +516,14 @@ export const ChatPanel = ({
       const shouldGenerateTitle =
         chatMessages.length === 0 && chat.title === "New chat";
       const titleBeforeGeneration = chat.title;
+      const submittedAt = new Date().toISOString();
       pendingAssistantMetadataRef.current = {
+        createdAt: submittedAt,
         model: activeModel,
         modelLabel: activeOption?.label ?? activeModel,
         reasoningEffort: selectedReasoningEffort,
         reasoningLabel: selectedReasoningLabel,
+        startedAt: submittedAt,
       };
       resetPromptHistory();
 

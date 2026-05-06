@@ -5,6 +5,7 @@ import type { ProjectReference } from "@/types/ide";
 import { getMessageText } from "./message-content";
 
 export type ChatMessageMetadata = {
+  completedAt?: string;
   createdAt?: string;
   model?: string;
   modelLabel?: string;
@@ -14,15 +15,25 @@ export type ChatMessageMetadata = {
   remoteConversationId?: string;
   remoteConversationModel?: string;
   remoteConversationProjectPath?: string;
+  startedAt?: string;
 };
 
-const formatMessageTime = (value: string | undefined) => {
+const parseMessageTime = (value: string | undefined) => {
   if (!value) {
     return null;
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+};
+
+const formatMessageTime = (value: string | undefined) => {
+  const date = parseMessageTime(value);
+  if (!date) {
     return null;
   }
 
@@ -49,14 +60,8 @@ const formatRunningDuration = (startedAt: number, now: number) => {
   return `${seconds}s`;
 };
 
-const getMessageCreatedAtTime = (value: string | undefined) => {
-  if (!value) {
-    return null;
-  }
-
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? null : time;
-};
+const getMessageTimestamp = (value: string | undefined) =>
+  parseMessageTime(value)?.getTime() ?? null;
 
 export const MessageHoverFooter = ({
   isRunning = false,
@@ -71,13 +76,23 @@ export const MessageHoverFooter = ({
   const metadata = message.metadata as ChatMessageMetadata | undefined;
   const modelLabel = metadata?.modelLabel;
   const reasoningLabel = metadata?.reasoningLabel;
+  const durationStartedAt =
+    getMessageTimestamp(metadata?.startedAt) ??
+    getMessageTimestamp(metadata?.createdAt);
   const startedAt =
-    getMessageCreatedAtTime(metadata?.createdAt) ?? fallbackStartedAt;
+    durationStartedAt ??
+    getMessageTimestamp(metadata?.createdAt) ??
+    fallbackStartedAt;
+  const completedAt = getMessageTimestamp(metadata?.completedAt);
   const time = isRunning
     ? `Running ${formatRunningDuration(startedAt, now)}`
-    : formatMessageTime(metadata?.createdAt);
+    : formatMessageTime(metadata?.completedAt ?? metadata?.createdAt);
+  const duration =
+    !isRunning && durationStartedAt !== null && completedAt !== null
+      ? `Ran for ${formatRunningDuration(durationStartedAt, completedAt)}`
+      : null;
   const text = getMessageText(message);
-  const footerText = [modelLabel, reasoningLabel, time]
+  const footerText = [modelLabel, reasoningLabel, time, duration]
     .filter(Boolean)
     .join(" · ");
   const positionClassName =
