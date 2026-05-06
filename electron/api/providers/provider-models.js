@@ -5,6 +5,8 @@ import {
   dedupeModelOptions,
   fetchClaudeCodeModelOptionsFromDocs,
   getModelReasoningEfforts,
+  getModelSpeedTiers,
+  normalizeModelSpeedTiers,
   normalizeReasoningEfforts,
   selectLowCostAnthropicModel,
   selectLowCostOpenAiModel,
@@ -28,6 +30,9 @@ const createOpenAiModelOptionsFromCodexEntries = (entries) =>
     const reasoningEfforts = normalizeReasoningEfforts(
       entry.supported_reasoning_levels ?? entry.reasoningEfforts,
     );
+    const speedTiers = normalizeModelSpeedTiers(
+      entry.additional_speed_tiers ?? entry.speedTiers,
+    );
     return [
       createModelOption(
         "openai",
@@ -36,6 +41,7 @@ const createOpenAiModelOptionsFromCodexEntries = (entries) =>
         reasoningEfforts.length > 0
           ? reasoningEfforts
           : getModelReasoningEfforts("openai", id),
+        speedTiers.length > 0 ? speedTiers : getModelSpeedTiers("openai", id),
       ),
     ];
   });
@@ -74,6 +80,10 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
           normalizeReasoningEfforts(entry.supported_reasoning_levels).length > 0
             ? entry.supported_reasoning_levels
             : cachedEntry?.supported_reasoning_levels,
+        additional_speed_tiers:
+          normalizeModelSpeedTiers(entry.additional_speed_tiers).length > 0
+            ? entry.additional_speed_tiers
+            : cachedEntry?.additional_speed_tiers,
       },
     ]);
   });

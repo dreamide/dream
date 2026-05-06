@@ -76,7 +76,7 @@
   },
   "main": "electron/main.js",
   "build": {
-    "appId": "com.mikecao.dream",
+    "appId": "ai.dreamdream.dream",
     "productName": "Dream",
     "executableName": "Dream",
     "directories": {

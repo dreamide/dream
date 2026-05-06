@@ -24,6 +24,7 @@ import {
   estimateTokenCount,
   getModelContextWindow,
   getModelReasoningEfforts,
+  getModelSpeedTiers,
 } from "@/lib/models";
 import type {
   ChatConfig,
@@ -58,6 +59,8 @@ import {
 } from "./git-commit-message-cache";
 import { useIdeStore } from "./ide-store";
 import {
+  MODEL_SPEED_OPTIONS,
+  normalizeModelSpeed,
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
@@ -123,6 +126,7 @@ export const ChatPanel = ({
         label: model.label,
         provider,
         reasoningEfforts: model.reasoningEfforts ?? [],
+        speedTiers: model.speedTiers ?? [],
       })),
     );
   }, [connectedProviders, providerModels, settings]);
@@ -234,6 +238,9 @@ export const ChatPanel = ({
         remoteConversationId,
         remoteConversationModel:
           metadata?.remoteConversationModel ?? current.model,
+        remoteConversationModelSpeed: normalizeModelSpeed(
+          metadata?.remoteConversationModelSpeed ?? current.modelSpeed,
+        ),
         remoteConversationProjectPath:
           metadata?.remoteConversationProjectPath ?? project.path,
       }));
@@ -399,6 +406,24 @@ export const ChatPanel = ({
   const selectedModel = selectedModelOption?.id ?? "";
   const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
   const selectedModelValue = selectedModelOption?.id;
+  const availableModelSpeedTiers = selectedModelOption?.speedTiers?.length
+    ? selectedModelOption.speedTiers
+    : getModelSpeedTiers(selectedProvider, selectedModel);
+  const speedOptions = MODEL_SPEED_OPTIONS.filter((option) =>
+    availableModelSpeedTiers.includes(option.value),
+  );
+  const normalizedChatModelSpeed = normalizeModelSpeed(chat.modelSpeed);
+  const selectedModelSpeed =
+    availableModelSpeedTiers.length === 0
+      ? "standard"
+      : availableModelSpeedTiers.includes(normalizedChatModelSpeed)
+        ? normalizedChatModelSpeed
+        : "standard";
+  const selectedModelSpeedLabel =
+    speedOptions.find((option) => option.value === selectedModelSpeed)?.label ??
+    MODEL_SPEED_OPTIONS.find((option) => option.value === selectedModelSpeed)
+      ?.label ??
+    "Speed";
   const availableReasoningEfforts = selectedModelOption?.reasoningEfforts
     ?.length
     ? selectedModelOption.reasoningEfforts
@@ -520,6 +545,8 @@ export const ChatPanel = ({
         createdAt: submittedAt,
         model: activeModel,
         modelLabel: activeOption?.label ?? activeModel,
+        modelSpeed: selectedModelSpeed,
+        modelSpeedLabel: selectedModelSpeedLabel,
         reasoningEffort: selectedReasoningEffort,
         reasoningLabel: selectedReasoningLabel,
         startedAt: submittedAt,
@@ -579,6 +606,8 @@ export const ChatPanel = ({
               createdAt: new Date().toISOString(),
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
+              modelSpeed: selectedModelSpeed,
+              modelSpeedLabel: selectedModelSpeedLabel,
               projectReferences,
               reasoningEffort: selectedReasoningEffort,
               reasoningLabel: selectedReasoningLabel,
@@ -594,10 +623,13 @@ export const ChatPanel = ({
               projectReferences,
               projectPath: project.path,
               provider: activeProvider,
+              modelSpeed: selectedModelSpeed,
+              modelSpeedLabel: selectedModelSpeedLabel,
               reasoningEffort: selectedReasoningEffort,
               reasoningLabel: selectedReasoningLabel,
               remoteConversationId: chat.remoteConversationId,
               remoteConversationModel: chat.remoteConversationModel,
+              remoteConversationModelSpeed: chat.remoteConversationModelSpeed,
               remoteConversationProjectPath: chat.remoteConversationProjectPath,
               chatId: chat.id,
             },
@@ -624,6 +656,8 @@ export const ChatPanel = ({
       project.path,
       resetPromptHistory,
       selectedProvider,
+      selectedModelSpeed,
+      selectedModelSpeedLabel,
       selectedReasoningEffort,
       selectedReasoningLabel,
       sendMessage,
@@ -749,9 +783,21 @@ export const ChatPanel = ({
             updateChat(chat.id, (current) => ({
               ...current,
               model: nextOption.id,
+              modelSpeed: "standard",
               provider: nextOption.provider,
               remoteConversationId: null,
               remoteConversationModel: null,
+              remoteConversationModelSpeed: null,
+              remoteConversationProjectPath: null,
+            }));
+          }}
+          onModelSpeedChange={(modelSpeed) => {
+            updateChat(chat.id, (current) => ({
+              ...current,
+              modelSpeed,
+              remoteConversationId: null,
+              remoteConversationModel: null,
+              remoteConversationModelSpeed: null,
               remoteConversationProjectPath: null,
             }));
           }}
@@ -771,9 +817,12 @@ export const ChatPanel = ({
           projectId={project.id}
           projectPath={project.path}
           reasoningEffortOptions={reasoningEffortOptions}
+          speedOptions={speedOptions}
           selectedModel={selectedModel}
           selectedModelLabel={selectedModelLabel}
           selectedModelValue={selectedModelValue}
+          selectedModelSpeed={selectedModelSpeed}
+          selectedModelSpeedLabel={selectedModelSpeedLabel}
           selectedProvider={selectedProvider}
           selectedReasoningEffort={selectedReasoningEffort}
           selectedReasoningLabel={selectedReasoningLabel}

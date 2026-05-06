@@ -90,6 +90,7 @@ export const createProjectConfig = (
     id: crypto.randomUUID(),
     icon: null,
     model: defaultSelection.model,
+    modelSpeed: "standard",
     name,
     path,
     browserUrl: "http://127.0.0.1:3000",
@@ -106,7 +107,10 @@ export const createProjectConfig = (
 export const createChatConfig = (
   project: ProjectConfig,
   overrides?: Partial<
-    Pick<ChatConfig, "model" | "provider" | "reasoningEffort" | "title">
+    Pick<
+      ChatConfig,
+      "model" | "modelSpeed" | "provider" | "reasoningEffort" | "title"
+    >
   >,
 ): ChatConfig => {
   const timestamp = new Date().toISOString();
@@ -116,11 +120,13 @@ export const createChatConfig = (
     deletedAt: null,
     id: crypto.randomUUID(),
     model: overrides?.model ?? project.model,
+    modelSpeed: overrides?.modelSpeed ?? project.modelSpeed,
     projectId: project.id,
     provider: overrides?.provider ?? project.provider,
     reasoningEffort: overrides?.reasoningEffort ?? project.reasoningEffort,
     remoteConversationId: null,
     remoteConversationModel: null,
+    remoteConversationModelSpeed: null,
     remoteConversationProjectPath: null,
     title: overrides?.title?.trim() || "New chat",
     updatedAt: timestamp,

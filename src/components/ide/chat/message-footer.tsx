@@ -9,11 +9,14 @@ export type ChatMessageMetadata = {
   createdAt?: string;
   model?: string;
   modelLabel?: string;
+  modelSpeed?: string;
+  modelSpeedLabel?: string;
   projectReferences?: ProjectReference[];
   reasoningEffort?: string;
   reasoningLabel?: string;
   remoteConversationId?: string;
   remoteConversationModel?: string;
+  remoteConversationModelSpeed?: string;
   remoteConversationProjectPath?: string;
   startedAt?: string;
 };
@@ -75,6 +78,7 @@ export const MessageHoverFooter = ({
   const [fallbackStartedAt] = useState(() => Date.now());
   const metadata = message.metadata as ChatMessageMetadata | undefined;
   const modelLabel = metadata?.modelLabel;
+  const modelSpeedLabel = metadata?.modelSpeedLabel;
   const reasoningLabel = metadata?.reasoningLabel;
   const durationStartedAt =
     getMessageTimestamp(metadata?.startedAt) ??
@@ -96,7 +100,13 @@ export const MessageHoverFooter = ({
       ? `Ran for ${formatRunningDuration(durationStartedAt, completedAt)}`
       : null;
   const text = getMessageText(message);
-  const footerText = [modelLabel, reasoningLabel, time, duration]
+  const footerText = [
+    modelLabel,
+    reasoningLabel,
+    modelSpeedLabel,
+    time,
+    duration,
+  ]
     .filter(Boolean)
     .join(" · ");
   const positionClassName =

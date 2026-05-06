@@ -3,6 +3,7 @@ import type { UIMessage } from "ai";
 
 export type AiProvider = "openai" | "anthropic";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
+export type ModelSpeed = "standard" | "fast";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type ChatSortOrder =
   | "recent"
@@ -16,12 +17,14 @@ export interface ChatConfig {
   title: string;
   provider: AiProvider;
   model: string;
+  modelSpeed: ModelSpeed;
   reasoningEffort: ReasoningEffort;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
   remoteConversationId: string | null;
   remoteConversationModel: string | null;
+  remoteConversationModelSpeed: ModelSpeed | null;
   remoteConversationProjectPath: string | null;
 }
 
@@ -45,6 +48,7 @@ export interface ProjectConfig {
   browserUrl: string;
   provider: AiProvider;
   model: string;
+  modelSpeed: ModelSpeed;
   reasoningEffort: ReasoningEffort;
   ui: ProjectUiState;
 }

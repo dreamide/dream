@@ -26,7 +26,11 @@ import type {
   ProjectConfig,
   RightPanelView,
 } from "@/types/ide";
-import { dedupeModels, normalizeReasoningEffort } from "./ide-types";
+import {
+  dedupeModels,
+  normalizeModelSpeed,
+  normalizeReasoningEffort,
+} from "./ide-types";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
@@ -261,6 +265,7 @@ const normalizeProject = (
     browserUrl,
     icon: normalizeProjectIcon(rawProject.icon ?? rawMetadata.icon),
     model: model || defaultModel,
+    modelSpeed: normalizeModelSpeed(project.modelSpeed),
     provider,
     reasoningEffort: normalizeReasoningEffort(project.reasoningEffort),
     ui: {
@@ -328,6 +333,7 @@ const normalizeChat = (
       : {}),
     id: chat.id,
     model: model || project.model,
+    modelSpeed: normalizeModelSpeed(chat.modelSpeed),
     projectId: chat.projectId,
     provider,
     reasoningEffort: normalizeReasoningEffort(chat.reasoningEffort),
@@ -340,6 +346,11 @@ const normalizeChat = (
       typeof chat.remoteConversationModel === "string" &&
       chat.remoteConversationModel.trim().length > 0
         ? chat.remoteConversationModel
+        : null,
+    remoteConversationModelSpeed:
+      typeof chat.remoteConversationModelSpeed === "string" &&
+      chat.remoteConversationModelSpeed.trim().length > 0
+        ? normalizeModelSpeed(chat.remoteConversationModelSpeed)
         : null,
     remoteConversationProjectPath:
       typeof chat.remoteConversationProjectPath === "string" &&

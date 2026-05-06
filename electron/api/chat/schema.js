@@ -29,7 +29,13 @@ export const chatRequestBodySchema = z.object({
   provider: z.enum(["openai", "anthropic"]),
   remoteConversationId: z.string().nullable().optional(),
   remoteConversationModel: z.string().nullable().optional(),
+  remoteConversationModelSpeed: z
+    .enum(["standard", "fast"])
+    .nullable()
+    .optional(),
   remoteConversationProjectPath: z.string().nullable().optional(),
+  modelSpeed: z.enum(["standard", "fast"]).default("standard"),
+  modelSpeedLabel: z.string().min(1).optional(),
   reasoningEffort: z
     .enum(["low", "medium", "high", "xhigh", "max"])
     .default("medium"),

@@ -17,6 +17,7 @@ export const buildCodexExecArgs = ({
   codexPermissionMode,
   imagePaths = [],
   model,
+  modelSpeed = "standard",
   projectPath,
   reasoningEffort,
   sessionId,
@@ -37,6 +38,8 @@ export const buildCodexExecArgs = ({
   const reasoningConfig = reasoningEffort
     ? ["-c", `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
     : [];
+  const speedConfig =
+    modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : [];
   if (sessionId) {
     return [
       "exec",
@@ -48,6 +51,7 @@ export const buildCodexExecArgs = ({
       ...sandboxConfig,
       ...approvalConfig,
       ...reasoningConfig,
+      ...speedConfig,
       sessionId,
       "-",
     ];
@@ -65,6 +69,7 @@ export const buildCodexExecArgs = ({
     ...sandboxConfig,
     ...approvalConfig,
     ...reasoningConfig,
+    ...speedConfig,
     "-",
   ];
 };

@@ -2,6 +2,7 @@ import type { ModelOption } from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
+  ModelSpeed,
   ReasoningEffort,
   RightPanelView,
 } from "@/types/ide";
@@ -70,6 +71,23 @@ export const REASONING_EFFORT_OPTIONS: Array<{
   { label: "High", value: "high" },
   { label: "Extra High", value: "xhigh" },
   { label: "Max", value: "max" },
+];
+
+export const MODEL_SPEED_OPTIONS: Array<{
+  description: string;
+  label: string;
+  value: ModelSpeed;
+}> = [
+  {
+    description: "Default speed, normal usage.",
+    label: "Standard",
+    value: "standard",
+  },
+  {
+    description: "1.5x speed, increased usage.",
+    label: "Fast",
+    value: "fast",
+  },
 ];
 
 export const CODEX_PERMISSION_MODE_OPTIONS: Array<{
@@ -143,6 +161,12 @@ export const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {
   return REASONING_EFFORT_OPTIONS.some((option) => option.value === value)
     ? (value as ReasoningEffort)
     : "medium";
+};
+
+export const normalizeModelSpeed = (value: unknown): ModelSpeed => {
+  return MODEL_SPEED_OPTIONS.some((option) => option.value === value)
+    ? (value as ModelSpeed)
+    : "standard";
 };
 
 export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];

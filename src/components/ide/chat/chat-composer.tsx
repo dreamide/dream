@@ -37,7 +37,9 @@ import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -45,6 +47,7 @@ import Sparkles from "@/components/ui/sparkles";
 import { cn } from "@/lib/utils";
 import type {
   AiProvider,
+  ModelSpeed,
   ProjectReference,
   ReasoningEffort,
 } from "@/types/ide";
@@ -66,11 +69,18 @@ export interface ChatPanelModelOption {
   label: string;
   provider: AiProvider;
   reasoningEfforts: ReasoningEffort[];
+  speedTiers: ModelSpeed[];
 }
 
 export interface ChatPanelReasoningOption {
   label: string;
   value: ReasoningEffort;
+}
+
+export interface ChatPanelSpeedOption {
+  description: string;
+  label: string;
+  value: ModelSpeed;
 }
 
 type ProjectReferenceItem = ProjectReference;
@@ -221,6 +231,7 @@ export interface ChatComposerProps {
   onClaudePermissionModeChange: (mode: ClaudePermissionMode) => void;
   onCodexPermissionModeChange: (mode: CodexPermissionMode) => void;
   onModelChange: (option: ChatPanelModelOption) => void;
+  onModelSpeedChange: (speed: ModelSpeed) => void;
   onPromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
   onPromptTextChange: (value: string) => void;
   onReasoningEffortChange: (effort: ReasoningEffort) => void;
@@ -232,10 +243,13 @@ export interface ChatComposerProps {
   projectId: string;
   projectPath: string;
   reasoningEffortOptions: ChatPanelReasoningOption[];
+  speedOptions: ChatPanelSpeedOption[];
   selectedModel: string;
   selectedModelLabel: string;
   selectedModelValue: string | undefined;
   selectedProvider: AiProvider;
+  selectedModelSpeed: ModelSpeed;
+  selectedModelSpeedLabel: string;
   selectedReasoningEffort: ReasoningEffort;
   selectedReasoningLabel: string;
   status: ChatStatus;
@@ -254,6 +268,7 @@ export const ChatComposer = ({
   onClaudePermissionModeChange,
   onCodexPermissionModeChange,
   onModelChange,
+  onModelSpeedChange,
   onPromptKeyDown,
   onPromptTextChange,
   onReasoningEffortChange,
@@ -265,10 +280,13 @@ export const ChatComposer = ({
   projectId,
   projectPath,
   reasoningEffortOptions,
+  speedOptions,
   selectedModel,
   selectedModelLabel,
   selectedModelValue,
   selectedProvider,
+  selectedModelSpeed,
+  selectedModelSpeedLabel,
   selectedReasoningEffort,
   selectedReasoningLabel,
   status,
@@ -647,21 +665,24 @@ export const ChatComposer = ({
                   className="text-xs"
                   side="top"
                 >
-                  {allModelOptions.map((option) => (
-                    <SelectItem
-                      className="text-xs"
-                      key={`${option.provider}:${option.id}`}
-                      value={option.id}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <ProviderIcon
-                          className="size-3.5 shrink-0 text-muted-foreground/70"
-                          provider={option.provider}
-                        />
-                        <span className="truncate">{option.label}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Model</SelectLabel>
+                    {allModelOptions.map((option) => (
+                      <SelectItem
+                        className="text-xs"
+                        key={`${option.provider}:${option.id}`}
+                        value={option.id}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <ProviderIcon
+                            className="size-3.5 shrink-0 text-muted-foreground/70"
+                            provider={option.provider}
+                          />
+                          <span className="truncate">{option.label}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
 
@@ -676,15 +697,45 @@ export const ChatComposer = ({
                     <span className="truncate">{selectedReasoningLabel}</span>
                   </SelectTrigger>
                   <SelectContent className="text-xs" side="top">
-                    {reasoningEffortOptions.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Effort</SelectLabel>
+                      {reasoningEffortOptions.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              {speedOptions.length > 0 ? (
+                <Select
+                  onValueChange={(value) =>
+                    onModelSpeedChange(value as ModelSpeed)
+                  }
+                  value={selectedModelSpeed}
+                >
+                  <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                    <span className="truncate">{selectedModelSpeedLabel}</span>
+                  </SelectTrigger>
+                  <SelectContent className="text-xs" side="top">
+                    <SelectGroup>
+                      <SelectLabel>Speed</SelectLabel>
+                      {speedOptions.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               ) : null}
@@ -703,15 +754,18 @@ export const ChatComposer = ({
                     </span>
                   </SelectTrigger>
                   <SelectContent className="text-xs" side="top">
-                    {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Permissions</SelectLabel>
+                      {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               ) : selectedProvider === "anthropic" ? (
@@ -728,15 +782,18 @@ export const ChatComposer = ({
                     </span>
                   </SelectTrigger>
                   <SelectContent className="text-xs" side="top">
-                    {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Permissions</SelectLabel>
+                      {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
+                        <SelectItem
+                          className="text-xs"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               ) : null}

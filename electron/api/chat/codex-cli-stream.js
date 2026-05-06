@@ -28,6 +28,7 @@ export const streamCodexCliResponse = ({
   codexPermissionMode,
   messages,
   model,
+  modelSpeed,
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
@@ -36,6 +37,7 @@ export const streamCodexCliResponse = ({
   chatId,
   remoteConversationId,
   remoteConversationModel,
+  remoteConversationModelSpeed,
   remoteConversationProjectPath,
 }) => {
   const storedSession = chatId
@@ -43,11 +45,13 @@ export const streamCodexCliResponse = ({
     : null;
   const persistedSessionId =
     remoteConversationModel === model &&
+    (remoteConversationModelSpeed ?? "standard") === modelSpeed &&
     remoteConversationProjectPath === projectPath
       ? getCodexSessionId(remoteConversationId)
       : null;
   const canResumeStoredSession =
     storedSession?.model === model &&
+    (storedSession?.modelSpeed ?? "standard") === modelSpeed &&
     storedSession?.projectPath === projectPath;
   if (chatId && storedSession && !canResumeStoredSession) {
     codexSessionsByChatId.delete(chatId);
@@ -143,6 +147,7 @@ export const streamCodexCliResponse = ({
           ) {
             codexSessionsByChatId.set(chatId, {
               model,
+              modelSpeed,
               projectPath,
               sessionId: event.thread_id,
             });
@@ -258,6 +263,7 @@ export const streamCodexCliResponse = ({
             codexPermissionMode,
             imagePaths: preparedAttachments?.imagePaths ?? [],
             model,
+            modelSpeed,
             projectPath,
             reasoningEffort,
             sessionId,

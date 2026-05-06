@@ -29,6 +29,7 @@ export const streamCodexAppServerResponse = ({
   codexPermissionMode,
   messages,
   model,
+  modelSpeed,
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
@@ -347,6 +348,7 @@ export const streamCodexAppServerResponse = ({
           if (method === "thread/started" && params?.thread?.id && chatId) {
             codexSessionsByChatId.set(chatId, {
               model,
+              modelSpeed,
               projectPath,
               sessionId: params.thread.id,
             });
@@ -355,6 +357,7 @@ export const streamCodexAppServerResponse = ({
                 ...responseMessageMetadata,
                 remoteConversationId: params.thread.id,
                 remoteConversationModel: model,
+                remoteConversationModelSpeed: modelSpeed,
                 remoteConversationProjectPath: projectPath,
               },
               type: "message-metadata",
@@ -511,7 +514,11 @@ export const streamCodexAppServerResponse = ({
           .then(async (launch) => {
             child = spawn(
               launch.command,
-              [...launch.argsPrefix, "app-server"],
+              [
+                ...launch.argsPrefix,
+                ...(modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : []),
+                "app-server",
+              ],
               {
                 env: process.env,
                 stdio: ["pipe", "pipe", "pipe"],

@@ -186,6 +186,8 @@ function buildProjectMetadata(project) {
   const modelSelection = {
     ...getNestedRecord(metadata, "modelSelection"),
     model: typeof project.model === "string" ? project.model : "",
+    modelSpeed:
+      typeof project.modelSpeed === "string" ? project.modelSpeed : "standard",
     provider:
       typeof project.provider === "string" ? project.provider : "openai",
     reasoningEffort:
@@ -284,6 +286,11 @@ function buildChatMetadata(chat) {
       chat.remoteConversationModel.trim()
         ? chat.remoteConversationModel
         : null,
+    modelSpeed:
+      typeof chat.remoteConversationModelSpeed === "string" &&
+      chat.remoteConversationModelSpeed.trim()
+        ? chat.remoteConversationModelSpeed
+        : null,
     projectPath:
       typeof chat.remoteConversationProjectPath === "string" &&
       chat.remoteConversationProjectPath.trim()
@@ -293,6 +300,8 @@ function buildChatMetadata(chat) {
   const modelSelection = {
     ...getNestedRecord(metadata, "modelSelection"),
     model: typeof chat.model === "string" ? chat.model : "",
+    modelSpeed:
+      typeof chat.modelSpeed === "string" ? chat.modelSpeed : "standard",
     provider: typeof chat.provider === "string" ? chat.provider : "openai",
     reasoningEffort:
       typeof chat.reasoningEffort === "string"
@@ -622,6 +631,7 @@ function loadStateFromRelationalDatabase(database) {
         : null,
       metadata,
       model: getNestedString(modelSelection, "model", ""),
+      modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
       name: row.name || getProjectName(row.path),
       path: row.path || "",
       provider: getNestedString(modelSelection, "provider", "openai"),
@@ -699,6 +709,7 @@ function loadStateFromRelationalDatabase(database) {
       id: row.id,
       metadata,
       model: getNestedString(modelSelection, "model", ""),
+      modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
       projectId: row.project_id,
       provider: getNestedString(modelSelection, "provider", "openai"),
       reasoningEffort: getNestedString(
@@ -710,6 +721,10 @@ function loadStateFromRelationalDatabase(database) {
       remoteConversationModel: getNestedNullableString(
         remoteConversation,
         "model",
+      ),
+      remoteConversationModelSpeed: getNestedNullableString(
+        remoteConversation,
+        "modelSpeed",
       ),
       remoteConversationProjectPath: getNestedNullableString(
         remoteConversation,

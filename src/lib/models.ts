@@ -1,10 +1,50 @@
-import type { AiProvider, ReasoningEffort } from "@/types/ide";
+import type { AiProvider, ModelSpeed, ReasoningEffort } from "@/types/ide";
 
 export interface ModelOption {
   id: string;
   label: string;
   reasoningEfforts?: ReasoningEffort[];
+  speedTiers?: ModelSpeed[];
 }
+
+const VALID_MODEL_SPEEDS = ["standard", "fast"] as const;
+const VALID_REASONING_EFFORTS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+
+const normalizeReasoningEfforts = (
+  reasoningEfforts: ReasoningEffort[] = [],
+): ReasoningEffort[] =>
+  Array.from(
+    new Set(
+      reasoningEfforts.filter((effort): effort is ReasoningEffort =>
+        VALID_REASONING_EFFORTS.includes(effort),
+      ),
+    ),
+  );
+
+export const normalizeModelSpeed = (value: unknown): ModelSpeed =>
+  VALID_MODEL_SPEEDS.includes(value as ModelSpeed)
+    ? (value as ModelSpeed)
+    : "standard";
+
+export const normalizeModelSpeedTiers = (
+  speedTiers: ModelSpeed[] = [],
+): ModelSpeed[] => {
+  const normalized = Array.from(
+    new Set(
+      speedTiers
+        .map(normalizeModelSpeed)
+        .filter((speed) => speed !== "standard"),
+    ),
+  );
+
+  return normalized.length > 0 ? ["standard", ...normalized] : [];
+};
 
 const OPENAI_TOKEN_LABELS: Record<string, string> = {
   audio: "Audio",
@@ -141,22 +181,22 @@ export const createModelOption = (
   id: string,
   label?: string | null,
   reasoningEfforts: ReasoningEffort[] = [],
+  speedTiers: ModelSpeed[] = [],
 ): ModelOption => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
-  const normalizedReasoningEfforts = Array.from(
-    new Set(
-      reasoningEfforts.filter((effort): effort is ReasoningEffort =>
-        ["low", "medium", "high", "xhigh", "max"].includes(effort),
-      ),
-    ),
-  );
+  const normalizedReasoningEfforts =
+    normalizeReasoningEfforts(reasoningEfforts);
+  const normalizedSpeedTiers = normalizeModelSpeedTiers(speedTiers);
 
   return {
     id: trimmedId,
     label: getModelDisplayLabel(provider, trimmedId, trimmedLabel),
     ...(normalizedReasoningEfforts.length > 0
       ? { reasoningEfforts: normalizedReasoningEfforts }
+      : {}),
+    ...(normalizedSpeedTiers.length > 0
+      ? { speedTiers: normalizedSpeedTiers }
       : {}),
   };
 };
@@ -175,11 +215,8 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
       id,
       model.label,
     );
-    const reasoningEfforts = Array.from(
-      new Set(model.reasoningEfforts ?? []),
-    ).filter((effort): effort is ReasoningEffort =>
-      ["low", "medium", "high", "xhigh", "max"].includes(effort),
-    );
+    const reasoningEfforts = normalizeReasoningEfforts(model.reasoningEfforts);
+    const speedTiers = normalizeModelSpeedTiers(model.speedTiers);
     const existing = seen.get(id);
 
     if (!existing) {
@@ -187,6 +224,7 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
         id,
         label,
         ...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+        ...(speedTiers.length > 0 ? { speedTiers } : {}),
       });
       continue;
     }
@@ -201,6 +239,13 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
                 ...(existing.reasoningEfforts ?? []),
                 ...reasoningEfforts,
               ]),
+            ),
+          }
+        : {}),
+      ...(existing.speedTiers?.length || speedTiers.length
+        ? {
+            speedTiers: Array.from(
+              new Set([...(existing.speedTiers ?? []), ...speedTiers]),
             ),
           }
         : {}),
@@ -327,6 +372,22 @@ export const getModelReasoningEfforts = (
     }
 
     return [];
+  }
+
+  return [];
+};
+
+export const getModelSpeedTiers = (
+  provider: AiProvider,
+  modelId: string,
+): ModelSpeed[] => {
+  if (provider !== "openai") {
+    return [];
+  }
+
+  const id = modelId.trim().toLowerCase();
+  if (/^gpt-5\.(4|5)(?:$|[-.])/.test(id)) {
+    return ["standard", "fast"];
   }
 
   return [];

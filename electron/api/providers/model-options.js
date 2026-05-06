@@ -5,6 +5,7 @@ const VALID_REASONING_EFFORTS = new Set([
   "xhigh",
   "max",
 ]);
+const VALID_MODEL_SPEEDS = new Set(["standard", "fast"]);
 
 export const CLAUDE_REASONING_EFFORT_MAP = {
   high: "high",
@@ -44,6 +45,32 @@ export const normalizeReasoningEfforts = (value) => {
   return efforts;
 };
 
+export const normalizeModelSpeed = (value) =>
+  VALID_MODEL_SPEEDS.has(value) ? value : "standard";
+
+export const normalizeModelSpeedTiers = (value) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const tiers = [];
+  for (const entry of value) {
+    const tier =
+      typeof entry === "string"
+        ? entry
+        : typeof entry?.tier === "string"
+          ? entry.tier
+          : null;
+    const normalized = normalizeModelSpeed(tier);
+    if (normalized === "standard" || tiers.includes(normalized)) {
+      continue;
+    }
+    tiers.push(normalized);
+  }
+
+  return tiers.length > 0 ? ["standard", ...tiers] : [];
+};
+
 export const getModelReasoningEfforts = (provider, modelId) => {
   const id = modelId.trim().toLowerCase();
   if (!id) return [];
@@ -80,6 +107,17 @@ export const getModelReasoningEfforts = (provider, modelId) => {
       if (majorOnly >= 4) return ["low", "medium", "high", "max"];
     }
     return [];
+  }
+
+  return [];
+};
+
+export const getModelSpeedTiers = (provider, modelId) => {
+  if (provider !== "openai") return [];
+
+  const id = modelId.trim().toLowerCase();
+  if (/^gpt-5\.(4|5)(?:$|[-.])/.test(id)) {
+    return ["standard", "fast"];
   }
 
   return [];
@@ -175,16 +213,21 @@ export const createModelOption = (
   id,
   label,
   reasoningEfforts = [],
+  speedTiers = [],
 ) => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
   const normalizedReasoningEfforts =
     normalizeReasoningEfforts(reasoningEfforts);
+  const normalizedSpeedTiers = normalizeModelSpeedTiers(speedTiers);
   return {
     id: trimmedId,
     label: getModelDisplayLabel(provider, trimmedId, trimmedLabel),
     ...(normalizedReasoningEfforts.length > 0
       ? { reasoningEfforts: normalizedReasoningEfforts }
+      : {}),
+    ...(normalizedSpeedTiers.length > 0
+      ? { speedTiers: normalizedSpeedTiers }
       : {}),
   };
 };
@@ -200,12 +243,14 @@ export const dedupeModelOptions = (models) => {
       model.label,
     );
     const reasoningEfforts = normalizeReasoningEfforts(model.reasoningEfforts);
+    const speedTiers = normalizeModelSpeedTiers(model.speedTiers);
     const existing = seen.get(id);
     if (!existing) {
       seen.set(id, {
         id,
         label,
         ...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+        ...(speedTiers.length > 0 ? { speedTiers } : {}),
       });
       continue;
     }
@@ -219,6 +264,13 @@ export const dedupeModelOptions = (models) => {
                 ...(existing.reasoningEfforts ?? []),
                 ...reasoningEfforts,
               ]),
+            ),
+          }
+        : {}),
+      ...(existing.speedTiers?.length || speedTiers.length
+        ? {
+            speedTiers: Array.from(
+              new Set([...(existing.speedTiers ?? []), ...speedTiers]),
             ),
           }
         : {}),
