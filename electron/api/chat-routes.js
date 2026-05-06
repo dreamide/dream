@@ -143,7 +143,7 @@ export const registerChatRoutes = (app) => {
       model,
       modelLabel: modelLabel ?? model,
       modelSpeed,
-      modelSpeedLabel: modelSpeedLabel ?? modelSpeed,
+      ...(modelSpeedLabel ? { modelSpeedLabel } : {}),
       reasoningEffort,
       reasoningLabel: reasoningLabel ?? reasoningEffort,
     };

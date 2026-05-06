@@ -6,6 +6,31 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes status-dot-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+.animate-status-dot-pulse {
+  position: relative;
+}
+
+.animate-status-dot-pulse::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(132, 204, 22, 0.75);
+  content: "";
+  transform-origin: center;
+  animation: status-dot-pulse 1.8s ease-out infinite;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

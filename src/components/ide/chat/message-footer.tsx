@@ -66,6 +66,19 @@ const formatRunningDuration = (startedAt: number, now: number) => {
 const getMessageTimestamp = (value: string | undefined) =>
   parseMessageTime(value)?.getTime() ?? null;
 
+const isClaudeMessageMetadata = (metadata: ChatMessageMetadata | undefined) => {
+  const modelLabel = metadata?.modelLabel?.trim().toLowerCase() ?? "";
+  const model = metadata?.model?.trim().toLowerCase() ?? "";
+
+  return (
+    modelLabel.startsWith("claude") ||
+    model.startsWith("claude") ||
+    model.startsWith("opus") ||
+    model.startsWith("sonnet") ||
+    model.startsWith("haiku")
+  );
+};
+
 export const MessageHoverFooter = ({
   isRunning = false,
   message,
@@ -78,7 +91,9 @@ export const MessageHoverFooter = ({
   const [fallbackStartedAt] = useState(() => Date.now());
   const metadata = message.metadata as ChatMessageMetadata | undefined;
   const modelLabel = metadata?.modelLabel;
-  const modelSpeedLabel = metadata?.modelSpeedLabel;
+  const modelSpeedLabel = isClaudeMessageMetadata(metadata)
+    ? undefined
+    : metadata?.modelSpeedLabel;
   const reasoningLabel = metadata?.reasoningLabel;
   const durationStartedAt =
     getMessageTimestamp(metadata?.startedAt) ??

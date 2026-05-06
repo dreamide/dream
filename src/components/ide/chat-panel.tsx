@@ -424,6 +424,8 @@ export const ChatPanel = ({
     MODEL_SPEED_OPTIONS.find((option) => option.value === selectedModelSpeed)
       ?.label ??
     "Speed";
+  const selectedModelSpeedLabelForMetadata =
+    availableModelSpeedTiers.length > 0 ? selectedModelSpeedLabel : undefined;
   const availableReasoningEfforts = selectedModelOption?.reasoningEfforts
     ?.length
     ? selectedModelOption.reasoningEfforts
@@ -546,7 +548,9 @@ export const ChatPanel = ({
         model: activeModel,
         modelLabel: activeOption?.label ?? activeModel,
         modelSpeed: selectedModelSpeed,
-        modelSpeedLabel: selectedModelSpeedLabel,
+        ...(selectedModelSpeedLabelForMetadata
+          ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
+          : {}),
         reasoningEffort: selectedReasoningEffort,
         reasoningLabel: selectedReasoningLabel,
         startedAt: submittedAt,
@@ -607,7 +611,9 @@ export const ChatPanel = ({
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
               modelSpeed: selectedModelSpeed,
-              modelSpeedLabel: selectedModelSpeedLabel,
+              ...(selectedModelSpeedLabelForMetadata
+                ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
+                : {}),
               projectReferences,
               reasoningEffort: selectedReasoningEffort,
               reasoningLabel: selectedReasoningLabel,
@@ -624,7 +630,9 @@ export const ChatPanel = ({
               projectPath: project.path,
               provider: activeProvider,
               modelSpeed: selectedModelSpeed,
-              modelSpeedLabel: selectedModelSpeedLabel,
+              ...(selectedModelSpeedLabelForMetadata
+                ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
+                : {}),
               reasoningEffort: selectedReasoningEffort,
               reasoningLabel: selectedReasoningLabel,
               remoteConversationId: chat.remoteConversationId,
@@ -657,7 +665,7 @@ export const ChatPanel = ({
       resetPromptHistory,
       selectedProvider,
       selectedModelSpeed,
-      selectedModelSpeedLabel,
+      selectedModelSpeedLabelForMetadata,
       selectedReasoningEffort,
       selectedReasoningLabel,
       sendMessage,
