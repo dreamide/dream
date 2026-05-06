@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { memo, type ReactNode, useEffect } from "react";
+import { memo, type ReactNode, useLayoutEffect } from "react";
 import { useStickToBottomContext } from "use-stick-to-bottom";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
@@ -46,22 +46,16 @@ export const ConversationScrollMemory = ({
 }) => {
   const { scrollRef, scrollToBottom } = useStickToBottomContext();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isActive) {
       return;
     }
 
-    const frame = window.requestAnimationFrame(() => {
-      const element = scrollRef.current;
-      if (!element) return;
+    const element = scrollRef.current;
+    if (!element) return;
 
-      scrollElementToChatBottom(element);
-      void scrollToBottom({ animation: "instant", ignoreEscapes: true });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-    };
+    scrollElementToChatBottom(element);
+    void scrollToBottom({ animation: "instant", ignoreEscapes: true });
   }, [isActive, scrollRef, scrollToBottom]);
 
   return null;

@@ -35,6 +35,7 @@ import { getChipToolKind } from "./assistant-message-tools";
 import {
   CHAT_CONTENT_BOTTOM_PADDING_PX,
   CHAT_STREAM_UPDATE_THROTTLE_MS,
+  ChatMessage,
   type ChatMessageMetadata,
   ConversationScrollMemory,
   type EditTarget,
@@ -50,7 +51,6 @@ import {
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
-import { VirtualizedChatMessages } from "./chat/virtualized-chat-messages";
 import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   getCommitChanges,
@@ -682,7 +682,6 @@ export const ChatPanel = ({
           contextRef={conversationContextRef}
           id={conversationDomId}
           className="min-h-0 flex-1"
-          initial={false}
         >
           <ConversationContent
             id={conversationContentDomId}
@@ -704,16 +703,20 @@ export const ChatPanel = ({
                 <p className="font-medium text-lg">Build anything</p>
               </div>
             ) : (
-              <VirtualizedChatMessages
-                addToolApprovalResponse={addToolApprovalResponse}
-                expandToolCalls={settings.expandToolCalls}
-                groupToolCalls={settings.groupToolCalls}
-                isActive={isActive}
-                isStreaming={isStreaming}
-                messages={messages}
-                projectPath={project.path}
-                showReasoningSummaries={settings.showReasoningSummaries}
-              />
+              messages.map((message, index) => (
+                <div className="w-full pb-4" key={message.id}>
+                  <ChatMessage
+                    addToolApprovalResponse={addToolApprovalResponse}
+                    expandToolCalls={settings.expandToolCalls}
+                    groupToolCalls={settings.groupToolCalls}
+                    isLastMessage={index === messages.length - 1}
+                    isStreaming={isStreaming}
+                    message={message}
+                    projectPath={project.path}
+                    showReasoningSummaries={settings.showReasoningSummaries}
+                  />
+                </div>
+              ))
             )}
           </ConversationContent>
           <ConversationScrollMemory isActive={isActive} />
