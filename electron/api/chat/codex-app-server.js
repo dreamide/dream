@@ -520,6 +520,7 @@ export const streamCodexAppServerResponse = ({
                 "app-server",
               ],
               {
+                cwd: projectPath,
                 env: process.env,
                 shell: launch.shell ?? false,
                 stdio: ["pipe", "pipe", "pipe"],
