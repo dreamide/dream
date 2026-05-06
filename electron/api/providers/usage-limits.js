@@ -569,11 +569,6 @@ const normalizeClaudeUsageLimits = (payload) =>
   ].filter(Boolean);
 
 export const fetchAnthropicUsageLimits = async () => {
-  const cached = providerUsageLimitSnapshots.get("anthropic");
-  if (cached) {
-    return cached;
-  }
-
   const credentials = await readClaudeCredentials();
   if (credentials) {
     try {
@@ -605,6 +600,15 @@ export const fetchAnthropicUsageLimits = async () => {
       providerUsageLimitSnapshots.set("anthropic", result);
       return result;
     } catch (error) {
+      const cached = providerUsageLimitSnapshots.get("anthropic");
+      if (cached) {
+        return {
+          ...cached,
+          error:
+            error instanceof Error ? error.message : "Claude usage failed.",
+        };
+      }
+
       const localSnapshot = await readLatestRateLimitsFromFiles([
         path.join(os.homedir(), ".claude", "projects"),
       ]);
