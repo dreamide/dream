@@ -20,6 +20,21 @@ const areMessagePartsEqual = (
   }
 };
 
+const areMessageMetadataEqual = (
+  left: UIMessage["metadata"],
+  right: UIMessage["metadata"],
+) => {
+  if (left === right) {
+    return true;
+  }
+
+  try {
+    return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+  } catch {
+    return false;
+  }
+};
+
 export const areMessagesEqual = (
   left: UIMessage[] | undefined,
   right: UIMessage[],
@@ -37,6 +52,7 @@ export const areMessagesEqual = (
     const r = right[i];
     if (l === r) continue;
     if (l.id !== r.id || l.role !== r.role) return false;
+    if (!areMessageMetadataEqual(l.metadata, r.metadata)) return false;
     if (l.parts.length !== r.parts.length) return false;
 
     for (let partIndex = 0; partIndex < l.parts.length; partIndex++) {
