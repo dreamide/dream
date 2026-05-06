@@ -127,6 +127,7 @@ const generateCodexChatTitle = ({ model, projectPath, promptText }) =>
           ],
           {
             env: process.env,
+            shell: launch.shell ?? false,
             stdio: ["pipe", "pipe", "pipe"],
           },
         );

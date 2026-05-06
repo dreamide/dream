@@ -521,6 +521,7 @@ export const streamCodexAppServerResponse = ({
               ],
               {
                 env: process.env,
+                shell: launch.shell ?? false,
                 stdio: ["pipe", "pipe", "pipe"],
               },
             );
