@@ -4,10 +4,10 @@ import { createContext, useContext, useMemo } from "react";
 import { getUsage } from "tokenlens";
 import { Button } from "@/components/ui/button";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,7 @@ const useContextValue = () => {
   return context;
 };
 
-export type ContextProps = ComponentProps<typeof HoverCard> & ContextSchema;
+export type ContextProps = ComponentProps<typeof Popover> & ContextSchema;
 
 export const Context = ({
   usedTokens,
@@ -54,7 +54,7 @@ export const Context = ({
 
   return (
     <ContextContext.Provider value={contextValue}>
-      <HoverCard {...props} />
+      <Popover {...props} />
     </ContextContext.Provider>
   );
 };
@@ -104,26 +104,23 @@ export type ContextTriggerProps = ComponentProps<typeof Button>;
 
 export const ContextTrigger = ({ children, ...props }: ContextTriggerProps) => {
   if (children) {
-    return (
-      <HoverCardTrigger render={children as ReactElement}>
-      </HoverCardTrigger>
-    );
+    return <PopoverTrigger render={children as ReactElement} />;
   }
 
   return (
-    <HoverCardTrigger render={<Button type="button" variant="ghost" {...props} />}>
+    <PopoverTrigger render={<Button type="button" variant="ghost" {...props} />}>
       <ContextIcon />
-    </HoverCardTrigger>
+    </PopoverTrigger>
   );
 };
 
-export type ContextContentProps = ComponentProps<typeof HoverCardContent>;
+export type ContextContentProps = ComponentProps<typeof PopoverContent>;
 
 export const ContextContent = ({
   className,
   ...props
 }: ContextContentProps) => (
-  <HoverCardContent
+  <PopoverContent
     className={cn("min-w-60 divide-y overflow-hidden p-0", className)}
     {...props}
   />
@@ -153,6 +150,7 @@ export const ContextContentHeader = ({
     <div className={cn("w-full space-y-2 p-3", className)} {...props}>
       {children ?? (
         <>
+          <div className="font-medium text-sm">Context</div>
           <div className="flex items-center justify-between gap-3 text-xs">
             <p>{displayPct}</p>
             <p className="font-mono text-muted-foreground">

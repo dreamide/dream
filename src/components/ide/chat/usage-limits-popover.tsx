@@ -1,5 +1,7 @@
 import { GaugeIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import anthropicLogo from "@/assets/anthropic.svg";
+import openAiLogo from "@/assets/openai.svg";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -140,6 +142,7 @@ export const UsageLimitsPopover = ({
     error: null,
     loading: false,
   });
+  const logoSrc = provider === "anthropic" ? anthropicLogo : openAiLogo;
   const now = Date.now();
   const limits = usageLimits.data?.limits ?? [];
 
@@ -193,8 +196,9 @@ export const UsageLimitsPopover = ({
       <PopoverTrigger
         render={
           <Button
-            aria-label={`${PROVIDER_LABELS[provider]} usage limits`}
+            aria-label="Usage limits"
             className="h-7 border-none bg-transparent px-2 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+            title="Usage limits"
             type="button"
             variant="ghost"
           />
@@ -207,6 +211,15 @@ export const UsageLimitsPopover = ({
         className="w-80 gap-4 rounded-lg bg-popover p-3"
         side="top"
       >
+        <div className="flex items-center gap-2 font-medium text-sm">
+          <img
+            alt=""
+            aria-hidden="true"
+            className="size-4 shrink-0 dark:invert"
+            src={logoSrc}
+          />
+          <span>{PROVIDER_LABELS[provider]}</span>
+        </div>
         <div className="space-y-4">
           {usageLimits.loading && !usageLimits.data ? (
             <p className="text-xs text-muted-foreground">

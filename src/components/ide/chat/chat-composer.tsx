@@ -805,7 +805,10 @@ export const ChatComposer = ({
                   modelId={modelId}
                   usedTokens={estimatedUsedTokens}
                 >
-                  <ContextTrigger className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground" />
+                  <ContextTrigger
+                    className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                    title="Context usage"
+                  />
                   <ContextContent side="top" align="end">
                     <ContextContentHeader />
                     <ContextContentBody className="space-y-1.5">
