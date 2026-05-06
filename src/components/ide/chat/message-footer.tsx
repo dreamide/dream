@@ -86,7 +86,11 @@ export const MessageHoverFooter = ({
   const completedAt = getMessageTimestamp(metadata?.completedAt);
   const time = isRunning
     ? `Running ${formatRunningDuration(startedAt, now)}`
-    : formatMessageTime(metadata?.completedAt ?? metadata?.createdAt);
+    : formatMessageTime(
+        message.role === "assistant"
+          ? metadata?.completedAt
+          : metadata?.createdAt,
+      );
   const duration =
     !isRunning && durationStartedAt !== null && completedAt !== null
       ? `Ran for ${formatRunningDuration(durationStartedAt, completedAt)}`

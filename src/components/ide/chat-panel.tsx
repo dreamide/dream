@@ -190,30 +190,29 @@ export const ChatPanel = ({
       const completedAt = new Date().toISOString();
       const messageMetadata =
         (message.metadata as Record<string, unknown> | undefined) ?? {};
-      const finalAssistantMessage: UIMessage = pendingMetadata
-        ? {
-            ...message,
-            metadata: {
-              ...messageMetadata,
-              ...pendingMetadata,
-              completedAt:
-                typeof metadata?.completedAt === "string" &&
-                metadata.completedAt
-                  ? metadata.completedAt
-                  : completedAt,
-              createdAt:
-                typeof metadata?.createdAt === "string" && metadata.createdAt
+      const finalAssistantMessage: UIMessage = {
+        ...message,
+        metadata: {
+          ...messageMetadata,
+          ...(pendingMetadata ?? {}),
+          completedAt:
+            typeof metadata?.completedAt === "string" && metadata.completedAt
+              ? metadata.completedAt
+              : completedAt,
+          createdAt:
+            typeof metadata?.createdAt === "string" && metadata.createdAt
+              ? metadata.createdAt
+              : pendingMetadata?.createdAt || completedAt,
+          startedAt:
+            typeof metadata?.startedAt === "string" && metadata.startedAt
+              ? metadata.startedAt
+              : pendingMetadata?.startedAt ||
+                pendingMetadata?.createdAt ||
+                (typeof metadata?.createdAt === "string" && metadata.createdAt
                   ? metadata.createdAt
-                  : pendingMetadata.createdAt || completedAt,
-              startedAt:
-                typeof metadata?.startedAt === "string" && metadata.startedAt
-                  ? metadata.startedAt
-                  : pendingMetadata.startedAt ||
-                    pendingMetadata.createdAt ||
-                    completedAt,
-            },
-          }
-        : message;
+                  : completedAt),
+        },
+      };
 
       const nextMessages = mergeChatMessageHistories(
         latestMessagesRef.current,
