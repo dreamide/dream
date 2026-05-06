@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { readCodexChatGptAuthTokens } from "./codex-auth.js";
 
 const OPENAI_CODEX_CHATGPT_USAGE_URL =
@@ -8,9 +10,11 @@ const OPENAI_CODEX_CHATGPT_USAGE_URL =
 const CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLAUDE_OAUTH_TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
 const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+const CLAUDE_KEYCHAIN_SERVICES = ["Claude Code-credentials", "Claude Code"];
 const PROVIDER_USAGE_SESSION_FILE_LIMIT = 80;
 
 const providerUsageLimitSnapshots = new Map();
+const execFileAsync = promisify(execFile);
 
 const toFiniteNumber = (value) => {
   const number = Number(value);
@@ -348,7 +352,68 @@ const getClaudeCredentialsPaths = () => [
   path.join(os.homedir(), ".claude", "credentials.json"),
 ];
 
+const parseClaudeCredentials = (raw, storage) => {
+  const parsed = JSON.parse(raw);
+  const oauth = parsed.claudeAiOauth;
+  const accessToken = oauth?.accessToken?.trim();
+  const refreshToken = oauth?.refreshToken?.trim();
+  if (!accessToken || !refreshToken) {
+    return null;
+  }
+
+  return {
+    accessToken,
+    parsed,
+    refreshToken,
+    storage,
+  };
+};
+
+const readClaudeCredentialsFromKeychain = async () => {
+  if (process.platform !== "darwin") {
+    return null;
+  }
+
+  for (const service of CLAUDE_KEYCHAIN_SERVICES) {
+    let stdout;
+    try {
+      ({ stdout } = await execFileAsync("security", [
+        "find-generic-password",
+        "-s",
+        service,
+        "-w",
+      ]));
+    } catch {
+      continue;
+    }
+
+    const raw = stdout.trim();
+    if (!raw) {
+      continue;
+    }
+
+    try {
+      const credentials = parseClaudeCredentials(raw, {
+        service,
+        type: "keychain",
+      });
+      if (credentials) {
+        return credentials;
+      }
+    } catch {
+      // Try the next known keychain service.
+    }
+  }
+
+  return null;
+};
+
 const readClaudeCredentials = async () => {
+  const keychainCredentials = await readClaudeCredentialsFromKeychain();
+  if (keychainCredentials) {
+    return keychainCredentials;
+  }
+
   for (const credentialsPath of getClaudeCredentialsPaths()) {
     let raw;
     try {
@@ -358,20 +423,13 @@ const readClaudeCredentials = async () => {
     }
 
     try {
-      const parsed = JSON.parse(raw);
-      const oauth = parsed.claudeAiOauth;
-      const accessToken = oauth?.accessToken?.trim();
-      const refreshToken = oauth?.refreshToken?.trim();
-      if (!accessToken || !refreshToken) {
-        continue;
+      const credentials = parseClaudeCredentials(raw, {
+        path: credentialsPath,
+        type: "file",
+      });
+      if (credentials) {
+        return credentials;
       }
-
-      return {
-        accessToken,
-        credentialsPath,
-        parsed,
-        refreshToken,
-      };
     } catch {
       // Try the next known credential location.
     }
@@ -395,11 +453,24 @@ const writeClaudeCredentials = async (
     },
   };
 
-  await fs.writeFile(
-    credentials.credentialsPath,
-    JSON.stringify(nextCredentials),
-    "utf8",
-  );
+  const serialized = JSON.stringify(nextCredentials);
+  if (credentials.storage?.type === "keychain") {
+    await execFileAsync("security", [
+      "add-generic-password",
+      "-U",
+      "-a",
+      process.env.USER || "claude",
+      "-s",
+      credentials.storage.service,
+      "-w",
+      serialized,
+    ]);
+    return;
+  }
+
+  if (credentials.storage?.path) {
+    await fs.writeFile(credentials.storage.path, serialized, "utf8");
+  }
 };
 
 const refreshClaudeCredentials = async (credentials) => {
@@ -570,7 +641,7 @@ export const fetchAnthropicUsageLimits = async () => {
 
   return makeUsageLimitsResult({
     error:
-      "Claude Code has not emitted local usage limit data yet. Start a Claude Code turn that reports rate limits, then open this again.",
+      "Claude usage limit windows are unavailable. Claude Code can still be connected and working normally when it does not expose local rate-limit data.",
     provider: "anthropic",
   });
 };
