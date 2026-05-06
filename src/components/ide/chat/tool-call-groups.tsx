@@ -311,7 +311,7 @@ export const ToolCallGroup = ({
   const [expanded, setExpanded] = useState(false);
   const summaries = summarizeToolGroup(group);
 
-  if (group.length < 2 || summaries.length === 0) {
+  if (summaries.length === 0) {
     return <ToolChipRow context={context} group={group} />;
   }
 
@@ -319,7 +319,7 @@ export const ToolCallGroup = ({
     <div className="my-1.5 space-y-2">
       <button
         aria-expanded={expanded}
-        aria-label={`${expanded ? "Collapse" : "Expand"} ${group.length} tool calls`}
+        aria-label={`${expanded ? "Collapse" : "Expand"} ${group.length} tool ${group.length === 1 ? "call" : "calls"}`}
         className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50"
         onClick={() => setExpanded((current) => !current)}
         type="button"

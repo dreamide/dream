@@ -33,7 +33,6 @@ import type {
 } from "@/types/ide";
 import { getChipToolKind } from "./assistant-message-tools";
 import {
-  addMetadataToMessage,
   CHAT_CONTENT_BOTTOM_PADDING_PX,
   CHAT_STREAM_UPDATE_THROTTLE_MS,
   type ChatMessageMetadata,
@@ -52,6 +51,7 @@ import {
 } from "./chat/chat-panel-hooks";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { VirtualizedChatMessages } from "./chat/virtualized-chat-messages";
+import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   getCommitChanges,
   warmProjectCommitMessageForStatus,
@@ -187,18 +187,29 @@ export const ChatPanel = ({
       const metadata = message.metadata as ChatMessageMetadata | undefined;
       const pendingMetadata = pendingAssistantMetadataRef.current;
       pendingAssistantMetadataRef.current = null;
+      const finalAssistantMessage: UIMessage = pendingMetadata
+        ? {
+            ...message,
+            metadata: {
+              ...pendingMetadata,
+              createdAt:
+                typeof metadata?.createdAt === "string" && metadata.createdAt
+                  ? metadata.createdAt
+                  : new Date().toISOString(),
+              ...((message.metadata as Record<string, unknown> | undefined) ??
+                {}),
+            },
+          }
+        : message;
 
-      if (pendingMetadata) {
-        setMessages((currentMessages) =>
-          addMetadataToMessage(currentMessages, message.id, {
-            ...pendingMetadata,
-            createdAt:
-              typeof metadata?.createdAt === "string" && metadata.createdAt
-                ? metadata.createdAt
-                : new Date().toISOString(),
-          }),
-        );
-      }
+      const nextMessages = mergeChatMessageHistories(
+        latestMessagesRef.current,
+        [finalAssistantMessage],
+      );
+      latestMessagesRef.current = nextMessages;
+      setMessages(nextMessages);
+      setMessagesForChat(chat.id, nextMessages);
+      useIdeStore.getState().persist();
 
       const remoteConversationId = metadata?.remoteConversationId?.trim();
 
@@ -217,6 +228,11 @@ export const ChatPanel = ({
     },
     transport,
   });
+  const latestMessagesRef = useRef<UIMessage[]>(messages);
+
+  useEffect(() => {
+    latestMessagesRef.current = messages;
+  }, [messages]);
 
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
     (response) => {
