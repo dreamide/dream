@@ -1,11 +1,14 @@
 import type { ComponentProps, MouseEvent } from "react";
 import { useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { useIdeStore } from "../ide-store";
 
 type MarkdownFileLinkProps = ComponentProps<"a"> & {
   node?: unknown;
   projectPath: string;
 };
+
+const PROJECT_FILE_LINK_PREFIX = "/__dream_project_file__/";
 
 const stripLineSuffix = (value: string) =>
   value.replace(/:(\d+)(?::\d+)?$/, "");
@@ -47,6 +50,10 @@ export const getProjectFilePathFromHref = (
     normalizeFilePathCandidate(withoutFileScheme),
   );
 
+  if (candidatePath.startsWith(PROJECT_FILE_LINK_PREFIX)) {
+    return candidatePath.slice(PROJECT_FILE_LINK_PREFIX.length);
+  }
+
   if (candidatePath === normalizedProjectPath) {
     return null;
   }
@@ -75,11 +82,6 @@ const unwrapMarkdownLinkDestination = (value: string) => {
 const escapeMarkdownLinkDestination = (value: string) =>
   value.replace(/>/g, "%3E");
 
-const toSafeRelativeMarkdownDestination = (value: string) =>
-  value.startsWith("/") || value.startsWith("./") || value.startsWith("../")
-    ? value
-    : `./${value}`;
-
 export const normalizeProjectFileLinksInMarkdown = (
   value: string,
   projectPath: string,
@@ -99,11 +101,12 @@ export const normalizeProjectFileLinksInMarkdown = (
       normalizeFilePathCandidate(unwrappedHref.split("#", 1)[0] ?? ""),
     );
     return `[${label}](<${escapeMarkdownLinkDestination(
-      toSafeRelativeMarkdownDestination(projectFilePath),
+      `${PROJECT_FILE_LINK_PREFIX}${projectFilePath}`,
     )}${lineSuffix}>)`;
   });
 
 export const MarkdownFileLink = ({
+  className,
   href,
   node: _node,
   onClick,
@@ -118,27 +121,30 @@ export const MarkdownFileLink = ({
   );
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    onClick?.(event);
-    if (
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.altKey ||
-      event.shiftKey ||
-      !projectId ||
-      !projectFilePath
-    ) {
+    if (!projectFilePath) {
+      onClick?.(event);
       return;
     }
 
-    event.preventDefault();
-    openProjectFile(projectId, projectFilePath);
+    if (event.button === 0) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (projectId) {
+        openProjectFile(projectId, projectFilePath);
+      }
+    }
   };
 
   return (
     <a
       {...props}
+      className={cn(
+        "font-medium text-primary underline decoration-primary/45 underline-offset-3 transition-colors hover:decoration-primary",
+        projectFilePath &&
+          "rounded-sm bg-primary/5 px-1 py-0.5 font-mono text-[0.95em] hover:bg-primary/10",
+        className,
+      )}
       href={href}
       onClick={handleClick}
       rel={projectFilePath ? undefined : "noreferrer"}
