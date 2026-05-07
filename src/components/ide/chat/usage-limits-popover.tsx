@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
 import type { ChatConfig } from "@/types/ide";
 import { PROVIDER_LABELS } from "./chat-message";
 
@@ -222,9 +223,9 @@ export const UsageLimitsPopover = ({
         </div>
         <div className="space-y-4">
           {usageLimits.loading && !usageLimits.data ? (
-            <p className="text-xs text-muted-foreground">
-              Loading usage limits...
-            </p>
+            <div className="flex justify-center py-2 text-muted-foreground">
+              <Spinner className="size-4" />
+            </div>
           ) : limits.length > 0 ? (
             limits.map((limit) => (
               <UsageLimitRow key={limit.label} limit={limit} now={now} />

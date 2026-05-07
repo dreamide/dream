@@ -707,7 +707,6 @@ const FileExplorerPanelImpl = ({
           ) : fileLoading && !selectedFileContent ? (
             <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
               <Spinner className="size-4" />
-              <span>Opening {selectedFilePath}…</span>
             </div>
           ) : isImageFile(selectedFilePath) ? (
             <div className="flex h-full items-center justify-center p-6">
@@ -722,6 +721,7 @@ const FileExplorerPanelImpl = ({
               <CodeBlock
                 className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
                 code={selectedFileContent}
+                deferUntilHighlighted
                 language={inferLanguage(selectedFilePath)}
                 showLineNumbers
                 style={{ contentVisibility: "visible" }}

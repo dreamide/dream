@@ -10,6 +10,7 @@ import {
 } from "@/components/ai-elements/code-block";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ToolLikePart } from "../../assistant-message-tools";
 import { normalizeProjectPathKey } from "../../ide-state";
@@ -100,8 +101,7 @@ export const ReadFileChip = ({
   const previewLanguage = inferLanguage(filePath ?? filename);
   const previewCode = normalizedContent?.code ?? content ?? "";
   const previewStartLine = normalizedContent?.startingLineNumber ?? start ?? 1;
-  const displayFilename =
-    filename === "file" && isRunning ? "Reading" : filename;
+  const displayFilename = filename;
   const displayStart = start ?? normalizedContent?.startingLineNumber ?? 1;
   const displayEnd =
     end ??
@@ -155,7 +155,11 @@ export const ReadFileChip = ({
         tone="emerald"
         type="button"
       >
-        <EyeIcon className="size-3.5 shrink-0" />
+        {isRunning ? (
+          <Spinner className="size-3.5 shrink-0" />
+        ) : (
+          <EyeIcon className="size-3.5 shrink-0" />
+        )}
         {!isRunning ? (
           <>
             <span className="max-w-48 truncate font-medium">

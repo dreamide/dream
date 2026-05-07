@@ -148,7 +148,7 @@ export const PushDialog = ({
               label="Destination"
               value={
                 previewLoading ? (
-                  <span>Loading...</span>
+                  <Spinner className="size-4" />
                 ) : preview?.target ? (
                   <span className="font-mono text-foreground">
                     {preview.target}
@@ -165,7 +165,7 @@ export const PushDialog = ({
               label="Commits"
               value={
                 previewLoading ? (
-                  <span>Loading...</span>
+                  <Spinner className="size-4" />
                 ) : preview ? (
                   <span className="text-foreground">
                     {preview.totalCommits}

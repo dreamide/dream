@@ -108,6 +108,7 @@ const LineSpan = ({
 // Types
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   code: string;
+  deferUntilHighlighted?: boolean;
   language: BundledLanguage;
   showLineNumbers?: boolean;
   startingLineNumber?: number;
@@ -296,6 +297,13 @@ export const highlightCode = (
     // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then), eslint-plugin-promise(prefer-await-to-callbacks)
     .catch((error) => {
       console.error("Failed to highlight code:", error);
+      const fallback = createRawTokens(code);
+      const subs = subscribers.get(tokensCacheKey);
+      if (subs) {
+        for (const sub of subs) {
+          sub(fallback);
+        }
+      }
       subscribers.delete(tokensCacheKey);
     });
 
@@ -438,11 +446,13 @@ export const CodeBlockActions = ({
 
 export const CodeBlockContent = ({
   code,
+  deferUntilHighlighted = false,
   language,
   showLineNumbers = false,
   startingLineNumber = 1,
 }: {
   code: string;
+  deferUntilHighlighted?: boolean;
   language: BundledLanguage;
   showLineNumbers?: boolean;
   startingLineNumber?: number;
@@ -450,16 +460,19 @@ export const CodeBlockContent = ({
   // Memoized raw tokens for immediate display
   const rawTokens = useMemo(() => createRawTokens(code), [code]);
 
-  // Try to get cached result synchronously, otherwise use raw tokens
-  const [tokenized, setTokenized] = useState<TokenizedCode>(
-    () => highlightCode(code, language) ?? rawTokens,
+  // Try to get cached result synchronously, otherwise optionally defer display.
+  const [tokenized, setTokenized] = useState<TokenizedCode | null>(
+    () =>
+      highlightCode(code, language) ??
+      (deferUntilHighlighted ? null : rawTokens),
   );
 
   useEffect(() => {
     let cancelled = false;
 
-    // Reset to raw tokens when code changes (shows current code, not stale tokens)
-    setTokenized(highlightCode(code, language) ?? rawTokens);
+    const highlighted = highlightCode(code, language);
+    // Reset on code changes; file previews can avoid flashing unhighlighted text.
+    setTokenized(highlighted ?? (deferUntilHighlighted ? null : rawTokens));
 
     // Subscribe to async highlighting result
     highlightCode(code, language, (result) => {
@@ -471,21 +484,24 @@ export const CodeBlockContent = ({
     return () => {
       cancelled = true;
     };
-  }, [code, language, rawTokens]);
+  }, [code, deferUntilHighlighted, language, rawTokens]);
 
   return (
     <div className="relative overflow-auto">
-      <CodeBlockBody
-        showLineNumbers={showLineNumbers}
-        startingLineNumber={startingLineNumber}
-        tokenized={tokenized}
-      />
+      {tokenized ? (
+        <CodeBlockBody
+          showLineNumbers={showLineNumbers}
+          startingLineNumber={startingLineNumber}
+          tokenized={tokenized}
+        />
+      ) : null}
     </div>
   );
 };
 
 export const CodeBlock = ({
   code,
+  deferUntilHighlighted = false,
   language,
   showLineNumbers = false,
   startingLineNumber = 1,
@@ -501,6 +517,7 @@ export const CodeBlock = ({
         {children}
         <CodeBlockContent
           code={code}
+          deferUntilHighlighted={deferUntilHighlighted}
           language={language}
           showLineNumbers={showLineNumbers}
           startingLineNumber={startingLineNumber}

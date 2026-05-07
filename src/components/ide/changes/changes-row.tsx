@@ -100,7 +100,6 @@ const ExpandedDiffBody = ({
     return (
       <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
         <Spinner className="size-4" />
-        <span>Loading diff…</span>
       </div>
     );
   }

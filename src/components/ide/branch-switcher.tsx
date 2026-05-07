@@ -225,7 +225,6 @@ const BranchSwitcherImpl = ({
               {loading && branches.length === 0 ? (
                 <div className="flex items-center gap-2 px-3 py-4 text-muted-foreground text-sm">
                   <Spinner className="size-4" />
-                  <span>Loading branches…</span>
                 </div>
               ) : null}
 
