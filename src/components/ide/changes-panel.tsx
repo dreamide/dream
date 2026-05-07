@@ -45,6 +45,10 @@ const ChangesPanelImpl = ({
   const diffLoadQueueRef = useRef<string[]>([]);
   const diffLoadQueuedPathsRef = useRef(new Set<string>());
   const diffLoadProcessingRef = useRef(false);
+  const diffRefreshPendingByProjectRef = useRef<
+    Record<string, { refreshKey: number; sawLoading: boolean }>
+  >({});
+  const previousGitRefreshKeyByProjectRef = useRef<Record<string, number>>({});
   const refreshStatusRef = useRef<() => Promise<void>>(async () => {});
   const queuedProjectIdRef = useRef<string | null>(null);
 
@@ -100,6 +104,18 @@ const ChangesPanelImpl = ({
     changes.length > 0 &&
     changes.every((change) => expandedPathSet.has(change.path));
   const expandAllTitle = allExpanded ? "Collapse all" : "Expand all";
+  const shouldDeferDiffLoads = useCallback(() => {
+    if (!projectId) {
+      return true;
+    }
+
+    const pending = diffRefreshPendingByProjectRef.current[projectId];
+    return (
+      !!pending &&
+      pending.refreshKey === gitRefreshKey &&
+      (statusLoading || !pending.sawLoading)
+    );
+  }, [gitRefreshKey, projectId, statusLoading]);
 
   useEffect(() => {
     refreshStatusRef.current = refreshStatus;
@@ -141,13 +157,22 @@ const ChangesPanelImpl = ({
       return;
     }
 
+    const previousGitRefreshKey =
+      previousGitRefreshKeyByProjectRef.current[projectId];
+    previousGitRefreshKeyByProjectRef.current[projectId] = gitRefreshKey;
+    if (
+      previousGitRefreshKey !== undefined &&
+      previousGitRefreshKey !== gitRefreshKey
+    ) {
+      diffRefreshPendingByProjectRef.current[projectId] = {
+        refreshKey: gitRefreshKey,
+        sawLoading: false,
+      };
+    }
+
     diffLoadQueueRef.current = [];
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
-    setExpandedPathsByProject((current) => ({
-      ...current,
-      [projectId]: [],
-    }));
     setDiffsByProject((current) => ({
       ...current,
       [projectId]: {},
@@ -309,10 +334,57 @@ const ChangesPanelImpl = ({
       return;
     }
 
-    for (const filePath of expandedPaths) {
-      queueDiffLoad(filePath);
+    const pending = diffRefreshPendingByProjectRef.current[projectId];
+    if (pending?.refreshKey === gitRefreshKey) {
+      if (statusLoading) {
+        pending.sawLoading = true;
+        return;
+      }
+
+      if (!pending.sawLoading) {
+        return;
+      }
+
+      delete diffRefreshPendingByProjectRef.current[projectId];
     }
-  }, [expandedPaths, projectId, queueDiffLoad]);
+
+    if (statusLoading || shouldDeferDiffLoads()) {
+      return;
+    }
+
+    for (const filePath of expandedPaths) {
+      if (changesByPath.has(filePath)) {
+        queueDiffLoad(filePath);
+      }
+    }
+  }, [
+    changesByPath,
+    expandedPaths,
+    gitRefreshKey,
+    projectId,
+    queueDiffLoad,
+    shouldDeferDiffLoads,
+    statusLoading,
+  ]);
+
+  useEffect(() => {
+    if (!projectId || statusLoading || shouldDeferDiffLoads()) {
+      return;
+    }
+
+    setExpandedPathsByProject((current) => {
+      const currentPaths = current[projectId] ?? [];
+      const nextPaths = currentPaths.filter((path) => changesByPath.has(path));
+      if (nextPaths.length === currentPaths.length) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [projectId]: nextPaths,
+      };
+    });
+  }, [changesByPath, projectId, shouldDeferDiffLoads, statusLoading]);
 
   const handleTogglePath = useCallback(
     (filePath: string) => {
@@ -334,11 +406,11 @@ const ChangesPanelImpl = ({
         };
       });
 
-      if (nextExpanded) {
+      if (nextExpanded && !shouldDeferDiffLoads()) {
         queueDiffLoad(filePath, true);
       }
     },
-    [projectId, queueDiffLoad],
+    [projectId, queueDiffLoad, shouldDeferDiffLoads],
   );
 
   const handleToggleExpandAll = useCallback(() => {
@@ -359,10 +431,12 @@ const ChangesPanelImpl = ({
       ...current,
       [projectId]: nextPaths,
     }));
-    for (const filePath of nextPaths) {
-      queueDiffLoad(filePath);
+    if (!shouldDeferDiffLoads()) {
+      for (const filePath of nextPaths) {
+        queueDiffLoad(filePath);
+      }
     }
-  }, [allExpanded, changes, projectId, queueDiffLoad]);
+  }, [allExpanded, changes, projectId, queueDiffLoad, shouldDeferDiffLoads]);
 
   const handleSetDiffViewMode = useCallback(
     (nextMode: DiffViewMode) => {
