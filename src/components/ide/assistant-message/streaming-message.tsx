@@ -1,4 +1,5 @@
 import {
+  type ComponentProps,
   startTransition,
   useCallback,
   useEffect,
@@ -35,6 +36,18 @@ const streamingTextAnimation = {
   sep: "word",
   stagger: 16,
 } as const;
+
+const INLINE_CODE_CLASS_NAME =
+  "rounded bg-muted px-1.5 py-0.5 font-mono text-sm";
+
+type InlineCodeAnimationStyle = NonNullable<ComponentProps<"code">["style"]> &
+  Record<"--sd-animation" | "--sd-duration" | "--sd-easing", string>;
+
+const inlineCodeAnimationStyle: InlineCodeAnimationStyle = {
+  "--sd-animation": "sd-fadeIn",
+  "--sd-duration": `${STREAMING_TEXT_FADE_DURATION_MS}ms`,
+  "--sd-easing": "ease-out",
+};
 
 export const getNextStreamingWordToken = (text: string) =>
   text.match(/^(\s+|\S+\s*)/)?.[0] ?? text.slice(0, 1);
@@ -258,8 +271,23 @@ export const StreamingMessageResponse = ({
   >(
     () => ({
       a: (props) => <MarkdownFileLink {...props} projectPath={projectPath} />,
+      inlineCode: ({ className, node: _node, style, ...props }) => (
+        <code
+          className={[INLINE_CODE_CLASS_NAME, className]
+            .filter(Boolean)
+            .join(" ")}
+          data-sd-animate={animateStreamedText ? true : undefined}
+          data-streamdown="inline-code"
+          style={
+            animateStreamedText
+              ? { ...inlineCodeAnimationStyle, ...style }
+              : style
+          }
+          {...props}
+        />
+      ),
     }),
-    [projectPath],
+    [animateStreamedText, projectPath],
   );
   const markdownText = useMemo(
     () => normalizeProjectFileLinksInMarkdown(visibleText, projectPath),
