@@ -281,7 +281,14 @@ export const WriteFileChip = ({
               <span className="max-w-48 truncate font-medium">
                 {displayFilename}
               </span>
-              {writeFileStateLabel ? (
+              {writeDiffStats ? (
+                <span className={CHIP_SUBTEXT_CLASSES}>
+                  {writeDiffStats.additions + writeDiffStats.deletions}{" "}
+                  {writeDiffStats.additions + writeDiffStats.deletions === 1
+                    ? "line"
+                    : "lines"}
+                </span>
+              ) : writeFileStateLabel ? (
                 <span className={CHIP_SUBTEXT_CLASSES}>
                   {writeFileStateLabel}
                 </span>
