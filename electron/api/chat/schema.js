@@ -41,6 +41,7 @@ export const chatRequestBodySchema = z.object({
     .default("medium"),
   reasoningLabel: z.string().min(1).optional(),
   chatId: z.string().min(1).optional(),
+  projectId: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
 });
 

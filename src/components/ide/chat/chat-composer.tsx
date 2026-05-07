@@ -225,6 +225,7 @@ export interface ChatComposerProps {
   codexPermissionMode: CodexPermissionMode;
   contextWindow: number;
   estimatedUsedTokens: number;
+  isActive: boolean;
   isProcessing: boolean;
   isProviderInstalled: boolean;
   modelId: string;
@@ -262,6 +263,7 @@ export const ChatComposer = ({
   codexPermissionMode,
   contextWindow,
   estimatedUsedTokens,
+  isActive,
   isProcessing,
   isProviderInstalled,
   modelId,
@@ -583,6 +585,7 @@ export const ChatComposer = ({
                 ) : null}
                 <PromptInputTextarea
                   className="min-h-0 border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
+                  disabled={!isActive}
                   onChange={handlePromptChange}
                   onClick={(event) =>
                     updateActiveReferenceToken(
@@ -616,11 +619,12 @@ export const ChatComposer = ({
                   <PromptInputSubmit
                     className="size-8 rounded-md"
                     disabled={
-                      !isProcessing &&
-                      (!isProviderInstalled ||
-                        selectedModel === "" ||
-                        (promptText.trim() === "" &&
-                          selectedReferences.length === 0))
+                      !isActive ||
+                      (!isProcessing &&
+                        (!isProviderInstalled ||
+                          selectedModel === "" ||
+                          (promptText.trim() === "" &&
+                            selectedReferences.length === 0)))
                     }
                     onStop={onStop}
                     status={status}

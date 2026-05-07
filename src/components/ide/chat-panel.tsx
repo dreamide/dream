@@ -507,6 +507,24 @@ export const ChatPanel = ({
       setLocalError(null);
       clearError();
 
+      const state = useIdeStore.getState();
+      const submittedProject = state.projects.find(
+        (item) => item.id === project.id,
+      );
+
+      if (
+        !submittedProject ||
+        !isActive ||
+        state.activeProjectId !== submittedProject.id
+      ) {
+        const message =
+          "This chat is no longer in the active project. Switch back to this project and try again.";
+        setLocalError(message);
+        throw new Error(message);
+      }
+
+      const submittedProjectPath = submittedProject.path;
+
       const activeOption =
         allModelOptions.find(
           (option) =>
@@ -563,7 +581,7 @@ export const ChatPanel = ({
         void fetch("/api/chat-title", {
           body: JSON.stringify({
             fallbackModel: activeModel,
-            projectPath: project.path,
+            projectPath: submittedProjectPath,
             promptText:
               prompt.text ||
               `Referenced project paths:\n${formatProjectReferencesForPrompt(projectReferences)}`,
@@ -596,10 +614,11 @@ export const ChatPanel = ({
       const finishStreaming = () => {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
         const nextGitRefreshKey =
-          (useIdeStore.getState().projectGitRefreshKeys[project.id] ?? 0) + 1;
+          (useIdeStore.getState().projectGitRefreshKeys[submittedProject.id] ??
+            0) + 1;
         pendingCommitMessageWarmRefreshTokensRef.current.add(nextGitRefreshKey);
-        bumpProjectGitRefreshKey(project.id);
-        bumpProjectFilesRefreshKey(project.id);
+        bumpProjectGitRefreshKey(submittedProject.id);
+        bumpProjectFilesRefreshKey(submittedProject.id);
       };
 
       try {
@@ -627,7 +646,8 @@ export const ChatPanel = ({
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
               projectReferences,
-              projectPath: project.path,
+              projectId: submittedProject.id,
+              projectPath: submittedProjectPath,
               provider: activeProvider,
               modelSpeed: selectedModelSpeed,
               ...(selectedModelSpeedLabelForMetadata
@@ -658,10 +678,10 @@ export const ChatPanel = ({
       codexPermissionMode,
       clearError,
       chatMessages,
+      isActive,
       isProcessing,
       providerModels,
       project.id,
-      project.path,
       resetPromptHistory,
       selectedProvider,
       selectedModelSpeed,
@@ -782,6 +802,7 @@ export const ChatPanel = ({
           codexPermissionMode={codexPermissionMode}
           contextWindow={contextWindow}
           estimatedUsedTokens={estimatedUsedTokens}
+          isActive={isActive}
           isProcessing={isProcessing}
           isProviderInstalled={isProviderInstalled}
           modelId={modelId}

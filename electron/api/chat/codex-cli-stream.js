@@ -272,6 +272,7 @@ export const streamCodexCliResponse = ({
           void resolveCodexCliLaunch()
             .then((launch) => {
               child = spawn(launch.command, [...launch.argsPrefix, ...args], {
+                cwd: projectPath,
                 env: process.env,
                 shell: launch.shell ?? false,
                 stdio: ["pipe", "pipe", "pipe"],

@@ -299,6 +299,10 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           return;
         }
 
+        if (!committedDragTab.moved && shouldCommit && editingTabId !== tabId) {
+          onActivate(tabId);
+        }
+
         dragTabRef.current = null;
         setDragTab(null);
         if (currentTarget.hasPointerCapture(pointerId)) {
@@ -311,7 +315,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         currentTarget.releasePointerCapture(pointerId);
       }
     },
-    [getDragAffectedTabIds, onReorder],
+    [editingTabId, getDragAffectedTabIds, onActivate, onReorder],
   );
 
   const handlePointerDown = useCallback(

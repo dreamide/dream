@@ -983,6 +983,50 @@ export function loadPersistedState() {
   return loadStateFromRelationalDatabase(database);
 }
 
+export function resolvePersistedProjectPath({ chatId, projectId } = {}) {
+  const database = getStateDatabase();
+  const normalizedChatId = typeof chatId === "string" ? chatId.trim() : "";
+  const normalizedProjectId =
+    typeof projectId === "string" ? projectId.trim() : "";
+
+  if (normalizedChatId) {
+    const row = database
+      .prepare(
+        `
+          SELECT projects.path AS path
+          FROM chats
+          INNER JOIN projects ON projects.id = chats.project_id
+          WHERE chats.id = ?
+          LIMIT 1
+        `,
+      )
+      .get(normalizedChatId);
+
+    if (typeof row?.path === "string" && row.path.trim()) {
+      return row.path;
+    }
+  }
+
+  if (normalizedProjectId) {
+    const row = database
+      .prepare(
+        `
+          SELECT path
+          FROM projects
+          WHERE id = ?
+          LIMIT 1
+        `,
+      )
+      .get(normalizedProjectId);
+
+    if (typeof row?.path === "string" && row.path.trim()) {
+      return row.path;
+    }
+  }
+
+  return null;
+}
+
 export function closePersistedStateDatabase() {
   if (!stateDatabase) {
     return;

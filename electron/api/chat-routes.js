@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { resolvePersistedProjectPath } from "../persisted-state.js";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCodexCliResponse } from "./chat/codex-cli-stream.js";
@@ -128,6 +129,7 @@ export const registerChatRoutes = (app) => {
       modelSpeedLabel,
       projectReferences,
       projectPath,
+      projectId,
       provider,
       reasoningEffort,
       reasoningLabel,
@@ -138,6 +140,11 @@ export const registerChatRoutes = (app) => {
       threadId,
     } = parsed.data;
     const resolvedChatId = chatId ?? threadId;
+    const resolvedProjectPath =
+      resolvePersistedProjectPath({
+        chatId: resolvedChatId,
+        projectId,
+      }) ?? projectPath;
     const responseMessageMetadata = {
       createdAt: new Date().toISOString(),
       model,
@@ -150,7 +157,7 @@ export const registerChatRoutes = (app) => {
     const projectReferencesPrompt =
       formatProjectReferencesForPrompt(projectReferences);
 
-    const projectPathError = await validateProjectPath(projectPath);
+    const projectPathError = await validateProjectPath(resolvedProjectPath);
     if (projectPathError) {
       return c.text(projectPathError.message, projectPathError.status);
     }
@@ -169,7 +176,7 @@ export const registerChatRoutes = (app) => {
           messages,
           model,
           projectReferencesPrompt,
-          projectPath,
+          projectPath: resolvedProjectPath,
           modelSpeed,
           reasoningEffort,
           responseMessageMetadata,
@@ -184,7 +191,7 @@ export const registerChatRoutes = (app) => {
         messages,
         model,
         projectReferencesPrompt,
-        projectPath,
+        projectPath: resolvedProjectPath,
         modelSpeed,
         reasoningEffort,
         remoteConversationId,
@@ -206,7 +213,7 @@ export const registerChatRoutes = (app) => {
       messages,
       model,
       projectReferencesPrompt,
-      projectPath,
+      projectPath: resolvedProjectPath,
       reasoningEffort,
       responseMessageMetadata,
     });
