@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
@@ -141,11 +140,10 @@ export const CommitDialog = ({
   ]);
 
   const handleAutoGenerateMessageChange = useCallback(
-    (nextChecked: boolean | "indeterminate") => {
-      const nextAutoGenerateMessage = nextChecked === true;
-      setAutoGenerateMessage(nextAutoGenerateMessage);
+    (nextChecked: boolean) => {
+      setAutoGenerateMessage(nextChecked);
       setGeneratingCommitMessage(false);
-      if (!nextAutoGenerateMessage) {
+      if (!nextChecked) {
         setCommitMessage("");
       }
     },
@@ -247,23 +245,22 @@ export const CommitDialog = ({
             <span>Include unstaged</span>
           </label>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <label className="font-medium text-sm" htmlFor="commit-message">
-                Commit message
-              </label>
-              <label
-                className="flex items-center gap-2 text-sm"
-                htmlFor="commit-auto-generate-message"
-              >
-                <Checkbox
-                  checked={autoGenerateMessage}
-                  id="commit-auto-generate-message"
-                  onCheckedChange={handleAutoGenerateMessageChange}
-                />
-                <span>Auto generate message</span>
-              </label>
-            </div>
+          <label
+            className="flex items-center gap-3 text-sm"
+            htmlFor="commit-auto-generate-message"
+          >
+            <Switch
+              checked={autoGenerateMessage}
+              id="commit-auto-generate-message"
+              onCheckedChange={handleAutoGenerateMessageChange}
+            />
+            <span>Auto generate message</span>
+          </label>
+
+          <div className="space-y-3">
+            <label className="font-medium text-sm" htmlFor="commit-message">
+              Commit message
+            </label>
             <div className="relative">
               <Textarea
                 aria-busy={generatingCommitMessage}
