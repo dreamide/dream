@@ -1,5 +1,7 @@
+import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import { FileIcon, Files } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -9,21 +11,16 @@ import {
   CodeBlockHeader,
   CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
-import {
-  FileTree,
-  FileTreeFile,
-  FileTreeFolder,
-} from "@/components/ai-elements/file-tree";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import { MaterialFileIcon, MaterialFolderIcon } from "./material-file-icon";
+import { useMaterialFileTreeIcons } from "./material-file-icon";
 
 const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
 const FILE_TREE_MIN_WIDTH_PX = 250;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
+const FILE_TREE_ITEM_HEIGHT_PX = 24;
 
 export interface FileExplorerPanelProps {
   active?: boolean;
@@ -40,11 +37,10 @@ type ProjectFileReadResponse = {
   filePath: string;
 };
 
-interface FileTreeNode {
-  name: string;
-  path: string;
-  children: Map<string, FileTreeNode>;
-  isFile: boolean;
+interface ProjectFileTreeProps {
+  files: string[];
+  selectedFilePath: string | null;
+  onSelectFile: (path: string | null) => void;
 }
 
 const IMAGE_EXTENSIONS = new Set([
@@ -92,85 +88,6 @@ const inferLanguage = (filePath: string): BundledLanguage => {
   return languages[extension] ?? "log";
 };
 
-const buildFileTree = (
-  paths: string[],
-): { root: FileTreeNode; defaultExpanded: Set<string> } => {
-  const root: FileTreeNode = {
-    children: new Map(),
-    isFile: false,
-    name: "",
-    path: "",
-  };
-
-  for (const filePath of paths) {
-    const parts = filePath.split(/[\\/]/).filter(Boolean);
-    let current = root;
-
-    for (let index = 0; index < parts.length; index++) {
-      const part = parts[index];
-      const currentPath = parts.slice(0, index + 1).join("/");
-      const isLast = index === parts.length - 1;
-
-      if (!current.children.has(part)) {
-        current.children.set(part, {
-          children: new Map(),
-          isFile: isLast,
-          name: part,
-          path: currentPath,
-        });
-      }
-
-      const nextNode = current.children.get(part);
-      if (!nextNode) {
-        continue;
-      }
-      current = nextNode;
-    }
-  }
-
-  const defaultExpanded = new Set<string>();
-  for (const child of root.children.values()) {
-    if (!child.isFile) {
-      defaultExpanded.add(child.path);
-    }
-  }
-
-  return { defaultExpanded, root };
-};
-
-const FileTreeNodeView = ({ node }: { node: FileTreeNode }) => {
-  const sortedChildren = [...node.children.values()].sort((left, right) => {
-    if (left.isFile !== right.isFile) {
-      return left.isFile ? 1 : -1;
-    }
-
-    return left.name.localeCompare(right.name);
-  });
-
-  if (node.isFile) {
-    return (
-      <FileTreeFile
-        icon={<MaterialFileIcon path={node.path} />}
-        name={node.name}
-        path={node.path}
-      />
-    );
-  }
-
-  return (
-    <FileTreeFolder
-      expandedIcon={<MaterialFolderIcon expanded name={node.name} />}
-      icon={<MaterialFolderIcon name={node.name} />}
-      name={node.name}
-      path={node.path}
-    >
-      {sortedChildren.map((child) => (
-        <FileTreeNodeView key={child.path} node={child} />
-      ))}
-    </FileTreeFolder>
-  );
-};
-
 const readResponseText = async (response: Response): Promise<string> => {
   const text = await response.text();
   return text.trim() || `Request failed (${response.status}).`;
@@ -178,6 +95,185 @@ const readResponseText = async (response: Response): Promise<string> => {
 
 const isMissingPathError = (message: string | null) =>
   Boolean(message && /ENOENT|no such file or directory/i.test(message));
+
+const getInitialExpandedFileTreePaths = (files: string[]) => {
+  const expanded = new Set<string>();
+
+  for (const filePath of files) {
+    const parts = filePath.split(/[\\/]/).filter(Boolean);
+    if (parts.length > 1) {
+      expanded.add(`${parts[0]}/`);
+    }
+  }
+
+  return [...expanded];
+};
+
+const FILE_TREE_UNSAFE_CSS = `
+  :host {
+    font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  button[data-type="item"] {
+    border-radius: 4px;
+  }
+
+  [data-file-tree-search-container] {
+    padding: 8px 10px 6px;
+  }
+
+  [data-file-tree-search-input] {
+    border-radius: 6px;
+  }
+
+  [data-file-tree-virtualized-scroll]::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  [data-file-tree-virtualized-scroll]::-webkit-scrollbar-thumb {
+    background-color: var(--trees-theme-scrollbar-thumb);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+`;
+
+const fileTreeStyle = {
+  "--trees-search-bg-override": "var(--background)",
+  "--trees-theme-focus-ring": "var(--ring)",
+  "--trees-theme-input-bg": "var(--background)",
+  "--trees-theme-input-border": "var(--border)",
+  "--trees-theme-list-active-selection-bg": "var(--accent)",
+  "--trees-theme-list-active-selection-fg": "var(--accent-foreground)",
+  "--trees-theme-list-hover-bg": "var(--accent)",
+  "--trees-theme-scrollbar-thumb": "var(--border)",
+  "--trees-theme-sidebar-bg": "var(--background)",
+  "--trees-theme-sidebar-border": "var(--border)",
+  "--trees-theme-sidebar-fg": "var(--foreground)",
+  "--truncate-marker-background-color": "var(--background)",
+  backgroundColor: "var(--background)",
+  borderColor: "transparent",
+  color: "var(--foreground)",
+  colorScheme: "light dark",
+  display: "block",
+  height: "100%",
+  width: "100%",
+} as CSSProperties;
+
+const ProjectFileTree = ({
+  files,
+  selectedFilePath,
+  onSelectFile,
+}: ProjectFileTreeProps) => {
+  const fileSetRef = useRef(new Set(files));
+  const onSelectFileRef = useRef(onSelectFile);
+  const materialFileTreeIcons = useMaterialFileTreeIcons();
+
+  useEffect(() => {
+    fileSetRef.current = new Set(files);
+  }, [files]);
+
+  useEffect(() => {
+    onSelectFileRef.current = onSelectFile;
+  }, [onSelectFile]);
+
+  const handleSelectionChange = useCallback(
+    (selectedPaths: readonly string[]) => {
+      const selectedPath = selectedPaths[0] ?? null;
+
+      if (!selectedPath || !fileSetRef.current.has(selectedPath)) {
+        onSelectFileRef.current(null);
+        return;
+      }
+
+      onSelectFileRef.current(selectedPath);
+    },
+    [],
+  );
+
+  const { model } = useFileTree({
+    density: "compact",
+    fileTreeSearchMode: "hide-non-matches",
+    flattenEmptyDirectories: true,
+    icons: materialFileTreeIcons,
+    initialExpandedPaths: getInitialExpandedFileTreePaths(files),
+    initialSelectedPaths: selectedFilePath ? [selectedFilePath] : [],
+    itemHeight: FILE_TREE_ITEM_HEIGHT_PX,
+    onSelectionChange: handleSelectionChange,
+    paths: files,
+    search: true,
+    searchBlurBehavior: "retain",
+    stickyFolders: false,
+    unsafeCSS: FILE_TREE_UNSAFE_CSS,
+  });
+
+  useEffect(() => {
+    model.setIcons(materialFileTreeIcons);
+  }, [materialFileTreeIcons, model]);
+
+  useEffect(() => {
+    model.resetPaths(files, {
+      initialExpandedPaths: getInitialExpandedFileTreePaths(files),
+    });
+  }, [files, model]);
+
+  useEffect(() => {
+    for (const path of model.getSelectedPaths()) {
+      if (path !== selectedFilePath) {
+        model.getItem(path)?.deselect();
+      }
+    }
+
+    if (!selectedFilePath || !fileSetRef.current.has(selectedFilePath)) {
+      return;
+    }
+
+    const item = model.getItem(selectedFilePath);
+    item?.select();
+    model.focusNearestPath(selectedFilePath);
+  }, [model, selectedFilePath]);
+
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const host = wrapper.querySelector("file-tree-container");
+    const scrollEl = host?.shadowRoot?.querySelector<HTMLElement>(
+      "[data-file-tree-virtualized-scroll]",
+    );
+    if (!scrollEl) return;
+
+    const SCROLL_MULTIPLIER = 1.5;
+
+    const handleWheel = (event: WheelEvent) => {
+      // Only boost standard pixel-mode wheel events (deltaMode 0)
+      if (event.deltaMode !== 0) return;
+      event.preventDefault();
+      scrollEl.scrollTop += event.deltaY * SCROLL_MULTIPLIER;
+      scrollEl.scrollLeft += event.deltaX * SCROLL_MULTIPLIER;
+    };
+
+    scrollEl.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      scrollEl.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
+  return (
+    <div ref={wrapperRef} className="h-full">
+      <PierreFileTree
+        aria-label="Project files"
+        model={model}
+        style={fileTreeStyle}
+      />
+    </div>
+  );
+};
 
 const FileExplorerPanelImpl = ({
   active = true,
@@ -405,27 +501,20 @@ const FileExplorerPanelImpl = ({
     };
   }, [active, fileContentsByProject, projectId, projectPath, selectedFilePath]);
 
-  const { defaultExpanded, root } = useMemo(() => {
-    if (files.length === 0) {
-      return { defaultExpanded: new Set<string>(), root: null };
-    }
-
-    return buildFileTree(files);
-  }, [files]);
-
-  const sortedChildren = useMemo(() => {
-    if (!root) {
-      return [];
-    }
-
-    return [...root.children.values()].sort((left, right) => {
-      if (left.isFile !== right.isFile) {
-        return left.isFile ? 1 : -1;
+  const handleSelectFile = useCallback(
+    (path: string | null) => {
+      if (!projectId) {
+        return;
       }
 
-      return left.name.localeCompare(right.name);
-    });
-  }, [root]);
+      setSelectedFileByProject((current) => ({
+        ...current,
+        [projectId]: path,
+      }));
+      setFileError(null);
+    },
+    [projectId],
+  );
 
   const handleTreeResizeStart = useCallback(() => {
     treeWidthRef.current =
@@ -502,8 +591,8 @@ const FileExplorerPanelImpl = ({
                 <Spinner className="size-4 text-muted-foreground" />
               </div>
             ) : (
-              <ScrollArea className="h-full">
-                <div className="p-3">
+              <div className="h-full">
+                <div className="h-full p-3">
                   {filesError ? (
                     isMissingProjectPath ? (
                       <div className="rounded-md border border-foreground/10 bg-background px-3 py-3">
@@ -529,30 +618,15 @@ const FileExplorerPanelImpl = ({
                     </div>
                   ) : null}
 
-                  {root ? (
-                    <FileTree
-                      className="border-0 bg-transparent p-0 text-xs shadow-none"
-                      defaultExpanded={defaultExpanded}
-                      onSelect={(path) => {
-                        if (!files.includes(path)) {
-                          return;
-                        }
-
-                        setSelectedFileByProject((current) => ({
-                          ...current,
-                          [activeProject.id]: path,
-                        }));
-                        setFileError(null);
-                      }}
-                      selectedPath={selectedFilePath ?? undefined}
-                    >
-                      {sortedChildren.map((child) => (
-                        <FileTreeNodeView key={child.path} node={child} />
-                      ))}
-                    </FileTree>
+                  {!filesError && files.length > 0 ? (
+                    <ProjectFileTree
+                      files={files}
+                      onSelectFile={handleSelectFile}
+                      selectedFilePath={selectedFilePath}
+                    />
                   ) : null}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
         </div>

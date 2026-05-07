@@ -20,6 +20,9 @@ importers:
       '@pierre/diffs':
         specifier: ^1.1.19
         version: 1.1.19(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@pierre/trees':
+        specifier: 1.0.0-beta.3
+        version: 1.0.0-beta.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@streamdown/cjk':
         specifier: ^1.0.3
         version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.2)(micromark@4.0.2)(react@19.2.5)(unified@11.0.5)
@@ -1253,6 +1256,12 @@ packages:
   '@pierre/theme@0.0.28':
     resolution: {integrity: sha512-1j/H/fECBuc9dEvntdWI+l435HZapw+RCJTlqCA6BboQ5TjlnE005j/ROWutXIs8aq5OAc82JI2Kwk4A1WWBgw==}
     engines: {vscode: ^1.0.0}
+
+  '@pierre/trees@1.0.0-beta.3':
+    resolution: {integrity: sha512-gfV7V1AoceIwTSFwiiWl/89gNtJROyo2dFeYYuAkT4F3AbE+ajCIGZEICBw1ygmVxVetF9Kq1Xpjz8BhXXZwTQ==}
+    peerDependencies:
+      react: ^18.3.1 || ^19.0.0
+      react-dom: ^18.3.1 || ^19.0.0
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -4269,6 +4278,14 @@ packages:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
 
+  preact-render-to-string@6.6.5:
+    resolution: {integrity: sha512-O6MHzYNIKYaiSX3bOw0gGZfEbOmlIDtDfWwN1JJdc/T3ihzRT6tGGSEWE088dWrEDGa1u7101q+6fzQnO9XCPA==}
+    peerDependencies:
+      preact: '>=10 || >= 11.0.0-0'
+
+  preact@11.0.0-beta.0:
+    resolution: {integrity: sha512-IcODoASASYwJ9kxz7+MJeiJhvLriwSb4y4mHIyxdgaRZp6kPUud7xytrk/6GZw8U3y6EFJaRb5wi9SrEK+8+lg==}
+
   pretty-ms@9.3.0:
     resolution: {integrity: sha512-gjVS5hOP+M3wMm5nmNOucbIrqudzs9v/57bWRHQWLYklXqoXKrVfYW2W9+glfGsqtPgpiz5WwyEEB+ksXIx3gQ==}
     engines: {node: '>=18'}
@@ -6166,6 +6183,13 @@ snapshots:
       shiki: 3.23.0
 
   '@pierre/theme@0.0.28': {}
+
+  '@pierre/trees@1.0.0-beta.3(react-dom@19.2.5(react@19.2.5))(react@19.2.5)':
+    dependencies:
+      preact: 11.0.0-beta.0
+      preact-render-to-string: 6.6.5(preact@11.0.0-beta.0)
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -9536,6 +9560,12 @@ snapshots:
     optional: true
 
   powershell-utils@0.1.0: {}
+
+  preact-render-to-string@6.6.5(preact@11.0.0-beta.0):
+    dependencies:
+      preact: 11.0.0-beta.0
+
+  preact@11.0.0-beta.0: {}
 
   pretty-ms@9.3.0:
     dependencies:
