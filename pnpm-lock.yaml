@@ -8,6 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@ai-sdk/gateway':
+        specifier: ^3.0.104
+        version: 3.0.104(zod@4.3.6)
+      '@ai-sdk/provider':
+        specifier: 3.0.8
+        version: 3.0.8
+      '@ai-sdk/provider-utils':
+        specifier: 4.0.23
+        version: 4.0.23(zod@4.3.6)
       '@ai-sdk/react':
         specifier: ^3.0.170
         version: 3.0.170(react@19.2.5)(zod@4.3.6)
@@ -17,6 +26,9 @@ importers:
       '@hono/node-server':
         specifier: ^2.0.0
         version: 2.0.0(hono@4.12.15)
+      '@opentelemetry/api':
+        specifier: 1.9.0
+        version: 1.9.0
       '@pierre/diffs':
         specifier: ^1.1.19
         version: 1.1.19(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -35,6 +47,9 @@ importers:
       '@streamdown/mermaid':
         specifier: ^1.0.2
         version: 1.0.2(react@19.2.5)
+      '@vercel/oidc':
+        specifier: 3.2.0
+        version: 3.2.0
       '@xterm/addon-fit':
         specifier: ^0.11.0
         version: 0.11.0

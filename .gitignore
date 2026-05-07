@@ -19,6 +19,7 @@
 # production
 /build
 /release
+/.electron-home
 
 # misc
 .DS_Store
