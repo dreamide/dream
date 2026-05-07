@@ -225,6 +225,7 @@ async function createMainWindow() {
       process.platform === "darwin" || !existsSync(appIconPath)
         ? undefined
         : appIconPath,
+    show: false,
     title: APP_NAME,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     ...(process.platform !== "darwin" && { frame: false }),
@@ -238,6 +239,10 @@ async function createMainWindow() {
       spellcheck: false,
     },
     width: 1920,
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
