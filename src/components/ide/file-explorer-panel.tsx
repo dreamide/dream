@@ -1,5 +1,5 @@
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
-import { FileIcon, Files } from "lucide-react";
+import { FileIcon, Files, RotateCw } from "lucide-react";
 import type { CSSProperties } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
@@ -301,7 +301,7 @@ const ProjectFileTree = ({
     );
     if (!scrollEl) return;
 
-    const SCROLL_MULTIPLIER = 1.5;
+    const SCROLL_MULTIPLIER = 3;
 
     const handleWheel = (event: WheelEvent) => {
       // Only boost standard pixel-mode wheel events (deltaMode 0)
@@ -441,6 +441,13 @@ const FileExplorerPanelImpl = ({
       projectPath,
     });
   }, [projectPath]);
+
+  const handleRefreshFiles = useCallback(() => {
+    if (!projectId) {
+      return;
+    }
+    useIdeStore.getState().bumpProjectFilesRefreshKey(projectId);
+  }, [projectId]);
 
   useEffect(() => {
     void projectFilesRefreshKey;
@@ -612,7 +619,7 @@ const FileExplorerPanelImpl = ({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Files className="size-4 shrink-0 text-muted-foreground" />
           <div className="truncate text-sm font-medium">Files</div>
@@ -624,6 +631,15 @@ const FileExplorerPanelImpl = ({
           type="button"
         >
           {activeProject.path}
+        </button>
+        <button
+          aria-label="Refresh files"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={handleRefreshFiles}
+          title="Refresh files"
+          type="button"
+        >
+          <RotateCw className="size-3.5" />
         </button>
       </div>
 

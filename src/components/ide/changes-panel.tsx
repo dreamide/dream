@@ -3,6 +3,7 @@ import {
   Columns2,
   ListChevronsUpDown,
   ListCollapse,
+  RotateCw,
   Rows3,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -377,6 +378,13 @@ const ChangesPanelImpl = ({
     [projectId],
   );
 
+  const handleRefreshChanges = useCallback(() => {
+    if (!projectId) {
+      return;
+    }
+    useIdeStore.getState().bumpProjectGitRefreshKey(projectId);
+  }, [projectId]);
+
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
@@ -444,6 +452,16 @@ const ChangesPanelImpl = ({
             <ListChevronsUpDown className="size-3.5" />
           )}
         </Button>
+
+        <button
+          aria-label="Refresh changes"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={handleRefreshChanges}
+          title="Refresh changes"
+          type="button"
+        >
+          <RotateCw className="size-3.5" />
+        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
