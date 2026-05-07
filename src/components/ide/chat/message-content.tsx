@@ -6,6 +6,7 @@ import {
   AttachmentPreview,
   AttachmentRemove,
   Attachments,
+  getMediaCategory,
 } from "@/components/ai-elements/attachments";
 import { MessageResponse } from "@/components/ai-elements/message";
 import { usePromptInputAttachments } from "@/components/ai-elements/prompt-input";
@@ -32,17 +33,51 @@ export const PromptAttachments = () => {
 
   return (
     <Attachments className="w-full px-3 pt-3" variant="inline">
-      {attachments.files.map((file) => (
-        <Attachment
-          data={file}
-          key={file.id}
-          onRemove={() => attachments.remove(file.id)}
-        >
-          <AttachmentPreview />
-          <AttachmentInfo />
-          <AttachmentRemove />
-        </Attachment>
-      ))}
+      {attachments.files.map((file) => {
+        const isImage =
+          file.type === "file" &&
+          getMediaCategory(file) === "image" &&
+          file.url;
+
+        const attachment = (
+          <Attachment
+            data={file}
+            key={file.id}
+            onRemove={() => attachments.remove(file.id)}
+          >
+            <AttachmentPreview />
+            <AttachmentInfo />
+            <AttachmentRemove />
+          </Attachment>
+        );
+
+        if (!isImage) {
+          return attachment;
+        }
+
+        return (
+          <Dialog key={file.id}>
+            <DialogTrigger
+              render={<div className="cursor-pointer" />}
+            >
+              {attachment}
+            </DialogTrigger>
+            <DialogContent
+              className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]"
+              showCloseButton={false}
+            >
+              <DialogTitle className="sr-only">
+                {file.filename || "Image"}
+              </DialogTitle>
+              <img
+                alt={file.filename || "Image"}
+                className="mx-auto max-h-[85vh] w-auto rounded object-contain"
+                src={file.url}
+              />
+            </DialogContent>
+          </Dialog>
+        );
+      })}
     </Attachments>
   );
 };
