@@ -49,8 +49,14 @@ const THEME_PREFERENCES_PATH = path.join(
   APP_USER_DATA_PATH,
   "theme-preferences.json",
 );
-const DARK_WINDOW_BACKGROUND = "#09090b";
 const LIGHT_WINDOW_BACKGROUND = "#ffffff";
+const DARK_WINDOW_BACKGROUNDS = {
+  neutral: "#0a0a0a",
+  slate: "#020617",
+  gray: "#030712",
+  zinc: "#09090b",
+  stone: "#0c0a09",
+};
 
 app.setName(APP_NAME);
 app.setPath("userData", APP_USER_DATA_PATH);
@@ -66,30 +72,37 @@ function normalizeThemePreference(value) {
 function loadThemePreference() {
   try {
     if (!existsSync(THEME_PREFERENCES_PATH)) {
-      return "dark";
+      return { theme: "dark", baseColor: "zinc" };
     }
 
     const parsed = JSON.parse(readFileSync(THEME_PREFERENCES_PATH, "utf8"));
-    return normalizeThemePreference(parsed?.theme);
+    return {
+      theme: normalizeThemePreference(parsed?.theme),
+      baseColor: parsed?.baseColor ?? "zinc",
+    };
   } catch {
-    return "dark";
+    return { theme: "dark", baseColor: "zinc" };
   }
 }
 
-function saveThemePreference(theme) {
+function saveThemePreference(theme, baseColor) {
   try {
+    const existing = loadThemePreference();
+    const data = {
+      theme: normalizeThemePreference(theme ?? existing.theme),
+      baseColor: baseColor ?? existing.baseColor,
+    };
     mkdirSync(APP_USER_DATA_PATH, { recursive: true });
-    writeFileSync(
-      THEME_PREFERENCES_PATH,
-      JSON.stringify({ theme: normalizeThemePreference(theme) }),
-    );
+    writeFileSync(THEME_PREFERENCES_PATH, JSON.stringify(data));
   } catch (error) {
     console.error("Failed to save theme preference:", error);
   }
 }
 
-function getResolvedThemePreference(theme = loadThemePreference()) {
-  const normalizedTheme = normalizeThemePreference(theme);
+function getResolvedThemePreference(theme) {
+  const normalizedTheme = normalizeThemePreference(
+    theme ?? loadThemePreference().theme,
+  );
   if (normalizedTheme === "system") {
     return nativeTheme.shouldUseDarkColors ? "dark" : "light";
   }
@@ -97,18 +110,22 @@ function getResolvedThemePreference(theme = loadThemePreference()) {
   return normalizedTheme;
 }
 
-function getWindowBackground(theme = loadThemePreference()) {
-  return getResolvedThemePreference(theme) === "dark"
-    ? DARK_WINDOW_BACKGROUND
-    : LIGHT_WINDOW_BACKGROUND;
+function getWindowBackground(theme, baseColor) {
+  const prefs = loadThemePreference();
+  const resolvedTheme = getResolvedThemePreference(theme ?? prefs.theme);
+  if (resolvedTheme === "light") {
+    return LIGHT_WINDOW_BACKGROUND;
+  }
+  const color = baseColor ?? prefs.baseColor ?? "zinc";
+  return DARK_WINDOW_BACKGROUNDS[color] ?? DARK_WINDOW_BACKGROUNDS.zinc;
 }
 
-function applyWindowThemeBackground(theme = loadThemePreference()) {
+function applyWindowThemeBackground(theme, baseColor) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
   }
 
-  mainWindow.setBackgroundColor(getWindowBackground(theme));
+  mainWindow.setBackgroundColor(getWindowBackground(theme, baseColor));
 }
 
 function sendToRenderer(channel, payload) {
@@ -288,6 +305,12 @@ ipcMain.handle("theme:set", (_event, { theme } = {}) => {
   const normalizedTheme = normalizeThemePreference(theme);
   saveThemePreference(normalizedTheme);
   applyWindowThemeBackground(normalizedTheme);
+  return true;
+});
+
+ipcMain.handle("theme:set-base-color", (_event, { baseColor } = {}) => {
+  saveThemePreference(null, baseColor);
+  applyWindowThemeBackground(null, baseColor);
   return true;
 });
 

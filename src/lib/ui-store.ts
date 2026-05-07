@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { BaseColor } from "@/types/ide";
+import { getDesktopApi } from "@/lib/electron";
 
 const UI_STORAGE_KEY = "dream-ui-preferences";
 const DEFAULT_BASE_COLOR: BaseColor = "zinc";
@@ -36,6 +37,7 @@ export const useUiStore = create<UiState>((set, _get) => ({
     } catch {
       // ignore
     }
+    void getDesktopApi()?.setBaseColor(color);
   },
 
   hydrateUi: () => {
