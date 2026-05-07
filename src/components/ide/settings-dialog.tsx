@@ -223,7 +223,6 @@ export const SettingsDialog = () => {
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
       <DialogContent
         className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]"
-        showCloseButton={false}
       >
         <DialogHeader className="px-6 py-3.5 text-left">
           <DialogTitle className="text-base leading-6">Settings</DialogTitle>

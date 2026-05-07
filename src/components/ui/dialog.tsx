@@ -3,7 +3,6 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { XIcon } from "lucide-react"
 import { useRegisterModalVisibility } from "@/lib/modal-visibility"
 
 type DialogOpenChangeHandler = NonNullable<DialogPrimitive.Root.Props["onOpenChange"]>
@@ -74,11 +73,8 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
-  showCloseButton = true,
   ...props
-}: DialogPrimitive.Popup.Props & {
-  showCloseButton?: boolean
-}) {
+}: DialogPrimitive.Popup.Props) {
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -91,22 +87,6 @@ function DialogContent({
         {...props}
       >
         {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-4 right-4"
-                size="icon-sm"
-              />
-            }
-          >
-            <XIcon
-            />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
       </DialogPrimitive.Popup>
     </DialogPortal>
   )

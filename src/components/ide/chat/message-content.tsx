@@ -64,7 +64,6 @@ export const PromptAttachments = () => {
             </DialogTrigger>
             <DialogContent
               className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]"
-              showCloseButton={false}
             >
               <DialogTitle className="sr-only">
                 {file.filename || "Image"}
