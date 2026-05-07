@@ -258,8 +258,13 @@ async function createMainWindow() {
     browserSessionManager.hideForRendererNavigation();
   });
 
+  let resizeFrame = null;
   mainWindow.on("resize", () => {
-    browserSessionManager.applyState();
+    if (resizeFrame !== null) return;
+    resizeFrame = setTimeout(() => {
+      resizeFrame = null;
+      browserSessionManager.applyState();
+    }, 0);
   });
 
   mainWindow.on("closed", () => {

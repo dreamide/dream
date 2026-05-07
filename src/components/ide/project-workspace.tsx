@@ -441,7 +441,14 @@ const ProjectWorkspaceComponent = ({
   );
 
   useEffect(() => {
-    const update = () => syncHorizontalPanelWidths();
+    let rafId: number | null = null;
+    const update = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        syncHorizontalPanelWidths();
+      });
+    };
     const observer = new ResizeObserver(update);
     const host = horizontalPanelsRef.current;
     if (host) {
@@ -449,10 +456,11 @@ const ProjectWorkspaceComponent = ({
     }
 
     window.addEventListener("resize", update);
-    const frame = window.requestAnimationFrame(update);
+    const frame = window.requestAnimationFrame(() => syncHorizontalPanelWidths());
 
     return () => {
       window.cancelAnimationFrame(frame);
+      if (rafId !== null) cancelAnimationFrame(rafId);
       observer.disconnect();
       window.removeEventListener("resize", update);
     };

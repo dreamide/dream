@@ -179,7 +179,14 @@ export const useWorkspaceBrowserSync = ({
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
 
-    const update = () => syncBrowserBounds();
+    let rafId: number | null = null;
+    const update = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        syncBrowserBounds();
+      });
+    };
     const observer = new ResizeObserver(update);
     const host = browserHostRef.current;
     if (host) {
@@ -187,10 +194,11 @@ export const useWorkspaceBrowserSync = ({
     }
 
     window.addEventListener("resize", update);
-    const frame = window.requestAnimationFrame(update);
+    const frame = window.requestAnimationFrame(() => syncBrowserBounds());
 
     return () => {
       window.cancelAnimationFrame(frame);
+      if (rafId !== null) cancelAnimationFrame(rafId);
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
