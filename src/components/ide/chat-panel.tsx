@@ -93,12 +93,16 @@ export const ChatPanel = ({
   const isDraftChat = useIdeStore(
     (s) => s.draftChatIdByProject[project.id] === chat.id,
   );
+  const isTitleGenerating = useIdeStore(
+    (s) => !!s.titleGeneratingChatIds[chat.id],
+  );
   const providerModels = useIdeStore((s) => s.providerModels);
   const claudePermissionMode = useIdeStore((s) => s.claudePermissionMode);
   const setClaudePermissionMode = useIdeStore((s) => s.setClaudePermissionMode);
   const codexPermissionMode = useIdeStore((s) => s.codexPermissionMode);
   const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
   const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
+  const setChatTitleGenerating = useIdeStore((s) => s.setChatTitleGenerating);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
   const bumpProjectGitRefreshKey = useIdeStore(
@@ -578,6 +582,7 @@ export const ChatPanel = ({
       setPromptText("");
       useIdeStore.getState().setChatStreaming(submittedChatId, true);
       if (shouldGenerateTitle) {
+        setChatTitleGenerating(submittedChatId, true);
         void fetch("/api/chat-title", {
           body: JSON.stringify({
             fallbackModel: activeModel,
@@ -609,6 +614,11 @@ export const ChatPanel = ({
           })
           .catch(() => {
             // Keep the default title when background title generation fails.
+          })
+          .finally(() => {
+            useIdeStore
+              .getState()
+              .setChatTitleGenerating(submittedChatId, false);
           });
       }
       const finishStreaming = () => {
@@ -689,6 +699,7 @@ export const ChatPanel = ({
       selectedReasoningEffort,
       selectedReasoningLabel,
       sendMessage,
+      setChatTitleGenerating,
       scrollConversationToBottom,
       chat,
       updateChat,
@@ -733,6 +744,7 @@ export const ChatPanel = ({
           <ChatPanelHeader
             canShowChatMenu={canShowChatMenu}
             chatMenuOpen={chatMenuOpen}
+            isTitleGenerating={isTitleGenerating}
             onChatMenuOpenChange={setChatMenuOpen}
             onDeleteChat={() => deleteChat(chat.id)}
             onEditChat={handleEditChat}

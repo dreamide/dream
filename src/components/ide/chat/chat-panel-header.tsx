@@ -7,10 +7,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Spinner } from "@/components/ui/spinner";
 
 export interface ChatPanelHeaderProps {
   canShowChatMenu: boolean;
   chatMenuOpen: boolean;
+  isTitleGenerating?: boolean;
   onChatMenuOpenChange: (open: boolean) => void;
   onDeleteChat: () => void;
   onEditChat: () => void;
@@ -20,6 +22,7 @@ export interface ChatPanelHeaderProps {
 export const ChatPanelHeader = ({
   canShowChatMenu,
   chatMenuOpen,
+  isTitleGenerating = false,
   onChatMenuOpenChange,
   onDeleteChat,
   onEditChat,
@@ -28,7 +31,10 @@ export const ChatPanelHeader = ({
   <div className="shrink-0 px-2 pt-2">
     <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 pb-2">
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-sm">{title}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          {isTitleGenerating ? <Spinner className="size-3 shrink-0" /> : null}
+          <p className="truncate font-medium text-sm">{title}</p>
+        </div>
       </div>
 
       {canShowChatMenu ? (

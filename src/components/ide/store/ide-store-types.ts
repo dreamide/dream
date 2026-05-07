@@ -30,6 +30,7 @@ export interface IdeState {
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
+  titleGeneratingChatIds: Record<string, boolean>;
   draftChatIdByProject: Record<string, string | null>;
   terminalOutput: Record<string, string>;
   terminalStatus: Record<string, "running" | "stopped">;
@@ -138,6 +139,7 @@ export interface IdeState {
   setTerminalShell: (projectId: string, shell: string) => void;
   setTerminalSessionName: (sessionId: string, name: string) => void;
   setChatStreaming: (chatId: string, streaming: boolean) => void;
+  setChatTitleGenerating: (chatId: string, generating: boolean) => void;
   bumpProjectGitRefreshKey: (projectId: string) => void;
   bumpProjectFilesRefreshKey: (projectId: string) => void;
   setBrowserError: (error: string | null) => void;

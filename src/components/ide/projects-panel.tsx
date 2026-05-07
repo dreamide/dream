@@ -79,6 +79,7 @@ export const ProjectSidebar = ({
   const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
+  const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
 
@@ -184,6 +185,7 @@ export const ProjectSidebar = ({
               {filteredChats.map((chat) => {
                 const isActiveChat = chat.id === activeChatId;
                 const isStreaming = !!streamingChatIds[chat.id];
+                const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
 
                 return (
@@ -208,7 +210,7 @@ export const ProjectSidebar = ({
                       type="button"
                     >
                       <div className="flex min-w-0 items-center gap-2 pr-14">
-                        {isStreaming ? (
+                        {isStreaming || isTitleGenerating ? (
                           <div className="flex shrink-0 items-center gap-1.5">
                             <Spinner className="size-3 shrink-0" />
                           </div>

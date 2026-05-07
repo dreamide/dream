@@ -12,6 +12,7 @@ export const createRuntimeActions = (
   | "setTerminalShell"
   | "setTerminalSessionName"
   | "setChatStreaming"
+  | "setChatTitleGenerating"
   | "bumpProjectGitRefreshKey"
   | "bumpProjectFilesRefreshKey"
   | "setIsMacOs"
@@ -88,6 +89,17 @@ export const createRuntimeActions = (
         delete next[chatId];
       }
       return { streamingChatIds: next };
+    }),
+
+  setChatTitleGenerating: (chatId, generating) =>
+    set((state) => {
+      const next = { ...state.titleGeneratingChatIds };
+      if (generating) {
+        next[chatId] = true;
+      } else {
+        delete next[chatId];
+      }
+      return { titleGeneratingChatIds: next };
     }),
 
   bumpProjectGitRefreshKey: (projectId) => {
