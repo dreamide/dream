@@ -111,21 +111,67 @@ const getInitialExpandedFileTreePaths = (files: string[]) => {
 
 const FILE_TREE_UNSAFE_CSS = `
   :host {
-    font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 12px;
     line-height: 18px;
   }
 
-  button[data-type="item"] {
+  [data-type="item"] {
+    border: 0;
     border-radius: 4px;
+    box-shadow: none;
+    font-family: var(--trees-font-family);
+    outline: none;
+  }
+
+  [data-type="item"]::before,
+  [data-type="item"][data-item-focused="true"]::before,
+  [data-type="item"][data-item-selected="true"]::before,
+  [data-type="item"]:focus-visible::before {
+    content: none;
+    display: none;
+    border: 0;
+    box-shadow: none;
+    outline: none;
   }
 
   [data-file-tree-search-container] {
-    padding: 8px 10px 6px;
+    padding: 12px 24px 8px;
   }
 
   [data-file-tree-search-input] {
+    appearance: none;
+    box-sizing: border-box;
+    width: 100%;
+    height: 36px;
+    min-width: 0;
+    margin: 0;
+    border: 1px solid var(--input);
     border-radius: 6px;
+    background-color: transparent;
+    background-clip: padding-box;
+    padding: 4px 10px;
+    color: var(--foreground);
+    font-family: var(--trees-font-family);
+    font-size: 12px;
+    line-height: 18px;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    transition-property: color, box-shadow;
+    outline: none;
+  }
+
+  :host-context(.dark) [data-file-tree-search-input] {
+    background-color: color-mix(in oklab, var(--input) 30%, transparent);
+  }
+
+  [data-file-tree-search-input]::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  [data-file-tree-search-input]:focus-visible,
+  [data-file-tree-search-input][data-file-tree-search-input-fake-focus="true"] {
+    border-color: var(--input);
+    outline: none;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   }
 
   [data-file-tree-virtualized-scroll]::-webkit-scrollbar {
@@ -142,7 +188,14 @@ const FILE_TREE_UNSAFE_CSS = `
 `;
 
 const fileTreeStyle = {
+  "--trees-font-family-override":
+    'var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+  "--trees-focus-ring-offset-override": "0px",
+  "--trees-focus-ring-width-override": "0px",
+  "--trees-padding-inline-override": "24px",
   "--trees-search-bg-override": "var(--background)",
+  "--trees-selected-focused-border-color-override": "transparent",
+  "--trees-scrollbar-gutter-override": "10px",
   "--trees-theme-focus-ring": "var(--ring)",
   "--trees-theme-input-bg": "var(--background)",
   "--trees-theme-input-border": "var(--border)",
@@ -592,9 +645,9 @@ const FileExplorerPanelImpl = ({
               </div>
             ) : (
               <div className="h-full">
-                <div className="h-full p-3">
-                  {filesError ? (
-                    isMissingProjectPath ? (
+                {filesError ? (
+                  <div className="p-3">
+                    {isMissingProjectPath ? (
                       <div className="rounded-md border border-foreground/10 bg-background px-3 py-3">
                         <div className="font-medium text-foreground text-sm">
                           Project folder not found.
@@ -609,23 +662,25 @@ const FileExplorerPanelImpl = ({
                       <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
                         {filesError}
                       </div>
-                    )
-                  ) : null}
+                    )}
+                  </div>
+                ) : null}
 
-                  {!filesError && !filesLoading && files.length === 0 ? (
+                {!filesError && !filesLoading && files.length === 0 ? (
+                  <div className="p-3">
                     <div className="text-muted-foreground text-sm">
                       No project files found.
                     </div>
-                  ) : null}
+                  </div>
+                ) : null}
 
-                  {!filesError && files.length > 0 ? (
-                    <ProjectFileTree
-                      files={files}
-                      onSelectFile={handleSelectFile}
-                      selectedFilePath={selectedFilePath}
-                    />
-                  ) : null}
-                </div>
+                {!filesError && files.length > 0 ? (
+                  <ProjectFileTree
+                    files={files}
+                    onSelectFile={handleSelectFile}
+                    selectedFilePath={selectedFilePath}
+                  />
+                ) : null}
               </div>
             )}
           </div>
