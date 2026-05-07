@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { Spinner } from "@/components/ui/spinner";
+import dreamSvg from "@/assets/dream.svg";
+import Sparkles from "@/components/ui/sparkles";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
@@ -360,8 +361,29 @@ export const IdeShell = () => {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-muted/50 text-foreground">
       {!appReady && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-          <Spinner className="size-6 text-muted-foreground" />
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background">
+          <div className="relative">
+            <img
+              alt=""
+              className="relative z-10 size-16 opacity-85"
+              draggable={false}
+              src={dreamSvg}
+            />
+            {/* Invisible anchor centered on the logo; sparkles rise from here */}
+            <div className="absolute left-0 right-0 top-1/2 z-0">
+              <Sparkles
+                density={50}
+                groundGlow={false}
+                height={120}
+                palette="mono"
+                position="top"
+                sizeMul={0.8}
+                speed={0.6}
+              >
+                <div className="h-0 w-full" />
+              </Sparkles>
+            </div>
+          </div>
         </div>
       )}
       <IdeHeader />
