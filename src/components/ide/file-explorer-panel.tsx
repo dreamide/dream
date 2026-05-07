@@ -497,64 +497,63 @@ const FileExplorerPanelImpl = ({
           }}
         >
           <div className="h-full border-r border-foreground/10 bg-background">
-            <ScrollArea className="h-full">
-              <div className="p-3">
-                {filesError ? (
-                  isMissingProjectPath ? (
-                    <div className="rounded-md border border-foreground/10 bg-background px-3 py-3">
-                      <div className="font-medium text-foreground text-sm">
-                        Project folder not found.
-                      </div>
-                      {projectPath ? (
-                        <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                          {projectPath}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
-                      {filesError}
-                    </div>
-                  )
-                ) : null}
-
-                {!filesError && filesLoading && files.length === 0 ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                    <Spinner className="size-4" />
-                    <span>Loading project files…</span>
-                  </div>
-                ) : null}
-
-                {!filesError && !filesLoading && files.length === 0 ? (
-                  <div className="text-muted-foreground text-sm">
-                    No project files found.
-                  </div>
-                ) : null}
-
-                {root ? (
-                  <FileTree
-                    className="border-0 bg-transparent p-0 text-xs shadow-none"
-                    defaultExpanded={defaultExpanded}
-                    onSelect={(path) => {
-                      if (!files.includes(path)) {
-                        return;
-                      }
-
-                      setSelectedFileByProject((current) => ({
-                        ...current,
-                        [activeProject.id]: path,
-                      }));
-                      setFileError(null);
-                    }}
-                    selectedPath={selectedFilePath ?? undefined}
-                  >
-                    {sortedChildren.map((child) => (
-                      <FileTreeNodeView key={child.path} node={child} />
-                    ))}
-                  </FileTree>
-                ) : null}
+            {!filesError && filesLoading && files.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <Spinner className="size-4 text-muted-foreground" />
               </div>
-            </ScrollArea>
+            ) : (
+              <ScrollArea className="h-full">
+                <div className="p-3">
+                  {filesError ? (
+                    isMissingProjectPath ? (
+                      <div className="rounded-md border border-foreground/10 bg-background px-3 py-3">
+                        <div className="font-medium text-foreground text-sm">
+                          Project folder not found.
+                        </div>
+                        {projectPath ? (
+                          <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                            {projectPath}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
+                        {filesError}
+                      </div>
+                    )
+                  ) : null}
+
+                  {!filesError && !filesLoading && files.length === 0 ? (
+                    <div className="text-muted-foreground text-sm">
+                      No project files found.
+                    </div>
+                  ) : null}
+
+                  {root ? (
+                    <FileTree
+                      className="border-0 bg-transparent p-0 text-xs shadow-none"
+                      defaultExpanded={defaultExpanded}
+                      onSelect={(path) => {
+                        if (!files.includes(path)) {
+                          return;
+                        }
+
+                        setSelectedFileByProject((current) => ({
+                          ...current,
+                          [activeProject.id]: path,
+                        }));
+                        setFileError(null);
+                      }}
+                      selectedPath={selectedFilePath ?? undefined}
+                    >
+                      {sortedChildren.map((child) => (
+                        <FileTreeNodeView key={child.path} node={child} />
+                      ))}
+                    </FileTree>
+                  ) : null}
+                </div>
+              </ScrollArea>
+            )}
           </div>
         </div>
 
