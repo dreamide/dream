@@ -54,7 +54,7 @@ export const WorkspaceHistoryPanel = ({
       style={{ minWidth: CHAT_HISTORY_PANEL_MIN_WIDTH_PX }}
     >
       <div className="min-w-0 flex-1 py-2">
-        {active && historyOpen ? (
+        {active ? (
           <ProjectSidebar
             className="h-full"
             onChatSelect={onChatSelect}

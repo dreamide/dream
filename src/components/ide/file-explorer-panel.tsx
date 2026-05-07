@@ -625,7 +625,7 @@ const FileExplorerPanelImpl = ({
           <div className="truncate text-sm font-medium">Files</div>
         </div>
         <button
-          className="min-w-0 truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="min-w-0 max-w-full justify-self-center truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           onClick={handleOpenProjectPath}
           title="Open project folder"
           type="button"
