@@ -10,6 +10,12 @@ import {
 import { MessageResponse } from "@/components/ai-elements/message";
 import { usePromptInputAttachments } from "@/components/ai-elements/prompt-input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import type { ProjectReference } from "@/types/ide";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
 import {
@@ -41,6 +47,43 @@ export const PromptAttachments = () => {
   );
 };
 
+const ImageAttachmentPreview = ({
+  label,
+  url,
+}: {
+  label: string;
+  url: string;
+}) => {
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <button
+            className="max-w-48 cursor-pointer overflow-hidden rounded-lg border border-border transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            type="button"
+          />
+        }
+      >
+        <img
+          alt={label}
+          className="block max-h-48 w-auto rounded-lg object-contain"
+          src={url}
+        />
+      </DialogTrigger>
+      <DialogContent
+        className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]"
+      >
+        <DialogTitle className="sr-only">{label}</DialogTitle>
+        <img
+          alt={label}
+          className="mx-auto max-h-[85vh] w-auto rounded object-contain"
+          src={url}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export const UserMessageContent = ({
   message,
   projectPath,
@@ -59,12 +102,19 @@ export const UserMessageContent = ({
       (typeof part.mediaType === "string" && part.mediaType.trim()) ||
       "attachment";
 
+    const url = typeof part.url === "string" ? part.url : undefined;
+    const mediaType =
+      typeof part.mediaType === "string" ? part.mediaType : undefined;
+    const isImage = mediaType?.startsWith("image/") ?? false;
+
     return [
       {
         key:
-          (typeof part.url === "string" && part.url) ||
+          url ||
           `${label}-${typeof part.mediaType === "string" ? part.mediaType : "file"}`,
         label,
+        url,
+        isImage,
       },
     ];
   });
@@ -106,18 +156,26 @@ export const UserMessageContent = ({
       ) : null}
       {attachments.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-2">
-          {attachments.map(({ key, label }) => (
-            <Badge
-              className="max-w-full gap-1.5 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground"
-              key={key}
-              variant="secondary"
-            >
-              <PaperclipIcon className="size-3 shrink-0" />
-              <span className="truncate font-mono text-xs">
-                Attached file: {label}
-              </span>
-            </Badge>
-          ))}
+          {attachments.map(({ key, label, url, isImage }) =>
+            isImage && url ? (
+              <ImageAttachmentPreview
+                key={key}
+                label={label}
+                url={url}
+              />
+            ) : (
+              <Badge
+                className="max-w-full gap-1.5 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground"
+                key={key}
+                variant="secondary"
+              >
+                <PaperclipIcon className="size-3 shrink-0" />
+                <span className="truncate font-mono text-xs">
+                  Attached file: {label}
+                </span>
+              </Badge>
+            ),
+          )}
         </div>
       ) : null}
       {text ? (
