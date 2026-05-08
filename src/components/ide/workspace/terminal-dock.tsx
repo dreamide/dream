@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { memo, type RefObject } from "react";
 import { PanelResizeHandle } from "../ide-helpers";
 import { ProjectTerminalTabsPanel } from "../terminal-panel";
 import {
@@ -22,7 +22,7 @@ export interface WorkspaceTerminalDockProps {
   terminalPanelWrapperRef: RefObject<HTMLDivElement | null>;
 }
 
-export const WorkspaceTerminalDock = ({
+const WorkspaceTerminalDockImpl = ({
   active,
   hasProjectTerminalSessions,
   onOpenTerminal,
@@ -79,3 +79,6 @@ export const WorkspaceTerminalDock = ({
     </div>
   </div>
 );
+
+export const WorkspaceTerminalDock = memo(WorkspaceTerminalDockImpl);
+WorkspaceTerminalDock.displayName = "WorkspaceTerminalDock";

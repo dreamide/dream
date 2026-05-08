@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { ChatPanel } from "../chat-panel";
 import { CHAT_PANEL_MIN_HEIGHT_PX } from "./constants";
@@ -9,7 +10,7 @@ export interface WorkspaceChatStackProps {
   project: ProjectConfig;
 }
 
-export const WorkspaceChatStack = ({
+const WorkspaceChatStackImpl = ({
   active,
   activeChatId,
   mountedChats,
@@ -41,3 +42,6 @@ export const WorkspaceChatStack = ({
       : null}
   </div>
 );
+
+export const WorkspaceChatStack = memo(WorkspaceChatStackImpl);
+WorkspaceChatStack.displayName = "WorkspaceChatStack";

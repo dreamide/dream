@@ -1,5 +1,5 @@
 import { History, MessageSquarePlus } from "lucide-react";
-import type { RefObject } from "react";
+import { memo, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ export interface WorkspaceSideNavProps {
   onToggleHistory: () => void;
 }
 
-export const WorkspaceSideNav = ({
+const WorkspaceSideNavImpl = ({
   historyButtonRef,
   historyOpen,
   onAddChat,
@@ -47,3 +47,6 @@ export const WorkspaceSideNav = ({
     </div>
   </aside>
 );
+
+export const WorkspaceSideNav = memo(WorkspaceSideNavImpl);
+WorkspaceSideNav.displayName = "WorkspaceSideNav";

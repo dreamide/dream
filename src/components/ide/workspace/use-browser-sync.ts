@@ -55,13 +55,37 @@ export const useWorkspaceBrowserSync = ({
   const lastSentBrowserUrlRef = useRef<string | null>(null);
   const lastSentBrowserTabIdRef = useRef<string | null>(null);
   const browserResizeHiddenRef = useRef(false);
+  const browserSyncStateRef = useRef({
+    active,
+    activeBrowserTab,
+    projectId,
+    rightPanelView,
+    rightVisible,
+  });
+
+  useEffect(() => {
+    browserSyncStateRef.current = {
+      active,
+      activeBrowserTab,
+      projectId,
+      rightPanelView,
+      rightVisible,
+    };
+  }, [active, activeBrowserTab, projectId, rightPanelView, rightVisible]);
 
   const syncBrowserBounds = useCallback(
     (reload = false) => {
+      const {
+        active: latestActive,
+        activeBrowserTab: latestActiveBrowserTab,
+        projectId: latestProjectId,
+        rightPanelView: latestRightPanelView,
+        rightVisible: latestRightVisible,
+      } = browserSyncStateRef.current;
       const desktopApi = getDesktopApi();
       if (!desktopApi) return;
 
-      if (!active) {
+      if (!latestActive) {
         return;
       }
 
@@ -70,16 +94,16 @@ export const useWorkspaceBrowserSync = ({
       }
 
       if (
-        !activeBrowserTab?.url ||
-        !rightVisible ||
-        rightPanelView !== "browser" ||
+        !latestActiveBrowserTab?.url ||
+        !latestRightVisible ||
+        latestRightPanelView !== "browser" ||
         isModalBrowserHidden()
       ) {
         lastSentBrowserUrlRef.current = null;
         lastSentBrowserTabIdRef.current = null;
         desktopApi.updateBrowser({
-          projectId,
-          tabId: activeBrowserTab?.id,
+          projectId: latestProjectId,
+          tabId: latestActiveBrowserTab?.id,
           visible: false,
         });
         return;
@@ -91,8 +115,8 @@ export const useWorkspaceBrowserSync = ({
       const rect = host.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) {
         desktopApi.updateBrowser({
-          projectId,
-          tabId: activeBrowserTab.id,
+          projectId: latestProjectId,
+          tabId: latestActiveBrowserTab.id,
           visible: false,
         });
         return;
@@ -105,32 +129,26 @@ export const useWorkspaceBrowserSync = ({
         y: rect.y,
       };
 
-      const urlChanged = activeBrowserTab.url !== lastSentBrowserUrlRef.current;
+      const urlChanged =
+        latestActiveBrowserTab.url !== lastSentBrowserUrlRef.current;
       const tabChanged =
-        activeBrowserTab.id !== lastSentBrowserTabIdRef.current;
+        latestActiveBrowserTab.id !== lastSentBrowserTabIdRef.current;
       const sendUrl = reload || urlChanged || tabChanged;
       if (sendUrl) {
-        lastSentBrowserUrlRef.current = activeBrowserTab.url;
-        lastSentBrowserTabIdRef.current = activeBrowserTab.id;
+        lastSentBrowserUrlRef.current = latestActiveBrowserTab.url;
+        lastSentBrowserTabIdRef.current = latestActiveBrowserTab.id;
       }
 
       desktopApi.updateBrowser({
         bounds,
-        projectId,
-        tabId: activeBrowserTab.id,
+        projectId: latestProjectId,
+        tabId: latestActiveBrowserTab.id,
         ...(reload ? { reload: true } : {}),
-        ...(sendUrl ? { url: activeBrowserTab.url } : {}),
+        ...(sendUrl ? { url: latestActiveBrowserTab.url } : {}),
         visible: true,
       });
     },
-    [
-      active,
-      activeBrowserTab,
-      browserHostRef,
-      projectId,
-      rightPanelView,
-      rightVisible,
-    ],
+    [browserHostRef],
   );
 
   const hideBrowserForRightResize = useCallback(() => {
@@ -208,11 +226,15 @@ export const useWorkspaceBrowserSync = ({
     void activeBrowserTab?.id;
     void activeBrowserTab?.url;
     void modalBrowserHidden;
+    void rightPanelView;
+    void rightVisible;
     syncBrowserBounds();
   }, [
     activeBrowserTab?.id,
     activeBrowserTab?.url,
     modalBrowserHidden,
+    rightPanelView,
+    rightVisible,
     syncBrowserBounds,
   ]);
 

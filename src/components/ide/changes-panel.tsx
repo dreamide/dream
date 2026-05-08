@@ -17,7 +17,6 @@ import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 
 export interface ChangesPanelProps {
-  active?: boolean;
   projectId?: string | null;
 }
 

@@ -72,7 +72,7 @@ const ProjectWorkspaceComponent = ({
   const setProjectRightPanelOpen = useIdeStore(
     (s) => s.setProjectRightPanelOpen,
   );
-  const rightPanelView = projectUi.rightPanelView;
+  const persistedRightPanelView = projectUi.rightPanelView;
   const setProjectRightPanelView = useIdeStore(
     (s) => s.setProjectRightPanelView,
   );
@@ -85,6 +85,9 @@ const ProjectWorkspaceComponent = ({
       projectPanelSizes.chatHistoryPanelWidth ??
         CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
     ),
+  );
+  const [rightPanelView, setRightPanelView] = useState<RightPanelView>(
+    () => persistedRightPanelView,
   );
 
   // ── Derived values ──────────────────────────────────────────────────
@@ -153,6 +156,9 @@ const ProjectWorkspaceComponent = ({
   const terminalPanelWrapperRef = useRef<HTMLDivElement | null>(null);
   const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
+  const rightPanelViewPersistTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   if (!isDraggingRef.current) {
     rightWidthRef.current = projectPanelSizes.rightPanelWidth;
@@ -313,9 +319,27 @@ const ProjectWorkspaceComponent = ({
     void openProjectTerminal(projectId);
   }, [openProjectTerminal, projectId]);
 
+  const handleToggleHistory = useCallback(() => {
+    setProjectChatHistoryPanelOpen(projectId, !historyOpen);
+  }, [historyOpen, projectId, setProjectChatHistoryPanelOpen]);
+
   const handleToggleRightPanel = useCallback(() => {
     setProjectRightPanelOpen(projectId, !rightVisible);
   }, [projectId, rightVisible, setProjectRightPanelOpen]);
+
+  const schedulePersistRightPanelView = useCallback(
+    (view: RightPanelView) => {
+      if (rightPanelViewPersistTimerRef.current !== null) {
+        clearTimeout(rightPanelViewPersistTimerRef.current);
+      }
+
+      rightPanelViewPersistTimerRef.current = setTimeout(() => {
+        rightPanelViewPersistTimerRef.current = null;
+        setProjectRightPanelView(projectId, view);
+      }, 250);
+    },
+    [projectId, setProjectRightPanelView],
+  );
 
   const handleSelectRightPanelView = useCallback(
     (view: RightPanelView) => {
@@ -324,7 +348,9 @@ const ProjectWorkspaceComponent = ({
         return;
       }
 
-      setProjectRightPanelView(projectId, view);
+      setRightPanelView(view);
+      schedulePersistRightPanelView(view);
+
       if (!rightVisible) {
         setProjectRightPanelOpen(projectId, true);
       }
@@ -333,8 +359,8 @@ const ProjectWorkspaceComponent = ({
       projectId,
       rightPanelView,
       rightVisible,
+      schedulePersistRightPanelView,
       setProjectRightPanelOpen,
-      setProjectRightPanelView,
     ],
   );
 
@@ -406,6 +432,19 @@ const ProjectWorkspaceComponent = ({
     terminalPanelTransitionEnabledRef.current = true;
   });
 
+  useEffect(() => {
+    setRightPanelView(persistedRightPanelView);
+  }, [persistedRightPanelView]);
+
+  useEffect(
+    () => () => {
+      if (rightPanelViewPersistTimerRef.current !== null) {
+        clearTimeout(rightPanelViewPersistTimerRef.current);
+      }
+    },
+    [],
+  );
+
   const handleRightResizeEndWithBrowserSync = useCallback(
     (width: number) => {
       handleRightResizeEnd(width);
@@ -456,9 +495,7 @@ const ProjectWorkspaceComponent = ({
         historyButtonRef={historyButtonRef}
         historyOpen={historyOpen}
         onAddChat={handleAddChat}
-        onToggleHistory={() =>
-          setProjectChatHistoryPanelOpen(projectId, !historyOpen)
-        }
+        onToggleHistory={handleToggleHistory}
       />
 
       <WorkspaceHistoryPanel

@@ -1,4 +1,4 @@
-import type { MutableRefObject, RefObject } from "react";
+import { type MutableRefObject, memo, type RefObject } from "react";
 import type { ProjectConfig, RightPanelView } from "@/types/ide";
 import { BrowserPanel } from "../browser-panel";
 import { BROWSER_PANEL_MIN_WIDTH_PX } from "./constants";
@@ -23,7 +23,7 @@ export interface WorkspaceRightPanelProps {
   widthRef: MutableRefObject<number>;
 }
 
-export const WorkspaceRightPanel = ({
+const WorkspaceRightPanelImpl = ({
   active,
   browserHostRef,
   browserResizeHidden,
@@ -68,3 +68,6 @@ export const WorkspaceRightPanel = ({
     />
   </WorkspaceSlidingPanel>
 );
+
+export const WorkspaceRightPanel = memo(WorkspaceRightPanelImpl);
+WorkspaceRightPanel.displayName = "WorkspaceRightPanel";

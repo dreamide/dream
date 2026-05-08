@@ -1,4 +1,5 @@
 import { Code, Files, Globe, TerminalSquare } from "lucide-react";
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { RightPanelView } from "@/types/ide";
@@ -16,7 +17,7 @@ export interface WorkspaceRightRailProps {
   terminalHiddenWithActiveSession: boolean;
 }
 
-export const WorkspaceRightRail = ({
+const WorkspaceRightRailImpl = ({
   hasProjectTerminalSessions,
   onOpenTerminal,
   onSelectRightPanelView,
@@ -68,3 +69,6 @@ export const WorkspaceRightRail = ({
     <GitActionsMenu projectId={projectId} projectPath={projectPath} />
   </aside>
 );
+
+export const WorkspaceRightRail = memo(WorkspaceRightRailImpl);
+WorkspaceRightRail.displayName = "WorkspaceRightRail";

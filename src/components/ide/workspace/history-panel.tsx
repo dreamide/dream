@@ -1,4 +1,4 @@
-import { type RefObject, useRef } from "react";
+import { memo, type RefObject, useRef } from "react";
 import type { ProjectConfig } from "@/types/ide";
 import { ProjectSidebar } from "../projects-panel";
 import {
@@ -19,7 +19,7 @@ export interface WorkspaceHistoryPanelProps {
   project: ProjectConfig;
 }
 
-export const WorkspaceHistoryPanel = ({
+const WorkspaceHistoryPanelImpl = ({
   active,
   historyOpen,
   historyPanelRef,
@@ -58,3 +58,6 @@ export const WorkspaceHistoryPanel = ({
     </WorkspaceSlidingPanel>
   );
 };
+
+export const WorkspaceHistoryPanel = memo(WorkspaceHistoryPanelImpl);
+WorkspaceHistoryPanel.displayName = "WorkspaceHistoryPanel";

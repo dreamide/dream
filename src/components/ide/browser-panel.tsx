@@ -512,7 +512,6 @@ const RightPanelViewSlot = ({
   <div
     aria-hidden={!active}
     className="absolute inset-0 min-h-0 overflow-hidden"
-    inert={!active}
     style={{
       pointerEvents: active ? "auto" : "none",
       visibility: active ? "visible" : "hidden",
@@ -525,6 +524,15 @@ const RightPanelViewSlot = ({
 export const BrowserPanel = (props: BrowserPanelProps) => {
   const baseColor = useUiStore((state) => state.baseColor);
   const rightPanelView = props.rightPanelView;
+  const onSyncBrowserBoundsRef = useRef(props.onSyncBrowserBounds);
+
+  useEffect(() => {
+    onSyncBrowserBoundsRef.current = props.onSyncBrowserBounds;
+  }, [props.onSyncBrowserBounds]);
+
+  const handleSyncBrowserBounds = useCallback((reload?: boolean) => {
+    onSyncBrowserBoundsRef.current(reload);
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col pt-2">
@@ -538,18 +546,22 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
         <div className="relative min-h-0 flex-1">
           <RightPanelViewSlot active={rightPanelView === "explorer"}>
             <FileExplorerPanel
-              active={props.active && rightPanelView === "explorer"}
+              active={props.active}
               projectId={props.project.id}
             />
           </RightPanelViewSlot>
           <RightPanelViewSlot active={rightPanelView === "changes"}>
-            <ChangesPanel
-              active={props.active && rightPanelView === "changes"}
-              projectId={props.project.id}
-            />
+            <ChangesPanel projectId={props.project.id} />
           </RightPanelViewSlot>
           <RightPanelViewSlot active={rightPanelView === "browser"}>
-            <MemoizedBrowserViewport {...props} />
+            <MemoizedBrowserViewport
+              active={props.active}
+              browserHostRef={props.browserHostRef}
+              browserResizeHidden={props.browserResizeHidden}
+              onSyncBrowserBounds={handleSyncBrowserBounds}
+              project={props.project}
+              rightPanelView="browser"
+            />
           </RightPanelViewSlot>
         </div>
       </div>
