@@ -325,7 +325,9 @@ const ProjectWorkspaceComponent = ({
       }
 
       setProjectRightPanelView(projectId, view);
-      setProjectRightPanelOpen(projectId, true);
+      if (!rightVisible) {
+        setProjectRightPanelOpen(projectId, true);
+      }
     },
     [
       projectId,

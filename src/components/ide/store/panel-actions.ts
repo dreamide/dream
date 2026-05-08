@@ -107,75 +107,85 @@ export const createPanelActions = (
   },
 
   setProjectRightPanelOpen: (projectId, open) => {
-    let shouldPersist = false;
-
     set((state) => {
+      const shouldUpdateProjects = state.projects.some(
+        (project) =>
+          project.id === projectId && project.ui.rightPanelOpen !== open,
+      );
+      const shouldUpdateClosedProjects = state.closedProjects.some(
+        (project) =>
+          project.id === projectId && project.ui.rightPanelOpen !== open,
+      );
+
+      if (!shouldUpdateProjects && !shouldUpdateClosedProjects) {
+        return state;
+      }
+
       const projectUpdater = (project: ProjectConfig) => ({
         ...project.ui,
         rightPanelOpen: open,
       });
       const nextState: Partial<IdeState> = {};
 
-      if (state.projects.some((project) => project.id === projectId)) {
+      if (shouldUpdateProjects) {
         nextState.projects = updateProjectUiInList(
           state.projects,
           projectId,
           projectUpdater,
         );
-        shouldPersist = true;
       }
 
-      if (state.closedProjects.some((project) => project.id === projectId)) {
+      if (shouldUpdateClosedProjects) {
         nextState.closedProjects = updateProjectUiInList(
           state.closedProjects,
           projectId,
           projectUpdater,
         );
-        shouldPersist = true;
       }
 
-      return shouldPersist ? nextState : state;
+      return Object.keys(nextState).length > 0 ? nextState : state;
     });
-
-    if (shouldPersist) {
-      get().persist();
-    }
   },
 
   setProjectRightPanelView: (projectId, view) => {
-    let shouldPersist = false;
-
     set((state) => {
+      const shouldUpdateProjects = state.projects.some(
+        (project) =>
+          project.id === projectId && project.ui.rightPanelView !== view,
+      );
+      const shouldUpdateClosedProjects = state.closedProjects.some(
+        (project) =>
+          project.id === projectId && project.ui.rightPanelView !== view,
+      );
+
+      if (!shouldUpdateProjects && !shouldUpdateClosedProjects) {
+        return state;
+      }
+
       const projectUpdater = (project: ProjectConfig) => ({
         ...project.ui,
         rightPanelView: view,
       });
       const nextState: Partial<IdeState> = {};
 
-      if (state.projects.some((project) => project.id === projectId)) {
+      if (shouldUpdateProjects) {
         nextState.projects = updateProjectUiInList(
           state.projects,
           projectId,
           projectUpdater,
         );
-        shouldPersist = true;
       }
 
-      if (state.closedProjects.some((project) => project.id === projectId)) {
+      if (shouldUpdateClosedProjects) {
         nextState.closedProjects = updateProjectUiInList(
           state.closedProjects,
           projectId,
           projectUpdater,
         );
-        shouldPersist = true;
       }
 
-      return shouldPersist ? nextState : state;
+      return Object.keys(nextState).length > 0 ? nextState : state;
     });
-
-    if (shouldPersist) {
-      get().persist();
-    }
   },
 
   openProjectFile: (projectId, filePath) => {
