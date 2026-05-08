@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import {
   memo,
-  type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
@@ -20,18 +19,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
-import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
-import { ChangesPanel } from "./changes-panel";
-import { FileExplorerPanel } from "./file-explorer-panel";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import type { RightPanelView } from "./ide-types";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
-const RIGHT_PANEL_SURFACE_CLASSES =
-  "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
 const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 
 export interface BrowserPanelProps {
@@ -40,7 +33,6 @@ export interface BrowserPanelProps {
   browserResizeHidden?: boolean;
   onSyncBrowserBounds: (reload?: boolean) => void;
   project: ProjectConfig;
-  rightPanelView: RightPanelView;
 }
 
 const normalizeBrowserUrlInput = (value: string) => {
@@ -64,7 +56,7 @@ const getBrowserTabTitle = (url: string) => {
   }
 };
 
-const BrowserViewport = ({
+const BrowserPanelImpl = ({
   active = true,
   onSyncBrowserBounds,
   browserResizeHidden = false,
@@ -499,72 +491,5 @@ const BrowserViewport = ({
   );
 };
 
-const MemoizedBrowserViewport = memo(BrowserViewport);
-MemoizedBrowserViewport.displayName = "BrowserViewport";
-
-const RightPanelViewSlot = ({
-  active,
-  children,
-}: {
-  active: boolean;
-  children: ReactNode;
-}) => (
-  <div
-    aria-hidden={!active}
-    className="absolute inset-0 min-h-0 overflow-hidden"
-    style={{
-      pointerEvents: active ? "auto" : "none",
-      visibility: active ? "visible" : "hidden",
-    }}
-  >
-    {children}
-  </div>
-);
-
-export const BrowserPanel = (props: BrowserPanelProps) => {
-  const baseColor = useUiStore((state) => state.baseColor);
-  const rightPanelView = props.rightPanelView;
-  const onSyncBrowserBoundsRef = useRef(props.onSyncBrowserBounds);
-
-  useEffect(() => {
-    onSyncBrowserBoundsRef.current = props.onSyncBrowserBounds;
-  }, [props.onSyncBrowserBounds]);
-
-  const handleSyncBrowserBounds = useCallback((reload?: boolean) => {
-    onSyncBrowserBoundsRef.current(reload);
-  }, []);
-
-  return (
-    <div className="flex h-full min-h-0 flex-col pt-2">
-      <div
-        className={cn(
-          RIGHT_PANEL_SURFACE_CLASSES,
-          "flex min-h-0 flex-1 flex-col",
-        )}
-        data-base-color={baseColor === "neutral" ? undefined : baseColor}
-      >
-        <div className="relative min-h-0 flex-1">
-          <RightPanelViewSlot active={rightPanelView === "explorer"}>
-            <FileExplorerPanel
-              active={props.active}
-              projectId={props.project.id}
-            />
-          </RightPanelViewSlot>
-          <RightPanelViewSlot active={rightPanelView === "changes"}>
-            <ChangesPanel projectId={props.project.id} />
-          </RightPanelViewSlot>
-          <RightPanelViewSlot active={rightPanelView === "browser"}>
-            <MemoizedBrowserViewport
-              active={props.active}
-              browserHostRef={props.browserHostRef}
-              browserResizeHidden={props.browserResizeHidden}
-              onSyncBrowserBounds={handleSyncBrowserBounds}
-              project={props.project}
-              rightPanelView="browser"
-            />
-          </RightPanelViewSlot>
-        </div>
-      </div>
-    </div>
-  );
-};
+export const BrowserPanel = memo(BrowserPanelImpl);
+BrowserPanel.displayName = "BrowserPanel";

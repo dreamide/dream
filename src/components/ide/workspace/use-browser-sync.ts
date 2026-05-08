@@ -63,7 +63,7 @@ export const useWorkspaceBrowserSync = ({
   const lastSentBrowserUrlRef = useRef<string | null>(null);
   const lastSentBrowserTabIdRef = useRef<string | null>(null);
   const browserResizeHiddenRef = useRef(false);
-  const previousBrowserPanelStateRef = useRef({ rightPanelView, rightVisible });
+  const previousRightPanelStateRef = useRef({ rightPanelView, rightVisible });
   const browserSyncStateRef = useRef({
     active,
     activeBrowserTab,
@@ -234,9 +234,9 @@ export const useWorkspaceBrowserSync = ({
   useLayoutEffect(() => {
     const activeBrowserTabId = activeBrowserTab?.id;
     const activeBrowserUrl = activeBrowserTab?.url;
-    const previousPanelState = previousBrowserPanelStateRef.current;
+    const previousPanelState = previousRightPanelStateRef.current;
     const openingRightPanel = !previousPanelState.rightVisible && rightVisible;
-    previousBrowserPanelStateRef.current = { rightPanelView, rightVisible };
+    previousRightPanelStateRef.current = { rightPanelView, rightVisible };
 
     const shouldShowBrowser =
       active &&
