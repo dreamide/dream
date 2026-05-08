@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import {
   memo,
+  type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
@@ -501,6 +502,26 @@ const BrowserViewport = ({
 const MemoizedBrowserViewport = memo(BrowserViewport);
 MemoizedBrowserViewport.displayName = "BrowserViewport";
 
+const RightPanelViewSlot = ({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}) => (
+  <div
+    aria-hidden={!active}
+    className="absolute inset-0 min-h-0 overflow-hidden"
+    inert={!active}
+    style={{
+      pointerEvents: active ? "auto" : "none",
+      visibility: active ? "visible" : "hidden",
+    }}
+  >
+    {children}
+  </div>
+);
+
 export const BrowserPanel = (props: BrowserPanelProps) => {
   const baseColor = useUiStore((state) => state.baseColor);
   const rightPanelView = props.rightPanelView;
@@ -514,35 +535,22 @@ export const BrowserPanel = (props: BrowserPanelProps) => {
         )}
         data-base-color={baseColor === "neutral" ? undefined : baseColor}
       >
-        <div
-          className={cn(
-            "min-h-0 flex-1",
-            rightPanelView === "explorer" ? "" : "hidden",
-          )}
-        >
-          <FileExplorerPanel
-            active={props.active && rightPanelView === "explorer"}
-            projectId={props.project.id}
-          />
-        </div>
-        <div
-          className={cn(
-            "min-h-0 flex-1",
-            rightPanelView === "changes" ? "" : "hidden",
-          )}
-        >
-          <ChangesPanel
-            active={props.active && rightPanelView === "changes"}
-            projectId={props.project.id}
-          />
-        </div>
-        <div
-          className={cn(
-            "min-h-0 flex-1",
-            rightPanelView === "browser" ? "" : "hidden",
-          )}
-        >
-          <MemoizedBrowserViewport {...props} />
+        <div className="relative min-h-0 flex-1">
+          <RightPanelViewSlot active={rightPanelView === "explorer"}>
+            <FileExplorerPanel
+              active={props.active && rightPanelView === "explorer"}
+              projectId={props.project.id}
+            />
+          </RightPanelViewSlot>
+          <RightPanelViewSlot active={rightPanelView === "changes"}>
+            <ChangesPanel
+              active={props.active && rightPanelView === "changes"}
+              projectId={props.project.id}
+            />
+          </RightPanelViewSlot>
+          <RightPanelViewSlot active={rightPanelView === "browser"}>
+            <MemoizedBrowserViewport {...props} />
+          </RightPanelViewSlot>
         </div>
       </div>
     </div>

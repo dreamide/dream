@@ -341,6 +341,10 @@ const FileExplorerPanelImpl = ({
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const treePaneRef = useRef<HTMLDivElement | null>(null);
   const treeWidthRef = useRef<number | null>(null);
+  const loadedFileListKeysRef = useRef(new Set<string>());
+  const previousProjectFilesRefreshKeyByProjectRef = useRef<
+    Record<string, number>
+  >({});
 
   const [fileListsByProject, setFileListsByProject] = useState<
     Record<string, string[]>
@@ -459,15 +463,34 @@ const FileExplorerPanelImpl = ({
       return;
     }
 
-    setFileContentsByProject((current) => {
-      if (!current[projectId]) {
-        return current;
-      }
+    const previousRefreshKey =
+      previousProjectFilesRefreshKeyByProjectRef.current[projectId];
+    const refreshChanged =
+      previousRefreshKey !== undefined &&
+      previousRefreshKey !== projectFilesRefreshKey;
+    const fileListKey = `${projectId}:${projectPath}`;
 
-      const next = { ...current };
-      delete next[projectId];
-      return next;
-    });
+    previousProjectFilesRefreshKeyByProjectRef.current[projectId] =
+      projectFilesRefreshKey;
+
+    if (loadedFileListKeysRef.current.has(fileListKey) && !refreshChanged) {
+      return;
+    }
+
+    loadedFileListKeysRef.current.add(fileListKey);
+
+    if (refreshChanged) {
+      setFileContentsByProject((current) => {
+        if (!current[projectId]) {
+          return current;
+        }
+
+        const next = { ...current };
+        delete next[projectId];
+        return next;
+      });
+    }
+
     void loadProjectFiles();
   }, [
     active,

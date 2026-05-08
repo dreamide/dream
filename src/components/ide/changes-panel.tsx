@@ -33,7 +33,6 @@ const getExpandedPaths = (
 };
 
 const ChangesPanelImpl = ({
-  active = true,
   projectId: requestedProjectId,
 }: ChangesPanelProps) => {
   const activeProject = useIdeStore((s) =>
@@ -49,7 +48,6 @@ const ChangesPanelImpl = ({
     Record<string, { refreshKey: number; sawLoading: boolean }>
   >({});
   const previousGitRefreshKeyByProjectRef = useRef<Record<string, number>>({});
-  const refreshStatusRef = useRef<() => Promise<void>>(async () => {});
   const queuedProjectIdRef = useRef<string | null>(null);
 
   const [expandedPathsByProject, setExpandedPathsByProject] = useState<
@@ -78,7 +76,6 @@ const ChangesPanelImpl = ({
     error: statusError,
     isRepo,
     loading: statusLoading,
-    refresh: refreshStatus,
   } = useProjectGitStatus(projectPath, gitRefreshKey);
 
   const expandedPaths = getExpandedPaths(expandedPathsByProject, projectId);
@@ -118,38 +115,11 @@ const ChangesPanelImpl = ({
   }, [gitRefreshKey, projectId, statusLoading]);
 
   useEffect(() => {
-    refreshStatusRef.current = refreshStatus;
-  }, [refreshStatus]);
-
-  useEffect(() => {
     queuedProjectIdRef.current = projectId;
     diffLoadQueueRef.current = [];
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
   }, [projectId]);
-
-  useEffect(() => {
-    if (!active || !projectId) {
-      return;
-    }
-
-    diffLoadQueueRef.current = [];
-    diffLoadQueuedPathsRef.current.clear();
-    diffLoadProcessingRef.current = false;
-    setDiffsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffErrorsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffLoadingByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    void refreshStatusRef.current();
-  }, [active, projectId]);
 
   useEffect(() => {
     void gitRefreshKey;
