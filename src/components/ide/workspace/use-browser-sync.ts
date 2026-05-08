@@ -1,5 +1,12 @@
 import type { RefObject } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { getDesktopApi } from "@/lib/electron";
 import {
   isModalBrowserHidden,
@@ -11,6 +18,7 @@ import type {
   RightPanelView,
 } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
+import { PANEL_TRANSITION_MS } from "./constants";
 
 export const useActiveBrowserTab = (
   browserTabs: BrowserTabState[],
@@ -55,6 +63,7 @@ export const useWorkspaceBrowserSync = ({
   const lastSentBrowserUrlRef = useRef<string | null>(null);
   const lastSentBrowserTabIdRef = useRef<string | null>(null);
   const browserResizeHiddenRef = useRef(false);
+  const previousBrowserPanelStateRef = useRef({ rightPanelView, rightVisible });
   const browserSyncStateRef = useRef({
     active,
     activeBrowserTab,
@@ -63,7 +72,7 @@ export const useWorkspaceBrowserSync = ({
     rightVisible,
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     browserSyncStateRef.current = {
       active,
       activeBrowserTab,
@@ -222,17 +231,88 @@ export const useWorkspaceBrowserSync = ({
     };
   }, [active, browserHostRef, syncBrowserBounds]);
 
-  useEffect(() => {
-    void activeBrowserTab?.id;
-    void activeBrowserTab?.url;
-    void modalBrowserHidden;
-    void rightPanelView;
-    void rightVisible;
-    syncBrowserBounds();
+  useLayoutEffect(() => {
+    const activeBrowserTabId = activeBrowserTab?.id;
+    const activeBrowserUrl = activeBrowserTab?.url;
+    const previousPanelState = previousBrowserPanelStateRef.current;
+    const openingRightPanel = !previousPanelState.rightVisible && rightVisible;
+    previousBrowserPanelStateRef.current = { rightPanelView, rightVisible };
+
+    const shouldShowBrowser =
+      active &&
+      Boolean(activeBrowserTabId) &&
+      Boolean(activeBrowserUrl) &&
+      rightVisible &&
+      rightPanelView === "browser" &&
+      !modalBrowserHidden;
+
+    if (!shouldShowBrowser) {
+      browserResizeHiddenRef.current = false;
+      setBrowserResizeHidden(false);
+      lastSentBrowserUrlRef.current = null;
+      lastSentBrowserTabIdRef.current = null;
+      getDesktopApi()?.updateBrowser({
+        projectId,
+        tabId: activeBrowserTabId,
+        visible: false,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    let secondFrameId: number | null = null;
+    let transitionSettleTimer: number | null = null;
+    const showBrowserAtCurrentBounds = () => {
+      if (!cancelled) {
+        browserResizeHiddenRef.current = false;
+        syncBrowserBounds();
+        setBrowserResizeHidden(false);
+      }
+    };
+
+    if (openingRightPanel) {
+      getDesktopApi()?.updateBrowser({
+        projectId,
+        tabId: activeBrowserTabId,
+        visible: false,
+      });
+      browserResizeHiddenRef.current = true;
+      setBrowserResizeHidden(true);
+      transitionSettleTimer = window.setTimeout(
+        showBrowserAtCurrentBounds,
+        PANEL_TRANSITION_MS + 50,
+      );
+
+      return () => {
+        cancelled = true;
+        if (transitionSettleTimer !== null) {
+          window.clearTimeout(transitionSettleTimer);
+        }
+      };
+    }
+
+    const firstFrameId = window.requestAnimationFrame(() => {
+      secondFrameId = window.requestAnimationFrame(() => {
+        showBrowserAtCurrentBounds();
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(firstFrameId);
+      if (secondFrameId !== null) {
+        window.cancelAnimationFrame(secondFrameId);
+      }
+      if (transitionSettleTimer !== null) {
+        window.clearTimeout(transitionSettleTimer);
+      }
+    };
   }, [
+    active,
     activeBrowserTab?.id,
     activeBrowserTab?.url,
     modalBrowserHidden,
+    projectId,
     rightPanelView,
     rightVisible,
     syncBrowserBounds,
