@@ -7,7 +7,6 @@ import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
   BROWSER_PANEL_MIN_WIDTH_PX,
   CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
-  CHAT_HISTORY_PANEL_MAX_WIDTH_PX,
   CHAT_PANEL_MIN_HEIGHT_PX,
   CHAT_PANEL_MIN_WIDTH_PX,
   clampChatHistoryPanelWidth,
@@ -15,8 +14,7 @@ import {
   EMPTY_TERMINAL_SESSION_IDS,
   PANEL_EDGE_PADDING_PX,
   PANEL_RESIZE_HANDLE_SIZE_PX,
-  PANEL_TRANSITION,
-  RIGHT_PANEL_TRANSITION,
+  SLIDING_PANEL_TRANSITION,
   TERMINAL_PANEL_DEFAULT_HEIGHT_PX,
   TERMINAL_PANEL_MIN_HEIGHT_PX,
   TERMINAL_PANEL_TRANSITION,
@@ -106,7 +104,7 @@ const ProjectWorkspaceComponent = ({
   const rightPanelTransitionEnabledRef = useRef(false);
   const terminalPanelTransitionEnabledRef = useRef(false);
   const rightPanelTransition = rightPanelTransitionEnabledRef.current
-    ? RIGHT_PANEL_TRANSITION
+    ? SLIDING_PANEL_TRANSITION
     : "none";
   const terminalPanelTransition = terminalPanelTransitionEnabledRef.current
     ? TERMINAL_PANEL_TRANSITION
@@ -132,7 +130,6 @@ const ProjectWorkspaceComponent = ({
   }, [historyOpen, projectId, setProjectChatHistoryPanelOpen]);
 
   useEffect(() => {
-    historyPanelWidthRef.current = savedHistoryPanelWidth;
     setHistoryPanelWidth(savedHistoryPanelWidth);
   }, [savedHistoryPanelWidth]);
 
@@ -146,7 +143,6 @@ const ProjectWorkspaceComponent = ({
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const browserHostRef = useRef<HTMLDivElement | null>(null);
-  const historyPanelWidthRef = useRef(historyPanelWidth);
   const rightWidthRef = useRef(BROWSER_PANEL_DEFAULT_WIDTH_PX);
   const terminalHeightRef = useRef(TERMINAL_PANEL_DEFAULT_HEIGHT_PX);
   const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
@@ -260,12 +256,12 @@ const ProjectWorkspaceComponent = ({
       rightPanel.style.maxWidth = `${maxRightWidth}px`;
 
       const nextSlotWidth = nextRightWidth + PANEL_RESIZE_HANDLE_SIZE_PX;
-      const rightPanelTrack = rightPanel.closest("[data-right-panel-track]");
+      const rightPanelTrack = rightPanel.closest("[data-sliding-panel-track]");
       if (rightPanelTrack instanceof HTMLElement) {
         rightPanelTrack.style.width = `${nextSlotWidth}px`;
       }
 
-      const rightPanelSlot = rightPanel.closest("[data-right-panel-slot]");
+      const rightPanelSlot = rightPanel.closest("[data-sliding-panel-slot]");
       if (rightPanelSlot instanceof HTMLElement) {
         rightPanelSlot.style.width = `${nextSlotWidth}px`;
       }
@@ -291,7 +287,6 @@ const ProjectWorkspaceComponent = ({
 
   const handleHistoryResizeEnd = useCallback(
     (width: number) => {
-      historyPanelWidthRef.current = width;
       setHistoryPanelWidth(width);
 
       if (!active) {
@@ -305,40 +300,6 @@ const ProjectWorkspaceComponent = ({
     },
     [active, projectId, setProjectPanelSizes],
   );
-
-  const handleHistoryResizeStart = useCallback(() => {
-    const panel = historyPanelRef.current;
-    if (!panel) {
-      return;
-    }
-
-    historyPanelWidthRef.current = clampChatHistoryPanelWidth(
-      panel.getBoundingClientRect().width,
-    );
-    panel.style.transition = "none";
-  }, []);
-
-  const handleHistoryResize = useCallback((deltaX: number) => {
-    const nextWidth = clampChatHistoryPanelWidth(
-      historyPanelWidthRef.current + deltaX,
-    );
-    historyPanelWidthRef.current = nextWidth;
-
-    const panel = historyPanelRef.current;
-    if (panel) {
-      panel.style.width = `${nextWidth}px`;
-      panel.style.maxWidth = `${CHAT_HISTORY_PANEL_MAX_WIDTH_PX}px`;
-    }
-  }, []);
-
-  const finishHistoryResize = useCallback(() => {
-    const panel = historyPanelRef.current;
-    if (panel) {
-      panel.style.transition = PANEL_TRANSITION;
-    }
-
-    handleHistoryResizeEnd(historyPanelWidthRef.current);
-  }, [handleHistoryResizeEnd]);
 
   const closeHistoryPanel = useCallback(() => {
     setProjectChatHistoryPanelOpen(projectId, false);
@@ -504,9 +465,7 @@ const ProjectWorkspaceComponent = ({
         historyPanelRef={historyPanelRef}
         historyPanelWidth={historyPanelWidth}
         onChatSelect={closeHistoryPanel}
-        onResize={handleHistoryResize}
-        onResizeEnd={finishHistoryResize}
-        onResizeStart={handleHistoryResizeStart}
+        onResizeEnd={handleHistoryResizeEnd}
         project={project}
       />
 
