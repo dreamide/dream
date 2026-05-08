@@ -258,6 +258,17 @@ const ProjectWorkspaceComponent = ({
     if (rightPanel) {
       rightPanel.style.width = `${nextRightWidth}px`;
       rightPanel.style.maxWidth = `${maxRightWidth}px`;
+
+      const nextSlotWidth = nextRightWidth + PANEL_RESIZE_HANDLE_SIZE_PX;
+      const rightPanelTrack = rightPanel.closest("[data-right-panel-track]");
+      if (rightPanelTrack instanceof HTMLElement) {
+        rightPanelTrack.style.width = `${nextSlotWidth}px`;
+      }
+
+      const rightPanelSlot = rightPanel.closest("[data-right-panel-slot]");
+      if (rightPanelSlot instanceof HTMLElement) {
+        rightPanelSlot.style.width = `${nextSlotWidth}px`;
+      }
     }
   }, [getRightPanelMaxWidth, rightVisible]);
 
@@ -456,7 +467,9 @@ const ProjectWorkspaceComponent = ({
     }
 
     window.addEventListener("resize", update);
-    const frame = window.requestAnimationFrame(() => syncHorizontalPanelWidths());
+    const frame = window.requestAnimationFrame(() =>
+      syncHorizontalPanelWidths(),
+    );
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -472,7 +485,10 @@ const ProjectWorkspaceComponent = ({
     : Number.MAX_SAFE_INTEGER;
 
   return (
-    <div className="relative flex h-full" ref={horizontalPanelsRef}>
+    <div
+      className="relative flex h-full overflow-hidden"
+      ref={horizontalPanelsRef}
+    >
       <WorkspaceSideNav
         historyButtonRef={historyButtonRef}
         historyOpen={historyOpen}

@@ -1,9 +1,18 @@
-import type { MutableRefObject, RefObject } from "react";
+import {
+  type MutableRefObject,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig, RightPanelView } from "@/types/ide";
 import { BrowserPanel } from "../browser-panel";
-import { HorizontalResizablePanel } from "../ide-helpers";
-import { BROWSER_PANEL_MIN_WIDTH_PX } from "./constants";
+import { PanelResizeHandle } from "../ide-helpers";
+import {
+  BROWSER_PANEL_MIN_WIDTH_PX,
+  PANEL_RESIZE_HANDLE_SIZE_PX,
+} from "./constants";
 
 export interface WorkspaceRightPanelProps {
   active: boolean;
@@ -41,39 +50,149 @@ export const WorkspaceRightPanel = ({
   rightPanelView,
   width,
   widthRef,
-}: WorkspaceRightPanelProps) => (
-  <HorizontalResizablePanel
-    className={cn(handleVisible ? "" : "min-w-0")}
-    contentClassName="pb-2"
-    contentMinWidth={BROWSER_PANEL_MIN_WIDTH_PX}
-    handleSide="left"
-    handleVisible={handleVisible}
-    maxWidth={maxWidth}
-    minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
-    onHandleDoubleClick={onToggleRightPanel}
-    onResizeEnd={onResizeEnd}
-    onResizeStart={onResizeStart}
-    open={open}
-    panelRef={rightPanelRef}
-    style={{
-      flex: handleVisible ? undefined : open ? "1 1 0%" : "0 0 0px",
-      paddingRight: 0,
-      paddingLeft: open && !handleVisible ? 8 : 0,
-      willChange: handleVisible
-        ? "width, opacity, padding"
-        : "flex-basis, opacity, padding",
-    }}
-    transition={rightPanelTransition}
-    width={width}
-    widthRef={widthRef}
-  >
-    <BrowserPanel
-      active={active}
-      browserHostRef={browserHostRef}
-      browserResizeHidden={browserResizeHidden}
-      onSyncBrowserBounds={onSyncBrowserBounds}
-      project={project}
-      rightPanelView={rightPanelView}
-    />
-  </HorizontalResizablePanel>
-);
+}: WorkspaceRightPanelProps) => {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
+
+  const clampWidth = useCallback(
+    (value: number) =>
+      Math.max(BROWSER_PANEL_MIN_WIDTH_PX, Math.min(maxWidth, value)),
+    [maxWidth],
+  );
+
+  const resizePanel = useCallback(
+    (nextWidth: number) => {
+      const clampedWidth = clampWidth(nextWidth);
+      widthRef.current = clampedWidth;
+
+      const panel = rightPanelRef.current;
+      if (panel) {
+        panel.style.width = `${clampedWidth}px`;
+        panel.style.maxWidth = `${maxWidth}px`;
+      }
+
+      const wrapper = wrapperRef.current;
+      if (wrapper) {
+        wrapper.style.width = `${
+          clampedWidth + (handleVisible ? PANEL_RESIZE_HANDLE_SIZE_PX : 0)
+        }px`;
+      }
+
+      const track = trackRef.current;
+      if (track) {
+        track.style.width = `${
+          clampedWidth + (handleVisible ? PANEL_RESIZE_HANDLE_SIZE_PX : 0)
+        }px`;
+      }
+    },
+    [clampWidth, handleVisible, maxWidth, rightPanelRef, widthRef],
+  );
+
+  const handleResizeStart = useCallback(() => {
+    onResizeStart();
+    widthRef.current = clampWidth(
+      rightPanelRef.current?.getBoundingClientRect().width ?? widthRef.current,
+    );
+
+    if (wrapperRef.current) {
+      wrapperRef.current.style.transition = "none";
+    }
+
+    if (trackRef.current) {
+      trackRef.current.style.transition = "none";
+    }
+  }, [clampWidth, onResizeStart, rightPanelRef, widthRef]);
+
+  const handleResize = useCallback(
+    (deltaX: number) => {
+      resizePanel(widthRef.current + deltaX);
+    },
+    [resizePanel, widthRef],
+  );
+
+  const handleResizeEnd = useCallback(() => {
+    if (wrapperRef.current) {
+      wrapperRef.current.style.transition = rightPanelTransition;
+    }
+
+    if (trackRef.current) {
+      trackRef.current.style.transition = rightPanelTransition;
+    }
+
+    onResizeEnd(widthRef.current);
+  }, [onResizeEnd, rightPanelTransition, widthRef]);
+
+  const panelWidth = clampWidth(width);
+  const handleWidth = handleVisible ? PANEL_RESIZE_HANDLE_SIZE_PX : 0;
+  const slotWidth = panelWidth + handleWidth;
+
+  useEffect(() => {
+    widthRef.current = panelWidth;
+  }, [panelWidth, widthRef]);
+
+  return (
+    <div
+      aria-hidden={!open}
+      className="relative z-10 h-full shrink-0 overflow-visible"
+      data-right-panel-slot
+      inert={!open}
+      ref={wrapperRef}
+      style={{
+        opacity: open ? 1 : 0,
+        pointerEvents: open ? "auto" : "none",
+        transition: rightPanelTransition,
+        width: open ? slotWidth : 0,
+        willChange: "width, opacity",
+      }}
+    >
+      <div
+        className="absolute top-0 right-0 bottom-0 flex"
+        data-right-panel-track
+        ref={trackRef}
+        style={{
+          transform: open ? "translateX(0)" : "translateX(100%)",
+          transition: rightPanelTransition,
+          width: slotWidth,
+          willChange: "transform",
+        }}
+      >
+        {handleVisible ? (
+          <PanelResizeHandle
+            onDoubleClick={onToggleRightPanel}
+            onResize={handleResize}
+            onResizeEnd={handleResizeEnd}
+            onResizeStart={handleResizeStart}
+            side="left"
+          />
+        ) : null}
+        <div
+          className={cn(
+            "shrink-0 overflow-hidden",
+            handleVisible ? "" : "min-w-0",
+          )}
+          ref={rightPanelRef}
+          style={{
+            boxSizing: "border-box",
+            maxWidth,
+            minWidth: 0,
+            width: panelWidth,
+          }}
+        >
+          <div
+            className="h-full pb-2"
+            style={{ minWidth: BROWSER_PANEL_MIN_WIDTH_PX }}
+          >
+            <BrowserPanel
+              active={active}
+              browserHostRef={browserHostRef}
+              browserResizeHidden={browserResizeHidden}
+              onSyncBrowserBounds={onSyncBrowserBounds}
+              project={project}
+              rightPanelView={rightPanelView}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

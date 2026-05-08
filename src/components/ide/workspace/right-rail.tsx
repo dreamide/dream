@@ -26,7 +26,7 @@ export const WorkspaceRightRail = ({
   rightVisible,
   terminalHiddenWithActiveSession,
 }: WorkspaceRightRailProps) => (
-  <aside className="flex w-12 shrink-0 flex-col items-center gap-1 py-2">
+  <aside className="relative z-20 flex w-12 shrink-0 flex-col items-center gap-1 py-2">
     <ToggleButton
       active={rightVisible && rightPanelView === "changes"}
       onClick={() => onSelectRightPanelView("changes")}
