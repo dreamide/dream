@@ -1,4 +1,4 @@
-import { Check, ChevronDown, GitBranch, Plus, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, GitBranch, Plus, RotateCw } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -297,7 +297,7 @@ const BranchSwitcherImpl = ({
                 {loading ? (
                   <Spinner className="size-3.5" />
                 ) : (
-                  <RefreshCw className="size-3.5" />
+                  <RotateCw className="size-4" />
                 )}
               </Button>
             </div>
