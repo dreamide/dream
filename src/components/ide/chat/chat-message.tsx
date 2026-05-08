@@ -1,6 +1,5 @@
 import type { UIMessage } from "ai";
-import { memo, type ReactNode, useLayoutEffect } from "react";
-import { useStickToBottomContext } from "use-stick-to-bottom";
+import { memo, type ReactNode } from "react";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
   Source,
@@ -37,28 +36,6 @@ export const CHAT_CONTENT_BOTTOM_PADDING_PX = 88;
 export const scrollElementToChatBottom = (element: HTMLElement) => {
   const targetScrollTop = element.scrollHeight - 1 - element.clientHeight;
   element.scrollTop = Math.max(targetScrollTop, 0);
-};
-
-export const ConversationScrollMemory = ({
-  isActive,
-}: {
-  isActive: boolean;
-}) => {
-  const { scrollRef, scrollToBottom } = useStickToBottomContext();
-
-  useLayoutEffect(() => {
-    if (!isActive) {
-      return;
-    }
-
-    const element = scrollRef.current;
-    if (!element) return;
-
-    scrollElementToChatBottom(element);
-    void scrollToBottom({ animation: "instant", ignoreEscapes: true });
-  }, [isActive, scrollRef, scrollToBottom]);
-
-  return null;
 };
 
 export { PromptAttachments } from "./message-content";

@@ -38,7 +38,6 @@ import {
   CHAT_STREAM_UPDATE_THROTTLE_MS,
   ChatMessage,
   type ChatMessageMetadata,
-  ConversationScrollMemory,
   type EditTarget,
   PROVIDER_LABELS,
   type ToolApprovalResponder,
@@ -793,7 +792,6 @@ export const ChatPanel = ({
               ))
             )}
           </ConversationContent>
-          <ConversationScrollMemory isActive={isActive} />
           <ConversationScrollButton />
         </Conversation>
 
