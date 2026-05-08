@@ -20,6 +20,8 @@
     shape      "mixed" | "star" | "dot" | "glow" | "diamond" | "plus"
                                                                   (default: "mixed")
     groundGlow boolean — soft glow at the top edge of children    (default: true)
+    syncKey    stable seed for deterministic sparkle placement
+    clockSync  align animation phase to wall-clock time            (default: false)
     burstRef   React ref; ref.current.cast(count?) triggers burst
     className / style  applied to outer wrapper
     children   the component(s) the sparkles rise from
@@ -67,6 +69,8 @@ export interface SparklesProps extends HTMLAttributes<HTMLDivElement> {
   height?: number;
   shape?: SparklesShape;
   groundGlow?: boolean;
+  syncKey?: string;
+  clockSync?: boolean;
   children?: ReactNode;
 }
 
@@ -82,6 +86,24 @@ const SPARKLES_PALETTES = {
 
 function sparklesRand(a: number, b: number) { return a + Math.random() * (b - a); }
 function sparklesPick<T>(items: T[]) { return items[(Math.random() * items.length) | 0]; }
+function sparklesHash(seed: string) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function sparklesSeededRand(seed: string) {
+  let t = sparklesHash(seed);
+  return () => {
+    t += 0x6d2b79f5;
+    let r = t;
+    r = Math.imul(r ^ (r >>> 15), r | 1);
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
 function sparklesHexToRGBA(hex: string, alpha: number) {
   const n = parseInt(hex.slice(1), 16);
   const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
@@ -221,6 +243,8 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
     height = 360,
     shape = 'mixed',
     groundGlow = true,
+    syncKey,
+    clockSync = false,
     className = '',
     style,
     children,
@@ -241,6 +265,8 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
   const baseSizesRef = useRef<number[]>([]);
   /* Store base (pre-speed) durations so speed changes don't rebuild */
   const baseDursRef = useRef<number[]>([]);
+  const colorIndexesRef = useRef<number[]>([]);
+  const clockOffsetsRef = useRef<number[]>([]);
 
   useEffect(() => {
     const field = fieldRef.current;
@@ -252,6 +278,8 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
       sparksRef.current = [];
       baseSizesRef.current = [];
       baseDursRef.current = [];
+      colorIndexesRef.current = [];
+      clockOffsetsRef.current = [];
       return;
     }
 
@@ -263,13 +291,22 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
       const sparks: HTMLSpanElement[] = [];
       const bases: number[] = [];
       const durs: number[] = [];
+      const colorIndexes: number[] = [];
+      const clockOffsets: number[] = [];
       const width = fieldEl.clientWidth || 700;
+      const rand = syncKey
+        ? sparklesSeededRand(`${syncKey}:${density}:${position}:${shape}:${width}`)
+        : Math.random;
+      const randRange = (a: number, b: number) => a + rand() * (b - a);
+      const pickIndex = (length: number) =>
+        Math.min(length - 1, Math.floor(rand() * length));
+      const elapsed = Date.now() / 1000;
 
       for (let i = 0; i < density; i++) {
         const s = document.createElement('span');
         let kind: Exclude<SparklesShape, "mixed">;
         if (shape === 'mixed') {
-          const r = Math.random();
+          const r = rand();
           if (r < 0.5) kind = 'star';
           else if (r < 0.75) kind = 'dot';
           else if (r < 0.9) kind = 'glow';
@@ -278,18 +315,22 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
 
         s.className = `sparkles-spark sparkles-spark-${position} sp-${kind}`;
 
-        const baseSize = kind === 'glow' ? sparklesRand(3, 6) : (Math.random() < 0.6 ? 2 : 3);
-        const baseDur = sparklesRand(2.2, 5.8);
-        const x = sparklesRand(6, width - 6);
+        const baseSize = kind === 'glow' ? randRange(3, 6) : (rand() < 0.6 ? 2 : 3);
+        const baseDur = randRange(2.2, 5.8);
+        const x = randRange(6, width - 6);
 
         /* Apply current visual props (will also be updated in the style effect) */
         const size = Math.max(1, baseSize * sizeMul);
         const duration = baseDur / speed;
-        const delay = sparklesRand(-duration, 0.2);
-        const swayV = sparklesRand(-sway, sway);
+        const clockOffset = randRange(0, duration);
+        const delay = clockSync
+          ? -((elapsed + clockOffset) % duration)
+          : randRange(-duration, 0.2);
+        const swayV = randRange(-sway, sway);
+        const colorIndex = pickIndex(paletteArr.length);
 
         s.style.setProperty('--size', size + 'px');
-        s.style.setProperty('--c', sparklesPick(paletteArr));
+        s.style.setProperty('--c', paletteArr[colorIndex]);
         s.style.setProperty('--sway', swayV.toFixed(1) + 'px');
         s.style.setProperty('--rise', height + 'px');
         s.style.left = x + 'px';
@@ -300,10 +341,14 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
         sparks.push(s);
         bases.push(baseSize);
         durs.push(baseDur);
+        colorIndexes.push(colorIndex);
+        clockOffsets.push(clockOffset);
       }
       sparksRef.current = sparks;
       baseSizesRef.current = bases;
       baseDursRef.current = durs;
+      colorIndexesRef.current = colorIndexes;
+      clockOffsetsRef.current = clockOffsets;
     }
 
     build();
@@ -311,7 +356,7 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
     ro.observe(fieldEl);
     return () => { cancelled = true; ro.disconnect(); };
     /* Only structural props that change element count or CSS classes */
-  }, [density, disabled, position, shape]);
+  }, [density, disabled, position, shape, syncKey, clockSync, paletteArr.length]);
 
   /* ---- Style-only patch: update existing sparkles in-place, no reset ---- */
   useEffect(() => {
@@ -327,19 +372,26 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
     const sparks = sparksRef.current;
     const bases = baseSizesRef.current;
     const durs = baseDursRef.current;
+    const colorIndexes = colorIndexesRef.current;
+    const clockOffsets = clockOffsetsRef.current;
+    const elapsed = Date.now() / 1000;
 
     for (let i = 0; i < sparks.length; i++) {
       const s = sparks[i];
       if (!s.isConnected) continue;
       const size = Math.max(1, bases[i] * sizeMul);
       const duration = durs[i] / speed;
+      const colorIndex = colorIndexes[i] ?? 0;
 
       s.style.setProperty('--size', size + 'px');
-      s.style.setProperty('--c', sparklesPick(paletteArr));
+      s.style.setProperty('--c', paletteArr[colorIndex % paletteArr.length]);
       s.style.setProperty('--rise', height + 'px');
       s.style.animationDuration = duration.toFixed(2) + 's';
+      if (clockSync) {
+        s.style.animationDelay = `-${((elapsed + (clockOffsets[i] ?? 0)) % duration).toFixed(2)}s`;
+      }
     }
-  }, [speed, sizeMul, height, groundGlow, paletteArr.join('|'), disabled]);
+  }, [speed, sizeMul, height, groundGlow, paletteArr.join('|'), disabled, clockSync]);
 
   const castBurst = (count = 70) => {
     const field = fieldRef.current;

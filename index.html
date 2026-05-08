@@ -23,38 +23,178 @@
       body {
         background: oklch(0.141 0.005 285.823);
         color: oklch(0.985 0 0);
+        margin: 0;
+        min-height: 100%;
       }
 
       html.light,
       html.light body {
+        --background: oklch(1 0 0);
         background: oklch(1 0 0);
         color: oklch(0.145 0 0);
       }
 
       html.dark,
       html.dark body {
+        --background: oklch(0.145 0 0);
         background: oklch(0.145 0 0);
         color: oklch(0.985 0 0);
       }
 
       html.dark[data-base-color="slate"],
       html.dark[data-base-color="slate"] body {
+        --background: oklch(0.129 0.042 264.695);
         background: oklch(0.129 0.042 264.695);
       }
 
       html.dark[data-base-color="gray"],
       html.dark[data-base-color="gray"] body {
+        --background: oklch(0.13 0.028 261.692);
         background: oklch(0.13 0.028 261.692);
       }
 
       html.dark[data-base-color="zinc"],
       html.dark[data-base-color="zinc"] body {
+        --background: oklch(0.141 0.005 285.823);
         background: oklch(0.141 0.005 285.823);
       }
 
       html.dark[data-base-color="stone"],
       html.dark[data-base-color="stone"] body {
+        --background: oklch(0.147 0.004 49.25);
         background: oklch(0.147 0.004 49.25);
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      .boot-loading {
+        align-items: center;
+        background: var(--background, oklch(0.141 0.005 285.823));
+        display: grid;
+        inset: 0;
+        justify-items: center;
+        position: fixed;
+        z-index: 50;
+      }
+
+      .boot-logo-wrap {
+        position: relative;
+      }
+
+      .boot-logo {
+        display: block;
+        height: 4rem;
+        opacity: 0.85;
+        position: relative;
+        width: 4rem;
+        z-index: 10;
+      }
+
+      .boot-spark-anchor {
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 50%;
+        z-index: 0;
+      }
+
+      .boot-sparkles-wrap {
+        display: block;
+        position: relative;
+      }
+
+      .boot-sparkles-child {
+        height: 0;
+        width: 100%;
+      }
+
+      .boot-sparkles-field {
+        bottom: 100%;
+        height: 120px;
+        left: 0;
+        overflow: visible;
+        pointer-events: none;
+        position: absolute;
+        right: 0;
+        z-index: 3;
+      }
+
+      .boot-spark {
+        animation-duration: var(--duration, 4s);
+        animation-delay: var(--delay, 0s);
+        animation-iteration-count: infinite;
+        animation-name: boot-sparkles-rise;
+        animation-timing-function: linear;
+        background: transparent;
+        bottom: 0;
+        height: var(--size, 2px);
+        position: absolute;
+        width: var(--size, 2px);
+        will-change: transform, opacity;
+      }
+
+      .boot-spark.boot-star {
+        box-shadow:
+          0 calc(var(--size) * -1) 0 var(--c),
+          0 var(--size) 0 var(--c),
+          calc(var(--size) * -1) 0 0 var(--c),
+          var(--size) 0 0 var(--c),
+          0 0 0 var(--c),
+          calc(var(--size) * -1) calc(var(--size) * -1) 0 color-mix(in oklab, var(--c) 45%, transparent),
+          var(--size) calc(var(--size) * -1) 0 color-mix(in oklab, var(--c) 45%, transparent),
+          calc(var(--size) * -1) var(--size) 0 color-mix(in oklab, var(--c) 45%, transparent),
+          var(--size) var(--size) 0 color-mix(in oklab, var(--c) 45%, transparent);
+      }
+
+      .boot-spark.boot-diamond {
+        box-shadow:
+          0 calc(var(--size) * -2) 0 var(--c),
+          0 calc(var(--size) * 2) 0 var(--c),
+          calc(var(--size) * -2) 0 0 var(--c),
+          calc(var(--size) * 2) 0 0 var(--c),
+          0 calc(var(--size) * -1) 0 var(--c),
+          0 var(--size) 0 var(--c),
+          calc(var(--size) * -1) 0 0 var(--c),
+          var(--size) 0 0 var(--c),
+          0 0 0 #fff;
+      }
+
+      .boot-spark.boot-dot {
+        background: var(--c);
+        border-radius: 50%;
+        box-shadow: 0 0 6px var(--c), 0 0 2px #fff;
+      }
+
+      .boot-spark.boot-glow {
+        background: var(--c);
+        border-radius: 50%;
+        box-shadow: 0 0 12px var(--c), 0 0 4px var(--c), 0 0 2px #fff;
+        filter: blur(1px);
+      }
+
+      @keyframes boot-sparkles-rise {
+        0% {
+          opacity: 0;
+          transform: translate3d(0, 0, 0) scale(0.3);
+        }
+        10% {
+          opacity: 1;
+          transform: translate3d(0, -6px, 0) scale(1);
+        }
+        50% {
+          opacity: 1;
+          transform: translate3d(var(--sway), -60px, 0) scale(1);
+        }
+        85% {
+          opacity: 0.55;
+          transform: translate3d(calc(var(--sway) * -0.4), -108px, 0) scale(0.8);
+        }
+        100% {
+          opacity: 0;
+          transform: translate3d(calc(var(--sway) * -0.8), -126px, 0) scale(0.2);
+        }
       }
     </style>
     <script>
@@ -102,17 +242,86 @@
   <body class="antialiased">
     <div id="root">
       <!-- Static loading screen — replaced when React mounts -->
-      <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" style="width:64px;height:64px;opacity:.85">
-          <defs><clipPath id="boot-clip"><circle cx="511.5" cy="511.5" r="395"></circle></clipPath></defs>
-          <g clip-path="url(#boot-clip)">
-            <rect width="1024" height="1024"></rect>
-            <path d="M272 516L326 517L361 523L410 539L441 554L478 579L496 594L521 619L551 660L568 691L588 683L625 674L677 672L714 677L744 686L764 695L790 710L824 736L796 772L775 793L742 821L700 848L675 861L646 873L619 882L611 883L609 885L585 889L583 891L535 897L485 897L457 894L400 882L346 861L310 842L264 809L246 793L214 759L187 722L172 697L168 687L166 686L144 633L132 587L131 569L129 565L157 548L190 533L220 524L257 517L271 517Z" fill="#FFFFFF"></path>
-            <path d="M625 281L626 291L628 294L629 304L631 308L631 312L634 319L635 325L637 327L638 333L640 335L640 337L643 341L644 345L646 346L653 358L669 373L676 377L678 377L682 380L684 380L686 382L691 383L697 386L700 386L702 388L711 389L714 391L725 392L728 394L735 395L722 396L718 398L708 399L705 401L694 403L674 412L657 424L647 435L638 450L637 455L634 461L634 464L632 467L631 475L629 478L628 489L626 493L625 505L624 504L624 497L622 493L621 481L619 477L618 469L615 463L614 457L611 450L609 448L608 444L603 438L603 436L601 435L596 428L586 420L585 418L575 412L560 405L543 401L540 399L535 399L534 398L529 398L526 396L515 395L516 394L521 394L524 392L534 391L537 389L546 388L548 386L555 385L557 383L563 382L581 373L594 362L605 347L614 328L621 303L622 292L624 288L624 282Z" fill="#FFFFFF"></path>
-          </g>
-        </svg>
+      <div class="boot-loading">
+        <div class="boot-logo-wrap">
+          <svg class="boot-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" aria-hidden="true">
+            <defs><clipPath id="boot-clip"><circle cx="511.5" cy="511.5" r="395"></circle></clipPath></defs>
+            <g clip-path="url(#boot-clip)">
+              <rect width="1024" height="1024"></rect>
+              <path d="M272 516L326 517L361 523L410 539L441 554L478 579L496 594L521 619L551 660L568 691L588 683L625 674L677 672L714 677L744 686L764 695L790 710L824 736L796 772L775 793L742 821L700 848L675 861L646 873L619 882L611 883L609 885L585 889L583 891L535 897L485 897L457 894L400 882L346 861L310 842L264 809L246 793L214 759L187 722L172 697L168 687L166 686L144 633L132 587L131 569L129 565L157 548L190 533L220 524L257 517L271 517Z" fill="#FFFFFF"></path>
+              <path d="M625 281L626 291L628 294L629 304L631 308L631 312L634 319L635 325L637 327L638 333L640 335L640 337L643 341L644 345L646 346L653 358L669 373L676 377L678 377L682 380L684 380L686 382L691 383L697 386L700 386L702 388L711 389L714 391L725 392L728 394L735 395L722 396L718 398L708 399L705 401L694 403L674 412L657 424L647 435L638 450L637 455L634 461L634 464L632 467L631 475L629 478L628 489L626 493L625 505L624 504L624 497L622 493L621 481L619 477L618 469L615 463L614 457L611 450L609 448L608 444L603 438L603 436L601 435L596 428L586 420L585 418L575 412L560 405L543 401L540 399L535 399L534 398L529 398L526 396L515 395L516 394L521 394L524 392L534 391L537 389L546 388L548 386L555 385L557 383L563 382L581 373L594 362L605 347L614 328L621 303L622 292L624 288L624 282Z" fill="#FFFFFF"></path>
+            </g>
+          </svg>
+          <div class="boot-spark-anchor">
+            <div class="boot-sparkles-wrap">
+              <div class="boot-sparkles-field" aria-hidden="true"></div>
+              <div class="boot-sparkles-child"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+    <script>
+      (() => {
+        const field = document.querySelector(".boot-sparkles-field");
+        if (!field) return;
+
+        const palette = ["#ffffff", "#e0e4ff", "#b8beff", "#9098c9"];
+        const width = field.clientWidth || 64;
+        const density = 50;
+        const speed = 0.6;
+        const sizeMul = 0.8;
+        const sway = 40;
+        const elapsed = Date.now() / 1000;
+
+        const hash = (seed) => {
+          let h = 2166136261;
+          for (let i = 0; i < seed.length; i += 1) {
+            h ^= seed.charCodeAt(i);
+            h = Math.imul(h, 16777619);
+          }
+          return h >>> 0;
+        };
+        const seededRandom = (seed) => {
+          let t = hash(seed);
+          return () => {
+            t += 0x6d2b79f5;
+            let r = t;
+            r = Math.imul(r ^ (r >>> 15), r | 1);
+            r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+            return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+          };
+        };
+        const rand = seededRandom(
+          `dream-loading-sparkles:${density}:top:mixed:${width}`,
+        );
+        const randRange = (min, max) => min + rand() * (max - min);
+        const pickIndex = (length) =>
+          Math.min(length - 1, Math.floor(rand() * length));
+
+        for (let i = 0; i < density; i += 1) {
+          const spark = document.createElement("span");
+          const roll = rand();
+          const shape = roll < 0.5 ? "star" : roll < 0.75 ? "dot" : roll < 0.9 ? "glow" : "diamond";
+          const baseSize = shape === "glow" ? randRange(3, 6) : rand() < 0.6 ? 2 : 3;
+          const duration = randRange(2.2, 5.8) / speed;
+          const left = randRange(6, width - 6);
+          const clockOffset = randRange(0, duration);
+          const animationDelay = -((elapsed + clockOffset) % duration);
+          const swayValue = randRange(-sway, sway);
+          const colorIndex = pickIndex(palette.length);
+
+          spark.className = `boot-spark boot-${shape}`;
+          spark.style.setProperty("--size", `${Math.max(1, baseSize * sizeMul)}px`);
+          spark.style.setProperty("--c", palette[colorIndex]);
+          spark.style.setProperty("--sway", `${swayValue.toFixed(1)}px`);
+          spark.style.left = `${left}px`;
+          spark.style.animationDuration = `${duration.toFixed(2)}s`;
+          spark.style.animationDelay = `${animationDelay.toFixed(2)}s`;
+          field.appendChild(spark);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

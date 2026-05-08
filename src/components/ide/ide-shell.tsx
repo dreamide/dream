@@ -379,6 +379,8 @@ export const IdeShell = () => {
                 position="top"
                 sizeMul={0.8}
                 speed={0.6}
+                syncKey="dream-loading-sparkles"
+                clockSync
               >
                 <div className="h-0 w-full" />
               </Sparkles>
