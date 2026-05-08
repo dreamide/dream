@@ -402,8 +402,8 @@ export const IdeShell = () => {
                   className={cn(
                     "absolute inset-0 min-h-0",
                     active
-                      ? "pointer-events-auto opacity-100"
-                      : "pointer-events-none opacity-0",
+                      ? "translate-x-0 pointer-events-auto opacity-100"
+                      : "translate-x-full pointer-events-none opacity-0",
                   )}
                   inert={!active}
                   key={project.id}
