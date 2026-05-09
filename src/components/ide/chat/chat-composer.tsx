@@ -397,7 +397,7 @@ const InlineProjectReferenceMentions = ({
   references: ProjectReference[];
   text: string;
 }) => {
-  if (!text) {
+  if (!text || references.length === 0) {
     return null;
   }
 
