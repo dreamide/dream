@@ -158,7 +158,7 @@ export const ProjectSidebar = ({
       >
         <div className="px-3 py-3">
           <p className="font-medium text-sm">Chat history</p>
-          <InputGroup className="mt-2 h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
+          <InputGroup className="mt-2">
             <InputGroupInput
               className="text-sm"
               onChange={(event) => setSearchQuery(event.target.value)}

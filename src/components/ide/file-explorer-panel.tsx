@@ -151,9 +151,9 @@ const FILE_TREE_UNSAFE_CSS = `
     background-clip: padding-box;
     padding: 4px 10px;
     color: var(--foreground);
-    font-family: var(--trees-font-family);
-    font-size: 12px;
-    line-height: 18px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 20px;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     transition-property: color, box-shadow;
     outline: none;
@@ -171,7 +171,7 @@ const FILE_TREE_UNSAFE_CSS = `
   [data-file-tree-search-input][data-file-tree-search-input-fake-focus="true"] {
     border-color: var(--input);
     outline: none;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    box-shadow: 0 0 0 0 var(--ring);
   }
 
   [data-file-tree-virtualized-scroll]::-webkit-scrollbar {
