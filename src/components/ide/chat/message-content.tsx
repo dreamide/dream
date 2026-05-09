@@ -122,13 +122,13 @@ export const PromptAttachments = () => {
             <DialogTrigger render={<div className="cursor-pointer" />}>
               {attachment}
             </DialogTrigger>
-            <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]">
+            <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none sm:max-w-[90vw]">
               <DialogTitle className="sr-only">
                 {file.filename || "Image"}
               </DialogTitle>
               <img
                 alt={file.filename || "Image"}
-                className="mx-auto max-h-[85vh] w-auto rounded object-contain"
+                className="mx-auto max-h-[85vh] w-auto rounded-lg object-contain shadow-md"
                 src={file.url}
               />
             </DialogContent>
@@ -151,22 +151,22 @@ const ImageAttachmentPreview = ({
       <DialogTrigger
         render={
           <button
-            className="max-w-48 cursor-pointer overflow-hidden rounded-lg border border-border transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="max-w-48 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
           />
         }
       >
         <img
           alt={label}
-          className="block max-h-48 w-auto rounded-lg object-contain"
+          className="block max-h-48 w-auto rounded-lg object-contain shadow-md"
           src={url}
         />
       </DialogTrigger>
-      <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]">
+      <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none sm:max-w-[90vw]">
         <DialogTitle className="sr-only">{label}</DialogTitle>
         <img
           alt={label}
-          className="mx-auto max-h-[85vh] w-auto rounded object-contain"
+          className="mx-auto max-h-[85vh] w-auto rounded-lg object-contain shadow-md"
           src={url}
         />
       </DialogContent>
