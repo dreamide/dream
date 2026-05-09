@@ -629,7 +629,7 @@ const FileExplorerPanelImpl = ({
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
+        <div className="flex min-h-[50px] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
           <Files className="size-4 text-muted-foreground" />
           <span>Files</span>
         </div>
@@ -642,7 +642,7 @@ const FileExplorerPanelImpl = ({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
+      <div className="grid min-h-[50px] grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Files className="size-4 shrink-0 text-muted-foreground" />
           <div className="truncate text-sm font-medium">Files</div>
