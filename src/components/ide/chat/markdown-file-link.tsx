@@ -2,6 +2,7 @@ import type { ComponentProps, MouseEvent } from "react";
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "../ide-store";
+import { MaterialFileIcon } from "../material-file-icon";
 
 type MarkdownFileLinkProps = ComponentProps<"a"> & {
   node?: unknown;
@@ -136,19 +137,37 @@ export const MarkdownFileLink = ({
     }
   };
 
+  if (projectFilePath) {
+    return (
+      <a
+        {...props}
+        className={cn(
+          "inline-flex max-w-full items-baseline gap-1 align-baseline font-medium text-blue-600 no-underline transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200",
+          className,
+        )}
+        href={href}
+        onClick={handleClick}
+      >
+        <MaterialFileIcon
+          className="relative top-0.5 size-3.5 shrink-0"
+          path={projectFilePath}
+        />
+        <span className="min-w-0 truncate">{props.children}</span>
+      </a>
+    );
+  }
+
   return (
     <a
       {...props}
       className={cn(
         "font-medium text-primary underline decoration-primary/45 underline-offset-3 transition-colors hover:decoration-primary",
-        projectFilePath &&
-          "rounded-sm bg-primary/5 px-1 py-0.5 font-mono text-[0.95em] hover:bg-primary/10",
         className,
       )}
       href={href}
       onClick={handleClick}
-      rel={projectFilePath ? undefined : "noreferrer"}
-      target={projectFilePath ? undefined : "_blank"}
+      rel="noreferrer"
+      target="_blank"
     />
   );
 };

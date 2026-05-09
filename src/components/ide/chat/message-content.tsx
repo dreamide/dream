@@ -24,6 +24,68 @@ import {
   normalizeProjectFileLinksInMarkdown,
 } from "./markdown-file-link";
 
+const isProjectReferenceMentionBoundary = (character: string | undefined) =>
+  !character || /\s|[),.;:!?]/.test(character);
+
+const hasInlineProjectReferenceMention = (
+  text: string,
+  reference: ProjectReference,
+) => {
+  const mention = `@${reference.path}`;
+  let index = text.indexOf(mention);
+
+  while (index !== -1) {
+    if (isProjectReferenceMentionBoundary(text.at(index + mention.length))) {
+      return true;
+    }
+    index = text.indexOf(mention, index + mention.length);
+  }
+
+  return false;
+};
+
+const escapeMarkdownLinkDestination = (value: string) =>
+  value.replace(/>/g, "%3E");
+
+const normalizeInlineProjectReferenceMentions = (
+  text: string,
+  references: ProjectReference[],
+) => {
+  if (!text || references.length === 0) {
+    return text;
+  }
+
+  const sortedReferences = [...references].sort(
+    (left, right) => right.path.length - left.path.length,
+  );
+  let output = "";
+  let index = 0;
+
+  while (index < text.length) {
+    const reference = sortedReferences.find((item) => {
+      const mention = `@${item.path}`;
+      return (
+        text.startsWith(mention, index) &&
+        isProjectReferenceMentionBoundary(text.at(index + mention.length))
+      );
+    });
+
+    if (!reference) {
+      output += text[index];
+      index += 1;
+      continue;
+    }
+
+    const mention = `@${reference.path}`;
+    output += `[${reference.name}](<${escapeMarkdownLinkDestination(
+      reference.path,
+    )}>)`;
+    index += mention.length;
+  }
+
+  return output;
+};
+
 export const PromptAttachments = () => {
   const attachments = usePromptInputAttachments();
 
@@ -57,14 +119,10 @@ export const PromptAttachments = () => {
 
         return (
           <Dialog key={file.id}>
-            <DialogTrigger
-              render={<div className="cursor-pointer" />}
-            >
+            <DialogTrigger render={<div className="cursor-pointer" />}>
               {attachment}
             </DialogTrigger>
-            <DialogContent
-              className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]"
-            >
+            <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]">
               <DialogTitle className="sr-only">
                 {file.filename || "Image"}
               </DialogTitle>
@@ -104,9 +162,7 @@ const ImageAttachmentPreview = ({
           src={url}
         />
       </DialogTrigger>
-      <DialogContent
-        className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]"
-      >
+      <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-auto p-2 sm:max-w-[90vw]">
         <DialogTitle className="sr-only">{label}</DialogTitle>
         <img
           alt={label}
@@ -159,10 +215,16 @@ export const UserMessageContent = ({
   const projectReferences = Array.isArray(metadata?.projectReferences)
     ? metadata.projectReferences
     : [];
+  const hasInlineProjectReferences = projectReferences.some((reference) =>
+    hasInlineProjectReferenceMention(text, reference),
+  );
+  const renderedText = hasInlineProjectReferences
+    ? normalizeInlineProjectReferenceMentions(text, projectReferences)
+    : text;
 
   return (
     <>
-      {projectReferences.length > 0 ? (
+      {projectReferences.length > 0 && !hasInlineProjectReferences ? (
         <div className="mb-2 flex flex-wrap gap-2">
           {projectReferences.map((reference) => (
             <Badge
@@ -192,11 +254,7 @@ export const UserMessageContent = ({
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map(({ key, label, url, isImage }) =>
             isImage && url ? (
-              <ImageAttachmentPreview
-                key={key}
-                label={label}
-                url={url}
-              />
+              <ImageAttachmentPreview key={key} label={label} url={url} />
             ) : (
               <Badge
                 className="max-w-full gap-1.5 rounded-full bg-muted px-2.5 py-1 font-medium text-foreground"
@@ -220,7 +278,7 @@ export const UserMessageContent = ({
             ),
           }}
         >
-          {normalizeProjectFileLinksInMarkdown(text, projectPath)}
+          {normalizeProjectFileLinksInMarkdown(renderedText, projectPath)}
         </MessageResponse>
       ) : null}
     </>

@@ -1,8 +1,9 @@
 import type { ChatStatus } from "ai";
-import { Shield, XIcon } from "lucide-react";
+import { Shield } from "lucide-react";
 import {
   type ChangeEventHandler,
   type KeyboardEventHandler,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -112,6 +113,177 @@ const getReferenceParentPath = (path: string) => {
   return index === -1 ? "" : normalized.slice(0, index);
 };
 
+const isReferenceMentionBoundary = (character: string | undefined) =>
+  !character || /\s|[),.;:!?]/.test(character);
+
+const getTextCharacter = (text: string, index: number) =>
+  index >= 0 && index < text.length ? text[index] : undefined;
+
+const REFERENCE_ICON_TEXT_SLOT = "    ";
+
+const getReferenceMentionText = (reference: ProjectReference) =>
+  `${REFERENCE_ICON_TEXT_SLOT}${reference.name}`;
+
+const isReferenceMentionRange = (
+  text: string,
+  start: number,
+  mentionLength: number,
+) =>
+  (/\s/.test(getTextCharacter(text, start) ?? "") ||
+    isReferenceMentionBoundary(getTextCharacter(text, start - 1))) &&
+  isReferenceMentionBoundary(getTextCharacter(text, start + mentionLength));
+
+const hasReferenceMention = (text: string, reference: ProjectReference) => {
+  const mention = getReferenceMentionText(reference);
+  let index = text.indexOf(mention);
+
+  while (index !== -1) {
+    if (isReferenceMentionRange(text, index, mention.length)) {
+      return true;
+    }
+    index = text.indexOf(mention, index + mention.length);
+  }
+
+  return false;
+};
+
+type ReferenceMentionRange = {
+  end: number;
+  reference: ProjectReference;
+  start: number;
+};
+
+const getReferenceMentionRanges = (
+  text: string,
+  references: ProjectReference[],
+) =>
+  references.flatMap((reference): ReferenceMentionRange[] => {
+    const mention = getReferenceMentionText(reference);
+    const ranges: ReferenceMentionRange[] = [];
+    let index = text.indexOf(mention);
+
+    while (index !== -1) {
+      const end = index + mention.length;
+      if (isReferenceMentionRange(text, index, mention.length)) {
+        ranges.push({ end, reference, start: index });
+      }
+      index = text.indexOf(mention, index + mention.length);
+    }
+
+    return ranges;
+  });
+
+const getReferenceDeletionRange = ({
+  key,
+  references,
+  selectionEnd,
+  selectionStart,
+  text,
+}: {
+  key: "Backspace" | "Delete";
+  references: ProjectReference[];
+  selectionEnd: number;
+  selectionStart: number;
+  text: string;
+}) => {
+  const ranges = getReferenceMentionRanges(text, references);
+  if (ranges.length === 0) {
+    return null;
+  }
+
+  if (selectionStart !== selectionEnd) {
+    const overlappingRanges = ranges.filter(
+      (range) => selectionStart < range.end && selectionEnd > range.start,
+    );
+    if (overlappingRanges.length === 0) {
+      return null;
+    }
+
+    return {
+      end: Math.max(
+        selectionEnd,
+        ...overlappingRanges.map((range) => range.end),
+      ),
+      start: Math.min(
+        selectionStart,
+        ...overlappingRanges.map((range) => range.start),
+      ),
+    };
+  }
+
+  return ranges.find((range) =>
+    key === "Backspace"
+      ? selectionStart > range.start && selectionStart <= range.end
+      : selectionStart >= range.start && selectionStart < range.end,
+  );
+};
+
+const removeReferenceMentionRange = (
+  text: string,
+  range: { end: number; start: number },
+) => {
+  let { end, start } = range;
+
+  if (
+    getTextCharacter(text, start - 1) === " " &&
+    getTextCharacter(text, end) === " "
+  ) {
+    end += 1;
+  } else if (start === 0 && getTextCharacter(text, end) === " ") {
+    end += 1;
+  } else if (
+    getTextCharacter(text, start - 1) === " " &&
+    (end === text.length ||
+      isReferenceMentionBoundary(getTextCharacter(text, end)))
+  ) {
+    start -= 1;
+  }
+
+  return {
+    nextCaretIndex: start,
+    nextText: `${text.slice(0, start)}${text.slice(end)}`,
+  };
+};
+
+const expandReferenceMentionsForSubmit = (
+  text: string,
+  references: ProjectReference[],
+) => {
+  if (!text || references.length === 0) {
+    return text;
+  }
+
+  const sortedReferences = [...references].sort(
+    (left, right) =>
+      getReferenceMentionText(right).length -
+      getReferenceMentionText(left).length,
+  );
+  let output = "";
+  let index = 0;
+
+  while (index < text.length) {
+    const reference = sortedReferences.find((item) => {
+      const mention = getReferenceMentionText(item);
+      return (
+        text.startsWith(mention, index) &&
+        isReferenceMentionRange(text, index, mention.length)
+      );
+    });
+
+    if (!reference) {
+      output += text[index];
+      index += 1;
+      continue;
+    }
+
+    const mention = getReferenceMentionText(reference);
+    output += `${index > 0 ? " " : ""}@${reference.path}`;
+    index += mention.length;
+  }
+
+  return output;
+};
+
 const getActiveReferenceToken = (
   text: string,
   caretIndex: number,
@@ -217,6 +389,92 @@ const searchProjectReferences = (
     )
     .slice(0, PROJECT_REFERENCE_RESULT_LIMIT)
     .map(({ item }) => item);
+
+const InlineProjectReferenceMentions = ({
+  references,
+  text,
+}: {
+  references: ProjectReference[];
+  text: string;
+}) => {
+  if (!text) {
+    return null;
+  }
+
+  const sortedReferences = [...references].sort(
+    (left, right) =>
+      getReferenceMentionText(right).length -
+      getReferenceMentionText(left).length,
+  );
+  const nodes: ReactNode[] = [];
+  let pendingText = "";
+  let index = 0;
+
+  const flushText = () => {
+    if (!pendingText) {
+      return;
+    }
+
+    nodes.push(
+      <span key={`text-${nodes.length}`} className="whitespace-pre-wrap">
+        {pendingText}
+      </span>,
+    );
+    pendingText = "";
+  };
+
+  while (index < text.length) {
+    const reference = sortedReferences.find((item) => {
+      const mention = getReferenceMentionText(item);
+      return (
+        text.startsWith(mention, index) &&
+        isReferenceMentionRange(text, index, mention.length)
+      );
+    });
+
+    if (!reference) {
+      pendingText += text[index];
+      index += 1;
+      continue;
+    }
+
+    flushText();
+    nodes.push(
+      <span
+        className="text-blue-600 dark:text-blue-300"
+        key={`reference-${reference.kind}:${reference.path}:${index}`}
+      >
+        <span className="relative inline-block text-transparent">
+          {REFERENCE_ICON_TEXT_SLOT}
+          {reference.kind === "folder" ? (
+            <MaterialFolderIcon
+              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-blue-600 dark:text-blue-300"
+              name={reference.name}
+            />
+          ) : (
+            <MaterialFileIcon
+              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-blue-600 dark:text-blue-300"
+              path={reference.path}
+            />
+          )}
+        </span>
+        {reference.name}
+      </span>,
+    );
+    index += getReferenceMentionText(reference).length;
+  }
+
+  flushText();
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-3 py-2 text-sm leading-normal"
+    >
+      {nodes}
+    </div>
+  );
+};
 
 export interface ChatComposerProps {
   allModelOptions: ChatPanelModelOption[];
@@ -356,9 +614,16 @@ export const ChatComposer = ({
         : [],
     [activeReferenceToken, projectReferences],
   );
+  const activeTokenIsSelectedReference =
+    activeReferenceToken !== null &&
+    selectedReferences.some(
+      (reference) => reference.name === activeReferenceToken.query,
+    );
 
   const showReferenceResults =
-    activeReferenceToken !== null && referenceResults.length > 0;
+    activeReferenceToken !== null &&
+    !activeTokenIsSelectedReference &&
+    referenceResults.length > 0;
 
   const updateActiveReferenceToken = useCallback(
     (text: string, caretIndex: number | null | undefined) => {
@@ -377,6 +642,11 @@ export const ChatComposer = ({
       (event) => {
         const nextValue = event.currentTarget.value;
         onPromptTextChange(nextValue);
+        setSelectedReferences((current) =>
+          current.filter((reference) =>
+            hasReferenceMention(nextValue, reference),
+          ),
+        );
         updateActiveReferenceToken(
           nextValue,
           event.currentTarget.selectionStart,
@@ -393,8 +663,12 @@ export const ChatComposer = ({
 
       const before = promptText.slice(0, activeReferenceToken.start);
       const after = promptText.slice(activeReferenceToken.end);
-      const nextValue = `${before}${after}`;
-      const nextCaretIndex = before.length;
+      const mentionText = getReferenceMentionText(item);
+      const separator =
+        after.length > 0 && !isReferenceMentionBoundary(after.at(0)) ? " " : "";
+      const nextValue = `${before}${mentionText}${separator}${after}`;
+      const nextCaretIndex =
+        before.length + mentionText.length + separator.length;
 
       onPromptTextChange(nextValue);
       setSelectedReferences((current) =>
@@ -416,19 +690,11 @@ export const ChatComposer = ({
     [activeReferenceToken, onPromptTextChange, promptText],
   );
 
-  const removeProjectReference = useCallback((item: ProjectReference) => {
-    setSelectedReferences((current) =>
-      current.filter(
-        (reference) =>
-          reference.kind !== item.kind || reference.path !== item.path,
-      ),
-    );
-  }, []);
-
   const handleComposerSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       await onSubmit({
         ...prompt,
+        text: expandReferenceMentionsForSubmit(prompt.text, selectedReferences),
         references: selectedReferences,
       });
       setSelectedReferences([]);
@@ -441,6 +707,45 @@ export const ChatComposer = ({
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> =
     useCallback(
       (event) => {
+        if (
+          (event.key === "Backspace" || event.key === "Delete") &&
+          selectedReferences.length > 0
+        ) {
+          const deletionRange = getReferenceDeletionRange({
+            key: event.key,
+            references: selectedReferences,
+            selectionEnd: event.currentTarget.selectionEnd,
+            selectionStart: event.currentTarget.selectionStart,
+            text: promptText,
+          });
+
+          if (deletionRange) {
+            event.preventDefault();
+            const { nextCaretIndex, nextText } = removeReferenceMentionRange(
+              promptText,
+              deletionRange,
+            );
+
+            onPromptTextChange(nextText);
+            setSelectedReferences((current) =>
+              current.filter((reference) =>
+                hasReferenceMention(nextText, reference),
+              ),
+            );
+            setActiveReferenceToken(null);
+            setHighlightedReferenceIndex(0);
+
+            requestAnimationFrame(() => {
+              textareaRef.current?.focus();
+              textareaRef.current?.setSelectionRange(
+                nextCaretIndex,
+                nextCaretIndex,
+              );
+            });
+            return;
+          }
+        }
+
         if (showReferenceResults) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -484,7 +789,10 @@ export const ChatComposer = ({
         highlightedReferenceIndex,
         insertProjectReference,
         onPromptKeyDown,
+        onPromptTextChange,
+        promptText,
         referenceResults,
+        selectedReferences,
         showReferenceResults,
       ],
     );
@@ -550,61 +858,38 @@ export const ChatComposer = ({
             >
               <PromptInputBody>
                 <PromptAttachments />
-                {selectedReferences.length > 0 ? (
-                  <div className="flex w-full flex-wrap gap-2 px-3 pt-3">
-                    {selectedReferences.map((reference) => (
-                      <span
-                        className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 font-medium text-blue-700 text-sm dark:text-blue-300"
-                        key={`${reference.kind}:${reference.path}`}
-                      >
-                        {reference.kind === "folder" ? (
-                          <MaterialFolderIcon
-                            className="size-4 shrink-0"
-                            name={reference.name}
-                          />
-                        ) : (
-                          <MaterialFileIcon
-                            className="size-4 shrink-0"
-                            path={reference.path}
-                          />
-                        )}
-                        <span className="min-w-0 truncate">
-                          {reference.name}
-                        </span>
-                        <button
-                          aria-label={`Remove ${reference.path} reference`}
-                          className="-mr-1 rounded-full p-0.5 text-blue-700/70 transition-colors hover:bg-blue-500/15 hover:text-blue-700 dark:text-blue-300/70 dark:hover:text-blue-300"
-                          onClick={() => removeProjectReference(reference)}
-                          type="button"
-                        >
-                          <XIcon className="size-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <PromptInputTextarea
-                  className="min-h-0 border-none bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
-                  disabled={!isActive}
-                  onChange={handlePromptChange}
-                  onClick={(event) =>
-                    updateActiveReferenceToken(
-                      event.currentTarget.value,
-                      event.currentTarget.selectionStart,
-                    )
-                  }
-                  onKeyDown={handlePromptKeyDown}
-                  onSelect={(event) =>
-                    updateActiveReferenceToken(
-                      event.currentTarget.value,
-                      event.currentTarget.selectionStart,
-                    )
-                  }
-                  placeholder="Ask anything..."
-                  ref={textareaRef}
-                  rows={1}
-                  value={promptText}
-                />
+                <div className="relative w-full">
+                  <InlineProjectReferenceMentions
+                    references={selectedReferences}
+                    text={promptText}
+                  />
+                  <PromptInputTextarea
+                    className={cn(
+                      "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0",
+                      selectedReferences.length > 0 &&
+                        "text-transparent placeholder:text-muted-foreground selection:bg-primary/25",
+                    )}
+                    disabled={!isActive}
+                    onChange={handlePromptChange}
+                    onClick={(event) =>
+                      updateActiveReferenceToken(
+                        event.currentTarget.value,
+                        event.currentTarget.selectionStart,
+                      )
+                    }
+                    onKeyDown={handlePromptKeyDown}
+                    onSelect={(event) =>
+                      updateActiveReferenceToken(
+                        event.currentTarget.value,
+                        event.currentTarget.selectionStart,
+                      )
+                    }
+                    placeholder="Ask anything..."
+                    ref={textareaRef}
+                    rows={1}
+                    value={promptText}
+                  />
+                </div>
               </PromptInputBody>
               <PromptInputFooter className="items-center">
                 <PromptInputTools>
