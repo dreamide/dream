@@ -108,11 +108,11 @@ export const SearchInFilesChip = ({
           <>
             {isToolReferenceSearch && toolReferences.length > 0 ? (
               <span className="max-w-64 truncate font-medium">
-                Tools: {toolReferences.join(", ")}
+                {toolReferences.join(", ")}
               </span>
             ) : isToolSearch ? (
               <span className="max-w-48 truncate font-medium">
-                {query ? `Tools: ${query}` : "Tools search"}
+                {query ?? "Tools search"}
               </span>
             ) : query ? (
               <span className="max-w-48 truncate font-medium">{label}</span>
