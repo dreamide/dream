@@ -160,7 +160,7 @@ export const MessageHoverFooter = ({
 
   return (
     <div
-      className={`${positionClassName} pointer-events-none flex min-h-6 max-w-full items-center gap-2 text-muted-foreground text-xs opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100`}
+      className={`${positionClassName} pointer-events-none flex min-h-6 max-w-full items-center gap-2 text-muted-foreground text-xs`}
     >
       {footerText ? <span>{footerText}</span> : null}
       {text && !isRunning ? (
