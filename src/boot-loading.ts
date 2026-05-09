@@ -1,9 +1,29 @@
-import {
-  DREAM_LOADING_SPARKLES,
-  DREAM_LOADING_SPARKLES_PALETTE,
-} from "@/components/dream-loading-screen-config";
-
 type BootSparkleShape = "star" | "dot" | "glow" | "diamond" | "plus";
+type BootSparkleConfig = {
+  clockSync: boolean;
+  density: number;
+  height: number;
+  palette: string[];
+  position: "top" | "bottom";
+  shape: "mixed" | BootSparkleShape;
+  sizeMul: number;
+  speed: number;
+  sway: number;
+  syncKey: string;
+};
+
+const BOOT_SPARKLES: BootSparkleConfig = {
+  clockSync: true,
+  density: 50,
+  height: 256,
+  palette: ["#ffffff", "#e0e4ff", "#b8beff", "#9098c9"],
+  position: "bottom",
+  shape: "mixed",
+  sizeMul: 0.8,
+  speed: 0.6,
+  sway: 40,
+  syncKey: "dream-loading-sparkles",
+};
 
 const hash = (seed: string) => {
   let h = 2166136261;
@@ -39,7 +59,7 @@ const initBootLoadingSparkles = () => {
     speed,
     sway,
     syncKey,
-  } = DREAM_LOADING_SPARKLES;
+  } = BOOT_SPARKLES;
   const width = field.clientWidth || 64;
   const elapsed = Date.now() / 1000;
   const rand = seededRandom(
@@ -71,11 +91,11 @@ const initBootLoadingSparkles = () => {
       ? -((elapsed + clockOffset) % duration)
       : randRange(-duration, 0.2);
     const swayValue = randRange(-sway, sway);
-    const colorIndex = pickIndex(DREAM_LOADING_SPARKLES_PALETTE.length);
+    const colorIndex = pickIndex(BOOT_SPARKLES.palette.length);
 
     spark.className = `boot-spark boot-${sparkShape}`;
     spark.style.setProperty("--size", `${Math.max(1, baseSize * sizeMul)}px`);
-    spark.style.setProperty("--c", DREAM_LOADING_SPARKLES_PALETTE[colorIndex]);
+    spark.style.setProperty("--c", BOOT_SPARKLES.palette[colorIndex]);
     spark.style.setProperty("--rise", `${height}px`);
     spark.style.setProperty("--sway", `${swayValue.toFixed(1)}px`);
     spark.style.left = `${left}px`;
