@@ -80,6 +80,7 @@ const ProjectWorkspaceComponent = ({
   );
   const addChat = useIdeStore((s) => s.addChat);
   const addChatBeside = useIdeStore((s) => s.addChatBeside);
+  const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const updateProject = useIdeStore((s) => s.updateProject);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
 
@@ -324,6 +325,13 @@ const ProjectWorkspaceComponent = ({
 
     addChat(projectId);
   }, [addChat, addChatBeside, openChatIds.length, projectId]);
+
+  const handleActivateChat = useCallback(
+    (chatId: string) => {
+      setActiveChatId(projectId, chatId);
+    },
+    [projectId, setActiveChatId],
+  );
 
   const handleChatColumnWidthsChange = useCallback(
     (widths: Record<string, number>) => {
@@ -587,6 +595,7 @@ const ProjectWorkspaceComponent = ({
             activeChatId={activeChatId}
             chatColumnWidths={chatColumnWidths}
             mountedChats={mountedChats}
+            onActivateChat={handleActivateChat}
             onChatColumnWidthsChange={handleChatColumnWidthsChange}
             onCloseChat={handleCloseChat}
             openChatIds={openChatIds}

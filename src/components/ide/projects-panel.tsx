@@ -189,7 +189,12 @@ export const ProjectSidebar = ({
                         </div>
                       ) : null}
                       <div className="min-w-0 flex-1">
-                        <p className="min-w-0 truncate text-sm leading-5">
+                        <p
+                          className={cn(
+                            "min-w-0 truncate text-sm leading-5",
+                            isAttachedChat && "text-muted-foreground",
+                          )}
+                        >
                           {chat.title}
                         </p>
                       </div>

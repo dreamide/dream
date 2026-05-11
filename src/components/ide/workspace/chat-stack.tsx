@@ -1,5 +1,5 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { ChatPanel } from "../chat-panel";
 import { CHAT_PANEL_MIN_HEIGHT_PX, CHAT_PANEL_MIN_WIDTH_PX } from "./constants";
@@ -9,6 +9,7 @@ export interface WorkspaceChatStackProps {
   activeChatId: string | null;
   chatColumnWidths: Record<string, number>;
   mountedChats: ChatConfig[];
+  onActivateChat: (chatId: string) => void;
   onChatColumnWidthsChange: (widths: Record<string, number>) => void;
   onCloseChat: (chatId: string) => void;
   openChatIds: string[];
@@ -20,6 +21,7 @@ const WorkspaceChatStackImpl = ({
   activeChatId,
   chatColumnWidths,
   mountedChats,
+  onActivateChat,
   onChatColumnWidthsChange,
   onCloseChat,
   openChatIds,
@@ -150,6 +152,8 @@ const WorkspaceChatStackImpl = ({
                 <ChatPanel
                   canCloseChat={visibleChats.length > 1}
                   isActive={active && chat.id === activeChatId}
+                  isProjectActive={active}
+                  onActivateChat={() => onActivateChat(chat.id)}
                   onCloseChat={() => onCloseChat(chat.id)}
                   project={project}
                   chat={chat}
@@ -157,16 +161,14 @@ const WorkspaceChatStackImpl = ({
               </div>
 
               {nextChat ? (
-                <div
+                <hr
                   aria-label="Resize chat columns"
-                  className="relative h-full w-px shrink-0 cursor-col-resize bg-border"
+                  aria-orientation="vertical"
+                  className="relative h-full w-2 shrink-0 cursor-col-resize border-0 bg-transparent before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border before:content-['']"
                   onPointerDown={(event) =>
                     handleResizePointerDown(event, chat.id, nextChat.id)
                   }
-                  role="separator"
-                >
-                  <div className="absolute inset-y-0 left-1/2 w-2 -translate-x-1/2" />
-                </div>
+                />
               ) : null}
             </div>
           );

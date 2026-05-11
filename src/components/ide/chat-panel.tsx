@@ -74,12 +74,16 @@ const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
 export const ChatPanel = ({
   canCloseChat = false,
   isActive,
+  isProjectActive = isActive,
+  onActivateChat,
   onCloseChat,
   project,
   chat,
 }: {
   canCloseChat?: boolean;
   isActive: boolean;
+  isProjectActive?: boolean;
+  onActivateChat?: () => void;
   onCloseChat?: () => void;
   project: ProjectConfig;
   chat: ChatConfig;
@@ -504,6 +508,11 @@ export const ChatPanel = ({
       promptText,
       setPromptText,
     });
+  const handleActivateChat = useCallback(() => {
+    if (!isActive) {
+      onActivateChat?.();
+    }
+  }, [isActive, onActivateChat]);
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -511,6 +520,7 @@ export const ChatPanel = ({
         throw new Error("Chat response is already streaming.");
       }
 
+      handleActivateChat();
       setLocalError(null);
       clearError();
 
@@ -519,11 +529,7 @@ export const ChatPanel = ({
         (item) => item.id === project.id,
       );
 
-      if (
-        !submittedProject ||
-        !isActive ||
-        state.activeProjectId !== submittedProject.id
-      ) {
+      if (!submittedProject || state.activeProjectId !== submittedProject.id) {
         const message =
           "This chat is no longer in the active project. Switch back to this project and try again.";
         setLocalError(message);
@@ -691,8 +697,8 @@ export const ChatPanel = ({
       codexPermissionMode,
       clearError,
       chatMessages,
-      isActive,
       isProcessing,
+      handleActivateChat,
       providerModels,
       project.id,
       resetPromptHistory,
@@ -742,7 +748,12 @@ export const ChatPanel = ({
 
   return (
     <>
-      <div id={panelDomId} className="flex h-full min-h-0 flex-col">
+      <div
+        id={panelDomId}
+        className="flex h-full min-h-0 flex-col"
+        onFocusCapture={handleActivateChat}
+        onPointerDownCapture={handleActivateChat}
+      >
         {showChatHeader ? (
           <ChatPanelHeader
             canCloseChat={canCloseChat}
@@ -818,7 +829,7 @@ export const ChatPanel = ({
           codexPermissionMode={codexPermissionMode}
           contextWindow={contextWindow}
           estimatedUsedTokens={estimatedUsedTokens}
-          isActive={isActive}
+          isActive={isProjectActive}
           isProcessing={isProcessing}
           isProviderInstalled={isProviderInstalled}
           modelId={modelId}
