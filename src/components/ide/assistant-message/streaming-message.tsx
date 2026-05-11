@@ -3,6 +3,7 @@ import {
   startTransition,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -47,6 +48,57 @@ const inlineCodeAnimationStyle: InlineCodeAnimationStyle = {
   "--sd-animation": "sd-fadeIn",
   "--sd-duration": `${STREAMING_TEXT_FADE_DURATION_MS}ms`,
   "--sd-easing": "ease-out",
+};
+
+const InlineCode = ({
+  animate,
+  className,
+  node: _node,
+  style,
+  ...props
+}: ComponentProps<"code"> & {
+  animate: boolean;
+  node?: unknown;
+}) => {
+  const ref = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!animate || !el) return;
+
+    // Find the nearest block-level ancestor to scope the stagger count.
+    const block =
+      el.closest("p,li,td,th,h1,h2,h3,h4,h5,h6,blockquote,dd,dt") ??
+      el.parentElement;
+    if (!block) return;
+
+    // Count [data-sd-animate] elements preceding this one in DOM order
+    // so the inline code fades in at the correct point in the sequence.
+    const all = block.querySelectorAll("[data-sd-animate]");
+    let index = 0;
+    for (const n of all) {
+      if (n === el) break;
+      index++;
+    }
+
+    el.style.setProperty(
+      "--sd-delay",
+      `${index * streamingTextAnimation.stagger}ms`,
+    );
+  });
+
+  return (
+    <code
+      ref={ref}
+      className={[INLINE_CODE_CLASS_NAME, className]
+        .filter(Boolean)
+        .join(" ")}
+      data-sd-animate={animate ? true : undefined}
+      data-streamdown="inline-code"
+      style={animate ? { ...inlineCodeAnimationStyle, ...style } : style}
+      {...props}
+    />
+  );
 };
 
 export const getNextStreamingWordToken = (text: string) =>
@@ -271,20 +323,8 @@ export const StreamingMessageResponse = ({
   >(
     () => ({
       a: (props) => <MarkdownFileLink {...props} projectPath={projectPath} />,
-      inlineCode: ({ className, node: _node, style, ...props }) => (
-        <code
-          className={[INLINE_CODE_CLASS_NAME, className]
-            .filter(Boolean)
-            .join(" ")}
-          data-sd-animate={animateStreamedText ? true : undefined}
-          data-streamdown="inline-code"
-          style={
-            animateStreamedText
-              ? { ...inlineCodeAnimationStyle, ...style }
-              : style
-          }
-          {...props}
-        />
+      inlineCode: (props) => (
+        <InlineCode animate={animateStreamedText} {...props} />
       ),
     }),
     [animateStreamedText, projectPath],
@@ -296,7 +336,7 @@ export const StreamingMessageResponse = ({
 
   return (
     <MessageResponse
-      animated={streamingTextAnimation}
+      animated={hasStreamedRef.current ? streamingTextAnimation : undefined}
       components={markdownComponents}
       isAnimating={animateStreamedText}
     >

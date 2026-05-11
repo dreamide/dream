@@ -18,8 +18,10 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   CHIP_BUTTON_BASE_CLASSES,
+  CHIP_ENTER_ANIMATION_CLASS,
   type ChipTone,
   getChipToneClasses,
+  useChipAnimate,
 } from "../assistant-message/shared";
 import {
   AgentChip,
@@ -309,6 +311,7 @@ export const ToolCallGroup = ({
   group: ToolChipItem[];
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const animate = useChipAnimate();
   const summaries = summarizeToolGroup(group);
 
   if (summaries.length === 0) {
@@ -339,6 +342,7 @@ export const ToolCallGroup = ({
               <span
                 className={cn(
                   CHIP_BUTTON_BASE_CLASSES,
+                  animate && CHIP_ENTER_ANIMATION_CLASS,
                   getChipToneClasses(tone, isErrorSummary),
                   "pointer-events-none font-mono tabular-nums",
                 )}

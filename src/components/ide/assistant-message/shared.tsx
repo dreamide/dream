@@ -1,6 +1,6 @@
 import { CheckIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { motion } from "motion/react";
-import type { ComponentProps, ReactNode } from "react";
+import { createContext, type ComponentProps, type ReactNode, useContext } from "react";
 import {
   Confirmation,
   ConfirmationAction,
@@ -272,8 +272,13 @@ export const CHIP_DETAIL_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 py-2 text-[12px]";
 export const RUN_COMMAND_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 pt-2 pb-1 text-[12px]";
+export const CHIP_ENTER_ANIMATION_CLASS = "animate-[chip-enter_0.3s_ease-out]";
 export const CHIP_BUTTON_BASE_CLASSES =
-  "animate-[chip-enter_0.3s_ease-out] inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-2.5 py-1 text-xs transition-colors";
+  "inline-flex items-center gap-1.5 overflow-hidden rounded-full border px-2.5 py-1 text-xs transition-colors";
+
+const ChipAnimateContext = createContext(false);
+export const ChipAnimateProvider = ChipAnimateContext.Provider;
+export const useChipAnimate = () => useContext(ChipAnimateContext);
 export const CHIP_SUBTEXT_CLASSES = "opacity-70";
 export const CHIP_ERROR_SUBTEXT_CLASSES = "text-destructive/70";
 export const CHIP_LAYOUT_TRANSITION = {
@@ -291,15 +296,19 @@ export const ChipButton = ({
 }: ComponentProps<typeof motion.button> & {
   hasError?: boolean;
   tone?: ChipTone;
-}) => (
-  <motion.button
-    className={cn(
-      CHIP_BUTTON_BASE_CLASSES,
-      tone ? getChipToneClasses(tone, hasError) : undefined,
-      className,
-    )}
-    layout="size"
-    transition={CHIP_LAYOUT_TRANSITION}
-    {...props}
-  />
-);
+}) => {
+  const animate = useChipAnimate();
+  return (
+    <motion.button
+      className={cn(
+        CHIP_BUTTON_BASE_CLASSES,
+        animate && CHIP_ENTER_ANIMATION_CLASS,
+        tone ? getChipToneClasses(tone, hasError) : undefined,
+        className,
+      )}
+      layout="size"
+      transition={CHIP_LAYOUT_TRANSITION}
+      {...props}
+    />
+  );
+};

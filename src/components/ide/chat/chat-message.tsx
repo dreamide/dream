@@ -9,6 +9,7 @@ import {
 } from "@/components/ai-elements/sources";
 import type { AiProvider } from "@/types/ide";
 import { AssistantMessagePart } from "../assistant-message-part";
+import { ChipAnimateProvider } from "../assistant-message/shared";
 import { isChipToolPart } from "../assistant-message-tools";
 import { UserMessageContent } from "./message-content";
 import { MessageHoverFooter } from "./message-footer";
@@ -97,37 +98,40 @@ export const ChatMessage = memo(
       (part) => part.type !== "source-url" && part.type !== "source-document",
     );
 
+    const isActivelyStreaming = isStreaming && isLastMessage;
+
     return (
-      <Message className="relative" from={message.role}>
-        {sourceParts.length > 0 ? (
-          <Sources>
-            <SourcesTrigger count={sourceParts.length} />
-            <SourcesContent>
-              {sourceParts.map((part) => {
-                if (part.type === "source-url") {
-                  return (
-                    <Source
-                      href={part.url}
-                      key={`${message.id}-source-url-${part.url}`}
-                      title={part.url}
-                    />
-                  );
-                }
-                if (part.type === "source-document") {
-                  const title = part.title ?? part.filename ?? "Document";
-                  return (
-                    <Source
-                      key={`${message.id}-source-document-${title}`}
-                      title={title}
-                    />
-                  );
-                }
-                return null;
-              })}
-            </SourcesContent>
-          </Sources>
-        ) : null}
-        <MessageContent className="w-full gap-3">
+      <ChipAnimateProvider value={isActivelyStreaming}>
+        <Message className="relative" from={message.role}>
+          {sourceParts.length > 0 ? (
+            <Sources>
+              <SourcesTrigger count={sourceParts.length} />
+              <SourcesContent>
+                {sourceParts.map((part) => {
+                  if (part.type === "source-url") {
+                    return (
+                      <Source
+                        href={part.url}
+                        key={`${message.id}-source-url-${part.url}`}
+                        title={part.url}
+                      />
+                    );
+                  }
+                  if (part.type === "source-document") {
+                    const title = part.title ?? part.filename ?? "Document";
+                    return (
+                      <Source
+                        key={`${message.id}-source-document-${title}`}
+                        title={title}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </SourcesContent>
+            </Sources>
+          ) : null}
+          <MessageContent className="w-full gap-3">
           {(() => {
             const elements: ReactNode[] = [];
             const toolChipContext: ToolChipRenderContext = {
@@ -216,12 +220,13 @@ export const ChatMessage = memo(
             flushChipGroup();
             return elements;
           })()}
-        </MessageContent>
-        <MessageHoverFooter
-          isRunning={isStreaming && isLastMessage}
-          message={message}
-        />
-      </Message>
+          </MessageContent>
+          <MessageHoverFooter
+            isRunning={isActivelyStreaming}
+            message={message}
+          />
+        </Message>
+      </ChipAnimateProvider>
     );
   },
   (prev: ChatMessageProps, next: ChatMessageProps) =>
