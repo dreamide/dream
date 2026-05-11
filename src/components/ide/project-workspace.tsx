@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import type { RightPanelView } from "./ide-types";
+import { moveTabItem } from "./standard-tabs";
 
 import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
@@ -358,6 +359,23 @@ const ProjectWorkspaceComponent = ({
     [projectId, updateProject],
   );
 
+  const handleChatReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (!active || fromIndex === toIndex) {
+        return;
+      }
+
+      updateProject(projectId, (current) => ({
+        ...current,
+        ui: {
+          ...current.ui,
+          openChatIds: moveTabItem(current.ui.openChatIds, fromIndex, toIndex),
+        },
+      }));
+    },
+    [active, projectId, updateProject],
+  );
+
   const handleCloseChat = useCallback(
     (chatId: string) => {
       updateProject(projectId, (current) => {
@@ -608,6 +626,7 @@ const ProjectWorkspaceComponent = ({
             onActivateChat={handleActivateChat}
             onChatColumnWidthsChange={handleChatColumnWidthsChange}
             onCloseChat={handleCloseChat}
+            onChatReorder={handleChatReorder}
             openChatIds={openChatIds}
             project={project}
           />

@@ -1,4 +1,5 @@
 import { Ellipsis, FilePenLine, Trash2, X } from "lucide-react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +19,7 @@ export interface ChatPanelHeaderProps {
   onChatMenuOpenChange: (open: boolean) => void;
   onDeleteChat: () => void;
   onEditChat: () => void;
+  onHeaderPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   title: string;
 }
 
@@ -30,6 +32,7 @@ export const ChatPanelHeader = ({
   onChatMenuOpenChange,
   onDeleteChat,
   onEditChat,
+  onHeaderPointerDown,
   title,
 }: ChatPanelHeaderProps) => {
   const titleText =
@@ -37,7 +40,10 @@ export const ChatPanelHeader = ({
 
   return (
     <div className="shrink-0 px-2 pt-2">
-      <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 pb-2">
+      <div
+        className={`mx-auto flex w-full max-w-[700px] items-center justify-between gap-3 pb-2${onHeaderPointerDown ? " cursor-grab active:cursor-grabbing" : ""}`}
+        onPointerDown={onHeaderPointerDown}
+      >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             {isTitleGenerating ? <Spinner className="size-3 shrink-0" /> : null}
@@ -48,7 +54,10 @@ export const ChatPanelHeader = ({
         </div>
 
         {canShowChatMenu || canCloseChat ? (
-          <div className="flex shrink-0 items-center gap-1">
+          <div
+            className="flex shrink-0 cursor-default items-center gap-1"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
             {canShowChatMenu ? (
               <DropdownMenu
                 onOpenChange={onChatMenuOpenChange}

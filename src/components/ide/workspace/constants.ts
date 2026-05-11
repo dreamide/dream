@@ -3,6 +3,8 @@ import type { BrowserTabState } from "@/types/ide";
 import { TERMINAL_MIN_HEIGHT_PX } from "../ide-types";
 
 export const CHAT_PANEL_MIN_WIDTH_PX = 450;
+export const WORKSPACE_VIEWPORT_BACKGROUND =
+  "color-mix(in oklab, var(--muted) 50%, var(--background))";
 export const BROWSER_PANEL_DEFAULT_WIDTH_PX =
   DEFAULT_PANEL_SIZES.rightPanelWidth;
 export const BROWSER_PANEL_MIN_WIDTH_PX = 320;

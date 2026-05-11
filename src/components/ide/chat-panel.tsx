@@ -1,7 +1,9 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import {
+  type CSSProperties,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -64,8 +66,12 @@ import {
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
+import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
+const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
+  backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND,
+};
 
 const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
   references
@@ -78,6 +84,7 @@ export const ChatPanel = ({
   isProjectActive = isActive,
   onActivateChat,
   onCloseChat,
+  onHeaderPointerDown,
   project,
   chat,
 }: {
@@ -86,6 +93,7 @@ export const ChatPanel = ({
   isProjectActive?: boolean;
   onActivateChat?: () => void;
   onCloseChat?: () => void;
+  onHeaderPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   project: ProjectConfig;
   chat: ChatConfig;
 }) => {
@@ -757,6 +765,7 @@ export const ChatPanel = ({
         className="flex h-full min-h-0 flex-col"
         onFocusCapture={handleActivateChat}
         onPointerDownCapture={handleActivateChat}
+        style={CHAT_PANEL_BACKGROUND_STYLE}
       >
         {showChatHeader ? (
           <ChatPanelHeader
@@ -768,6 +777,7 @@ export const ChatPanel = ({
             onChatMenuOpenChange={setChatMenuOpen}
             onDeleteChat={() => deleteChat(chat.id)}
             onEditChat={handleEditChat}
+            onHeaderPointerDown={onHeaderPointerDown}
             title={chat.title}
           />
         ) : null}
