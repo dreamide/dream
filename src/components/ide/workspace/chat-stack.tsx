@@ -1,4 +1,8 @@
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   memo,
   useCallback,
@@ -315,6 +319,50 @@ const WorkspaceChatStackImpl = ({
       );
     });
   };
+
+  const handleResizeDoubleClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (visibleChats.length < 2) {
+        return;
+      }
+
+      resizeCleanupRef.current?.();
+
+      if (pendingResizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(pendingResizeFrameRef.current);
+        pendingResizeFrameRef.current = null;
+      }
+      activeResizeRef.current = null;
+
+      const visibleCount = visibleChats.length;
+      const containerWidth = containerRef.current?.clientWidth ?? 0;
+      const equalWidth = Math.max(
+        CHAT_PANEL_MIN_WIDTH_PX,
+        containerWidth / visibleCount,
+      );
+      const nextWidths = {
+        ...widthRef.current,
+        ...Object.fromEntries(
+          visibleChats.map((chat) => [chat.id, equalWidth]),
+        ),
+      };
+
+      widthRef.current = nextWidths;
+
+      for (const chat of visibleChats) {
+        const column = columnRefs.current[chat.id];
+        if (column) {
+          column.style.flex = `1 1 ${equalWidth}px`;
+        }
+      }
+
+      onChatColumnWidthsChange(nextWidths);
+    },
+    [onChatColumnWidthsChange, visibleChats],
+  );
 
   const handleResizePointerDown = (
     event: ReactPointerEvent<HTMLElement>,
@@ -639,7 +687,8 @@ const WorkspaceChatStackImpl = ({
                 <hr
                   aria-label="Resize chat columns"
                   aria-orientation="vertical"
-                  className="relative h-full w-2 shrink-0 cursor-col-resize border-0 bg-transparent before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border before:content-['']"
+                  className="relative h-full w-2 shrink-0 cursor-col-resize border-0 bg-transparent before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border before:transition-colors before:content-[''] hover:before:bg-surface-300 dark:hover:before:bg-surface-700"
+                  onDoubleClick={handleResizeDoubleClick}
                   onPointerDown={(event) =>
                     handleResizePointerDown(event, chat.id, nextChat.id)
                   }
