@@ -1,5 +1,5 @@
 import type { ChatStatus } from "ai";
-import { Bot } from "lucide-react";
+import { Bot, MapIcon } from "lucide-react";
 import {
   type ChangeEventHandler,
   type KeyboardEventHandler,
@@ -93,6 +93,8 @@ type ActiveReferenceToken = {
 
 const PROJECT_REFERENCE_RESULT_LIMIT = 8;
 const PROJECT_REFERENCE_FILE_LIMIT = 2500;
+
+const getAgentModeIcon = (mode: AgentMode) => (mode === "plan" ? MapIcon : Bot);
 
 const normalizeProjectPath = (path: string) => path.replace(/\\/g, "/");
 
@@ -541,6 +543,7 @@ export const ChatComposer = ({
   selectedReasoningLabel,
   status,
 }: ChatComposerProps) => {
+  const AgentModeIcon = getAgentModeIcon(agentMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [projectReferences, setProjectReferences] = useState<
     ProjectReferenceItem[]
@@ -917,7 +920,7 @@ export const ChatComposer = ({
                   className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                   title="Agent mode"
                 >
-                  <Bot className="size-3.5 shrink-0" />
+                  <AgentModeIcon className="size-3.5 shrink-0" />
                   <span className="truncate">
                     {
                       AGENT_MODE_OPTIONS.find(
@@ -929,15 +932,22 @@ export const ChatComposer = ({
                 <SelectContent className="text-xs" side="top">
                   <SelectGroup>
                     <SelectLabel>Mode</SelectLabel>
-                    {AGENT_MODE_OPTIONS.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
+                    {AGENT_MODE_OPTIONS.map((option) => {
+                      const OptionIcon = getAgentModeIcon(option.value);
+
+                      return (
+                        <SelectItem
+                          className="text-xs"
+                          key={option.value}
+                          value={option.value}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <OptionIcon className="size-3.5 shrink-0 text-muted-foreground/70" />
+                            <span>{option.label}</span>
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectGroup>
                 </SelectContent>
               </Select>

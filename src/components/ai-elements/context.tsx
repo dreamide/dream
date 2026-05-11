@@ -150,7 +150,7 @@ export const ContextContentHeader = ({
     <div className={cn("w-full space-y-2 p-3", className)} {...props}>
       {children ?? (
         <>
-          <div className="font-medium text-sm">Context</div>
+          <div className="text-muted-foreground text-xs">Context</div>
           <div className="flex items-center justify-between gap-3 text-xs">
             <p>{displayPct}</p>
             <p className="font-mono text-muted-foreground">
