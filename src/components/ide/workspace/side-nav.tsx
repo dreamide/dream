@@ -20,8 +20,18 @@ const WorkspaceSideNavImpl = ({
   onToggleMultiChat,
   onToggleHistory,
 }: WorkspaceSideNavProps) => (
-  <aside className="flex w-12 shrink-0 flex-col items-center justify-between py-2">
+  <aside className="flex w-12 shrink-0 flex-col items-center py-2">
     <div className="flex flex-col items-center gap-1">
+      <Button
+        aria-label="New chat"
+        className="size-8 text-muted-foreground hover:text-foreground"
+        onClick={onAddChat}
+        size="icon"
+        title="New chat"
+        variant="ghost"
+      >
+        <MessageSquarePlus className="size-4" />
+      </Button>
       <Button
         aria-label="Chat history"
         className={cn(
@@ -39,33 +49,23 @@ const WorkspaceSideNavImpl = ({
         <History className="size-4" />
       </Button>
       <Button
-        aria-label="New chat"
-        className="size-8 text-muted-foreground hover:text-foreground"
-        onClick={onAddChat}
+        aria-label={multiChat ? "Disable multi-chat" : "Enable multi-chat"}
+        aria-pressed={multiChat}
+        className={cn(
+          "size-8",
+          multiChat
+            ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+        data-state={multiChat ? "on" : "off"}
+        onClick={onToggleMultiChat}
         size="icon"
-        title="New chat"
+        title={multiChat ? "Disable multi-chat" : "Enable multi-chat"}
         variant="ghost"
       >
-        <MessageSquarePlus className="size-4" />
+        <MessagesSquare className="size-4" />
       </Button>
     </div>
-    <Button
-      aria-label={multiChat ? "Disable multi-chat" : "Enable multi-chat"}
-      aria-pressed={multiChat}
-      className={cn(
-        "size-8",
-        multiChat
-          ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-      data-state={multiChat ? "on" : "off"}
-      onClick={onToggleMultiChat}
-      size="icon"
-      title={multiChat ? "Disable multi-chat" : "Enable multi-chat"}
-      variant="ghost"
-    >
-      <MessagesSquare className="size-4" />
-    </Button>
   </aside>
 );
 

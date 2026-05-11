@@ -43,7 +43,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { StreamdownCodeBlock } from "@/components/ai-elements/streamdown-code-block";
+import {
+  normalizeCodeFenceLanguageMarkers,
+  StreamdownCodeBlock,
+} from "@/components/ai-elements/streamdown-code-block";
 import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
@@ -689,10 +692,17 @@ const defaultMessageResponseComponents = {
 } as NonNullable<MessageResponseProps["components"]>;
 
 export const MessageResponse = memo(
-  ({ className, components, ...props }: MessageResponseProps) => {
+  ({ children, className, components, ...props }: MessageResponseProps) => {
     const mergedComponents = useMemo(
       () => ({ ...defaultMessageResponseComponents, ...components }),
       [components],
+    );
+    const normalizedChildren = useMemo(
+      () =>
+        typeof children === "string"
+          ? normalizeCodeFenceLanguageMarkers(children)
+          : children,
+      [children],
     );
 
     return (
@@ -704,7 +714,9 @@ export const MessageResponse = memo(
         components={mergedComponents}
         plugins={streamdownPlugins}
         {...props}
-      />
+      >
+        {normalizedChildren}
+      </Streamdown>
     );
   },
   (prevProps, nextProps) =>
