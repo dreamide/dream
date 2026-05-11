@@ -42,10 +42,10 @@ export const DreamLoadingScreen = ({
           speed={speed}
           syncKey={syncKey}
         >
-          <div className="flex items-center justify-center h-64 w-16">
+          <div className="relative z-10 flex h-64 w-16 items-center justify-center">
             <img
               alt=""
-              className="relative z-10 size-16 opacity-85"
+              className="size-16"
               draggable={false}
               src={dreamSvg}
             />
