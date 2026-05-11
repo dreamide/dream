@@ -20,6 +20,8 @@ export const OPENAI_LOW_COST_MODEL_CANDIDATES = [
   "gpt-5.4-mini",
 ];
 export const ANTHROPIC_LOW_COST_MODEL_CANDIDATES = ["haiku"];
+const OPENAI_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"];
+const ANTHROPIC_REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
 export const normalizeReasoningEfforts = (value) => {
   if (!Array.isArray(value)) {
@@ -82,29 +84,29 @@ export const getModelReasoningEfforts = (provider, modelId) => {
         id.startsWith(`${prefix}-`) ||
         id.startsWith(`${prefix}.`),
     );
-    return isReasoning ? ["low", "medium", "high", "xhigh"] : [];
+    return isReasoning ? OPENAI_REASONING_EFFORTS : [];
   }
 
   if (provider === "anthropic") {
     if (["opus", "sonnet", "haiku"].includes(id)) {
-      return ["low", "medium", "high", "max"];
+      return ANTHROPIC_REASONING_EFFORTS;
     }
     const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
     if (newFormat) {
       const major = Number(newFormat[1]);
-      if (major >= 4) return ["low", "medium", "high", "max"];
+      if (major >= 4) return ANTHROPIC_REASONING_EFFORTS;
     }
     const oldFormat = id.match(/^claude-(\d+)[-.](\d+)/);
     if (oldFormat) {
       const major = Number(oldFormat[1]);
       const minor = Number(oldFormat[2]);
       if (major > 3 || (major === 3 && minor >= 7)) {
-        return ["low", "medium", "high", "max"];
+        return ANTHROPIC_REASONING_EFFORTS;
       }
     }
     if (/^claude-(\d+)(?!\d)/.test(id)) {
       const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
-      if (majorOnly >= 4) return ["low", "medium", "high", "max"];
+      if (majorOnly >= 4) return ANTHROPIC_REASONING_EFFORTS;
     }
     return [];
   }

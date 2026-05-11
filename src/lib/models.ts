@@ -294,6 +294,19 @@ const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
 ];
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
+const OPENAI_REASONING_EFFORTS: ReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+const ANTHROPIC_REASONING_EFFORTS: ReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
 
 export const getModelContextWindow = (modelId: string): number => {
   const id = modelId.trim().toLowerCase();
@@ -329,7 +342,7 @@ export const getModelReasoningEfforts = (
     );
 
     if (isReasoning) {
-      return ["low", "medium", "high", "xhigh"];
+      return OPENAI_REASONING_EFFORTS;
     }
 
     // Non-reasoning OpenAI models (gpt-4o, gpt-4, etc.) – no effort knob
@@ -339,7 +352,7 @@ export const getModelReasoningEfforts = (
   // --- Anthropic models with extended thinking (claude-3.7+, claude-4+) --
   if (provider === "anthropic") {
     if (["opus", "sonnet", "haiku"].includes(id)) {
-      return ["low", "medium", "high", "max"];
+      return ANTHROPIC_REASONING_EFFORTS;
     }
 
     // New format: claude-{variant}-{major} e.g. claude-sonnet-4-20250514,
@@ -348,7 +361,7 @@ export const getModelReasoningEfforts = (
     if (newFormat) {
       const major = Number(newFormat[1]);
       if (major >= 4) {
-        return ["low", "medium", "high", "max"];
+        return ANTHROPIC_REASONING_EFFORTS;
       }
     }
 
@@ -359,7 +372,7 @@ export const getModelReasoningEfforts = (
       const major = Number(oldFormat[1]);
       const minor = Number(oldFormat[2]);
       if (major > 3 || (major === 3 && minor >= 7)) {
-        return ["low", "medium", "high", "max"];
+        return ANTHROPIC_REASONING_EFFORTS;
       }
     }
 
@@ -367,7 +380,7 @@ export const getModelReasoningEfforts = (
     if (/^claude-(\d+)(?!\d)/.test(id)) {
       const majorOnly = Number(id.match(/^claude-(\d+)/)?.[1]);
       if (majorOnly >= 4) {
-        return ["low", "medium", "high", "max"];
+        return ANTHROPIC_REASONING_EFFORTS;
       }
     }
 
