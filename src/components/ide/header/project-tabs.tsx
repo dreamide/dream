@@ -299,7 +299,7 @@ export const ProjectTabs = () => {
           >
             <span
               aria-hidden="true"
-              className="size-2 shrink-0 rounded-full bg-success-surface0 animate-status-dot-pulse"
+              className="size-2 shrink-0 rounded-full bg-success-highlight animate-status-dot-pulse"
             />
           </span>
         ) : project.icon ? (

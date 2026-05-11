@@ -54,7 +54,7 @@ const WorkspaceRightRailImpl = ({
       className={cn(
         "size-8",
         terminalHiddenWithActiveSession
-          ? "text-success-foreground hover:text-success-foreground dark:text-success-foreground dark:hover:text-green-300"
+          ? "text-success-highlight hover:text-success-highlight-hover"
           : hasProjectTerminalSessions
             ? "text-foreground hover:text-foreground"
             : "text-surface-400 dark:text-surface-500 hover:text-foreground",
