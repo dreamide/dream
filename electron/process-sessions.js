@@ -165,8 +165,6 @@ export function stopChildProcess(child) {
 }
 
 export function createProcessSessionManager({
-  debugTerminalStartup,
-  disableTerminalShell,
   sendToRenderer,
 }) {
   const runProcesses = new Map();
@@ -191,43 +189,6 @@ export function createProcessSessionManager({
         // ignore write failures after session exits
       }
     }, delayMs);
-  }
-
-  function createTerminalStartupLogger(projectId, shellCommand) {
-    if (!debugTerminalStartup) {
-      return () => {};
-    }
-
-    const startedAt = Date.now();
-    const chunks = [];
-    let logged = false;
-
-    const flush = () => {
-      if (logged) {
-        return;
-      }
-
-      logged = true;
-      console.log(
-        "[terminal startup]",
-        JSON.stringify({
-          chunks,
-          projectId,
-          shell: shellCommand,
-        }),
-      );
-    };
-
-    setTimeout(flush, 1500);
-
-    return (chunk) => {
-      if (logged || Date.now() - startedAt > 1500) {
-        flush();
-        return;
-      }
-
-      chunks.push(String(chunk));
-    };
   }
 
   function getDefaultTerminalShellCommand() {
@@ -353,14 +314,6 @@ export function createProcessSessionManager({
 
     stopTerminalSession(projectId);
 
-    if (disableTerminalShell) {
-      sendToRenderer("terminal:status", {
-        projectId,
-        status: "stopped",
-      });
-      return { status: "stopped" };
-    }
-
     const shellCandidates = buildTerminalShellCandidates(shellPath);
     const resolvedCwd = resolveTerminalCwd(cwd);
 
@@ -465,10 +418,6 @@ export function createProcessSessionManager({
         pipeFallbackCandidate.args,
       );
       terminalShells.set(projectId, shellCommand);
-      const logTerminalStartupChunk = createTerminalStartupLogger(
-        projectId,
-        shellCommand,
-      );
 
       sendToRenderer("terminal:status", {
         pid: child.pid,
@@ -486,7 +435,6 @@ export function createProcessSessionManager({
       }
 
       child.stdout?.on("data", (chunk) => {
-        logTerminalStartupChunk(chunk);
         sendToRenderer("terminal:data", {
           chunk: chunk.toString(),
           projectId,
@@ -494,7 +442,6 @@ export function createProcessSessionManager({
       });
 
       child.stderr?.on("data", (chunk) => {
-        logTerminalStartupChunk(chunk);
         sendToRenderer("terminal:data", {
           chunk: chunk.toString(),
           projectId,
@@ -551,10 +498,6 @@ export function createProcessSessionManager({
       chosenShell.args,
     );
     terminalShells.set(projectId, shellCommand);
-    const logTerminalStartupChunk = createTerminalStartupLogger(
-      projectId,
-      shellCommand,
-    );
     sendToRenderer("terminal:status", {
       pid: terminalSession.pid,
       projectId,
@@ -564,7 +507,6 @@ export function createProcessSessionManager({
     });
 
     terminalSession.onData((chunk) => {
-      logTerminalStartupChunk(chunk);
       sendToRenderer("terminal:data", {
         chunk,
         projectId,

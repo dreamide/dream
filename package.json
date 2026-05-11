@@ -7,8 +7,6 @@
     "dev": "pnpm dev:electron",
     "dev:vite": "vite --host 127.0.0.1 --port 3210 --strictPort",
     "dev:electron": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron electron/main.js",
-    "dev:no-terminal-shell": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true DREAM_DISABLE_TERMINAL_SHELL=1 electron electron/main.js",
-    "dev:terminal-debug": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true DREAM_DEBUG_TERMINAL_STARTUP=1 electron electron/main.js",
     "db:generate": "drizzle-kit generate",
     "import:codex-chats": "node scripts/import-codex-chats.mjs",
     "postinstall": "node scripts/fix-node-pty-permissions.mjs && node scripts/prepare-electron-dev-app.mjs",

@@ -33,12 +33,6 @@ const rendererUrlFromEnv = process.env.ELECTRON_RENDERER_URL?.trim();
 const developmentRendererUrl =
   rendererUrlFromEnv || `http://127.0.0.1:${internalRendererPort}`;
 const apiServerPort = Number(process.env.ELECTRON_API_PORT ?? 3211);
-const disableTerminalShell =
-  process.env.DREAM_DISABLE_TERMINAL_SHELL === "1" ||
-  process.env.DREAM_DISABLE_TERMINAL_SHELL === "true";
-const debugTerminalStartup =
-  process.env.DREAM_DEBUG_TERMINAL_STARTUP === "1" ||
-  process.env.DREAM_DEBUG_TERMINAL_STARTUP === "true";
 const rendererStartupTimeoutMs = Number(
   process.env.VITE_READY_TIMEOUT_MS ?? 45000,
 );
@@ -142,8 +136,6 @@ const browserSessionManager = createBrowserSessionManager({
 });
 
 const processSessionManager = createProcessSessionManager({
-  debugTerminalStartup,
-  disableTerminalShell,
   sendToRenderer,
 });
 
