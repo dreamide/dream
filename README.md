@@ -118,17 +118,6 @@ Repair `node-pty` permissions and prepare the Electron development app:
 pnpm postinstall
 ```
 
-## Project Layout
-
-```text
-electron/     Electron main process, preload bridge, local APIs, persistence, terminal/browser sessions
-src/          React renderer app, IDE UI, stores, hooks, and shared renderer utilities
-scripts/      Maintenance and setup scripts
-public/       Static assets used by the app and package
-dist/         Vite production build output
-release/      electron-builder package output
-```
-
 ## Notes
 
 Dream stores desktop application data under the app data directory using the `Dream` app name. The main window loads a local renderer URL in development and the packaged renderer server in production.
