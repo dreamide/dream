@@ -81,11 +81,11 @@ export const ProjectSidebar = ({
   const projectUi = useIdeStore(
     (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
   );
-  const draftChatIdByProject = useIdeStore((s) => s.draftChatIdByProject);
   const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
+  const updateProject = useIdeStore((s) => s.updateProject);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
 
@@ -94,18 +94,13 @@ export const ProjectSidebar = ({
   const [editValue, setEditValue] = useState("");
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
-    const draftChatId = draftChatIdByProject[project.id] ?? null;
     return allChats
       .filter(
-        (chat) => chat.projectId === project.id && chat.deletedAt === null,
+        (chat) =>
+          chat.projectId === project.id &&
+          chat.deletedAt === null &&
+          (messagesByChatId[chat.id]?.length ?? 0) > 0,
       )
-      .filter((chat) => {
-        if (chat.id !== draftChatId) {
-          return true;
-        }
-
-        return (messagesByChatId[chat.id]?.length ?? 0) > 0;
-      })
       .sort((left, right) => {
         const leftUpdated = Date.parse(left.updatedAt);
         const rightUpdated = Date.parse(right.updatedAt);
@@ -115,7 +110,7 @@ export const ProjectSidebar = ({
 
         return rightUpdated - leftUpdated;
       });
-  }, [allChats, draftChatIdByProject, messagesByChatId, project.id]);
+  }, [allChats, messagesByChatId, project.id]);
 
   const filteredChats = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -134,6 +129,26 @@ export const ProjectSidebar = ({
     setEditTarget(null);
     setEditValue("");
   }, []);
+
+  const handleChatSelect = useCallback(
+    (chatId: string) => {
+      if (projectUi.openChatIds.length > 1) {
+        setActiveChatId(project.id, chatId);
+        return;
+      }
+
+      updateProject(project.id, (current) => ({
+        ...current,
+        ui: {
+          ...current.ui,
+          activeChatId: chatId,
+          openChatIds: [chatId],
+          chatColumnWidths: {},
+        },
+      }));
+    },
+    [project.id, projectUi.openChatIds.length, setActiveChatId, updateProject],
+  );
 
   const handleEditSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -208,7 +223,7 @@ export const ProjectSidebar = ({
                     <button
                       className="w-full rounded-[inherit] px-3 py-2 text-left"
                       onClick={(event) => {
-                        setActiveChatId(project.id, chat.id);
+                        handleChatSelect(chat.id);
                         onChatSelect?.();
                         if (event.detail > 0) {
                           event.currentTarget.blur();

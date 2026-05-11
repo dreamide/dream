@@ -113,6 +113,45 @@ function getNestedBoolean(parent, key, fallback) {
   return typeof parent?.[key] === "boolean" ? parent[key] : fallback;
 }
 
+function getNestedStringArray(parent, key) {
+  const value = parent?.[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set();
+  const strings = [];
+  for (const item of value) {
+    const stringValue = typeof item === "string" ? item.trim() : "";
+    if (!stringValue || seen.has(stringValue)) {
+      continue;
+    }
+
+    seen.add(stringValue);
+    strings.push(stringValue);
+  }
+
+  return strings;
+}
+
+function getNestedNumberRecord(parent, key) {
+  const value = parent?.[key];
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([recordKey, recordValue]) =>
+        typeof recordKey === "string" &&
+        recordKey.trim() &&
+        typeof recordValue === "number" &&
+        Number.isFinite(recordValue) &&
+        recordValue > 0,
+    ),
+  );
+}
+
 function getNestedRightPanelView(parent, key, fallback = "changes") {
   const value = parent?.[key];
   return value === "browser" || value === "explorer" || value === "changes"
@@ -208,6 +247,8 @@ function buildProjectMetadata(project) {
       typeof project.ui?.activeChatId === "string"
         ? project.ui.activeChatId
         : null,
+    openChatIds: getNestedStringArray(project.ui, "openChatIds"),
+    chatColumnWidths: getNestedNumberRecord(project.ui, "chatColumnWidths"),
   };
   const existingPanelVisibility = getNestedRecord(ui, "panelVisibility");
   const existingPanelSizes = getNestedRecord(ui, "panelSizes");
@@ -645,6 +686,8 @@ function loadStateFromRelationalDatabase(database) {
 
     project.ui = {
       activeChatId: getNestedNullableString(ui, "activeChatId"),
+      openChatIds: getNestedStringArray(ui, "openChatIds"),
+      chatColumnWidths: getNestedNumberRecord(ui, "chatColumnWidths"),
       chatHistoryPanelOpen: getNestedBoolean(ui, "chatHistoryPanelOpen", false),
       panelSizes: {
         chatHistoryPanelWidth: getNestedNumber(
@@ -760,11 +803,27 @@ function loadStateFromRelationalDatabase(database) {
     const projectChats = chats.filter(
       (chat) => chat.projectId === project.id && chat.deletedAt === null,
     );
+    const availableChatIds = new Set(projectChats.map((chat) => chat.id));
+    const activeChatId = availableChatIds.has(requestedChatId)
+      ? requestedChatId
+      : (projectChats[0]?.id ?? null);
+    const openChatIds = project.ui.openChatIds.filter((chatId) =>
+      availableChatIds.has(chatId),
+    );
+    if (activeChatId && !openChatIds.includes(activeChatId)) {
+      openChatIds.push(activeChatId);
+    }
+    const openChatIdSet = new Set(openChatIds);
+
     project.ui = {
       ...project.ui,
-      activeChatId: projectChats.some((chat) => chat.id === requestedChatId)
-        ? requestedChatId
-        : (projectChats[0]?.id ?? null),
+      activeChatId,
+      openChatIds,
+      chatColumnWidths: Object.fromEntries(
+        Object.entries(project.ui.chatColumnWidths).filter(([chatId]) =>
+          openChatIdSet.has(chatId),
+        ),
+      ),
     };
   }
 
