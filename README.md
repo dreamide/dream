@@ -120,4 +120,4 @@ pnpm postinstall
 
 ## Notes
 
-Dream stores desktop application data under the app data directory using the `Dream` app name. The main window loads a local renderer URL in development and the packaged renderer server in production.
+Dream stores desktop application data under the app data directory in a `dreamide` folder. The app name remains `Dream`. The main window loads a local renderer URL in development and the packaged renderer server in production.

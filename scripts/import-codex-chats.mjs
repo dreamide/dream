@@ -401,7 +401,7 @@ const parseArgs = (argv) => {
 };
 
 const getUserDataCandidates = () => {
-  const names = ["Dream IDE", "dream", "Electron"];
+  const names = ["dreamide", "Dream IDE", "dream", "Electron"];
   const roots = [];
 
   if (process.platform === "win32") {

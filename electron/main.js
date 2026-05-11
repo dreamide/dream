@@ -38,7 +38,11 @@ const rendererStartupTimeoutMs = Number(
 );
 const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
-const APP_USER_DATA_PATH = path.join(app.getPath("appData"), APP_NAME);
+const APP_USER_DATA_DIR_NAME = "dreamide";
+const APP_USER_DATA_PATH = path.join(
+  app.getPath("appData"),
+  APP_USER_DATA_DIR_NAME,
+);
 const THEME_PREFERENCES_PATH = path.join(
   APP_USER_DATA_PATH,
   "theme-preferences.json",
