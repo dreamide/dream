@@ -431,7 +431,7 @@ const ChangesPanelImpl = ({
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
+        <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2 text-sm font-medium">
           <Code className="size-4 text-muted-foreground" />
           <span>Changes</span>
         </div>
@@ -444,20 +444,20 @@ const ChangesPanelImpl = ({
 
   return (
     <div className="changes-panel flex h-full flex-col overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-foreground/10 bg-muted/50 px-3 py-2">
+      <div className="flex items-center gap-3 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
         <Code className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">Changes</div>
         </div>
 
-        <div className="flex overflow-hidden rounded-md border border-foreground/15 bg-background/70 p-0.5">
+        <div className="flex overflow-hidden rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-0.5">
           <button
             aria-label="Unified diff"
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
               diffViewMode === "unified"
                 ? "bg-muted text-foreground shadow-sm"
-                : "hover:bg-muted/70 hover:text-foreground",
+                : "hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
             )}
             onClick={() => handleSetDiffViewMode("unified")}
             title="Unified diff"
@@ -471,7 +471,7 @@ const ChangesPanelImpl = ({
               "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
               diffViewMode === "split"
                 ? "bg-muted text-foreground shadow-sm"
-                : "hover:bg-muted/70 hover:text-foreground",
+                : "hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
             )}
             onClick={() => handleSetDiffViewMode("split")}
             title="Split diff"
@@ -509,7 +509,7 @@ const ChangesPanelImpl = ({
 
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
         {statusError ? (
-          <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+          <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
             {statusError}
           </div>
         ) : null}

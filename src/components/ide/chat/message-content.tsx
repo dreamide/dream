@@ -228,7 +228,7 @@ export const UserMessageContent = ({
         <div className="mb-2 flex flex-wrap gap-2">
           {projectReferences.map((reference) => (
             <Badge
-              className="max-w-full gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-1 font-medium text-blue-700 dark:text-blue-300"
+              className="max-w-full gap-1.5 rounded-full border border-info-border bg-info-surface px-2.5 py-1 font-medium text-info-foreground dark:text-info-foreground"
               key={`${reference.kind}:${reference.path}`}
               variant="secondary"
             >

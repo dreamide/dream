@@ -358,7 +358,7 @@ export const IdeShell = () => {
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-muted/50 text-foreground">
+    <div className="flex h-screen flex-col overflow-hidden bg-surface-50 dark:bg-surface-900 text-foreground">
       {!appReady && <DreamLoadingScreen />}
       <IdeHeader />
 

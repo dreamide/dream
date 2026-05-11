@@ -15,7 +15,7 @@ import { StandardTabs } from "./standard-tabs";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 const TERMINAL_SURFACE_CLASSES =
-  "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
+  "overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background text-foreground shadow-md";
 const TERMINAL_HOST_CLASS = "h-full w-full overflow-hidden";
 const TERMINAL_FONT_FAMILY_FALLBACK =
   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
@@ -483,7 +483,7 @@ export const ProjectTerminalTabsPanel = ({
         className="flex min-h-0 flex-1 flex-col"
         style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
       >
-        <div className="flex items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-1.5">
+        <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
             <StandardTabs
@@ -491,7 +491,7 @@ export const ProjectTerminalTabsPanel = ({
               after={
                 <Button
                   aria-label="Open another terminal"
-                  className="h-8 w-8 shrink-0 rounded-lg p-0 text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  className="h-8 w-8 shrink-0 rounded-lg p-0 text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground"
                   onClick={() => void addProjectTerminal(projectId)}
                   size="sm"
                   type="button"

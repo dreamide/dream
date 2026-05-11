@@ -54,10 +54,10 @@ const WorkspaceRightRailImpl = ({
       className={cn(
         "size-8",
         terminalHiddenWithActiveSession
-          ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+          ? "text-success-foreground hover:text-success-foreground dark:text-success-foreground dark:hover:text-green-300"
           : hasProjectTerminalSessions
             ? "text-foreground hover:text-foreground"
-            : "text-muted-foreground/50 hover:text-foreground",
+            : "text-surface-400 dark:text-surface-500 hover:text-foreground",
       )}
       onClick={onOpenTerminal}
       size="icon"

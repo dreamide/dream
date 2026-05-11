@@ -23,7 +23,7 @@ export const NextStepSelector = <Value extends string>({
   value: Value;
 }) => (
   <RadioGroup
-    className="gap-0 overflow-hidden rounded-lg border border-foreground/10 bg-muted/35"
+    className="gap-0 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900"
     onValueChange={(nextValue) => onValueChange(nextValue as Value)}
     value={value}
   >
@@ -34,10 +34,10 @@ export const NextStepSelector = <Value extends string>({
         <label
           className={cn(
             "flex h-12 items-center gap-3 px-3 text-sm transition-colors",
-            index > 0 ? "border-t border-foreground/10" : "",
+            index > 0 ? "border-t border-surface-200 dark:border-surface-800" : "",
             option.disabled
-              ? "cursor-not-allowed text-muted-foreground/45"
-              : "cursor-pointer text-foreground hover:bg-muted/55",
+              ? "cursor-not-allowed text-surface-400 dark:text-surface-600"
+              : "cursor-pointer text-foreground hover:bg-surface-100 dark:hover:bg-surface-800",
           )}
           htmlFor={optionId}
           key={option.value}
@@ -52,7 +52,7 @@ export const NextStepSelector = <Value extends string>({
             className={cn(
               "flex size-6 shrink-0 items-center justify-center [&_svg]:size-4",
               option.disabled
-                ? "text-muted-foreground/45"
+                ? "text-surface-400 dark:text-surface-600"
                 : "text-muted-foreground",
             )}
           >
@@ -125,7 +125,7 @@ export const DialogMetricRow = ({
 
 export const ActionError = ({ error }: { error: string | null }) =>
   error ? (
-    <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+    <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
       {error}
     </div>
   ) : null;

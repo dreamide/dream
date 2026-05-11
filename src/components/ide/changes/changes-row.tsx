@@ -33,9 +33,9 @@ const CHANGE_STATUS_LABEL_CLASSNAMES: Partial<
   Record<ProjectGitChangeStatus, string>
 > = {
   deleted:
-    "rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-rose-600 ring-1 ring-rose-200 dark:bg-rose-950/35 dark:text-rose-300 dark:ring-rose-900/60",
+    "rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-rose-600 ring-1 ring-rose-200 dark:bg-destructive-surface dark:text-rose-300 dark:ring-destructive-border-strong",
   untracked:
-    "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/35 dark:text-emerald-300 dark:ring-emerald-900/60",
+    "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold leading-4 text-emerald-700 ring-1 ring-emerald-200 dark:bg-success-surface dark:text-emerald-300 dark:ring-success-border",
 };
 
 const DiffEmptyState = ({ diff }: { diff: string }) => {
@@ -107,7 +107,7 @@ const ExpandedDiffBody = ({
   if (diffError) {
     return (
       <div className="px-4 py-4">
-        <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+        <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
           {diffError}
         </div>
       </div>
@@ -128,9 +128,9 @@ const ExpandedDiffBody = ({
     : null;
 
   return (
-    <div className="bg-muted/20">
+    <div className="bg-surface-50 dark:bg-surface-900">
       {change.previousPath ? (
-        <div className="border-b border-foreground/10 px-4 py-2 text-muted-foreground text-xs">
+        <div className="border-b border-surface-200 dark:border-surface-800 px-4 py-2 text-muted-foreground text-xs">
           {`${change.previousPath} -> ${change.path}`}
         </div>
       ) : null}
@@ -159,7 +159,7 @@ const ExpandedDiffBody = ({
               fileDiff={diff.parsedDiff}
             />
           ) : (
-            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-muted/40 p-4 font-mono text-xs">
+            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-surface-100 dark:bg-surface-900 p-4 font-mono text-xs">
               {diff.diff}
             </pre>
           )
@@ -194,13 +194,13 @@ export const ChangesRow = ({
   const hasRemovedLines = typeof change.removedLines === "number";
 
   return (
-    <div className="border-b border-foreground/15 bg-background">
+    <div className="border-b border-surface-200 dark:border-surface-700 bg-background">
       <button
         className={cn(
           "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors",
           expanded
-            ? "sticky top-0 z-30 border-b border-foreground/15 bg-background shadow-sm"
-            : "hover:bg-muted/45",
+            ? "sticky top-0 z-30 border-b border-surface-200 dark:border-surface-700 bg-background shadow-sm"
+            : "hover:bg-surface-100 dark:hover:bg-surface-900",
         )}
         onClick={onToggle}
         type="button"

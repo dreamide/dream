@@ -43,7 +43,7 @@ export const ProviderStatusCard = ({
   const displayVersion = formatCliVersion(version);
 
   return (
-    <div className="rounded-lg border border-foreground/10 p-4">
+    <div className="rounded-lg border border-surface-200 dark:border-surface-800 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -58,7 +58,7 @@ export const ProviderStatusCard = ({
           <p className="flex items-center gap-2 text-muted-foreground text-sm">
             {runtimeLabel}
             {displayVersion ? (
-              <span className="rounded-full border border-foreground/10 bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground leading-none">
+              <span className="rounded-full border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-2 py-0.5 font-mono text-[11px] text-muted-foreground leading-none">
                 {displayVersion}
               </span>
             ) : null}
@@ -71,7 +71,7 @@ export const ProviderStatusCard = ({
       </div>
 
       {error ? (
-        <p className="mt-3 rounded-md bg-amber-500/8 px-3 py-2 text-amber-700 text-sm">
+        <p className="mt-3 rounded-md bg-warning-surface px-3 py-2 text-amber-700 text-sm">
           {error}
         </p>
       ) : null}

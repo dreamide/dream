@@ -346,14 +346,14 @@ const BrowserPanelImpl = ({
       id={`browser-panel-${projectId}`}
       className="flex h-full flex-col overflow-hidden"
     >
-      <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5">
+      <div className="flex items-center gap-2 bg-surface-50 dark:bg-surface-900 px-3 py-1.5">
         <Globe className="size-4 shrink-0 text-muted-foreground" />
         <StandardTabs
           activeId={activeTab?.id ?? null}
           after={
             <button
               aria-label="New tab"
-              className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+              className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground"
               onClick={handleAddTab}
               title="New tab"
               type="button"
@@ -372,13 +372,13 @@ const BrowserPanelImpl = ({
         />
       </div>
 
-      <div className="flex items-center gap-0.5 border-b border-foreground/10 bg-muted/50 px-1.5 py-2">
+      <div className="flex items-center gap-0.5 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-1.5 py-2">
         <button
           className={cn(
             "rounded p-1 transition-colors",
             activeTab?.canGoBack
               ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-              : "text-muted-foreground/40",
+              : "text-surface-400 dark:text-surface-600",
           )}
           disabled={!activeTab?.canGoBack}
           onClick={handleGoBack}
@@ -393,7 +393,7 @@ const BrowserPanelImpl = ({
             "rounded p-1 transition-colors",
             activeTab?.canGoForward
               ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-              : "text-muted-foreground/40",
+              : "text-surface-400 dark:text-surface-600",
           )}
           disabled={!activeTab?.canGoForward}
           onClick={handleGoForward}
@@ -408,7 +408,7 @@ const BrowserPanelImpl = ({
             "rounded p-1 transition-colors",
             activeTab
               ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-              : "text-muted-foreground/40",
+              : "text-surface-400 dark:text-surface-600",
           )}
           disabled={!activeTab}
           onClick={handleRefresh}
@@ -424,7 +424,7 @@ const BrowserPanelImpl = ({
 
         <div className="relative mx-1.5 flex-1">
           <Input
-            className="h-7 rounded-full border-foreground/10 bg-background px-3 text-xs focus:border-foreground/20"
+            className="h-7 rounded-full border-surface-200 dark:border-surface-800 bg-background px-3 text-xs focus:border-surface-300 dark:focus:border-surface-700"
             disabled={!activeTab}
             onChange={(event) => {
               setBrowserUrlDraft(event.currentTarget.value);
@@ -463,21 +463,21 @@ const BrowserPanelImpl = ({
             <div className="absolute inset-0 bg-background" />
           ) : null}
           {browserError ? (
-            <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive/20 bg-background/95 px-3 py-2 text-xs text-destructive shadow-sm">
+            <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive-border bg-background px-3 py-2 text-xs text-destructive shadow-sm">
               {browserError}
             </div>
           ) : null}
         </div>
       </div>
 
-      <div className="flex h-8 shrink-0 items-center justify-end border-t border-foreground/10 bg-muted/50 px-1.5">
+      <div className="flex h-8 shrink-0 items-center justify-end border-t border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-1.5">
         <button
           aria-label="Open DevTools"
           className={cn(
             "rounded p-1 transition-colors",
             activeTab?.url && !browserResizeHidden
               ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-              : "text-muted-foreground/40",
+              : "text-surface-400 dark:text-surface-600",
           )}
           disabled={!activeTab?.url || browserResizeHidden}
           onClick={handleOpenDevTools}

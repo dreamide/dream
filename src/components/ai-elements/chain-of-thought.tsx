@@ -109,7 +109,7 @@ export type ChainOfThoughtStepProps = ComponentProps<"div"> & {
 const stepStatusStyles = {
   active: "text-foreground",
   complete: "text-muted-foreground",
-  pending: "text-muted-foreground/50",
+  pending: "text-surface-400 dark:text-surface-500",
 };
 
 export const ChainOfThoughtStep = memo(

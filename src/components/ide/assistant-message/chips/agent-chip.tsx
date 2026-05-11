@@ -85,11 +85,11 @@ export const AgentChip = ({
           style={{ borderColor: "currentColor" }}
         >
           {isRecord(part.input) ? (
-            <div className="space-y-2 rounded-md bg-muted/20 p-3">
+            <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
                 Parameters
               </h4>
-              <div className="rounded-md bg-muted/50">
+              <div className="rounded-md bg-surface-50 dark:bg-surface-900">
                 <CodeBlock
                   code={JSON.stringify(part.input, null, 2)}
                   language="json"
@@ -98,7 +98,7 @@ export const AgentChip = ({
             </div>
           ) : null}
           {hasError ? (
-            <div className="space-y-2 rounded-md bg-destructive/5 p-3">
+            <div className="space-y-2 rounded-md bg-destructive-surface-muted p-3">
               <h4 className="font-medium text-destructive text-xs uppercase tracking-wide">
                 Result
               </h4>
@@ -107,7 +107,7 @@ export const AgentChip = ({
               </pre>
             </div>
           ) : outputText ? (
-            <div className="space-y-2 rounded-md bg-muted/20 p-3">
+            <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
                 Result
               </h4>

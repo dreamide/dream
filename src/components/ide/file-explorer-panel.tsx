@@ -629,7 +629,7 @@ const FileExplorerPanelImpl = ({
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <div className="flex min-h-[50px] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2 text-sm font-medium">
+        <div className="flex min-h-[50px] items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2 text-sm font-medium">
           <Files className="size-4 text-muted-foreground" />
           <span>Files</span>
         </div>
@@ -642,13 +642,13 @@ const FileExplorerPanelImpl = ({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="grid min-h-[50px] grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-foreground/10 bg-muted/50 px-3 py-2">
+      <div className="grid min-h-[50px] grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <Files className="size-4 shrink-0 text-muted-foreground" />
           <div className="truncate text-sm font-medium">Files</div>
         </div>
         <button
-          className="min-w-0 max-w-full justify-self-center truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="min-w-0 max-w-full justify-self-center truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
           onClick={handleOpenProjectPath}
           title="Open project folder"
           type="button"
@@ -677,7 +677,7 @@ const FileExplorerPanelImpl = ({
             maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
           }}
         >
-          <div className="h-full border-r border-foreground/10 bg-background">
+          <div className="h-full border-r border-surface-200 dark:border-surface-800 bg-background">
             {!filesError && filesLoading && files.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <Spinner className="size-4 text-muted-foreground" />
@@ -687,7 +687,7 @@ const FileExplorerPanelImpl = ({
                 {filesError ? (
                   <div className="p-3">
                     {isMissingProjectPath ? (
-                      <div className="rounded-md border border-foreground/10 bg-background px-3 py-3">
+                      <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
                         <div className="font-medium text-foreground text-sm">
                           Project folder not found.
                         </div>
@@ -698,7 +698,7 @@ const FileExplorerPanelImpl = ({
                         ) : null}
                       </div>
                     ) : (
-                      <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-xs">
+                      <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
                         {filesError}
                       </div>
                     )}
@@ -739,7 +739,7 @@ const FileExplorerPanelImpl = ({
             </div>
           ) : fileError ? (
             <div className="p-3">
-              <div className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+              <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
                 {fileError}
               </div>
             </div>

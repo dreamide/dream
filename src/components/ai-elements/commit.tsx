@@ -286,7 +286,7 @@ export const CommitFile = ({
 }: CommitFileProps) => (
   <div
     className={cn(
-      "flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50",
+      "flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-surface-50 dark:hover:bg-surface-900",
       className,
     )}
     {...props}
@@ -308,10 +308,10 @@ export const CommitFileInfo = ({
 );
 
 const fileStatusStyles = {
-  added: "text-green-600 dark:text-green-400",
-  deleted: "text-red-600 dark:text-red-400",
-  modified: "text-yellow-600 dark:text-yellow-400",
-  renamed: "text-blue-600 dark:text-blue-400",
+  added: "text-success-foreground dark:text-success-foreground",
+  deleted: "text-destructive dark:text-destructive-muted",
+  modified: "text-warning-foreground dark:text-warning-foreground",
+  renamed: "text-info-foreground dark:text-info-foreground",
 };
 
 const fileStatusLabels = {
@@ -401,7 +401,7 @@ export const CommitFileAdditions = ({
 
   return (
     <span
-      className={cn("text-green-600 dark:text-green-400", className)}
+      className={cn("text-success-foreground dark:text-success-foreground", className)}
       {...props}
     >
       {children ?? (
@@ -430,7 +430,7 @@ export const CommitFileDeletions = ({
 
   return (
     <span
-      className={cn("text-red-600 dark:text-red-400", className)}
+      className={cn("text-destructive dark:text-destructive-muted", className)}
       {...props}
     >
       {children ?? (

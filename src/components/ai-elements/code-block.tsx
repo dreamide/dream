@@ -97,7 +97,7 @@ const LineSpan = ({
 
   return (
     <span className={LINE_NUMBER_CLASSES}>
-      <span className="select-none text-right font-mono text-muted-foreground/70 tabular-nums">
+      <span className="select-none text-right font-mono text-surface-500 dark:text-surface-400 tabular-nums">
         {lineNumber}
       </span>
       <span className="min-w-0">{lineContent}</span>

@@ -371,7 +371,7 @@ export const SettingsDialog = () => {
                       <h3 className="font-medium text-sm">Permissions</h3>
                     </div>
 
-                    <div className="mt-2 border-foreground/10 border-l pl-4">
+                    <div className="mt-2 border-surface-200 dark:border-surface-800 border-l pl-4">
                       <SettingsSwitchRow
                         checked={settings.autoAcceptPermissions}
                         description="Agents run with the highest permissions when building"
@@ -391,7 +391,7 @@ export const SettingsDialog = () => {
                       <h3 className="font-medium text-sm">Chat messages</h3>
                     </div>
 
-                    <div className="mt-2 border-foreground/10 border-l pl-4">
+                    <div className="mt-2 border-surface-200 dark:border-surface-800 border-l pl-4">
                       <SettingsSwitchRow
                         checked={settings.showReasoningSummaries}
                         description="Display model reasoning summaries"
@@ -639,13 +639,13 @@ export const SettingsDialog = () => {
                   </div>
 
                   {deletedChats.length === 0 ? (
-                    <div className="flex min-h-[280px] items-center justify-center rounded-md border border-foreground/10">
+                    <div className="flex min-h-[280px] items-center justify-center rounded-md border border-surface-200 dark:border-surface-800">
                       <p className="text-muted-foreground text-sm">
                         No deleted chats.
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-hidden rounded-md border border-foreground/10">
+                    <div className="overflow-hidden rounded-md border border-surface-200 dark:border-surface-800">
                       <Table>
                         <TableHeader>
                           <TableRow>

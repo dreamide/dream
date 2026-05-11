@@ -14,7 +14,7 @@ import { FileExplorerPanel } from "./file-explorer-panel";
 import type { RightPanelView } from "./ide-types";
 
 const RIGHT_PANEL_SURFACE_CLASSES =
-  "overflow-hidden rounded-lg border border-foreground/20 bg-background text-foreground shadow-md";
+  "overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background text-foreground shadow-md";
 
 export interface RightPanelViewsProps {
   active?: boolean;

@@ -207,11 +207,11 @@ export const Attachment = ({
             "flex h-8 cursor-pointer select-none items-center gap-1.5",
             "rounded-md border border-border px-1.5",
             "font-medium text-sm transition-all",
-            "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+            "hover:bg-accent hover:text-accent-foreground dark:hover:bg-surface-800",
           ],
           variant === "list" && [
             "flex w-full items-center gap-3 rounded-lg border p-3",
-            "hover:bg-accent/50",
+            "hover:bg-surface-100 dark:hover:bg-surface-800",
           ],
           className,
         )}
@@ -339,7 +339,7 @@ export const AttachmentRemove = ({
       className={cn(
         variant === "grid" && [
           "absolute top-2 right-2 size-6 rounded-full p-0",
-          "bg-background/80 backdrop-blur-sm",
+          "bg-surface-50 dark:bg-surface-900 backdrop-blur-sm",
           "opacity-0 transition-opacity group-hover:opacity-100",
           "hover:bg-background",
           "[&>svg]:size-3",

@@ -142,7 +142,7 @@ export const MarkdownFileLink = ({
       <a
         {...props}
         className={cn(
-          "inline-flex max-w-full items-baseline gap-1 align-baseline font-medium text-blue-600 no-underline transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200",
+          "inline-flex max-w-full items-baseline gap-1 align-baseline font-medium text-info-foreground no-underline transition-colors hover:text-blue-500 dark:text-info-foreground dark:hover:text-blue-200",
           className,
         )}
         href={href}
@@ -161,7 +161,7 @@ export const MarkdownFileLink = ({
     <a
       {...props}
       className={cn(
-        "font-medium text-primary underline decoration-primary/45 underline-offset-3 transition-colors hover:decoration-primary",
+        "font-medium text-primary underline decoration-primary-border underline-offset-3 transition-colors hover:decoration-primary",
         className,
       )}
       href={href}

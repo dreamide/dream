@@ -24,7 +24,7 @@ export const WindowControls = () => {
       </button>
       <button
         aria-label="Close"
-        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-red-500 hover:text-white"
+        className="flex w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-destructive-surface-muted0 hover:text-white"
         onClick={() => api?.windowClose()}
         type="button"
       >

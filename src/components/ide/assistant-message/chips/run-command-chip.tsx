@@ -136,7 +136,7 @@ export const RunCommandChip = ({
         >
           <span>
             Allow running{" "}
-            <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
+            <code className="rounded bg-surface-50 dark:bg-surface-900 px-1 py-0.5 text-xs">
               {displayCommand ?? command ?? "command"}
             </code>
             ?
@@ -149,7 +149,7 @@ export const RunCommandChip = ({
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
               {part.errorText}
             </pre>
           ) : null}

@@ -323,7 +323,7 @@ export const ToolCallGroup = ({
       <button
         aria-expanded={expanded}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${group.length} tool ${group.length === 1 ? "call" : "calls"}`}
-        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
         onClick={() => setExpanded((current) => !current)}
         type="button"
       >

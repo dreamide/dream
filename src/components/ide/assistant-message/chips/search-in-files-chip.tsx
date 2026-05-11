@@ -147,7 +147,7 @@ export const SearchInFilesChip = ({
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
               {part.errorText}
             </pre>
           ) : null}
@@ -169,7 +169,7 @@ export const SearchInFilesChip = ({
                 <div className="space-y-1">
                   {textResults.map((result) => (
                     <div
-                      className="rounded-sm px-2 py-1.5 font-mono text-xs hover:bg-muted/40"
+                      className="rounded-sm px-2 py-1.5 font-mono text-xs hover:bg-surface-100 dark:hover:bg-surface-900"
                       key={result}
                     >
                       {result}
@@ -205,7 +205,7 @@ export const SearchInFilesChip = ({
 
                   return (
                     <div
-                      className="rounded-sm px-2 py-1.5 hover:bg-muted/40"
+                      className="rounded-sm px-2 py-1.5 hover:bg-surface-100 dark:hover:bg-surface-900"
                       key={key}
                     >
                       {file ? (

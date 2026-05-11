@@ -175,7 +175,7 @@ const GitActionsMenuImpl = ({
               className={cn(
                 "size-8 [-webkit-app-region:no-drag]",
                 hasGitActivity
-                  ? "text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                  ? "text-success-foreground hover:text-success-foreground dark:text-success-foreground dark:hover:text-green-300"
                   : "text-muted-foreground hover:text-foreground",
               )}
               size="icon"

@@ -218,7 +218,7 @@ export const StackTraceHeader = memo(
           render={
             <div
               className={cn(
-                "flex w-full cursor-pointer items-center gap-3 p-3 text-left transition-colors hover:bg-muted/50",
+                "flex w-full cursor-pointer items-center gap-3 p-3 text-left transition-colors hover:bg-surface-50 dark:hover:bg-surface-900",
                 className,
               )}
             />
@@ -407,7 +407,7 @@ export const StackTraceContent = memo(
       <Collapsible open={isOpen}>
         <CollapsibleContent
           className={cn(
-            "overflow-auto border-t bg-muted/30",
+            "overflow-auto border-t bg-surface-50 dark:bg-surface-900",
             "data-[closed]:fade-out-0 data-[open]:fade-in-0 data-[closed]:animate-out data-[open]:animate-in",
             className,
           )}
@@ -485,8 +485,8 @@ export const StackTraceFrames = memo(
             className={cn(
               "text-xs",
               frame.isInternal
-                ? "text-muted-foreground/50"
-                : "text-foreground/90",
+                ? "text-surface-400 dark:text-surface-500"
+                : "text-surface-900 dark:text-surface-100",
             )}
             key={`${frame.raw}-${index}`}
           >

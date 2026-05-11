@@ -126,12 +126,12 @@ export const SchemaDisplayHeader = ({
 );
 
 const methodStyles: Record<HttpMethod, string> = {
-  DELETE: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  GET: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  DELETE: "bg-destructive-surface text-destructive dark:bg-destructive-surface dark:text-destructive-muted",
+  GET: "bg-success-surface text-success-foreground dark:bg-success-surface dark:text-success-foreground",
   PATCH:
-    "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  POST: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  PUT: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    "bg-warning-surface text-warning-foreground dark:bg-warning-surface dark:text-warning-foreground",
+  POST: "bg-info-surface text-info-foreground dark:bg-info-surface dark:text-info-foreground",
+  PUT: "bg-warning-surface text-warning-foreground dark:bg-warning-surface dark:text-warning-foreground",
 };
 
 export type SchemaDisplayMethodProps = ComponentProps<typeof Badge>;
@@ -166,7 +166,7 @@ export const SchemaDisplayPath = ({
   // Highlight path parameters
   const highlightedPath = path.replaceAll(
     /\{([^}]+)\}/g,
-    '<span class="text-blue-600 dark:text-blue-400">{$1}</span>',
+    '<span class="text-info-foreground dark:text-info-foreground">{$1}</span>',
   );
 
   return (
@@ -226,7 +226,7 @@ export const SchemaDisplayParameters = ({
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
-      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/50">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-surface-50 dark:hover:bg-surface-900">
         <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[open]:rotate-90" />
         <span className="font-medium text-sm">Parameters</span>
         <Badge className="ml-auto text-xs" variant="secondary">
@@ -270,7 +270,7 @@ export const SchemaDisplayParameter = ({
       )}
       {required && (
         <Badge
-          className="bg-red-100 text-red-700 text-xs dark:bg-red-900/30 dark:text-red-400"
+          className="bg-destructive-surface text-destructive text-xs dark:bg-destructive-surface dark:text-destructive-muted"
           variant="secondary"
         >
           required
@@ -294,7 +294,7 @@ export const SchemaDisplayRequest = ({
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
-      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/50">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-surface-50 dark:hover:bg-surface-900">
         <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[open]:rotate-90" />
         <span className="font-medium text-sm">Request Body</span>
       </CollapsibleTrigger>
@@ -321,7 +321,7 @@ export const SchemaDisplayResponse = ({
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
-      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/50">
+      <CollapsibleTrigger className="group flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-surface-50 dark:hover:bg-surface-900">
         <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[open]:rotate-90" />
         <span className="font-medium text-sm">Response</span>
       </CollapsibleTrigger>
@@ -373,7 +373,7 @@ export const SchemaDisplayProperty = ({
       <Collapsible defaultOpen={depth < 2}>
         <CollapsibleTrigger
           className={cn(
-            "group flex w-full items-center gap-2 py-3 text-left transition-colors hover:bg-muted/50",
+            "group flex w-full items-center gap-2 py-3 text-left transition-colors hover:bg-surface-50 dark:hover:bg-surface-900",
             className,
           )}
           style={{ paddingLeft }}
@@ -385,7 +385,7 @@ export const SchemaDisplayProperty = ({
           </Badge>
           {required && (
             <Badge
-              className="bg-red-100 text-red-700 text-xs dark:bg-red-900/30 dark:text-red-400"
+              className="bg-destructive-surface text-destructive text-xs dark:bg-destructive-surface dark:text-destructive-muted"
               variant="secondary"
             >
               required
@@ -437,7 +437,7 @@ export const SchemaDisplayProperty = ({
         </Badge>
         {required && (
           <Badge
-            className="bg-red-100 text-red-700 text-xs dark:bg-red-900/30 dark:text-red-400"
+            className="bg-destructive-surface text-destructive text-xs dark:bg-destructive-surface dark:text-destructive-muted"
             variant="secondary"
           >
             required

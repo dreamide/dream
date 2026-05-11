@@ -143,7 +143,7 @@ export const ListFilesChip = ({
           style={{ borderColor: "currentColor" }}
         >
           {hasError ? (
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
               {part.errorText}
             </pre>
           ) : null}

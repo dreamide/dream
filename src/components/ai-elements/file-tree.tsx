@@ -151,7 +151,7 @@ export const FileTreeFolder = ({
             render={
               <button
                 className={cn(
-                  "flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left transition-colors hover:bg-muted/50",
+                  "flex w-full min-w-0 items-center gap-1 rounded px-2 py-1 text-left transition-colors hover:bg-surface-50 dark:hover:bg-surface-900",
                   isSelected && "bg-muted",
                 )}
                 onClick={handleSelect}
@@ -229,7 +229,7 @@ export const FileTreeFile = ({
     <FileTreeFileContext.Provider value={fileContextValue}>
       <div
         className={cn(
-          "flex min-w-0 cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-muted/50",
+          "flex min-w-0 cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-surface-50 dark:hover:bg-surface-900",
           isSelected && "bg-muted",
           className,
         )}

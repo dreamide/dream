@@ -211,7 +211,7 @@ export const WebPreviewConsole = ({
 
   return (
     <Collapsible
-      className={cn("border-t bg-muted/50 font-mono text-xs", className)}
+      className={cn("border-t bg-surface-50 dark:bg-surface-900 font-mono text-xs", className)}
       onOpenChange={setConsoleOpen}
       open={consoleOpen}
       {...props}
@@ -219,7 +219,7 @@ export const WebPreviewConsole = ({
       <CollapsibleTrigger
         render={
           <Button
-            className="flex w-full items-center justify-between p-4 text-left font-medium hover:bg-muted/50"
+            className="flex w-full items-center justify-between p-4 text-left font-medium hover:bg-surface-50 dark:hover:bg-surface-900"
             variant="ghost"
           />
         }
@@ -247,7 +247,7 @@ export const WebPreviewConsole = ({
                 className={cn(
                   "text-xs",
                   log.level === "error" && "text-destructive",
-                  log.level === "warn" && "text-yellow-600",
+                  log.level === "warn" && "text-warning-foreground",
                   log.level === "log" && "text-foreground",
                 )}
                 key={`${log.timestamp.getTime()}-${index}`}

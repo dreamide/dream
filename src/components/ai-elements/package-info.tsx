@@ -86,12 +86,12 @@ export const PackageInfoName = ({
 };
 
 const changeTypeStyles: Record<ChangeType, string> = {
-  added: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  major: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  added: "bg-info-surface text-info-foreground dark:bg-info-surface dark:text-info-foreground",
+  major: "bg-destructive-surface text-destructive dark:bg-destructive-surface dark:text-destructive-muted",
   minor:
-    "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-  patch: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-  removed: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400",
+    "bg-warning-surface text-warning-foreground dark:bg-warning-surface dark:text-warning-foreground",
+  patch: "bg-success-surface text-success-foreground dark:bg-success-surface dark:text-success-foreground",
+  removed: "bg-surface-100 text-surface-700 dark:bg-surface-800 dark:text-surface-400",
 };
 
 const changeTypeIcons: Record<ChangeType, React.ReactNode> = {

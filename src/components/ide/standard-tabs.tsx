@@ -472,7 +472,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               "flex h-8 w-full select-none items-center gap-2 rounded-sm border px-3 text-sm opacity-100 transition-colors",
               hasRightAdornment && "pr-8",
               isActive
-                ? "border-foreground/20 dark:border-foreground/10 bg-background dark:bg-muted text-foreground"
+                ? "border-surface-300 dark:border-surface-700 dark:border-surface-800 bg-background dark:bg-muted text-foreground"
                 : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground group-hover:bg-muted group-hover:text-foreground",
               tabClassName,
             );
@@ -625,7 +625,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                   >
                     <div
                       className={cn(
-                        "h-4 w-px bg-foreground/20",
+                        "h-4 w-px bg-surface-300 dark:bg-surface-700",
                         !showTrailingSplitter && "invisible",
                       )}
                     />
@@ -648,7 +648,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           >
             <div
               className={cn(
-                "h-4 w-px bg-foreground/20",
+                "h-4 w-px bg-surface-300 dark:bg-surface-700",
                 !showAfterSplitter && "invisible",
               )}
             />

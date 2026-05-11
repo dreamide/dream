@@ -38,7 +38,7 @@ const renderToolOutput = (part: ToolLikePart) => {
         <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
           Error
         </h4>
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+        <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
           {part.errorText}
         </pre>
       </div>
@@ -187,7 +187,7 @@ export const AssistantMessagePart = ({
   }
 
   return (
-    <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-xs">
+    <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-surface-100 dark:bg-surface-900 p-3 text-xs">
       {stringifyPart(part)}
     </pre>
   );

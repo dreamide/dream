@@ -110,7 +110,7 @@ export const ProjectSidebar = ({
     <div
       id="projects-panel"
       className={cn(
-        "flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md",
+        "flex h-full flex-col overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background shadow-md",
         className,
       )}
     >
@@ -152,8 +152,8 @@ export const ProjectSidebar = ({
                   className={cn(
                     "group relative min-w-0 rounded-md border transition-colors",
                     isActiveChat
-                      ? "border-border bg-muted/30"
-                      : "border-transparent hover:bg-muted/30",
+                      ? "border-border bg-surface-50 dark:bg-surface-900"
+                      : "border-transparent hover:bg-surface-50 dark:hover:bg-surface-900",
                   )}
                   key={chat.id}
                 >

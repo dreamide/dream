@@ -101,7 +101,7 @@ export const ActionApproval = ({
     <Confirmation
       approval={approval as Parameters<typeof Confirmation>[0]["approval"]}
       className={cn(
-        "w-full max-w-full gap-3 border-emerald-500/40 bg-emerald-500/10 shadow-sm text-foreground dark:border-emerald-400/30 dark:bg-emerald-400/10",
+        "w-full max-w-full gap-3 border-success-border bg-success-surface shadow-sm text-foreground dark:border-success-border dark:bg-success-surface",
         className,
       )}
       state={state}
@@ -171,7 +171,7 @@ export const ApprovalStatusLabel = ({
 
   if (approval.approved) {
     return (
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 text-xs dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-300">
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-success-border bg-success-surface px-2 py-0.5 font-medium text-emerald-700 text-xs dark:border-success-border dark:bg-success-surface dark:text-emerald-300">
         <CheckIcon className="size-3" />
         Approved
       </span>
@@ -179,7 +179,7 @@ export const ApprovalStatusLabel = ({
   }
 
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/25 bg-red-500/10 px-2 py-0.5 font-medium text-red-700 text-xs dark:border-red-400/25 dark:bg-red-400/10 dark:text-red-300">
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-destructive-border bg-destructive-surface px-2 py-0.5 font-medium text-destructive text-xs dark:border-destructive-border dark:bg-destructive-surface dark:text-destructive-muted">
       <XIcon className="size-3" />
       Rejected
     </span>
@@ -197,7 +197,7 @@ export const TOOL_STATE_LABELS: Record<ToolPart["state"], string> = {
 };
 
 export const CHIP_ERROR_CLASSES =
-  "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10";
+  "border-destructive-border bg-destructive-surface-muted text-destructive dark:bg-destructive-surface";
 export const CHIP_TONE_CLASSES = {
   amber: {
     button:
@@ -206,8 +206,8 @@ export const CHIP_TONE_CLASSES = {
   },
   blue: {
     button:
-      "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
-    expanded: "text-blue-700 dark:text-blue-400",
+      "border-info-border bg-info-surface text-info-foreground dark:border-info-border dark:bg-info-surface dark:text-info-foreground",
+    expanded: "text-info-foreground dark:text-info-foreground",
   },
   cyan: {
     button:
@@ -216,8 +216,8 @@ export const CHIP_TONE_CLASSES = {
   },
   green: {
     button:
-      "border-green-300 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-950 dark:text-green-400",
-    expanded: "text-green-700 dark:text-green-400",
+      "border-success-border bg-success-surface text-success-foreground dark:border-success-border dark:bg-success-surface dark:text-success-foreground",
+    expanded: "text-success-foreground dark:text-success-foreground",
   },
   emerald: {
     button:
@@ -231,8 +231,8 @@ export const CHIP_TONE_CLASSES = {
   },
   orange: {
     button:
-      "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-400",
-    expanded: "text-orange-700 dark:text-orange-400",
+      "border-warning-border bg-warning-surface text-warning-foreground dark:border-warning-border dark:bg-warning-surface dark:text-warning-foreground",
+    expanded: "text-warning-foreground dark:text-warning-foreground",
   },
   purple: {
     button:
@@ -256,8 +256,8 @@ export const CHIP_TONE_CLASSES = {
   },
   yellow: {
     button:
-      "border-yellow-300 bg-yellow-50 text-yellow-700 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-300",
-    expanded: "text-yellow-700 dark:text-yellow-300",
+      "border-warning-border bg-warning-surface text-warning-foreground dark:border-warning-border dark:bg-warning-surface dark:text-warning-foreground",
+    expanded: "text-warning-foreground dark:text-warning-foreground",
   },
 } as const;
 export type ChipTone = keyof typeof CHIP_TONE_CLASSES;
@@ -280,7 +280,7 @@ const ChipAnimateContext = createContext(false);
 export const ChipAnimateProvider = ChipAnimateContext.Provider;
 export const useChipAnimate = () => useContext(ChipAnimateContext);
 export const CHIP_SUBTEXT_CLASSES = "opacity-70";
-export const CHIP_ERROR_SUBTEXT_CLASSES = "text-destructive/70";
+export const CHIP_ERROR_SUBTEXT_CLASSES = "text-destructive-muted";
 export const CHIP_LAYOUT_TRANSITION = {
   damping: 32,
   duration: 0.18,

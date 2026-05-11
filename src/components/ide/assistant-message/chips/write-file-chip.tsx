@@ -310,7 +310,7 @@ export const WriteFileChip = ({
               <span className="text-emerald-600 dark:text-emerald-400">
                 +{writeDiffStats.additions}
               </span>
-              <span className="text-red-600 dark:text-red-400">
+              <span className="text-destructive dark:text-destructive-muted">
                 -{writeDiffStats.deletions}
               </span>
             </span>
@@ -327,7 +327,7 @@ export const WriteFileChip = ({
         >
           <span>
             Allow writing to{" "}
-            <code className="rounded bg-background/80 px-1 py-0.5 text-xs">
+            <code className="rounded bg-surface-50 dark:bg-surface-900 px-1 py-0.5 text-xs">
               {filePath ?? "file"}
             </code>
             ?
@@ -341,7 +341,7 @@ export const WriteFileChip = ({
         >
           {/* Error */}
           {hasError ? (
-            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive/10 p-3 text-destructive text-xs">
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
               {part.errorText}
             </pre>
           ) : null}
@@ -464,7 +464,7 @@ export const WriteFileChip = ({
               </CodeBlock>
             </div>
           ) : outputMessage ? (
-            <p className="rounded-md bg-muted/50 px-3 py-2 text-muted-foreground text-xs">
+            <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
               {outputMessage}
             </p>
           ) : hasOutput ? (

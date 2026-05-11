@@ -24,7 +24,7 @@ export const ArtifactHeader = ({
 }: ArtifactHeaderProps) => (
   <div
     className={cn(
-      "flex items-center justify-between border-b bg-muted/50 px-4 py-3",
+      "flex items-center justify-between border-b bg-surface-50 dark:bg-surface-900 px-4 py-3",
       className,
     )}
     {...props}

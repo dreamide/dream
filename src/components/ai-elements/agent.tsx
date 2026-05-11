@@ -67,7 +67,7 @@ export const AgentInstructions = memo(
       <span className="font-medium text-muted-foreground text-sm">
         Instructions
       </span>
-      <div className="rounded-md bg-muted/50 p-3 text-muted-foreground text-sm">
+      <div className="rounded-md bg-surface-50 dark:bg-surface-900 p-3 text-muted-foreground text-sm">
         <p>{children}</p>
       </div>
     </div>
@@ -104,7 +104,7 @@ export const AgentTool = memo(
           {tool.description ?? "No description"}
         </AccordionTrigger>
         <AccordionContent className="px-3 pb-3">
-          <div className="rounded-md bg-muted/50">
+          <div className="rounded-md bg-surface-50 dark:bg-surface-900">
             <CodeBlock code={JSON.stringify(schema, null, 2)} language="json" />
           </div>
         </AccordionContent>
@@ -123,7 +123,7 @@ export const AgentOutput = memo(
       <span className="font-medium text-muted-foreground text-sm">
         Output Schema
       </span>
-      <div className="rounded-md bg-muted/50">
+      <div className="rounded-md bg-surface-50 dark:bg-surface-900">
         <CodeBlock code={schema} language="typescript" />
       </div>
     </div>

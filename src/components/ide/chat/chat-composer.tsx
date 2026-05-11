@@ -437,19 +437,19 @@ const InlineProjectReferenceMentions = ({
     flushText();
     nodes.push(
       <span
-        className="text-blue-600 dark:text-blue-300"
+        className="text-info-foreground dark:text-info-foreground"
         key={`reference-${reference.kind}:${reference.path}:${index}`}
       >
         <span className="relative inline-block text-transparent">
           {REFERENCE_ICON_TEXT_SLOT}
           {reference.kind === "folder" ? (
             <MaterialFolderIcon
-              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-blue-600 dark:text-blue-300"
+              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-info-foreground dark:text-info-foreground"
               name={reference.name}
             />
           ) : (
             <MaterialFileIcon
-              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-blue-600 dark:text-blue-300"
+              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-info-foreground dark:text-info-foreground"
               path={reference.path}
             />
           )}
@@ -794,7 +794,7 @@ export const ChatComposer = ({
     <div id={promptDomId} className="shrink-0 px-2 pb-2">
       <div className="mx-auto w-full max-w-[700px]">
         {showReferenceResults ? (
-          <div className="mb-2 overflow-hidden rounded-lg border border-foreground/15 bg-background text-foreground shadow-lg">
+          <div className="mb-2 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-700 bg-background text-foreground shadow-lg">
             <div className="max-h-80 overflow-y-auto p-1">
               {referenceResults.map((item, index) => (
                 <button
@@ -803,7 +803,7 @@ export const ChatComposer = ({
                     "flex h-11 w-full min-w-0 items-center gap-3 rounded-md px-2 text-left transition-colors",
                     index === highlightedReferenceIndex
                       ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                      : "text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
                   )}
                   key={`${item.kind}:${item.path}`}
                   onClick={() => insertProjectReference(item)}
@@ -842,7 +842,7 @@ export const ChatComposer = ({
           speed={2}
           palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}
         >
-          <div className="overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md">
+          <div className="overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background shadow-md">
             <PromptInput
               clearOnSubmit="immediate"
               id={promptInputDomId}
@@ -860,7 +860,7 @@ export const ChatComposer = ({
                     className={cn(
                       "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0",
                       selectedReferences.length > 0 &&
-                        "text-transparent placeholder:text-muted-foreground selection:bg-primary/25",
+                        "text-transparent placeholder:text-muted-foreground selection:bg-primary-selection",
                     )}
                     disabled={!isActive}
                     onChange={handlePromptChange}
@@ -911,7 +911,7 @@ export const ChatComposer = ({
               </PromptInputFooter>
             </PromptInput>
 
-            <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
+            <div className="flex items-center gap-1 border-t border-surface-200 dark:border-surface-800 px-2 py-1.5">
               <Select
                 onValueChange={(value) => onAgentModeChange(value as AgentMode)}
                 value={agentMode}
@@ -942,7 +942,7 @@ export const ChatComposer = ({
                           value={option.value}
                         >
                           <span className="flex items-center gap-1.5">
-                            <OptionIcon className="size-3.5 shrink-0 text-muted-foreground/70" />
+                            <OptionIcon className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
                             <span>{option.label}</span>
                           </span>
                         </SelectItem>
@@ -975,7 +975,7 @@ export const ChatComposer = ({
                   <SelectValue placeholder="Model">
                     <span className="flex items-center gap-1.5">
                       <ProviderIcon
-                        className="size-3.5 shrink-0 text-muted-foreground/70"
+                        className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
                         provider={selectedProvider}
                       />
                       <span className="truncate">{selectedModelLabel}</span>
@@ -997,7 +997,7 @@ export const ChatComposer = ({
                       >
                         <span className="flex items-center gap-1.5">
                           <ProviderIcon
-                            className="size-3.5 shrink-0 text-muted-foreground/70"
+                            className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
                             provider={option.provider}
                           />
                           <span className="truncate">{option.label}</span>
