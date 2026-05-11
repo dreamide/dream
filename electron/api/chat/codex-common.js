@@ -93,7 +93,7 @@ export const getCodexAppTurnSandboxPolicy = ({
   return {
     excludeSlashTmp: false,
     excludeTmpdirEnvVar: false,
-    networkAccess: "restricted",
+    networkAccess: false,
     readOnlyAccess: { type: "fullAccess" },
     type: "workspaceWrite",
     writableRoots: [projectPath],
