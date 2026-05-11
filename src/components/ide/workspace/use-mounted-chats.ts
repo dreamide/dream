@@ -5,11 +5,13 @@ import { CHAT_KEEP_ALIVE_LIMIT } from "./constants";
 export const useMountedProjectChats = ({
   activeChatId,
   chats,
+  openChatIds,
   projectId,
   streamingChatIds,
 }: {
   activeChatId: string | null;
   chats: ChatConfig[];
+  openChatIds: string[];
   projectId: string;
   streamingChatIds: Record<string, boolean>;
 }) => {
@@ -35,12 +37,23 @@ export const useMountedProjectChats = ({
     const projectChats = chats.filter(
       (chat) => chat.projectId === projectId && chat.deletedAt === null,
     );
+    const projectChatsById = new Map(
+      projectChats.map((chat) => [chat.id, chat]),
+    );
     const nextChats = [] as typeof chats;
 
-    if (activeChatId) {
-      const activeMountedChat = projectChats.find(
-        (chat) => chat.id === activeChatId,
-      );
+    for (const chatId of openChatIds) {
+      const openChat = projectChatsById.get(chatId);
+      if (!openChat || mountedChatIds.has(openChat.id)) {
+        continue;
+      }
+
+      mountedChatIds.add(openChat.id);
+      nextChats.push(openChat);
+    }
+
+    if (activeChatId && !mountedChatIds.has(activeChatId)) {
+      const activeMountedChat = projectChatsById.get(activeChatId);
       if (activeMountedChat) {
         mountedChatIds.add(activeMountedChat.id);
         nextChats.push(activeMountedChat);
@@ -64,7 +77,7 @@ export const useMountedProjectChats = ({
         continue;
       }
 
-      const recentChat = projectChats.find((chat) => chat.id === chatId);
+      const recentChat = projectChatsById.get(chatId);
       if (!recentChat) {
         continue;
       }
@@ -74,5 +87,12 @@ export const useMountedProjectChats = ({
     }
 
     return nextChats;
-  }, [activeChatId, chats, projectId, recentMountedChatIds, streamingChatIds]);
+  }, [
+    activeChatId,
+    chats,
+    openChatIds,
+    projectId,
+    recentMountedChatIds,
+    streamingChatIds,
+  ]);
 };

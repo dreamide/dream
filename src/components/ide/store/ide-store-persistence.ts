@@ -2,9 +2,9 @@ import { getDesktopApi } from "@/lib/electron";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
 import {
-  ensureActiveChatForProject,
   ensureActiveProject,
   mergePersistedState,
+  sanitizeProjectUiForChats,
 } from "../ide-state";
 import { STATE_STORAGE_KEY } from "../ide-types";
 import type { IdeState } from "./ide-store-types";
@@ -87,14 +87,7 @@ export const createPersistedIdeState = ({
   );
   const sanitizeProjectForPersistence = (project: ProjectConfig) => ({
     ...project,
-    ui: {
-      ...project.ui,
-      activeChatId: ensureActiveChatForProject(
-        persistedChats,
-        project.id,
-        project.ui.activeChatId,
-      ),
-    },
+    ui: sanitizeProjectUiForChats(persistedChats, project.id, project.ui),
   });
   const persistedProjects = projects.map(sanitizeProjectForPersistence);
   const persistedClosedProjects = closedProjects.map(

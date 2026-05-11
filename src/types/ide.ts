@@ -88,6 +88,8 @@ export type RightPanelView = "browser" | "explorer" | "changes";
 
 export interface ProjectUiState {
   activeChatId: string | null;
+  openChatIds: string[];
+  chatColumnWidths: Record<string, number>;
   chatHistoryPanelOpen: boolean;
   panelSizes: PanelSizes;
   rightPanelOpen: boolean;

@@ -13,6 +13,7 @@ export const createProjectActions = (
   | "closeProject"
   | "updateProject"
   | "addChat"
+  | "addChatBeside"
   | "setActiveChatId"
   | "updateChat"
   | "deleteChat"

@@ -86,6 +86,7 @@ export interface IdeState {
     updater: (project: ProjectConfig) => ProjectConfig,
   ) => void;
   addChat: (projectId: string, title?: string) => void;
+  addChatBeside: (projectId: string) => void;
   setActiveChatId: (projectId: string, chatId: string | null) => void;
   updateChat: (
     chatId: string,

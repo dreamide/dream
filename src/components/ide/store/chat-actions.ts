@@ -2,7 +2,10 @@ import type { UIMessage } from "ai";
 import { createChatConfig, getDefaultModelSelection } from "@/lib/ide-defaults";
 import type { ChatConfig, ChatSortOrder } from "@/types/ide";
 import { mergeChatMessageHistories } from "../chat-message-history";
-import { ensureActiveChatForProject } from "../ide-state";
+import {
+  ensureActiveChatForProject,
+  sanitizeProjectUiForChats,
+} from "../ide-state";
 import {
   areMessagesEqual,
   shouldTouchChatUpdatedAt,
@@ -17,6 +20,7 @@ export const createChatActions = (
 ): Pick<
   IdeState,
   | "addChat"
+  | "addChatBeside"
   | "setActiveChatId"
   | "updateChat"
   | "deleteChat"
@@ -45,6 +49,8 @@ export const createChatActions = (
             (item) => ({
               ...item.ui,
               activeChatId: existingDraftChatId,
+              openChatIds: [existingDraftChatId],
+              chatColumnWidths: {},
             }),
           ),
           ...getPermissionModesForAutoAccept(
@@ -67,6 +73,8 @@ export const createChatActions = (
         projects: updateProjectUiInList(state.projects, projectId, (item) => ({
           ...item.ui,
           activeChatId: nextChat.id,
+          openChatIds: [nextChat.id],
+          chatColumnWidths: {},
         })),
         draftChatIdByProject: {
           ...state.draftChatIdByProject,
@@ -80,6 +88,51 @@ export const createChatActions = (
           state.settings.autoAcceptPermissions,
         ),
         chats: [...state.chats, nextChat],
+      };
+    });
+  },
+
+  addChatBeside: (projectId: string) => {
+    set((state) => {
+      const project = state.projects.find((item) => item.id === projectId);
+      if (!project) {
+        return state;
+      }
+
+      const defaultSelection = getDefaultModelSelection(state.settings);
+      const nextChat = createChatConfig(project, {
+        model: defaultSelection.model || project.model,
+        provider: defaultSelection.model
+          ? defaultSelection.provider
+          : project.provider,
+      });
+      const nextChats = [...state.chats, nextChat];
+
+      return {
+        activeProjectId: projectId,
+        projects: updateProjectUiInList(state.projects, projectId, (item) =>
+          sanitizeProjectUiForChats(
+            nextChats,
+            projectId,
+            {
+              ...item.ui,
+              openChatIds: [...item.ui.openChatIds, nextChat.id],
+            },
+            nextChat.id,
+          ),
+        ),
+        draftChatIdByProject: {
+          ...state.draftChatIdByProject,
+          [projectId]: nextChat.id,
+        },
+        messagesByChatId: {
+          ...state.messagesByChatId,
+          [nextChat.id]: [],
+        },
+        ...getPermissionModesForAutoAccept(
+          state.settings.autoAcceptPermissions,
+        ),
+        chats: nextChats,
       };
     });
   },
@@ -98,13 +151,13 @@ export const createChatActions = (
           : ensureActiveChatForProject(state.chats, projectId, chatId);
 
       return {
-        projects: updateProjectUiInList(
-          state.projects,
-          projectId,
-          (project) => ({
-            ...project.ui,
-            activeChatId: nextActiveChatId,
-          }),
+        projects: updateProjectUiInList(state.projects, projectId, (project) =>
+          sanitizeProjectUiForChats(
+            state.chats,
+            projectId,
+            project.ui,
+            nextActiveChatId,
+          ),
         ),
       };
     });
@@ -138,30 +191,36 @@ export const createChatActions = (
         projects: updateProjectUiInList(
           state.projects,
           chat.projectId,
-          (project) => ({
-            ...project.ui,
-            activeChatId: ensureActiveChatForProject(
+          (project) =>
+            sanitizeProjectUiForChats(
               nextChats,
               chat.projectId,
-              project.ui.activeChatId === chatId
-                ? null
-                : project.ui.activeChatId,
+              project.ui,
+              ensureActiveChatForProject(
+                nextChats,
+                chat.projectId,
+                project.ui.activeChatId === chatId
+                  ? null
+                  : project.ui.activeChatId,
+              ),
             ),
-          }),
         ),
         closedProjects: updateProjectUiInList(
           state.closedProjects,
           chat.projectId,
-          (project) => ({
-            ...project.ui,
-            activeChatId: ensureActiveChatForProject(
+          (project) =>
+            sanitizeProjectUiForChats(
               nextChats,
               chat.projectId,
-              project.ui.activeChatId === chatId
-                ? null
-                : project.ui.activeChatId,
+              project.ui,
+              ensureActiveChatForProject(
+                nextChats,
+                chat.projectId,
+                project.ui.activeChatId === chatId
+                  ? null
+                  : project.ui.activeChatId,
+              ),
             ),
-          }),
         ),
         draftChatIdByProject: nextDraftChatIdByProject,
         chats: nextChats,
@@ -203,14 +262,16 @@ export const createChatActions = (
           affectedProjectIds.has(project.id)
             ? {
                 ...project,
-                ui: {
-                  ...project.ui,
-                  activeChatId: ensureActiveChatForProject(
+                ui: sanitizeProjectUiForChats(
+                  nextChats,
+                  project.id,
+                  project.ui,
+                  ensureActiveChatForProject(
                     nextChats,
                     project.id,
                     project.ui.activeChatId,
                   ),
-                },
+                ),
               }
             : project,
         ),
@@ -218,14 +279,16 @@ export const createChatActions = (
           affectedProjectIds.has(project.id)
             ? {
                 ...project,
-                ui: {
-                  ...project.ui,
-                  activeChatId: ensureActiveChatForProject(
+                ui: sanitizeProjectUiForChats(
+                  nextChats,
+                  project.id,
+                  project.ui,
+                  ensureActiveChatForProject(
                     nextChats,
                     project.id,
                     project.ui.activeChatId,
                   ),
-                },
+                ),
               }
             : project,
         ),

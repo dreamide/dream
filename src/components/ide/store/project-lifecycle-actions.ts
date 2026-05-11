@@ -9,6 +9,7 @@ import {
   ensureActiveChatForProject,
   ensureActiveProject,
   normalizeProjectPathKey,
+  sanitizeProjectUiForChats,
 } from "../ide-state";
 import { updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
@@ -58,10 +59,12 @@ export const createProjectLifecycleActions = (
 
         return {
           ...project,
-          ui: {
-            ...project.ui,
-            activeChatId: nextActiveChatId,
-          },
+          ui: sanitizeProjectUiForChats(
+            nextChats,
+            project.id,
+            project.ui,
+            nextActiveChatId,
+          ),
         };
       });
 
@@ -133,10 +136,13 @@ export const createProjectLifecycleActions = (
           projects: updateProjectUiInList(
             state.projects,
             openProject.id,
-            (project) => ({
-              ...project.ui,
-              activeChatId: nextActiveChatId,
-            }),
+            (project) =>
+              sanitizeProjectUiForChats(
+                nextChats,
+                openProject.id,
+                project.ui,
+                nextActiveChatId,
+              ),
           ),
         };
       }
@@ -177,10 +183,12 @@ export const createProjectLifecycleActions = (
             ...state.projects,
             {
               ...reopenedProject,
-              ui: {
-                ...reopenedProject.ui,
-                activeChatId: nextActiveChatId,
-              },
+              ui: sanitizeProjectUiForChats(
+                nextChats,
+                reopenedProject.id,
+                reopenedProject.ui,
+                nextActiveChatId,
+              ),
             },
           ],
         };
@@ -210,6 +218,8 @@ export const createProjectLifecycleActions = (
             ui: {
               ...nextProject.ui,
               activeChatId: nextChat.id,
+              openChatIds: [nextChat.id],
+              chatColumnWidths: {},
             },
           },
         ],
@@ -299,26 +309,30 @@ export const createProjectLifecycleActions = (
       }
       const nextOpenProjects = nextProjects.map((project) => ({
         ...project,
-        ui: {
-          ...project.ui,
-          activeChatId: ensureActiveChatForProject(
+        ui: sanitizeProjectUiForChats(
+          state.chats,
+          project.id,
+          project.ui,
+          ensureActiveChatForProject(
             state.chats,
             project.id,
             project.ui.activeChatId,
           ),
-        },
+        ),
       }));
       const nextClosedProject = closedProject
         ? {
             ...closedProject,
-            ui: {
-              ...closedProject.ui,
-              activeChatId: ensureActiveChatForProject(
+            ui: sanitizeProjectUiForChats(
+              state.chats,
+              projectId,
+              closedProject.ui,
+              ensureActiveChatForProject(
                 state.chats,
                 projectId,
                 closedProject.ui.activeChatId,
               ),
-            },
+            ),
           }
         : null;
       const nextClosedProjectsWithUi = nextClosedProject

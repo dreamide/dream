@@ -1,4 +1,4 @@
-import { History, MessageSquarePlus } from "lucide-react";
+import { History, MessageSquarePlus, MessagesSquare } from "lucide-react";
 import { memo, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,7 @@ export interface WorkspaceSideNavProps {
   historyButtonRef: RefObject<HTMLButtonElement | null>;
   historyOpen: boolean;
   onAddChat: () => void;
+  onAddChatBeside: () => void;
   onToggleHistory: () => void;
 }
 
@@ -14,6 +15,7 @@ const WorkspaceSideNavImpl = ({
   historyButtonRef,
   historyOpen,
   onAddChat,
+  onAddChatBeside,
   onToggleHistory,
 }: WorkspaceSideNavProps) => (
   <aside className="flex w-12 shrink-0 flex-col items-center py-2">
@@ -43,6 +45,18 @@ const WorkspaceSideNavImpl = ({
         variant="ghost"
       >
         <MessageSquarePlus className="size-4" />
+      </Button>
+    </div>
+    <div className="mt-auto flex flex-col items-center gap-1">
+      <Button
+        aria-label="Open chat beside"
+        className="size-8 text-muted-foreground hover:text-foreground"
+        onClick={onAddChatBeside}
+        size="icon"
+        title="Open chat beside"
+        variant="ghost"
+      >
+        <MessagesSquare className="size-4" />
       </Button>
     </div>
   </aside>

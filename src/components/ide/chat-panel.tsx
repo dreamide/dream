@@ -72,11 +72,15 @@ const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
     .join("\n");
 
 export const ChatPanel = ({
+  canCloseChat = false,
   isActive,
+  onCloseChat,
   project,
   chat,
 }: {
+  canCloseChat?: boolean;
   isActive: boolean;
+  onCloseChat?: () => void;
   project: ProjectConfig;
   chat: ChatConfig;
 }) => {
@@ -733,7 +737,7 @@ export const ChatPanel = ({
     [closeEditDialog, editTarget, editValue, updateChat],
   );
 
-  const showChatHeader = messages.length > 0;
+  const showChatHeader = messages.length > 0 || canCloseChat;
   const canShowChatMenu = !isDraftChat || messages.length > 0;
 
   return (
@@ -741,9 +745,11 @@ export const ChatPanel = ({
       <div id={panelDomId} className="flex h-full min-h-0 flex-col">
         {showChatHeader ? (
           <ChatPanelHeader
+            canCloseChat={canCloseChat}
             canShowChatMenu={canShowChatMenu}
             chatMenuOpen={chatMenuOpen}
             isTitleGenerating={isTitleGenerating}
+            onCloseChat={onCloseChat}
             onChatMenuOpenChange={setChatMenuOpen}
             onDeleteChat={() => deleteChat(chat.id)}
             onEditChat={handleEditChat}

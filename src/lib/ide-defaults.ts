@@ -61,6 +61,8 @@ export const DEFAULT_PANEL_SIZES: PanelSizes = {
 
 export const DEFAULT_PROJECT_UI: ProjectUiState = {
   activeChatId: null,
+  openChatIds: [],
+  chatColumnWidths: {},
   chatHistoryPanelOpen: false,
   panelSizes: DEFAULT_PANEL_SIZES,
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,

@@ -24,6 +24,7 @@ import type {
   ChatConfig,
   PersistedIdeState,
   ProjectConfig,
+  ProjectUiState,
   RightPanelView,
 } from "@/types/ide";
 import {
@@ -193,6 +194,41 @@ const normalizePanelSizes = (
   };
 };
 
+const normalizeChatIds = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = typeof item === "string" ? item.trim() : "";
+    if (!id || seen.has(id)) {
+      continue;
+    }
+
+    seen.add(id);
+    ids.push(id);
+  }
+
+  return ids;
+};
+
+const normalizeChatColumnWidths = (value: unknown): Record<string, number> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const widths: Record<string, number> = {};
+  for (const [chatId, width] of Object.entries(value)) {
+    if (typeof width === "number" && Number.isFinite(width) && width > 0) {
+      widths[chatId] = width;
+    }
+  }
+
+  return widths;
+};
+
 const normalizeProvider = (value: unknown): "openai" | "anthropic" => {
   return value === "anthropic" ? value : DEFAULT_PROVIDER;
 };
@@ -273,6 +309,8 @@ const normalizeProject = (
         typeof rawUi.activeChatId === "string" && rawUi.activeChatId.trim()
           ? rawUi.activeChatId
           : null,
+      openChatIds: normalizeChatIds(rawUi.openChatIds),
+      chatColumnWidths: normalizeChatColumnWidths(rawUi.chatColumnWidths),
       chatHistoryPanelOpen:
         typeof rawUi.chatHistoryPanelOpen === "boolean"
           ? rawUi.chatHistoryPanelOpen
@@ -360,6 +398,45 @@ const normalizeChat = (
     title: title || "New chat",
     updatedAt,
   } as ChatConfig;
+};
+
+export const sanitizeProjectUiForChats = (
+  chats: ChatConfig[],
+  projectId: string,
+  ui: ProjectUiState,
+  preferredActiveChatId: string | null = ui.activeChatId,
+): ProjectUiState => {
+  const projectChats = chats.filter(
+    (chat) => chat.projectId === projectId && chat.deletedAt === null,
+  );
+  const availableChatIds = new Set(projectChats.map((chat) => chat.id));
+  const activeChatId =
+    preferredActiveChatId && availableChatIds.has(preferredActiveChatId)
+      ? preferredActiveChatId
+      : (projectChats[0]?.id ?? null);
+  const openChatIds = ui.openChatIds.filter((chatId) =>
+    availableChatIds.has(chatId),
+  );
+
+  if (activeChatId && !openChatIds.includes(activeChatId)) {
+    openChatIds.push(activeChatId);
+  }
+
+  const nextOpenChatIds = openChatIds.length > 0 ? openChatIds : [];
+  const openChatIdSet = new Set(nextOpenChatIds);
+  const chatColumnWidths = Object.fromEntries(
+    Object.entries(ui.chatColumnWidths).filter(
+      ([chatId, width]) =>
+        openChatIdSet.has(chatId) && Number.isFinite(width) && width > 0,
+    ),
+  );
+
+  return {
+    ...ui,
+    activeChatId,
+    openChatIds: nextOpenChatIds,
+    chatColumnWidths,
+  };
 };
 
 export const mergePersistedState = (
@@ -541,21 +618,25 @@ export const mergePersistedState = (
 
     return {
       ...project,
-      ui: {
-        ...project.ui,
+      ui: sanitizeProjectUiForChats(
+        chats,
+        project.id,
+        {
+          ...project.ui,
+          panelSizes: normalizePanelSizes(
+            rawProjectPanelSizesByProject[project.id],
+            project.ui.panelSizes ?? mergedPanelSizes,
+          ),
+          rightPanelOpen:
+            typeof legacyRightPanelOpen === "boolean"
+              ? legacyRightPanelOpen
+              : (project.ui.rightPanelOpen ?? mergedPanelVisibility.right),
+          rightPanelView: isRightPanelView(legacyRightPanelView)
+            ? legacyRightPanelView
+            : project.ui.rightPanelView,
+        },
         activeChatId,
-        panelSizes: normalizePanelSizes(
-          rawProjectPanelSizesByProject[project.id],
-          project.ui.panelSizes ?? mergedPanelSizes,
-        ),
-        rightPanelOpen:
-          typeof legacyRightPanelOpen === "boolean"
-            ? legacyRightPanelOpen
-            : (project.ui.rightPanelOpen ?? mergedPanelVisibility.right),
-        rightPanelView: isRightPanelView(legacyRightPanelView)
-          ? legacyRightPanelView
-          : project.ui.rightPanelView,
-      },
+      ),
     };
   };
 

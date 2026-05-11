@@ -50,6 +50,8 @@ const ProjectWorkspaceComponent = ({
   const projectPanelSizes = projectUi.panelSizes;
   const rightVisible = projectUi.rightPanelOpen;
   const activeChatId = projectUi.activeChatId;
+  const openChatIds = projectUi.openChatIds;
+  const chatColumnWidths = projectUi.chatColumnWidths;
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const browserTabs = useIdeStore(
@@ -77,6 +79,8 @@ const ProjectWorkspaceComponent = ({
     (s) => s.setProjectRightPanelView,
   );
   const addChat = useIdeStore((s) => s.addChat);
+  const addChatBeside = useIdeStore((s) => s.addChatBeside);
+  const updateProject = useIdeStore((s) => s.updateProject);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
 
   // ── Local workspace state ───────────────────────────────────────────
@@ -96,9 +100,14 @@ const ProjectWorkspaceComponent = ({
   const mountedChats = useMountedProjectChats({
     activeChatId,
     chats,
+    openChatIds,
     projectId,
     streamingChatIds,
   });
+  const chatColumnMinWidth = Math.max(
+    CHAT_PANEL_MIN_WIDTH_PX,
+    Math.max(openChatIds.length, 1) * CHAT_PANEL_MIN_WIDTH_PX,
+  );
   const hasProjectTerminalSessions = projectTerminalSessionIds.length > 0;
   const terminalPanelVisible =
     activeProjectTerminalPanelOpen && hasProjectTerminalSessions;
@@ -239,10 +248,10 @@ const ProjectWorkspaceComponent = ({
       containerWidth -
       WORKSPACE_SIDE_NAV_WIDTH_PX * 2 -
       getHorizontalChromeWidth() -
-      CHAT_PANEL_MIN_WIDTH_PX;
+      chatColumnMinWidth;
 
     return Math.max(BROWSER_PANEL_MIN_WIDTH_PX, availableWidth);
-  }, [getHorizontalChromeWidth, rightVisible]);
+  }, [chatColumnMinWidth, getHorizontalChromeWidth, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
     if (!rightVisible || !middleVisible) {
@@ -314,6 +323,62 @@ const ProjectWorkspaceComponent = ({
   const handleAddChat = useCallback(() => {
     addChat(projectId);
   }, [addChat, projectId]);
+
+  const handleAddChatBeside = useCallback(() => {
+    addChatBeside(projectId);
+  }, [addChatBeside, projectId]);
+
+  const handleChatColumnWidthsChange = useCallback(
+    (widths: Record<string, number>) => {
+      updateProject(projectId, (current) => ({
+        ...current,
+        ui: {
+          ...current.ui,
+          chatColumnWidths: Object.fromEntries(
+            Object.entries(widths).filter(([chatId]) =>
+              current.ui.openChatIds.includes(chatId),
+            ),
+          ),
+        },
+      }));
+    },
+    [projectId, updateProject],
+  );
+
+  const handleCloseChat = useCallback(
+    (chatId: string) => {
+      updateProject(projectId, (current) => {
+        const closedIndex = current.ui.openChatIds.indexOf(chatId);
+        if (closedIndex === -1 || current.ui.openChatIds.length <= 1) {
+          return current;
+        }
+
+        const openChatIds = current.ui.openChatIds.filter(
+          (openChatId) => openChatId !== chatId,
+        );
+        const activeChatId =
+          current.ui.activeChatId === chatId
+            ? (openChatIds[closedIndex] ?? openChatIds[closedIndex - 1] ?? null)
+            : current.ui.activeChatId;
+        const chatColumnWidths = Object.fromEntries(
+          Object.entries(current.ui.chatColumnWidths).filter(([openChatId]) =>
+            openChatIds.includes(openChatId),
+          ),
+        );
+
+        return {
+          ...current,
+          ui: {
+            ...current.ui,
+            activeChatId,
+            openChatIds,
+            chatColumnWidths,
+          },
+        };
+      });
+    },
+    [projectId, updateProject],
+  );
 
   const handleOpenTerminal = useCallback(() => {
     void openProjectTerminal(projectId);
@@ -495,6 +560,7 @@ const ProjectWorkspaceComponent = ({
         historyButtonRef={historyButtonRef}
         historyOpen={historyOpen}
         onAddChat={handleAddChat}
+        onAddChatBeside={handleAddChatBeside}
         onToggleHistory={handleToggleHistory}
       />
 
@@ -512,7 +578,7 @@ const ProjectWorkspaceComponent = ({
       <div
         className="min-w-0 flex-1"
         style={{
-          minWidth: middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0,
+          minWidth: middleVisible ? chatColumnMinWidth : 0,
           display: middleVisible ? undefined : "none",
         }}
       >
@@ -523,7 +589,11 @@ const ProjectWorkspaceComponent = ({
           <WorkspaceChatStack
             active={active}
             activeChatId={activeChatId}
+            chatColumnWidths={chatColumnWidths}
             mountedChats={mountedChats}
+            onChatColumnWidthsChange={handleChatColumnWidthsChange}
+            onCloseChat={handleCloseChat}
+            openChatIds={openChatIds}
             project={project}
           />
 

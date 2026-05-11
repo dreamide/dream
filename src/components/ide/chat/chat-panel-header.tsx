@@ -1,4 +1,4 @@
-import { Ellipsis, FilePenLine, Trash2 } from "lucide-react";
+import { Ellipsis, FilePenLine, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,8 +11,10 @@ import { Spinner } from "@/components/ui/spinner";
 
 export interface ChatPanelHeaderProps {
   canShowChatMenu: boolean;
+  canCloseChat?: boolean;
   chatMenuOpen: boolean;
   isTitleGenerating?: boolean;
+  onCloseChat?: () => void;
   onChatMenuOpenChange: (open: boolean) => void;
   onDeleteChat: () => void;
   onEditChat: () => void;
@@ -21,8 +23,10 @@ export interface ChatPanelHeaderProps {
 
 export const ChatPanelHeader = ({
   canShowChatMenu,
+  canCloseChat = false,
   chatMenuOpen,
   isTitleGenerating = false,
+  onCloseChat,
   onChatMenuOpenChange,
   onDeleteChat,
   onEditChat,
@@ -43,37 +47,53 @@ export const ChatPanelHeader = ({
           </div>
         </div>
 
-        {canShowChatMenu ? (
+        {canShowChatMenu || canCloseChat ? (
           <div className="flex shrink-0 items-center gap-1">
-            <DropdownMenu
-              onOpenChange={onChatMenuOpenChange}
-              open={chatMenuOpen}
-            >
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    aria-label={`${title} actions`}
-                    className="h-8 w-8 p-0"
-                    size="icon-sm"
-                    type="button"
-                    variant="ghost"
-                  />
-                }
+            {canShowChatMenu ? (
+              <DropdownMenu
+                onOpenChange={onChatMenuOpenChange}
+                open={chatMenuOpen}
               >
-                <Ellipsis className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={onEditChat}>
-                  <FilePenLine className="size-4" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onDeleteChat}>
-                  <Trash2 className="size-4" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      aria-label={`${title} actions`}
+                      className="h-8 w-8 p-0"
+                      size="icon-sm"
+                      type="button"
+                      variant="ghost"
+                    />
+                  }
+                >
+                  <Ellipsis className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={onEditChat}>
+                    <FilePenLine className="size-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onDeleteChat}>
+                    <Trash2 className="size-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+
+            {canCloseChat ? (
+              <Button
+                aria-label={`Close ${title}`}
+                className="h-8 w-8 p-0"
+                onClick={onCloseChat}
+                size="icon-sm"
+                title="Close chat"
+                type="button"
+                variant="ghost"
+              >
+                <X className="size-4" />
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
