@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { streamingTextAnimation } from "@/components/ide/assistant-message/streaming-message";
 import { Streamdown } from "streamdown";
 import {
   Collapsible,
@@ -209,6 +210,15 @@ export type ReasoningContentProps = ComponentProps<
 export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => {
     const { dir, ...contentProps } = props;
+    const { isStreaming } = useReasoning();
+
+    // Track whether this component was ever in a streaming state so that
+    // already-visible text keeps its animation styles after streaming stops,
+    // while historical messages (never streamed) render instantly.
+    const hasStreamedRef = useRef(isStreaming);
+    if (isStreaming) {
+      hasStreamedRef.current = true;
+    }
 
     return (
       <CollapsibleContent
@@ -220,7 +230,15 @@ export const ReasoningContent = memo(
         dir={dir}
         {...contentProps}
       >
-        <Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+        <Streamdown
+          animated={
+            hasStreamedRef.current ? streamingTextAnimation : undefined
+          }
+          isAnimating={isStreaming}
+          plugins={streamdownPlugins}
+        >
+          {children}
+        </Streamdown>
       </CollapsibleContent>
     );
   },

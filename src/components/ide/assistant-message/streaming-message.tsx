@@ -30,7 +30,7 @@ export const STREAMING_FINISHED_MAX_CHARS_PER_TICK = 1200;
 export const STREAMING_TEXT_FADE_DURATION_MS = 180;
 export const STREAMING_TEXT_FADE_SETTLE_MS = 120;
 
-const streamingTextAnimation = {
+export const streamingTextAnimation = {
   animation: "fadeIn",
   duration: STREAMING_TEXT_FADE_DURATION_MS,
   easing: "ease-out",
