@@ -1,4 +1,10 @@
-import { Ellipsis, FilePenLine, Search, Trash2 } from "lucide-react";
+import {
+  Ellipsis,
+  FilePenLine,
+  MessagesSquare,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { type FormEvent, useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -186,6 +192,7 @@ export const ProjectSidebar = ({
                 const isActiveChat = chat.id === activeChatId;
                 const isStreaming = !!streamingChatIds[chat.id];
                 const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
+                const isAttachedChat = projectUi.openChatIds.includes(chat.id);
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
 
                 return (
@@ -250,6 +257,20 @@ export const ProjectSidebar = ({
                           >
                             <FilePenLine className="size-4" />
                             Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={isAttachedChat}
+                            onClick={() => {
+                              if (isAttachedChat) {
+                                return;
+                              }
+
+                              setActiveChatId(project.id, chat.id);
+                              onChatSelect?.();
+                            }}
+                          >
+                            <MessagesSquare className="size-4" />
+                            Attach chat
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
