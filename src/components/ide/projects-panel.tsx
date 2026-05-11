@@ -142,6 +142,7 @@ export const ProjectSidebar = ({
           <div className="space-y-1 px-2 pb-3">
             {filteredChats.map((chat) => {
               const isActiveChat = chat.id === activeChatId;
+              const isOpenChat = projectUi.openChatIds.includes(chat.id);
               const isStreaming = !!streamingChatIds[chat.id];
               const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
               const lastActiveAt = chat.updatedAt || chat.createdAt;
@@ -174,7 +175,12 @@ export const ProjectSidebar = ({
                         </div>
                       ) : null}
                       <div className="min-w-0 flex-1">
-                        <p className="min-w-0 truncate text-sm leading-5">
+                        <p
+                          className={cn(
+                            "min-w-0 truncate text-sm leading-5",
+                            isOpenChat && "text-muted-foreground",
+                          )}
+                        >
                           {chat.title}
                         </p>
                       </div>
