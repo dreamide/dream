@@ -23,16 +23,6 @@ const WorkspaceSideNavImpl = ({
   <aside className="flex w-12 shrink-0 flex-col items-center py-2">
     <div className="flex flex-col items-center gap-1">
       <Button
-        aria-label="New chat"
-        className="size-8 text-muted-foreground hover:text-foreground"
-        onClick={onAddChat}
-        size="icon"
-        title="New chat"
-        variant="ghost"
-      >
-        <MessageSquarePlus className="size-4" />
-      </Button>
-      <Button
         aria-label="Chat history"
         className={cn(
           "size-8",
@@ -47,6 +37,16 @@ const WorkspaceSideNavImpl = ({
         variant="ghost"
       >
         <History className="size-4" />
+      </Button>
+      <Button
+        aria-label="New chat"
+        className="size-8 text-muted-foreground hover:text-foreground"
+        onClick={onAddChat}
+        size="icon"
+        title="New chat"
+        variant="ghost"
+      >
+        <MessageSquarePlus className="size-4" />
       </Button>
       <Button
         aria-label={multiChat ? "Disable multi-chat" : "Enable multi-chat"}
