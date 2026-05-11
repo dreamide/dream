@@ -91,6 +91,7 @@ export interface ProjectUiState {
   openChatIds: string[];
   chatColumnWidths: Record<string, number>;
   chatHistoryPanelOpen: boolean;
+  multiChat: boolean;
   panelSizes: PanelSizes;
   rightPanelOpen: boolean;
   rightPanelView: RightPanelView;

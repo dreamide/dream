@@ -14,6 +14,7 @@ export const createProjectActions = (
   | "updateProject"
   | "addChat"
   | "addChatBeside"
+  | "toggleProjectMultiChatMode"
   | "setActiveChatId"
   | "updateChat"
   | "deleteChat"

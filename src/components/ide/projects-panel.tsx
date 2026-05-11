@@ -1,4 +1,4 @@
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +63,6 @@ export const ProjectSidebar = ({
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
-  const updateProject = useIdeStore((s) => s.updateProject);
   const deleteChat = useIdeStore((s) => s.deleteChat);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,22 +101,9 @@ export const ProjectSidebar = ({
 
   const handleChatSelect = useCallback(
     (chatId: string) => {
-      if (projectUi.openChatIds.length > 1) {
-        setActiveChatId(project.id, chatId);
-        return;
-      }
-
-      updateProject(project.id, (current) => ({
-        ...current,
-        ui: {
-          ...current.ui,
-          activeChatId: chatId,
-          openChatIds: [chatId],
-          chatColumnWidths: {},
-        },
-      }));
+      setActiveChatId(project.id, chatId);
     },
-    [project.id, projectUi.openChatIds.length, setActiveChatId, updateProject],
+    [project.id, setActiveChatId],
   );
 
   return (
@@ -158,7 +144,6 @@ export const ProjectSidebar = ({
               const isActiveChat = chat.id === activeChatId;
               const isStreaming = !!streamingChatIds[chat.id];
               const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
-              const isAttachedChat = projectUi.openChatIds.includes(chat.id);
               const lastActiveAt = chat.updatedAt || chat.createdAt;
 
               return (
@@ -182,19 +167,14 @@ export const ProjectSidebar = ({
                     }}
                     type="button"
                   >
-                    <div className="flex min-w-0 items-center gap-2 pr-20">
+                    <div className="flex min-w-0 items-center gap-2 pr-12">
                       {isStreaming || isTitleGenerating ? (
                         <div className="flex shrink-0 items-center gap-1.5">
                           <Spinner className="size-3 shrink-0" />
                         </div>
                       ) : null}
                       <div className="min-w-0 flex-1">
-                        <p
-                          className={cn(
-                            "min-w-0 truncate text-sm leading-5",
-                            isAttachedChat && "text-muted-foreground",
-                          )}
-                        >
+                        <p className="min-w-0 truncate text-sm leading-5">
                           {chat.title}
                         </p>
                       </div>
@@ -204,24 +184,6 @@ export const ProjectSidebar = ({
                     </span>
                   </button>
                   <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                    <Button
-                      aria-label={`Attach ${chat.title}`}
-                      className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-                      disabled={isAttachedChat}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setActiveChatId(project.id, chat.id);
-                        onChatSelect?.();
-                      }}
-                      size="icon-sm"
-                      title={
-                        isAttachedChat ? "Chat already attached" : "Attach chat"
-                      }
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Plus className="size-3.5" />
-                    </Button>
                     <Button
                       aria-label={`Delete ${chat.title}`}
                       className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-destructive"

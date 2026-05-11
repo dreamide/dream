@@ -315,6 +315,10 @@ const normalizeProject = (
         typeof rawUi.chatHistoryPanelOpen === "boolean"
           ? rawUi.chatHistoryPanelOpen
           : DEFAULT_PROJECT_UI.chatHistoryPanelOpen,
+      multiChat:
+        typeof rawUi.multiChat === "boolean"
+          ? rawUi.multiChat
+          : DEFAULT_PROJECT_UI.multiChat,
       panelSizes: normalizePanelSizes(rawUi.panelSizes),
       rightPanelOpen:
         typeof rawUi.rightPanelOpen === "boolean"
@@ -418,11 +422,17 @@ export const sanitizeProjectUiForChats = (
     availableChatIds.has(chatId),
   );
 
-  if (activeChatId && !openChatIds.includes(activeChatId)) {
-    openChatIds.push(activeChatId);
+  const nextOpenChatIds = ui.multiChat ? openChatIds : [];
+  if (activeChatId) {
+    if (ui.multiChat) {
+      if (!nextOpenChatIds.includes(activeChatId)) {
+        nextOpenChatIds.push(activeChatId);
+      }
+    } else {
+      nextOpenChatIds.splice(0, nextOpenChatIds.length, activeChatId);
+    }
   }
 
-  const nextOpenChatIds = openChatIds.length > 0 ? openChatIds : [];
   const openChatIdSet = new Set(nextOpenChatIds);
   const chatColumnWidths = Object.fromEntries(
     Object.entries(ui.chatColumnWidths).filter(
@@ -434,6 +444,7 @@ export const sanitizeProjectUiForChats = (
   return {
     ...ui,
     activeChatId,
+    multiChat: ui.multiChat === true,
     openChatIds: nextOpenChatIds,
     chatColumnWidths,
   };

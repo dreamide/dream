@@ -323,6 +323,11 @@ function buildProjectMetadata(project) {
         : null,
     openChatIds: getNestedStringArray(project.ui, "openChatIds"),
     chatColumnWidths: getNestedNumberRecord(project.ui, "chatColumnWidths"),
+    multiChat: getNestedBoolean(
+      project.ui,
+      "multiChat",
+      getNestedBoolean(getNestedRecord(metadata, "ui"), "multiChat", false),
+    ),
   };
   const existingPanelVisibility = getNestedRecord(ui, "panelVisibility");
   const existingPanelSizes = getNestedRecord(ui, "panelSizes");
@@ -763,6 +768,7 @@ function loadStateFromRelationalDatabase(database) {
       openChatIds: getNestedStringArray(ui, "openChatIds"),
       chatColumnWidths: getNestedNumberRecord(ui, "chatColumnWidths"),
       chatHistoryPanelOpen: getNestedBoolean(ui, "chatHistoryPanelOpen", false),
+      multiChat: getNestedBoolean(ui, "multiChat", false),
       panelSizes: {
         chatHistoryPanelWidth: getNestedNumber(
           getNestedRecord(ui, "panelSizes"),
@@ -881,11 +887,17 @@ function loadStateFromRelationalDatabase(database) {
     const activeChatId = availableChatIds.has(requestedChatId)
       ? requestedChatId
       : (projectChats[0]?.id ?? null);
-    const openChatIds = project.ui.openChatIds.filter((chatId) =>
-      availableChatIds.has(chatId),
-    );
-    if (activeChatId && !openChatIds.includes(activeChatId)) {
-      openChatIds.push(activeChatId);
+    const openChatIds = project.ui.multiChat
+      ? project.ui.openChatIds.filter((chatId) => availableChatIds.has(chatId))
+      : [];
+    if (activeChatId) {
+      if (project.ui.multiChat) {
+        if (!openChatIds.includes(activeChatId)) {
+          openChatIds.push(activeChatId);
+        }
+      } else {
+        openChatIds.splice(0, openChatIds.length, activeChatId);
+      }
     }
     const openChatIdSet = new Set(openChatIds);
 

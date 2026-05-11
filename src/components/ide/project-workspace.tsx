@@ -52,6 +52,7 @@ const ProjectWorkspaceComponent = ({
   const activeChatId = projectUi.activeChatId;
   const openChatIds = projectUi.openChatIds;
   const chatColumnWidths = projectUi.chatColumnWidths;
+  const multiChat = projectUi.multiChat;
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const browserTabs = useIdeStore(
@@ -81,6 +82,9 @@ const ProjectWorkspaceComponent = ({
   const addChat = useIdeStore((s) => s.addChat);
   const addChatBeside = useIdeStore((s) => s.addChatBeside);
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
+  const toggleProjectMultiChatMode = useIdeStore(
+    (s) => s.toggleProjectMultiChatMode,
+  );
   const updateProject = useIdeStore((s) => s.updateProject);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
 
@@ -318,13 +322,17 @@ const ProjectWorkspaceComponent = ({
   }, [projectId, setProjectChatHistoryPanelOpen]);
 
   const handleAddChat = useCallback(() => {
-    if (openChatIds.length > 1) {
+    if (multiChat) {
       addChatBeside(projectId);
       return;
     }
 
     addChat(projectId);
-  }, [addChat, addChatBeside, openChatIds.length, projectId]);
+  }, [addChat, addChatBeside, multiChat, projectId]);
+
+  const handleToggleMultiChat = useCallback(() => {
+    toggleProjectMultiChatMode(projectId);
+  }, [projectId, toggleProjectMultiChatMode]);
 
   const handleActivateChat = useCallback(
     (chatId: string) => {
@@ -564,7 +572,9 @@ const ProjectWorkspaceComponent = ({
       <WorkspaceSideNav
         historyButtonRef={historyButtonRef}
         historyOpen={historyOpen}
+        multiChat={multiChat}
         onAddChat={handleAddChat}
+        onToggleMultiChat={handleToggleMultiChat}
         onToggleHistory={handleToggleHistory}
       />
 

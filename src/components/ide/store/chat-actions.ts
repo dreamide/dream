@@ -21,6 +21,7 @@ export const createChatActions = (
   IdeState,
   | "addChat"
   | "addChatBeside"
+  | "toggleProjectMultiChatMode"
   | "setActiveChatId"
   | "updateChat"
   | "deleteChat"
@@ -93,6 +94,8 @@ export const createChatActions = (
   },
 
   addChatBeside: (projectId: string) => {
+    let didAddChat = false;
+
     set((state) => {
       const project = state.projects.find((item) => item.id === projectId);
       if (!project) {
@@ -107,6 +110,7 @@ export const createChatActions = (
           : project.provider,
       });
       const nextChats = [...state.chats, nextChat];
+      didAddChat = true;
 
       return {
         activeProjectId: projectId,
@@ -116,6 +120,7 @@ export const createChatActions = (
             projectId,
             {
               ...item.ui,
+              multiChat: true,
               openChatIds: [...item.ui.openChatIds, nextChat.id],
             },
             nextChat.id,
@@ -135,6 +140,45 @@ export const createChatActions = (
         chats: nextChats,
       };
     });
+
+    if (didAddChat) {
+      get().persist();
+    }
+  },
+
+  toggleProjectMultiChatMode: (projectId: string) => {
+    let didUpdate = false;
+
+    set((state) => {
+      const project = state.projects.find((item) => item.id === projectId);
+      if (!project) {
+        return state;
+      }
+
+      const multiChat = !project.ui.multiChat;
+      const preferredActiveChatId =
+        project.ui.activeChatId ?? project.ui.openChatIds[0] ?? null;
+      didUpdate = true;
+
+      return {
+        projects: updateProjectUiInList(state.projects, projectId, (item) =>
+          sanitizeProjectUiForChats(
+            state.chats,
+            projectId,
+            {
+              ...item.ui,
+              chatColumnWidths: multiChat ? item.ui.chatColumnWidths : {},
+              multiChat,
+            },
+            preferredActiveChatId,
+          ),
+        ),
+      };
+    });
+
+    if (didUpdate) {
+      get().persist();
+    }
   },
 
   setActiveChatId: (projectId: string, chatId: string | null) => {

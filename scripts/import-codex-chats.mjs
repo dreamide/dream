@@ -216,6 +216,7 @@ const loadRelationalPersistedState = (database) => {
           "chatHistoryPanelOpen",
           false,
         ),
+        multiChat: getNestedBoolean(ui, "multiChat", false),
         panelSizes: {
           chatHistoryPanelWidth: getNestedNumber(
             panelSizes,
