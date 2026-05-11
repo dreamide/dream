@@ -317,12 +317,13 @@ const ProjectWorkspaceComponent = ({
   }, [projectId, setProjectChatHistoryPanelOpen]);
 
   const handleAddChat = useCallback(() => {
-    addChat(projectId);
-  }, [addChat, projectId]);
+    if (openChatIds.length > 1) {
+      addChatBeside(projectId);
+      return;
+    }
 
-  const handleAddChatBeside = useCallback(() => {
-    addChatBeside(projectId);
-  }, [addChatBeside, projectId]);
+    addChat(projectId);
+  }, [addChat, addChatBeside, openChatIds.length, projectId]);
 
   const handleChatColumnWidthsChange = useCallback(
     (widths: Record<string, number>) => {
@@ -556,7 +557,6 @@ const ProjectWorkspaceComponent = ({
         historyButtonRef={historyButtonRef}
         historyOpen={historyOpen}
         onAddChat={handleAddChat}
-        onAddChatBeside={handleAddChatBeside}
         onToggleHistory={handleToggleHistory}
       />
 

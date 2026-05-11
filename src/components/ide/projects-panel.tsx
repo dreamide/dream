@@ -1,33 +1,11 @@
-import {
-  Ellipsis,
-  FilePenLine,
-  MessagesSquare,
-  Search,
-  Trash2,
-} from "lucide-react";
-import { type FormEvent, useCallback, useMemo, useState } from "react";
+import { Plus, Search, Trash2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -86,12 +64,9 @@ export const ProjectSidebar = ({
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
   const updateProject = useIdeStore((s) => s.updateProject);
-  const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [editTarget, setEditTarget] = useState<ChatConfig | null>(null);
-  const [editValue, setEditValue] = useState("");
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
     return allChats
@@ -125,11 +100,6 @@ export const ProjectSidebar = ({
 
   const activeChatId = projectUi.activeChatId;
 
-  const closeEditDialog = useCallback(() => {
-    setEditTarget(null);
-    setEditValue("");
-  }, []);
-
   const handleChatSelect = useCallback(
     (chatId: string) => {
       if (projectUi.openChatIds.length > 1) {
@@ -150,202 +120,124 @@ export const ProjectSidebar = ({
     [project.id, projectUi.openChatIds.length, setActiveChatId, updateProject],
   );
 
-  const handleEditSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-
-      const nextName = editValue.trim();
-      if (!editTarget || !nextName) {
-        return;
-      }
-
-      updateChat(editTarget.id, (current) => ({
-        ...current,
-        title: nextName,
-      }));
-      closeEditDialog();
-    },
-    [closeEditDialog, editTarget, editValue, updateChat],
-  );
-
   return (
-    <>
-      <div
-        id="projects-panel"
-        className={cn(
-          "flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md",
-          className,
-        )}
-      >
-        <div className="px-3 py-3">
-          <p className="font-medium text-sm">Chat history</p>
-          <InputGroup className="mt-2">
-            <InputGroupInput
-              className="text-sm"
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search history..."
-              value={searchQuery}
-            />
-            <InputGroupAddon>
-              <Search className="size-4 shrink-0 opacity-50" />
-            </InputGroupAddon>
-          </InputGroup>
-        </div>
-
-        <ScrollArea className="min-h-0 flex-1">
-          {filteredChats.length === 0 ? (
-            <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground text-sm">
-              <p>
-                {searchQuery.trim()
-                  ? "No matching chats found."
-                  : "No chats yet for this project."}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-1 px-2 pb-3">
-              {filteredChats.map((chat) => {
-                const isActiveChat = chat.id === activeChatId;
-                const isStreaming = !!streamingChatIds[chat.id];
-                const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
-                const isAttachedChat = projectUi.openChatIds.includes(chat.id);
-                const lastActiveAt = chat.updatedAt || chat.createdAt;
-
-                return (
-                  <div
-                    className={cn(
-                      "group relative min-w-0 rounded-md border transition-colors",
-                      isActiveChat
-                        ? "border-border bg-muted/30"
-                        : "border-transparent hover:bg-muted/30",
-                    )}
-                    key={chat.id}
-                  >
-                    <button
-                      className="w-full rounded-[inherit] px-3 py-2 text-left"
-                      onClick={(event) => {
-                        handleChatSelect(chat.id);
-                        onChatSelect?.();
-                        if (event.detail > 0) {
-                          event.currentTarget.blur();
-                        }
-                      }}
-                      type="button"
-                    >
-                      <div className="flex min-w-0 items-center gap-2 pr-14">
-                        {isStreaming || isTitleGenerating ? (
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <Spinner className="size-3 shrink-0" />
-                          </div>
-                        ) : null}
-                        <div className="min-w-0 flex-1">
-                          <p className="min-w-0 truncate text-sm leading-5">
-                            {chat.title}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="-translate-y-1/2 absolute top-1/2 right-3 text-right text-muted-foreground text-xs transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
-                        {formatLastActiveTime(lastActiveAt)}
-                      </span>
-                    </button>
-                    <div className="-translate-y-1/2 absolute top-1/2 right-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              aria-label={`${chat.title} actions`}
-                              className="size-7 rounded-md p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
-                              size="icon-sm"
-                              title="Chat actions"
-                              type="button"
-                              variant="ghost"
-                            />
-                          }
-                        >
-                          <Ellipsis className="size-3.5" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditTarget(chat);
-                              setEditValue(chat.title);
-                            }}
-                          >
-                            <FilePenLine className="size-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={isAttachedChat}
-                            onClick={() => {
-                              if (isAttachedChat) {
-                                return;
-                              }
-
-                              setActiveChatId(project.id, chat.id);
-                              onChatSelect?.();
-                            }}
-                          >
-                            <MessagesSquare className="size-4" />
-                            Attach chat
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => {
-                              if (editTarget?.id === chat.id) {
-                                closeEditDialog();
-                              }
-                              deleteChat(chat.id);
-                            }}
-                          >
-                            <Trash2 className="size-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
+    <div
+      id="projects-panel"
+      className={cn(
+        "flex h-full flex-col overflow-hidden rounded-lg border border-foreground/20 bg-background shadow-md",
+        className,
+      )}
+    >
+      <div className="px-3 py-3">
+        <p className="font-medium text-sm">Chat history</p>
+        <InputGroup className="mt-2">
+          <InputGroupInput
+            className="text-sm"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search history..."
+            value={searchQuery}
+          />
+          <InputGroupAddon>
+            <Search className="size-4 shrink-0 opacity-50" />
+          </InputGroupAddon>
+        </InputGroup>
       </div>
 
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
-            closeEditDialog();
-          }
-        }}
-        open={editTarget !== null}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <form className="space-y-4" onSubmit={handleEditSubmit}>
-            <DialogHeader>
-              <DialogTitle className="text-base leading-6">
-                Edit chat
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2">
-              <Label htmlFor="projects-panel-edit-chat-name">Name</Label>
-              <Input
-                autoFocus
-                id="projects-panel-edit-chat-name"
-                onChange={(event) => setEditValue(event.target.value)}
-                placeholder="Enter a name"
-                value={editValue}
-              />
-            </div>
-            <DialogFooter>
-              <Button onClick={closeEditDialog} type="button" variant="outline">
-                Cancel
-              </Button>
-              <Button disabled={editValue.trim().length === 0} type="submit">
-                Save
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+      <ScrollArea className="min-h-0 flex-1">
+        {filteredChats.length === 0 ? (
+          <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground text-sm">
+            <p>
+              {searchQuery.trim()
+                ? "No matching chats found."
+                : "No chats yet for this project."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1 px-2 pb-3">
+            {filteredChats.map((chat) => {
+              const isActiveChat = chat.id === activeChatId;
+              const isStreaming = !!streamingChatIds[chat.id];
+              const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
+              const isAttachedChat = projectUi.openChatIds.includes(chat.id);
+              const lastActiveAt = chat.updatedAt || chat.createdAt;
+
+              return (
+                <div
+                  className={cn(
+                    "group relative min-w-0 rounded-md border transition-colors",
+                    isActiveChat
+                      ? "border-border bg-muted/30"
+                      : "border-transparent hover:bg-muted/30",
+                  )}
+                  key={chat.id}
+                >
+                  <button
+                    className="w-full rounded-[inherit] px-3 py-2 text-left"
+                    onClick={(event) => {
+                      handleChatSelect(chat.id);
+                      onChatSelect?.();
+                      if (event.detail > 0) {
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    type="button"
+                  >
+                    <div className="flex min-w-0 items-center gap-2 pr-20">
+                      {isStreaming || isTitleGenerating ? (
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Spinner className="size-3 shrink-0" />
+                        </div>
+                      ) : null}
+                      <div className="min-w-0 flex-1">
+                        <p className="min-w-0 truncate text-sm leading-5">
+                          {chat.title}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="-translate-y-1/2 absolute top-1/2 right-3 text-right text-muted-foreground text-xs transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
+                      {formatLastActiveTime(lastActiveAt)}
+                    </span>
+                  </button>
+                  <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    <Button
+                      aria-label={`Attach ${chat.title}`}
+                      className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                      disabled={isAttachedChat}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setActiveChatId(project.id, chat.id);
+                        onChatSelect?.();
+                      }}
+                      size="icon-sm"
+                      title={
+                        isAttachedChat ? "Chat already attached" : "Attach chat"
+                      }
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Plus className="size-3.5" />
+                    </Button>
+                    <Button
+                      aria-label={`Delete ${chat.title}`}
+                      className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-destructive"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        deleteChat(chat.id);
+                      }}
+                      size="icon-sm"
+                      title="Delete chat"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
   );
 };
