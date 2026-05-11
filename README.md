@@ -118,6 +118,3 @@ Repair `node-pty` permissions and prepare the Electron development app:
 pnpm postinstall
 ```
 
-## Notes
-
-Dream stores desktop application data under the app data directory in a `dreamide` folder. The app name remains `Dream`. The main window loads a local renderer URL in development and the packaged renderer server in production.
