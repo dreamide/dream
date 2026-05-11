@@ -1,6 +1,7 @@
 import type { UIMessage } from "ai";
 import { CheckIcon, CopyIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { ProjectReference } from "@/types/ide";
 import { getMessageText } from "./message-content";
 
@@ -104,7 +105,7 @@ export const MessageHoverFooter = ({
     fallbackStartedAt;
   const completedAt = getMessageTimestamp(metadata?.completedAt);
   const time = isRunning
-    ? `Running ${formatRunningDuration(startedAt, now)}`
+    ? `Running for ${formatRunningDuration(startedAt, now)}`
     : formatMessageTime(
         message.role === "assistant"
           ? metadata?.completedAt
@@ -115,15 +116,15 @@ export const MessageHoverFooter = ({
       ? `Ran for ${formatRunningDuration(durationStartedAt, completedAt)}`
       : null;
   const text = getMessageText(message);
-  const footerText = [
-    modelLabel,
-    reasoningLabel,
-    modelSpeedLabel,
-    time,
-    duration,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const footerItems = [
+    { text: modelLabel, shimmer: false },
+    { text: reasoningLabel, shimmer: false },
+    { text: modelSpeedLabel, shimmer: false },
+    { text: time, shimmer: isRunning },
+    { text: duration, shimmer: false },
+  ].filter(
+    (item): item is { text: string; shimmer: boolean } => !!item.text,
+  );
   const positionClassName =
     message.role === "user"
       ? "ml-auto justify-end text-right"
@@ -154,7 +155,7 @@ export const MessageHoverFooter = ({
     window.setTimeout(() => setCopied(false), 1200);
   }, [text]);
 
-  if (!footerText && !text) {
+  if (footerItems.length === 0 && !text) {
     return null;
   }
 
@@ -162,7 +163,22 @@ export const MessageHoverFooter = ({
     <div
       className={`${positionClassName} pointer-events-none flex min-h-6 max-w-full items-center gap-2 text-muted-foreground text-xs`}
     >
-      {footerText ? <span>{footerText}</span> : null}
+      {footerItems.length > 0 ? (
+        <span>
+          {footerItems.map((item, i) => (
+            <Fragment key={i}>
+              {i > 0 ? " · " : null}
+              {item.shimmer ? (
+                <Shimmer as="span" duration={2}>
+                  {item.text}
+                </Shimmer>
+              ) : (
+                item.text
+              )}
+            </Fragment>
+          ))}
+        </span>
+      ) : null}
       {text && !isRunning ? (
         <button
           aria-label="Copy message"
