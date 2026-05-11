@@ -206,8 +206,8 @@ export const CHIP_TONE_CLASSES = {
   },
   blue: {
     button:
-      "border-info-border bg-info-surface text-info-foreground dark:border-info-border dark:bg-info-surface dark:text-info-foreground",
-    expanded: "text-info-foreground dark:text-info-foreground",
+      "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",
+    expanded: "text-blue-700 dark:text-blue-400",
   },
   cyan: {
     button:
