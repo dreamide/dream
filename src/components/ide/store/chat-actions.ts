@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 import { createChatConfig, getDefaultModelSelection } from "@/lib/ide-defaults";
-import type { ChatConfig, ChatSortOrder } from "@/types/ide";
+import type { ChatConfig, ChatSortOrder, ProjectUiState } from "@/types/ide";
 import { mergeChatMessageHistories } from "../chat-message-history";
 import {
   ensureActiveChatForProject,
@@ -220,41 +220,39 @@ export const createChatActions = (
       if (nextDraftChatIdByProject[chat.projectId] === chatId) {
         nextDraftChatIdByProject[chat.projectId] = null;
       }
+      const sanitizeUiAfterDelete = (project: { ui: ProjectUiState }) => {
+        const deletedOpenIndex = project.ui.openChatIds.indexOf(chatId);
+        const openChatIds = project.ui.openChatIds.filter(
+          (openChatId) => openChatId !== chatId,
+        );
+        const preferredActiveChatId =
+          project.ui.activeChatId === chatId
+            ? (openChatIds[deletedOpenIndex] ??
+              openChatIds[deletedOpenIndex - 1] ??
+              null)
+            : project.ui.activeChatId;
+
+        return sanitizeProjectUiForChats(
+          nextChats,
+          chat.projectId,
+          {
+            ...project.ui,
+            openChatIds,
+          },
+          preferredActiveChatId,
+        );
+      };
 
       return {
         projects: updateProjectUiInList(
           state.projects,
           chat.projectId,
-          (project) =>
-            sanitizeProjectUiForChats(
-              nextChats,
-              chat.projectId,
-              project.ui,
-              ensureActiveChatForProject(
-                nextChats,
-                chat.projectId,
-                project.ui.activeChatId === chatId
-                  ? null
-                  : project.ui.activeChatId,
-              ),
-            ),
+          sanitizeUiAfterDelete,
         ),
         closedProjects: updateProjectUiInList(
           state.closedProjects,
           chat.projectId,
-          (project) =>
-            sanitizeProjectUiForChats(
-              nextChats,
-              chat.projectId,
-              project.ui,
-              ensureActiveChatForProject(
-                nextChats,
-                chat.projectId,
-                project.ui.activeChatId === chatId
-                  ? null
-                  : project.ui.activeChatId,
-              ),
-            ),
+          sanitizeUiAfterDelete,
         ),
         draftChatIdByProject: nextDraftChatIdByProject,
         chats: nextChats,
