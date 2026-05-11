@@ -47,6 +47,318 @@ const LEGACY_STORE_FILENAME = "dream-settings.json";
 const cloneDefaultPersistedState = () =>
   JSON.parse(JSON.stringify(DEFAULT_PERSISTED_STATE));
 
+const isRecord = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const parseJson = (value, fallback) => {
+  if (typeof value !== "string" || !value.trim()) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const getNestedRecord = (parent, key) =>
+  isRecord(parent?.[key]) ? parent[key] : {};
+
+const getNestedString = (parent, key, fallback = "") =>
+  typeof parent?.[key] === "string" ? parent[key] : fallback;
+
+const getNestedNullableString = (parent, key) =>
+  typeof parent?.[key] === "string" && parent[key].trim() ? parent[key] : null;
+
+const getNestedNumber = (parent, key, fallback) =>
+  typeof parent?.[key] === "number" && Number.isFinite(parent[key])
+    ? parent[key]
+    : fallback;
+
+const getNestedBoolean = (parent, key, fallback) =>
+  typeof parent?.[key] === "boolean" ? parent[key] : fallback;
+
+const getNestedStringArray = (parent, key) => {
+  const value = parent?.[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set();
+  return value.flatMap((item) => {
+    const stringValue = typeof item === "string" ? item.trim() : "";
+    if (!stringValue || seen.has(stringValue)) {
+      return [];
+    }
+
+    seen.add(stringValue);
+    return [stringValue];
+  });
+};
+
+const getNestedNumberRecord = (parent, key) => {
+  const value = parent?.[key];
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([recordKey, recordValue]) =>
+        typeof recordKey === "string" &&
+        recordKey.trim() &&
+        typeof recordValue === "number" &&
+        Number.isFinite(recordValue) &&
+        recordValue > 0,
+    ),
+  );
+};
+
+const getNestedRightPanelView = (parent, key, fallback = "changes") => {
+  const value = parent?.[key];
+  return value === "browser" || value === "explorer" || value === "changes"
+    ? value
+    : fallback;
+};
+
+const tableExists = (database, tableName) => {
+  const row = database
+    .prepare(
+      `
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        LIMIT 1
+      `,
+    )
+    .get(tableName);
+
+  return typeof row?.name === "string";
+};
+
+const readConfig = (database) => {
+  if (!tableExists(database, "config")) {
+    return {};
+  }
+
+  const rows = database.prepare("SELECT key, value FROM config").all();
+  return Object.fromEntries(
+    rows
+      .filter((row) => typeof row?.key === "string")
+      .map((row) => [row.key, parseJson(row.value, null)]),
+  );
+};
+
+const loadRelationalPersistedState = (database) => {
+  if (
+    !tableExists(database, "projects") ||
+    !tableExists(database, "chats") ||
+    !tableExists(database, "chat_messages")
+  ) {
+    return null;
+  }
+
+  const config = readConfig(database);
+  const projectRows = database
+    .prepare("SELECT * FROM projects ORDER BY status = 'closed', sort_order")
+    .all();
+
+  if (projectRows.length === 0 && Object.keys(config).length === 0) {
+    return null;
+  }
+
+  const projects = [];
+  const closedProjects = [];
+  const activeChatIdByProject = {};
+
+  for (const row of projectRows) {
+    const metadata = parseJson(row.metadata, {});
+    const icon = getNestedRecord(metadata, "icon");
+    const iconPath = getNestedString(icon, "path", "");
+    const modelSelection = getNestedRecord(metadata, "modelSelection");
+    const browser = getNestedRecord(metadata, "browser");
+    const ui = getNestedRecord(metadata, "ui");
+    const panelSizes = getNestedRecord(ui, "panelSizes");
+    const project = {
+      browserUrl: getNestedString(browser, "url", "http://127.0.0.1:3000"),
+      id: row.id,
+      icon: iconPath
+        ? {
+            path: iconPath,
+            mimeType: getNestedString(
+              icon,
+              "mimeType",
+              "application/octet-stream",
+            ),
+            source: getNestedString(icon, "source", "unknown"),
+            mtimeMs: getNestedNumber(icon, "mtimeMs", 0),
+          }
+        : null,
+      metadata,
+      model: getNestedString(modelSelection, "model", ""),
+      modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
+      name: row.name || path.basename(row.path || "") || "project",
+      path: row.path || "",
+      provider: getNestedString(modelSelection, "provider", "openai"),
+      reasoningEffort: getNestedString(
+        modelSelection,
+        "reasoningEffort",
+        "medium",
+      ),
+      runCommand: getNestedString(metadata, "runCommand", "pnpm dev"),
+      ui: {
+        activeChatId: getNestedNullableString(ui, "activeChatId"),
+        openChatIds: getNestedStringArray(ui, "openChatIds"),
+        chatColumnWidths: getNestedNumberRecord(ui, "chatColumnWidths"),
+        chatHistoryPanelOpen: getNestedBoolean(
+          ui,
+          "chatHistoryPanelOpen",
+          false,
+        ),
+        panelSizes: {
+          chatHistoryPanelWidth: getNestedNumber(
+            panelSizes,
+            "chatHistoryPanelWidth",
+            400,
+          ),
+          leftSidebarWidth: getNestedNumber(
+            panelSizes,
+            "leftSidebarWidth",
+            240,
+          ),
+          rightPanelWidth: getNestedNumber(panelSizes, "rightPanelWidth", 520),
+          terminalHeight: getNestedNumber(panelSizes, "terminalHeight", 260),
+        },
+        rightPanelOpen: getNestedBoolean(
+          getNestedRecord(ui, "panelVisibility"),
+          "right",
+          true,
+        ),
+        rightPanelView: getNestedRightPanelView(ui, "rightPanelView"),
+      },
+    };
+
+    activeChatIdByProject[project.id] = project.ui.activeChatId;
+    if (row.status === "closed") {
+      closedProjects.push(project);
+    } else {
+      projects.push(project);
+    }
+  }
+
+  const chats = database
+    .prepare("SELECT * FROM chats ORDER BY created_at, id")
+    .all()
+    .map((row) => {
+      const metadata = parseJson(row.metadata, {});
+      const modelSelection = getNestedRecord(metadata, "modelSelection");
+      const remoteConversation = getNestedRecord(
+        metadata,
+        "remoteConversation",
+      );
+
+      return {
+        createdAt: row.created_at,
+        deletedAt:
+          typeof row.deleted_at === "string" && row.deleted_at.trim()
+            ? row.deleted_at
+            : null,
+        id: row.id,
+        metadata,
+        model: getNestedString(modelSelection, "model", ""),
+        modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
+        projectId: row.project_id,
+        provider: getNestedString(modelSelection, "provider", "openai"),
+        reasoningEffort: getNestedString(
+          modelSelection,
+          "reasoningEffort",
+          "medium",
+        ),
+        remoteConversationId: getNestedNullableString(remoteConversation, "id"),
+        remoteConversationModel: getNestedNullableString(
+          remoteConversation,
+          "model",
+        ),
+        remoteConversationModelSpeed: getNestedNullableString(
+          remoteConversation,
+          "modelSpeed",
+        ),
+        remoteConversationProjectPath: getNestedNullableString(
+          remoteConversation,
+          "projectPath",
+        ),
+        title: row.title || "New chat",
+        updatedAt: row.updated_at,
+      };
+    });
+  const messagesByChatId = Object.fromEntries(
+    chats.map((chat) => [chat.id, []]),
+  );
+  const messageRows = database
+    .prepare(
+      "SELECT chat_id, payload FROM chat_messages ORDER BY chat_id, sort_order",
+    )
+    .all();
+
+  for (const row of messageRows) {
+    const payload = parseJson(row.payload, null);
+    if (isRecord(payload) && Array.isArray(messagesByChatId[row.chat_id])) {
+      messagesByChatId[row.chat_id].push(payload);
+    }
+  }
+
+  return {
+    activeProjectId:
+      typeof config.activeProjectId === "string"
+        ? config.activeProjectId
+        : null,
+    activeChatIdByProject,
+    chats,
+    chatSort: typeof config.chatSort === "string" ? config.chatSort : "recent",
+    closedProjects,
+    messagesByChatId,
+    projects,
+    settings: {
+      ...cloneDefaultPersistedState().settings,
+      defaultOpenAiModel:
+        typeof config["settings.defaultModel"] === "string"
+          ? config["settings.defaultModel"]
+          : "",
+      openAiSelectedModels: Array.isArray(
+        config["settings.openAiSelectedModels"],
+      )
+        ? config["settings.openAiSelectedModels"]
+        : [],
+      anthropicSelectedModels: Array.isArray(
+        config["settings.anthropicSelectedModels"],
+      )
+        ? config["settings.anthropicSelectedModels"]
+        : [],
+      autoAcceptPermissions:
+        typeof config["settings.autoAcceptPermissions"] === "boolean"
+          ? config["settings.autoAcceptPermissions"]
+          : false,
+      shellPath:
+        typeof config["settings.shellPath"] === "string"
+          ? config["settings.shellPath"]
+          : "",
+      expandToolCalls:
+        typeof config["settings.expandToolCalls"] === "boolean"
+          ? config["settings.expandToolCalls"]
+          : false,
+      groupToolCalls:
+        typeof config["settings.groupToolCalls"] === "boolean"
+          ? config["settings.groupToolCalls"]
+          : false,
+      showReasoningSummaries:
+        typeof config["settings.showReasoningSummaries"] === "boolean"
+          ? config["settings.showReasoningSummaries"]
+          : true,
+    },
+  };
+};
+
 const parseArgs = (argv) => {
   const options = {
     codexDir: path.join(os.homedir(), ".codex"),
@@ -257,17 +569,23 @@ const loadPersistedState = (userDataDir) => {
     const row = database
       .prepare("SELECT value FROM app_state WHERE key = ?")
       .get(PERSISTED_STATE_KEY);
-    database.close();
 
     if (typeof row?.value === "string" && row.value.trim()) {
       try {
         const parsed = JSON.parse(row.value);
         if (parsed && typeof parsed === "object") {
+          database.close();
           return parsed;
         }
       } catch {
         // fall through to legacy/default state
       }
+    }
+
+    const relationalState = loadRelationalPersistedState(database);
+    database.close();
+    if (relationalState) {
+      return relationalState;
     }
   }
 

@@ -185,6 +185,80 @@ function readConfig(database) {
   return config;
 }
 
+function tableExists(database, tableName) {
+  const row = database
+    .prepare(
+      `
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        LIMIT 1
+      `,
+    )
+    .get(tableName);
+
+  return typeof row?.name === "string";
+}
+
+function loadLegacyAppState(database) {
+  if (!tableExists(database, "app_state")) {
+    return null;
+  }
+
+  const row = database
+    .prepare("SELECT value FROM app_state WHERE key = ? LIMIT 1")
+    .get("ide-state");
+  const state = parseJson(row?.value, null);
+  return isRecord(state) ? state : null;
+}
+
+function hasRelationalState(database) {
+  if (!tableExists(database, "projects") || !tableExists(database, "config")) {
+    return false;
+  }
+
+  const projectCount = database
+    .prepare("SELECT COUNT(*) AS count FROM projects")
+    .get().count;
+  const configCount = database
+    .prepare("SELECT COUNT(*) AS count FROM config")
+    .get().count;
+
+  return projectCount > 0 || configCount > 0;
+}
+
+function getTableRowCount(database, tableName) {
+  if (!tableExists(database, tableName)) {
+    return 0;
+  }
+
+  return database.prepare(`SELECT COUNT(*) AS count FROM ${tableName}`).get()
+    .count;
+}
+
+function stateHasChats(state) {
+  if (!isRecord(state)) {
+    return false;
+  }
+
+  return (
+    Array.isArray(state.chats) &&
+    state.chats.some((chat) => isRecord(chat) && typeof chat.id === "string")
+  );
+}
+
+function shouldImportLegacyState(database, legacyState, hadRelationalState) {
+  if (!stateHasChats(legacyState)) {
+    return false;
+  }
+
+  if (!hadRelationalState) {
+    return true;
+  }
+
+  return getTableRowCount(database, "chats") === 0;
+}
+
 function writeConfig(database, key, value, updatedAt) {
   database
     .prepare(
@@ -1012,13 +1086,18 @@ function getStateDatabase() {
     SQLITE_STATE_FILENAME,
   );
   const database = new DatabaseSync(databasePath);
+  const legacyState = loadLegacyAppState(database);
   database.exec(`
     PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
-    DROP TABLE IF EXISTS app_state;
-    DROP TABLE IF EXISTS app_meta;
   `);
+  const hadRelationalState = hasRelationalState(database);
   runDrizzleMigrations(database);
+
+  if (shouldImportLegacyState(database, legacyState, hadRelationalState)) {
+    saveStateToRelationalDatabase(database, legacyState);
+  }
+
   database
     .prepare(
       `
