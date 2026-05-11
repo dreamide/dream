@@ -1,5 +1,5 @@
 import type { ChatStatus } from "ai";
-import { Shield } from "lucide-react";
+import { Bot } from "lucide-react";
 import {
   type ChangeEventHandler,
   type KeyboardEventHandler,
@@ -47,6 +47,7 @@ import {
 import Sparkles from "@/components/ui/sparkles";
 import { cn } from "@/lib/utils";
 import type {
+  AgentMode,
   AiProvider,
   ModelSpeed,
   ProjectReference,
@@ -54,14 +55,7 @@ import type {
 } from "@/types/ide";
 import { BranchSwitcher } from "../branch-switcher";
 import { PromptAttachments } from "../chat";
-import {
-  CLAUDE_PERMISSION_MODE_OPTIONS,
-  type ClaudePermissionMode,
-  CODEX_PERMISSION_MODE_OPTIONS,
-  type CodexPermissionMode,
-  getClaudePermissionModeLabel,
-  getCodexPermissionModeLabel,
-} from "../ide-types";
+import { AGENT_MODE_OPTIONS } from "../ide-types";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
 import { UsageLimitsPopover } from "./usage-limits-popover";
 
@@ -477,18 +471,16 @@ const InlineProjectReferenceMentions = ({
 };
 
 export interface ChatComposerProps {
+  agentMode: AgentMode;
   allModelOptions: ChatPanelModelOption[];
   chatProvider: AiProvider;
-  claudePermissionMode: ClaudePermissionMode;
-  codexPermissionMode: CodexPermissionMode;
   contextWindow: number;
   estimatedUsedTokens: number;
   isActive: boolean;
   isProcessing: boolean;
   isProviderInstalled: boolean;
   modelId: string;
-  onClaudePermissionModeChange: (mode: ClaudePermissionMode) => void;
-  onCodexPermissionModeChange: (mode: CodexPermissionMode) => void;
+  onAgentModeChange: (mode: AgentMode) => void;
   onModelChange: (option: ChatPanelModelOption) => void;
   onModelSpeedChange: (speed: ModelSpeed) => void;
   onPromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
@@ -515,18 +507,16 @@ export interface ChatComposerProps {
 }
 
 export const ChatComposer = ({
+  agentMode,
   allModelOptions,
   chatProvider,
-  claudePermissionMode,
-  codexPermissionMode,
   contextWindow,
   estimatedUsedTokens,
   isActive,
   isProcessing,
   isProviderInstalled,
   modelId,
-  onClaudePermissionModeChange,
-  onCodexPermissionModeChange,
+  onAgentModeChange,
   onModelChange,
   onModelSpeedChange,
   onPromptKeyDown,
@@ -920,6 +910,39 @@ export const ChatComposer = ({
 
             <div className="flex items-center gap-1 border-t border-foreground/10 px-2 py-1.5">
               <Select
+                onValueChange={(value) => onAgentModeChange(value as AgentMode)}
+                value={agentMode}
+              >
+                <SelectTrigger
+                  className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                  title="Agent mode"
+                >
+                  <Bot className="size-3.5 shrink-0" />
+                  <span className="truncate">
+                    {
+                      AGENT_MODE_OPTIONS.find(
+                        (option) => option.value === agentMode,
+                      )?.label
+                    }
+                  </span>
+                </SelectTrigger>
+                <SelectContent className="text-xs" side="top">
+                  <SelectGroup>
+                    <SelectLabel>Mode</SelectLabel>
+                    {AGENT_MODE_OPTIONS.map((option) => (
+                      <SelectItem
+                        className="text-xs"
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+
+              <Select
                 onValueChange={(value) => {
                   if (typeof value !== "string") return;
                   const matchingOptions = allModelOptions.filter(
@@ -1016,64 +1039,6 @@ export const ChatComposer = ({
                     <SelectGroup>
                       <SelectLabel>Speed</SelectLabel>
                       {speedOptions.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              ) : null}
-
-              {selectedProvider === "openai" ? (
-                <Select
-                  onValueChange={(value) =>
-                    onCodexPermissionModeChange(value as CodexPermissionMode)
-                  }
-                  value={codexPermissionMode}
-                >
-                  <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <Shield className="size-3.5 shrink-0" />
-                    <span className="truncate">
-                      {getCodexPermissionModeLabel(codexPermissionMode)}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    <SelectGroup>
-                      <SelectLabel>Permissions</SelectLabel>
-                      {CODEX_PERMISSION_MODE_OPTIONS.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              ) : selectedProvider === "anthropic" ? (
-                <Select
-                  onValueChange={(value) =>
-                    onClaudePermissionModeChange(value as ClaudePermissionMode)
-                  }
-                  value={claudePermissionMode}
-                >
-                  <SelectTrigger className="h-7 w-auto max-w-52 gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <Shield className="size-3.5 shrink-0" />
-                    <span className="truncate">
-                      {getClaudePermissionModeLabel(claudePermissionMode)}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    <SelectGroup>
-                      <SelectLabel>Permissions</SelectLabel>
-                      {CLAUDE_PERMISSION_MODE_OPTIONS.map((option) => (
                         <SelectItem
                           className="text-xs"
                           key={option.value}

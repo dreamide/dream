@@ -221,9 +221,7 @@ export const SettingsDialog = () => {
 
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
-      <DialogContent
-        className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]"
-      >
+      <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
         <DialogHeader className="px-6 py-3.5 text-left">
           <DialogTitle className="text-base leading-6">Settings</DialogTitle>
         </DialogHeader>
@@ -376,8 +374,8 @@ export const SettingsDialog = () => {
                     <div className="mt-2 border-foreground/10 border-l pl-4">
                       <SettingsSwitchRow
                         checked={settings.autoAcceptPermissions}
-                        description="New chats automatically approve standard permission requests"
-                        label="Auto-accept permissions"
+                        description="Agents run with the highest permissions when building"
+                        label="Full permissions"
                         onCheckedChange={(checked) =>
                           setSettings((previous) => ({
                             ...previous,

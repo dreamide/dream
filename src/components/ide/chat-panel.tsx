@@ -58,6 +58,7 @@ import {
 } from "./git-commit-message-cache";
 import { useIdeStore } from "./ide-store";
 import {
+  getPermissionModesForAgentMode,
   MODEL_SPEED_OPTIONS,
   normalizeModelSpeed,
   normalizeReasoningEffort,
@@ -104,10 +105,6 @@ export const ChatPanel = ({
     (s) => !!s.titleGeneratingChatIds[chat.id],
   );
   const providerModels = useIdeStore((s) => s.providerModels);
-  const claudePermissionMode = useIdeStore((s) => s.claudePermissionMode);
-  const setClaudePermissionMode = useIdeStore((s) => s.setClaudePermissionMode);
-  const codexPermissionMode = useIdeStore((s) => s.codexPermissionMode);
-  const setCodexPermissionMode = useIdeStore((s) => s.setCodexPermissionMode);
   const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
   const setChatTitleGenerating = useIdeStore((s) => s.setChatTitleGenerating);
   const updateChat = useIdeStore((s) => s.updateChat);
@@ -125,6 +122,13 @@ export const ChatPanel = ({
     project.path,
     gitRefreshKey,
   );
+  const permissionModes = settings.autoAcceptPermissions
+    ? {
+        claudePermissionMode: "bypass-permissions" as const,
+        codexPermissionMode: "full-access" as const,
+      }
+    : getPermissionModesForAgentMode(chat.agentMode);
+  const { claudePermissionMode, codexPermissionMode } = permissionModes;
   const connectedProviders = getConnectedProviders(settings);
   const allModelOptions = useMemo<ChatPanelModelOption[]>(() => {
     return connectedProviders.flatMap((provider) =>
@@ -823,18 +827,21 @@ export const ChatPanel = ({
         ) : null}
 
         <ChatComposer
+          agentMode={chat.agentMode}
           allModelOptions={allModelOptions}
           chatProvider={chat.provider}
-          claudePermissionMode={claudePermissionMode}
-          codexPermissionMode={codexPermissionMode}
           contextWindow={contextWindow}
           estimatedUsedTokens={estimatedUsedTokens}
           isActive={isProjectActive}
           isProcessing={isProcessing}
           isProviderInstalled={isProviderInstalled}
           modelId={modelId}
-          onClaudePermissionModeChange={setClaudePermissionMode}
-          onCodexPermissionModeChange={setCodexPermissionMode}
+          onAgentModeChange={(agentMode) => {
+            updateChat(chat.id, (current) => ({
+              ...current,
+              agentMode,
+            }));
+          }}
           onModelChange={(nextOption) => {
             updateChat(chat.id, (current) => ({
               ...current,

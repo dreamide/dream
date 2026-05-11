@@ -11,10 +11,7 @@ import {
 import type { IdeState } from "./store/ide-store-types";
 import { createPanelActions } from "./store/panel-actions";
 import { createProjectActions } from "./store/project-actions";
-import {
-  DEFAULT_PROVIDER_MODELS,
-  getPermissionModesForAutoAccept,
-} from "./store/provider-model-state";
+import { DEFAULT_PROVIDER_MODELS } from "./store/provider-model-state";
 import { createRuntimeActions } from "./store/runtime-actions";
 import { createSettingsActions } from "./store/settings-actions";
 import { createTerminalActions } from "./store/terminal-actions";
@@ -47,8 +44,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   activeTerminalSessionIdByProject: {},
   projectTerminalPanelOpenByProject: {},
   outputPanelOpen: false,
-  claudePermissionMode: "ask-permissions",
-  codexPermissionMode: "default",
   browserError: null,
   browserLoading: {},
   browserTabsByProject: {},
@@ -147,7 +142,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       draftChatIdByProject: {},
       settings: loaded.settings,
       chatSort: loaded.chatSort,
-      ...getPermissionModesForAutoAccept(loaded.settings.autoAcceptPermissions),
       stateHydrated: true,
     });
   },

@@ -19,6 +19,7 @@ import {
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
 import type {
+  AgentMode,
   AppSettings,
   BrowserTabState,
   ChatConfig,
@@ -366,8 +367,10 @@ const normalizeChat = (
     typeof rawChat.deletedAt === "string" && rawChat.deletedAt.trim().length > 0
       ? rawChat.deletedAt
       : null;
+  const agentMode: AgentMode = chat.agentMode === "plan" ? "plan" : "build";
 
   return {
+    agentMode,
     createdAt,
     deletedAt,
     ...(rawChat.metadata && typeof rawChat.metadata === "object"

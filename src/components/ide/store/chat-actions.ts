@@ -12,7 +12,6 @@ import {
   updateProjectUiInList,
 } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { getPermissionModesForAutoAccept } from "./provider-model-state";
 
 export const createChatActions = (
   set: IdeStoreSet,
@@ -54,9 +53,6 @@ export const createChatActions = (
               chatColumnWidths: {},
             }),
           ),
-          ...getPermissionModesForAutoAccept(
-            state.settings.autoAcceptPermissions,
-          ),
         };
       }
 
@@ -85,9 +81,6 @@ export const createChatActions = (
           ...state.messagesByChatId,
           [nextChat.id]: [],
         },
-        ...getPermissionModesForAutoAccept(
-          state.settings.autoAcceptPermissions,
-        ),
         chats: [...state.chats, nextChat],
       };
     });
@@ -134,9 +127,6 @@ export const createChatActions = (
           ...state.messagesByChatId,
           [nextChat.id]: [],
         },
-        ...getPermissionModesForAutoAccept(
-          state.settings.autoAcceptPermissions,
-        ),
         chats: nextChats,
       };
     });

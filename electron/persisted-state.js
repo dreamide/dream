@@ -419,6 +419,7 @@ function buildChatMetadata(chat) {
   };
   const modelSelection = {
     ...getNestedRecord(metadata, "modelSelection"),
+    agentMode: chat.agentMode === "plan" ? "plan" : "build",
     model: typeof chat.model === "string" ? chat.model : "",
     modelSpeed:
       typeof chat.modelSpeed === "string" ? chat.modelSpeed : "standard",
@@ -831,6 +832,7 @@ function loadStateFromRelationalDatabase(database) {
           : null,
       id: row.id,
       metadata,
+      agentMode: getNestedString(modelSelection, "agentMode", "build"),
       model: getNestedString(modelSelection, "model", ""),
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
       projectId: row.project_id,

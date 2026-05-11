@@ -15,8 +15,6 @@ export const createPanelActions = (
   | "setProjectRightPanelView"
   | "openProjectFile"
   | "setOutputPanelOpen"
-  | "setClaudePermissionMode"
-  | "setCodexPermissionMode"
 > => ({
   togglePanel: (panel) => {
     if (panel === "middle") {
@@ -236,6 +234,4 @@ export const createPanelActions = (
   },
 
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),
-  setClaudePermissionMode: (value) => set({ claudePermissionMode: value }),
-  setCodexPermissionMode: (value) => set({ codexPermissionMode: value }),
 });

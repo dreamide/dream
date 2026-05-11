@@ -11,12 +11,7 @@ import type {
   ProjectConfig,
   RightPanelView,
 } from "@/types/ide";
-import type {
-  ClaudePermissionMode,
-  CodexPermissionMode,
-  ProviderModelState,
-  SettingsSection,
-} from "../ide-types";
+import type { ProviderModelState, SettingsSection } from "../ide-types";
 
 export interface IdeState {
   // Persisted state
@@ -42,8 +37,6 @@ export interface IdeState {
   activeTerminalSessionIdByProject: Record<string, string | null>;
   projectTerminalPanelOpenByProject: Record<string, boolean>;
   outputPanelOpen: boolean;
-  claudePermissionMode: ClaudePermissionMode;
-  codexPermissionMode: CodexPermissionMode;
   browserError: string | null;
   browserLoading: Record<string, boolean>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
@@ -113,8 +106,6 @@ export interface IdeState {
   setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
   openProjectFile: (projectId: string, filePath: string) => void;
   setOutputPanelOpen: (open: boolean) => void;
-  setClaudePermissionMode: (value: ClaudePermissionMode) => void;
-  setCodexPermissionMode: (value: CodexPermissionMode) => void;
 
   // Actions - settings
   setSettings: (

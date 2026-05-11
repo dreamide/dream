@@ -112,13 +112,19 @@ export const createChatConfig = (
   overrides?: Partial<
     Pick<
       ChatConfig,
-      "model" | "modelSpeed" | "provider" | "reasoningEffort" | "title"
+      | "agentMode"
+      | "model"
+      | "modelSpeed"
+      | "provider"
+      | "reasoningEffort"
+      | "title"
     >
   >,
 ): ChatConfig => {
   const timestamp = new Date().toISOString();
 
   return {
+    agentMode: overrides?.agentMode ?? "build",
     createdAt: timestamp,
     deletedAt: null,
     id: crypto.randomUUID(),

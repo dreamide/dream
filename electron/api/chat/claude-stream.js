@@ -23,7 +23,6 @@ import {
 const CLAUDE_PERMISSION_MODE_MAP = {
   "ask-permissions": "default",
   "accept-edits": "acceptEdits",
-  "plan-mode": "plan",
   "bypass-permissions": "bypassPermissions",
 };
 

@@ -224,53 +224,49 @@ export const createClaudeProjectTools = ({
       return { count: matches.length, matches };
     },
   }),
-  ...(claudePermissionMode === "plan-mode"
-    ? {}
-    : {
-        writeFile: tool({
-          description:
-            "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
-          inputSchema: z.object({
-            content: z.string(),
-            filePath: z.string().min(1),
-            mode: z.enum(["overwrite", "append"]).default("overwrite"),
-          }),
-          requireApproval: claudePermissionMode === "ask-permissions",
-          execute: async ({ content, filePath, mode }) => {
-            const absolutePath = resolveProjectPath(projectPath, filePath);
-            let previousContent;
-            try {
-              previousContent = await fs.readFile(absolutePath, "utf8");
-            } catch {
-              // File does not exist yet.
-            }
-            await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-            if (mode === "append") {
-              await fs.appendFile(absolutePath, content, "utf8");
-            } else {
-              await fs.writeFile(absolutePath, content, "utf8");
-            }
-            const beforeContent = previousContent ?? "";
-            const nextContent =
-              mode === "append" ? `${beforeContent}${content}` : content;
-            return {
-              bytesWritten: Buffer.byteLength(content, "utf8"),
-              content,
-              contentHash: hashContent(nextContent),
-              diff: buildSavedWriteDiff({
-                filePath,
-                isNewFile: previousContent === undefined,
-                nextContent,
-                previousContent: beforeContent,
-              }),
-              diffFormat: "unified",
-              filePath,
-              mode,
-              previousContentHash: hashContent(beforeContent),
-              status: "ok",
-              ...(previousContent !== undefined ? { previousContent } : {}),
-            };
-          },
+  writeFile: tool({
+    description:
+      "Write UTF-8 content to a file in the project. Creates parent directories as needed.",
+    inputSchema: z.object({
+      content: z.string(),
+      filePath: z.string().min(1),
+      mode: z.enum(["overwrite", "append"]).default("overwrite"),
+    }),
+    requireApproval: claudePermissionMode === "ask-permissions",
+    execute: async ({ content, filePath, mode }) => {
+      const absolutePath = resolveProjectPath(projectPath, filePath);
+      let previousContent;
+      try {
+        previousContent = await fs.readFile(absolutePath, "utf8");
+      } catch {
+        // File does not exist yet.
+      }
+      await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+      if (mode === "append") {
+        await fs.appendFile(absolutePath, content, "utf8");
+      } else {
+        await fs.writeFile(absolutePath, content, "utf8");
+      }
+      const beforeContent = previousContent ?? "";
+      const nextContent =
+        mode === "append" ? `${beforeContent}${content}` : content;
+      return {
+        bytesWritten: Buffer.byteLength(content, "utf8"),
+        content,
+        contentHash: hashContent(nextContent),
+        diff: buildSavedWriteDiff({
+          filePath,
+          isNewFile: previousContent === undefined,
+          nextContent,
+          previousContent: beforeContent,
         }),
-      }),
+        diffFormat: "unified",
+        filePath,
+        mode,
+        previousContentHash: hashContent(beforeContent),
+        status: "ok",
+        ...(previousContent !== undefined ? { previousContent } : {}),
+      };
+    },
+  }),
 });

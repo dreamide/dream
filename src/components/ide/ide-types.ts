@@ -1,5 +1,6 @@
 import type { ModelOption } from "@/lib/models";
 import type {
+  AgentMode,
   AiProvider,
   AppSettings,
   ModelSpeed,
@@ -21,7 +22,6 @@ export type CodexPermissionMode =
 export type ClaudePermissionMode =
   | "ask-permissions"
   | "accept-edits"
-  | "plan-mode"
   | "bypass-permissions";
 
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
@@ -90,71 +90,40 @@ export const MODEL_SPEED_OPTIONS: Array<{
   },
 ];
 
-export const CODEX_PERMISSION_MODE_OPTIONS: Array<{
+export const AGENT_MODE_OPTIONS: Array<{
   description: string;
   label: string;
-  value: CodexPermissionMode;
+  value: AgentMode;
 }> = [
   {
-    description: "Ask before running actions.",
-    label: "Ask",
-    value: "default",
+    description: "Ask before making changes.",
+    label: "Plan",
+    value: "plan",
   },
   {
-    description: "Edit files without asking.",
-    label: "Edit",
-    value: "auto-accept-edits",
-  },
-  {
-    description: "Unsandboxed access without asking.",
-    label: "Full access",
-    value: "full-access",
+    description: "Apply edits without asking.",
+    label: "Build",
+    value: "build",
   },
 ];
 
-export const CLAUDE_PERMISSION_MODE_OPTIONS: Array<{
-  description: string;
-  label: string;
-  value: ClaudePermissionMode;
-}> = [
-  {
-    description: "Inspect and plan without making file edits.",
-    label: "Plan mode",
-    value: "plan-mode",
-  },
-  {
-    description: "Ask before making file edits.",
-    label: "Ask permissions",
-    value: "ask-permissions",
-  },
-  {
-    description: "Apply file edits without asking.",
-    label: "Accept edits",
-    value: "accept-edits",
-  },
-  {
-    description: "Apply edits without approval prompts.",
-    label: "Bypass permissions",
-    value: "bypass-permissions",
-  },
-];
+export const getPermissionModesForAgentMode = (
+  value: AgentMode,
+): {
+  claudePermissionMode: ClaudePermissionMode;
+  codexPermissionMode: CodexPermissionMode;
+} => {
+  if (value === "plan") {
+    return {
+      claudePermissionMode: "ask-permissions",
+      codexPermissionMode: "default",
+    };
+  }
 
-export const getCodexPermissionModeLabel = (
-  value: CodexPermissionMode,
-): string => {
-  return (
-    CODEX_PERMISSION_MODE_OPTIONS.find((option) => option.value === value)
-      ?.label ?? "Ask"
-  );
-};
-
-export const getClaudePermissionModeLabel = (
-  value: ClaudePermissionMode,
-): string => {
-  return (
-    CLAUDE_PERMISSION_MODE_OPTIONS.find((option) => option.value === value)
-      ?.label ?? "Ask permissions"
-  );
+  return {
+    claudePermissionMode: "accept-edits",
+    codexPermissionMode: "auto-accept-edits",
+  };
 };
 
 export const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {

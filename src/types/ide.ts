@@ -5,6 +5,7 @@ export type AiProvider = "openai" | "anthropic";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ModelSpeed = "standard" | "fast";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
+export type AgentMode = "plan" | "build";
 export type ChatSortOrder =
   | "recent"
   | "createdDesc"
@@ -12,6 +13,7 @@ export type ChatSortOrder =
   | "titleAsc";
 
 export interface ChatConfig {
+  agentMode: AgentMode;
   id: string;
   projectId: string;
   title: string;

@@ -27,15 +27,6 @@ export const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
   },
 };
 
-export const getPermissionModesForAutoAccept = (
-  autoAcceptPermissions: boolean,
-): Pick<IdeState, "claudePermissionMode" | "codexPermissionMode"> => ({
-  claudePermissionMode: autoAcceptPermissions
-    ? "accept-edits"
-    : "ask-permissions",
-  codexPermissionMode: autoAcceptPermissions ? "auto-accept-edits" : "default",
-});
-
 export const toggleProviderModelInSettings = (
   settings: AppSettings,
   provider: AiProvider,

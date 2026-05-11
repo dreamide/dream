@@ -13,7 +13,6 @@ import {
 } from "../ide-state";
 import { updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { getPermissionModesForAutoAccept } from "./provider-model-state";
 
 export const createProjectLifecycleActions = (
   set: IdeStoreSet,
@@ -207,9 +206,6 @@ export const createProjectLifecycleActions = (
           ...state.messagesByChatId,
           [nextChat.id]: [],
         },
-        ...getPermissionModesForAutoAccept(
-          state.settings.autoAcceptPermissions,
-        ),
         chats: [...state.chats, nextChat],
         projects: [
           ...state.projects,

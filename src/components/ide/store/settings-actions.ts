@@ -2,7 +2,6 @@ import type { ProviderModelsResponse } from "../ide-types";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import {
   areSettingsSelectionsEqual,
-  getPermissionModesForAutoAccept,
   getProviderModelsErrorState,
   getProviderModelsFromResponse,
   markProviderModelsLoading,
@@ -27,15 +26,9 @@ export const createSettingsActions = (
     set((state) => {
       const nextSettings =
         typeof updater === "function" ? updater(state.settings) : updater;
-      const autoAcceptChanged =
-        nextSettings.autoAcceptPermissions !==
-        state.settings.autoAcceptPermissions;
 
       return {
         settings: nextSettings,
-        ...(autoAcceptChanged
-          ? getPermissionModesForAutoAccept(nextSettings.autoAcceptPermissions)
-          : {}),
       };
     });
     get().persist();
