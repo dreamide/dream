@@ -104,10 +104,6 @@ const ProjectWorkspaceComponent = ({
     projectId,
     streamingChatIds,
   });
-  const chatColumnMinWidth = Math.max(
-    CHAT_PANEL_MIN_WIDTH_PX,
-    Math.max(openChatIds.length, 1) * CHAT_PANEL_MIN_WIDTH_PX,
-  );
   const hasProjectTerminalSessions = projectTerminalSessionIds.length > 0;
   const terminalPanelVisible =
     activeProjectTerminalPanelOpen && hasProjectTerminalSessions;
@@ -248,10 +244,10 @@ const ProjectWorkspaceComponent = ({
       containerWidth -
       WORKSPACE_SIDE_NAV_WIDTH_PX * 2 -
       getHorizontalChromeWidth() -
-      chatColumnMinWidth;
+      CHAT_PANEL_MIN_WIDTH_PX;
 
     return Math.max(BROWSER_PANEL_MIN_WIDTH_PX, availableWidth);
-  }, [chatColumnMinWidth, getHorizontalChromeWidth, rightVisible]);
+  }, [getHorizontalChromeWidth, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
     if (!rightVisible || !middleVisible) {
@@ -578,7 +574,7 @@ const ProjectWorkspaceComponent = ({
       <div
         className="min-w-0 flex-1"
         style={{
-          minWidth: middleVisible ? chatColumnMinWidth : 0,
+          minWidth: middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0,
           display: middleVisible ? undefined : "none",
         }}
       >
