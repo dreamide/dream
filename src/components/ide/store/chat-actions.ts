@@ -184,7 +184,13 @@ export const createChatActions = (
           ? chatId
           : ensureActiveChatForProject(state.chats, projectId, chatId);
 
+      const nextCompletedChatIds = { ...state.completedChatIds };
+      if (nextActiveChatId) {
+        delete nextCompletedChatIds[nextActiveChatId];
+      }
+
       return {
+        completedChatIds: nextCompletedChatIds,
         projects: updateProjectUiInList(state.projects, projectId, (project) =>
           sanitizeProjectUiForChats(
             state.chats,
@@ -243,7 +249,11 @@ export const createChatActions = (
         );
       };
 
+      const nextCompletedChatIds = { ...state.completedChatIds };
+      delete nextCompletedChatIds[chatId];
+
       return {
+        completedChatIds: nextCompletedChatIds,
         projects: updateProjectUiInList(
           state.projects,
           chat.projectId,
@@ -281,9 +291,11 @@ export const createChatActions = (
       const nextChats = state.chats.filter((chat) => !idsToDelete.has(chat.id));
       const nextMessagesByChatId = { ...state.messagesByChatId };
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
+      const nextCompletedChatIds = { ...state.completedChatIds };
 
       for (const chat of deletedChats) {
         delete nextMessagesByChatId[chat.id];
+        delete nextCompletedChatIds[chat.id];
         if (nextDraftChatIdByProject[chat.projectId] === chat.id) {
           nextDraftChatIdByProject[chat.projectId] = null;
         }
@@ -324,6 +336,7 @@ export const createChatActions = (
               }
             : project,
         ),
+        completedChatIds: nextCompletedChatIds,
         draftChatIdByProject: nextDraftChatIdByProject,
         messagesByChatId: nextMessagesByChatId,
         chats: nextChats,

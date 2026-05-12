@@ -25,6 +25,7 @@ export interface IdeState {
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
+  completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
   draftChatIdByProject: Record<string, string | null>;
   terminalOutput: Record<string, string>;

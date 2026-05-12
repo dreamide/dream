@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { StatusDot } from "@/components/ui/status-dot";
 import { cn } from "@/lib/utils";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
@@ -62,6 +63,7 @@ export const ProjectSidebar = ({
   const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
+  const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
   const deleteChat = useIdeStore((s) => s.deleteChat);
 
@@ -145,7 +147,16 @@ export const ProjectSidebar = ({
               const isOpenChat = projectUi.openChatIds.includes(chat.id);
               const isStreaming = !!streamingChatIds[chat.id];
               const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
+              const isCompleted =
+                Boolean(completedChatIds[chat.id]) && chat.id !== activeChatId;
               const lastActiveAt = chat.updatedAt || chat.createdAt;
+              const statusIndicator = isStreaming ? (
+                <StatusDot aria-label="Chat streaming" color="blue" />
+              ) : isCompleted ? (
+                <StatusDot aria-label="Chat finished" color="green" />
+              ) : isTitleGenerating ? (
+                <Spinner className="size-3 shrink-0" />
+              ) : null;
 
               return (
                 <div
@@ -169,9 +180,9 @@ export const ProjectSidebar = ({
                     type="button"
                   >
                     <div className="flex min-w-0 items-center gap-2 pr-12">
-                      {isStreaming || isTitleGenerating ? (
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          <Spinner className="size-3 shrink-0" />
+                      {statusIndicator ? (
+                        <div className="flex size-4 shrink-0 items-center justify-center">
+                          {statusIndicator}
                         </div>
                       ) : null}
                       <div className="min-w-0 flex-1">

@@ -82,13 +82,41 @@ export const createRuntimeActions = (
 
   setChatStreaming: (chatId, streaming) =>
     set((state) => {
-      const next = { ...state.streamingChatIds };
+      const nextStreamingChatIds = { ...state.streamingChatIds };
+      const nextCompletedChatIds = { ...state.completedChatIds };
+
       if (streaming) {
-        next[chatId] = true;
+        nextStreamingChatIds[chatId] = true;
+        delete nextCompletedChatIds[chatId];
       } else {
-        delete next[chatId];
+        const wasStreaming = Boolean(state.streamingChatIds[chatId]);
+        delete nextStreamingChatIds[chatId];
+
+        const chat = state.chats.find((item) => item.id === chatId);
+        const project = chat
+          ? state.projects.find((item) => item.id === chat.projectId)
+          : null;
+        const isActiveVisibleChat =
+          chat &&
+          state.activeProjectId === chat.projectId &&
+          project?.ui.activeChatId === chatId;
+
+        if (
+          wasStreaming &&
+          chat &&
+          chat.deletedAt === null &&
+          !isActiveVisibleChat
+        ) {
+          nextCompletedChatIds[chatId] = true;
+        } else {
+          delete nextCompletedChatIds[chatId];
+        }
       }
-      return { streamingChatIds: next };
+
+      return {
+        completedChatIds: nextCompletedChatIds,
+        streamingChatIds: nextStreamingChatIds,
+      };
     }),
 
   setChatTitleGenerating: (chatId, generating) =>

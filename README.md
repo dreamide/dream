@@ -1,6 +1,6 @@
 # Dream
 
-Dream is a desktop coding workspace with AI chat, terminal sessions, browser previews, git tools, and project state.
+Dream is a desktop IDE for working with AI coding agents.
 
 ## Features
 

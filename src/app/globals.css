@@ -25,7 +25,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border: 1px solid rgba(132, 204, 22, 0.75);
+  border: 1px solid var(--status-dot-pulse-color, currentColor);
   content: "";
   transform-origin: center;
   animation: status-dot-pulse 1.8s ease-out infinite;

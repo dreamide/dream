@@ -32,6 +32,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},
+  completedChatIds: {},
   titleGeneratingChatIds: {},
   draftChatIdByProject: {},
   terminalOutput: {},

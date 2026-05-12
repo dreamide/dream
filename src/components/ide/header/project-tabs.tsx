@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { StatusDot } from "@/components/ui/status-dot";
 import { getDesktopApi } from "@/lib/electron";
 import type { DetectedEditor } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
@@ -146,57 +147,6 @@ const useProjectIconScanner = ({
   }, [appReady, projectIconScanSignature, updateProject]);
 };
 
-const useProjectCompletionStatus = ({
-  activeProjectId,
-  streamingProjectIds,
-}: {
-  activeProjectId: string | null;
-  streamingProjectIds: Set<string>;
-}) => {
-  const [completedProjectIds, setCompletedProjectIds] = useState<
-    Record<string, boolean>
-  >({});
-  const previousStreamingProjectIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const previousStreamingProjectIds = previousStreamingProjectIdsRef.current;
-
-    setCompletedProjectIds((current) => {
-      let changed = false;
-      const next = { ...current };
-
-      for (const projectId of previousStreamingProjectIds) {
-        if (
-          !streamingProjectIds.has(projectId) &&
-          projectId !== activeProjectId &&
-          !next[projectId]
-        ) {
-          next[projectId] = true;
-          changed = true;
-        }
-      }
-
-      for (const projectId of streamingProjectIds) {
-        if (next[projectId]) {
-          delete next[projectId];
-          changed = true;
-        }
-      }
-
-      if (activeProjectId && next[activeProjectId]) {
-        delete next[activeProjectId];
-        changed = true;
-      }
-
-      return changed ? next : current;
-    });
-
-    previousStreamingProjectIdsRef.current = new Set(streamingProjectIds);
-  }, [activeProjectId, streamingProjectIds]);
-
-  return completedProjectIds;
-};
-
 export const ProjectTabs = () => {
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
@@ -208,6 +158,7 @@ export const ProjectTabs = () => {
   const updateProject = useIdeStore((s) => s.updateProject);
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
+  const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const streamingProjectIds = useMemo(
     () =>
       new Set(
@@ -217,10 +168,17 @@ export const ProjectTabs = () => {
       ),
     [chats, streamingChatIds],
   );
-  const completedProjectIds = useProjectCompletionStatus({
-    activeProjectId,
-    streamingProjectIds,
-  });
+  const completedProjectIds = useMemo(
+    () =>
+      new Set(
+        chats
+          .filter(
+            (chat) => chat.deletedAt === null && completedChatIds[chat.id],
+          )
+          .map((chat) => chat.projectId),
+      ),
+    [chats, completedChatIds],
+  );
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)
     .join("\x01");
@@ -289,18 +247,13 @@ export const ProjectTabs = () => {
   const projectTabItems = useMemo<ProjectTabItem[]>(
     () =>
       projects.map((project) => {
-        const completed =
-          Boolean(completedProjectIds[project.id]) &&
-          project.id !== activeProjectId;
+        const completed = completedProjectIds.has(project.id);
         const leading = completed ? (
           <span
             className="flex size-4 shrink-0 items-center justify-center self-center leading-none"
             key={`${project.id}:completed`}
           >
-            <span
-              aria-hidden="true"
-              className="size-2 shrink-0 rounded-full bg-success-highlight animate-status-dot-pulse"
-            />
+            <StatusDot aria-label="Project finished processing" color="green" />
           </span>
         ) : project.icon ? (
           <span
@@ -324,7 +277,7 @@ export const ProjectTabs = () => {
           streaming: streamingProjectIds.has(project.id),
         };
       }),
-    [activeProjectId, completedProjectIds, projects, streamingProjectIds],
+    [completedProjectIds, projects, streamingProjectIds],
   );
 
   const handleProjectReorder = useCallback(
