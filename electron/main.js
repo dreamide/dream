@@ -11,6 +11,7 @@ import {
   nativeTheme,
   shell,
 } from "electron";
+import getPort from "get-port";
 
 import { configureApplicationMenu } from "./app-menu.js";
 import { createBrowserSessionManager } from "./browser-sessions.js";
@@ -28,11 +29,7 @@ const __dirname = path.dirname(__filename);
 const appIconPath = path.join(__dirname, "..", "public", "icon.png");
 
 const isDevelopment = process.env.NODE_ENV === "development";
-const internalRendererPort = Number(process.env.ELECTRON_INTERNAL_PORT ?? 3210);
 const rendererUrlFromEnv = process.env.ELECTRON_RENDERER_URL?.trim();
-const developmentRendererUrl =
-  rendererUrlFromEnv || `http://127.0.0.1:${internalRendererPort}`;
-const apiServerPort = Number(process.env.ELECTRON_API_PORT ?? 3211);
 const rendererStartupTimeoutMs = Number(
   process.env.VITE_READY_TIMEOUT_MS ?? 45000,
 );
@@ -42,6 +39,11 @@ const APP_USER_DATA_DIR_NAME = "dreamide";
 const APP_USER_DATA_PATH = path.join(
   app.getPath("appData"),
   APP_USER_DATA_DIR_NAME,
+);
+const APP_SESSION_DATA_PATH = path.join(
+  app.getPath("temp"),
+  APP_USER_DATA_DIR_NAME,
+  `session-${process.pid}`,
 );
 const THEME_PREFERENCES_PATH = path.join(
   APP_USER_DATA_PATH,
@@ -57,7 +59,11 @@ const DARK_WINDOW_BACKGROUNDS = {
 };
 
 app.setName(APP_NAME);
+mkdirSync(APP_USER_DATA_PATH, { recursive: true });
+mkdirSync(APP_SESSION_DATA_PATH, { recursive: true });
 app.setPath("userData", APP_USER_DATA_PATH);
+// Keep Chromium caches per process so parallel launches do not lock user data.
+app.setPath("sessionData", APP_SESSION_DATA_PATH);
 
 let mainWindow = null;
 
@@ -143,16 +149,58 @@ const processSessionManager = createProcessSessionManager({
   sendToRenderer,
 });
 
-const rendererServerManager = createRendererServerManager({
-  apiServerPort,
-  appDir: __dirname,
-  developmentRendererUrl,
-  internalRendererPort,
-  isDevelopment,
-  rendererProbeIntervalMs,
-  rendererStartupTimeoutMs,
-  rendererUrlFromEnv,
-});
+let rendererServerManager = null;
+
+function parsePort(value) {
+  const port = Number(value);
+  return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : null;
+}
+
+async function createStartupRendererServerManager() {
+  const configuredApiServerPort = parsePort(process.env.ELECTRON_API_PORT);
+  const configuredInternalRendererPort = parsePort(
+    process.env.ELECTRON_INTERNAL_PORT,
+  );
+  const apiServerPort =
+    configuredApiServerPort ??
+    (await getPort({
+      exclude:
+        configuredInternalRendererPort === null
+          ? undefined
+          : [configuredInternalRendererPort],
+      host: "127.0.0.1",
+      reserve: true,
+    }));
+  const internalRendererPort =
+    configuredInternalRendererPort ??
+    (await getPort({
+      exclude: [apiServerPort],
+      host: "127.0.0.1",
+      reserve: true,
+    }));
+
+  if (!rendererUrlFromEnv && apiServerPort === internalRendererPort) {
+    throw new Error(
+      `Renderer and API ports must be different. Both resolved to ${apiServerPort}.`,
+    );
+  }
+
+  console.log(
+    `Starting ${APP_NAME} with renderer port ${internalRendererPort} and API port ${apiServerPort}.`,
+  );
+
+  return createRendererServerManager({
+    apiServerPort,
+    appDir: __dirname,
+    developmentRendererUrl:
+      rendererUrlFromEnv || `http://127.0.0.1:${internalRendererPort}`,
+    internalRendererPort,
+    isDevelopment,
+    rendererProbeIntervalMs,
+    rendererStartupTimeoutMs,
+    rendererUrlFromEnv,
+  });
+}
 
 function isHttpUrl(value) {
   return /^https?:\/\//i.test(value.trim());
@@ -167,6 +215,10 @@ function getUrlOrigin(value) {
 }
 
 function isRendererNavigation(url) {
+  if (!rendererServerManager) {
+    return false;
+  }
+
   const targetOrigin = getUrlOrigin(url);
   const rendererOrigin = getUrlOrigin(rendererServerManager.getUrl());
 
@@ -449,6 +501,7 @@ app.whenReady().then(async () => {
     app.dock?.setIcon(appIconPath);
   }
 
+  rendererServerManager = await createStartupRendererServerManager();
   await rendererServerManager.start();
   await createMainWindow();
 
@@ -462,7 +515,7 @@ app.whenReady().then(async () => {
 app.on("before-quit", async () => {
   processSessionManager.stopAllProcesses();
 
-  await rendererServerManager.stop();
+  await rendererServerManager?.stop();
 
   closePersistedStateDatabase();
 });

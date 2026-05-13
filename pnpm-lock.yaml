@@ -80,6 +80,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@opentelemetry/api@1.9.0)
+      get-port:
+        specifier: ^7.2.0
+        version: 7.2.0
       hono:
         specifier: ^4.12.18
         version: 4.12.18
@@ -3142,6 +3145,10 @@ packages:
   get-own-enumerable-keys@1.0.0:
     resolution: {integrity: sha512-PKsK2FSrQCyxcGHsGrLDcK0lx+0Ke+6e8KFFozA9/fIQLhQzPaRvJFdcz7+Axg3jUH/Mq+NI4xa5u/UT2tQskA==}
     engines: {node: '>=14.16'}
+
+  get-port@7.2.0:
+    resolution: {integrity: sha512-afP4W205ONCuMoPBqcR6PSXnzX35KTcJygfJfcp+QY+uwm3p20p1YczWXhlICIzGMCxYBQcySEcOgsJcrkyobg==}
+    engines: {node: '>=16'}
 
   get-proto@1.0.1:
     resolution: {integrity: sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==}
@@ -8163,6 +8170,8 @@ snapshots:
   get-nonce@1.0.1: {}
 
   get-own-enumerable-keys@1.0.0: {}
+
+  get-port@7.2.0: {}
 
   get-proto@1.0.1:
     dependencies:

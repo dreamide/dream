@@ -82,6 +82,8 @@ export function createRendererServerManager({
           env: {
             ...process.env,
             BROWSER: "none",
+            ELECTRON_API_PORT: String(apiServerPort),
+            ELECTRON_INTERNAL_PORT: String(internalRendererPort),
             FORCE_COLOR: "1",
           },
           stdio: "inherit",
