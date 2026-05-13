@@ -83,6 +83,9 @@ const unwrapMarkdownLinkDestination = (value: string) => {
 const escapeMarkdownLinkDestination = (value: string) =>
   value.replace(/>/g, "%3E");
 
+const MARKDOWN_LINK_CLASS_NAME =
+  "font-medium text-current underline decoration-current/45 underline-offset-3 transition-colors hover:decoration-current";
+
 export const normalizeProjectFileLinksInMarkdown = (
   value: string,
   projectPath: string,
@@ -142,8 +145,9 @@ export const MarkdownFileLink = ({
       <a
         {...props}
         className={cn(
-          "inline-flex max-w-full items-baseline gap-1 align-baseline font-medium text-info-foreground no-underline transition-colors hover:text-blue-500 dark:text-info-foreground dark:hover:text-blue-200",
           className,
+          "inline-flex max-w-full items-baseline gap-1 align-baseline",
+          MARKDOWN_LINK_CLASS_NAME,
         )}
         href={href}
         onClick={handleClick}
@@ -160,10 +164,7 @@ export const MarkdownFileLink = ({
   return (
     <a
       {...props}
-      className={cn(
-        "font-medium text-primary underline decoration-primary-border underline-offset-3 transition-colors hover:decoration-primary",
-        className,
-      )}
+      className={cn(className, MARKDOWN_LINK_CLASS_NAME)}
       href={href}
       onClick={handleClick}
       rel="noreferrer"

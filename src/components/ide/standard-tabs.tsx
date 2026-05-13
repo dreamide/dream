@@ -486,7 +486,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                 {item.leading}
                 <Input
                   autoFocus
-                  className="h-6 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
+                  className="h-5 min-w-0 flex-1 border-0 bg-transparent px-0 py-0 text-sm leading-5 shadow-none focus-visible:ring-0"
                   onBlur={() => commitRename(item.id)}
                   onChange={(event) =>
                     setEditingLabel(event.currentTarget.value)
@@ -565,7 +565,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                 type="button"
               >
                 {item.leading}
-                <span className="min-w-0 truncate">{item.label}</span>
+                <span className="min-w-0 truncate leading-5">{item.label}</span>
               </button>
             );
 
