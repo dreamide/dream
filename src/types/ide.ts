@@ -341,7 +341,7 @@ export interface BrowserUpdatePayload {
   destroyTab?: string;
 }
 
-export interface DreamDesktopApi {
+export interface DesktopApi {
   isElectron: true;
 
   openExternal: (url: string) => Promise<boolean>;

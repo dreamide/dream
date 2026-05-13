@@ -1,6 +1,6 @@
-# Dream
+# dream
 
-Dream is a desktop IDE for working with AI coding agents.
+dream is a desktop IDE for working with AI coding agents.
 
 ## Features
 

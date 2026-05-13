@@ -1,7 +1,7 @@
-import type { DreamDesktopApi } from "@/types/ide";
+import type { DesktopApi } from "@/types/ide";
 
 declare global {
   interface Window {
-    dream?: DreamDesktopApi;
+    dream?: DesktopApi;
   }
 }

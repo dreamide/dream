@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { DreamLoadingScreen } from "@/components/dream-loading-screen";
+import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
@@ -359,7 +359,7 @@ export const IdeShell = () => {
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface-50 dark:bg-surface-900 text-foreground">
-      {!appReady && <DreamLoadingScreen />}
+      {!appReady && <AppLoadingScreen />}
       <IdeHeader />
 
       <div className="relative min-h-0 flex-1 overflow-hidden">

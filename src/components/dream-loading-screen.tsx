@@ -1,7 +1,7 @@
 import dreamSvg from "@/assets/dream.svg";
 import Sparkles from "@/components/ui/sparkles";
 
-type DreamLoadingScreenProps = {
+type AppLoadingScreenProps = {
   clockSync?: boolean;
   density?: number;
   height?: number;
@@ -13,7 +13,7 @@ type DreamLoadingScreenProps = {
   syncKey?: string;
 };
 
-export const DreamLoadingScreen = ({
+export const AppLoadingScreen = ({
   clockSync = true,
   density = 50,
   height = 256,
@@ -23,10 +23,10 @@ export const DreamLoadingScreen = ({
   sizeMul = 0.8,
   speed = 0.6,
   syncKey = "dream-loading-sparkles",
-}: DreamLoadingScreenProps) => {
+}: AppLoadingScreenProps) => {
   return (
     <div
-      aria-label="Loading Dream"
+      aria-label="Loading dream"
       className="fixed inset-0 z-50 grid place-items-center bg-background"
       role="status"
     >
@@ -43,12 +43,7 @@ export const DreamLoadingScreen = ({
           syncKey={syncKey}
         >
           <div className="relative z-10 flex h-64 w-16 items-center justify-center">
-            <img
-              alt=""
-              className="size-16"
-              draggable={false}
-              src={dreamSvg}
-            />
+            <img alt="" className="size-16" draggable={false} src={dreamSvg} />
           </div>
         </Sparkles>
       </div>

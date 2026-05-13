@@ -1,10 +1,10 @@
-import type { DreamDesktopApi } from "@/types/ide";
+import type { DesktopApi } from "@/types/ide";
 
 export const hasDesktopApi = (): boolean => {
   return typeof window !== "undefined" && Boolean(window.dream?.isElectron);
 };
 
-export const getDesktopApi = (): DreamDesktopApi | null => {
+export const getDesktopApi = (): DesktopApi | null => {
   if (!hasDesktopApi()) {
     return null;
   }

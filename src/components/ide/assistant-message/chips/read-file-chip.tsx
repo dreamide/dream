@@ -10,7 +10,6 @@ import {
 } from "@/components/ai-elements/code-block";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ToolLikePart } from "../../assistant-message-tools";
 import { normalizeProjectPathKey } from "../../ide-state";
@@ -155,11 +154,7 @@ export const ReadFileChip = ({
         tone="emerald"
         type="button"
       >
-        {isRunning ? (
-          <Spinner className="size-3.5 shrink-0" />
-        ) : (
-          <EyeIcon className="size-3.5 shrink-0" />
-        )}
+        <EyeIcon className="size-3.5 shrink-0" />
         {!isRunning ? (
           <>
             <span className="max-w-48 truncate font-medium">

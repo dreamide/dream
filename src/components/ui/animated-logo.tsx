@@ -75,8 +75,7 @@ function makeStar(seed: number, opts: MotionOpts): Star {
   const a = (opts.angleDeg * Math.PI) / 180;
   const ux = Math.cos(a);
   const uy = Math.sin(a);
-  const speed =
-    opts.speedMin + Math.random() * (opts.speedMax - opts.speedMin);
+  const speed = opts.speedMin + Math.random() * (opts.speedMax - opts.speedMin);
   const len = opts.lenMin + Math.random() * (opts.lenMax - opts.lenMin);
   const { x, y } = spawnAt(ux, uy, Math.random(), len);
   return {
@@ -143,9 +142,7 @@ function useFallingStars({
     let mounted = true;
     const tick = (t: number) => {
       if (!mounted) return;
-      const dt = lastRef.current
-        ? Math.min(64, t - lastRef.current)
-        : 16;
+      const dt = lastRef.current ? Math.min(64, t - lastRef.current) : 16;
       lastRef.current = t;
       const dts = dt / 16; // normalize to ~60fps step
       const a = (angleDeg * Math.PI) / 180;
@@ -267,7 +264,7 @@ export function AnimatedLogo({
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 1024 1024"
       role="img"
-      aria-label="Dream logo — a moon and star with falling stars in the night sky"
+      aria-label="dream logo — a moon and star with falling stars in the night sky"
       className={className}
       style={sizingStyle}
       {...rest}

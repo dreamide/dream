@@ -982,7 +982,7 @@ function ensureTableColumn(database, tableName, columnName, columnDefinition) {
   );
 }
 
-function getDreamMigrationDirective(statement) {
+function getMigrationDirective(statement) {
   const lines = statement
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -1000,7 +1000,7 @@ function getDreamMigrationDirective(statement) {
   const columnDefinition = definitionParts.join(" ").trim();
 
   if (!tableName || !columnName || !columnDefinition) {
-    throw new Error(`Invalid Dream migration directive: ${directiveLine}`);
+    throw new Error(`Invalid dream migration directive: ${directiveLine}`);
   }
 
   return {
@@ -1010,7 +1010,7 @@ function getDreamMigrationDirective(statement) {
   };
 }
 
-function stripDreamMigrationDirectives(statement) {
+function stripMigrationDirectives(statement) {
   return statement
     .split(/\r?\n/)
     .filter((line) => !line.trim().startsWith("-- dream:"))
@@ -1057,7 +1057,7 @@ function runDrizzleMigrations(database) {
           continue;
         }
 
-        const directive = getDreamMigrationDirective(statement);
+        const directive = getMigrationDirective(statement);
         if (directive) {
           ensureTableColumn(
             database,
@@ -1067,7 +1067,7 @@ function runDrizzleMigrations(database) {
           );
         }
 
-        const sqlStatement = stripDreamMigrationDirectives(statement);
+        const sqlStatement = stripMigrationDirectives(statement);
         if (sqlStatement) {
           database.exec(sqlStatement);
         }

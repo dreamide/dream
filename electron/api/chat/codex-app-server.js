@@ -563,7 +563,7 @@ export const streamCodexAppServerResponse = ({
 
             await sendRequest("initialize", {
               capabilities: {},
-              clientInfo: { name: "Dream", version: "0.1.0" },
+              clientInfo: { name: "dream", version: "0.1.0" },
             });
             const threadResponse = await sendRequest("thread/start", {
               approvalPolicy,
