@@ -3,6 +3,9 @@ import { promisify } from "node:util";
 
 export const execFileAsync = promisify(execFile);
 
+const CLI_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
+const cliVersionCache = new Map();
+
 export const isCliCommandAvailable = async (commandName) => {
   try {
     if (process.platform === "win32") {
@@ -31,7 +34,7 @@ export const isCliCommandAvailable = async (commandName) => {
   }
 };
 
-export const getCliVersion = async (commandName) => {
+const readCliVersion = async (commandName) => {
   try {
     if (process.platform === "win32") {
       const result = await execFileAsync(
@@ -59,4 +62,34 @@ export const getCliVersion = async (commandName) => {
   } catch {
     return null;
   }
+};
+
+export const getCliVersion = async (commandName) => {
+  const now = Date.now();
+  const cached = cliVersionCache.get(commandName);
+  if (cached) {
+    if (cached.promise) {
+      return cached.promise;
+    }
+
+    if (now - cached.fetchedAt < CLI_VERSION_CACHE_TTL_MS) {
+      return cached.value;
+    }
+  }
+
+  const promise = readCliVersion(commandName).then((value) => {
+    cliVersionCache.set(commandName, {
+      fetchedAt: Date.now(),
+      value,
+    });
+    return value;
+  });
+
+  cliVersionCache.set(commandName, {
+    fetchedAt: now,
+    promise,
+    value: cached?.value ?? null,
+  });
+
+  return promise;
 };

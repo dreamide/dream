@@ -287,15 +287,17 @@ const isBinaryBuffer = (buffer) => {
 const toProjectRelativeGitPath = (projectPath, repoRoot, gitPath) => {
   const absolutePath = path.resolve(repoRoot, gitPath);
   const projectRoot = path.resolve(projectPath);
+  const relativePath = path.relative(projectRoot, absolutePath);
 
   if (
-    absolutePath !== projectRoot &&
-    !absolutePath.startsWith(`${projectRoot}${path.sep}`)
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
   ) {
     return null;
   }
 
-  return normalizePath(path.relative(projectRoot, absolutePath));
+  return normalizePath(relativePath);
 };
 
 export const getGitRepositoryInfo = async (projectPath) => {

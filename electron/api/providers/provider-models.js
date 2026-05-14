@@ -3,7 +3,7 @@ import { readCodexAccessToken, readCodexModelsCache } from "./codex-auth.js";
 import {
   createModelOption,
   dedupeModelOptions,
-  fetchClaudeCodeModelOptionsFromDocs,
+  fetchClaudeCodeModelOptionsFromModelsDev,
   getModelReasoningEfforts,
   getModelSpeedTiers,
   normalizeModelSpeedTiers,
@@ -162,9 +162,9 @@ export const fetchOpenAiLowCostModel = async () => {
 };
 
 export const fetchAnthropicLowCostModel = async () =>
-  selectLowCostAnthropicModel(await fetchClaudeCodeModelOptionsFromDocs());
+  selectLowCostAnthropicModel(await fetchClaudeCodeModelOptionsFromModelsDev());
 
-export const fetchAnthropicModels = async () => {
+export const fetchAnthropicModels = async ({ force = false } = {}) => {
   const installed = await isCliCommandAvailable("claude");
   if (!installed) {
     return {
@@ -178,7 +178,7 @@ export const fetchAnthropicModels = async () => {
   const version = await getCliVersion("claude");
 
   try {
-    const models = await fetchClaudeCodeModelOptionsFromDocs();
+    const models = await fetchClaudeCodeModelOptionsFromModelsDev({ force });
     if (models.length === 0) {
       return {
         error: "Claude Code returned no supported models.",

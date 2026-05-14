@@ -43,8 +43,8 @@ export interface ProviderModelFetchResult {
 
 export interface ProviderModelsResponse {
   fetchedAt: string;
-  openai: ProviderModelFetchResult;
-  anthropic: ProviderModelFetchResult;
+  openai?: ProviderModelFetchResult;
+  anthropic?: ProviderModelFetchResult;
 }
 
 export interface ProviderModelState {

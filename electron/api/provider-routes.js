@@ -35,17 +35,43 @@ const providerUsageLimitsRequestSchema = z.object({
   provider: z.enum(["openai", "anthropic"]),
 });
 
+const providerModelsRequestSchema = z
+  .object({
+    force: z.boolean().optional(),
+    provider: z.enum(["openai", "anthropic"]).optional(),
+  })
+  .optional();
+
 export const registerProviderRoutes = (app) => {
   app.post("/api/provider-models", async (c) => {
-    const [openai, anthropic] = await Promise.all([
-      fetchOpenAiModels(),
-      fetchAnthropicModels(),
-    ]);
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      rawBody = undefined;
+    }
+
+    const parsed = providerModelsRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text("Invalid provider models request.", 400);
+    }
+
+    const force = parsed.data?.force ?? false;
+    const provider = parsed.data?.provider;
+    const [openai, anthropic] =
+      provider === "openai"
+        ? [await fetchOpenAiModels({ force }), null]
+        : provider === "anthropic"
+          ? [null, await fetchAnthropicModels({ force })]
+          : await Promise.all([
+              fetchOpenAiModels({ force }),
+              fetchAnthropicModels({ force }),
+            ]);
 
     return c.json({
-      anthropic,
+      ...(anthropic ? { anthropic } : {}),
       fetchedAt: new Date().toISOString(),
-      openai,
+      ...(openai ? { openai } : {}),
     });
   });
 

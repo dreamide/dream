@@ -88,7 +88,7 @@ export const getModelReasoningEfforts = (provider, modelId) => {
   }
 
   if (provider === "anthropic") {
-    if (["opus", "sonnet", "haiku"].includes(id)) {
+    if (["opus", "opus[1m]", "sonnet", "sonnet[1m]", "haiku"].includes(id)) {
       return ANTHROPIC_REASONING_EFFORTS;
     }
     const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
@@ -142,8 +142,10 @@ const OPENAI_TOKEN_LABELS = {
 const ANTHROPIC_TOKEN_LABELS = {
   claude: "Claude",
   haiku: "Haiku",
+  "opus[1m]": "Opus 1M",
   opus: "Opus",
   preview: "Preview",
+  "sonnet[1m]": "Sonnet 1M",
   sonnet: "Sonnet",
 };
 
@@ -181,7 +183,9 @@ const formatModelIdLabel = (provider, modelId) => {
   }
   if (
     provider === "anthropic" &&
-    ["opus", "sonnet", "haiku"].includes(parts[0]?.toLowerCase() ?? "")
+    ["opus", "opus[1m]", "sonnet", "sonnet[1m]", "haiku"].includes(
+      parts[0]?.toLowerCase() ?? "",
+    )
   ) {
     return `Claude ${formatToken(provider, parts[0], true)}`;
   }
@@ -202,7 +206,7 @@ const inferProviderForModelLabel = (id) => {
   const normalizedId = id.trim().toLowerCase();
   if (
     normalizedId.startsWith("claude-") ||
-    ["haiku", "opus", "sonnet"].includes(normalizedId)
+    ["haiku", "opus", "opus[1m]", "sonnet", "sonnet[1m]"].includes(normalizedId)
   ) {
     return "anthropic";
   }
@@ -322,87 +326,149 @@ const CLAUDE_CODE_MODEL_LABELS = {
 };
 
 const CLAUDE_CODE_MODEL_OPTIONS = [
-  createModelOption("anthropic", "sonnet", CLAUDE_CODE_MODEL_LABELS.sonnet),
   createModelOption("anthropic", "opus", CLAUDE_CODE_MODEL_LABELS.opus),
+  createModelOption("anthropic", "sonnet", CLAUDE_CODE_MODEL_LABELS.sonnet),
   createModelOption("anthropic", "haiku", CLAUDE_CODE_MODEL_LABELS.haiku),
 ];
 
 export const normalizeClaudeCodeModel = (modelId) => {
   const trimmed = modelId.trim().toLowerCase();
   if (!trimmed) return "sonnet";
-  if (trimmed.includes("opus")) return "opus";
+  if (trimmed.startsWith("claude-")) return trimmed;
+  const usesOneMillionContext = /\[1m\]/i.test(trimmed);
+  if (trimmed.includes("opus")) {
+    return usesOneMillionContext ? "opus[1m]" : "opus";
+  }
   if (trimmed.includes("haiku")) return "haiku";
-  if (trimmed.includes("sonnet")) return "sonnet";
+  if (trimmed.includes("sonnet")) {
+    return usesOneMillionContext ? "sonnet[1m]" : "sonnet";
+  }
   return trimmed;
 };
 
-const CLAUDE_MODELS_OVERVIEW_URL =
-  "https://platform.claude.com/docs/en/about-claude/models/overview";
+const MODELS_DEV_API_URL = "https://models.dev/api.json";
 const CLAUDE_CODE_MODELS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 let claudeCodeModelOptionsCache = {
   expiresAt: 0,
   models: CLAUDE_CODE_MODEL_OPTIONS,
 };
-const CLAUDE_CODE_MODEL_ORDER = { sonnet: 0, opus: 1, haiku: 2 };
-
-const decodeHtmlEntities = (value) => {
-  return value
-    .replace(/&#x27;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+const CLAUDE_CODE_MODEL_ORDER = {
+  "claude-opus": 0,
+  "claude-sonnet": 1,
+  "claude-haiku": 2,
+  opus: 3,
+  sonnet: 4,
+  haiku: 5,
 };
 
-const stripHtml = (value) => {
-  return decodeHtmlEntities(
-    value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "),
-  );
-};
+const isModelsDevModelRecord = (value) =>
+  value !== null && typeof value === "object" && typeof value.id === "string";
 
-const parseClaudeCodeModelOptionsFromDocs = (html) => {
-  const headerMatches = Array.from(
-    html.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/gi),
-    (match) => stripHtml(match[1]).trim(),
-  ).filter(Boolean);
-  const modelHeaders = headerMatches.filter((header) =>
-    /^Claude (Opus|Sonnet|Haiku)\b/i.test(header),
-  );
-
-  if (modelHeaders.length < 3) {
+const getModelsDevAnthropicModels = (payload) => {
+  const models = payload?.anthropic?.models;
+  if (!models || typeof models !== "object") {
     return [];
   }
 
-  return modelHeaders.flatMap((header) => {
-    const variant = header.match(/^Claude (Opus|Sonnet|Haiku)\b/i)?.[1];
-    if (!variant) return [];
-    return [createModelOption("anthropic", variant.toLowerCase(), header)];
-  });
+  return Object.values(models).filter(isModelsDevModelRecord);
 };
 
-export const fetchClaudeCodeModelOptionsFromDocs = async () => {
-  if (Date.now() < claudeCodeModelOptionsCache.expiresAt) {
+const getClaudeCodeModelOrder = (model) =>
+  CLAUDE_CODE_MODEL_ORDER[model.family] ??
+  CLAUDE_CODE_MODEL_ORDER[model.id] ??
+  Number.MAX_SAFE_INTEGER;
+
+const getModelsDevReleaseDate = (model) =>
+  typeof model.release_date === "string" ? model.release_date : "";
+
+const getModelsDevLabel = (model) =>
+  (typeof model.name === "string" ? model.name : model.id)
+    .replace(/^Anthropic:\s*/i, "")
+    .replace(/\s*\(latest\)\s*$/i, "");
+
+const getModelsDevAliasPriority = (model) => {
+  if (/-latest$/i.test(model.id)) {
+    return 0;
+  }
+
+  if (!/-\d{8}$/.test(model.id)) {
+    return 1;
+  }
+
+  return 2;
+};
+
+const dedupeModelsDevClaudeAliases = (models) => {
+  const modelsByCanonicalId = new Map();
+
+  for (const model of models) {
+    const canonicalId = [
+      model.family,
+      getModelsDevLabel(model).toLowerCase(),
+    ].join(":");
+    const existing = modelsByCanonicalId.get(canonicalId);
+    if (
+      !existing ||
+      getModelsDevAliasPriority(model) < getModelsDevAliasPriority(existing)
+    ) {
+      modelsByCanonicalId.set(canonicalId, model);
+    }
+  }
+
+  return Array.from(modelsByCanonicalId.values());
+};
+
+const parseClaudeCodeModelOptionsFromModelsDev = (payload) => {
+  const models = getModelsDevAnthropicModels(payload);
+  if (models.length === 0) {
+    return [];
+  }
+
+  return dedupeModelsDevClaudeAliases(
+    models
+      .filter((model) => model.status !== "deprecated")
+      .filter((model) =>
+        ["claude-opus", "claude-sonnet", "claude-haiku"].includes(model.family),
+      ),
+  )
+    .sort((a, b) => {
+      const orderDelta =
+        getClaudeCodeModelOrder(a) - getClaudeCodeModelOrder(b);
+      if (orderDelta !== 0) {
+        return orderDelta;
+      }
+
+      return getModelsDevReleaseDate(b).localeCompare(
+        getModelsDevReleaseDate(a),
+      );
+    })
+    .map((model) =>
+      createModelOption("anthropic", model.id, getModelsDevLabel(model)),
+    );
+};
+
+export const fetchClaudeCodeModelOptionsFromModelsDev = async ({
+  force = false,
+} = {}) => {
+  if (!force && Date.now() < claudeCodeModelOptionsCache.expiresAt) {
     return claudeCodeModelOptionsCache.models;
   }
 
   try {
-    const response = await fetch(CLAUDE_MODELS_OVERVIEW_URL, { method: "GET" });
+    const response = await fetch(MODELS_DEV_API_URL, {
+      method: "GET",
+    });
     if (!response.ok) {
-      throw new Error(`Anthropic docs request failed (${response.status}).`);
+      throw new Error(`Models.dev request failed (${response.status}).`);
     }
 
-    const html = await response.text();
+    const payload = await response.json();
     const parsedModels = dedupeModelOptions(
-      parseClaudeCodeModelOptionsFromDocs(html),
-    ).sort((a, b) => {
-      const aOrder = CLAUDE_CODE_MODEL_ORDER[a.id] ?? Number.MAX_SAFE_INTEGER;
-      const bOrder = CLAUDE_CODE_MODEL_ORDER[b.id] ?? Number.MAX_SAFE_INTEGER;
-      return aOrder - bOrder;
-    });
+      parseClaudeCodeModelOptionsFromModelsDev(payload),
+    );
     if (parsedModels.length < 3) {
       throw new Error(
-        "Anthropic docs page did not contain Claude Code models.",
+        "Models.dev did not contain the expected Anthropic model families.",
       );
     }
 

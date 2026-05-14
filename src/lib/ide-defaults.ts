@@ -14,7 +14,9 @@ export const DEFAULT_PROVIDER: AiProvider = "openai";
 export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
 export const CLAUDE_CODE_MODEL_IDS = {
   haiku: "haiku",
+  opusOneMillion: "opus[1m]",
   opus: "opus",
+  sonnetOneMillion: "sonnet[1m]",
   sonnet: "sonnet",
 } as const;
 
@@ -23,14 +25,22 @@ export const normalizeClaudeCodeModelId = (modelId: string): string => {
   if (!trimmed) {
     return "";
   }
+  if (trimmed.startsWith("claude-")) {
+    return trimmed;
+  }
+  const usesOneMillionContext = /\[1m\]/i.test(trimmed);
   if (trimmed.includes("opus")) {
-    return CLAUDE_CODE_MODEL_IDS.opus;
+    return usesOneMillionContext
+      ? CLAUDE_CODE_MODEL_IDS.opusOneMillion
+      : CLAUDE_CODE_MODEL_IDS.opus;
   }
   if (trimmed.includes("haiku")) {
     return CLAUDE_CODE_MODEL_IDS.haiku;
   }
   if (trimmed.includes("sonnet")) {
-    return CLAUDE_CODE_MODEL_IDS.sonnet;
+    return usesOneMillionContext
+      ? CLAUDE_CODE_MODEL_IDS.sonnetOneMillion
+      : CLAUDE_CODE_MODEL_IDS.sonnet;
   }
   return trimmed;
 };
@@ -260,8 +270,17 @@ export const getModelOptionsForProvider = (
 ): ModelOption[] => {
   const selectedIds = getModelsForProvider(provider, settings);
   const modelsById = new Map(availableModels.map((model) => [model.id, model]));
-
-  return selectedIds.map(
-    (id) => modelsById.get(id) ?? createModelOption(provider, id),
+  const selectedIdSet = new Set(selectedIds);
+  const orderedModels = availableModels.filter((model) =>
+    selectedIdSet.has(model.id),
   );
+  const orderedModelIds = new Set(orderedModels.map((model) => model.id));
+  const unknownModels = selectedIds
+    .filter((id) => !orderedModelIds.has(id))
+    .map((id) => createModelOption(provider, id));
+
+  return [
+    ...orderedModels.map((model) => modelsById.get(model.id) ?? model),
+    ...unknownModels,
+  ];
 };

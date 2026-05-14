@@ -22,6 +22,7 @@ export const formatDeletedDate = (value: string) => {
 };
 
 export const ProviderStatusCard = ({
+  action,
   children,
   error,
   installed,
@@ -31,6 +32,7 @@ export const ProviderStatusCard = ({
   runtimeLabel,
   version,
 }: {
+  action?: ReactNode;
   children?: ReactNode;
   error: string | null;
   installed: boolean;
@@ -67,7 +69,9 @@ export const ProviderStatusCard = ({
             <p className="text-amber-700 text-sm">CLI not detected</p>
           ) : null}
         </div>
-        {loading ? <Spinner className="mt-1 size-4" /> : null}
+        <div className="flex size-6 items-center justify-center">
+          {loading ? <Spinner className="size-3.5" /> : action}
+        </div>
       </div>
 
       {error ? (

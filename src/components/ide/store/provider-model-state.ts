@@ -63,41 +63,68 @@ export const toggleProviderModelInSettings = (
 
 export const markProviderModelsLoading = (
   providerModels: IdeState["providerModels"],
+  provider?: AiProvider,
 ): IdeState["providerModels"] => ({
   ...providerModels,
   anthropic: {
     ...providerModels.anthropic,
-    error: null,
-    loading: true,
+    error:
+      provider === undefined || provider === "anthropic"
+        ? null
+        : providerModels.anthropic.error,
+    loading:
+      provider === undefined
+        ? true
+        : provider === "anthropic"
+          ? true
+          : providerModels.anthropic.loading,
   },
   openai: {
     ...providerModels.openai,
-    error: null,
-    loading: true,
+    error:
+      provider === undefined || provider === "openai"
+        ? null
+        : providerModels.openai.error,
+    loading:
+      provider === undefined
+        ? true
+        : provider === "openai"
+          ? true
+          : providerModels.openai.loading,
   },
 });
 
 export const getProviderModelsFromResponse = (
   payload: ProviderModelsResponse,
-): IdeState["providerModels"] => ({
-  anthropic: {
-    error: payload.anthropic.error ?? null,
-    installed: payload.anthropic.installed,
-    loading: false,
-    models: dedupeModelOptions(payload.anthropic.models),
-    source: payload.anthropic.source,
-    version: payload.anthropic.version ?? null,
-  },
-  fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
-  openai: {
-    error: payload.openai.error ?? null,
-    installed: payload.openai.installed,
-    loading: false,
-    models: dedupeModelOptions(payload.openai.models),
-    source: payload.openai.source,
-    version: payload.openai.version ?? null,
-  },
-});
+  previous: IdeState["providerModels"] = DEFAULT_PROVIDER_MODELS,
+): IdeState["providerModels"] => {
+  const anthropic = payload.anthropic
+    ? {
+        error: payload.anthropic.error ?? null,
+        installed: payload.anthropic.installed,
+        loading: false,
+        models: dedupeModelOptions(payload.anthropic.models),
+        source: payload.anthropic.source,
+        version: payload.anthropic.version ?? null,
+      }
+    : previous.anthropic;
+  const openai = payload.openai
+    ? {
+        error: payload.openai.error ?? null,
+        installed: payload.openai.installed,
+        loading: false,
+        models: dedupeModelOptions(payload.openai.models),
+        source: payload.openai.source,
+        version: payload.openai.version ?? null,
+      }
+    : previous.openai;
+
+  return {
+    anthropic,
+    fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
+    openai,
+  };
+};
 
 export const reconcileSettingsWithProviderModels = (
   settings: AppSettings,
@@ -139,16 +166,25 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
 export const getProviderModelsErrorState = (
   providerModels: IdeState["providerModels"],
   message: string,
+  provider?: AiProvider,
 ): IdeState["providerModels"] => ({
   anthropic: {
     ...providerModels.anthropic,
-    error: message,
-    loading: false,
+    error:
+      provider && provider !== "anthropic"
+        ? providerModels.anthropic.error
+        : message,
+    loading:
+      provider && provider !== "anthropic"
+        ? providerModels.anthropic.loading
+        : false,
   },
   fetchedAt: providerModels.fetchedAt,
   openai: {
     ...providerModels.openai,
-    error: message,
-    loading: false,
+    error:
+      provider && provider !== "openai" ? providerModels.openai.error : message,
+    loading:
+      provider && provider !== "openai" ? providerModels.openai.loading : false,
   },
 });

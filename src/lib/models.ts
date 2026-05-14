@@ -63,8 +63,10 @@ const OPENAI_TOKEN_LABELS: Record<string, string> = {
 const ANTHROPIC_TOKEN_LABELS: Record<string, string> = {
   claude: "Claude",
   haiku: "Haiku",
+  "opus[1m]": "Opus 1M",
   opus: "Opus",
   preview: "Preview",
+  "sonnet[1m]": "Sonnet 1M",
   sonnet: "Sonnet",
 };
 
@@ -140,7 +142,9 @@ export const formatModelIdLabel = (
 
   if (
     provider === "anthropic" &&
-    ["opus", "sonnet", "haiku"].includes(parts[0]?.toLowerCase() ?? "")
+    ["opus", "opus[1m]", "sonnet", "sonnet[1m]", "haiku"].includes(
+      parts[0]?.toLowerCase() ?? "",
+    )
   ) {
     return `Claude ${formatToken(provider, parts[0], true)}`;
   }
@@ -168,7 +172,7 @@ const inferProviderForModelLabel = (id: string): AiProvider => {
   const normalizedId = id.trim().toLowerCase();
   if (
     normalizedId.startsWith("claude-") ||
-    ["haiku", "opus", "sonnet"].includes(normalizedId)
+    ["haiku", "opus", "opus[1m]", "sonnet", "sonnet[1m]"].includes(normalizedId)
   ) {
     return "anthropic";
   }
@@ -275,9 +279,9 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
  */
 const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
   // Anthropic
-  [/^(sonnet|opus)$/, 1_000_000],
+  [/^(sonnet|opus)(?:\[1m\])?$/, 1_000_000],
   [/^haiku$/, 200_000],
-  [/^claude-(sonnet|opus)-4/, 1_000_000],
+  [/^claude-(sonnet|opus)-4-[67]/, 1_000_000],
   [/^claude-haiku-4/, 200_000],
   [/^claude-3[.-]7/, 200_000],
   [/^claude-3[.-]5/, 200_000],
@@ -351,7 +355,7 @@ export const getModelReasoningEfforts = (
 
   // --- Anthropic models with extended thinking (claude-3.7+, claude-4+) --
   if (provider === "anthropic") {
-    if (["opus", "sonnet", "haiku"].includes(id)) {
+    if (["opus", "opus[1m]", "sonnet", "sonnet[1m]", "haiku"].includes(id)) {
       return ANTHROPIC_REASONING_EFFORTS;
     }
 

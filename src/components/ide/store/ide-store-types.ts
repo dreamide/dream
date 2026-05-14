@@ -118,7 +118,10 @@ export interface IdeState {
 
   // Actions - provider management
   toggleProviderModel: (provider: AiProvider, model: string) => void;
-  refreshProviderModels: () => Promise<void>;
+  refreshProviderModels: (options?: {
+    force?: boolean;
+    provider?: AiProvider;
+  }) => Promise<void>;
   setProviderModels: (
     updater:
       | IdeState["providerModels"]

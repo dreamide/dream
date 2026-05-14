@@ -4,6 +4,7 @@ import {
   Moon,
   Plug,
   RotateCcw,
+  RotateCw,
   Sun,
   Trash2,
 } from "lucide-react";
@@ -71,6 +72,7 @@ export const SettingsDialog = () => {
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
+  const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
 
@@ -217,6 +219,12 @@ export const SettingsDialog = () => {
   const handlePermanentlyDeleteSelectedChats = () => {
     permanentlyDeleteChats(selectedDeletedChatIds);
     setSelectedDeletedChatIds([]);
+  };
+  const handleRefreshOpenAiProvider = () => {
+    void refreshProviderModels({ force: true, provider: "openai" });
+  };
+  const handleRefreshAnthropicProvider = () => {
+    void refreshProviderModels({ force: true, provider: "anthropic" });
   };
 
   return (
@@ -453,6 +461,19 @@ export const SettingsDialog = () => {
 
                   <div className="grid gap-3 md:grid-cols-2">
                     <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label="Refresh OpenAI provider"
+                          disabled={providerModels.openai.loading}
+                          onClick={handleRefreshOpenAiProvider}
+                          size="icon-xs"
+                          title="Refresh OpenAI provider"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
                       error={providerModels.openai.error}
                       installed={providerModels.openai.installed}
                       label="OpenAI"
@@ -504,6 +525,19 @@ export const SettingsDialog = () => {
                       </div>
                     </ProviderStatusCard>
                     <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label="Refresh Anthropic provider"
+                          disabled={providerModels.anthropic.loading}
+                          onClick={handleRefreshAnthropicProvider}
+                          size="icon-xs"
+                          title="Refresh Anthropic provider"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
                       error={providerModels.anthropic.error}
                       installed={providerModels.anthropic.installed}
                       label="Anthropic"
