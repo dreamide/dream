@@ -347,11 +347,6 @@ export const normalizeClaudeCodeModel = (modelId) => {
 };
 
 const MODELS_DEV_API_URL = "https://models.dev/api.json";
-const CLAUDE_CODE_MODELS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-let claudeCodeModelOptionsCache = {
-  expiresAt: 0,
-  models: CLAUDE_CODE_MODEL_OPTIONS,
-};
 const CLAUDE_CODE_MODEL_ORDER = {
   "claude-opus": 0,
   "claude-sonnet": 1,
@@ -363,6 +358,43 @@ const CLAUDE_CODE_MODEL_ORDER = {
 
 const isModelsDevModelRecord = (value) =>
   value !== null && typeof value === "object" && typeof value.id === "string";
+
+const isClaudeCodeModelName = (model) =>
+  /^claude-(opus|sonnet|haiku)-\d+-\d{1,2}$/.test(model.id);
+
+const getClaudeCodeModelVersion = (model) => {
+  const match = model.id.match(/^claude-(opus|sonnet|haiku)-(\d+)-(\d{1,2})$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    family: match[1],
+    major: Number(match[2]),
+    minor: Number(match[3]),
+  };
+};
+
+const isSupportedClaudeCodeModel = (model) => {
+  const version = getClaudeCodeModelVersion(model);
+  if (!version) {
+    return false;
+  }
+
+  if (version.family === "opus") {
+    return version.major > 4 || (version.major === 4 && version.minor >= 6);
+  }
+
+  if (version.family === "sonnet") {
+    return version.major > 4 || (version.major === 4 && version.minor >= 5);
+  }
+
+  if (version.family === "haiku") {
+    return version.major > 4 || (version.major === 4 && version.minor >= 5);
+  }
+
+  return false;
+};
 
 const getModelsDevAnthropicModels = (payload) => {
   const models = payload?.anthropic?.models;
@@ -427,6 +459,8 @@ const parseClaudeCodeModelOptionsFromModelsDev = (payload) => {
   return dedupeModelsDevClaudeAliases(
     models
       .filter((model) => model.status !== "deprecated")
+      .filter(isClaudeCodeModelName)
+      .filter(isSupportedClaudeCodeModel)
       .filter((model) =>
         ["claude-opus", "claude-sonnet", "claude-haiku"].includes(model.family),
       ),
@@ -447,13 +481,7 @@ const parseClaudeCodeModelOptionsFromModelsDev = (payload) => {
     );
 };
 
-export const fetchClaudeCodeModelOptionsFromModelsDev = async ({
-  force = false,
-} = {}) => {
-  if (!force && Date.now() < claudeCodeModelOptionsCache.expiresAt) {
-    return claudeCodeModelOptionsCache.models;
-  }
-
+export const fetchClaudeCodeModelOptionsFromModelsDev = async () => {
   try {
     const response = await fetch(MODELS_DEV_API_URL, {
       method: "GET",
@@ -472,10 +500,6 @@ export const fetchClaudeCodeModelOptionsFromModelsDev = async ({
       );
     }
 
-    claudeCodeModelOptionsCache = {
-      expiresAt: Date.now() + CLAUDE_CODE_MODELS_CACHE_TTL_MS,
-      models: parsedModels,
-    };
     return parsedModels;
   } catch {
     return CLAUDE_CODE_MODEL_OPTIONS;

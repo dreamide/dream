@@ -64,10 +64,10 @@ const readCliVersion = async (commandName) => {
   }
 };
 
-export const getCliVersion = async (commandName) => {
+export const getCliVersion = async (commandName, { force = false } = {}) => {
   const now = Date.now();
   const cached = cliVersionCache.get(commandName);
-  if (cached) {
+  if (!force && cached) {
     if (cached.promise) {
       return cached.promise;
     }

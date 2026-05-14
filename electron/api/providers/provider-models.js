@@ -90,7 +90,7 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
   return dedupeAndSort(modelIds);
 };
 
-export const fetchOpenAiModels = async () => {
+export const fetchOpenAiModels = async ({ force = false } = {}) => {
   const installed = await isCliCommandAvailable("codex");
   if (!installed) {
     return {
@@ -101,7 +101,7 @@ export const fetchOpenAiModels = async () => {
       version: null,
     };
   }
-  const version = await getCliVersion("codex");
+  const version = await getCliVersion("codex", { force });
 
   const accessToken = await readCodexAccessToken();
   if (!accessToken) {
@@ -175,10 +175,10 @@ export const fetchAnthropicModels = async ({ force = false } = {}) => {
       version: null,
     };
   }
-  const version = await getCliVersion("claude");
+  const version = await getCliVersion("claude", { force });
 
   try {
-    const models = await fetchClaudeCodeModelOptionsFromModelsDev({ force });
+    const models = await fetchClaudeCodeModelOptionsFromModelsDev();
     if (models.length === 0) {
       return {
         error: "Claude Code returned no supported models.",
