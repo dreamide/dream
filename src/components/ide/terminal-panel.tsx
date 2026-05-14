@@ -21,6 +21,12 @@ const TERMINAL_FONT_FAMILY_FALLBACK =
   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const getDefaultTerminalName = (index: number) => `Terminal ${index + 1}`;
 
+const isCopyShortcut = (event: KeyboardEvent) =>
+  (event.ctrlKey || event.metaKey) &&
+  !event.altKey &&
+  !event.shiftKey &&
+  event.key.toLowerCase() === "c";
+
 const formatTerminalShellLabel = (value?: string) => {
   const trimmed = value?.trim();
   if (!trimmed) {
@@ -253,6 +259,21 @@ export const TerminalPanel = ({
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type !== "keydown" || !isCopyShortcut(event)) {
+        return true;
+      }
+
+      const selection = terminal.getSelection();
+      if (!selection) {
+        return true;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      void navigator.clipboard.writeText(selection);
+      return false;
+    });
     terminal.open(host);
 
     let resizeFrame: number | null = null;
