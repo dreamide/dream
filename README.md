@@ -118,3 +118,6 @@ Repair `node-pty` permissions and prepare the Electron development app:
 pnpm postinstall
 ```
 
+## License
+
+MIT
