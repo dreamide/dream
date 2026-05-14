@@ -305,8 +305,11 @@ const generateCodexCommitMessage = async ({
             "-",
           ],
           {
+            cwd: projectPath,
             env: process.env,
+            shell: launch.shell ?? false,
             stdio: ["pipe", "pipe", "pipe"],
+            windowsHide: true,
           },
         );
 
