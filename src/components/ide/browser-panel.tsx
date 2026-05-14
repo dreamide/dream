@@ -56,6 +56,9 @@ const getBrowserTabTitle = (url: string) => {
   }
 };
 
+const isNewBrowserTab = (tab: BrowserTabState) =>
+  tab.url.trim().length === 0;
+
 const BrowserPanelImpl = ({
   active = true,
   onSyncBrowserBounds,
@@ -82,6 +85,9 @@ const BrowserPanelImpl = ({
   const closeBrowserTab = useIdeStore((state) => state.closeBrowserTab);
   const reorderBrowserTabs = useIdeStore((state) => state.reorderBrowserTabs);
   const setActiveBrowserTab = useIdeStore((state) => state.setActiveBrowserTab);
+  const setProjectRightPanelOpen = useIdeStore(
+    (state) => state.setProjectRightPanelOpen,
+  );
 
   const projectId = project.id;
   const resolvedActiveTabId = activeTabId ?? tabs[0]?.id ?? null;
@@ -191,6 +197,19 @@ const BrowserPanelImpl = ({
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
+      const closingTab = tabs.find((tab) => tab.id === tabId) ?? null;
+      if (tabs.length === 1 && closingTab && isNewBrowserTab(closingTab)) {
+        setProjectRightPanelOpen(projectId, false);
+        setBrowserError(null);
+        setBrowserUrlDraft("");
+        updateProject(projectId, (project) => ({
+          ...project,
+          browserUrl: "",
+        }));
+        syncAfterStateChange();
+        return;
+      }
+
       const closingIndex = tabs.findIndex((tab) => tab.id === tabId);
       const remainingTabs = tabs.filter((tab) => tab.id !== tabId);
       const fallbackTab =
@@ -217,6 +236,7 @@ const BrowserPanelImpl = ({
       closeBrowserTab,
       projectId,
       setBrowserError,
+      setProjectRightPanelOpen,
       syncAfterStateChange,
       tabs,
       updateProject,

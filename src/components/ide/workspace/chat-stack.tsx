@@ -23,6 +23,8 @@ import {
 
 const CHAT_DRAG_THRESHOLD = 4;
 const CHAT_DRAG_FLIP_DURATION_MS = 180;
+const CHAT_RESIZE_DRAG_THRESHOLD_PX = 2;
+const CHAT_SPLITTER_WIDTH_PX = 8;
 
 type ChatColumnMetric = {
   id: string;
@@ -338,24 +340,33 @@ const WorkspaceChatStackImpl = ({
       activeResizeRef.current = null;
 
       const visibleCount = visibleChats.length;
-      const containerWidth = containerRef.current?.clientWidth ?? 0;
-      const equalWidth = Math.max(
+      const containerWidth =
+        containerRef.current?.getBoundingClientRect().width ?? 0;
+      const splitterWidth = CHAT_SPLITTER_WIDTH_PX * (visibleCount - 1);
+      const panelWidth = Math.max(
         CHAT_PANEL_MIN_WIDTH_PX,
-        containerWidth / visibleCount,
+        (containerWidth - splitterWidth) / visibleCount,
       );
       const nextWidths = {
         ...widthRef.current,
         ...Object.fromEntries(
-          visibleChats.map((chat) => [chat.id, equalWidth]),
+          visibleChats.map((chat, index) => [
+            chat.id,
+            panelWidth +
+              (index < visibleCount - 1 ? CHAT_SPLITTER_WIDTH_PX : 0),
+          ]),
         ),
       };
 
       widthRef.current = nextWidths;
 
-      for (const chat of visibleChats) {
+      for (const [index, chat] of visibleChats.entries()) {
         const column = columnRefs.current[chat.id];
         if (column) {
-          column.style.flex = `1 1 ${equalWidth}px`;
+          const columnWidth =
+            panelWidth +
+            (index < visibleCount - 1 ? CHAT_SPLITTER_WIDTH_PX : 0);
+          column.style.flex = `1 1 ${columnWidth}px`;
         }
       }
 
@@ -370,6 +381,10 @@ const WorkspaceChatStackImpl = ({
     rightChatId: string,
   ) => {
     event.preventDefault();
+    if (event.detail > 1) {
+      return;
+    }
+
     resizeCleanupRef.current?.();
 
     const leftColumn = columnRefs.current[leftChatId];
@@ -398,8 +413,14 @@ const WorkspaceChatStackImpl = ({
       }
     };
 
+    let didDrag = false;
     const updateWidths = (clientX: number) => {
       const deltaX = clientX - startX;
+      didDrag = didDrag || Math.abs(deltaX) >= CHAT_RESIZE_DRAG_THRESHOLD_PX;
+      if (!didDrag) {
+        return widthRef.current;
+      }
+
       const leftWidth = Math.min(
         maxLeftWidth,
         Math.max(CHAT_PANEL_MIN_WIDTH_PX, leftStartWidth + deltaX),
@@ -427,14 +448,16 @@ const WorkspaceChatStackImpl = ({
       latestWidths = updateWidths(upEvent.clientX);
       clearPendingFrame();
 
-      const activeResize = activeResizeRef.current;
-      if (activeResize) {
-        applyColumnWidths(
-          activeResize.leftChatId,
-          activeResize.leftWidth,
-          activeResize.rightChatId,
-          activeResize.rightWidth,
-        );
+      if (didDrag) {
+        const activeResize = activeResizeRef.current;
+        if (activeResize) {
+          applyColumnWidths(
+            activeResize.leftChatId,
+            activeResize.leftWidth,
+            activeResize.rightChatId,
+            activeResize.rightWidth,
+          );
+        }
       }
       activeResizeRef.current = null;
 
@@ -444,7 +467,9 @@ const WorkspaceChatStackImpl = ({
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
       resizeCleanupRef.current = null;
-      onChatColumnWidthsChange(latestWidths);
+      if (didDrag) {
+        onChatColumnWidthsChange(latestWidths);
+      }
     };
 
     resizeCleanupRef.current = () => {
