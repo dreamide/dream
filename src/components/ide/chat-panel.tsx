@@ -72,6 +72,15 @@ const EMPTY_MESSAGES: UIMessage[] = [];
 const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
   backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND,
 };
+const CHAT_CONVERSATION_FADE_HEIGHT_PX = 24;
+const CHAT_CONVERSATION_TOP_FADE_STYLE: CSSProperties = {
+  background: `linear-gradient(to bottom, ${WORKSPACE_VIEWPORT_BACKGROUND} 0%, transparent 100%)`,
+  height: CHAT_CONVERSATION_FADE_HEIGHT_PX,
+};
+const CHAT_CONVERSATION_BOTTOM_FADE_STYLE: CSSProperties = {
+  background: `linear-gradient(to top, ${WORKSPACE_VIEWPORT_BACKGROUND} 0%, transparent 100%)`,
+  height: CHAT_CONVERSATION_FADE_HEIGHT_PX,
+};
 
 const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
   references
@@ -823,7 +832,19 @@ export const ChatPanel = ({
               ))
             )}
           </ConversationContent>
-          <ConversationScrollButton />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-10"
+            style={CHAT_CONVERSATION_TOP_FADE_STYLE}
+          />
+          {isStreaming ? null : (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
+              style={CHAT_CONVERSATION_BOTTOM_FADE_STYLE}
+            />
+          )}
+          <ConversationScrollButton className="z-20" />
         </Conversation>
 
         {localError ? (
