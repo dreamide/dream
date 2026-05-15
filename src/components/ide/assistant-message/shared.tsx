@@ -219,6 +219,11 @@ export const CHIP_TONE_CLASSES = {
       "border-success-border bg-success-surface text-success-foreground dark:border-success-border dark:bg-success-surface dark:text-success-foreground",
     expanded: "text-success-foreground dark:text-success-foreground",
   },
+  indigo: {
+    button:
+      "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
+    expanded: "text-indigo-700 dark:text-indigo-300",
+  },
   emerald: {
     button:
       "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",

@@ -90,7 +90,7 @@ export const WebFetchChip = ({
           )}
           hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
-          tone="cyan"
+          tone="indigo"
           type="button"
         >
           <GlobeIcon className="size-3.5 shrink-0" />
@@ -130,7 +130,7 @@ export const WebFetchChip = ({
       ) : null}
       {expanded ? (
         <div
-          className={getExpandedChipClasses("cyan", hasError)}
+          className={getExpandedChipClasses("indigo", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {isRecord(part.input) ? (
