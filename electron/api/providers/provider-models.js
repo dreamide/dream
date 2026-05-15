@@ -6,6 +6,7 @@ import {
   fetchClaudeCodeModelOptionsFromModelsDev,
   getModelReasoningEfforts,
   getModelSpeedTiers,
+  isVisibleOpenAiModelOption,
   normalizeModelSpeedTiers,
   normalizeReasoningEfforts,
   selectLowCostAnthropicModel,
@@ -33,17 +34,16 @@ const createOpenAiModelOptionsFromCodexEntries = (entries) =>
     const speedTiers = normalizeModelSpeedTiers(
       entry.additional_speed_tiers ?? entry.speedTiers,
     );
-    return [
-      createModelOption(
-        "openai",
-        id,
-        entry.display_name ?? entry.label,
-        reasoningEfforts.length > 0
-          ? reasoningEfforts
-          : getModelReasoningEfforts("openai", id),
-        speedTiers.length > 0 ? speedTiers : getModelSpeedTiers("openai", id),
-      ),
-    ];
+    const model = createModelOption(
+      "openai",
+      id,
+      entry.display_name ?? entry.label,
+      reasoningEfforts.length > 0
+        ? reasoningEfforts
+        : getModelReasoningEfforts("openai", id),
+      speedTiers.length > 0 ? speedTiers : getModelSpeedTiers("openai", id),
+    );
+    return isVisibleOpenAiModelOption(model) ? [model] : [];
   });
 
 const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {

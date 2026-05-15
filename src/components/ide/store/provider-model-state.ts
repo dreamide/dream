@@ -2,7 +2,7 @@ import {
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
-import { dedupeModelOptions } from "@/lib/models";
+import { dedupeModelOptions, isVisibleOpenAiModelOption } from "@/lib/models";
 import type { AiProvider, AppSettings } from "@/types/ide";
 import { dedupeModels, type ProviderModelsResponse } from "../ide-types";
 import type { IdeState } from "./ide-store-types";
@@ -113,7 +113,9 @@ export const getProviderModelsFromResponse = (
         error: payload.openai.error ?? null,
         installed: payload.openai.installed,
         loading: false,
-        models: dedupeModelOptions(payload.openai.models),
+        models: dedupeModelOptions(payload.openai.models).filter(
+          isVisibleOpenAiModelOption,
+        ),
         source: payload.openai.source,
         version: payload.openai.version ?? null,
       }

@@ -15,6 +15,17 @@ const VALID_REASONING_EFFORTS = [
   "xhigh",
   "max",
 ] as const;
+const HIDDEN_OPENAI_MODEL_LABELS = new Set(["codex auto review"]);
+const HIDDEN_OPENAI_MODEL_IDS = new Set(["codex-auto-review"]);
+
+export const isVisibleOpenAiModelOption = (model: ModelOption): boolean => {
+  const id = model.id.trim().toLowerCase();
+  const label = model.label.trim().toLowerCase();
+
+  return (
+    !HIDDEN_OPENAI_MODEL_IDS.has(id) && !HIDDEN_OPENAI_MODEL_LABELS.has(label)
+  );
+};
 
 const normalizeReasoningEfforts = (
   reasoningEfforts: ReasoningEffort[] = [],

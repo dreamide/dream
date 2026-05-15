@@ -22,6 +22,17 @@ export const OPENAI_LOW_COST_MODEL_CANDIDATES = [
 export const ANTHROPIC_LOW_COST_MODEL_CANDIDATES = ["haiku"];
 const OPENAI_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"];
 const ANTHROPIC_REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+const HIDDEN_OPENAI_MODEL_LABELS = new Set(["codex auto review"]);
+const HIDDEN_OPENAI_MODEL_IDS = new Set(["codex-auto-review"]);
+
+export const isVisibleOpenAiModelOption = (model) => {
+  const id = model?.id?.trim().toLowerCase() ?? "";
+  const label = model?.label?.trim().toLowerCase() ?? "";
+
+  return (
+    !HIDDEN_OPENAI_MODEL_IDS.has(id) && !HIDDEN_OPENAI_MODEL_LABELS.has(label)
+  );
+};
 
 export const normalizeReasoningEfforts = (value) => {
   if (!Array.isArray(value)) {
