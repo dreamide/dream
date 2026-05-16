@@ -450,9 +450,11 @@ export const TerminalPanel = ({
 
 export const ProjectTerminalTabsPanel = ({
   active = true,
+  embedded = false,
   projectId,
 }: {
   active?: boolean;
+  embedded?: boolean;
   projectId: string;
 }) => {
   const projectTerminalSessionIds = useIdeStore(
@@ -498,81 +500,96 @@ export const ProjectTerminalTabsPanel = ({
     return null;
   }
 
+  const content = (
+    <>
+      <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+          <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
+          <StandardTabs
+            activeId={resolvedActiveSessionId}
+            after={
+              <Button
+                aria-label="Open another terminal"
+                className="h-8 w-8 shrink-0 rounded-lg p-0 text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground"
+                onClick={() => void addProjectTerminal(projectId)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Plus className="size-4" />
+              </Button>
+            }
+            ariaLabel="Terminal tabs"
+            canClose={true}
+            className="flex-1"
+            closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
+            items={terminalTabItems}
+            onActivate={(sessionId) =>
+              setActiveProjectTerminalId(projectId, sessionId)
+            }
+            onClose={(sessionId) =>
+              void closeProjectTerminal(projectId, sessionId)
+            }
+            onRename={(sessionId, label) =>
+              setTerminalSessionName(sessionId, label)
+            }
+            onReorder={(fromIndex, toIndex) =>
+              reorderProjectTerminals(projectId, fromIndex, toIndex)
+            }
+            renameOnDoubleClick={true}
+          />
+        </div>
+      </div>
+      <div className="relative min-h-0 flex-1">
+        {sessionIds.map((sessionId, index) => {
+          const isActive = sessionId === resolvedActiveSessionId;
+
+          return (
+            <div
+              aria-hidden={!isActive}
+              className={cn(
+                "absolute inset-0 min-h-0",
+                isActive
+                  ? "visible pointer-events-auto"
+                  : "invisible pointer-events-none",
+              )}
+              inert={!isActive}
+              key={sessionId}
+            >
+              <TerminalPanel
+                bordered={false}
+                isActive={active && isActive}
+                onClose={() => void closeProjectTerminal(projectId, sessionId)}
+                sessionId={sessionId}
+                showHeader={false}
+                stopOnClose={false}
+                title={resolveTerminalName(sessionId, index)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div
+        className="flex h-full min-h-0 flex-col"
+        style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
+      >
+        {content}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col py-2 pr-2">
       <TerminalSurface
         className="flex min-h-0 flex-1 flex-col"
         style={{ minHeight: TERMINAL_MIN_HEIGHT_PX }}
       >
-        <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-1.5">
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-            <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
-            <StandardTabs
-              activeId={resolvedActiveSessionId}
-              after={
-                <Button
-                  aria-label="Open another terminal"
-                  className="h-8 w-8 shrink-0 rounded-lg p-0 text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground"
-                  onClick={() => void addProjectTerminal(projectId)}
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Plus className="size-4" />
-                </Button>
-              }
-              ariaLabel="Terminal tabs"
-              canClose={true}
-              className="flex-1"
-              closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
-              items={terminalTabItems}
-              onActivate={(sessionId) =>
-                setActiveProjectTerminalId(projectId, sessionId)
-              }
-              onClose={(sessionId) =>
-                void closeProjectTerminal(projectId, sessionId)
-              }
-              onRename={(sessionId, label) =>
-                setTerminalSessionName(sessionId, label)
-              }
-              onReorder={(fromIndex, toIndex) =>
-                reorderProjectTerminals(projectId, fromIndex, toIndex)
-              }
-              renameOnDoubleClick={true}
-            />
-          </div>
-        </div>
-        <div className="relative min-h-0 flex-1">
-          {sessionIds.map((sessionId, index) => {
-            const isActive = sessionId === resolvedActiveSessionId;
-
-            return (
-              <div
-                aria-hidden={!isActive}
-                className={cn(
-                  "absolute inset-0 min-h-0",
-                  isActive
-                    ? "visible pointer-events-auto"
-                    : "invisible pointer-events-none",
-                )}
-                inert={!isActive}
-                key={sessionId}
-              >
-                <TerminalPanel
-                  bordered={false}
-                  isActive={active && isActive}
-                  onClose={() =>
-                    void closeProjectTerminal(projectId, sessionId)
-                  }
-                  sessionId={sessionId}
-                  showHeader={false}
-                  stopOnClose={false}
-                  title={resolveTerminalName(sessionId, index)}
-                />
-              </div>
-            );
-          })}
-        </div>
+        {content}
       </TerminalSurface>
     </div>
   );

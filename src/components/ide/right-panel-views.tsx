@@ -12,6 +12,7 @@ import { BrowserPanel } from "./browser-panel";
 import { ChangesPanel } from "./changes-panel";
 import { FileExplorerPanel } from "./file-explorer-panel";
 import type { RightPanelView } from "./ide-types";
+import { ProjectTerminalTabsPanel } from "./terminal-panel";
 
 const RIGHT_PANEL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background text-foreground shadow-md";
@@ -85,6 +86,15 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
               project={props.project}
             />
           </RightPanelViewSlot>
+          {rightPanelView === "terminal" ? (
+            <RightPanelViewSlot active={true}>
+              <ProjectTerminalTabsPanel
+                active={props.active}
+                embedded={true}
+                projectId={props.project.id}
+              />
+            </RightPanelViewSlot>
+          ) : null}
         </div>
       </div>
     </div>

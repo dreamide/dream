@@ -7,6 +7,7 @@ import {
   getDefaultTerminalSessionName,
   getTerminalOrdinalFromName,
   moveItem,
+  updateProjectUiInList,
 } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
@@ -18,6 +19,7 @@ export const createTerminalActions = (
   | "startRunner"
   | "stopRunner"
   | "openProjectTerminal"
+  | "setProjectTerminalPanelOpen"
   | "addProjectTerminal"
   | "setActiveProjectTerminalId"
   | "reorderProjectTerminals"
@@ -66,38 +68,35 @@ export const createTerminalActions = (
     const existingSessionIds = get().projectTerminalSessionIds[projectId] ?? [];
 
     if (existingSessionIds.length > 0) {
-      const panelOpen =
-        get().projectTerminalPanelOpenByProject[projectId] ?? false;
       const activeSessionId =
         get().activeTerminalSessionIdByProject[projectId] ??
         existingSessionIds[existingSessionIds.length - 1] ??
         null;
 
-      if (!panelOpen) {
-        set((state) => ({
-          activeProjectId: projectId,
-          activeTerminalSessionIdByProject: {
-            ...state.activeTerminalSessionIdByProject,
-            [projectId]: activeSessionId,
-          },
-          projectTerminalPanelOpenByProject: {
-            ...state.projectTerminalPanelOpenByProject,
-            [projectId]: true,
-          },
-        }));
-        return;
-      }
-
       set((state) => ({
+        activeProjectId: projectId,
+        activeTerminalSessionIdByProject: {
+          ...state.activeTerminalSessionIdByProject,
+          [projectId]: activeSessionId,
+        },
         projectTerminalPanelOpenByProject: {
           ...state.projectTerminalPanelOpenByProject,
-          [projectId]: false,
+          [projectId]: true,
         },
       }));
       return;
     }
 
     await get().addProjectTerminal(projectId);
+  },
+
+  setProjectTerminalPanelOpen: (projectId, open) => {
+    set((state) => ({
+      projectTerminalPanelOpenByProject: {
+        ...state.projectTerminalPanelOpenByProject,
+        [projectId]: open,
+      },
+    }));
   },
 
   addProjectTerminal: async (projectId) => {
@@ -245,11 +244,7 @@ export const createTerminalActions = (
       delete nextTerminalTransport[sessionId];
       delete nextTerminalShell[sessionId];
       delete nextTerminalSessionNames[sessionId];
-      if (nextSessionIds.length === 0) {
-        nextProjectTerminalPanelOpenByProject[projectId] = false;
-      }
-
-      return {
+      const nextState: Partial<IdeState> = {
         terminalOutput: nextTerminalOutput,
         terminalStatus: nextTerminalStatus,
         terminalTransport: nextTerminalTransport,
@@ -259,13 +254,41 @@ export const createTerminalActions = (
           ...state.projectTerminalSessionIds,
           [projectId]: nextSessionIds,
         },
-        projectTerminalPanelOpenByProject:
-          nextProjectTerminalPanelOpenByProject,
         activeTerminalSessionIdByProject: {
           ...state.activeTerminalSessionIdByProject,
           [projectId]: nextActiveSessionId,
         },
       };
+
+      if (nextSessionIds.length === 0) {
+        nextProjectTerminalPanelOpenByProject[projectId] = false;
+        nextState.projects = updateProjectUiInList(
+          state.projects,
+          projectId,
+          (project) => ({
+            ...project.ui,
+            rightPanelOpen:
+              project.ui.rightPanelView === "terminal"
+                ? false
+                : project.ui.rightPanelOpen,
+          }),
+        );
+        nextState.closedProjects = updateProjectUiInList(
+          state.closedProjects,
+          projectId,
+          (project) => ({
+            ...project.ui,
+            rightPanelOpen:
+              project.ui.rightPanelView === "terminal"
+                ? false
+                : project.ui.rightPanelOpen,
+          }),
+        );
+      }
+      nextState.projectTerminalPanelOpenByProject =
+        nextProjectTerminalPanelOpenByProject;
+
+      return nextState;
     });
   },
 });

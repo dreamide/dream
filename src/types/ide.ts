@@ -86,7 +86,7 @@ export interface PanelSizes {
   terminalHeight: number;
 }
 
-export type RightPanelView = "browser" | "explorer" | "changes";
+export type RightPanelView = "browser" | "explorer" | "changes" | "terminal";
 
 export interface ProjectUiState {
   activeChatId: string | null;

@@ -117,7 +117,10 @@ const getNestedNumberRecord = (parent, key) => {
 
 const getNestedRightPanelView = (parent, key, fallback = "changes") => {
   const value = parent?.[key];
-  return value === "browser" || value === "explorer" || value === "changes"
+  return value === "browser" ||
+    value === "explorer" ||
+    value === "changes" ||
+    value === "terminal"
     ? value
     : fallback;
 };

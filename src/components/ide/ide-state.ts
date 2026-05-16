@@ -70,7 +70,10 @@ const isUiMessageArray = (value: unknown): value is UIMessage[] => {
 };
 
 const isRightPanelView = (value: unknown): value is RightPanelView =>
-  value === "browser" || value === "explorer" || value === "changes";
+  value === "browser" ||
+  value === "explorer" ||
+  value === "changes" ||
+  value === "terminal";
 
 const normalizeBrowserTab = (value: unknown): BrowserTabState | null => {
   if (!value || typeof value !== "object") {

@@ -8,7 +8,6 @@ import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
   BROWSER_PANEL_MIN_WIDTH_PX,
   CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
-  CHAT_PANEL_MIN_HEIGHT_PX,
   CHAT_PANEL_MIN_WIDTH_PX,
   clampChatHistoryPanelWidth,
   EMPTY_BROWSER_TABS,
@@ -16,9 +15,6 @@ import {
   PANEL_EDGE_PADDING_PX,
   PANEL_RESIZE_HANDLE_SIZE_PX,
   SLIDING_PANEL_TRANSITION,
-  TERMINAL_PANEL_DEFAULT_HEIGHT_PX,
-  TERMINAL_PANEL_MIN_HEIGHT_PX,
-  TERMINAL_PANEL_TRANSITION,
   WORKSPACE_SIDE_NAV_WIDTH_PX,
 } from "./workspace";
 import { WorkspaceChatStack } from "./workspace/chat-stack";
@@ -26,7 +22,6 @@ import { WorkspaceHistoryPanel } from "./workspace/history-panel";
 import { WorkspaceRightPanel } from "./workspace/right-panel";
 import { WorkspaceRightRail } from "./workspace/right-rail";
 import { WorkspaceSideNav } from "./workspace/side-nav";
-import { WorkspaceTerminalDock } from "./workspace/terminal-dock";
 import {
   useActiveBrowserTab,
   useWorkspaceBrowserSync,
@@ -65,9 +60,6 @@ const ProjectWorkspaceComponent = ({
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds[projectId] ?? EMPTY_TERMINAL_SESSION_IDS,
   );
-  const activeProjectTerminalPanelOpen = useIdeStore(
-    (s) => s.projectTerminalPanelOpenByProject[projectId] ?? false,
-  );
   const historyOpen = projectUi.chatHistoryPanelOpen;
   const setProjectPanelSizes = useIdeStore((s) => s.setProjectPanelSizes);
   const setProjectChatHistoryPanelOpen = useIdeStore(
@@ -79,6 +71,9 @@ const ProjectWorkspaceComponent = ({
   const persistedRightPanelView = projectUi.rightPanelView;
   const setProjectRightPanelView = useIdeStore(
     (s) => s.setProjectRightPanelView,
+  );
+  const setProjectTerminalPanelOpen = useIdeStore(
+    (s) => s.setProjectTerminalPanelOpen,
   );
   const addChat = useIdeStore((s) => s.addChat);
   const addChatBeside = useIdeStore((s) => s.addChatBeside);
@@ -112,16 +107,12 @@ const ProjectWorkspaceComponent = ({
   });
   const hasProjectTerminalSessions = projectTerminalSessionIds.length > 0;
   const terminalPanelVisible =
-    activeProjectTerminalPanelOpen && hasProjectTerminalSessions;
+    rightVisible && rightPanelView === "terminal" && hasProjectTerminalSessions;
   const terminalHiddenWithActiveSession =
-    hasProjectTerminalSessions && !activeProjectTerminalPanelOpen;
+    hasProjectTerminalSessions && !terminalPanelVisible;
   const rightPanelTransitionEnabledRef = useRef(false);
-  const terminalPanelTransitionEnabledRef = useRef(false);
   const rightPanelTransition = rightPanelTransitionEnabledRef.current
     ? SLIDING_PANEL_TRANSITION
-    : "none";
-  const terminalPanelTransition = terminalPanelTransitionEnabledRef.current
-    ? TERMINAL_PANEL_TRANSITION
     : "none";
   const savedHistoryPanelWidth = clampChatHistoryPanelWidth(
     projectPanelSizes.chatHistoryPanelWidth ??
@@ -158,14 +149,10 @@ const ProjectWorkspaceComponent = ({
   // ── Refs ─────────────────────────────────────────────────────────────
   const browserHostRef = useRef<HTMLDivElement | null>(null);
   const rightWidthRef = useRef(BROWSER_PANEL_DEFAULT_WIDTH_PX);
-  const terminalHeightRef = useRef(TERMINAL_PANEL_DEFAULT_HEIGHT_PX);
   const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyPanelRef = useRef<HTMLDivElement | null>(null);
-  const middlePanelRef = useRef<HTMLDivElement | null>(null);
-  const terminalPanelWrapperRef = useRef<HTMLDivElement | null>(null);
-  const terminalPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
   const rightPanelViewPersistTimerRef = useRef<ReturnType<
     typeof setTimeout
@@ -173,7 +160,6 @@ const ProjectWorkspaceComponent = ({
 
   if (!isDraggingRef.current) {
     rightWidthRef.current = projectPanelSizes.rightPanelWidth;
-    terminalHeightRef.current = projectPanelSizes.terminalHeight;
   }
 
   const markRightPanelDragging = useCallback(() => {
@@ -411,17 +397,24 @@ const ProjectWorkspaceComponent = ({
     [projectId, updateProject],
   );
 
-  const handleOpenTerminal = useCallback(() => {
-    void openProjectTerminal(projectId);
-  }, [openProjectTerminal, projectId]);
-
   const handleToggleHistory = useCallback(() => {
     setProjectChatHistoryPanelOpen(projectId, !historyOpen);
   }, [historyOpen, projectId, setProjectChatHistoryPanelOpen]);
 
   const handleToggleRightPanel = useCallback(() => {
-    setProjectRightPanelOpen(projectId, !rightVisible);
-  }, [projectId, rightVisible, setProjectRightPanelOpen]);
+    const nextOpen = !rightVisible;
+    setProjectRightPanelOpen(projectId, nextOpen);
+
+    if (!nextOpen && rightPanelView === "terminal") {
+      setProjectTerminalPanelOpen(projectId, false);
+    }
+  }, [
+    projectId,
+    rightPanelView,
+    rightVisible,
+    setProjectRightPanelOpen,
+    setProjectTerminalPanelOpen,
+  ]);
 
   const schedulePersistRightPanelView = useCallback(
     (view: RightPanelView) => {
@@ -437,11 +430,44 @@ const ProjectWorkspaceComponent = ({
     [projectId, setProjectRightPanelView],
   );
 
+  const handleOpenTerminal = useCallback(() => {
+    if (rightVisible && rightPanelView === "terminal") {
+      setProjectRightPanelOpen(projectId, false);
+      setProjectTerminalPanelOpen(projectId, false);
+      return;
+    }
+
+    setRightPanelView("terminal");
+    schedulePersistRightPanelView("terminal");
+    setProjectTerminalPanelOpen(projectId, true);
+
+    if (!rightVisible) {
+      setProjectRightPanelOpen(projectId, true);
+    }
+
+    void openProjectTerminal(projectId);
+  }, [
+    openProjectTerminal,
+    projectId,
+    rightPanelView,
+    rightVisible,
+    schedulePersistRightPanelView,
+    setProjectRightPanelOpen,
+    setProjectTerminalPanelOpen,
+  ]);
+
   const handleSelectRightPanelView = useCallback(
     (view: RightPanelView) => {
       if (rightVisible && rightPanelView === view) {
         setProjectRightPanelOpen(projectId, false);
+        if (view === "terminal") {
+          setProjectTerminalPanelOpen(projectId, false);
+        }
         return;
+      }
+
+      if (rightPanelView === "terminal" && view !== "terminal") {
+        setProjectTerminalPanelOpen(projectId, false);
       }
 
       setRightPanelView(view);
@@ -457,75 +483,12 @@ const ProjectWorkspaceComponent = ({
       rightVisible,
       schedulePersistRightPanelView,
       setProjectRightPanelOpen,
+      setProjectTerminalPanelOpen,
     ],
   );
 
-  const handleTerminalResizeStart = useCallback(() => {
-    const wrapper = terminalPanelWrapperRef.current;
-    if (wrapper) {
-      wrapper.style.transition = "none";
-    }
-
-    const el = terminalPanelRef.current;
-    if (!el) {
-      return;
-    }
-
-    el.style.transition = "none";
-    terminalHeightRef.current = el.getBoundingClientRect().height;
-  }, []);
-
-  const handleTerminalResize = useCallback((deltaY: number) => {
-    const containerHeight =
-      middlePanelRef.current?.getBoundingClientRect().height ?? 0;
-    const maxHeight = Math.max(
-      TERMINAL_PANEL_MIN_HEIGHT_PX,
-      containerHeight - CHAT_PANEL_MIN_HEIGHT_PX - PANEL_RESIZE_HANDLE_SIZE_PX,
-    );
-    const next = Math.min(
-      maxHeight,
-      Math.max(
-        TERMINAL_PANEL_MIN_HEIGHT_PX,
-        terminalHeightRef.current + deltaY,
-      ),
-    );
-
-    terminalHeightRef.current = next;
-    const wrapper = terminalPanelWrapperRef.current;
-    if (wrapper) {
-      wrapper.style.height = `${next + PANEL_RESIZE_HANDLE_SIZE_PX}px`;
-    }
-
-    const el = terminalPanelRef.current;
-    if (el) {
-      el.style.height = `${next}px`;
-    }
-  }, []);
-
-  const handleTerminalResizeEnd = useCallback(() => {
-    const wrapper = terminalPanelWrapperRef.current;
-    if (wrapper) {
-      wrapper.style.transition = terminalPanelTransition;
-    }
-
-    const el = terminalPanelRef.current;
-    if (el) {
-      el.style.transition = terminalPanelTransition;
-    }
-
-    if (!active) {
-      return;
-    }
-
-    setProjectPanelSizes(projectId, (current) => ({
-      ...current,
-      terminalHeight: terminalHeightRef.current,
-    }));
-  }, [active, projectId, setProjectPanelSizes, terminalPanelTransition]);
-
   useEffect(() => {
     rightPanelTransitionEnabledRef.current = true;
-    terminalPanelTransitionEnabledRef.current = true;
   });
 
   useEffect(() => {
@@ -606,7 +569,7 @@ const ProjectWorkspaceComponent = ({
         project={project}
       />
 
-      {/* ─── MIDDLE: Chat + Terminal ─── */}
+      {/* ─── MIDDLE: Chat ─── */}
       <div
         className="min-w-0 flex-1"
         style={{
@@ -614,10 +577,7 @@ const ProjectWorkspaceComponent = ({
           display: middleVisible ? undefined : "none",
         }}
       >
-        <div
-          ref={middlePanelRef}
-          className="flex h-full w-full flex-col rounded-lg"
-        >
+        <div className="flex h-full w-full flex-col rounded-lg">
           <WorkspaceChatStack
             active={active}
             activeChatId={activeChatId}
@@ -629,21 +589,6 @@ const ProjectWorkspaceComponent = ({
             onChatReorder={handleChatReorder}
             openChatIds={openChatIds}
             project={project}
-          />
-
-          <WorkspaceTerminalDock
-            active={active}
-            hasProjectTerminalSessions={hasProjectTerminalSessions}
-            onOpenTerminal={handleOpenTerminal}
-            onResize={handleTerminalResize}
-            onResizeEnd={handleTerminalResizeEnd}
-            onResizeStart={handleTerminalResizeStart}
-            projectId={projectId}
-            terminalHeight={terminalHeightRef.current}
-            terminalPanelRef={terminalPanelRef}
-            terminalPanelTransition={terminalPanelTransition}
-            terminalPanelVisible={terminalPanelVisible}
-            terminalPanelWrapperRef={terminalPanelWrapperRef}
           />
         </div>
       </div>
@@ -669,7 +614,6 @@ const ProjectWorkspaceComponent = ({
       />
 
       <WorkspaceRightRail
-        hasProjectTerminalSessions={hasProjectTerminalSessions}
         onOpenTerminal={handleOpenTerminal}
         onSelectRightPanelView={handleSelectRightPanelView}
         projectId={projectId}

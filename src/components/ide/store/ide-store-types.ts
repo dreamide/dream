@@ -166,6 +166,7 @@ export interface IdeState {
 
   // Actions - terminal
   openProjectTerminal: (projectId: string) => Promise<void>;
+  setProjectTerminalPanelOpen: (projectId: string, open: boolean) => void;
   addProjectTerminal: (projectId: string) => Promise<void>;
   setActiveProjectTerminalId: (
     projectId: string,

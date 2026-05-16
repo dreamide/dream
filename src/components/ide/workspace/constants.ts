@@ -1,6 +1,5 @@
 import { DEFAULT_PANEL_SIZES } from "@/lib/ide-defaults";
 import type { BrowserTabState } from "@/types/ide";
-import { TERMINAL_MIN_HEIGHT_PX } from "../ide-types";
 
 export const CHAT_PANEL_MIN_WIDTH_PX = 450;
 export const WORKSPACE_VIEWPORT_BACKGROUND =
@@ -9,9 +8,6 @@ export const BROWSER_PANEL_DEFAULT_WIDTH_PX =
   DEFAULT_PANEL_SIZES.rightPanelWidth;
 export const BROWSER_PANEL_MIN_WIDTH_PX = 320;
 export const CHAT_PANEL_MIN_HEIGHT_PX = 180;
-export const TERMINAL_PANEL_DEFAULT_HEIGHT_PX =
-  DEFAULT_PANEL_SIZES.terminalHeight;
-export const TERMINAL_PANEL_MIN_HEIGHT_PX = TERMINAL_MIN_HEIGHT_PX + 16;
 export const PANEL_RESIZE_HANDLE_SIZE_PX = 1;
 export const PANEL_EDGE_PADDING_PX = 8;
 export const WORKSPACE_SIDE_NAV_WIDTH_PX = 48;
@@ -25,7 +21,6 @@ export const CHAT_HISTORY_PANEL_MIN_WIDTH_PX = 200;
 export const PANEL_TRANSITION_MS = 200;
 export const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 export const SLIDING_PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), transform ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-export const TERMINAL_PANEL_TRANSITION = `height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-height ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 export const CHAT_KEEP_ALIVE_LIMIT = 10;
 
 export const clampChatHistoryPanelWidth = (width: number) =>

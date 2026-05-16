@@ -7,7 +7,6 @@ import { GitActionsMenu } from "../git-actions-menu";
 import { ToggleButton } from "../ide-helpers";
 
 export interface WorkspaceRightRailProps {
-  hasProjectTerminalSessions: boolean;
   onOpenTerminal: () => void;
   onSelectRightPanelView: (view: RightPanelView) => void;
   projectId: string;
@@ -18,7 +17,6 @@ export interface WorkspaceRightRailProps {
 }
 
 const WorkspaceRightRailImpl = ({
-  hasProjectTerminalSessions,
   onOpenTerminal,
   onSelectRightPanelView,
   projectId,
@@ -53,10 +51,10 @@ const WorkspaceRightRailImpl = ({
       aria-label="Terminal"
       className={cn(
         "size-8",
-        terminalHiddenWithActiveSession
-          ? "text-success-highlight hover:text-success-highlight-hover"
-          : hasProjectTerminalSessions
-            ? "text-foreground hover:text-foreground"
+        rightVisible && rightPanelView === "terminal"
+          ? "text-foreground hover:text-foreground"
+          : terminalHiddenWithActiveSession
+            ? "text-success-highlight hover:text-success-highlight-hover"
             : "text-muted-foreground hover:text-foreground",
       )}
       onClick={onOpenTerminal}
