@@ -57,7 +57,7 @@ const WorkspaceRightRailImpl = ({
           ? "text-success-highlight hover:text-success-highlight-hover"
           : hasProjectTerminalSessions
             ? "text-foreground hover:text-foreground"
-            : "text-surface-400 dark:text-surface-500 hover:text-foreground",
+            : "text-muted-foreground hover:text-foreground",
       )}
       onClick={onOpenTerminal}
       size="icon"
