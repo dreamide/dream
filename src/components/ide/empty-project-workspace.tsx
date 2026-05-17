@@ -58,7 +58,7 @@ export const EmptyProjectWorkspace = () => {
             <div className="grid w-full gap-1">
               {recentProjects.map((project) => (
                 <button
-                  className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-md border border-transparent px-3 py-2 text-left hover:border-border hover:bg-background focus-visible:border-surface-300 dark:focus-visible:border-surface-700 focus-visible:outline-none"
+                  className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-sm border border-transparent px-3 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:border-surface-300 dark:focus-visible:border-surface-700 focus-visible:outline-none"
                   key={project.id}
                   onClick={() => addProject(project.path)}
                   type="button"
