@@ -1,6 +1,6 @@
 {
   "name": "dream",
-  "productName": "dream",
+  "productName": "Dream",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -87,8 +87,8 @@
   "main": "electron/main.js",
   "build": {
     "appId": "ai.dreamdream.dream",
-    "productName": "dream",
-    "executableName": "dream",
+    "productName": "Dream",
+    "executableName": "Dream",
     "npmRebuild": false,
     "directories": {
       "output": "release"

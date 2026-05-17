@@ -1,7 +1,7 @@
 import type { CSSProperties, SVGAttributes } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-// AnimatedLogo — the dream badge: a circular night sky with a moon and a
+// AnimatedLogo — the Dream badge: a circular night sky with a moon and a
 // sparkle, plus a configurable layer of falling stars animating in the sky.
 //
 // Usage:
@@ -264,7 +264,7 @@ export function AnimatedLogo({
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 1024 1024"
       role="img"
-      aria-label="dream logo — a moon and star with falling stars in the night sky"
+      aria-label="Dream logo — a moon and star with falling stars in the night sky"
       className={className}
       style={sizingStyle}
       {...rest}
