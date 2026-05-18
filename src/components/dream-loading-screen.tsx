@@ -26,7 +26,7 @@ export const AppLoadingScreen = ({
 }: AppLoadingScreenProps) => {
   return (
     <div
-      aria-label="Loading dream"
+      aria-label="Loading Dream"
       className="fixed inset-0 z-50 grid place-items-center bg-background"
       role="status"
     >

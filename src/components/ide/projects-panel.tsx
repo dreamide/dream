@@ -161,7 +161,7 @@ export const ProjectSidebar = ({
               return (
                 <div
                   className={cn(
-                    "group relative min-w-0 rounded-md border transition-colors",
+                    "group relative min-w-0 rounded-md border",
                     isActiveChat
                       ? "border-border bg-surface-50 dark:bg-surface-900"
                       : "border-transparent hover:bg-surface-50 dark:hover:bg-surface-900",
@@ -196,11 +196,11 @@ export const ProjectSidebar = ({
                         </p>
                       </div>
                     </div>
-                    <span className="-translate-y-1/2 absolute top-1/2 right-3 text-right text-muted-foreground text-xs transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
+                    <span className="-translate-y-1/2 absolute top-1/2 right-3 text-right text-muted-foreground text-xs group-hover:opacity-0 group-focus-within:opacity-0">
                       {formatLastActiveTime(lastActiveAt)}
                     </span>
                   </button>
-                  <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                     <Button
                       aria-label={`Delete ${chat.title}`}
                       className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-destructive"

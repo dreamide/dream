@@ -1,5 +1,5 @@
 /**
- * Hono-based API server for dream IDE.
+ * Hono-based API server for Dream IDE.
  *
  * Migrated from Next.js App Router route handlers.  Each route keeps the same
  * Request/Response contract so the renderer `fetch("/api/…")` calls work

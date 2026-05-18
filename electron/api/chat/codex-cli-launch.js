@@ -1,6 +1,6 @@
 export const getCodexCliSpawnErrorMessage = (error) => {
   if (error?.code === "ENOENT") {
-    return "Codex CLI not found. Install it or add it to PATH, then restart dream.";
+    return "Codex CLI not found. Install it or add it to PATH, then restart Dream.";
   }
 
   return error instanceof Error ? error.message : "Codex CLI request failed.";

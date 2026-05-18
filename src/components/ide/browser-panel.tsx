@@ -21,7 +21,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
-import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
@@ -444,7 +443,7 @@ const BrowserPanelImpl = ({
 
         <div className="relative mx-1.5 flex-1">
           <Input
-            className="h-7 rounded-full border-surface-200 dark:border-surface-800 bg-background px-3 text-xs focus:border-surface-300 dark:focus:border-surface-700"
+            className="h-7 rounded-full border-surface-200 dark:border-surface-800 bg-surface-100 dark:bg-surface-950 px-3 text-xs focus:border-surface-300 dark:focus:border-surface-700"
             disabled={!activeTab}
             onChange={(event) => {
               setBrowserUrlDraft(event.currentTarget.value);
@@ -474,11 +473,6 @@ const BrowserPanelImpl = ({
             className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
             ref={browserHostRef}
           />
-          {!browserVisible ? (
-            <div className="absolute inset-0 p-3">
-              <AppShellPlaceholder message="Enter a URL to show the live browser." />
-            </div>
-          ) : null}
           {browserVisible && browserResizeHidden ? (
             <div className="absolute inset-0 bg-background" />
           ) : null}

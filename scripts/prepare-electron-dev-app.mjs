@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
-const APP_NAME = "dream";
+const APP_NAME = "Dream";
 
 if (process.platform !== "darwin") {
   process.exit(0);
