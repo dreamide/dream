@@ -1,4 +1,4 @@
-import type { ChatStatus } from "ai";
+import type { ChatStatus, LanguageModelUsage } from "ai";
 import { Bot, MapIcon } from "lucide-react";
 import {
   type ChangeEventHandler,
@@ -477,7 +477,8 @@ export interface ChatComposerProps {
   allModelOptions: ChatPanelModelOption[];
   chatProvider: AiProvider;
   contextWindow: number;
-  estimatedUsedTokens: number;
+  contextUsage?: LanguageModelUsage;
+  contextUsedTokens: number;
   isActive: boolean;
   isProcessing: boolean;
   isProviderInstalled: boolean;
@@ -513,7 +514,8 @@ export const ChatComposer = ({
   allModelOptions,
   chatProvider,
   contextWindow,
-  estimatedUsedTokens,
+  contextUsage,
+  contextUsedTokens,
   isActive,
   isProcessing,
   isProviderInstalled,
@@ -1067,7 +1069,8 @@ export const ChatComposer = ({
                 <Context
                   maxTokens={contextWindow}
                   modelId={modelId}
-                  usedTokens={estimatedUsedTokens}
+                  usage={contextUsage}
+                  usedTokens={contextUsedTokens}
                 >
                   <ContextTrigger
                     className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"

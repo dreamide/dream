@@ -231,10 +231,20 @@ export const streamClaudeResponse = async ({
 
       writer.merge(
         textResult.toUIMessageStream({
-          messageMetadata: ({ part }) =>
-            part.type === "start" || part.type === "finish"
-              ? responseMessageMetadata
-              : undefined,
+          messageMetadata: ({ part }) => {
+            if (part.type === "finish") {
+              return {
+                ...responseMessageMetadata,
+                usage: part.totalUsage,
+              };
+            }
+
+            if (part.type === "start") {
+              return responseMessageMetadata;
+            }
+
+            return undefined;
+          },
           onError: (error) => {
             console.error("[chat stream error]", error);
             return formatStreamError(error);

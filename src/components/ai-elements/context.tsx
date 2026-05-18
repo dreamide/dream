@@ -133,8 +133,9 @@ export const ContextContentHeader = ({
   className,
   ...props
 }: ContextContentHeaderProps) => {
-  const { usedTokens, maxTokens } = useContextValue();
+  const { usedTokens, maxTokens, usage } = useContextValue();
   const usedPercent = usedTokens / maxTokens;
+  const usageLabel = usage ? "Exact" : "Estimated";
   const displayPct = new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 1,
     style: "percent",
@@ -150,7 +151,12 @@ export const ContextContentHeader = ({
     <div className={cn("w-full space-y-2 p-3", className)} {...props}>
       {children ?? (
         <>
-          <div className="text-muted-foreground text-xs">Context</div>
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="text-muted-foreground">Context</span>
+            <span className="font-medium text-muted-foreground">
+              {usageLabel}
+            </span>
+          </div>
           <div className="flex items-center justify-between gap-3 text-xs">
             <p>{displayPct}</p>
             <p className="font-mono text-muted-foreground">
@@ -306,7 +312,8 @@ export const ContextReasoningUsage = ({
   ...props
 }: ContextReasoningUsageProps) => {
   const { usage, modelId } = useContextValue();
-  const reasoningTokens = usage?.reasoningTokens ?? 0;
+  const reasoningTokens =
+    usage?.outputTokenDetails?.reasoningTokens ?? usage?.reasoningTokens ?? 0;
 
   if (children) {
     return children;
@@ -346,7 +353,8 @@ export const ContextCacheUsage = ({
   ...props
 }: ContextCacheUsageProps) => {
   const { usage, modelId } = useContextValue();
-  const cacheTokens = usage?.cachedInputTokens ?? 0;
+  const cacheTokens =
+    usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0;
 
   if (children) {
     return children;

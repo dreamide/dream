@@ -1,4 +1,4 @@
-import type { UIMessage } from "ai";
+import type { LanguageModelUsage, UIMessage } from "ai";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
@@ -20,6 +20,7 @@ export type ChatMessageMetadata = {
   remoteConversationModelSpeed?: string;
   remoteConversationProjectPath?: string;
   startedAt?: string;
+  usage?: LanguageModelUsage;
 };
 
 const parseMessageTime = (value: string | undefined) => {
@@ -122,9 +123,7 @@ export const MessageHoverFooter = ({
     { text: modelSpeedLabel, shimmer: false },
     { text: time, shimmer: isRunning },
     { text: duration, shimmer: false },
-  ].filter(
-    (item): item is { text: string; shimmer: boolean } => !!item.text,
-  );
+  ].filter((item): item is { text: string; shimmer: boolean } => !!item.text);
   const positionClassName =
     message.role === "user"
       ? "ml-auto justify-end text-right"
@@ -166,7 +165,7 @@ export const MessageHoverFooter = ({
       {footerItems.length > 0 ? (
         <span>
           {footerItems.map((item, i) => (
-            <Fragment key={i}>
+            <Fragment key={item.text}>
               {i > 0 ? " · " : null}
               {item.shimmer ? (
                 <Shimmer as="span" duration={2}>
