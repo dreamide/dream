@@ -20,6 +20,7 @@ import {
 const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
+const OPENCODE_LOW_COST_MODEL = "opencode-go/deepseek-v4-flash";
 
 const dedupeAndSort = (models) => {
   return dedupeModelOptions(models)
@@ -219,6 +220,8 @@ export const fetchOpenAiLowCostModel = async () => {
 
 export const fetchAnthropicLowCostModel = async () =>
   selectLowCostAnthropicModel(await fetchClaudeCodeModelOptionsFromModelsDev());
+
+export const fetchOpenCodeLowCostModel = async () => OPENCODE_LOW_COST_MODEL;
 
 export const fetchOpenCodeModels = async ({ force = false } = {}) => {
   const installed = await isCliCommandAvailable("opencode");

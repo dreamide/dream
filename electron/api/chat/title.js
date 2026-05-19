@@ -9,7 +9,7 @@ import {
 import {
   fetchAnthropicLowCostModel,
   fetchOpenAiLowCostModel,
-  fetchOpenCodeModels,
+  fetchOpenCodeLowCostModel,
 } from "../providers/provider-models.js";
 import {
   getCodexCliSpawnErrorMessage,
@@ -308,12 +308,7 @@ export const generateChatTitle = async ({
   }
 
   if (provider === "opencode") {
-    const models = (await fetchOpenCodeModels()).models ?? [];
-    const model =
-      models.find((option) => /free|flash|haiku|mini|nano/i.test(option.id))
-        ?.id ||
-      fallbackModel?.trim() ||
-      models[0]?.id;
+    const model = (await fetchOpenCodeLowCostModel()) || fallbackModel?.trim();
     if (!model) {
       throw new Error("No OpenCode title model is available.");
     }

@@ -10,7 +10,7 @@ import { getCodexErrorDetail } from "../chat/codex-prompt.js";
 import {
   fetchAnthropicLowCostModel,
   fetchOpenAiLowCostModel,
-  fetchOpenCodeModels,
+  fetchOpenCodeLowCostModel,
 } from "../providers/provider-models.js";
 import {
   getGitCommandErrorMessage,
@@ -399,12 +399,8 @@ const generateOpenCodeCommitMessage = async ({
       }
     };
 
-    void fetchOpenCodeModels()
-      .then((result) => {
-        const model =
-          result.models.find((option) =>
-            /free|flash|haiku|mini|nano/i.test(option.id),
-          )?.id ?? result.models[0]?.id;
+    void fetchOpenCodeLowCostModel()
+      .then((model) => {
         if (!model) {
           throw new Error("No OpenCode commit message model is available.");
         }

@@ -581,6 +581,8 @@ export const ChatPanel = ({
       (option) => option.value === selectedReasoningEffort,
     )?.label ??
     "Reasoning";
+  const selectedReasoningLabelForMetadata =
+    availableReasoningEfforts.length > 0 ? selectedReasoningLabel : undefined;
 
   const contextWindow = getModelContextWindow(selectedModel);
   const fallbackEstimatedTokens = useMemo(() => {
@@ -707,7 +709,9 @@ export const ChatPanel = ({
           ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
           : {}),
         reasoningEffort: selectedReasoningEffort,
-        reasoningLabel: selectedReasoningLabel,
+        ...(selectedReasoningLabelForMetadata
+          ? { reasoningLabel: selectedReasoningLabelForMetadata }
+          : {}),
         startedAt: submittedAt,
       };
       resetPromptHistory();
@@ -778,7 +782,9 @@ export const ChatPanel = ({
                 : {}),
               projectReferences,
               reasoningEffort: selectedReasoningEffort,
-              reasoningLabel: selectedReasoningLabel,
+              ...(selectedReasoningLabelForMetadata
+                ? { reasoningLabel: selectedReasoningLabelForMetadata }
+                : {}),
             },
             text: prompt.text,
           },
@@ -798,7 +804,9 @@ export const ChatPanel = ({
                 ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
                 : {}),
               reasoningEffort: selectedReasoningEffort,
-              reasoningLabel: selectedReasoningLabel,
+              ...(selectedReasoningLabelForMetadata
+                ? { reasoningLabel: selectedReasoningLabelForMetadata }
+                : {}),
               remoteConversationId: chat.remoteConversationId,
               remoteConversationModel: chat.remoteConversationModel,
               remoteConversationModelSpeed: chat.remoteConversationModelSpeed,
@@ -831,7 +839,7 @@ export const ChatPanel = ({
       selectedModelSpeed,
       selectedModelSpeedLabelForMetadata,
       selectedReasoningEffort,
-      selectedReasoningLabel,
+      selectedReasoningLabelForMetadata,
       sendMessage,
       setChatTitleGenerating,
       scrollConversationToBottom,
