@@ -59,6 +59,7 @@ const BranchSwitcherImpl = ({
   const {
     branches,
     checkoutBranch,
+    clearError,
     currentBranch,
     error,
     isRepo,
@@ -93,10 +94,11 @@ const BranchSwitcherImpl = ({
       return;
     }
 
+    clearError();
     setCreateMode(false);
     setSearchValue("");
     setCreateBranchName("");
-  }, [open]);
+  }, [clearError, open]);
 
   const handleCheckout = useCallback(
     async (branchName: string, create = false) => {
@@ -319,6 +321,7 @@ const BranchSwitcherImpl = ({
                   className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm text-foreground hover:bg-muted"
                   disabled={loading || switching}
                   onClick={() => {
+                    clearError();
                     setOpen(false);
                     onCreateWorktree();
                   }}

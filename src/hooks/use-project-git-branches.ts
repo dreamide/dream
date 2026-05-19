@@ -182,9 +182,23 @@ export const useProjectGitBranches = (
     [cacheKey, projectPath, refreshToken],
   );
 
+  const clearError = useCallback(() => {
+    setError(null);
+    if (cacheKey) {
+      const cached = gitBranchesCache.get(cacheKey);
+      if (cached?.refreshToken === refreshToken && cached.error) {
+        gitBranchesCache.set(cacheKey, {
+          ...cached,
+          error: null,
+        });
+      }
+    }
+  }, [cacheKey, refreshToken]);
+
   return {
     branches: status?.branches ?? [],
     checkoutBranch,
+    clearError,
     currentBranch: status?.currentBranch ?? null,
     error,
     isRepo: status?.isRepo ?? false,
