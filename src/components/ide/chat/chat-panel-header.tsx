@@ -1,5 +1,6 @@
 import { Ellipsis, FilePenLine, Trash2, X } from "lucide-react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -8,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
 export interface ChatPanelHeaderProps {
@@ -20,6 +22,7 @@ export interface ChatPanelHeaderProps {
   onDeleteChat: () => void;
   onEditChat: () => void;
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onRenameChat?: (title: string) => void;
   title: string;
 }
 
@@ -33,10 +36,41 @@ export const ChatPanelHeader = ({
   onDeleteChat,
   onEditChat,
   onHeaderPointerDown,
+  onRenameChat,
   title,
 }: ChatPanelHeaderProps) => {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(title);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const titleText =
     isTitleGenerating && title.trim().toLowerCase() === "new chat" ? "" : title;
+
+  useEffect(() => {
+    if (!editingTitle) {
+      setDraftTitle(title);
+    }
+  }, [editingTitle, title]);
+
+  useEffect(() => {
+    if (!editingTitle) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingTitle]);
+
+  const commitRename = useCallback(() => {
+    const nextTitle = draftTitle.trim();
+    if (nextTitle) {
+      onRenameChat?.(nextTitle);
+    }
+    setEditingTitle(false);
+  }, [draftTitle, onRenameChat]);
 
   return (
     <div className="shrink-0 px-2 pt-2">
@@ -45,10 +79,48 @@ export const ChatPanelHeader = ({
         onPointerDown={onHeaderPointerDown}
       >
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-h-6 min-w-0 items-center gap-2">
             {isTitleGenerating ? <Spinner className="size-3 shrink-0" /> : null}
-            {titleText ? (
-              <p className="truncate font-medium text-sm">{titleText}</p>
+            {editingTitle ? (
+              <Input
+                ref={inputRef}
+                className="h-6 min-w-0 flex-1 rounded-none border-0 border-b border-surface-300 bg-transparent px-0 py-0 font-medium text-sm leading-5 shadow-none focus-visible:ring-0 dark:border-surface-700"
+                onBlur={commitRename}
+                onChange={(event) => setDraftTitle(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitRename();
+                  }
+
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setDraftTitle(title);
+                    setEditingTitle(false);
+                  }
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                value={draftTitle}
+              />
+            ) : titleText ? (
+              <button
+                className="block h-6 min-w-0 flex-1 truncate border-b border-transparent p-0 text-left font-medium text-sm leading-5"
+                onDoubleClick={(event) => {
+                  if (!onRenameChat) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDraftTitle(title);
+                  setEditingTitle(true);
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                title="Double-click to rename"
+                type="button"
+              >
+                {titleText}
+              </button>
             ) : null}
           </div>
         </div>

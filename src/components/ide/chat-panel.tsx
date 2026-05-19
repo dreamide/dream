@@ -899,6 +899,9 @@ export const ChatPanel = ({
             onDeleteChat={() => deleteChat(chat.id)}
             onEditChat={handleEditChat}
             onHeaderPointerDown={onHeaderPointerDown}
+            onRenameChat={(title) =>
+              updateChat(chat.id, (current) => ({ ...current, title }))
+            }
             title={chat.title}
           />
         ) : null}
