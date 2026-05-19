@@ -15,6 +15,7 @@ import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
+import { ProjectStatusBar } from "./project-status-bar";
 import { ProjectWorkspace } from "./project-workspace";
 import { SettingsDialog } from "./settings-dialog";
 
@@ -28,6 +29,8 @@ export const IdeShell = () => {
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
+  const activeProject =
+    projects.find((project) => project.id === activeProjectId) ?? null;
 
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
@@ -393,6 +396,7 @@ export const IdeShell = () => {
         )}
       </div>
 
+      <ProjectStatusBar project={activeProject} />
       <SettingsDialog />
     </div>
   );

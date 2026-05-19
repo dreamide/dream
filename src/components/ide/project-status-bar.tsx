@@ -1,4 +1,4 @@
-import { ExternalLink, FolderGit2, Trash2 } from "lucide-react";
+import { ExternalLink, FolderGit2, Settings, Trash2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -300,35 +300,62 @@ const WorktreeMenu = ({ project }: { project: ProjectConfig }) => {
   );
 };
 
-export const ProjectStatusBar = ({ project }: { project: ProjectConfig }) => {
-  const gitRefreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
+export const ProjectStatusBar = ({
+  project,
+}: {
+  project: ProjectConfig | null;
+}) => {
+  const gitRefreshKey = useIdeStore((s) =>
+    project ? (s.projectGitRefreshKeys[project.id] ?? 0) : 0,
   );
-  const { branch, isRepo } = useProjectGitStatus(project.path, gitRefreshKey);
+  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
+  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+  const { branch, isRepo } = useProjectGitStatus(project?.path, gitRefreshKey);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
+  const openSettings = () => {
+    setSettingsSection("appearance");
+    setSettingsOpen(true);
+  };
 
   return (
     <>
-      <div className="flex min-h-9 shrink-0 items-center justify-end gap-2 px-3 text-xs">
-        {project.worktree ? (
-          <WorktreeMenu project={project} />
-        ) : (
-          <BranchSwitcher
-            onCreateWorktree={
-              isRepo ? () => setCreateWorktreeOpen(true) : undefined
-            }
-            projectId={project.id}
-            projectPath={project.path}
-          />
-        )}
+      <div className="flex min-h-9 shrink-0 items-center gap-2 pr-3 pl-2 text-xs">
+        <Button
+          aria-label="Settings"
+          className="size-8 text-muted-foreground hover:text-foreground"
+          onClick={openSettings}
+          size="icon"
+          title="Settings"
+          variant="ghost"
+        >
+          <Settings className="size-4" />
+        </Button>
+
+        <div className="flex min-w-0 flex-1 justify-end">
+          {project ? (
+            project.worktree ? (
+              <WorktreeMenu project={project} />
+            ) : (
+              <BranchSwitcher
+                onCreateWorktree={
+                  isRepo ? () => setCreateWorktreeOpen(true) : undefined
+                }
+                projectId={project.id}
+                projectPath={project.path}
+              />
+            )
+          ) : null}
+        </div>
       </div>
 
-      <CreateWorktreeDialog
-        baseRef={branch}
-        onOpenChange={setCreateWorktreeOpen}
-        open={createWorktreeOpen}
-        project={project}
-      />
+      {project ? (
+        <CreateWorktreeDialog
+          baseRef={branch}
+          onOpenChange={setCreateWorktreeOpen}
+          open={createWorktreeOpen}
+          project={project}
+        />
+      ) : null}
     </>
   );
 };

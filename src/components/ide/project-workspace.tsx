@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import type { RightPanelView } from "./ide-types";
-import { ProjectStatusBar } from "./project-status-bar";
 import { moveTabItem } from "./standard-tabs";
 import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
@@ -546,86 +545,82 @@ const ProjectWorkspaceComponent = ({
     : Number.MAX_SAFE_INTEGER;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div
+      className="relative flex h-full overflow-hidden"
+      ref={horizontalPanelsRef}
+    >
+      <WorkspaceSideNav
+        historyButtonRef={historyButtonRef}
+        historyOpen={historyOpen}
+        multiChat={multiChat}
+        onAddChat={handleAddChat}
+        onToggleMultiChat={handleToggleMultiChat}
+        onToggleHistory={handleToggleHistory}
+      />
+
+      <WorkspaceHistoryPanel
+        active={active}
+        historyOpen={historyOpen}
+        historyPanelRef={historyPanelRef}
+        historyPanelWidth={historyPanelWidth}
+        onChatSelect={closeHistoryPanel}
+        onResizeEnd={handleHistoryResizeEnd}
+        project={project}
+      />
+
+      {/* ─── MIDDLE: Chat ─── */}
       <div
-        className="relative flex min-h-0 flex-1 overflow-hidden"
-        ref={horizontalPanelsRef}
+        className="min-w-0 flex-1"
+        style={{
+          minWidth: middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0,
+          display: middleVisible ? undefined : "none",
+        }}
       >
-        <WorkspaceSideNav
-          historyButtonRef={historyButtonRef}
-          historyOpen={historyOpen}
-          multiChat={multiChat}
-          onAddChat={handleAddChat}
-          onToggleMultiChat={handleToggleMultiChat}
-          onToggleHistory={handleToggleHistory}
-        />
-
-        <WorkspaceHistoryPanel
-          active={active}
-          historyOpen={historyOpen}
-          historyPanelRef={historyPanelRef}
-          historyPanelWidth={historyPanelWidth}
-          onChatSelect={closeHistoryPanel}
-          onResizeEnd={handleHistoryResizeEnd}
-          project={project}
-        />
-
-        {/* ─── MIDDLE: Chat ─── */}
-        <div
-          className="min-w-0 flex-1"
-          style={{
-            minWidth: middleVisible ? CHAT_PANEL_MIN_WIDTH_PX : 0,
-            display: middleVisible ? undefined : "none",
-          }}
-        >
-          <div className="flex h-full w-full flex-col rounded-lg">
-            <WorkspaceChatStack
-              active={active}
-              activeChatId={activeChatId}
-              chatColumnWidths={chatColumnWidths}
-              mountedChats={mountedChats}
-              onActivateChat={handleActivateChat}
-              onChatColumnWidthsChange={handleChatColumnWidthsChange}
-              onCloseChat={handleCloseChat}
-              onChatReorder={handleChatReorder}
-              openChatIds={openChatIds}
-              project={project}
-            />
-          </div>
+        <div className="flex h-full w-full flex-col rounded-lg">
+          <WorkspaceChatStack
+            active={active}
+            activeChatId={activeChatId}
+            chatColumnWidths={chatColumnWidths}
+            mountedChats={mountedChats}
+            onActivateChat={handleActivateChat}
+            onChatColumnWidthsChange={handleChatColumnWidthsChange}
+            onCloseChat={handleCloseChat}
+            onChatReorder={handleChatReorder}
+            openChatIds={openChatIds}
+            project={project}
+          />
         </div>
-
-        {/* ─── RIGHT: Browser / Explorer ─── */}
-        <WorkspaceRightPanel
-          active={active}
-          browserHostRef={browserHostRef}
-          browserResizeHidden={browserResizeHidden}
-          handleVisible={middleVisible}
-          maxWidth={boundedRightPanelMaxWidth}
-          onResizeEnd={handleRightResizeEndWithBrowserSync}
-          onResizeStart={hideBrowserForRightResize}
-          onSyncBrowserBounds={syncBrowserBounds}
-          onToggleRightPanel={handleToggleRightPanel}
-          open={rightVisible}
-          project={project}
-          rightPanelRef={rightPanelRef}
-          rightPanelTransition={rightPanelTransition}
-          rightPanelView={rightPanelView}
-          width={rightWidthRef.current}
-          widthRef={rightWidthRef}
-        />
-
-        <WorkspaceRightRail
-          onOpenTerminal={handleOpenTerminal}
-          onSelectRightPanelView={handleSelectRightPanelView}
-          projectId={projectId}
-          projectPath={project.path}
-          rightPanelView={rightPanelView}
-          rightVisible={rightVisible}
-          terminalHiddenWithActiveSession={terminalHiddenWithActiveSession}
-        />
       </div>
 
-      <ProjectStatusBar project={project} />
+      {/* ─── RIGHT: Browser / Explorer ─── */}
+      <WorkspaceRightPanel
+        active={active}
+        browserHostRef={browserHostRef}
+        browserResizeHidden={browserResizeHidden}
+        handleVisible={middleVisible}
+        maxWidth={boundedRightPanelMaxWidth}
+        onResizeEnd={handleRightResizeEndWithBrowserSync}
+        onResizeStart={hideBrowserForRightResize}
+        onSyncBrowserBounds={syncBrowserBounds}
+        onToggleRightPanel={handleToggleRightPanel}
+        open={rightVisible}
+        project={project}
+        rightPanelRef={rightPanelRef}
+        rightPanelTransition={rightPanelTransition}
+        rightPanelView={rightPanelView}
+        width={rightWidthRef.current}
+        widthRef={rightWidthRef}
+      />
+
+      <WorkspaceRightRail
+        onOpenTerminal={handleOpenTerminal}
+        onSelectRightPanelView={handleSelectRightPanelView}
+        projectId={projectId}
+        projectPath={project.path}
+        rightPanelView={rightPanelView}
+        rightVisible={rightVisible}
+        terminalHiddenWithActiveSession={terminalHiddenWithActiveSession}
+      />
     </div>
   );
 };
