@@ -11,6 +11,7 @@ import {
 import {
   fetchAnthropicModels,
   fetchOpenAiModels,
+  fetchOpenCodeModels,
 } from "./providers/provider-models.js";
 import {
   fetchAnthropicUsageLimits,
@@ -32,13 +33,13 @@ export {
 };
 
 const providerUsageLimitsRequestSchema = z.object({
-  provider: z.enum(["openai", "anthropic"]),
+  provider: z.enum(["openai", "anthropic", "opencode"]),
 });
 
 const providerModelsRequestSchema = z
   .object({
     force: z.boolean().optional(),
-    provider: z.enum(["openai", "anthropic"]).optional(),
+    provider: z.enum(["openai", "anthropic", "opencode"]).optional(),
   })
   .optional();
 
@@ -58,20 +59,24 @@ export const registerProviderRoutes = (app) => {
 
     const force = parsed.data?.force ?? false;
     const provider = parsed.data?.provider;
-    const [openai, anthropic] =
+    const [openai, anthropic, opencode] =
       provider === "openai"
-        ? [await fetchOpenAiModels({ force }), null]
+        ? [await fetchOpenAiModels({ force }), null, null]
         : provider === "anthropic"
-          ? [null, await fetchAnthropicModels({ force })]
-          : await Promise.all([
-              fetchOpenAiModels({ force }),
-              fetchAnthropicModels({ force }),
-            ]);
+          ? [null, await fetchAnthropicModels({ force }), null]
+          : provider === "opencode"
+            ? [null, null, await fetchOpenCodeModels({ force })]
+            : await Promise.all([
+                fetchOpenAiModels({ force }),
+                fetchAnthropicModels({ force }),
+                fetchOpenCodeModels({ force }),
+              ]);
 
     return c.json({
       ...(anthropic ? { anthropic } : {}),
       fetchedAt: new Date().toISOString(),
       ...(openai ? { openai } : {}),
+      ...(opencode ? { opencode } : {}),
     });
   });
 
@@ -86,6 +91,16 @@ export const registerProviderRoutes = (app) => {
     const parsed = providerUsageLimitsRequestSchema.safeParse(rawBody);
     if (!parsed.success) {
       return c.text("Invalid usage limits request.", 400);
+    }
+
+    if (parsed.data.provider === "opencode") {
+      return c.json({
+        error:
+          "OpenCode usage limits are managed by the configured OpenCode provider.",
+        limits: [],
+        provider: "opencode",
+        status: "unavailable",
+      });
     }
 
     const result =

@@ -12,6 +12,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
+import openCodeLogo from "@/assets/opencode.svg";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -119,8 +120,13 @@ export const SettingsDialog = () => {
     () => getModelsForProvider("anthropic", settings),
     [settings],
   );
+  const openCodeModels = useMemo(
+    () => getModelsForProvider("opencode", settings),
+    [settings],
+  );
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
+  const availableOpenCodeModels = providerModels.opencode.models;
 
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
@@ -135,13 +141,19 @@ export const SettingsDialog = () => {
       ),
     [availableAnthropicModels, settings],
   );
+  const openCodeModelOptions = useMemo(
+    () =>
+      getModelOptionsForProvider("opencode", settings, availableOpenCodeModels),
+    [availableOpenCodeModels, settings],
+  );
   const groupedDefaultModelOptions = useMemo(
     () =>
       [
         { models: openAiModelOptions, provider: "openai" as const },
         { models: anthropicModelOptions, provider: "anthropic" as const },
+        { models: openCodeModelOptions, provider: "opencode" as const },
       ].filter((group) => group.models.length > 0),
-    [anthropicModelOptions, openAiModelOptions],
+    [anthropicModelOptions, openAiModelOptions, openCodeModelOptions],
   );
 
   const selectedDefaultModel = useMemo(() => {
@@ -225,6 +237,10 @@ export const SettingsDialog = () => {
   };
   const handleRefreshAnthropicProvider = () => {
     void refreshProviderModels({ force: true, provider: "anthropic" });
+  };
+
+  const handleRefreshOpenCodeProvider = () => {
+    void refreshProviderModels({ force: true, provider: "opencode" });
   };
 
   return (
@@ -454,12 +470,12 @@ export const SettingsDialog = () => {
 
                   {installedProviderCount === 0 ? (
                     <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
-                      Install Codex CLI or Claude Code CLI, then refresh this
-                      section.
+                      Install Codex CLI, Claude Code CLI, or OpenCode CLI, then
+                      refresh this section.
                     </p>
                   ) : null}
 
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3">
                     <ProviderStatusCard
                       action={
                         <Button
@@ -584,6 +600,73 @@ export const SettingsDialog = () => {
                                         "anthropic",
                                         model.id,
                                       );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label="Refresh OpenCode provider"
+                          disabled={providerModels.opencode.loading}
+                          onClick={handleRefreshOpenCodeProvider}
+                          size="icon-xs"
+                          title="Refresh OpenCode provider"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      error={providerModels.opencode.error}
+                      installed={providerModels.opencode.installed}
+                      label="OpenCode"
+                      logoSrc={openCodeLogo}
+                      loading={providerModels.opencode.loading}
+                      runtimeLabel="OpenCode CLI"
+                      version={providerModels.opencode.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {!providerModels.opencode.installed ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            Install OpenCode CLI to use OpenCode providers.
+                          </p>
+                        ) : availableOpenCodeModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            No CLI models available yet. Run opencode auth login
+                            or configure opencode.json, then refresh Providers.
+                          </p>
+                        ) : (
+                          availableOpenCodeModels.map((model) => {
+                            const isSelected = openCodeModels.includes(
+                              model.id,
+                            );
+
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel("opencode", model.id);
                                     }
                                   }}
                                 />

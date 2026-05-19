@@ -2,6 +2,7 @@ import { GaugeIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
+import openCodeLogo from "@/assets/opencode.svg";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -143,7 +144,12 @@ export const UsageLimitsPopover = ({
     error: null,
     loading: false,
   });
-  const logoSrc = provider === "anthropic" ? anthropicLogo : openAiLogo;
+  const logoSrc =
+    provider === "anthropic"
+      ? anthropicLogo
+      : provider === "opencode"
+        ? openCodeLogo
+        : openAiLogo;
   const now = Date.now();
   const limits = usageLimits.data?.limits ?? [];
 

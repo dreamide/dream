@@ -3,6 +3,7 @@ import { resolvePersistedProjectPath } from "../persisted-state.js";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCodexCliResponse } from "./chat/codex-cli-stream.js";
+import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
 import {
   chatRequestBodySchema,
   chatTitleRequestBodySchema,
@@ -56,6 +57,18 @@ const validateClaudeReady = async () => {
   return null;
 };
 
+const validateOpenCodeReady = async () => {
+  const openCodeInstalled = await isCliCommandAvailable("opencode");
+  if (!openCodeInstalled) {
+    return {
+      message: "OpenCode CLI is not installed or not available on PATH.",
+      status: 400,
+    };
+  }
+
+  return null;
+};
+
 export const registerChatRoutes = (app) => {
   app.post("/api/chat-title", async (c) => {
     let rawBody;
@@ -80,6 +93,11 @@ export const registerChatRoutes = (app) => {
       const codexError = await validateCodexReady();
       if (codexError) {
         return c.text(codexError.message, codexError.status);
+      }
+    } else if (provider === "opencode") {
+      const openCodeError = await validateOpenCodeReady();
+      if (openCodeError) {
+        return c.text(openCodeError.message, openCodeError.status);
       }
     } else {
       const claudeError = await validateClaudeReady();
@@ -120,6 +138,7 @@ export const registerChatRoutes = (app) => {
 
     const {
       chatId,
+      agentMode,
       claudePermissionMode,
       codexPermissionMode,
       messages,
@@ -198,6 +217,25 @@ export const registerChatRoutes = (app) => {
         remoteConversationModel,
         remoteConversationModelSpeed,
         remoteConversationProjectPath,
+        responseMessageMetadata,
+        systemPrompt: SYSTEM_PROMPT,
+      });
+    }
+
+    if (provider === "opencode") {
+      const openCodeError = await validateOpenCodeReady();
+      if (openCodeError) {
+        return c.text(openCodeError.message, openCodeError.status);
+      }
+
+      return streamOpenCodeResponse({
+        abortSignal: c.req.raw.signal,
+        agentMode,
+        codexPermissionMode,
+        messages,
+        model,
+        projectReferencesPrompt,
+        projectPath: resolvedProjectPath,
         responseMessageMetadata,
         systemPrompt: SYSTEM_PROMPT,
       });

@@ -1,7 +1,7 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
 
-export type AiProvider = "openai" | "anthropic";
+export type AiProvider = "openai" | "anthropic" | "opencode";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ModelSpeed = "standard" | "fast";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -81,6 +81,7 @@ export interface AppSettings {
   groupToolCalls: boolean;
   openAiSelectedModels: string[];
   anthropicSelectedModels: string[];
+  openCodeSelectedModels: string[];
   showReasoningSummaries: boolean;
   shellPath: string;
 }

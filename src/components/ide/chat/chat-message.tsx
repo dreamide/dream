@@ -8,8 +8,8 @@ import {
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
 import type { AiProvider } from "@/types/ide";
-import { AssistantMessagePart } from "../assistant-message-part";
 import { ChipAnimateProvider } from "../assistant-message/shared";
+import { AssistantMessagePart } from "../assistant-message-part";
 import { isChipToolPart } from "../assistant-message-tools";
 import { UserMessageContent } from "./message-content";
 import { MessageHoverFooter } from "./message-footer";
@@ -28,6 +28,7 @@ export type EditTarget = {
 export const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
+  opencode: "OpenCode",
 };
 
 export const CHAT_STREAM_UPDATE_THROTTLE_MS = 50;
@@ -132,94 +133,94 @@ export const ChatMessage = memo(
             </Sources>
           ) : null}
           <MessageContent className="w-full gap-3">
-          {(() => {
-            const elements: ReactNode[] = [];
-            const toolChipContext: ToolChipRenderContext = {
-              addToolApprovalResponse,
-              expandToolCalls,
-              messageId: message.id,
-              projectPath,
-            };
-            let chipGroup: ToolChipItem[] = [];
+            {(() => {
+              const elements: ReactNode[] = [];
+              const toolChipContext: ToolChipRenderContext = {
+                addToolApprovalResponse,
+                expandToolCalls,
+                messageId: message.id,
+                projectPath,
+              };
+              let chipGroup: ToolChipItem[] = [];
 
-            const flushChipGroup = () => {
-              if (chipGroup.length === 0) return;
-              const group = chipGroup;
-              elements.push(
-                groupToolCalls ? (
-                  <ToolCallGroup
-                    context={toolChipContext}
-                    group={group}
-                    key={`chip-group-${group[0].index}`}
-                  />
-                ) : (
-                  <ToolChipRow
-                    context={toolChipContext}
-                    group={group}
-                    key={`chip-group-${group[0].index}`}
-                  />
-                ),
-              );
-              chipGroup = [];
-            };
-
-            const isInvisiblePart = (
-              part: (typeof nonSourceParts)[number],
-              partIndex: number,
-            ) => {
-              if (part.type === "step-start") return true;
-              if (
-                part.type === "reasoning" &&
-                "text" in part &&
-                typeof part.text === "string" &&
-                part.text.trim().length === 0 &&
-                !(
-                  isStreaming &&
-                  isLastMessage &&
-                  partIndex === nonSourceParts.length - 1
-                )
-              )
-                return true;
-              if (
-                part.type === "text" &&
-                "text" in part &&
-                typeof part.text === "string" &&
-                part.text.trim().length === 0
-              )
-                return true;
-              return false;
-            };
-
-            for (let i = 0; i < nonSourceParts.length; i++) {
-              const part = nonSourceParts[i];
-              if (isChipToolPart(part)) {
-                chipGroup.push({ part, index: i });
-              } else if (isInvisiblePart(part, i)) {
-              } else {
-                flushChipGroup();
-                const isLastPart = i === nonSourceParts.length - 1;
-                const isPartStreaming =
-                  isStreaming && isLastMessage && isLastPart;
+              const flushChipGroup = () => {
+                if (chipGroup.length === 0) return;
+                const group = chipGroup;
                 elements.push(
-                  <AssistantMessagePart
-                    key={getMessagePartKey(
-                      message.id,
-                      part as Record<string, unknown>,
-                      i,
-                    )}
-                    isStreaming={isPartStreaming}
-                    onToolApproval={addToolApprovalResponse}
-                    part={part}
-                    projectPath={projectPath}
-                    showReasoningSummaries={showReasoningSummaries}
-                  />,
+                  groupToolCalls ? (
+                    <ToolCallGroup
+                      context={toolChipContext}
+                      group={group}
+                      key={`chip-group-${group[0].index}`}
+                    />
+                  ) : (
+                    <ToolChipRow
+                      context={toolChipContext}
+                      group={group}
+                      key={`chip-group-${group[0].index}`}
+                    />
+                  ),
                 );
-              }
-            }
+                chipGroup = [];
+              };
 
-            flushChipGroup();
-            return elements;
-          })()}
+              const isInvisiblePart = (
+                part: (typeof nonSourceParts)[number],
+                partIndex: number,
+              ) => {
+                if (part.type === "step-start") return true;
+                if (
+                  part.type === "reasoning" &&
+                  "text" in part &&
+                  typeof part.text === "string" &&
+                  part.text.trim().length === 0 &&
+                  !(
+                    isStreaming &&
+                    isLastMessage &&
+                    partIndex === nonSourceParts.length - 1
+                  )
+                )
+                  return true;
+                if (
+                  part.type === "text" &&
+                  "text" in part &&
+                  typeof part.text === "string" &&
+                  part.text.trim().length === 0
+                )
+                  return true;
+                return false;
+              };
+
+              for (let i = 0; i < nonSourceParts.length; i++) {
+                const part = nonSourceParts[i];
+                if (isChipToolPart(part)) {
+                  chipGroup.push({ part, index: i });
+                } else if (isInvisiblePart(part, i)) {
+                } else {
+                  flushChipGroup();
+                  const isLastPart = i === nonSourceParts.length - 1;
+                  const isPartStreaming =
+                    isStreaming && isLastMessage && isLastPart;
+                  elements.push(
+                    <AssistantMessagePart
+                      key={getMessagePartKey(
+                        message.id,
+                        part as Record<string, unknown>,
+                        i,
+                      )}
+                      isStreaming={isPartStreaming}
+                      onToolApproval={addToolApprovalResponse}
+                      part={part}
+                      projectPath={projectPath}
+                      showReasoningSummaries={showReasoningSummaries}
+                    />,
+                  );
+                }
+              }
+
+              flushChipGroup();
+              return elements;
+            })()}
           </MessageContent>
           <MessageHoverFooter
             isRunning={isActivelyStreaming}

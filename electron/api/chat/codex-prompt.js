@@ -408,6 +408,7 @@ export const buildCodexConversationPrompt = ({
   currentTurnProjectReferences,
   messages,
   projectPath,
+  runtimeDescription = "You are running through the real Codex CLI with native shell and git access.",
   systemPrompt,
 }) => {
   const transcript = messages
@@ -418,7 +419,7 @@ export const buildCodexConversationPrompt = ({
   return [
     systemPrompt,
     `Active project: ${projectPath}`,
-    "You are running through the real Codex CLI with native shell and git access.",
+    runtimeDescription,
     transcript ? `Conversation transcript:\n\n${transcript}` : null,
     currentTurnProjectReferences,
     currentTurnAttachments,

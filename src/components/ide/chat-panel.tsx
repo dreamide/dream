@@ -614,7 +614,9 @@ export const ChatPanel = ({
   const modelId =
     selectedProvider === "anthropic"
       ? `anthropic:${selectedModel}`
-      : `openai:${selectedModel}`;
+      : selectedProvider === "opencode"
+        ? `opencode:${selectedModel}`
+        : `openai:${selectedModel}`;
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
@@ -790,6 +792,7 @@ export const ChatPanel = ({
               projectId: submittedProject.id,
               projectPath: submittedProjectPath,
               provider: activeProvider,
+              agentMode: chat.agentMode,
               modelSpeed: selectedModelSpeed,
               ...(selectedModelSpeedLabelForMetadata
                 ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }

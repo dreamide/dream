@@ -22,6 +22,7 @@ const DEFAULT_PERSISTED_STATE = {
     expandToolCalls: false,
     groupToolCalls: false,
     openAiSelectedModels: [],
+    openCodeSelectedModels: [],
     showReasoningSummaries: true,
     shellPath: "",
   },
@@ -537,6 +538,14 @@ function saveStateToRelationalDatabase(database, state) {
     );
     writeConfig(
       database,
+      "settings.openCodeSelectedModels",
+      Array.isArray(settings.openCodeSelectedModels)
+        ? settings.openCodeSelectedModels
+        : [],
+      now,
+    );
+    writeConfig(
+      database,
       "settings.autoAcceptPermissions",
       settings.autoAcceptPermissions === true,
       now,
@@ -987,6 +996,11 @@ function loadStateFromRelationalDatabase(database) {
         config["settings.openAiSelectedModels"],
       )
         ? config["settings.openAiSelectedModels"]
+        : [],
+      openCodeSelectedModels: Array.isArray(
+        config["settings.openCodeSelectedModels"],
+      )
+        ? config["settings.openCodeSelectedModels"]
         : [],
       showReasoningSummaries:
         typeof config["settings.showReasoningSummaries"] === "boolean"

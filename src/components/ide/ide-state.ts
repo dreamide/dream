@@ -234,8 +234,12 @@ const normalizeChatColumnWidths = (value: unknown): Record<string, number> => {
   return widths;
 };
 
-const normalizeProvider = (value: unknown): "openai" | "anthropic" => {
-  return value === "anthropic" ? value : DEFAULT_PROVIDER;
+const normalizeProvider = (
+  value: unknown,
+): "openai" | "anthropic" | "opencode" => {
+  return value === "anthropic" || value === "opencode"
+    ? value
+    : DEFAULT_PROVIDER;
 };
 
 const normalizeProjectIcon = (value: unknown): ProjectConfig["icon"] => {
@@ -554,6 +558,11 @@ export const mergePersistedState = (
     openAiSelectedModels: dedupeModels(
       Array.isArray(rawSettings.openAiSelectedModels)
         ? rawSettings.openAiSelectedModels
+        : [],
+    ),
+    openCodeSelectedModels: dedupeModels(
+      Array.isArray(rawSettings.openCodeSelectedModels)
+        ? rawSettings.openCodeSelectedModels
         : [],
     ),
     showReasoningSummaries:

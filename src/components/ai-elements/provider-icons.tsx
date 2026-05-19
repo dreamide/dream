@@ -35,10 +35,31 @@ export const AnthropicIcon = ({ className, ...props }: IconProps) => (
   </svg>
 );
 
+export const OpenCodeIcon = ({ className, ...props }: IconProps) => (
+  <svg
+    className={cn("size-3.5", className)}
+    fill="none"
+    role="img"
+    viewBox="0 0 512 512"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <rect fill="currentColor" height="512" opacity="0.08" width="512" />
+    <path d="M320 224V352H192V224H320Z" fill="currentColor" opacity="0.25" />
+    <path
+      clipRule="evenodd"
+      d="M384 416H128V96H384V416ZM320 160H192V352H320V160Z"
+      fill="currentColor"
+      fillRule="evenodd"
+    />
+  </svg>
+);
+
 export const ProviderIcon = ({
   provider,
   ...props
 }: IconProps & { provider: AiProvider }) => {
   if (provider === "anthropic") return <AnthropicIcon {...props} />;
+  if (provider === "opencode") return <OpenCodeIcon {...props} />;
   return <OpenAiIcon {...props} />;
 };

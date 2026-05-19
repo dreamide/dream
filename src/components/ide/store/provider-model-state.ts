@@ -25,6 +25,14 @@ export const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
     source: "unavailable",
     version: null,
   },
+  opencode: {
+    error: null,
+    installed: false,
+    loading: false,
+    models: [],
+    source: "unavailable",
+    version: null,
+  },
 };
 
 export const toggleProviderModelInSettings = (
@@ -40,6 +48,21 @@ export const toggleProviderModelInSettings = (
     const nextSettings = {
       ...settings,
       openAiSelectedModels,
+    };
+    return {
+      ...nextSettings,
+      defaultModel: getPreferredDefaultModel(nextSettings),
+    };
+  }
+
+  if (provider === "opencode") {
+    const current = dedupeModels(settings.openCodeSelectedModels);
+    const openCodeSelectedModels = current.includes(model)
+      ? current.filter((value) => value !== model)
+      : [...current, model];
+    const nextSettings = {
+      ...settings,
+      openCodeSelectedModels,
     };
     return {
       ...nextSettings,
@@ -92,6 +115,19 @@ export const markProviderModelsLoading = (
           ? true
           : providerModels.openai.loading,
   },
+  opencode: {
+    ...providerModels.opencode,
+    error:
+      provider === undefined || provider === "opencode"
+        ? null
+        : providerModels.opencode.error,
+    loading:
+      provider === undefined
+        ? true
+        : provider === "opencode"
+          ? true
+          : providerModels.opencode.loading,
+  },
 });
 
 export const getProviderModelsFromResponse = (
@@ -120,11 +156,22 @@ export const getProviderModelsFromResponse = (
         version: payload.openai.version ?? null,
       }
     : previous.openai;
+  const opencode = payload.opencode
+    ? {
+        error: payload.opencode.error ?? null,
+        installed: payload.opencode.installed,
+        loading: false,
+        models: dedupeModelOptions(payload.opencode.models),
+        source: payload.opencode.source,
+        version: payload.opencode.version ?? null,
+      }
+    : previous.opencode;
 
   return {
     anthropic,
     fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
     openai,
+    opencode,
   };
 };
 
@@ -136,15 +183,22 @@ export const reconcileSettingsWithProviderModels = (
   const anthropicModelIds = providerModels.anthropic.models.map(
     (model) => model.id,
   );
+  const openCodeModelIds = providerModels.opencode.models.map(
+    (model) => model.id,
+  );
   const openAiSelectedModels = dedupeModels(
     settings.openAiSelectedModels,
   ).filter((model) => openAiModelIds.includes(model));
   const anthropicSelectedModels = dedupeModels(
     settings.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
   ).filter((model) => anthropicModelIds.includes(model));
+  const openCodeSelectedModels = dedupeModels(
+    settings.openCodeSelectedModels,
+  ).filter((model) => openCodeModelIds.includes(model));
   const nextSettings = {
     ...settings,
     anthropicSelectedModels,
+    openCodeSelectedModels,
     openAiSelectedModels,
   };
 
@@ -158,11 +212,15 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   a.defaultModel === b.defaultModel &&
   a.openAiSelectedModels.length === b.openAiSelectedModels.length &&
   a.anthropicSelectedModels.length === b.anthropicSelectedModels.length &&
+  a.openCodeSelectedModels.length === b.openCodeSelectedModels.length &&
   a.openAiSelectedModels.every(
     (model, index) => b.openAiSelectedModels[index] === model,
   ) &&
   a.anthropicSelectedModels.every(
     (model, index) => b.anthropicSelectedModels[index] === model,
+  ) &&
+  a.openCodeSelectedModels.every(
+    (model, index) => b.openCodeSelectedModels[index] === model,
   );
 
 export const getProviderModelsErrorState = (
@@ -188,5 +246,16 @@ export const getProviderModelsErrorState = (
       provider && provider !== "openai" ? providerModels.openai.error : message,
     loading:
       provider && provider !== "openai" ? providerModels.openai.loading : false,
+  },
+  opencode: {
+    ...providerModels.opencode,
+    error:
+      provider && provider !== "opencode"
+        ? providerModels.opencode.error
+        : message,
+    loading:
+      provider && provider !== "opencode"
+        ? providerModels.opencode.loading
+        : false,
   },
 });

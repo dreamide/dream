@@ -9,6 +9,7 @@ import {
 import {
   fetchAnthropicLowCostModel,
   fetchOpenAiLowCostModel,
+  fetchOpenCodeModels,
 } from "../providers/provider-models.js";
 import {
   getCodexCliSpawnErrorMessage,
@@ -194,6 +195,100 @@ const generateClaudeChatTitle = async ({ model, projectPath, promptText }) => {
   return sanitizeGeneratedChatTitle(result.text);
 };
 
+const generateOpenCodeChatTitle = ({ model, projectPath, promptText }) =>
+  new Promise((resolve, reject) => {
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+    const outputLines = [];
+
+    const handleStdoutChunk = (chunk) => {
+      stdoutBuffer += chunk.toString();
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        try {
+          const event = JSON.parse(trimmed);
+          const text =
+            event.type === "text" &&
+            event.part?.type === "text" &&
+            typeof event.part.text === "string"
+              ? event.part.text
+              : "";
+          if (text) {
+            outputLines.push(text);
+          }
+        } catch {
+          outputLines.push(trimmed);
+        }
+      }
+    };
+
+    const child = spawn(
+      "opencode",
+      [
+        "run",
+        "--format",
+        "json",
+        "--dir",
+        projectPath,
+        "--model",
+        model,
+        "--agent",
+        "plan",
+      ],
+      {
+        cwd: projectPath,
+        env: process.env,
+        shell: process.platform === "win32",
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
+
+    child.stdin.end(
+      [
+        CHAT_TITLE_SYSTEM_PROMPT,
+        "",
+        buildChatTitlePrompt(promptText).join("\n"),
+      ].join("\n"),
+    );
+    child.stdout.on("data", handleStdoutChunk);
+    child.stderr.on("data", (chunk) => {
+      stderrBuffer += chunk.toString();
+    });
+    child.on("error", (error) => {
+      reject(
+        new Error(
+          error instanceof Error
+            ? error.message
+            : "OpenCode CLI request failed.",
+        ),
+      );
+    });
+    child.on("close", (code) => {
+      if (stdoutBuffer.trim()) {
+        outputLines.push(stdoutBuffer.trim());
+      }
+
+      if (code === 0) {
+        resolve(sanitizeGeneratedChatTitle(outputLines.join(" ")));
+        return;
+      }
+
+      reject(
+        new Error(
+          stderrBuffer.trim() || `OpenCode CLI exited with code ${code}.`,
+        ),
+      );
+    });
+  });
+
 export const generateChatTitle = async ({
   fallbackModel,
   projectPath,
@@ -210,6 +305,19 @@ export const generateChatTitle = async ({
   if (provider === "anthropic") {
     const model = (await fetchAnthropicLowCostModel()) || "haiku";
     return generateClaudeChatTitle({ model, projectPath, promptText });
+  }
+
+  if (provider === "opencode") {
+    const models = (await fetchOpenCodeModels()).models ?? [];
+    const model =
+      models.find((option) => /free|flash|haiku|mini|nano/i.test(option.id))
+        ?.id ||
+      fallbackModel?.trim() ||
+      models[0]?.id;
+    if (!model) {
+      throw new Error("No OpenCode title model is available.");
+    }
+    return generateOpenCodeChatTitle({ model, projectPath, promptText });
   }
 
   const model = (await fetchOpenAiLowCostModel()) || fallbackModel?.trim();

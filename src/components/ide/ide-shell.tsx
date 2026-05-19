@@ -233,9 +233,11 @@ export const IdeShell = () => {
     const anthropicSelectedModels = dedupeModels(
       prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
     );
+    const openCodeSelectedModels = dedupeModels(prev.openCodeSelectedModels);
     const nextSettings = {
       ...prev,
       anthropicSelectedModels,
+      openCodeSelectedModels,
       openAiSelectedModels,
     };
     const defaultModel = getPreferredDefaultModel(nextSettings);
@@ -245,11 +247,15 @@ export const IdeShell = () => {
       defaultModel !== prev.defaultModel ||
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
+      openCodeSelectedModels.length !== prev.openCodeSelectedModels.length ||
       !openAiSelectedModels.every(
         (m, i) => prev.openAiSelectedModels[i] === m,
       ) ||
       !anthropicSelectedModels.every(
         (m, i) => prev.anthropicSelectedModels[i] === m,
+      ) ||
+      !openCodeSelectedModels.every(
+        (m, i) => prev.openCodeSelectedModels[i] === m,
       );
 
     if (changed) {

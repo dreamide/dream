@@ -1,4 +1,8 @@
-import { getCliVersion, isCliCommandAvailable } from "../shared/cli.js";
+import {
+  execCliCommand,
+  getCliVersion,
+  isCliCommandAvailable,
+} from "../shared/cli.js";
 import { readCodexAccessToken, readCodexModelsCache } from "./codex-auth.js";
 import {
   createModelOption,
@@ -21,6 +25,58 @@ const dedupeAndSort = (models) => {
   return dedupeModelOptions(models)
     .sort((a, b) => a.id.localeCompare(b.id))
     .reverse();
+};
+
+const ANSI_ESCAPE_PATTERN = new RegExp(
+  `${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`,
+  "g",
+);
+
+const stripAnsi = (value) =>
+  String(value ?? "").replace(ANSI_ESCAPE_PATTERN, "");
+
+const formatOpenCodeModelLabel = (id) => {
+  const [providerId, modelId] = id.split("/", 2);
+  if (!providerId || !modelId) {
+    return id;
+  }
+
+  const providerLabel = providerId
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map((part) =>
+      part.length <= 3
+        ? part.toUpperCase()
+        : part.charAt(0).toUpperCase() + part.slice(1),
+    )
+    .join(" ");
+  return `${providerLabel} / ${modelId}`;
+};
+
+const parseOpenCodeModelsOutput = (value) => {
+  const clean = stripAnsi(value);
+  const ids = new Set();
+  const modelPattern =
+    /(?:^|[\s│|])([a-zA-Z0-9][a-zA-Z0-9_.-]*\/[^\s│|,;"'`]+)/g;
+  while (true) {
+    const match = modelPattern.exec(clean);
+    if (!match) {
+      break;
+    }
+
+    const id = match[1]
+      .replace(/[)\]}.,:;]+$/g, "")
+      .replace(/^["'`]+|["'`]+$/g, "")
+      .trim();
+    if (!id || id.includes("://")) {
+      continue;
+    }
+    ids.add(id);
+  }
+
+  return Array.from(ids).map((id) =>
+    createModelOption("opencode", id, formatOpenCodeModelLabel(id)),
+  );
 };
 
 const createOpenAiModelOptionsFromCodexEntries = (entries) =>
@@ -163,6 +219,53 @@ export const fetchOpenAiLowCostModel = async () => {
 
 export const fetchAnthropicLowCostModel = async () =>
   selectLowCostAnthropicModel(await fetchClaudeCodeModelOptionsFromModelsDev());
+
+export const fetchOpenCodeModels = async ({ force = false } = {}) => {
+  const installed = await isCliCommandAvailable("opencode");
+  if (!installed) {
+    return {
+      error: "OpenCode CLI is not installed or not available on PATH.",
+      installed: false,
+      models: [],
+      source: "unavailable",
+      version: null,
+    };
+  }
+  const version = await getCliVersion("opencode", { force });
+
+  try {
+    const args = ["models", ...(force ? ["--refresh"] : [])];
+    const result = await execCliCommand("opencode", args, {
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    const models = dedupeAndSort(
+      parseOpenCodeModelsOutput(`${result.stdout}\n${result.stderr}`),
+    );
+    if (models.length === 0) {
+      return {
+        error:
+          "OpenCode returned no models. Run `opencode auth login` or configure opencode.json, then refresh.",
+        installed: true,
+        models: [],
+        source: "unavailable",
+        version,
+      };
+    }
+
+    return { installed: true, models, source: "cli", version };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch OpenCode models.",
+      installed: true,
+      models: [],
+      source: "unavailable",
+      version,
+    };
+  }
+};
 
 export const fetchAnthropicModels = async ({ force = false } = {}) => {
   const installed = await isCliCommandAvailable("claude");

@@ -60,6 +60,7 @@ export interface IdeState {
   providerModels: {
     openai: ProviderModelState;
     anthropic: ProviderModelState;
+    opencode: ProviderModelState;
     fetchedAt: string | null;
   };
 

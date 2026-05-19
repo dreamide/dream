@@ -45,6 +45,7 @@ export interface ProviderModelsResponse {
   fetchedAt: string;
   openai?: ProviderModelFetchResult;
   anthropic?: ProviderModelFetchResult;
+  opencode?: ProviderModelFetchResult;
 }
 
 export interface ProviderModelState {
@@ -138,16 +139,20 @@ export const normalizeModelSpeed = (value: unknown): ModelSpeed => {
     : "standard";
 };
 
-export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic"];
+export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "opencode"];
 
 export const getProviderLabel = (provider: AiProvider): string => {
   if (provider === "openai") return "OpenAI";
+  if (provider === "opencode") return "OpenCode";
   return "Anthropic";
 };
 
 export const getProviderDescription = (provider: AiProvider): string => {
   if (provider === "openai") {
     return "Uses the local Codex CLI for OpenAI models.";
+  }
+  if (provider === "opencode") {
+    return "Uses the local OpenCode CLI and its configured providers.";
   }
   return "Uses the local Claude Code CLI for Claude models.";
 };
@@ -161,6 +166,10 @@ export const getEnabledProviders = (settings: AppSettings): AiProvider[] => {
 
   if (settings.anthropicSelectedModels.length > 0) {
     providers.push("anthropic");
+  }
+
+  if (settings.openCodeSelectedModels.length > 0) {
+    providers.push("opencode");
   }
 
   return providers;

@@ -93,3 +93,30 @@ export const getCliVersion = async (commandName, { force = false } = {}) => {
 
   return promise;
 };
+
+export const execCliCommand = async (commandName, args = [], options = {}) => {
+  if (process.platform === "win32") {
+    const psArgs = [
+      "-NoProfile",
+      "-Command",
+      [
+        `$command = (Get-Command ${commandName} -ErrorAction Stop).Path`,
+        ["& $command", ...args.map((arg) => JSON.stringify(String(arg)))].join(
+          " ",
+        ),
+      ].join("; "),
+    ];
+
+    return execFileAsync("powershell.exe", psArgs, {
+      encoding: "utf8",
+      windowsHide: true,
+      ...options,
+    });
+  }
+
+  return execFileAsync(commandName, args, {
+    encoding: "utf8",
+    windowsHide: true,
+    ...options,
+  });
+};

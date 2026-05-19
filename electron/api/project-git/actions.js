@@ -10,6 +10,7 @@ import { getCodexErrorDetail } from "../chat/codex-prompt.js";
 import {
   fetchAnthropicLowCostModel,
   fetchOpenAiLowCostModel,
+  fetchOpenCodeModels,
 } from "../providers/provider-models.js";
 import {
   getGitCommandErrorMessage,
@@ -355,6 +356,123 @@ const generateCodexCommitMessage = async ({
       });
   });
 
+const generateOpenCodeCommitMessage = async ({
+  customInstructions,
+  diffText,
+  changes,
+  projectPath,
+}) =>
+  new Promise((resolve, reject) => {
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+    const outputLines = [];
+    const prompt = [
+      "You write concise, accurate git commit subjects. Return only the subject line.",
+      buildCommitMessagePrompt({ changes, customInstructions, diffText }),
+    ].join("\n\n");
+
+    const handleStdoutChunk = (chunk) => {
+      stdoutBuffer += chunk.toString();
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        try {
+          const event = JSON.parse(trimmed);
+          const text =
+            event.type === "text" &&
+            event.part?.type === "text" &&
+            typeof event.part.text === "string"
+              ? event.part.text
+              : "";
+          if (text) {
+            outputLines.push(text);
+          }
+        } catch {
+          outputLines.push(trimmed);
+        }
+      }
+    };
+
+    void fetchOpenCodeModels()
+      .then((result) => {
+        const model =
+          result.models.find((option) =>
+            /free|flash|haiku|mini|nano/i.test(option.id),
+          )?.id ?? result.models[0]?.id;
+        if (!model) {
+          throw new Error("No OpenCode commit message model is available.");
+        }
+
+        const child = spawn(
+          "opencode",
+          [
+            "run",
+            "--format",
+            "json",
+            "--dir",
+            projectPath,
+            "--model",
+            model,
+            "--agent",
+            "plan",
+          ],
+          {
+            cwd: projectPath,
+            env: process.env,
+            shell: process.platform === "win32",
+            stdio: ["pipe", "pipe", "pipe"],
+            windowsHide: true,
+          },
+        );
+
+        child.stdin.end(prompt);
+        child.stdout.on("data", handleStdoutChunk);
+        child.stderr.on("data", (chunk) => {
+          stderrBuffer += chunk.toString();
+        });
+        child.on("error", (error) => {
+          reject(
+            new Error(
+              error instanceof Error
+                ? error.message
+                : "OpenCode CLI request failed.",
+            ),
+          );
+        });
+        child.on("close", (code) => {
+          if (stdoutBuffer.trim()) {
+            outputLines.push(stdoutBuffer.trim());
+          }
+
+          if (code === 0) {
+            resolve(sanitizeGeneratedCommitMessage(outputLines.join(" ")));
+            return;
+          }
+
+          reject(
+            new Error(
+              stderrBuffer.trim() || `OpenCode CLI exited with code ${code}.`,
+            ),
+          );
+        });
+      })
+      .catch((error) => {
+        reject(
+          new Error(
+            error instanceof Error
+              ? error.message
+              : "OpenCode CLI request failed.",
+          ),
+        );
+      });
+  });
+
 const generateAiCommitMessage = async ({
   provider,
   customInstructions,
@@ -364,6 +482,15 @@ const generateAiCommitMessage = async ({
 }) => {
   if (provider === "anthropic") {
     return generateClaudeCommitMessage({
+      changes,
+      customInstructions,
+      diffText,
+      projectPath,
+    });
+  }
+
+  if (provider === "opencode") {
+    return generateOpenCodeCommitMessage({
       changes,
       customInstructions,
       diffText,
