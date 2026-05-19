@@ -298,10 +298,10 @@ const BranchSwitcherImpl = ({
 
             <CommandSeparator />
 
-            <div className="flex flex-col gap-1 p-2">
+            <div className="flex flex-col gap-1 p-1">
               <button
                 className={cn(
-                  "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
+                  "flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm",
                   loading || switching
                     ? "cursor-not-allowed text-surface-400 dark:text-surface-500"
                     : "text-foreground hover:bg-muted",
@@ -318,7 +318,7 @@ const BranchSwitcherImpl = ({
 
               {onCreateWorktree ? (
                 <button
-                  className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm text-foreground hover:bg-muted"
+                  className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
                   disabled={loading || switching}
                   onClick={() => {
                     clearError();
