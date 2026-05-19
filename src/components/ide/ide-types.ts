@@ -127,10 +127,16 @@ export const getPermissionModesForAgentMode = (
   };
 };
 
-export const normalizeReasoningEffort = (value: unknown): ReasoningEffort => {
+export const normalizeReasoningEffort = (
+  value: unknown,
+): ReasoningEffort | null => {
+  if (value === "medium") {
+    return null;
+  }
+
   return REASONING_EFFORT_OPTIONS.some((option) => option.value === value)
     ? (value as ReasoningEffort)
-    : "medium";
+    : null;
 };
 
 export const normalizeModelSpeed = (value: unknown): ModelSpeed => {

@@ -334,7 +334,7 @@ function buildProjectMetadata(project) {
     reasoningEffort:
       typeof project.reasoningEffort === "string"
         ? project.reasoningEffort
-        : "medium",
+        : null,
   };
   const browser = {
     ...getNestedRecord(metadata, "browser"),
@@ -454,9 +454,7 @@ function buildChatMetadata(chat) {
       typeof chat.modelSpeed === "string" ? chat.modelSpeed : "standard",
     provider: typeof chat.provider === "string" ? chat.provider : "openai",
     reasoningEffort:
-      typeof chat.reasoningEffort === "string"
-        ? chat.reasoningEffort
-        : "medium",
+      typeof chat.reasoningEffort === "string" ? chat.reasoningEffort : null,
   };
 
   return {
@@ -794,11 +792,7 @@ function loadStateFromRelationalDatabase(database) {
       name: row.name || getProjectName(row.path),
       path: row.path || "",
       provider: getNestedString(modelSelection, "provider", "openai"),
-      reasoningEffort: getNestedString(
-        modelSelection,
-        "reasoningEffort",
-        "medium",
-      ),
+      reasoningEffort: getNestedString(modelSelection, "reasoningEffort", null),
       runCommand: getNestedString(metadata, "runCommand", "pnpm dev"),
       worktree,
     };
@@ -876,11 +870,7 @@ function loadStateFromRelationalDatabase(database) {
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
       projectId: row.project_id,
       provider: getNestedString(modelSelection, "provider", "openai"),
-      reasoningEffort: getNestedString(
-        modelSelection,
-        "reasoningEffort",
-        "medium",
-      ),
+      reasoningEffort: getNestedString(modelSelection, "reasoningEffort", null),
       remoteConversationId: getNestedNullableString(remoteConversation, "id"),
       remoteConversationModel: getNestedNullableString(
         remoteConversation,

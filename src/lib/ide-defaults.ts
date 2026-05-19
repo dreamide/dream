@@ -109,7 +109,7 @@ export const createProjectConfig = (
     path,
     browserUrl: "http://127.0.0.1:3000",
     provider: defaultSelection.provider,
-    reasoningEffort: "medium",
+    reasoningEffort: null,
     runCommand: "pnpm dev",
     ui: {
       ...DEFAULT_PROJECT_UI,
@@ -144,7 +144,10 @@ export const createChatConfig = (
     modelSpeed: overrides?.modelSpeed ?? project.modelSpeed,
     projectId: project.id,
     provider: overrides?.provider ?? project.provider,
-    reasoningEffort: overrides?.reasoningEffort ?? project.reasoningEffort,
+    reasoningEffort:
+      overrides && "reasoningEffort" in overrides
+        ? (overrides.reasoningEffort ?? null)
+        : project.reasoningEffort,
     remoteConversationId: null,
     remoteConversationModel: null,
     remoteConversationModelSpeed: null,

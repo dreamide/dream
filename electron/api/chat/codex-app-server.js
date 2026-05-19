@@ -586,7 +586,9 @@ export const streamCodexAppServerResponse = ({
             await sendRequest("turn/start", {
               approvalPolicy,
               approvalsReviewer: "user",
-              effort: getCodexReasoningEffort(reasoningEffort),
+              ...(reasoningEffort
+                ? { effort: getCodexReasoningEffort(reasoningEffort) }
+                : {}),
               input: [{ text: fullPrompt, text_elements: [], type: "text" }],
               model,
               sandboxPolicy: getCodexAppTurnSandboxPolicy({

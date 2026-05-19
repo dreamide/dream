@@ -170,7 +170,7 @@ export const registerChatRoutes = (app) => {
       modelLabel: modelLabel ?? model,
       modelSpeed,
       ...(modelSpeedLabel ? { modelSpeedLabel } : {}),
-      reasoningEffort,
+      ...(reasoningEffort ? { reasoningEffort } : {}),
       ...(reasoningLabel ? { reasoningLabel } : {}),
     };
     const projectReferencesPrompt =

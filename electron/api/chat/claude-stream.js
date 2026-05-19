@@ -191,7 +191,7 @@ export const streamClaudeResponse = async ({
         ? { allowDangerouslySkipPermissions: true }
         : {}),
       ...(usesReasoningModel
-        ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort] }
+        ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort ?? "medium"] }
         : {}),
     });
 

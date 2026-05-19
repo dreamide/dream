@@ -34,7 +34,8 @@ export const chatRequestBodySchema = z.object({
   modelSpeedLabel: z.string().min(1).optional(),
   reasoningEffort: z
     .enum(["low", "medium", "high", "xhigh", "max"])
-    .default("medium"),
+    .nullable()
+    .optional(),
   reasoningLabel: z.string().min(1).optional(),
   chatId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),

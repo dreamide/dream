@@ -109,7 +109,7 @@ export const getCodexAppApprovalPolicy = (codexPermissionMode) => {
 };
 
 export const getCodexReasoningEffort = (reasoningEffort) =>
-  reasoningEffort === "max" ? "xhigh" : reasoningEffort;
+  reasoningEffort === "max" ? "xhigh" : (reasoningEffort ?? "medium");
 
 export const chooseCodexApprovalDecision = ({
   approved,

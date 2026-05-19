@@ -567,22 +567,26 @@ export const ChatPanel = ({
   );
   const selectedReasoningEffort =
     availableReasoningEfforts.length === 0
-      ? normalizedChatReasoningEffort
-      : availableReasoningEfforts.includes(normalizedChatReasoningEffort)
+      ? null
+      : normalizedChatReasoningEffort &&
+          availableReasoningEfforts.includes(normalizedChatReasoningEffort)
         ? normalizedChatReasoningEffort
         : availableReasoningEfforts.includes("medium")
           ? "medium"
           : availableReasoningEfforts[0];
+  const selectedReasoningEffortForControl = selectedReasoningEffort ?? "medium";
   const selectedReasoningLabel =
-    reasoningEffortOptions.find(
-      (option) => option.value === selectedReasoningEffort,
-    )?.label ??
-    REASONING_EFFORT_OPTIONS.find(
-      (option) => option.value === selectedReasoningEffort,
-    )?.label ??
-    "Reasoning";
+    selectedReasoningEffort === null
+      ? "Reasoning"
+      : (reasoningEffortOptions.find(
+          (option) => option.value === selectedReasoningEffort,
+        )?.label ??
+        REASONING_EFFORT_OPTIONS.find(
+          (option) => option.value === selectedReasoningEffort,
+        )?.label ??
+        "Reasoning");
   const selectedReasoningLabelForMetadata =
-    availableReasoningEfforts.length > 0 ? selectedReasoningLabel : undefined;
+    selectedReasoningEffort !== null ? selectedReasoningLabel : undefined;
 
   const contextWindow = getModelContextWindow(selectedModel);
   const fallbackEstimatedTokens = useMemo(() => {
@@ -708,7 +712,9 @@ export const ChatPanel = ({
         ...(selectedModelSpeedLabelForMetadata
           ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
           : {}),
-        reasoningEffort: selectedReasoningEffort,
+        ...(selectedReasoningEffort
+          ? { reasoningEffort: selectedReasoningEffort }
+          : {}),
         ...(selectedReasoningLabelForMetadata
           ? { reasoningLabel: selectedReasoningLabelForMetadata }
           : {}),
@@ -781,7 +787,9 @@ export const ChatPanel = ({
                 ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
                 : {}),
               projectReferences,
-              reasoningEffort: selectedReasoningEffort,
+              ...(selectedReasoningEffort
+                ? { reasoningEffort: selectedReasoningEffort }
+                : {}),
               ...(selectedReasoningLabelForMetadata
                 ? { reasoningLabel: selectedReasoningLabelForMetadata }
                 : {}),
@@ -803,7 +811,9 @@ export const ChatPanel = ({
               ...(selectedModelSpeedLabelForMetadata
                 ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
                 : {}),
-              reasoningEffort: selectedReasoningEffort,
+              ...(selectedReasoningEffort
+                ? { reasoningEffort: selectedReasoningEffort }
+                : {}),
               ...(selectedReasoningLabelForMetadata
                 ? { reasoningLabel: selectedReasoningLabelForMetadata }
                 : {}),
@@ -995,6 +1005,7 @@ export const ChatPanel = ({
               model: nextOption.id,
               modelSpeed: "standard",
               provider: nextOption.provider,
+              reasoningEffort: null,
               remoteConversationId: null,
               remoteConversationModel: null,
               remoteConversationModelSpeed: null,
@@ -1016,7 +1027,8 @@ export const ChatPanel = ({
           onReasoningEffortChange={(reasoningEffort) => {
             updateChat(chat.id, (current) => ({
               ...current,
-              reasoningEffort,
+              reasoningEffort:
+                reasoningEffort === "medium" ? null : reasoningEffort,
             }));
           }}
           onStop={stop}
@@ -1033,7 +1045,7 @@ export const ChatPanel = ({
           selectedModelSpeed={selectedModelSpeed}
           selectedModelSpeedLabel={selectedModelSpeedLabel}
           selectedProvider={selectedProvider}
-          selectedReasoningEffort={selectedReasoningEffort}
+          selectedReasoningEffort={selectedReasoningEffortForControl}
           selectedReasoningLabel={selectedReasoningLabel}
           status={status}
         />

@@ -20,7 +20,7 @@ export interface ChatConfig {
   provider: AiProvider;
   model: string;
   modelSpeed: ModelSpeed;
-  reasoningEffort: ReasoningEffort;
+  reasoningEffort: ReasoningEffort | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -51,7 +51,7 @@ export interface ProjectConfig {
   provider: AiProvider;
   model: string;
   modelSpeed: ModelSpeed;
-  reasoningEffort: ReasoningEffort;
+  reasoningEffort: ReasoningEffort | null;
   ui: ProjectUiState;
   worktree: ProjectWorktreeInfo | null;
 }

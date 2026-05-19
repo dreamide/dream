@@ -96,7 +96,11 @@ export const MessageHoverFooter = ({
   const modelSpeedLabel = isClaudeMessageMetadata(metadata)
     ? undefined
     : metadata?.modelSpeedLabel;
-  const reasoningLabel = metadata?.reasoningLabel;
+  const reasoningLabel =
+    metadata?.reasoningLabel &&
+    metadata.reasoningLabel !== metadata.reasoningEffort
+      ? metadata.reasoningLabel
+      : undefined;
   const durationStartedAt =
     getMessageTimestamp(metadata?.startedAt) ??
     getMessageTimestamp(metadata?.createdAt);
