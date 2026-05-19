@@ -308,7 +308,8 @@ export const generateChatTitle = async ({
   }
 
   if (provider === "opencode") {
-    const model = (await fetchOpenCodeLowCostModel()) || fallbackModel?.trim();
+    const model =
+      (await fetchOpenCodeLowCostModel(fallbackModel)) || fallbackModel?.trim();
     if (!model) {
       throw new Error("No OpenCode title model is available.");
     }

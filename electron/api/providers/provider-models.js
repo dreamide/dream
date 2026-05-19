@@ -21,6 +21,7 @@ const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
 const OPENCODE_LOW_COST_MODEL = "opencode-go/deepseek-v4-flash";
+const OPENCODE_ZEN_LOW_COST_MODEL = "opencode/claude-haiku-4-5";
 
 const dedupeAndSort = (models) => {
   return dedupeModelOptions(models)
@@ -221,7 +222,14 @@ export const fetchOpenAiLowCostModel = async () => {
 export const fetchAnthropicLowCostModel = async () =>
   selectLowCostAnthropicModel(await fetchClaudeCodeModelOptionsFromModelsDev());
 
-export const fetchOpenCodeLowCostModel = async () => OPENCODE_LOW_COST_MODEL;
+export const fetchOpenCodeLowCostModel = async (selectedModel) => {
+  const model = typeof selectedModel === "string" ? selectedModel.trim() : "";
+  if (model.toLowerCase().startsWith("opencode/")) {
+    return OPENCODE_ZEN_LOW_COST_MODEL;
+  }
+
+  return OPENCODE_LOW_COST_MODEL;
+};
 
 export const fetchOpenCodeModels = async ({ force = false } = {}) => {
   const installed = await isCliCommandAvailable("opencode");
