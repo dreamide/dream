@@ -232,7 +232,6 @@ export const createProjectLifecycleActions = (
     options: {
       baseRef?: string | null;
       branchName: string;
-      worktreePath?: string | null;
     },
   ) => {
     const parentProject = get().projects.find(
@@ -247,7 +246,6 @@ export const createProjectLifecycleActions = (
         baseRef: options.baseRef ?? null,
         branchName: options.branchName,
         projectPath: parentProject.path,
-        worktreePath: options.worktreePath ?? null,
       }),
       headers: { "Content-Type": "application/json" },
       method: "POST",

@@ -1,4 +1,11 @@
-import { Check, ChevronDown, GitBranch, Plus, RotateCw } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  GitBranch,
+  GitBranchPlus,
+  Plus,
+  RotateCw,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,11 +40,13 @@ const matchesBranchName = (left: string, right: string) =>
   ) === 0;
 
 interface BranchSwitcherProps {
+  onCreateWorktree?: () => void;
   projectId: string;
   projectPath: string;
 }
 
 const BranchSwitcherImpl = ({
+  onCreateWorktree,
   projectId,
   projectPath,
 }: BranchSwitcherProps) => {
@@ -216,6 +225,22 @@ const BranchSwitcherImpl = ({
           </form>
         ) : (
           <Command shouldFilter>
+            {onCreateWorktree ? (
+              <div className="border-surface-200 border-b p-2 dark:border-surface-800">
+                <button
+                  className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                  disabled={loading || switching}
+                  onClick={() => {
+                    setOpen(false);
+                    onCreateWorktree();
+                  }}
+                  type="button"
+                >
+                  <GitBranchPlus className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">New worktree</span>
+                </button>
+              </div>
+            ) : null}
             <CommandInput
               onValueChange={setSearchValue}
               placeholder="Search branches"

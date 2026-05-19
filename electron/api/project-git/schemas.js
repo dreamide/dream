@@ -39,7 +39,6 @@ export const projectGitCreateWorktreeRequestSchema = z.object({
   baseRef: z.string().trim().optional().nullable(),
   branchName: z.string().min(1),
   projectPath: z.string().min(1),
-  worktreePath: z.string().trim().optional().nullable(),
 });
 
 export const projectGitRemoveWorktreeRequestSchema = z.object({

@@ -79,7 +79,6 @@ export interface IdeState {
     options: {
       baseRef?: string | null;
       branchName: string;
-      worktreePath?: string | null;
     },
   ) => Promise<string | null>;
   closeProject: (projectId: string) => void;

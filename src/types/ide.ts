@@ -247,7 +247,6 @@ export interface ProjectGitCreateWorktreeRequest {
   baseRef?: string | null;
   branchName: string;
   projectPath: string;
-  worktreePath?: string | null;
 }
 
 export interface ProjectGitCreateWorktreeResponse {

@@ -1,11 +1,5 @@
-import {
-  ExternalLink,
-  FolderGit2,
-  GitBranch,
-  GitBranchPlus,
-  Trash2,
-} from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { ExternalLink, FolderGit2, Trash2 } from "lucide-react";
+import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
-import { cn } from "@/lib/utils";
+import { getDesktopApi } from "@/lib/electron";
 import type { ProjectConfig } from "@/types/ide";
 import { BranchSwitcher } from "./branch-switcher";
 import { useIdeStore } from "./ide-store";
@@ -43,9 +37,6 @@ const readResponseText = async (response: Response) => {
   return text.trim() || `Request failed (${response.status}).`;
 };
 
-const toFileUrl = (path: string) =>
-  encodeURI(`file:///${path.replace(/\\/g, "/").replace(/^\/+/, "")}`);
-
 const CreateWorktreeDialog = ({
   baseRef,
   onOpenChange,
@@ -60,7 +51,6 @@ const CreateWorktreeDialog = ({
   const createWorktreeProject = useIdeStore((s) => s.createWorktreeProject);
   const [branchName, setBranchName] = useState("");
   const [baseRefValue, setBaseRefValue] = useState("");
-  const [worktreePath, setWorktreePath] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +61,6 @@ const CreateWorktreeDialog = ({
 
     setBranchName(`codex/${slugifyBranchSegment(project.name)}`);
     setBaseRefValue(baseRef ?? "");
-    setWorktreePath("");
     setError(null);
   }, [baseRef, open, project.name]);
 
@@ -89,7 +78,6 @@ const CreateWorktreeDialog = ({
       await createWorktreeProject(project.id, {
         baseRef: baseRefValue.trim() || null,
         branchName: branchName.trim(),
-        worktreePath: worktreePath.trim() || null,
       });
       onOpenChange(false);
     } catch (error) {
@@ -137,18 +125,6 @@ const CreateWorktreeDialog = ({
             />
           </div>
 
-          <div className="grid gap-2">
-            <label className="font-medium text-sm" htmlFor="worktree-path">
-              Folder
-            </label>
-            <Input
-              id="worktree-path"
-              onChange={(event) => setWorktreePath(event.target.value)}
-              placeholder="Auto-create beside the main worktree"
-              value={worktreePath}
-            />
-          </div>
-
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
           <DialogFooter>
@@ -179,7 +155,6 @@ const CreateWorktreeDialog = ({
 
 const WorktreeMenu = ({ project }: { project: ProjectConfig }) => {
   const closeProject = useIdeStore((s) => s.closeProject);
-  const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
   const bumpProjectGitRefreshKey = useIdeStore(
     (s) => s.bumpProjectGitRefreshKey,
   );
@@ -250,6 +225,23 @@ const WorktreeMenu = ({ project }: { project: ProjectConfig }) => {
     }
   };
 
+  const handleOpenFolder = async () => {
+    setError(null);
+    const desktopApi = getDesktopApi();
+    if (!desktopApi) {
+      window.open(project.path, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const opened = await desktopApi.openInEditor({
+      editorId: "file-explorer",
+      projectPath: project.path,
+    });
+    if (!opened) {
+      setError("Unable to open worktree folder.");
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -278,7 +270,9 @@ const WorktreeMenu = ({ project }: { project: ProjectConfig }) => {
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => openExternalUrl(toFileUrl(project.path))}
+          onClick={() => {
+            void handleOpenFolder();
+          }}
         >
           <ExternalLink className="size-4" />
           Open folder
@@ -310,57 +304,22 @@ export const ProjectStatusBar = ({ project }: { project: ProjectConfig }) => {
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  const { branch, isRepo, status } = useProjectGitStatus(
-    project.path,
-    gitRefreshKey,
-  );
+  const { branch, isRepo } = useProjectGitStatus(project.path, gitRefreshKey);
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
-  const fileCount = status?.fileCount ?? 0;
-  const changeLabel = useMemo(() => {
-    if (!isRepo) {
-      return null;
-    }
-    if (fileCount === 0) {
-      return "clean";
-    }
-    return `${fileCount} changed`;
-  }, [fileCount, isRepo]);
 
   return (
     <>
-      <div className="flex min-h-9 shrink-0 items-center gap-2 border-t border-surface-200 dark:border-surface-800 px-3 text-xs">
-        <div className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground">
-          <GitBranch className="size-3.5 shrink-0" />
-          <span className="truncate">{project.name}</span>
-          {changeLabel ? (
-            <span
-              className={cn(
-                "shrink-0",
-                fileCount > 0 && "text-warning-foreground",
-              )}
-            >
-              {changeLabel}
-            </span>
-          ) : null}
-        </div>
-
-        {isRepo && !project.worktree ? (
-          <Button
-            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setCreateWorktreeOpen(true)}
-            size="sm"
-            title="New worktree"
-            variant="ghost"
-          >
-            <GitBranchPlus className="size-3.5" />
-            <span>New worktree</span>
-          </Button>
-        ) : null}
-
+      <div className="flex min-h-9 shrink-0 items-center justify-end gap-2 px-3 text-xs">
         {project.worktree ? (
           <WorktreeMenu project={project} />
         ) : (
-          <BranchSwitcher projectId={project.id} projectPath={project.path} />
+          <BranchSwitcher
+            onCreateWorktree={
+              isRepo ? () => setCreateWorktreeOpen(true) : undefined
+            }
+            projectId={project.id}
+            projectPath={project.path}
+          />
         )}
       </div>
 

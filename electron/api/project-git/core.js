@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { parsePatchFiles } from "@pierre/diffs";
+import { app } from "electron";
 import { execFileAsync } from "../shared/cli.js";
-import { normalizePath, resolveProjectPath } from "./files.js";
+import { hashContent, normalizePath, resolveProjectPath } from "./files.js";
 
 const EMPTY_GIT_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const GIT_EXEC_MAX_BUFFER = 16 * 1024 * 1024;
@@ -673,18 +674,22 @@ const slugifyWorktreeBranch = (branchName) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 80) || "worktree";
 
-const getDefaultWorktreePath = (mainWorktreePath, branchName) => {
-  const parentDirectory = path.dirname(mainWorktreePath);
+const getDefaultWorktreePath = (repoRoot, mainWorktreePath, branchName) => {
+  const worktreesDirectory = path.join(app.getPath("userData"), "worktrees");
+  const repoDirectoryName = `${path.basename(mainWorktreePath)}-${hashContent(
+    path.resolve(repoRoot),
+  ).slice(0, 10)}`;
   const projectName = path.basename(mainWorktreePath);
   return path.join(
-    parentDirectory,
+    worktreesDirectory,
+    repoDirectoryName,
     `${projectName}-${slugifyWorktreeBranch(branchName)}`,
   );
 };
 
 export const createProjectGitWorktree = async (
   projectPath,
-  { baseRef = "", branchName = "", worktreePath = "" } = {},
+  { baseRef = "", branchName = "" } = {},
 ) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
@@ -706,10 +711,14 @@ export const createProjectGitWorktree = async (
   const worktreesInfo = await listProjectGitWorktrees(projectPath);
   const mainWorktreePath = worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot;
   const targetPath = path.resolve(
-    worktreePath?.trim() ||
-      getDefaultWorktreePath(mainWorktreePath, normalizedBranchName),
+    getDefaultWorktreePath(
+      repoInfo.repoRoot,
+      mainWorktreePath,
+      normalizedBranchName,
+    ),
   );
   const normalizedBaseRef = baseRef?.trim() || repoInfo.branch || "HEAD";
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
 
   await runGitCommand(repoInfo.repoRoot, [
     "worktree",
