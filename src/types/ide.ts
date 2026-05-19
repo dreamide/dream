@@ -227,6 +227,7 @@ export interface ProjectGitCheckoutResponse extends ProjectGitBranchesResponse {
 }
 
 export interface ProjectGitWorktreeInfo {
+  appManaged: boolean;
   bare: boolean;
   branch: string | null;
   commit: string | null;

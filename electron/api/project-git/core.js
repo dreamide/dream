@@ -636,6 +636,20 @@ const parseProjectGitWorktreePorcelain = (output) => {
   return worktrees;
 };
 
+const isPathInsideDirectory = (targetPath, directoryPath) => {
+  const relativePath = path.relative(
+    path.resolve(directoryPath),
+    path.resolve(targetPath),
+  );
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+};
+
+const getAppWorktreesDirectory = () =>
+  path.join(app.getPath("userData"), "worktrees");
+
 export const listProjectGitWorktrees = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
@@ -652,7 +666,13 @@ export const listProjectGitWorktrees = async (projectPath) => {
     "list",
     "--porcelain",
   ]);
-  const worktrees = parseProjectGitWorktreePorcelain(result.stdout);
+  const appWorktreesDirectory = getAppWorktreesDirectory();
+  const worktrees = parseProjectGitWorktreePorcelain(result.stdout).map(
+    (worktree) => ({
+      ...worktree,
+      appManaged: isPathInsideDirectory(worktree.path, appWorktreesDirectory),
+    }),
+  );
   const mainWorktreePath =
     worktrees.find((worktree) => !worktree.bare)?.path ??
     worktrees[0]?.path ??
@@ -675,7 +695,7 @@ const slugifyWorktreeBranch = (branchName) =>
     .slice(0, 80) || "worktree";
 
 const getDefaultWorktreePath = (repoRoot, mainWorktreePath, branchName) => {
-  const worktreesDirectory = path.join(app.getPath("userData"), "worktrees");
+  const worktreesDirectory = getAppWorktreesDirectory();
   const repoDirectoryName = `${path.basename(mainWorktreePath)}-${hashContent(
     path.resolve(repoRoot),
   ).slice(0, 10)}`;
@@ -763,7 +783,9 @@ export const removeProjectGitWorktree = async (
     throw new Error("Cannot remove the main worktree.");
   }
 
-  await runGitCommand(repoInfo.repoRoot, [
+  const commandCwd = worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot;
+
+  await runGitCommand(commandCwd, [
     "worktree",
     "remove",
     ...(force ? ["--force"] : []),

@@ -225,27 +225,31 @@ const BranchSwitcherImpl = ({
           </form>
         ) : (
           <Command shouldFilter>
-            {onCreateWorktree ? (
-              <div className="border-surface-200 border-b p-2 dark:border-surface-800">
-                <button
-                  className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
-                  disabled={loading || switching}
-                  onClick={() => {
-                    setOpen(false);
-                    onCreateWorktree();
-                  }}
-                  type="button"
-                >
-                  <GitBranchPlus className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">New worktree</span>
-                </button>
+            <div className="flex items-center gap-1 px-1 pt-1">
+              <div className="min-w-0 flex-1">
+                <CommandInput
+                  onValueChange={setSearchValue}
+                  placeholder="Search branches"
+                  value={searchValue}
+                />
               </div>
-            ) : null}
-            <CommandInput
-              onValueChange={setSearchValue}
-              placeholder="Search branches"
-              value={searchValue}
-            />
+              <Button
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                disabled={loading || switching}
+                onClick={() => {
+                  void refresh();
+                }}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                {loading ? (
+                  <Spinner className="size-3.5" />
+                ) : (
+                  <RotateCw className="size-4" />
+                )}
+              </Button>
+            </div>
             <CommandList className="max-h-[280px]">
               {loading && branches.length === 0 ? (
                 <div className="flex items-center gap-2 px-3 py-4 text-muted-foreground text-sm">
@@ -257,6 +261,7 @@ const BranchSwitcherImpl = ({
                 <CommandGroup heading="Branches">
                   {branches.map((branch) => (
                     <CommandItem
+                      className="data-[selected=true]:bg-transparent data-[selected=true]:hover:bg-muted hover:bg-muted"
                       disabled={switching}
                       key={branch.name}
                       keywords={[branch.current ? "current" : ""]}
@@ -291,10 +296,10 @@ const BranchSwitcherImpl = ({
 
             <CommandSeparator />
 
-            <div className="flex items-center gap-2 p-2">
+            <div className="flex flex-col gap-1 p-2">
               <button
                 className={cn(
-                  "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors",
+                  "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
                   loading || switching
                     ? "cursor-not-allowed text-surface-400 dark:text-surface-500"
                     : "text-foreground hover:bg-muted",
@@ -309,22 +314,20 @@ const BranchSwitcherImpl = ({
                 </span>
               </button>
 
-              <Button
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                disabled={loading || switching}
-                onClick={() => {
-                  void refresh();
-                }}
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              >
-                {loading ? (
-                  <Spinner className="size-3.5" />
-                ) : (
-                  <RotateCw className="size-4" />
-                )}
-              </Button>
+              {onCreateWorktree ? (
+                <button
+                  className="flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm text-foreground hover:bg-muted"
+                  disabled={loading || switching}
+                  onClick={() => {
+                    setOpen(false);
+                    onCreateWorktree();
+                  }}
+                  type="button"
+                >
+                  <GitBranchPlus className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate">New worktree</span>
+                </button>
+              ) : null}
             </div>
 
             {error ? (
