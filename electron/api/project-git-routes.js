@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import {
   checkoutProjectGitBranch,
   commitProjectGitChanges,
+  createProjectGitWorktree,
   createProjectPullRequest,
   detectProjectIcon,
   ensureProjectDirectory,
@@ -11,6 +12,7 @@ import {
   listProjectFiles,
   listProjectGitBranches,
   listProjectGitChanges,
+  listProjectGitWorktrees,
   MIME_TYPES,
   projectFileRequestSchema,
   projectFilesRequestSchema,
@@ -19,12 +21,16 @@ import {
   projectGitCommitMessageRequestSchema,
   projectGitCommitRequestSchema,
   projectGitCreatePullRequestSchema,
+  projectGitCreateWorktreeRequestSchema,
   projectGitDiffRequestSchema,
   projectGitPushPreviewRequestSchema,
   projectGitPushRequestSchema,
+  projectGitRemoveWorktreeRequestSchema,
   projectGitStatusRequestSchema,
+  projectGitWorktreesRequestSchema,
   projectIconRequestSchema,
   pushProjectGitChanges,
+  removeProjectGitWorktree,
   resolveProjectPath,
 } from "./project-git-service.js";
 
@@ -204,6 +210,81 @@ export const registerProjectGitRoutes = (app) => {
         error instanceof Error
           ? error.message
           : "Unable to switch Git branches.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-worktrees", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitWorktreesRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { projectPath } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(await listProjectGitWorktrees(projectPath));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to read worktrees.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-worktree-create", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitCreateWorktreeRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { projectPath, ...options } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(await createProjectGitWorktree(projectPath, options));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to create worktree.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-worktree-remove", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitRemoveWorktreeRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { projectPath, ...options } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(await removeProjectGitWorktree(projectPath, options));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to remove worktree.";
       return c.text(message, 400);
     }
   });

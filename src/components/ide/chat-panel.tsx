@@ -1010,7 +1010,6 @@ export const ChatPanel = ({
           promptDomId={promptDomId}
           promptInputDomId={promptInputDomId}
           promptText={promptText}
-          projectId={project.id}
           projectPath={project.path}
           reasoningEffortOptions={reasoningEffortOptions}
           speedOptions={speedOptions}

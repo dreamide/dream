@@ -74,6 +74,14 @@ export interface IdeState {
   setProjects: (projects: ProjectConfig[]) => void;
   setActiveProjectId: (id: string | null) => void;
   addProject: (path: string) => void;
+  createWorktreeProject: (
+    parentProjectId: string,
+    options: {
+      baseRef?: string | null;
+      branchName: string;
+      worktreePath?: string | null;
+    },
+  ) => Promise<string | null>;
   closeProject: (projectId: string) => void;
   updateProject: (
     projectId: string,

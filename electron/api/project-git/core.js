@@ -555,7 +555,7 @@ export const listProjectGitBranches = async (projectPath) => {
   };
 };
 
-const validateProjectGitBranchName = async (repoRoot, branchName) => {
+export const validateProjectGitBranchName = async (repoRoot, branchName) => {
   const normalizedBranchName = branchName.trim();
   if (!normalizedBranchName) {
     throw new Error("Branch name is required.");
@@ -575,6 +575,196 @@ const validateProjectGitBranchName = async (repoRoot, branchName) => {
   }
 
   return normalizedBranchName;
+};
+
+const parseProjectGitWorktreePorcelain = (output) => {
+  const worktrees = [];
+  let current = null;
+
+  const pushCurrent = () => {
+    if (current?.path) {
+      worktrees.push({
+        bare: current.bare === true,
+        branch: current.branch ?? null,
+        commit: current.commit ?? null,
+        detached: current.detached === true,
+        locked: current.locked === true,
+        path: current.path,
+        prunable: current.prunable === true,
+      });
+    }
+    current = null;
+  };
+
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) {
+      pushCurrent();
+      continue;
+    }
+
+    if (line.startsWith("worktree ")) {
+      pushCurrent();
+      current = { path: line.slice("worktree ".length).trim() };
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+
+    if (line.startsWith("HEAD ")) {
+      current.commit = line.slice("HEAD ".length).trim() || null;
+    } else if (line.startsWith("branch ")) {
+      current.branch =
+        line
+          .slice("branch ".length)
+          .trim()
+          .replace(/^refs\/heads\//, "") || null;
+    } else if (line === "detached") {
+      current.detached = true;
+    } else if (line === "bare") {
+      current.bare = true;
+    } else if (line.startsWith("locked")) {
+      current.locked = true;
+    } else if (line.startsWith("prunable")) {
+      current.prunable = true;
+    }
+  }
+
+  pushCurrent();
+  return worktrees;
+};
+
+export const listProjectGitWorktrees = async (projectPath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    return {
+      isRepo: false,
+      mainWorktreePath: null,
+      repoRoot: null,
+      worktrees: [],
+    };
+  }
+
+  const result = await runGitCommand(repoInfo.repoRoot, [
+    "worktree",
+    "list",
+    "--porcelain",
+  ]);
+  const worktrees = parseProjectGitWorktreePorcelain(result.stdout);
+  const mainWorktreePath =
+    worktrees.find((worktree) => !worktree.bare)?.path ??
+    worktrees[0]?.path ??
+    repoInfo.repoRoot;
+
+  return {
+    isRepo: true,
+    mainWorktreePath,
+    repoRoot: repoInfo.repoRoot,
+    worktrees,
+  };
+};
+
+const slugifyWorktreeBranch = (branchName) =>
+  branchName
+    .trim()
+    .replace(/^refs\/heads\//, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "worktree";
+
+const getDefaultWorktreePath = (mainWorktreePath, branchName) => {
+  const parentDirectory = path.dirname(mainWorktreePath);
+  const projectName = path.basename(mainWorktreePath);
+  return path.join(
+    parentDirectory,
+    `${projectName}-${slugifyWorktreeBranch(branchName)}`,
+  );
+};
+
+export const createProjectGitWorktree = async (
+  projectPath,
+  { baseRef = "", branchName = "", worktreePath = "" } = {},
+) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const normalizedBranchName = await validateProjectGitBranchName(
+    repoInfo.repoRoot,
+    branchName,
+  );
+  const branchExists = await gitRefExists(
+    repoInfo.repoRoot,
+    `refs/heads/${normalizedBranchName}`,
+  );
+  if (branchExists) {
+    throw new Error(`Branch "${normalizedBranchName}" already exists.`);
+  }
+
+  const worktreesInfo = await listProjectGitWorktrees(projectPath);
+  const mainWorktreePath = worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot;
+  const targetPath = path.resolve(
+    worktreePath?.trim() ||
+      getDefaultWorktreePath(mainWorktreePath, normalizedBranchName),
+  );
+  const normalizedBaseRef = baseRef?.trim() || repoInfo.branch || "HEAD";
+
+  await runGitCommand(repoInfo.repoRoot, [
+    "worktree",
+    "add",
+    "-b",
+    normalizedBranchName,
+    targetPath,
+    normalizedBaseRef,
+  ]);
+
+  return {
+    baseRef: normalizedBaseRef,
+    branch: normalizedBranchName,
+    mainWorktreePath,
+    path: targetPath,
+    repoRoot: repoInfo.repoRoot,
+  };
+};
+
+export const removeProjectGitWorktree = async (
+  projectPath,
+  { force = false, worktreePath = "" } = {},
+) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const targetPath = path.resolve(worktreePath);
+  const worktreesInfo = await listProjectGitWorktrees(projectPath);
+  const matchingWorktree = worktreesInfo.worktrees.find(
+    (worktree) => path.resolve(worktree.path) === targetPath,
+  );
+  if (!matchingWorktree) {
+    throw new Error("Worktree was not found for this repository.");
+  }
+
+  if (
+    worktreesInfo.mainWorktreePath &&
+    path.resolve(worktreesInfo.mainWorktreePath) === targetPath
+  ) {
+    throw new Error("Cannot remove the main worktree.");
+  }
+
+  await runGitCommand(repoInfo.repoRoot, [
+    "worktree",
+    "remove",
+    ...(force ? ["--force"] : []),
+    targetPath,
+  ]);
+
+  return {
+    path: targetPath,
+    removed: true,
+  };
 };
 
 export const checkoutProjectGitBranch = async (

@@ -53,7 +53,6 @@ import type {
   ProjectReference,
   ReasoningEffort,
 } from "@/types/ide";
-import { BranchSwitcher } from "../branch-switcher";
 import { PromptAttachments } from "../chat";
 import { AGENT_MODE_OPTIONS } from "../ide-types";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
@@ -494,7 +493,6 @@ export interface ChatComposerProps {
   promptDomId: string;
   promptInputDomId: string;
   promptText: string;
-  projectId: string;
   projectPath: string;
   reasoningEffortOptions: ChatPanelReasoningOption[];
   speedOptions: ChatPanelSpeedOption[];
@@ -531,7 +529,6 @@ export const ChatComposer = ({
   promptDomId,
   promptInputDomId,
   promptText,
-  projectId,
   projectPath,
   reasoningEffortOptions,
   speedOptions,
@@ -1090,9 +1087,6 @@ export const ChatComposer = ({
             </div>
           </div>
         </Sparkles>
-        <div className="mt-1 flex justify-end">
-          <BranchSwitcher projectId={projectId} projectPath={projectPath} />
-        </div>
       </div>
     </div>
   );

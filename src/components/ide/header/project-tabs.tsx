@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { FolderGit2, Plus } from "lucide-react";
 import {
   type FormEvent,
   useCallback,
@@ -33,6 +33,7 @@ export type ProjectTabItem = StandardTabItem & {
   completed: boolean;
   path: string;
   streaming: boolean;
+  worktreeBranch: string | null;
 };
 
 const useDetectedEditors = (isMacOs: boolean) => {
@@ -255,6 +256,13 @@ export const ProjectTabs = () => {
           >
             <StatusDot aria-label="Project finished processing" color="green" />
           </span>
+        ) : project.worktree ? (
+          <span
+            className="flex size-4 shrink-0 items-center justify-center self-center leading-none text-muted-foreground"
+            key={`${project.id}:worktree:${project.worktree.branch}`}
+          >
+            <FolderGit2 className="size-3.5" />
+          </span>
         ) : project.icon ? (
           <span
             className="relative flex size-4 shrink-0 items-center justify-center self-center leading-none"
@@ -275,6 +283,7 @@ export const ProjectTabs = () => {
           leading,
           path: project.path,
           streaming: streamingProjectIds.has(project.id),
+          worktreeBranch: project.worktree?.branch ?? null,
         };
       }),
     [completedProjectIds, projects, streamingProjectIds],

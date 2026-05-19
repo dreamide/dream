@@ -114,6 +114,7 @@ export const createProjectConfig = (
       ...DEFAULT_PROJECT_UI,
       rightPanelOpen: false,
     },
+    worktree: null,
   };
 };
 

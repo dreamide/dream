@@ -113,6 +113,29 @@ function getNestedBoolean(parent, key, fallback) {
   return typeof parent?.[key] === "boolean" ? parent[key] : fallback;
 }
 
+function getNestedWorktree(parent, key) {
+  const value = getNestedRecord(parent, key);
+  const repoRoot = getNestedString(value, "repoRoot", "");
+  const mainWorktreePath = getNestedString(value, "mainWorktreePath", "");
+  const branch = getNestedString(value, "branch", "");
+
+  if (value.kind !== "worktree" || !repoRoot || !mainWorktreePath || !branch) {
+    return null;
+  }
+
+  return {
+    baseRef: getNestedNullableString(value, "baseRef"),
+    branch,
+    createdAt:
+      getNestedString(value, "createdAt", "") || new Date().toISOString(),
+    kind: "worktree",
+    mainWorktreePath,
+    managed: getNestedBoolean(value, "managed", false),
+    parentProjectId: getNestedNullableString(value, "parentProjectId"),
+    repoRoot,
+  };
+}
+
 function getNestedStringArray(parent, key) {
   const value = parent?.[key];
   if (!Array.isArray(value)) {
@@ -278,6 +301,7 @@ function writeConfig(database, key, value, updatedAt) {
 
 function buildProjectMetadata(project) {
   const metadata = getMetadataObject(project.metadata);
+  const worktree = getNestedWorktree(project, "worktree");
   const projectIcon = isRecord(project.icon)
     ? project.icon
     : getNestedRecord(metadata, "icon");
@@ -392,6 +416,7 @@ function buildProjectMetadata(project) {
     runCommand:
       typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
     ui,
+    worktree,
   };
 }
 
@@ -738,6 +763,7 @@ function loadStateFromRelationalDatabase(database) {
     const modelSelection = getNestedRecord(metadata, "modelSelection");
     const browser = getNestedRecord(metadata, "browser");
     const ui = getNestedRecord(metadata, "ui");
+    const worktree = getNestedWorktree(metadata, "worktree");
     const project = {
       browserUrl: getNestedString(browser, "url", "http://127.0.0.1:3000"),
       id: row.id,
@@ -765,6 +791,7 @@ function loadStateFromRelationalDatabase(database) {
         "medium",
       ),
       runCommand: getNestedString(metadata, "runCommand", "pnpm dev"),
+      worktree,
     };
 
     project.ui = {

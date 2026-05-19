@@ -53,6 +53,7 @@ export interface ProjectConfig {
   modelSpeed: ModelSpeed;
   reasoningEffort: ReasoningEffort;
   ui: ProjectUiState;
+  worktree: ProjectWorktreeInfo | null;
 }
 
 export interface ProjectIconInfo {
@@ -60,6 +61,17 @@ export interface ProjectIconInfo {
   mimeType: string;
   source: string;
   mtimeMs: number;
+}
+
+export interface ProjectWorktreeInfo {
+  kind: "worktree";
+  parentProjectId: string | null;
+  repoRoot: string;
+  mainWorktreePath: string;
+  branch: string;
+  baseRef: string | null;
+  managed: boolean;
+  createdAt: string;
 }
 
 export interface AppSettings {
@@ -212,6 +224,49 @@ export interface ProjectGitBranchesResponse {
 
 export interface ProjectGitCheckoutResponse extends ProjectGitBranchesResponse {
   created: boolean;
+}
+
+export interface ProjectGitWorktreeInfo {
+  bare: boolean;
+  branch: string | null;
+  commit: string | null;
+  detached: boolean;
+  locked: boolean;
+  path: string;
+  prunable: boolean;
+}
+
+export interface ProjectGitWorktreesResponse {
+  isRepo: boolean;
+  mainWorktreePath: string | null;
+  repoRoot: string | null;
+  worktrees: ProjectGitWorktreeInfo[];
+}
+
+export interface ProjectGitCreateWorktreeRequest {
+  baseRef?: string | null;
+  branchName: string;
+  projectPath: string;
+  worktreePath?: string | null;
+}
+
+export interface ProjectGitCreateWorktreeResponse {
+  baseRef: string | null;
+  branch: string;
+  mainWorktreePath: string;
+  path: string;
+  repoRoot: string;
+}
+
+export interface ProjectGitRemoveWorktreeRequest {
+  force?: boolean;
+  projectPath: string;
+  worktreePath: string;
+}
+
+export interface ProjectGitRemoveWorktreeResponse {
+  removed: boolean;
+  path: string;
 }
 
 export interface ProjectGitDiffResponse {

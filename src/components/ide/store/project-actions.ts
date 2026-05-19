@@ -10,6 +10,7 @@ export const createProjectActions = (
   | "setProjects"
   | "setActiveProjectId"
   | "addProject"
+  | "createWorktreeProject"
   | "closeProject"
   | "updateProject"
   | "addChat"

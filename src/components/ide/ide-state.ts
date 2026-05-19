@@ -26,6 +26,7 @@ import type {
   PersistedIdeState,
   ProjectConfig,
   ProjectUiState,
+  ProjectWorktreeInfo,
   RightPanelView,
 } from "@/types/ide";
 import {
@@ -262,6 +263,54 @@ const normalizeProjectIcon = (value: unknown): ProjectConfig["icon"] => {
   };
 };
 
+const normalizeProjectWorktree = (
+  value: unknown,
+): ProjectWorktreeInfo | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const worktree = value as Partial<ProjectWorktreeInfo>;
+  const repoRoot =
+    typeof worktree.repoRoot === "string" ? worktree.repoRoot.trim() : "";
+  const mainWorktreePath =
+    typeof worktree.mainWorktreePath === "string"
+      ? worktree.mainWorktreePath.trim()
+      : "";
+  const branch =
+    typeof worktree.branch === "string" ? worktree.branch.trim() : "";
+
+  if (
+    worktree.kind !== "worktree" ||
+    !repoRoot ||
+    !mainWorktreePath ||
+    !branch
+  ) {
+    return null;
+  }
+
+  return {
+    baseRef:
+      typeof worktree.baseRef === "string" && worktree.baseRef.trim()
+        ? worktree.baseRef.trim()
+        : null,
+    branch,
+    createdAt:
+      typeof worktree.createdAt === "string" && worktree.createdAt.trim()
+        ? worktree.createdAt
+        : new Date().toISOString(),
+    kind: "worktree",
+    mainWorktreePath,
+    managed: worktree.managed === true,
+    parentProjectId:
+      typeof worktree.parentProjectId === "string" &&
+      worktree.parentProjectId.trim()
+        ? worktree.parentProjectId.trim()
+        : null,
+    repoRoot,
+  };
+};
+
 const normalizeProject = (
   project: ProjectConfig,
   settings: AppSettings,
@@ -273,7 +322,11 @@ const normalizeProject = (
   };
   const rawMetadata =
     rawProject.metadata && typeof rawProject.metadata === "object"
-      ? (rawProject.metadata as { icon?: unknown; ui?: unknown })
+      ? (rawProject.metadata as {
+          icon?: unknown;
+          ui?: unknown;
+          worktree?: unknown;
+        })
       : {};
   const rawUi =
     rawProject.ui && typeof rawProject.ui === "object"
@@ -334,6 +387,9 @@ const normalizeProject = (
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
     },
+    worktree: normalizeProjectWorktree(
+      rawProject.worktree ?? rawMetadata.worktree,
+    ),
   };
 };
 

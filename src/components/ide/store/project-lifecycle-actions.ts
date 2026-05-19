@@ -4,7 +4,10 @@ import {
   createProjectConfig,
   getDefaultModelSelection,
 } from "@/lib/ide-defaults";
-import type { ProjectConfig } from "@/types/ide";
+import type {
+  ProjectConfig,
+  ProjectGitCreateWorktreeResponse,
+} from "@/types/ide";
 import {
   ensureActiveChatForProject,
   ensureActiveProject,
@@ -22,6 +25,7 @@ export const createProjectLifecycleActions = (
   | "setProjects"
   | "setActiveProjectId"
   | "addProject"
+  | "createWorktreeProject"
   | "closeProject"
   | "updateProject"
 > => ({
@@ -221,6 +225,136 @@ export const createProjectLifecycleActions = (
         ],
       };
     });
+  },
+
+  createWorktreeProject: async (
+    parentProjectId: string,
+    options: {
+      baseRef?: string | null;
+      branchName: string;
+      worktreePath?: string | null;
+    },
+  ) => {
+    const parentProject = get().projects.find(
+      (project) => project.id === parentProjectId,
+    );
+    if (!parentProject) {
+      throw new Error("Parent project is no longer open.");
+    }
+
+    const response = await fetch("/api/project-git-worktree-create", {
+      body: JSON.stringify({
+        baseRef: options.baseRef ?? null,
+        branchName: options.branchName,
+        projectPath: parentProject.path,
+        worktreePath: options.worktreePath ?? null,
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text.trim() || "Unable to create worktree.");
+    }
+
+    const payload = (await response.json()) as ProjectGitCreateWorktreeResponse;
+    let createdProjectId: string | null = null;
+
+    set((state) => {
+      const pathKey = normalizeProjectPathKey(payload.path);
+      const existingProject = state.projects.find(
+        (project) => normalizeProjectPathKey(project.path) === pathKey,
+      );
+      if (existingProject) {
+        createdProjectId = existingProject.id;
+        return {
+          activeProjectId: existingProject.id,
+        };
+      }
+
+      const closedProject = state.closedProjects.find(
+        (project) => normalizeProjectPathKey(project.path) === pathKey,
+      );
+      if (closedProject) {
+        createdProjectId = closedProject.id;
+        return {
+          activeProjectId: closedProject.id,
+          closedProjects: state.closedProjects.filter(
+            (project) => project.id !== closedProject.id,
+          ),
+          projects: [
+            ...state.projects,
+            {
+              ...closedProject,
+              path: payload.path,
+              worktree: {
+                baseRef: payload.baseRef,
+                branch: payload.branch,
+                createdAt: new Date().toISOString(),
+                kind: "worktree",
+                mainWorktreePath: payload.mainWorktreePath,
+                managed: true,
+                parentProjectId,
+                repoRoot: payload.repoRoot,
+              },
+            },
+          ],
+        };
+      }
+
+      const nextProject = {
+        ...createProjectConfig(payload.path, state.settings),
+        browserUrl: parentProject.browserUrl,
+        model: parentProject.model,
+        modelSpeed: parentProject.modelSpeed,
+        name: `${parentProject.name} / ${payload.branch}`,
+        provider: parentProject.provider,
+        reasoningEffort: parentProject.reasoningEffort,
+        runCommand: parentProject.runCommand,
+        worktree: {
+          baseRef: payload.baseRef,
+          branch: payload.branch,
+          createdAt: new Date().toISOString(),
+          kind: "worktree" as const,
+          mainWorktreePath: payload.mainWorktreePath,
+          managed: true,
+          parentProjectId,
+          repoRoot: payload.repoRoot,
+        },
+      };
+      const nextChat = createChatConfig(nextProject);
+      createdProjectId = nextProject.id;
+
+      return {
+        activeProjectId: nextProject.id,
+        draftChatIdByProject: {
+          ...state.draftChatIdByProject,
+          [nextProject.id]: nextChat.id,
+        },
+        messagesByChatId: {
+          ...state.messagesByChatId,
+          [nextChat.id]: [],
+        },
+        chats: [...state.chats, nextChat],
+        projects: [
+          ...state.projects,
+          {
+            ...nextProject,
+            ui: {
+              ...nextProject.ui,
+              activeChatId: nextChat.id,
+              openChatIds: [nextChat.id],
+              chatColumnWidths: {},
+              rightPanelView: "changes",
+            },
+          },
+        ],
+      };
+    });
+
+    get().persist();
+    return createdProjectId;
   },
 
   closeProject: (projectId: string) => {
