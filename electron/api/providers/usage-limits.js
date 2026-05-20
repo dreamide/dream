@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { execCliCommand, isCliCommandAvailable } from "../shared/cli.js";
 import { readCodexChatGptAuthTokens } from "./codex-auth.js";
 
 const OPENAI_CODEX_CHATGPT_USAGE_URL =
@@ -11,7 +12,13 @@ const CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLAUDE_OAUTH_TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
 const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const CLAUDE_KEYCHAIN_SERVICES = ["Claude Code-credentials", "Claude Code"];
+const OPENCODE_STATS_DAYS = 30;
+const OPENCODE_STATS_MODEL_LIMIT = 10;
 const PROVIDER_USAGE_SESSION_FILE_LIMIT = 80;
+const ANSI_ESCAPE_PATTERN = new RegExp(
+  `${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`,
+  "g",
+);
 
 const providerUsageLimitSnapshots = new Map();
 const execFileAsync = promisify(execFile);
@@ -133,15 +140,21 @@ const normalizeProviderRateLimits = (rateLimits) => {
 const makeUsageLimitsResult = ({
   error = null,
   limits = [],
+  modelStats = [],
+  note = null,
   provider,
   source = "unavailable",
   status = limits.length > 0 ? "ok" : "unavailable",
+  stats = [],
 }) => ({
   error,
   fetchedAt: new Date().toISOString(),
   limits,
+  modelStats,
+  note,
   provider,
   source,
+  stats,
   status,
 });
 
@@ -273,6 +286,125 @@ const readLatestRateLimitsFromFiles = async (rootPaths) => {
   }
 
   return null;
+};
+
+const stripAnsi = (value) =>
+  String(value ?? "").replace(ANSI_ESCAPE_PATTERN, "");
+
+const parseOpenCodeStatsRow = (value) => {
+  const match = value.match(/^(.+?)\s{2,}(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    label: match[1].trim(),
+    value: match[2].trim(),
+  };
+};
+
+const parseOpenCodeStatsOutput = (value) => {
+  const sectionHeaders = new Set(["OVERVIEW", "COST & TOKENS", "MODEL USAGE"]);
+  const stats = [];
+  const modelStats = [];
+  let section = null;
+  let currentModel = null;
+
+  const finishModel = () => {
+    if (currentModel?.id && currentModel.stats.length > 0) {
+      modelStats.push(currentModel);
+    }
+    currentModel = null;
+  };
+
+  for (const rawLine of stripAnsi(value).split(/\r?\n/)) {
+    const content = rawLine.replace(/[│]/g, "").trim();
+    if (!content || /^[┌┐└┘├┤─\s]+$/u.test(content)) {
+      continue;
+    }
+
+    if (sectionHeaders.has(content)) {
+      finishModel();
+      section = content;
+      continue;
+    }
+
+    if (section === "OVERVIEW" || section === "COST & TOKENS") {
+      const row = parseOpenCodeStatsRow(content);
+      if (row) {
+        stats.push(row);
+      }
+      continue;
+    }
+
+    if (section !== "MODEL USAGE") {
+      continue;
+    }
+
+    const row = parseOpenCodeStatsRow(content);
+    if (row && currentModel) {
+      currentModel.stats.push(row);
+      continue;
+    }
+
+    if (content.includes("/")) {
+      finishModel();
+      currentModel = {
+        id: content,
+        stats: [],
+      };
+    }
+  }
+
+  finishModel();
+  return { modelStats, stats };
+};
+
+export const fetchOpenCodeUsageStats = async () => {
+  const installed = await isCliCommandAvailable("opencode");
+  if (!installed) {
+    return makeUsageLimitsResult({
+      error: "OpenCode CLI is not installed or not available on PATH.",
+      provider: "opencode",
+    });
+  }
+
+  try {
+    const result = await execCliCommand(
+      "opencode",
+      [
+        "stats",
+        "--days",
+        String(OPENCODE_STATS_DAYS),
+        "--models",
+        String(OPENCODE_STATS_MODEL_LIMIT),
+      ],
+      { maxBuffer: 10 * 1024 * 1024 },
+    );
+    const parsed = parseOpenCodeStatsOutput(
+      `${result.stdout}\n${result.stderr}`,
+    );
+    if (parsed.stats.length === 0 && parsed.modelStats.length === 0) {
+      throw new Error("OpenCode returned no usage stats.");
+    }
+
+    return makeUsageLimitsResult({
+      modelStats: parsed.modelStats,
+      note: "OpenCode does not expose remaining plan limits here. Showing local CLI usage stats for the last 30 days.",
+      provider: "opencode",
+      source: "opencode stats",
+      stats: parsed.stats,
+      status: "ok",
+    });
+  } catch (error) {
+    return makeUsageLimitsResult({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch OpenCode usage stats.",
+      provider: "opencode",
+    });
+  }
 };
 
 export const fetchOpenAiUsageLimits = async () => {

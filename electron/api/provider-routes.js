@@ -16,6 +16,7 @@ import {
 import {
   fetchAnthropicUsageLimits,
   fetchOpenAiUsageLimits,
+  fetchOpenCodeUsageStats,
   findRateLimitsObject,
   storeProviderUsageLimitSnapshot,
 } from "./providers/usage-limits.js";
@@ -94,13 +95,7 @@ export const registerProviderRoutes = (app) => {
     }
 
     if (parsed.data.provider === "opencode") {
-      return c.json({
-        error:
-          "OpenCode usage limits are managed by the configured OpenCode provider.",
-        limits: [],
-        provider: "opencode",
-        status: "unavailable",
-      });
+      return c.json(await fetchOpenCodeUsageStats());
     }
 
     const result =
