@@ -35,6 +35,7 @@ export {
 
 const providerUsageLimitsRequestSchema = z.object({
   provider: z.enum(["openai", "anthropic", "opencode"]),
+  projectPath: z.string().optional(),
 });
 
 const providerModelsRequestSchema = z
@@ -95,7 +96,11 @@ export const registerProviderRoutes = (app) => {
     }
 
     if (parsed.data.provider === "opencode") {
-      return c.json(await fetchOpenCodeUsageStats());
+      return c.json(
+        await fetchOpenCodeUsageStats({
+          projectPath: parsed.data.projectPath,
+        }),
+      );
     }
 
     const result =

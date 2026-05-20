@@ -29,6 +29,7 @@
     "@ai-sdk/react": "^3.0.182",
     "@base-ui/react": "^1.4.1",
     "@hono/node-server": "^2.0.2",
+    "@opencode-ai/sdk": "1.15.5",
     "@opentelemetry/api": "1.9.0",
     "@pierre/diffs": "^1.1.22",
     "@pierre/trees": "1.0.0-beta.3",

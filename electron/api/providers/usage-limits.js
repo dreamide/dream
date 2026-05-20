@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { createOpencode } from "@opencode-ai/sdk";
 import { execCliCommand, isCliCommandAvailable } from "../shared/cli.js";
 import { readCodexChatGptAuthTokens } from "./codex-auth.js";
 
@@ -14,6 +15,7 @@ const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const CLAUDE_KEYCHAIN_SERVICES = ["Claude Code-credentials", "Claude Code"];
 const OPENCODE_STATS_DAYS = 30;
 const OPENCODE_STATS_MODEL_LIMIT = 10;
+const OPENCODE_STATS_SERVER_TIMEOUT_MS = 10_000;
 const PROVIDER_USAGE_SESSION_FILE_LIMIT = 80;
 const ANSI_ESCAPE_PATTERN = new RegExp(
   `${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`,
@@ -146,6 +148,7 @@ const makeUsageLimitsResult = ({
   source = "unavailable",
   status = limits.length > 0 ? "ok" : "unavailable",
   stats = [],
+  toolStats = [],
 }) => ({
   error,
   fetchedAt: new Date().toISOString(),
@@ -156,6 +159,7 @@ const makeUsageLimitsResult = ({
   source,
   stats,
   status,
+  toolStats,
 });
 
 export const storeProviderUsageLimitSnapshot = (
@@ -304,9 +308,15 @@ const parseOpenCodeStatsRow = (value) => {
 };
 
 const parseOpenCodeStatsOutput = (value) => {
-  const sectionHeaders = new Set(["OVERVIEW", "COST & TOKENS", "MODEL USAGE"]);
+  const sectionHeaders = new Set([
+    "OVERVIEW",
+    "COST & TOKENS",
+    "MODEL USAGE",
+    "TOOL USAGE",
+  ]);
   const stats = [];
   const modelStats = [];
+  const toolStats = [];
   let section = null;
   let currentModel = null;
 
@@ -338,6 +348,15 @@ const parseOpenCodeStatsOutput = (value) => {
     }
 
     if (section !== "MODEL USAGE") {
+      if (section === "TOOL USAGE") {
+        const toolMatch = content.match(/^(\S+)\s+.*?(\d+\s+\([^)]+\))$/);
+        if (toolMatch) {
+          toolStats.push({
+            label: toolMatch[1].trim(),
+            value: toolMatch[2].trim(),
+          });
+        }
+      }
       continue;
     }
 
@@ -357,10 +376,259 @@ const parseOpenCodeStatsOutput = (value) => {
   }
 
   finishModel();
-  return { modelStats, stats };
+  return { modelStats, stats, toolStats };
 };
 
-export const fetchOpenCodeUsageStats = async () => {
+const getOpenCodeRequestQuery = (projectPath) => {
+  const directory =
+    typeof projectPath === "string" && projectPath.trim()
+      ? projectPath.trim()
+      : null;
+
+  return directory ? { directory } : undefined;
+};
+
+const getOpenCodeSessionTimestamp = (session) => {
+  const updated = toFiniteNumber(session?.time?.updated);
+  if (updated !== null) {
+    return updated;
+  }
+
+  return toFiniteNumber(session?.time?.created) ?? 0;
+};
+
+const getOpenCodeMessageTimestamp = (message) => {
+  const created = toFiniteNumber(message?.time?.created);
+  if (created !== null) {
+    return created;
+  }
+
+  return toFiniteNumber(message?.time?.completed) ?? 0;
+};
+
+const formatCompactNumber = (value) => {
+  const number = Math.max(0, Math.round(Number(value) || 0));
+  if (number < 1000) {
+    return String(number);
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+    notation: "compact",
+  }).format(number);
+};
+
+const formatCost = (value, digits = 2) =>
+  `$${Math.max(0, Number(value) || 0).toFixed(digits)}`;
+
+const getMessageTokenTotal = (tokens) =>
+  (toFiniteNumber(tokens?.input) ?? 0) +
+  (toFiniteNumber(tokens?.output) ?? 0) +
+  (toFiniteNumber(tokens?.reasoning) ?? 0) +
+  (toFiniteNumber(tokens?.cache?.read) ?? 0) +
+  (toFiniteNumber(tokens?.cache?.write) ?? 0);
+
+const createOpenCodeStatsRows = ({ totals }) => {
+  return [
+    { label: "Total Cost", value: formatCost(totals.cost, 2) },
+    { label: "Messages", value: String(totals.messages) },
+    { label: "Sessions", value: String(totals.sessions) },
+    { label: "Tokens", value: formatCompactNumber(totals.tokenTotal) },
+  ];
+};
+
+const createOpenCodeModelStats = (modelTotals) =>
+  [...modelTotals.entries()]
+    .sort(([, left], [, right]) => right.messages - left.messages)
+    .slice(0, OPENCODE_STATS_MODEL_LIMIT)
+    .map(([id, totals]) => ({
+      id,
+      stats: [
+        { label: "Messages", value: String(totals.messages) },
+        { label: "Input Tokens", value: formatCompactNumber(totals.input) },
+        { label: "Output Tokens", value: formatCompactNumber(totals.output) },
+        { label: "Cache Read", value: formatCompactNumber(totals.cacheRead) },
+        { label: "Cache Write", value: formatCompactNumber(totals.cacheWrite) },
+        { label: "Cost", value: formatCost(totals.cost, 4) },
+      ],
+    }));
+
+const createOpenCodeToolStats = (toolTotals) => {
+  const total = [...toolTotals.values()].reduce((sum, count) => sum + count, 0);
+  if (total === 0) {
+    return [];
+  }
+
+  return [...toolTotals.entries()]
+    .sort(([, left], [, right]) => right - left)
+    .slice(0, OPENCODE_STATS_MODEL_LIMIT)
+    .map(([label, count]) => ({
+      label,
+      value: `${count} (${((count / total) * 100).toFixed(1)}%)`,
+    }));
+};
+
+const fetchOpenCodeUsageStatsWithSdk = async ({ projectPath } = {}) => {
+  const query = getOpenCodeRequestQuery(projectPath);
+  const since = Date.now() - OPENCODE_STATS_DAYS * 24 * 60 * 60 * 1000;
+  const opencode = await createOpencode({
+    hostname: "127.0.0.1",
+    port: 0,
+    timeout: OPENCODE_STATS_SERVER_TIMEOUT_MS,
+  });
+
+  try {
+    const sessionsResult = await opencode.client.session.list(
+      query ? { query } : undefined,
+    );
+    const sessions = Array.isArray(sessionsResult.data)
+      ? sessionsResult.data
+      : [];
+    const recentSessions = sessions.filter(
+      (session) => getOpenCodeSessionTimestamp(session) >= since,
+    );
+    const totals = {
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      cost: 0,
+      inputTokens: 0,
+      messages: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      sessions: recentSessions.length,
+      tokenTotal: 0,
+    };
+    const modelTotals = new Map();
+    const toolTotals = new Map();
+
+    for (const session of recentSessions) {
+      const messagesResult = await opencode.client.session.messages({
+        path: { id: session.id },
+        query: {
+          ...(query ?? {}),
+        },
+      });
+      const messages = Array.isArray(messagesResult.data)
+        ? messagesResult.data
+        : [];
+
+      for (const entry of messages) {
+        const info = entry?.info;
+        if (!info || getOpenCodeMessageTimestamp(info) < since) {
+          continue;
+        }
+
+        totals.messages += 1;
+
+        for (const part of entry.parts ?? []) {
+          if (part?.type !== "tool" || typeof part.tool !== "string") {
+            continue;
+          }
+
+          toolTotals.set(part.tool, (toolTotals.get(part.tool) ?? 0) + 1);
+        }
+
+        if (info.role !== "assistant") {
+          continue;
+        }
+
+        const cost = toFiniteNumber(info.cost) ?? 0;
+        const input = toFiniteNumber(info.tokens?.input) ?? 0;
+        const output = toFiniteNumber(info.tokens?.output) ?? 0;
+        const reasoning = toFiniteNumber(info.tokens?.reasoning) ?? 0;
+        const cacheRead = toFiniteNumber(info.tokens?.cache?.read) ?? 0;
+        const cacheWrite = toFiniteNumber(info.tokens?.cache?.write) ?? 0;
+        const tokenTotal = getMessageTokenTotal(info.tokens);
+
+        totals.cost += cost;
+        totals.inputTokens += input;
+        totals.outputTokens += output;
+        totals.reasoningTokens += reasoning;
+        totals.cacheReadTokens += cacheRead;
+        totals.cacheWriteTokens += cacheWrite;
+        totals.tokenTotal += tokenTotal;
+
+        const modelId = [info.providerID, info.modelID]
+          .filter((value) => typeof value === "string" && value.trim())
+          .join("/");
+        if (!modelId) {
+          continue;
+        }
+
+        const model = modelTotals.get(modelId) ?? {
+          cacheRead: 0,
+          cacheWrite: 0,
+          cost: 0,
+          input: 0,
+          messages: 0,
+          output: 0,
+        };
+        model.cacheRead += cacheRead;
+        model.cacheWrite += cacheWrite;
+        model.cost += cost;
+        model.input += input;
+        model.messages += 1;
+        model.output += output;
+        modelTotals.set(modelId, model);
+      }
+    }
+
+    if (
+      totals.sessions === 0 &&
+      totals.messages === 0 &&
+      modelTotals.size === 0
+    ) {
+      throw new Error("OpenCode returned no usage stats.");
+    }
+
+    const hasProjectScope = typeof query?.directory === "string";
+    return makeUsageLimitsResult({
+      modelStats: createOpenCodeModelStats(modelTotals),
+      note: `Local ${OPENCODE_STATS_DAYS}d usage${hasProjectScope ? " for this project" : ""}.`,
+      provider: "opencode",
+      source: "opencode sdk",
+      stats: createOpenCodeStatsRows({
+        totals,
+      }),
+      status: "ok",
+      toolStats: createOpenCodeToolStats(toolTotals),
+    });
+  } finally {
+    opencode.server.close();
+  }
+};
+
+const fetchOpenCodeUsageStatsWithCli = async ({ projectPath } = {}) => {
+  const hasProjectPath = typeof projectPath === "string" && projectPath.trim();
+  const args = [
+    "stats",
+    "--days",
+    String(OPENCODE_STATS_DAYS),
+    "--models",
+    String(OPENCODE_STATS_MODEL_LIMIT),
+    ...(hasProjectPath ? ["--project", ""] : []),
+  ];
+  const result = await execCliCommand("opencode", args, {
+    ...(hasProjectPath ? { cwd: projectPath.trim() } : {}),
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  const parsed = parseOpenCodeStatsOutput(`${result.stdout}\n${result.stderr}`);
+  if (parsed.stats.length === 0 && parsed.modelStats.length === 0) {
+    throw new Error("OpenCode returned no usage stats.");
+  }
+
+  return makeUsageLimitsResult({
+    modelStats: parsed.modelStats,
+    note: `Local ${OPENCODE_STATS_DAYS}d usage${hasProjectPath ? " for this project" : ""}.`,
+    provider: "opencode",
+    source: "opencode stats",
+    stats: parsed.stats,
+    status: "ok",
+    toolStats: parsed.toolStats,
+  });
+};
+
+export const fetchOpenCodeUsageStats = async ({ projectPath } = {}) => {
   const installed = await isCliCommandAvailable("opencode");
   if (!installed) {
     return makeUsageLimitsResult({
@@ -370,40 +638,28 @@ export const fetchOpenCodeUsageStats = async () => {
   }
 
   try {
-    const result = await execCliCommand(
-      "opencode",
-      [
-        "stats",
-        "--days",
-        String(OPENCODE_STATS_DAYS),
-        "--models",
-        String(OPENCODE_STATS_MODEL_LIMIT),
-      ],
-      { maxBuffer: 10 * 1024 * 1024 },
-    );
-    const parsed = parseOpenCodeStatsOutput(
-      `${result.stdout}\n${result.stderr}`,
-    );
-    if (parsed.stats.length === 0 && parsed.modelStats.length === 0) {
-      throw new Error("OpenCode returned no usage stats.");
-    }
-
-    return makeUsageLimitsResult({
-      modelStats: parsed.modelStats,
-      note: "OpenCode does not expose remaining plan limits here. Showing local CLI usage stats for the last 30 days.",
-      provider: "opencode",
-      source: "opencode stats",
-      stats: parsed.stats,
-      status: "ok",
-    });
+    return await fetchOpenCodeUsageStatsWithSdk({ projectPath });
   } catch (error) {
-    return makeUsageLimitsResult({
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch OpenCode usage stats.",
-      provider: "opencode",
-    });
+    try {
+      const result = await fetchOpenCodeUsageStatsWithCli({ projectPath });
+      return {
+        ...result,
+        error:
+          error instanceof Error
+            ? `SDK usage failed: ${error.message}`
+            : "SDK usage failed.",
+      };
+    } catch (fallbackError) {
+      return makeUsageLimitsResult({
+        error:
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : error instanceof Error
+              ? error.message
+              : "Unable to fetch OpenCode usage stats.",
+        provider: "opencode",
+      });
+    }
   }
 };
 

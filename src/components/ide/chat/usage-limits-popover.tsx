@@ -42,6 +42,7 @@ type UsageLimitsResponse = {
   source?: string;
   stats?: UsageStatRow[];
   status?: "ok" | "unavailable";
+  toolStats?: UsageStatRow[];
 };
 
 type UsageLimitsState = {
@@ -151,23 +152,20 @@ const getModelUsageStatValue = (model: ModelUsageStat, label: string) =>
 
 const OpenCodeUsageStats = ({
   modelStats,
-  note,
   stats,
 }: {
   modelStats: ModelUsageStat[];
-  note?: string | null;
   stats: UsageStatRow[];
 }) => (
   <div className="space-y-3">
-    {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
     {stats.length > 0 ? (
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+      <div className="grid grid-cols-2 gap-2">
         {stats.map((stat) => (
-          <div key={stat.label} className="min-w-0">
+          <div key={stat.label} className="min-w-0 rounded-md bg-muted/50 p-2">
             <div className="truncate text-[11px] text-muted-foreground">
               {stat.label}
             </div>
-            <div className="truncate font-medium text-xs">{stat.value}</div>
+            <div className="truncate font-medium text-sm">{stat.value}</div>
           </div>
         ))}
       </div>
@@ -176,11 +174,9 @@ const OpenCodeUsageStats = ({
       <div className="space-y-2">
         <div className="font-medium text-xs">Top models</div>
         <div className="space-y-2">
-          {modelStats.map((model) => {
+          {modelStats.slice(0, 3).map((model) => {
             const messages = getModelUsageStatValue(model, "Messages");
             const cost = getModelUsageStatValue(model, "Cost");
-            const inputTokens = getModelUsageStatValue(model, "Input Tokens");
-            const outputTokens = getModelUsageStatValue(model, "Output Tokens");
 
             return (
               <div key={model.id} className="min-w-0 space-y-0.5">
@@ -192,15 +188,11 @@ const OpenCodeUsageStats = ({
                     </span>
                   ) : null}
                 </div>
-                <div className="truncate text-[11px] text-muted-foreground">
-                  {[
-                    cost,
-                    inputTokens ? `in ${inputTokens}` : null,
-                    outputTokens ? `out ${outputTokens}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
+                {cost ? (
+                  <div className="truncate text-[11px] text-muted-foreground">
+                    {cost}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -212,8 +204,10 @@ const OpenCodeUsageStats = ({
 
 export const UsageLimitsPopover = ({
   provider,
+  projectPath,
 }: {
   provider: ChatConfig["provider"];
+  projectPath?: string;
 }) => {
   const [open, setOpen] = useState(false);
   const [usageLimits, setUsageLimits] = useState<UsageLimitsState>({
@@ -243,7 +237,10 @@ export const UsageLimitsPopover = ({
 
     try {
       const response = await fetch("/api/provider-usage-limits", {
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({
+          provider,
+          ...(provider === "opencode" && projectPath ? { projectPath } : {}),
+        }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
@@ -267,7 +264,7 @@ export const UsageLimitsPopover = ({
         loading: false,
       }));
     }
-  }, [provider]);
+  }, [projectPath, provider]);
 
   useEffect(() => {
     if (!open) {
@@ -296,7 +293,7 @@ export const UsageLimitsPopover = ({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-80 gap-4 rounded-lg bg-popover p-3"
+        className="w-72 gap-4 rounded-lg bg-popover p-3"
         side="top"
       >
         <div className="flex items-center gap-2 font-medium text-sm">
@@ -318,11 +315,7 @@ export const UsageLimitsPopover = ({
               <UsageLimitRow key={limit.label} limit={limit} now={now} />
             ))
           ) : hasUsageStats ? (
-            <OpenCodeUsageStats
-              modelStats={modelStats}
-              note={usageLimits.data?.note}
-              stats={stats}
-            />
+            <OpenCodeUsageStats modelStats={modelStats} stats={stats} />
           ) : (
             <p className="text-xs text-muted-foreground">
               {usageLimits.error ?? "Usage limits are unavailable."}
