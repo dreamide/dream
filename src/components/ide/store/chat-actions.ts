@@ -114,7 +114,7 @@ export const createChatActions = (
             {
               ...item.ui,
               multiChat: true,
-              openChatIds: [nextChat.id, ...item.ui.openChatIds],
+              openChatIds: [...item.ui.openChatIds, nextChat.id],
             },
             nextChat.id,
           ),

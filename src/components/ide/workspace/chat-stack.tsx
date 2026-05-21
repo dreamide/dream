@@ -183,6 +183,7 @@ const WorkspaceChatStackImpl = ({
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragChatRef = useRef<ChatDragState | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const previousVisibleChatIdsRef = useRef<string[]>([]);
   const settlingCleanupTimeoutRef = useRef<number | null>(null);
   const widthRef = useRef(chatColumnWidths);
   const pendingResizeFrameRef = useRef<number | null>(null);
@@ -213,6 +214,33 @@ const WorkspaceChatStackImpl = ({
   const hiddenMountedChats = mountedChats.filter(
     (chat) => !visibleChatIds.has(chat.id),
   );
+
+  useLayoutEffect(() => {
+    const nextVisibleChatIds = visibleChats.map((chat) => chat.id);
+    const previousVisibleChatIds = previousVisibleChatIdsRef.current;
+    previousVisibleChatIdsRef.current = nextVisibleChatIds;
+
+    if (
+      !activeChatId ||
+      previousVisibleChatIds.includes(activeChatId) ||
+      !nextVisibleChatIds.includes(activeChatId)
+    ) {
+      return;
+    }
+
+    const container = containerRef.current;
+    const column = columnRefs.current[activeChatId];
+    if (!container || !column) {
+      return;
+    }
+
+    const nextScrollLeft =
+      column.offsetLeft + column.offsetWidth - container.clientWidth;
+    container.scrollTo({
+      behavior: "smooth",
+      left: Math.max(0, nextScrollLeft),
+    });
+  }, [activeChatId, visibleChats]);
 
   useEffect(() => {
     widthRef.current = chatColumnWidths;
