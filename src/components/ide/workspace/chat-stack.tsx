@@ -23,6 +23,7 @@ import {
 
 const CHAT_DRAG_THRESHOLD = 4;
 const CHAT_DRAG_FLIP_DURATION_MS = 180;
+const CHAT_CLOSE_ANIMATION_DURATION_MS = 180;
 const CHAT_RESIZE_DRAG_THRESHOLD_PX = 2;
 const CHAT_SPLITTER_WIDTH_PX = 8;
 
@@ -183,12 +184,14 @@ const WorkspaceChatStackImpl = ({
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragChatRef = useRef<ChatDragState | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const closeTimeoutsRef = useRef<Record<string, number>>({});
   const previousVisibleChatIdsRef = useRef<string[]>([]);
   const settlingCleanupTimeoutRef = useRef<number | null>(null);
   const widthRef = useRef(chatColumnWidths);
   const pendingResizeFrameRef = useRef<number | null>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const [dragChat, setDragChat] = useState<ChatDragState | null>(null);
+  const [closingChatIds, setClosingChatIds] = useState<string[]>([]);
   const [settlingChatIds, setSettlingChatIds] = useState<string[]>([]);
   const activeResizeRef = useRef<{
     leftChatId: string;
@@ -211,6 +214,13 @@ const WorkspaceChatStackImpl = ({
     () => new Set(visibleChats.map((chat) => chat.id)),
     [visibleChats],
   );
+  const closingChatIdSet = useMemo(
+    () => new Set(closingChatIds),
+    [closingChatIds],
+  );
+  const closableVisibleChatCount = visibleChats.filter(
+    (chat) => !closingChatIdSet.has(chat.id),
+  ).length;
   const hiddenMountedChats = mountedChats.filter(
     (chat) => !visibleChatIds.has(chat.id),
   );
@@ -253,12 +263,34 @@ const WorkspaceChatStackImpl = ({
       }
       dragCleanupRef.current?.();
       resizeCleanupRef.current?.();
+      for (const timeoutId of Object.values(closeTimeoutsRef.current)) {
+        window.clearTimeout(timeoutId);
+      }
+      closeTimeoutsRef.current = {};
       if (settlingCleanupTimeoutRef.current !== null) {
         window.clearTimeout(settlingCleanupTimeoutRef.current);
       }
     },
     [],
   );
+
+  useEffect(() => {
+    setClosingChatIds((current) =>
+      current.filter((chatId) => {
+        if (visibleChatIds.has(chatId)) {
+          return true;
+        }
+
+        const timeoutId = closeTimeoutsRef.current[chatId];
+        if (timeoutId !== undefined) {
+          window.clearTimeout(timeoutId);
+          delete closeTimeoutsRef.current[chatId];
+        }
+
+        return false;
+      }),
+    );
+  }, [visibleChatIds]);
 
   useEffect(() => {
     if (settlingChatIds.length === 0) {
@@ -528,6 +560,10 @@ const WorkspaceChatStackImpl = ({
         return;
       }
 
+      if (closingChatIdSet.has(chatId)) {
+        return;
+      }
+
       const target = event.target;
       if (target instanceof Element && target.closest("button")) {
         return;
@@ -681,7 +717,30 @@ const WorkspaceChatStackImpl = ({
         once: true,
       });
     },
-    [onChatReorder, visibleChats],
+    [closingChatIdSet, onChatReorder, visibleChats],
+  );
+
+  const handleCloseChat = useCallback(
+    (chatId: string) => {
+      if (closingChatIdSet.has(chatId) || closableVisibleChatCount <= 1) {
+        return;
+      }
+
+      setClosingChatIds((current) =>
+        current.includes(chatId) ? current : [...current, chatId],
+      );
+
+      const existingTimeoutId = closeTimeoutsRef.current[chatId];
+      if (existingTimeoutId !== undefined) {
+        window.clearTimeout(existingTimeoutId);
+      }
+
+      closeTimeoutsRef.current[chatId] = window.setTimeout(() => {
+        delete closeTimeoutsRef.current[chatId];
+        onCloseChat(chatId);
+      }, CHAT_CLOSE_ANIMATION_DURATION_MS);
+    },
+    [closableVisibleChatCount, closingChatIdSet, onCloseChat],
   );
 
   return (
@@ -694,6 +753,9 @@ const WorkspaceChatStackImpl = ({
         {visibleChats.map((chat, index) => {
           const width = getColumnWidth(chat.id);
           const nextChat = visibleChats[index + 1] ?? null;
+          const isClosing = closingChatIdSet.has(chat.id);
+          const nextChatIsClosing =
+            nextChat !== null && closingChatIdSet.has(nextChat.id);
           const chatOffset = dragChat
             ? resolveChatOffset(dragChat, chat.id, index)
             : 0;
@@ -704,6 +766,8 @@ const WorkspaceChatStackImpl = ({
             backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND,
             flex: `1 1 ${width}px`,
             minWidth: CHAT_PANEL_MIN_WIDTH_PX,
+            opacity: isClosing ? 0 : 1,
+            pointerEvents: isClosing ? "none" : undefined,
             transform: `translateX(${chatOffset}px)`,
             zIndex: isDragging ? 10 : 0,
           };
@@ -711,9 +775,11 @@ const WorkspaceChatStackImpl = ({
           return (
             <div
               className={`relative flex min-h-0 ${
-                isRepositioning || settlingChatIds.includes(chat.id)
-                  ? "transition-none"
-                  : "transition-transform duration-150 ease-out"
+                isClosing
+                  ? "transition-opacity duration-200 ease-in"
+                  : isRepositioning || settlingChatIds.includes(chat.id)
+                    ? "transition-none"
+                    : "transition-transform duration-150 ease-out"
               }`}
               key={chat.id}
               ref={(element) => {
@@ -723,11 +789,11 @@ const WorkspaceChatStackImpl = ({
             >
               <div className="flex h-full min-w-0 flex-1 flex-col">
                 <ChatPanel
-                  canCloseChat={visibleChats.length > 1}
+                  canCloseChat={isClosing || closableVisibleChatCount > 1}
                   isActive={active && chat.id === activeChatId}
                   isProjectActive={active}
                   onActivateChat={() => onActivateChat(chat.id)}
-                  onCloseChat={() => onCloseChat(chat.id)}
+                  onCloseChat={() => handleCloseChat(chat.id)}
                   onHeaderPointerDown={(event) =>
                     handleChatHeaderPointerDown(event, chat.id, index)
                   }
@@ -736,7 +802,7 @@ const WorkspaceChatStackImpl = ({
                 />
               </div>
 
-              {nextChat ? (
+              {nextChat && !isClosing && !nextChatIsClosing ? (
                 <hr
                   aria-label="Resize chat columns"
                   aria-orientation="vertical"

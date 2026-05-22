@@ -87,8 +87,6 @@ export const createChatActions = (
   },
 
   addChatBeside: (projectId: string) => {
-    let didAddChat = false;
-
     set((state) => {
       const project = state.projects.find((item) => item.id === projectId);
       if (!project) {
@@ -103,7 +101,6 @@ export const createChatActions = (
           : project.provider,
       });
       const nextChats = [...state.chats, nextChat];
-      didAddChat = true;
 
       return {
         activeProjectId: projectId,
@@ -130,10 +127,6 @@ export const createChatActions = (
         chats: nextChats,
       };
     });
-
-    if (didAddChat) {
-      get().persist();
-    }
   },
 
   toggleProjectMultiChatMode: (projectId: string) => {
