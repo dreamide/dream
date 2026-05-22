@@ -248,7 +248,8 @@ export const ProjectTabs = () => {
   const projectTabItems = useMemo<ProjectTabItem[]>(
     () =>
       projects.map((project) => {
-        const completed = completedProjectIds.has(project.id);
+        const completed =
+          project.id !== activeProjectId && completedProjectIds.has(project.id);
         const leading = completed ? (
           <span
             className="flex size-4 shrink-0 items-center justify-center self-center leading-none"
@@ -286,7 +287,7 @@ export const ProjectTabs = () => {
           worktreeBranch: project.worktree?.branch ?? null,
         };
       }),
-    [completedProjectIds, projects, streamingProjectIds],
+    [activeProjectId, completedProjectIds, projects, streamingProjectIds],
   );
 
   const handleProjectReorder = useCallback(

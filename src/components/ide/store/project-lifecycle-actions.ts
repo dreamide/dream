@@ -91,13 +91,34 @@ export const createProjectLifecycleActions = (
       }
 
       const nextActiveProjectId = ensureActiveProject(state.projects, id);
+      const nextActiveProject = state.projects.find(
+        (project) => project.id === nextActiveProjectId,
+      );
+      const nextActiveChatId = nextActiveProject
+        ? ensureActiveChatForProject(
+            state.chats,
+            nextActiveProject.id,
+            nextActiveProject.ui.activeChatId,
+          )
+        : null;
+      const nextCompletedChatIds = { ...state.completedChatIds };
+      if (nextActiveChatId) {
+        delete nextCompletedChatIds[nextActiveChatId];
+      }
+      const completedChatIdsChanged =
+        Object.keys(nextCompletedChatIds).length !==
+        Object.keys(state.completedChatIds).length;
 
-      if (nextActiveProjectId === state.activeProjectId) {
+      if (
+        nextActiveProjectId === state.activeProjectId &&
+        !completedChatIdsChanged
+      ) {
         return state;
       }
 
       return {
         activeProjectId: nextActiveProjectId,
+        completedChatIds: nextCompletedChatIds,
       };
     });
   },

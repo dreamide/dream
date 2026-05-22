@@ -380,7 +380,7 @@ type TableTextFormat = "csv" | "markdown" | "tsv";
 type TableDownloadFormat = Exclude<TableTextFormat, "tsv">;
 
 const TABLE_ACTION_BUTTON_CLASSES =
-  "h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground";
+  "h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]";
 
 const getTableElement = (tableRef: RefObject<HTMLTableElement | null>) => {
   const table = tableRef.current;
@@ -599,7 +599,7 @@ const MarkdownTableFullscreenButton = ({
             <div
               aria-label="View fullscreen"
               aria-modal="true"
-              className="fixed inset-0 z-50 flex flex-col bg-background"
+              className="fixed inset-0 z-50 flex flex-col bg-background [-webkit-app-region:no-drag]"
               data-streamdown="table-fullscreen"
               onClick={() => setFullscreen(false)}
               onKeyDown={(event) => {
@@ -615,12 +615,12 @@ const MarkdownTableFullscreenButton = ({
                 onKeyDown={(event) => event.stopPropagation()}
                 role="presentation"
               >
-                <div className="flex items-center justify-end gap-1 p-4">
+                <div className="flex items-center justify-end gap-1 p-4 [-webkit-app-region:no-drag]">
                   <MarkdownTableCopyMenu tableRef={fullscreenTableRef} />
                   <MarkdownTableDownloadMenu tableRef={fullscreenTableRef} />
                   <Button
                     aria-label="Exit fullscreen"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
                     onClick={() => setFullscreen(false)}
                     size="icon-sm"
                     title="Exit fullscreen"
