@@ -48,12 +48,19 @@ export const CHIP_TOOL_NAME_ALIASES = {
   toolSearch: new Set(["tool-search"]),
   webFetch: new Set(["fetch", "web-fetch", "webfetch"]),
   write: new Set([
+    "apply-patch",
+    "applypatch",
     "edit",
+    "file-change",
+    "filechange",
     "multi-edit",
+    "multiedit",
     "notebook-edit",
+    "notebookedit",
     "patch",
     "write",
     "write-file",
+    "writefile",
   ]),
 } as const;
 

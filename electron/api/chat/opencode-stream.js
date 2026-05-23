@@ -9,6 +9,19 @@ import {
 } from "./codex-prompt.js";
 
 const OPENCODE_SERVER_TIMEOUT_MS = 10000;
+const OPENCODE_WRITE_TOOL_NAMES = new Set([
+  "apply-patch",
+  "applypatch",
+  "edit",
+  "multi-edit",
+  "multiedit",
+  "notebook-edit",
+  "notebookedit",
+  "patch",
+  "write",
+  "write-file",
+  "writefile",
+]);
 
 const getOpenCodeErrorDetail = (event) => {
   if (!event || typeof event !== "object") {
@@ -83,6 +96,16 @@ const extractOpenCodePartText = (part) => {
 const getOpenCodePartType = (part) =>
   part?.type === "reasoning" ? "reasoning" : "text";
 
+const normalizeOpenCodeToolName = (toolName) =>
+  String(toolName ?? "")
+    .replace(/([a-z])([A-Z])/g, "$1-$2")
+    .replace(/[\s_]+/g, "-")
+    .toLowerCase();
+
+const isOpenCodeWriteToolPart = (part) =>
+  part?.type === "tool" &&
+  OPENCODE_WRITE_TOOL_NAMES.has(normalizeOpenCodeToolName(part.tool));
+
 const createOpenCodePermissionInput = (permission) => ({
   callID: permission.callID ?? null,
   metadata: permission.metadata ?? {},
@@ -120,6 +143,31 @@ const replyToOpenCodePermission = async ({
   });
 };
 
+const getOpenCodeToolStateInput = (part) => {
+  const input = part?.state?.input;
+  return input && typeof input === "object" ? input : {};
+};
+
+const getOpenCodeToolOutput = (part) => {
+  if (part?.state?.status === "completed") {
+    return {
+      ...part.state.metadata,
+      output: part.state.output ?? "",
+      status: "completed",
+      title: part.state.title ?? "",
+    };
+  }
+
+  if (part?.state?.status === "error") {
+    return {
+      error: part.state.error ?? "",
+      status: "error",
+    };
+  }
+
+  return null;
+};
+
 export const streamOpenCodeResponse = ({
   abortSignal,
   agentMode,
@@ -143,6 +191,7 @@ export const streamOpenCodeResponse = ({
         let textPartIndex = 0;
         let activeSessionId = null;
         const permissionIds = new Set();
+        const startedToolCalls = new Set();
         const streamedTextByPartId = new Map();
         let hasWrittenText = false;
         let opencode = null;
@@ -165,6 +214,61 @@ export const streamOpenCodeResponse = ({
           const id = idHint || `opencode-${type}-${++textPartIndex}`;
           writeCodexTextPart((event) => writer.write(event), id, text, type);
           hasWrittenText = true;
+        };
+
+        const ensureWriteToolStarted = (part) => {
+          const toolCallId = part?.callID || part?.id;
+          if (!toolCallId || startedToolCalls.has(toolCallId)) {
+            return;
+          }
+
+          startedToolCalls.add(toolCallId);
+          writer.write({
+            dynamic: true,
+            providerExecuted: true,
+            title: "File change",
+            toolCallId,
+            toolName: "writeFile",
+            type: "tool-input-start",
+          });
+          writer.write({
+            dynamic: true,
+            input: {
+              ...getOpenCodeToolStateInput(part),
+              title: part.state?.title ?? null,
+              tool: part.tool ?? null,
+            },
+            providerExecuted: true,
+            title: "File change",
+            toolCallId,
+            toolName: "writeFile",
+            type: "tool-input-available",
+          });
+        };
+
+        const handleWriteToolPart = (part) => {
+          if (!isOpenCodeWriteToolPart(part)) {
+            return false;
+          }
+
+          const toolCallId = part.callID || part.id;
+          ensureWriteToolStarted(part);
+
+          const output = getOpenCodeToolOutput(part);
+          if (output) {
+            writer.write({
+              dynamic: true,
+              output,
+              providerExecuted: true,
+              toolCallId,
+              type:
+                part.state?.status === "error"
+                  ? "tool-output-error"
+                  : "tool-output-available",
+            });
+          }
+
+          return true;
         };
 
         const handlePermission = async (permission) => {
@@ -271,6 +375,10 @@ export const streamOpenCodeResponse = ({
 
           const part = event.properties?.part;
           if (part?.sessionID !== activeSessionId) {
+            return;
+          }
+
+          if (handleWriteToolPart(part)) {
             return;
           }
 

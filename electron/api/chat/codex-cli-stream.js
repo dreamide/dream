@@ -23,6 +23,16 @@ import {
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
 
+const CODEX_CLI_FILE_CHANGE_ITEM_TYPES = new Set([
+  "apply_patch",
+  "file_change",
+  "fileChange",
+  "patch",
+]);
+
+const isCodexCliFileChangeItem = (item) =>
+  CODEX_CLI_FILE_CHANGE_ITEM_TYPES.has(item?.type);
+
 export const streamCodexCliResponse = ({
   abortSignal,
   codexPermissionMode,
@@ -122,6 +132,39 @@ export const streamCodexCliResponse = ({
           });
         };
 
+        const ensureFileToolStarted = (item) => {
+          if (!item?.id || startedToolCalls.has(item.id)) {
+            return;
+          }
+
+          startedToolCalls.add(item.id);
+          writeEvent({
+            type: "tool-input-start",
+            dynamic: true,
+            title: "File change",
+            toolCallId: item.id,
+            toolName: "writeFile",
+          });
+          writeEvent({
+            type: "tool-input-available",
+            dynamic: true,
+            input: {
+              changes: item.changes ?? item.files ?? [],
+              diff: item.diff ?? item.patch ?? null,
+              filePath:
+                item.filePath ??
+                item.path ??
+                item.file_path ??
+                item.file ??
+                null,
+              reason: item.reason ?? null,
+            },
+            title: "File change",
+            toolCallId: item.id,
+            toolName: "writeFile",
+          });
+        };
+
         const handleEvent = (event) => {
           if (!event || typeof event !== "object") {
             return;
@@ -163,11 +206,17 @@ export const streamCodexCliResponse = ({
             return;
           }
 
-          if (
-            event.type === "item.started" &&
-            event.item?.type === "command_execution"
-          ) {
-            ensureCommandToolStarted(event.item);
+          if (event.type === "item.started" && event.item) {
+            if (event.item.type === "command_execution") {
+              ensureCommandToolStarted(event.item);
+              return;
+            }
+
+            if (isCodexCliFileChangeItem(event.item)) {
+              ensureFileToolStarted(event.item);
+              return;
+            }
+
             return;
           }
 
@@ -206,6 +255,27 @@ export const streamCodexCliResponse = ({
                 exitCode:
                   typeof item.exit_code === "number" ? item.exit_code : null,
                 output: item.aggregated_output ?? "",
+                status: item.status ?? "completed",
+              },
+              toolCallId: item.id,
+            });
+            return;
+          }
+
+          if (isCodexCliFileChangeItem(item)) {
+            ensureFileToolStarted(item);
+            writeEvent({
+              type: "tool-output-available",
+              dynamic: true,
+              output: {
+                changes: item.changes ?? item.files ?? [],
+                diff: item.diff ?? item.patch ?? null,
+                filePath:
+                  item.filePath ??
+                  item.path ??
+                  item.file_path ??
+                  item.file ??
+                  null,
                 status: item.status ?? "completed",
               },
               toolCallId: item.id,
