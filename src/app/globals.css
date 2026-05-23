@@ -19,20 +19,14 @@
 
 @keyframes sd-searIn {
   0% {
-    color: rgb(255 255 255);
-    opacity: 0;
-    text-shadow:
-      0 0 2px rgb(255 255 255 / 0.95),
-      0 0 10px rgb(255 214 102 / 0.85),
-      0 0 24px rgb(255 122 48 / 0.7);
+    color: var(--streaming-sear-start-color);
+    opacity: var(--streaming-sear-start-opacity);
+    text-shadow: var(--streaming-sear-start-shadow);
   }
-  38% {
-    color: rgb(255 250 219);
+  45% {
+    color: var(--streaming-sear-peak-color);
     opacity: 1;
-    text-shadow:
-      0 0 2px rgb(255 255 255 / 0.9),
-      0 0 8px rgb(255 220 120 / 0.75),
-      0 0 18px rgb(255 138 64 / 0.55);
+    text-shadow: var(--streaming-sear-peak-shadow);
   }
   100% {
     color: inherit;
@@ -189,6 +183,20 @@
   --warning-surface: oklch(0.973 0.071 103.193);
   --warning-foreground: oklch(0.421 0.095 57.708);
   --warning-border: oklch(0.905 0.182 98.111);
+  --streaming-sear-start-color: color-mix(
+    in oklch,
+    var(--foreground) 62%,
+    white
+  );
+  --streaming-sear-start-opacity: 0.35;
+  --streaming-sear-start-shadow:
+    0 0 1px rgb(255 255 255 / 0.45), 0 0 5px rgb(234 179 8 / 0.18);
+  --streaming-sear-peak-color: color-mix(
+    in oklch,
+    var(--foreground) 88%,
+    rgb(234 179 8)
+  );
+  --streaming-sear-peak-shadow: 0 0 4px rgb(234 179 8 / 0.16);
   --border: var(--surface-200);
   --input: var(--surface-200);
   --ring: var(--surface-400);
@@ -249,6 +257,15 @@
   --warning-surface: oklch(0.286 0.066 53.813);
   --warning-foreground: oklch(0.973 0.071 103.193);
   --warning-border: oklch(0.476 0.114 61.907);
+  --streaming-sear-start-color: rgb(255 255 255);
+  --streaming-sear-start-opacity: 0;
+  --streaming-sear-start-shadow:
+    0 0 2px rgb(255 255 255 / 0.95), 0 0 10px rgb(255 214 102 / 0.85),
+    0 0 24px rgb(255 122 48 / 0.7);
+  --streaming-sear-peak-color: rgb(255 250 219);
+  --streaming-sear-peak-shadow:
+    0 0 2px rgb(255 255 255 / 0.9), 0 0 8px rgb(255 220 120 / 0.75),
+    0 0 18px rgb(255 138 64 / 0.55);
   --border: var(--surface-800);
   --input: var(--surface-800);
   --ring: var(--surface-500);

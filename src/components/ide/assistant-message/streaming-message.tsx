@@ -42,29 +42,56 @@ const INLINE_CODE_CLASS_NAME =
   "rounded bg-muted px-1.5 py-0.5 font-mono text-sm";
 
 type InlineCodeAnimationStyle = NonNullable<ComponentProps<"code">["style"]> &
-  Record<"--sd-animation" | "--sd-duration" | "--sd-easing", string>;
+  Record<
+    "--sd-animation" | "--sd-delay" | "--sd-duration" | "--sd-easing",
+    string
+  >;
 
 const inlineCodeAnimationStyle: InlineCodeAnimationStyle = {
   "--sd-animation": "sd-searIn",
+  "--sd-delay": `${STREAMING_TEXT_REVEAL_DURATION_MS}ms`,
   "--sd-duration": `${STREAMING_TEXT_REVEAL_DURATION_MS}ms`,
   "--sd-easing": "cubic-bezier(0.16, 1, 0.3, 1)",
 };
 
+const getMarkdownNodeEndOffset = (node: unknown) => {
+  if (!node || typeof node !== "object" || !("position" in node)) {
+    return null;
+  }
+
+  const position = node.position;
+  if (!position || typeof position !== "object" || !("end" in position)) {
+    return null;
+  }
+
+  const end = position.end;
+  if (!end || typeof end !== "object" || !("offset" in end)) {
+    return null;
+  }
+
+  return typeof end.offset === "number" ? end.offset : null;
+};
+
 const InlineCode = ({
   animate,
+  animationStartOffset,
   className,
-  node: _node,
+  node,
   style,
   ...props
 }: ComponentProps<"code"> & {
   animate: boolean;
+  animationStartOffset: number;
   node?: unknown;
 }) => {
   const ref = useRef<HTMLElement>(null);
+  const nodeEndOffset = getMarkdownNodeEndOffset(node);
+  const shouldAnimate =
+    animate && (nodeEndOffset === null || nodeEndOffset > animationStartOffset);
 
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!animate || !el) return;
+    if (!shouldAnimate || !el) return;
 
     // Find the nearest block-level ancestor to scope the stagger count.
     const block =
@@ -72,12 +99,16 @@ const InlineCode = ({
       el.parentElement;
     if (!block) return;
 
-    // Count [data-sd-animate] elements preceding this one in DOM order
-    // so the inline code fades in at the correct point in the sequence.
+    // Count newly animated elements preceding this one in DOM order so inline
+    // code reveals with the same stagger as the surrounding streamed words.
     const all = block.querySelectorAll("[data-sd-animate]");
     let index = 0;
     for (const n of all) {
       if (n === el) break;
+      const duration = (n as HTMLElement).style.getPropertyValue(
+        "--sd-duration",
+      );
+      if (duration === "0ms") continue;
       index++;
     }
 
@@ -91,9 +122,9 @@ const InlineCode = ({
     <code
       ref={ref}
       className={[INLINE_CODE_CLASS_NAME, className].filter(Boolean).join(" ")}
-      data-sd-animate={animate ? true : undefined}
+      data-sd-animate={shouldAnimate ? true : undefined}
       data-streamdown="inline-code"
-      style={animate ? { ...inlineCodeAnimationStyle, ...style } : style}
+      style={shouldAnimate ? { ...inlineCodeAnimationStyle, ...style } : style}
       {...props}
     />
   );
@@ -201,6 +232,7 @@ export const StreamingMessageResponse = ({
   const isStreamingRef = useRef(isStreaming);
   const targetTextRef = useRef(text);
   const visibleTextRef = useRef(isStreaming ? "" : text);
+  const animationStartOffsetRef = useRef(0);
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -248,6 +280,7 @@ export const StreamingMessageResponse = ({
     }
 
     if (!targetText.startsWith(currentText)) {
+      animationStartOffsetRef.current = 0;
       visibleTextRef.current = targetText;
       startTransition(() => {
         setVisibleText(targetText);
@@ -262,6 +295,7 @@ export const StreamingMessageResponse = ({
     );
 
     if (nextText === currentText) {
+      animationStartOffsetRef.current = 0;
       visibleTextRef.current = targetText;
       startTransition(() => {
         setVisibleText(targetText);
@@ -269,6 +303,7 @@ export const StreamingMessageResponse = ({
       return;
     }
 
+    animationStartOffsetRef.current = currentText.length;
     visibleTextRef.current = nextText;
     keepTextAnimationActive(nextText === targetText);
     startTransition(() => {
@@ -322,7 +357,11 @@ export const StreamingMessageResponse = ({
     () => ({
       a: (props) => <MarkdownFileLink {...props} projectPath={projectPath} />,
       inlineCode: (props) => (
-        <InlineCode animate={animateStreamedText} {...props} />
+        <InlineCode
+          animate={animateStreamedText}
+          animationStartOffset={animationStartOffsetRef.current}
+          {...props}
+        />
       ),
     }),
     [animateStreamedText, projectPath],
