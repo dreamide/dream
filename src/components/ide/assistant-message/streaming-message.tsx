@@ -27,13 +27,13 @@ export const STREAMING_MAX_CHARS_PER_TICK = 140;
 export const STREAMING_FINISHED_INTERVAL_MS = 8;
 export const STREAMING_FINISHED_MIN_CHARS_PER_TICK = 240;
 export const STREAMING_FINISHED_MAX_CHARS_PER_TICK = 1200;
-export const STREAMING_TEXT_FADE_DURATION_MS = 180;
-export const STREAMING_TEXT_FADE_SETTLE_MS = 120;
+export const STREAMING_TEXT_REVEAL_DURATION_MS = 220;
+export const STREAMING_TEXT_REVEAL_SETTLE_MS = 140;
 
 export const streamingTextAnimation = {
-  animation: "fadeIn",
-  duration: STREAMING_TEXT_FADE_DURATION_MS,
-  easing: "ease-out",
+  animation: "searIn",
+  duration: STREAMING_TEXT_REVEAL_DURATION_MS,
+  easing: "cubic-bezier(0.16, 1, 0.3, 1)",
   sep: "word",
   stagger: 16,
 } as const;
@@ -45,9 +45,9 @@ type InlineCodeAnimationStyle = NonNullable<ComponentProps<"code">["style"]> &
   Record<"--sd-animation" | "--sd-duration" | "--sd-easing", string>;
 
 const inlineCodeAnimationStyle: InlineCodeAnimationStyle = {
-  "--sd-animation": "sd-fadeIn",
-  "--sd-duration": `${STREAMING_TEXT_FADE_DURATION_MS}ms`,
-  "--sd-easing": "ease-out",
+  "--sd-animation": "sd-searIn",
+  "--sd-duration": `${STREAMING_TEXT_REVEAL_DURATION_MS}ms`,
+  "--sd-easing": "cubic-bezier(0.16, 1, 0.3, 1)",
 };
 
 const InlineCode = ({
@@ -90,9 +90,7 @@ const InlineCode = ({
   return (
     <code
       ref={ref}
-      className={[INLINE_CODE_CLASS_NAME, className]
-        .filter(Boolean)
-        .join(" ")}
+      className={[INLINE_CODE_CLASS_NAME, className].filter(Boolean).join(" ")}
       data-sd-animate={animate ? true : undefined}
       data-streamdown="inline-code"
       style={animate ? { ...inlineCodeAnimationStyle, ...style } : style}
@@ -224,7 +222,7 @@ export const StreamingMessageResponse = ({
         animationTimeoutIdRef.current = setTimeout(() => {
           animationTimeoutIdRef.current = null;
           setAnimateStreamedText(false);
-        }, STREAMING_TEXT_FADE_DURATION_MS + STREAMING_TEXT_FADE_SETTLE_MS);
+        }, STREAMING_TEXT_REVEAL_DURATION_MS + STREAMING_TEXT_REVEAL_SETTLE_MS);
       }
     },
     [],
