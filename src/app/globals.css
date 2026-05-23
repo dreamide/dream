@@ -186,12 +186,12 @@
   --streaming-sear-start-color: rgb(255 255 255);
   --streaming-sear-start-opacity: 0;
   --streaming-sear-start-shadow:
-    0 0 2px rgb(255 255 255 / 0.82), 0 0 8px rgb(156 163 175 / 0.3),
-    0 0 14px rgb(107 114 128 / 0.16);
-  --streaming-sear-peak-color: rgb(229 231 235);
+    0 0 2px rgb(255 255 255 / 0.9), 0 0 8px rgb(255 255 255 / 0.42),
+    0 0 14px rgb(229 231 235 / 0.22);
+  --streaming-sear-peak-color: rgb(255 255 255);
   --streaming-sear-peak-opacity: 1;
   --streaming-sear-peak-shadow:
-    0 0 1px rgb(255 255 255 / 0.68), 0 0 6px rgb(156 163 175 / 0.26);
+    0 0 1px rgb(255 255 255 / 0.76), 0 0 6px rgb(255 255 255 / 0.34);
   --border: var(--surface-200);
   --input: var(--surface-200);
   --ring: var(--surface-400);
@@ -255,13 +255,13 @@
   --streaming-sear-start-color: rgb(255 255 255);
   --streaming-sear-start-opacity: 0;
   --streaming-sear-start-shadow:
-    0 0 2px rgb(255 255 255 / 0.95), 0 0 10px rgb(229 231 235 / 0.78),
-    0 0 24px rgb(156 163 175 / 0.58);
-  --streaming-sear-peak-color: rgb(243 244 246);
+    0 0 2px rgb(255 255 255 / 0.95), 0 0 10px rgb(255 214 102 / 0.85),
+    0 0 24px rgb(255 122 48 / 0.7);
+  --streaming-sear-peak-color: rgb(255 250 219);
   --streaming-sear-peak-opacity: 1;
   --streaming-sear-peak-shadow:
-    0 0 2px rgb(255 255 255 / 0.9), 0 0 8px rgb(229 231 235 / 0.7),
-    0 0 18px rgb(156 163 175 / 0.48);
+    0 0 2px rgb(255 255 255 / 0.9), 0 0 8px rgb(255 220 120 / 0.75),
+    0 0 18px rgb(255 138 64 / 0.55);
   --border: var(--surface-800);
   --input: var(--surface-800);
   --ring: var(--surface-500);

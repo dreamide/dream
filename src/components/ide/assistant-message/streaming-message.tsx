@@ -3,7 +3,6 @@ import {
   startTransition,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -54,80 +53,117 @@ const inlineCodeAnimationStyle: InlineCodeAnimationStyle = {
   "--sd-easing": "cubic-bezier(0.16, 1, 0.3, 1)",
 };
 
-const getMarkdownNodeEndOffset = (node: unknown) => {
+const getMarkdownNodeOffsets = (node: unknown) => {
   if (!node || typeof node !== "object" || !("position" in node)) {
     return null;
   }
 
   const position = node.position;
-  if (!position || typeof position !== "object" || !("end" in position)) {
+  if (
+    !position ||
+    typeof position !== "object" ||
+    !("start" in position) ||
+    !("end" in position)
+  ) {
     return null;
   }
 
+  const start = position.start;
   const end = position.end;
-  if (!end || typeof end !== "object" || !("offset" in end)) {
+  if (
+    !start ||
+    typeof start !== "object" ||
+    !("offset" in start) ||
+    !end ||
+    typeof end !== "object" ||
+    !("offset" in end)
+  ) {
     return null;
   }
 
-  return typeof end.offset === "number" ? end.offset : null;
+  return typeof start.offset === "number" && typeof end.offset === "number"
+    ? { end: end.offset, start: start.offset }
+    : null;
+};
+
+const getAnimatedTokenCount = (text: string) => text.match(/\S+/g)?.length ?? 0;
+
+const getInlineCodeDelay = (
+  animationStartOffset: number,
+  markdownText: string,
+  nodeStartOffset: number | null,
+) => {
+  if (nodeStartOffset === null || nodeStartOffset <= animationStartOffset) {
+    return STREAMING_TEXT_REVEAL_DURATION_MS;
+  }
+
+  return (
+    getAnimatedTokenCount(
+      markdownText.slice(animationStartOffset, nodeStartOffset),
+    ) * streamingTextAnimation.stagger
+  );
 };
 
 const InlineCode = ({
   animate,
   animationStartOffset,
   className,
+  markdownText,
   node,
   style,
   ...props
 }: ComponentProps<"code"> & {
   animate: boolean;
   animationStartOffset: number;
+  markdownText: string;
   node?: unknown;
 }) => {
-  const ref = useRef<HTMLElement>(null);
-  const nodeEndOffset = getMarkdownNodeEndOffset(node);
+  const nodeOffsets = getMarkdownNodeOffsets(node);
   const shouldAnimate =
-    animate && (nodeEndOffset === null || nodeEndOffset > animationStartOffset);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!shouldAnimate || !el) return;
-
-    // Find the nearest block-level ancestor to scope the stagger count.
-    const block =
-      el.closest("p,li,td,th,h1,h2,h3,h4,h5,h6,blockquote,dd,dt") ??
-      el.parentElement;
-    if (!block) return;
-
-    // Count newly animated elements preceding this one in DOM order so inline
-    // code reveals with the same stagger as the surrounding streamed words.
-    const all = block.querySelectorAll("[data-sd-animate]");
-    let index = 0;
-    for (const n of all) {
-      if (n === el) break;
-      const duration = (n as HTMLElement).style.getPropertyValue(
-        "--sd-duration",
-      );
-      if (duration === "0ms") continue;
-      index++;
-    }
-
-    el.style.setProperty(
-      "--sd-delay",
-      `${index * streamingTextAnimation.stagger}ms`,
-    );
-  });
+    animate && (nodeOffsets === null || nodeOffsets.end > animationStartOffset);
+  const delay = getInlineCodeDelay(
+    animationStartOffset,
+    markdownText,
+    nodeOffsets?.start ?? null,
+  );
+  const animatedStyle = shouldAnimate
+    ? ({
+        ...inlineCodeAnimationStyle,
+        ...style,
+        "--sd-delay": `${delay}ms`,
+      } as ComponentProps<"code">["style"])
+    : style;
 
   return (
     <code
-      ref={ref}
       className={[INLINE_CODE_CLASS_NAME, className].filter(Boolean).join(" ")}
       data-sd-animate={shouldAnimate ? true : undefined}
       data-streamdown="inline-code"
-      style={shouldAnimate ? { ...inlineCodeAnimationStyle, ...style } : style}
+      style={animatedStyle}
       {...props}
     />
   );
+};
+
+const MARKDOWN_BLOCK_BOUNDARY_PATTERN =
+  /\n(?:([ \t]*\n)|([ \t]*(?:[-*+]\s+|\d+[.)]\s+|#{1,6}\s+|>\s+)))/g;
+
+const getMarkdownBlockBoundaryCutoff = (
+  text: string,
+  maxChunkLength: number,
+) => {
+  MARKDOWN_BLOCK_BOUNDARY_PATTERN.lastIndex = 0;
+
+  for (;;) {
+    const match = MARKDOWN_BLOCK_BOUNDARY_PATTERN.exec(text);
+    if (!match) return null;
+
+    const cutoff = match[1] ? match.index + match[0].length : match.index + 1;
+    if (cutoff <= 0) continue;
+    if (cutoff >= maxChunkLength) return null;
+
+    return cutoff;
+  }
 };
 
 export const getNextStreamingWordToken = (text: string) =>
@@ -157,6 +193,14 @@ export const getNextStreamingChunkText = (
     chunkLength += getNextStreamingWordToken(
       remainingText.slice(chunkLength),
     ).length;
+  }
+
+  const boundaryCutoff = getMarkdownBlockBoundaryCutoff(
+    remainingText,
+    chunkLength,
+  );
+  if (boundaryCutoff !== null) {
+    chunkLength = boundaryCutoff;
   }
 
   return targetText.slice(0, currentText.length + chunkLength);
@@ -351,6 +395,18 @@ export const StreamingMessageResponse = ({
     };
   }, []);
 
+  const markdownText = useMemo(
+    () => normalizeProjectFileLinksInMarkdown(visibleText, projectPath),
+    [projectPath, visibleText],
+  );
+  const markdownAnimationStartOffset = useMemo(
+    () =>
+      normalizeProjectFileLinksInMarkdown(
+        visibleText.slice(0, animationStartOffsetRef.current),
+        projectPath,
+      ).length,
+    [projectPath, visibleText],
+  );
   const markdownComponents = useMemo<
     NonNullable<MessageResponseProps["components"]>
   >(
@@ -359,16 +415,18 @@ export const StreamingMessageResponse = ({
       inlineCode: (props) => (
         <InlineCode
           animate={animateStreamedText}
-          animationStartOffset={animationStartOffsetRef.current}
+          animationStartOffset={markdownAnimationStartOffset}
+          markdownText={markdownText}
           {...props}
         />
       ),
     }),
-    [animateStreamedText, projectPath],
-  );
-  const markdownText = useMemo(
-    () => normalizeProjectFileLinksInMarkdown(visibleText, projectPath),
-    [projectPath, visibleText],
+    [
+      animateStreamedText,
+      markdownAnimationStartOffset,
+      markdownText,
+      projectPath,
+    ],
   );
 
   return (
