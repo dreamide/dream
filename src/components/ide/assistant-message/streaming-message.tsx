@@ -28,6 +28,8 @@ export const STREAMING_FINISHED_MIN_CHARS_PER_TICK = 240;
 export const STREAMING_FINISHED_MAX_CHARS_PER_TICK = 1200;
 export const STREAMING_TEXT_REVEAL_DURATION_MS = 220;
 export const STREAMING_TEXT_REVEAL_SETTLE_MS = 140;
+export const STREAMING_MAX_ANIMATED_TOKENS_PER_TICK = 8;
+export const STREAMING_FINISHED_MAX_ANIMATED_TOKENS_PER_TICK = 10;
 
 export const streamingTextAnimation = {
   animation: "searIn",
@@ -186,13 +188,29 @@ export const getNextStreamingChunkText = (
   targetText: string,
   targetChunkSize: number,
 ) => {
+  return getNextStreamingChunk(currentText, targetText, targetChunkSize)
+    .nextText;
+};
+
+const getNextStreamingChunk = (
+  currentText: string,
+  targetText: string,
+  targetChunkSize: number,
+  maxAnimatedTokens = Number.POSITIVE_INFINITY,
+) => {
   const remainingText = targetText.slice(currentText.length);
   let chunkLength = 0;
+  let animatedTokenCount = 0;
 
   while (chunkLength < remainingText.length && chunkLength < targetChunkSize) {
-    chunkLength += getNextStreamingWordToken(
-      remainingText.slice(chunkLength),
-    ).length;
+    const token = getNextStreamingWordToken(remainingText.slice(chunkLength));
+    if (/\S/.test(token)) {
+      if (animatedTokenCount >= maxAnimatedTokens) {
+        break;
+      }
+      animatedTokenCount++;
+    }
+    chunkLength += token.length;
   }
 
   const boundaryCutoff = getMarkdownBlockBoundaryCutoff(
@@ -201,9 +219,29 @@ export const getNextStreamingChunkText = (
   );
   if (boundaryCutoff !== null) {
     chunkLength = boundaryCutoff;
+    animatedTokenCount = getAnimatedTokenCount(
+      remainingText.slice(0, boundaryCutoff),
+    );
   }
 
-  return targetText.slice(0, currentText.length + chunkLength);
+  return {
+    animatedTokenCount,
+    nextText: targetText.slice(0, currentText.length + chunkLength),
+  };
+};
+
+const getStreamingFrameInterval = (
+  baseIntervalMs: number,
+  animatedTokenCount: number,
+) => {
+  if (animatedTokenCount <= 1) {
+    return baseIntervalMs;
+  }
+
+  return Math.max(
+    baseIntervalMs,
+    animatedTokenCount * streamingTextAnimation.stagger,
+  );
 };
 
 export const getNextStreamingFrame = (
@@ -217,9 +255,17 @@ export const getNextStreamingFrame = (
     const pressure = getBacklogPressure(remainingText.length);
 
     if (pressure === 0) {
+      const { animatedTokenCount, nextText } = getNextStreamingChunk(
+        currentText,
+        targetText,
+        getNextStreamingWordToken(remainingText).length,
+        STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
+      );
+
       return {
         intervalMs: STREAMING_WORD_INTERVAL_MS,
-        nextText: currentText + getNextStreamingWordToken(remainingText),
+        nextText,
+        animatedTokenCount,
       };
     }
 
@@ -235,13 +281,17 @@ export const getNextStreamingFrame = (
         pressure * (STREAMING_WORD_INTERVAL_MS - STREAMING_MIN_INTERVAL_MS),
     );
 
+    const { animatedTokenCount, nextText } = getNextStreamingChunk(
+      currentText,
+      targetText,
+      targetChunkSize,
+      STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
+    );
+
     return {
-      intervalMs,
-      nextText: getNextStreamingChunkText(
-        currentText,
-        targetText,
-        targetChunkSize,
-      ),
+      intervalMs: getStreamingFrameInterval(intervalMs, animatedTokenCount),
+      nextText,
+      animatedTokenCount,
     };
   }
 
@@ -253,13 +303,20 @@ export const getNextStreamingFrame = (
     ),
   );
 
+  const { animatedTokenCount, nextText } = getNextStreamingChunk(
+    currentText,
+    targetText,
+    targetChunkSize,
+    STREAMING_FINISHED_MAX_ANIMATED_TOKENS_PER_TICK,
+  );
+
   return {
-    intervalMs: STREAMING_FINISHED_INTERVAL_MS,
-    nextText: getNextStreamingChunkText(
-      currentText,
-      targetText,
-      targetChunkSize,
+    intervalMs: getStreamingFrameInterval(
+      STREAMING_FINISHED_INTERVAL_MS,
+      animatedTokenCount,
     ),
+    nextText,
+    animatedTokenCount,
   };
 };
 
