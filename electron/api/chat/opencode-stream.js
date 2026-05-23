@@ -1,11 +1,14 @@
-import { spawn } from "node:child_process";
+import { createOpencode } from "@opencode-ai/sdk";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
+import { waitForToolApproval } from "../tool-approvals.js";
 import { writeCodexTextPart } from "./codex-common.js";
 import {
   buildCodexConversationPrompt,
   getLatestUserMessage,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
+
+const OPENCODE_SERVER_TIMEOUT_MS = 10000;
 
 const getOpenCodeErrorDetail = (event) => {
   if (!event || typeof event !== "object") {
@@ -29,37 +32,93 @@ const getOpenCodeErrorDetail = (event) => {
   return null;
 };
 
-const extractOpenCodeText = (event) => {
-  if (!event || typeof event !== "object" || event.type !== "text") {
-    return "";
+const parseOpenCodeModel = (model) => {
+  const [providerID, ...modelParts] = String(model ?? "").split("/");
+  const modelID = modelParts.join("/");
+
+  if (!providerID || !modelID) {
+    throw new Error(
+      "OpenCode model must use provider/model format, for example opencode-go/kimi-k2.6.",
+    );
   }
 
-  if (event.part?.type === "text" && typeof event.part.text === "string") {
-    return event.part.text;
+  return { modelID, providerID };
+};
+
+const getOpenCodeServerConfig = (codexPermissionMode) => {
+  if (codexPermissionMode === "full-access") {
+    return {
+      permission: {
+        bash: "allow",
+        doom_loop: "allow",
+        edit: "allow",
+        external_directory: "allow",
+        webfetch: "allow",
+      },
+    };
+  }
+
+  if (codexPermissionMode === "auto-accept-edits") {
+    return {
+      permission: {
+        edit: "allow",
+      },
+    };
+  }
+
+  return {};
+};
+
+const extractOpenCodePartText = (part) => {
+  if (
+    (part?.type === "text" || part?.type === "reasoning") &&
+    typeof part.text === "string"
+  ) {
+    return part.text;
   }
 
   return "";
 };
 
-const buildOpenCodeRunArgs = ({
-  agentMode,
+const getOpenCodePartType = (part) =>
+  part?.type === "reasoning" ? "reasoning" : "text";
+
+const createOpenCodePermissionInput = (permission) => ({
+  callID: permission.callID ?? null,
+  metadata: permission.metadata ?? {},
+  pattern: permission.pattern ?? null,
+  title: permission.title ?? "",
+  type: permission.type ?? "",
+});
+
+const shouldAutoApproveOpenCodePermission = ({
   codexPermissionMode,
-  model,
-  projectPath,
-}) => [
-  "run",
-  "--format",
-  "json",
-  "--dir",
-  projectPath,
-  "--model",
-  model,
-  "--agent",
-  agentMode === "plan" ? "plan" : "build",
-  ...(codexPermissionMode === "full-access"
-    ? ["--dangerously-skip-permissions"]
-    : []),
-];
+  permission,
+}) => {
+  if (codexPermissionMode === "full-access") {
+    return true;
+  }
+
+  return (
+    codexPermissionMode === "auto-accept-edits" && permission.type === "edit"
+  );
+};
+
+const replyToOpenCodePermission = async ({
+  client,
+  directory,
+  permission,
+  response,
+}) => {
+  await client.postSessionIdPermissionsPermissionId({
+    body: { response },
+    path: {
+      id: permission.sessionID,
+      permissionID: permission.id,
+    },
+    query: { directory },
+  });
+};
 
 export const streamOpenCodeResponse = ({
   abortSignal,
@@ -75,37 +134,117 @@ export const streamOpenCodeResponse = ({
   const stream = createUIMessageStream({
     originalMessages: messages,
     onError: (error) =>
-      error instanceof Error ? error.message : "OpenCode CLI request failed.",
+      error instanceof Error ? error.message : "OpenCode request failed.",
     execute: ({ writer }) =>
       new Promise((resolve, reject) => {
-        let stdoutBuffer = "";
         let stderrBuffer = "";
         let finished = false;
         let preparedAttachments = null;
         let textPartIndex = 0;
-        const streamedTextByEventId = new Map();
-        const fallbackTexts = [];
+        let activeSessionId = null;
+        const permissionIds = new Set();
+        const streamedTextByPartId = new Map();
         let hasWrittenText = false;
-        let child;
+        let opencode = null;
+        const serverAbortController = new AbortController();
 
         const finish = (callback) => {
           if (finished) return;
           finished = true;
           abortSignal?.removeEventListener("abort", handleAbort);
+          serverAbortController.abort();
           preparedAttachments?.cleanup?.();
+          opencode?.server.close();
           callback();
         };
 
-        const writeText = (text, idHint) => {
+        const writeText = (text, idHint, type = "text") => {
           if (!text) {
             return;
           }
-          const id = idHint || `opencode-text-${++textPartIndex}`;
-          writeCodexTextPart((event) => writer.write(event), id, text, "text");
+          const id = idHint || `opencode-${type}-${++textPartIndex}`;
+          writeCodexTextPart((event) => writer.write(event), id, text, type);
           hasWrittenText = true;
         };
 
-        const handleEvent = (event) => {
+        const handlePermission = async (permission) => {
+          if (
+            !permission?.id ||
+            permissionIds.has(permission.id) ||
+            permission.sessionID !== activeSessionId
+          ) {
+            return;
+          }
+
+          permissionIds.add(permission.id);
+
+          if (
+            shouldAutoApproveOpenCodePermission({
+              codexPermissionMode,
+              permission,
+            })
+          ) {
+            await replyToOpenCodePermission({
+              client: opencode.client,
+              directory: projectPath,
+              permission,
+              response: "once",
+            });
+            return;
+          }
+
+          const toolCallId =
+            permission.callID || `opencode-permission-${permission.id}`;
+          const approvalId = `opencode:${permission.id}`;
+          const input = createOpenCodePermissionInput(permission);
+
+          writer.write({
+            dynamic: true,
+            input,
+            providerExecuted: true,
+            title: permission.title || "OpenCode permission",
+            toolCallId,
+            toolName: permission.type || "permission",
+            type: "tool-input-start",
+          });
+          writer.write({
+            dynamic: true,
+            input,
+            providerExecuted: true,
+            title: permission.title || "OpenCode permission",
+            toolCallId,
+            toolName: permission.type || "permission",
+            type: "tool-input-available",
+          });
+          writer.write({
+            approvalId,
+            toolCallId,
+            type: "tool-approval-request",
+          });
+
+          const approval = await waitForToolApproval({
+            id: approvalId,
+            provider: "opencode",
+            request: {
+              input,
+              toolName: permission.type || "permission",
+            },
+            signal: abortSignal,
+          });
+
+          await replyToOpenCodePermission({
+            client: opencode.client,
+            directory: projectPath,
+            permission,
+            response: approval.approved
+              ? approval.scope === "session"
+                ? "always"
+                : "once"
+              : "reject",
+          });
+        };
+
+        const handleEvent = async (event) => {
           if (!event || typeof event !== "object") {
             return;
           }
@@ -121,59 +260,48 @@ export const streamOpenCodeResponse = ({
             return;
           }
 
-          const text = extractOpenCodeText(event);
+          if (event.type === "permission.updated") {
+            await handlePermission(event.properties);
+            return;
+          }
+
+          if (event.type !== "message.part.updated") {
+            return;
+          }
+
+          const part = event.properties?.part;
+          if (part?.sessionID !== activeSessionId) {
+            return;
+          }
+
+          const text = extractOpenCodePartText(part);
           if (!text) {
             return;
           }
 
-          fallbackTexts.push(text);
-          const eventId =
-            typeof event.id === "string"
-              ? event.id
-              : typeof event.part?.id === "string"
-                ? event.part.id
-                : typeof event.properties?.id === "string"
-                  ? event.properties.id
-                  : "";
-          if (eventId) {
-            const previousText = streamedTextByEventId.get(eventId) ?? "";
-            if (previousText === text) {
-              return;
-            }
-
-            if (previousText && text.startsWith(previousText)) {
-              const deltaText = text.slice(previousText.length);
-              streamedTextByEventId.set(eventId, text);
-              writeText(deltaText);
-              return;
-            }
-
-            streamedTextByEventId.set(eventId, `${previousText}${text}`);
+          const id = part.id || `opencode-part-${++textPartIndex}`;
+          if (typeof event.properties?.delta === "string") {
+            streamedTextByPartId.set(id, text);
+            writeText(event.properties.delta, id, getOpenCodePartType(part));
+            return;
           }
-          writeText(text, eventId || undefined);
-        };
 
-        const handleStdoutChunk = (chunk) => {
-          stdoutBuffer += chunk.toString();
-          const lines = stdoutBuffer.split(/\r?\n/);
-          stdoutBuffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) {
-              continue;
-            }
-
-            try {
-              handleEvent(JSON.parse(trimmed));
-            } catch {
-              fallbackTexts.push(trimmed);
-            }
+          const previousText = streamedTextByPartId.get(id) ?? "";
+          if (previousText === text) {
+            return;
           }
+
+          streamedTextByPartId.set(id, text);
+          writeText(
+            text.startsWith(previousText)
+              ? text.slice(previousText.length)
+              : text,
+            id,
+            getOpenCodePartType(part),
+          );
         };
 
         const handleAbort = () => {
-          child?.kill("SIGTERM");
           finish(resolve);
         };
 
@@ -184,7 +312,7 @@ export const streamOpenCodeResponse = ({
         });
 
         void prepareCodexPromptAttachments(getLatestUserMessage(messages))
-          .then((attachments) => {
+          .then(async (attachments) => {
             preparedAttachments = attachments;
             const prompt = buildCodexConversationPrompt({
               currentTurnAttachments: attachments?.promptText ?? null,
@@ -192,67 +320,83 @@ export const streamOpenCodeResponse = ({
               messages,
               projectPath,
               runtimeDescription:
-                "You are running through the real OpenCode CLI with native project tools. Respect the active project root and complete the latest user request.",
+                "You are running through the real OpenCode server with native project tools. Respect the active project root and complete the latest user request.",
               systemPrompt,
             });
-            const args = buildOpenCodeRunArgs({
-              agentMode,
-              codexPermissionMode,
-              model,
-              projectPath,
+
+            const { modelID, providerID } = parseOpenCodeModel(model);
+            opencode = await createOpencode({
+              config: getOpenCodeServerConfig(codexPermissionMode),
+              hostname: "127.0.0.1",
+              port: 0,
+              signal: serverAbortController.signal,
+              timeout: OPENCODE_SERVER_TIMEOUT_MS,
             });
 
-            child = spawn("opencode", args, {
-              cwd: projectPath,
-              env: process.env,
-              shell: process.platform === "win32",
-              stdio: ["pipe", "pipe", "pipe"],
-              windowsHide: true,
+            const sessionResult = await opencode.client.session.create({
+              body: {
+                agent: agentMode === "plan" ? "plan" : "build",
+                model: {
+                  id: modelID,
+                  providerID,
+                },
+              },
+              query: { directory: projectPath },
+            });
+            activeSessionId = sessionResult.data?.id;
+
+            if (!activeSessionId) {
+              throw new Error("OpenCode did not return a session id.");
+            }
+
+            const events = await opencode.client.event.subscribe({
+              query: { directory: projectPath },
+              signal: serverAbortController.signal,
+              sseMaxRetryAttempts: 0,
             });
 
-            child.stdin.end(prompt);
-            child.stdout.on("data", handleStdoutChunk);
-            child.stderr.on("data", (chunk) => {
-              stderrBuffer += chunk.toString();
-            });
-            child.on("error", (error) => {
-              finish(() =>
-                reject(
-                  new Error(
-                    error instanceof Error
-                      ? error.message
-                      : "OpenCode CLI request failed.",
-                  ),
-                ),
-              );
-            });
-            child.on("close", (code) => {
-              const trimmed = stdoutBuffer.trim();
-              if (trimmed) {
-                try {
-                  handleEvent(JSON.parse(trimmed));
-                } catch {
-                  fallbackTexts.push(trimmed);
+            const eventsPromise = (async () => {
+              for await (const event of events.stream) {
+                if (finished || abortSignal?.aborted) {
+                  return;
                 }
+                await handleEvent(event);
               }
+            })();
 
-              if (code === 0 || abortSignal?.aborted) {
-                if (!hasWrittenText) {
-                  writeText(fallbackTexts.join("\n").trim());
-                }
-                finish(resolve);
-                return;
-              }
-
-              finish(() =>
-                reject(
-                  new Error(
-                    stderrBuffer.trim() ||
-                      `OpenCode CLI exited with code ${code}.`,
-                  ),
-                ),
-              );
+            const promptResult = await opencode.client.session.prompt({
+              body: {
+                agent: agentMode === "plan" ? "plan" : "build",
+                model: {
+                  modelID,
+                  providerID,
+                },
+                parts: [{ text: prompt, type: "text" }],
+              },
+              path: { id: activeSessionId },
+              query: { directory: projectPath },
             });
+
+            if (!hasWrittenText) {
+              for (const part of promptResult.data?.parts ?? []) {
+                writeText(
+                  extractOpenCodePartText(part),
+                  part.id,
+                  getOpenCodePartType(part),
+                );
+              }
+            }
+
+            serverAbortController.abort();
+            await eventsPromise.catch((error) => {
+              if (
+                !abortSignal?.aborted &&
+                !serverAbortController.signal.aborted
+              ) {
+                throw error;
+              }
+            });
+            finish(resolve);
           })
           .catch((error) => {
             finish(() =>
@@ -260,7 +404,7 @@ export const streamOpenCodeResponse = ({
                 new Error(
                   error instanceof Error
                     ? error.message
-                    : "Failed to prepare OpenCode prompt.",
+                    : stderrBuffer.trim() || "OpenCode request failed.",
                 ),
               ),
             );
