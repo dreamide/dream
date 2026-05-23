@@ -163,6 +163,7 @@ export interface BrowserTabState {
   id: string;
   title: string;
   url: string;
+  zoomFactor?: number;
 }
 
 export interface BrowserPageStateEvent {
@@ -172,6 +173,7 @@ export interface BrowserPageStateEvent {
   tabId: string;
   title: string;
   url: string;
+  zoomFactor: number;
 }
 
 export type ProjectGitChangeStatus =
@@ -385,16 +387,21 @@ export interface TerminalResizePayload {
 
 export interface BrowserUpdatePayload {
   bounds?: BrowserBounds;
+  clearCache?: boolean;
+  clearCookies?: boolean;
   goBack?: boolean;
   goForward?: boolean;
   openDevTools?: boolean;
   projectId?: string;
+  resetZoom?: boolean;
   tabId?: string;
+  takeScreenshot?: boolean;
   reload?: boolean;
   stop?: boolean;
   visible?: boolean;
   url?: string;
   destroyTab?: string;
+  zoomDelta?: number;
 }
 
 export interface DesktopApi {

@@ -1,10 +1,16 @@
 import {
   ArrowLeft,
   ArrowRight,
+  Camera,
   Code2,
+  EllipsisVertical,
+  ExternalLink,
   Globe,
+  Minus,
   Plus,
+  RotateCcw,
   RotateCw,
+  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -16,15 +22,27 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
-import type { BrowserTabState, ProjectConfig } from "@/types/ide";
+import type {
+  BrowserTabState,
+  BrowserUpdatePayload,
+  ProjectConfig,
+} from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
+const BROWSER_ZOOM_STEP = 0.1;
 
 export interface BrowserPanelProps {
   active?: boolean;
@@ -55,8 +73,7 @@ const getBrowserTabTitle = (url: string) => {
   }
 };
 
-const isNewBrowserTab = (tab: BrowserTabState) =>
-  tab.url.trim().length === 0;
+const isNewBrowserTab = (tab: BrowserTabState) => tab.url.trim().length === 0;
 
 const BrowserPanelImpl = ({
   active = true,
@@ -77,6 +94,7 @@ const BrowserPanelImpl = ({
     (state) => state.activeBrowserTabIdByProject[project.id] ?? null,
   );
   const setBrowserError = useIdeStore((state) => state.setBrowserError);
+  const openExternalUrl = useIdeStore((state) => state.openExternalUrl);
   const updateProject = useIdeStore((state) => state.updateProject);
   const ensureBrowserTabs = useIdeStore((state) => state.ensureBrowserTabs);
   const createBrowserTab = useIdeStore((state) => state.createBrowserTab);
@@ -95,6 +113,8 @@ const BrowserPanelImpl = ({
   const isBrowserLoading = activeTab
     ? (browserLoading[activeTab.id] ?? false)
     : false;
+  const browserZoomFactor = activeTab?.zoomFactor ?? 1;
+  const browserZoomPercent = `${Math.round(browserZoomFactor * 100)}%`;
   const browserVisible = Boolean(activeTab?.url);
   const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
@@ -298,6 +318,23 @@ const BrowserPanelImpl = ({
     syncAfterStateChange,
   ]);
 
+  const handleForceReload = useCallback(() => {
+    if (!activeTab?.url) {
+      return;
+    }
+
+    setBrowserError(null);
+    syncAfterStateChange(true);
+  }, [activeTab?.url, setBrowserError, syncAfterStateChange]);
+
+  const handleOpenExternal = useCallback(() => {
+    if (!activeTab?.url) {
+      return;
+    }
+
+    openExternalUrl(activeTab.url);
+  }, [activeTab?.url, openExternalUrl]);
+
   const handleGoBack = useCallback(() => {
     if (!activeTab?.canGoBack) {
       return;
@@ -338,6 +375,46 @@ const BrowserPanelImpl = ({
       });
     });
   }, [activeTab, onSyncBrowserBounds, projectId]);
+
+  const handleBrowserAction = useCallback(
+    (payload: BrowserUpdatePayload) => {
+      if (!activeTab) {
+        return;
+      }
+
+      setBrowserError(null);
+      getDesktopApi()?.updateBrowser({
+        ...payload,
+        projectId,
+        tabId: activeTab.id,
+      });
+    },
+    [activeTab, projectId, setBrowserError],
+  );
+
+  const handleZoomOut = useCallback(() => {
+    handleBrowserAction({ zoomDelta: -BROWSER_ZOOM_STEP });
+  }, [handleBrowserAction]);
+
+  const handleZoomIn = useCallback(() => {
+    handleBrowserAction({ zoomDelta: BROWSER_ZOOM_STEP });
+  }, [handleBrowserAction]);
+
+  const handleResetZoom = useCallback(() => {
+    handleBrowserAction({ resetZoom: true });
+  }, [handleBrowserAction]);
+
+  const handleClearCookies = useCallback(() => {
+    handleBrowserAction({ clearCookies: true });
+  }, [handleBrowserAction]);
+
+  const handleClearCache = useCallback(() => {
+    handleBrowserAction({ clearCache: true });
+  }, [handleBrowserAction]);
+
+  const handleTakeScreenshot = useCallback(() => {
+    handleBrowserAction({ takeScreenshot: true });
+  }, [handleBrowserAction]);
 
   useEffect(() => {
     if (!active) {
@@ -441,9 +518,9 @@ const BrowserPanelImpl = ({
           )}
         </button>
 
-        <div className="relative mx-1.5 flex-1">
+        <div className="group relative mx-1.5 flex-1">
           <Input
-            className="h-7 rounded-full border-surface-200 dark:border-surface-800 bg-surface-100 dark:bg-surface-950 px-3 text-xs focus:border-surface-300 dark:focus:border-surface-700"
+            className="h-7 rounded-full border-surface-200 dark:border-surface-800 bg-surface-100 dark:bg-surface-950 px-3 pr-14 text-xs focus:border-surface-300 dark:focus:border-surface-700"
             disabled={!activeTab}
             onChange={(event) => {
               setBrowserUrlDraft(event.currentTarget.value);
@@ -459,12 +536,108 @@ const BrowserPanelImpl = ({
             placeholder="Enter URL..."
             value={browserUrlDraft}
           />
+          <button
+            aria-label="Open current URL in system browser"
+            className={cn(
+              "-translate-y-1/2 absolute top-1/2 right-2 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus:outline-none group-focus-within:opacity-100 group-hover:opacity-100",
+              activeTab?.url ? "" : "pointer-events-none",
+            )}
+            disabled={!activeTab?.url}
+            onClick={handleOpenExternal}
+            title="Open in system browser"
+            type="button"
+          >
+            <ExternalLink className="size-3.5" />
+          </button>
           {isBrowserLoading ? (
-            <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2">
+            <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-8">
               <Spinner className="size-3.5 text-muted-foreground" />
             </div>
           ) : null}
         </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                aria-label="Browser actions"
+                className={cn(
+                  "rounded p-1 transition-colors",
+                  activeTab?.url && !browserResizeHidden
+                    ? "text-muted-foreground hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted data-[popup-open]:text-foreground"
+                    : "text-surface-400 dark:text-surface-600",
+                )}
+                disabled={!activeTab?.url || browserResizeHidden}
+                title="Browser actions"
+                type="button"
+              />
+            }
+          >
+            <EllipsisVertical className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuItem onClick={handleForceReload}>
+              <RotateCw className="size-4" />
+              Force reload
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleTakeScreenshot}>
+              <Camera className="size-4" />
+              Take screenshot
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleOpenDevTools}>
+              <Code2 className="size-4" />
+              Open DevTools
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <div
+              className="flex items-center gap-2 px-2 py-1.5 text-sm"
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <span className="min-w-0 flex-1">Zoom</span>
+              <div className="flex items-center overflow-hidden rounded-md border border-surface-200 dark:border-surface-800">
+                <button
+                  aria-label="Zoom out"
+                  className="flex size-7 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={handleZoomOut}
+                  title="Zoom out"
+                  type="button"
+                >
+                  <Minus className="size-3.5" />
+                </button>
+                <div className="min-w-14 border-x border-surface-200 px-2 text-center text-muted-foreground dark:border-surface-800">
+                  {browserZoomPercent}
+                </div>
+                <button
+                  aria-label="Zoom in"
+                  className="flex size-7 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={handleZoomIn}
+                  title="Zoom in"
+                  type="button"
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+              <button
+                aria-label="Reset zoom"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={handleResetZoom}
+                title="Reset zoom"
+                type="button"
+              >
+                <RotateCcw className="size-3.5" />
+              </button>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleClearCookies}>
+              <Trash2 className="size-4" />
+              Clear cookies
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleClearCache}>
+              <Trash2 className="size-4" />
+              Clear cache
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="min-h-0 flex-1">
@@ -482,24 +655,6 @@ const BrowserPanelImpl = ({
             </div>
           ) : null}
         </div>
-      </div>
-
-      <div className="flex h-8 shrink-0 items-center justify-end border-t border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-1.5">
-        <button
-          aria-label="Open DevTools"
-          className={cn(
-            "rounded p-1 transition-colors",
-            activeTab?.url && !browserResizeHidden
-              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-              : "text-surface-400 dark:text-surface-600",
-          )}
-          disabled={!activeTab?.url || browserResizeHidden}
-          onClick={handleOpenDevTools}
-          title="Open DevTools"
-          type="button"
-        >
-          <Code2 className="size-4" />
-        </button>
       </div>
     </div>
   );

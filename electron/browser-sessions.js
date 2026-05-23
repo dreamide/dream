@@ -1,4 +1,9 @@
-import { shell, WebContentsView } from "electron";
+import { writeFile } from "node:fs/promises";
+import { dialog, shell, WebContentsView } from "electron";
+
+const MIN_ZOOM_FACTOR = 0.25;
+const MAX_ZOOM_FACTOR = 3;
+const DEFAULT_ZOOM_FACTOR = 1;
 
 function isHttpUrl(value) {
   return /^https?:\/\//i.test(value.trim());
@@ -36,6 +41,28 @@ function getBrowserLoadCandidates(value) {
   return [primary, alternate];
 }
 
+function clampZoomFactor(value) {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_ZOOM_FACTOR;
+  }
+
+  return Math.min(MAX_ZOOM_FACTOR, Math.max(MIN_ZOOM_FACTOR, value));
+}
+
+function getSafeScreenshotName(value) {
+  const base =
+    typeof value === "string" && value.trim().length > 0
+      ? value.trim()
+      : "browser-screenshot";
+  const sanitized = base
+    .replace(/[<>:"/\\|?*]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+
+  return `${sanitized || "browser-screenshot"}.png`;
+}
+
 export function createBrowserSessionManager({ getMainWindow, sendToRenderer }) {
   let activeBrowserTabId = null;
   const browserSessions = new Map();
@@ -69,7 +96,74 @@ export function createBrowserSessionManager({ getMainWindow, sendToRenderer }) {
       tabId: session.tabId,
       title: webContents.getTitle() || session.title || "New Tab",
       url: currentUrl,
+      zoomFactor: getSessionZoomFactor(session),
     };
+  }
+
+  function sendBrowserActionError(session, code, description) {
+    sendToRenderer("browser:error", {
+      code,
+      description,
+      projectId: session?.projectId ?? browserState.projectId,
+      tabId: session?.tabId ?? browserState.tabId,
+    });
+  }
+
+  function getExistingBrowserSession(
+    tabId = browserState.tabId,
+    projectId = browserState.projectId,
+    actionName = "browser action",
+  ) {
+    const normalizedTabId = typeof tabId === "string" ? tabId.trim() : "";
+    if (!normalizedTabId) {
+      sendBrowserActionError(
+        null,
+        "BROWSER_ACTION_FAILED",
+        `No active browser tab found for ${actionName}.`,
+      );
+      return null;
+    }
+
+    const session = browserSessions.get(normalizedTabId);
+    if (!session) {
+      sendBrowserActionError(
+        null,
+        "BROWSER_ACTION_FAILED",
+        `Browser tab is not ready for ${actionName} yet.`,
+      );
+      return null;
+    }
+
+    const normalizedProjectId =
+      typeof projectId === "string" ? projectId.trim() : "";
+    if (normalizedProjectId) {
+      session.projectId = normalizedProjectId;
+    }
+
+    return session;
+  }
+
+  function getSessionZoomFactor(session) {
+    try {
+      return session.view.webContents.getZoomFactor();
+    } catch {
+      return session.zoomFactor ?? DEFAULT_ZOOM_FACTOR;
+    }
+  }
+
+  function setBrowserZoomFactor(session, zoomFactor) {
+    const nextZoomFactor = clampZoomFactor(zoomFactor);
+    try {
+      session.view.webContents.setZoomFactor(nextZoomFactor);
+      session.zoomFactor = nextZoomFactor;
+      sendBrowserPageState(session);
+    } catch {
+      sendBrowserActionError(
+        session,
+        "ZOOM_FAILED",
+        "Failed to update browser zoom.",
+      );
+    }
   }
 
   function sendBrowserPageState(session) {
@@ -250,6 +344,7 @@ export function createBrowserSessionManager({ getMainWindow, sendToRenderer }) {
       tabId,
       title: "New Tab",
       view,
+      zoomFactor: DEFAULT_ZOOM_FACTOR,
     };
   }
 
@@ -615,6 +710,80 @@ export function createBrowserSessionManager({ getMainWindow, sendToRenderer }) {
     }
   }
 
+  async function clearBrowserCookies(tabId, projectId) {
+    const session = getExistingBrowserSession(tabId, projectId, "cookies");
+    if (!session) {
+      return;
+    }
+
+    try {
+      await session.view.webContents.session.clearStorageData({
+        storages: ["cookies"],
+      });
+    } catch {
+      sendBrowserActionError(
+        session,
+        "CLEAR_COOKIES_FAILED",
+        "Failed to clear browser cookies.",
+      );
+    }
+  }
+
+  async function clearBrowserCache(tabId, projectId) {
+    const session = getExistingBrowserSession(tabId, projectId, "cache");
+    if (!session) {
+      return;
+    }
+
+    try {
+      await session.view.webContents.session.clearCache();
+    } catch {
+      sendBrowserActionError(
+        session,
+        "CLEAR_CACHE_FAILED",
+        "Failed to clear browser cache.",
+      );
+    }
+  }
+
+  async function takeBrowserScreenshot(tabId, projectId) {
+    const session = getExistingBrowserSession(tabId, projectId, "screenshot");
+    if (!session) {
+      return;
+    }
+
+    const mainWindow = getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      sendBrowserActionError(
+        session,
+        "SCREENSHOT_FAILED",
+        "No app window is available for saving the screenshot.",
+      );
+      return;
+    }
+
+    try {
+      const image = await session.view.webContents.capturePage();
+      const result = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: getSafeScreenshotName(session.title),
+        filters: [{ name: "PNG image", extensions: ["png"] }],
+        title: "Save browser screenshot",
+      });
+
+      if (result.canceled || !result.filePath) {
+        return;
+      }
+
+      await writeFile(result.filePath, image.toPNG());
+    } catch {
+      sendBrowserActionError(
+        session,
+        "SCREENSHOT_FAILED",
+        "Failed to save browser screenshot.",
+      );
+    }
+  }
+
   function reset() {
     detachAllBrowserSessions();
     activeBrowserTabId = null;
@@ -645,6 +814,48 @@ export function createBrowserSessionManager({ getMainWindow, sendToRenderer }) {
 
     if (payload.openDevTools === true) {
       openDevTools(payload.tabId ?? browserState.tabId, browserState.projectId);
+      return;
+    }
+
+    if (payload.takeScreenshot === true) {
+      void takeBrowserScreenshot(
+        payload.tabId ?? browserState.tabId,
+        browserState.projectId,
+      );
+      return;
+    }
+
+    if (payload.clearCookies === true) {
+      void clearBrowserCookies(
+        payload.tabId ?? browserState.tabId,
+        browserState.projectId,
+      );
+      return;
+    }
+
+    if (payload.clearCache === true) {
+      void clearBrowserCache(
+        payload.tabId ?? browserState.tabId,
+        browserState.projectId,
+      );
+      return;
+    }
+
+    if (payload.resetZoom === true || typeof payload.zoomDelta === "number") {
+      const session = getExistingBrowserSession(
+        payload.tabId ?? browserState.tabId,
+        browserState.projectId,
+        "zoom",
+      );
+      if (session) {
+        const currentZoomFactor = getSessionZoomFactor(session);
+        setBrowserZoomFactor(
+          session,
+          payload.resetZoom === true
+            ? DEFAULT_ZOOM_FACTOR
+            : currentZoomFactor + payload.zoomDelta,
+        );
+      }
       return;
     }
 

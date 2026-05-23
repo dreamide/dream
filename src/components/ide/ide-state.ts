@@ -89,12 +89,18 @@ const normalizeBrowserTab = (value: unknown): BrowserTabState | null => {
 
   const url = typeof tab.url === "string" ? tab.url.trim() : "";
   const title = typeof tab.title === "string" ? tab.title.trim() : "";
+  const zoomFactor =
+    typeof tab.zoomFactor === "number" && Number.isFinite(tab.zoomFactor)
+      ? tab.zoomFactor
+      : 1;
+
   return {
     canGoBack: tab.canGoBack === true,
     canGoForward: tab.canGoForward === true,
     id,
     title: title || "New Tab",
     url,
+    zoomFactor,
   };
 };
 

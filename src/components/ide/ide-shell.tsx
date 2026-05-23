@@ -169,6 +169,7 @@ export const IdeShell = () => {
         canGoForward: event.canGoForward,
         title: event.title || tab.title,
         url: event.url || tab.url,
+        zoomFactor: event.zoomFactor,
       }));
 
       const state = useIdeStore.getState();

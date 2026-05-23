@@ -179,6 +179,7 @@ export const createBrowserTabState = (url = ""): BrowserTabState => ({
   id: createBrowserTabId(),
   title: getBrowserTabTitle(url),
   url,
+  zoomFactor: 1,
 });
 
 export const getBrowserTabsForProject = (
