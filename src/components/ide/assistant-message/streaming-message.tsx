@@ -100,9 +100,11 @@ const getInlineCodeDelay = (
   }
 
   return (
+    STREAMING_TEXT_REVEAL_DURATION_MS +
     getAnimatedTokenCount(
       markdownText.slice(animationStartOffset, nodeStartOffset),
-    ) * streamingTextAnimation.stagger
+    ) *
+      streamingTextAnimation.stagger
   );
 };
 
