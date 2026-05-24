@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import {
+  MAX_STREAMDOWN_MARKDOWN_CHARS,
   MessageResponse,
   type MessageResponseProps,
 } from "@/components/ai-elements/message";
@@ -455,15 +456,20 @@ export const StreamingMessageResponse = ({
   }, []);
 
   const markdownText = useMemo(
-    () => normalizeProjectFileLinksInMarkdown(visibleText, projectPath),
+    () =>
+      visibleText.length > MAX_STREAMDOWN_MARKDOWN_CHARS
+        ? visibleText
+        : normalizeProjectFileLinksInMarkdown(visibleText, projectPath),
     [projectPath, visibleText],
   );
   const markdownAnimationStartOffset = useMemo(
     () =>
-      normalizeProjectFileLinksInMarkdown(
-        visibleText.slice(0, animationStartOffsetRef.current),
-        projectPath,
-      ).length,
+      visibleText.length > MAX_STREAMDOWN_MARKDOWN_CHARS
+        ? 0
+        : normalizeProjectFileLinksInMarkdown(
+            visibleText.slice(0, animationStartOffsetRef.current),
+            projectPath,
+          ).length,
     [projectPath, visibleText],
   );
   const markdownComponents = useMemo<

@@ -691,19 +691,62 @@ const defaultMessageResponseComponents = {
   table: MarkdownTable,
 } as NonNullable<MessageResponseProps["components"]>;
 
+export const MAX_STREAMDOWN_MARKDOWN_CHARS = 100_000;
+const LARGE_MESSAGE_PREVIEW_HEAD_CHARS = 60_000;
+const LARGE_MESSAGE_PREVIEW_TAIL_CHARS = 12_000;
+
+const getLargeMessagePreview = (value: string) => {
+  if (value.length <= MAX_STREAMDOWN_MARKDOWN_CHARS) {
+    return value;
+  }
+
+  const omittedChars =
+    value.length -
+    LARGE_MESSAGE_PREVIEW_HEAD_CHARS -
+    LARGE_MESSAGE_PREVIEW_TAIL_CHARS;
+
+  return `${value.slice(0, LARGE_MESSAGE_PREVIEW_HEAD_CHARS)}\n\n[... ${omittedChars.toLocaleString()} characters omitted from preview ...]\n\n${value.slice(-LARGE_MESSAGE_PREVIEW_TAIL_CHARS)}`;
+};
+
 export const MessageResponse = memo(
   ({ children, className, components, ...props }: MessageResponseProps) => {
+    const largeTextPreview =
+      typeof children === "string" &&
+      children.length > MAX_STREAMDOWN_MARKDOWN_CHARS
+        ? getLargeMessagePreview(children)
+        : null;
     const mergedComponents = useMemo(
       () => ({ ...defaultMessageResponseComponents, ...components }),
       [components],
     );
     const normalizedChildren = useMemo(
       () =>
-        typeof children === "string"
-          ? normalizeCodeFenceLanguageMarkers(children)
-          : children,
-      [children],
+        largeTextPreview !== null
+          ? children
+          : typeof children === "string"
+            ? normalizeCodeFenceLanguageMarkers(children)
+            : children,
+      [children, largeTextPreview],
     );
+
+    if (largeTextPreview !== null) {
+      return (
+        <div
+          className={cn(
+            "dream-markdown-code-size size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+            className,
+          )}
+        >
+          <div className="mb-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning-foreground">
+            Large message preview. Markdown rendering was skipped to keep Dream
+            responsive.
+          </div>
+          <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-mono text-xs">
+            {largeTextPreview}
+          </pre>
+        </div>
+      );
+    }
 
     return (
       <Streamdown

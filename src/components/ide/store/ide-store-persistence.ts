@@ -21,12 +21,44 @@ const createEmptyPersistedState = (): PersistedIdeState => ({
   settings: DEFAULT_SETTINGS,
 });
 
+const STATE_LOAD_TIMEOUT_MS = 8000;
+
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
   const desktopApi = getDesktopApi();
 
   if (desktopApi) {
-    const rawState = await desktopApi.loadState();
-    return mergePersistedState(rawState);
+    try {
+      const rawState = await withTimeout(
+        desktopApi.loadState(),
+        STATE_LOAD_TIMEOUT_MS,
+        "Timed out loading persisted Dream state.",
+      );
+      return mergePersistedState(rawState);
+    } catch (error) {
+      console.warn("Unable to load persisted Dream state.", error);
+      return createEmptyPersistedState();
+    }
   }
 
   const rawState = localStorage.getItem(STATE_STORAGE_KEY);

@@ -205,6 +205,8 @@ export const createChatActions = (
   },
 
   deleteChat: (chatId: string) => {
+    let projectIdNeedingNewChat: string | null = null;
+
     set((state) => {
       const chat = state.chats.find((item) => item.id === chatId);
       if (!chat) {
@@ -230,6 +232,10 @@ export const createChatActions = (
               openChatIds[deletedOpenIndex - 1] ??
               null)
             : project.ui.activeChatId;
+
+        if (project.ui.activeChatId === chatId && openChatIds.length === 0) {
+          projectIdNeedingNewChat = chat.projectId;
+        }
 
         return sanitizeProjectUiForChats(
           nextChats,
@@ -261,6 +267,11 @@ export const createChatActions = (
         chats: nextChats,
       };
     });
+
+    if (projectIdNeedingNewChat) {
+      get().addChat(projectIdNeedingNewChat);
+    }
+
     get().persist();
   },
 
