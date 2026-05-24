@@ -40,8 +40,6 @@ export const IdeShell = () => {
   const setTerminalTransport = useIdeStore((s) => s.setTerminalTransport);
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setBrowserError = useIdeStore((s) => s.setBrowserError);
-  const setBrowserLoading = useIdeStore((s) => s.setBrowserLoading);
-  const updateBrowserTab = useIdeStore((s) => s.updateBrowserTab);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Effects ─────────────────────────────────────────────────────────
@@ -153,51 +151,10 @@ export const IdeShell = () => {
       );
     });
 
-    const removeBrowserStatus = desktopApi.onBrowserStatus((event) => {
-      setBrowserLoading(event.tabId ?? event.projectId, event.loading);
-      if (!event.loading) {
-        return;
-      }
-
-      setBrowserError(null);
-    });
-
-    const removeBrowserPageState = desktopApi.onBrowserPageState((event) => {
-      updateBrowserTab(event.projectId, event.tabId, (tab) => ({
-        ...tab,
-        canGoBack: event.canGoBack,
-        canGoForward: event.canGoForward,
-        title: event.title || tab.title,
-        url: event.url || tab.url,
-        zoomFactor: event.zoomFactor,
-      }));
-
-      const state = useIdeStore.getState();
-      const activeTabId =
-        state.activeBrowserTabIdByProject[event.projectId] ?? null;
-      if (activeTabId !== event.tabId || !event.url) {
-        return;
-      }
-
-      const project = state.projects.find(
-        (item) => item.id === event.projectId,
-      );
-      if (!project || project.browserUrl === event.url) {
-        return;
-      }
-
-      state.updateProject(event.projectId, (currentProject) => ({
-        ...currentProject,
-        browserUrl: event.url,
-      }));
-    });
-
     return () => {
       removeTerminalData();
       removeTerminalStatus();
       removeBrowserError();
-      removeBrowserPageState();
-      removeBrowserStatus();
     };
   }, [
     appendTerminalOutput,
@@ -205,8 +162,6 @@ export const IdeShell = () => {
     setTerminalTransport,
     setTerminalShell,
     setBrowserError,
-    setBrowserLoading,
-    updateBrowserTab,
   ]);
 
   // Auto-refresh models when settings panel opens
@@ -216,14 +171,6 @@ export const IdeShell = () => {
     }
     void refreshProviderModels();
   }, [refreshProviderModels, settingsOpen, settingsSection]);
-
-  useEffect(() => {
-    if (!stateHydrated || activeProjectId) {
-      return;
-    }
-
-    getDesktopApi()?.updateBrowser({ visible: false });
-  }, [activeProjectId, stateHydrated]);
 
   // Sync settings integrity (dedupe models, fix connected providers)
   useEffect(() => {

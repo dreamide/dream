@@ -1,10 +1,4 @@
-import {
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-} from "react";
+import type { ReactNode } from "react";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
@@ -19,9 +13,6 @@ const RIGHT_PANEL_SURFACE_CLASSES =
 
 export interface RightPanelViewsProps {
   active?: boolean;
-  browserHostRef: RefObject<HTMLDivElement | null>;
-  browserResizeHidden?: boolean;
-  onSyncBrowserBounds: (reload?: boolean) => void;
   project: ProjectConfig;
   rightPanelView: RightPanelView;
 }
@@ -48,15 +39,6 @@ const RightPanelViewSlot = ({
 export const RightPanelViews = (props: RightPanelViewsProps) => {
   const baseColor = useUiStore((state) => state.baseColor);
   const rightPanelView = props.rightPanelView;
-  const onSyncBrowserBoundsRef = useRef(props.onSyncBrowserBounds);
-
-  useEffect(() => {
-    onSyncBrowserBoundsRef.current = props.onSyncBrowserBounds;
-  }, [props.onSyncBrowserBounds]);
-
-  const handleSyncBrowserBounds = useCallback((reload?: boolean) => {
-    onSyncBrowserBoundsRef.current(reload);
-  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col pt-2">
@@ -78,13 +60,7 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
             <ChangesPanel projectId={props.project.id} />
           </RightPanelViewSlot>
           <RightPanelViewSlot active={rightPanelView === "browser"}>
-            <BrowserPanel
-              active={props.active}
-              browserHostRef={props.browserHostRef}
-              browserResizeHidden={props.browserResizeHidden}
-              onSyncBrowserBounds={handleSyncBrowserBounds}
-              project={props.project}
-            />
+            <BrowserPanel active={props.active} project={props.project} />
           </RightPanelViewSlot>
           {rightPanelView === "terminal" ? (
             <RightPanelViewSlot active={true}>

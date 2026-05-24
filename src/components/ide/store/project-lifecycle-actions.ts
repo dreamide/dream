@@ -377,12 +377,8 @@ export const createProjectLifecycleActions = (
   },
 
   closeProject: (projectId: string) => {
-    const browserTabs = get().browserTabsByProject[projectId] ?? [];
     const terminalSessionIds = get().projectTerminalSessionIds[projectId] ?? [];
     const desktopApi = getDesktopApi();
-    for (const tab of browserTabs) {
-      desktopApi?.updateBrowser({ destroyTab: tab.id });
-    }
     for (const sessionId of terminalSessionIds) {
       void desktopApi?.stopTerminal(sessionId);
     }
@@ -437,6 +433,7 @@ export const createProjectLifecycleActions = (
       };
       const nextBrowserLoading = { ...state.browserLoading };
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
+      const browserTabs = state.browserTabsByProject[projectId] ?? [];
 
       delete nextProjectGitRefreshKeys[projectId];
       delete nextProjectFilesRefreshKeys[projectId];

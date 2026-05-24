@@ -9,7 +9,6 @@ import {
   CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX,
   CHAT_PANEL_MIN_WIDTH_PX,
   clampChatHistoryPanelWidth,
-  EMPTY_BROWSER_TABS,
   EMPTY_TERMINAL_SESSION_IDS,
   PANEL_EDGE_PADDING_PX,
   PANEL_RESIZE_HANDLE_SIZE_PX,
@@ -21,10 +20,6 @@ import { WorkspaceHistoryPanel } from "./workspace/history-panel";
 import { WorkspaceRightPanel } from "./workspace/right-panel";
 import { WorkspaceRightRail } from "./workspace/right-rail";
 import { WorkspaceSideNav } from "./workspace/side-nav";
-import {
-  useActiveBrowserTab,
-  useWorkspaceBrowserSync,
-} from "./workspace/use-browser-sync";
 import { useMountedProjectChats } from "./workspace/use-mounted-chats";
 
 export interface ProjectWorkspaceProps {
@@ -50,12 +45,6 @@ const ProjectWorkspaceComponent = ({
   const multiChat = projectUi.multiChat;
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
-  const browserTabs = useIdeStore(
-    (s) => s.browserTabsByProject[projectId] ?? EMPTY_BROWSER_TABS,
-  );
-  const activeBrowserTabId = useIdeStore(
-    (s) => s.activeBrowserTabIdByProject[projectId] ?? null,
-  );
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds[projectId] ?? EMPTY_TERMINAL_SESSION_IDS,
   );
@@ -96,7 +85,6 @@ const ProjectWorkspaceComponent = ({
 
   // ── Derived values ──────────────────────────────────────────────────
   const middleVisible = true;
-  const activeBrowserTab = useActiveBrowserTab(browserTabs, activeBrowserTabId);
   const mountedChats = useMountedProjectChats({
     activeChatId,
     chats,
@@ -146,14 +134,12 @@ const ProjectWorkspaceComponent = ({
   }, [active, activeChatId, addChat, projectId]);
 
   // ── Refs ─────────────────────────────────────────────────────────────
-  const browserHostRef = useRef<HTMLDivElement | null>(null);
   const rightWidthRef = useRef(BROWSER_PANEL_DEFAULT_WIDTH_PX);
   const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
-  const rightResizeBrowserSyncFrameRef = useRef<number | null>(null);
   const rightPanelViewPersistTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -165,21 +151,6 @@ const ProjectWorkspaceComponent = ({
   const markRightPanelDragging = useCallback(() => {
     isDraggingRef.current = true;
   }, []);
-
-  const {
-    browserResizeHidden,
-    hideBrowserForRightResize,
-    restoreBrowserAfterRightResize,
-    syncBrowserBounds,
-  } = useWorkspaceBrowserSync({
-    active,
-    activeBrowserTab,
-    browserHostRef,
-    onResizeStart: markRightPanelDragging,
-    projectId,
-    rightPanelView,
-    rightVisible,
-  });
 
   useEffect(() => {
     if (!active || !historyOpen) {
@@ -500,37 +471,9 @@ const ProjectWorkspaceComponent = ({
       if (rightPanelViewPersistTimerRef.current !== null) {
         clearTimeout(rightPanelViewPersistTimerRef.current);
       }
-      if (rightResizeBrowserSyncFrameRef.current !== null) {
-        window.cancelAnimationFrame(rightResizeBrowserSyncFrameRef.current);
-      }
     },
     [],
   );
-
-  const handleRightResizeEndWithBrowserSync = useCallback(
-    (width: number) => {
-      if (rightResizeBrowserSyncFrameRef.current !== null) {
-        window.cancelAnimationFrame(rightResizeBrowserSyncFrameRef.current);
-        rightResizeBrowserSyncFrameRef.current = null;
-      }
-      handleRightResizeEnd(width);
-      restoreBrowserAfterRightResize();
-    },
-    [handleRightResizeEnd, restoreBrowserAfterRightResize],
-  );
-
-  const handleRightResize = useCallback(() => {
-    if (rightResizeBrowserSyncFrameRef.current !== null) {
-      return;
-    }
-
-    rightResizeBrowserSyncFrameRef.current = window.requestAnimationFrame(
-      () => {
-        rightResizeBrowserSyncFrameRef.current = null;
-        syncBrowserBounds();
-      },
-    );
-  }, [syncBrowserBounds]);
 
   useEffect(() => {
     let rafId: number | null = null;
@@ -616,14 +559,10 @@ const ProjectWorkspaceComponent = ({
       {/* ─── RIGHT: Browser / Explorer ─── */}
       <WorkspaceRightPanel
         active={active}
-        browserHostRef={browserHostRef}
-        browserResizeHidden={browserResizeHidden}
         handleVisible={middleVisible}
         maxWidth={boundedRightPanelMaxWidth}
-        onResize={handleRightResize}
-        onResizeEnd={handleRightResizeEndWithBrowserSync}
-        onResizeStart={hideBrowserForRightResize}
-        onSyncBrowserBounds={syncBrowserBounds}
+        onResizeEnd={handleRightResizeEnd}
+        onResizeStart={markRightPanelDragging}
         onToggleRightPanel={handleToggleRightPanel}
         open={rightVisible}
         project={project}

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import {
   memo,
-  type RefObject,
+  type RefCallback,
   useCallback,
   useEffect,
   useMemo,
@@ -33,24 +33,35 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
-import type {
-  BrowserTabState,
-  BrowserUpdatePayload,
-  ProjectConfig,
-} from "@/types/ide";
+import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 const BROWSER_ZOOM_STEP = 0.1;
+const MIN_BROWSER_ZOOM = 0.25;
+const MAX_BROWSER_ZOOM = 3;
 
 export interface BrowserPanelProps {
   active?: boolean;
-  browserHostRef: RefObject<HTMLDivElement | null>;
-  browserResizeHidden?: boolean;
-  onSyncBrowserBounds: (reload?: boolean) => void;
   project: ProjectConfig;
 }
+
+type WebviewNavigationEvent = Event & {
+  url?: string;
+  isMainFrame?: boolean;
+};
+
+type WebviewTitleEvent = Event & {
+  title?: string;
+};
+
+type WebviewFailEvent = Event & {
+  errorCode?: number;
+  errorDescription?: string;
+  validatedURL?: string;
+  isMainFrame?: boolean;
+};
 
 const normalizeBrowserUrlInput = (value: string) => {
   const trimmed = value.trim();
@@ -75,14 +86,159 @@ const getBrowserTabTitle = (url: string) => {
 
 const isNewBrowserTab = (tab: BrowserTabState) => tab.url.trim().length === 0;
 
-const BrowserPanelImpl = ({
-  active = true,
-  onSyncBrowserBounds,
-  browserResizeHidden = false,
-  browserHostRef,
-  project,
-}: BrowserPanelProps) => {
-  const browserContainerRef = useRef<HTMLDivElement | null>(null);
+const clampBrowserZoom = (value: number) =>
+  Math.min(MAX_BROWSER_ZOOM, Math.max(MIN_BROWSER_ZOOM, value));
+
+const getWebviewUrl = (webview: ElectronWebviewElement) => {
+  try {
+    return webview.getURL() || "";
+  } catch {
+    return "";
+  }
+};
+
+const getWebviewTitle = (webview: ElectronWebviewElement) => {
+  try {
+    return webview.getTitle() || "";
+  } catch {
+    return "";
+  }
+};
+
+const getWebviewZoomFactor = (webview: ElectronWebviewElement) => {
+  try {
+    return webview.getZoomFactor();
+  } catch {
+    return 1;
+  }
+};
+
+const getWebviewCanGoBack = (webview: ElectronWebviewElement) => {
+  try {
+    return webview.canGoBack();
+  } catch {
+    return false;
+  }
+};
+
+const getWebviewCanGoForward = (webview: ElectronWebviewElement) => {
+  try {
+    return webview.canGoForward();
+  } catch {
+    return false;
+  }
+};
+
+type BrowserWebviewProps = {
+  active: boolean;
+  onError: (tabId: string, event: WebviewFailEvent) => void;
+  onLoadingChange: (tabId: string, loading: boolean) => void;
+  onRef: RefCallback<ElectronWebviewElement>;
+  onStateChange: (
+    tabId: string,
+    webview: ElectronWebviewElement,
+    overrides?: Partial<BrowserTabState>,
+  ) => void;
+  tab: BrowserTabState;
+};
+
+const BrowserWebview = memo(
+  ({
+    active,
+    onError,
+    onLoadingChange,
+    onRef,
+    onStateChange,
+    tab,
+  }: BrowserWebviewProps) => {
+    const webviewRef = useRef<ElectronWebviewElement | null>(null);
+
+    const setWebviewRef = useCallback<RefCallback<ElectronWebviewElement>>(
+      (node) => {
+        webviewRef.current = node;
+        onRef(node);
+      },
+      [onRef],
+    );
+
+    useEffect(() => {
+      const webview = webviewRef.current;
+      if (!webview) {
+        return;
+      }
+
+      const handleStartLoading = () => {
+        onLoadingChange(tab.id, true);
+      };
+      const handleStopLoading = () => {
+        onLoadingChange(tab.id, false);
+        onStateChange(tab.id, webview);
+      };
+      const handleNavigate = (event: Event) => {
+        const navigationEvent = event as WebviewNavigationEvent;
+        if (navigationEvent.isMainFrame === false) {
+          return;
+        }
+
+        onStateChange(tab.id, webview, {
+          url: navigationEvent.url || getWebviewUrl(webview),
+        });
+      };
+      const handleTitleUpdated = (event: Event) => {
+        const titleEvent = event as WebviewTitleEvent;
+        onStateChange(tab.id, webview, {
+          title: titleEvent.title || getWebviewTitle(webview),
+        });
+      };
+      const handleFailLoad = (event: Event) => {
+        const failEvent = event as WebviewFailEvent;
+        if (failEvent.isMainFrame === false || failEvent.errorCode === -3) {
+          return;
+        }
+
+        onError(tab.id, failEvent);
+      };
+
+      webview.addEventListener("did-start-loading", handleStartLoading);
+      webview.addEventListener("did-stop-loading", handleStopLoading);
+      webview.addEventListener("did-finish-load", handleStopLoading);
+      webview.addEventListener("did-navigate", handleNavigate);
+      webview.addEventListener("did-navigate-in-page", handleNavigate);
+      webview.addEventListener("page-title-updated", handleTitleUpdated);
+      webview.addEventListener("did-fail-load", handleFailLoad);
+
+      return () => {
+        webview.removeEventListener("did-start-loading", handleStartLoading);
+        webview.removeEventListener("did-stop-loading", handleStopLoading);
+        webview.removeEventListener("did-finish-load", handleStopLoading);
+        webview.removeEventListener("did-navigate", handleNavigate);
+        webview.removeEventListener("did-navigate-in-page", handleNavigate);
+        webview.removeEventListener("page-title-updated", handleTitleUpdated);
+        webview.removeEventListener("did-fail-load", handleFailLoad);
+      };
+    }, [onError, onLoadingChange, onStateChange, tab.id]);
+
+    return (
+      <webview
+        allowpopups={true}
+        className="absolute inset-0 h-full w-full bg-background"
+        data-browser-tab-id={tab.id}
+        key={tab.id}
+        partition="persist:dream-browser"
+        ref={setWebviewRef}
+        src={tab.url || "about:blank"}
+        style={{
+          display: active ? "flex" : "none",
+        }}
+        webpreferences="contextIsolation=yes,sandbox=yes"
+      />
+    );
+  },
+);
+BrowserWebview.displayName = "BrowserWebview";
+
+const BrowserPanelImpl = ({ active = true, project }: BrowserPanelProps) => {
+  const webviewRefs = useRef(new Map<string, ElectronWebviewElement>());
   const [browserUrlDraft, setBrowserUrlDraft] = useState("");
 
   const browserError = useIdeStore((state) => state.browserError);
@@ -94,6 +250,7 @@ const BrowserPanelImpl = ({
     (state) => state.activeBrowserTabIdByProject[project.id] ?? null,
   );
   const setBrowserError = useIdeStore((state) => state.setBrowserError);
+  const setBrowserLoading = useIdeStore((state) => state.setBrowserLoading);
   const openExternalUrl = useIdeStore((state) => state.openExternalUrl);
   const updateProject = useIdeStore((state) => state.updateProject);
   const ensureBrowserTabs = useIdeStore((state) => state.ensureBrowserTabs);
@@ -152,17 +309,91 @@ const BrowserPanelImpl = ({
     setBrowserUrlDraft(activeTab?.url ?? "");
   }, [activeTab?.url]);
 
-  const syncAfterStateChange = useCallback(
-    (reload = false) => {
-      if (!active) {
+  const getActiveWebview = useCallback(
+    () => (activeTab ? (webviewRefs.current.get(activeTab.id) ?? null) : null),
+    [activeTab],
+  );
+
+  const handleWebviewRef = useCallback(
+    (tabId: string): RefCallback<ElectronWebviewElement> =>
+      (node) => {
+        if (node) {
+          webviewRefs.current.set(tabId, node);
+          return;
+        }
+
+        webviewRefs.current.delete(tabId);
+      },
+    [],
+  );
+
+  const updateProjectUrlIfActive = useCallback(
+    (tabId: string, url: string) => {
+      const state = useIdeStore.getState();
+      const currentActiveTabId =
+        state.activeBrowserTabIdByProject[projectId] ?? null;
+      if (currentActiveTabId !== tabId || !url) {
         return;
       }
 
-      requestAnimationFrame(() => {
-        onSyncBrowserBounds(reload);
-      });
+      const currentProject = state.projects.find(
+        (item) => item.id === projectId,
+      );
+      if (!currentProject || currentProject.browserUrl === url) {
+        return;
+      }
+
+      state.updateProject(projectId, (project) => ({
+        ...project,
+        browserUrl: url,
+      }));
     },
-    [active, onSyncBrowserBounds],
+    [projectId],
+  );
+
+  const handleWebviewStateChange = useCallback(
+    (
+      tabId: string,
+      webview: ElectronWebviewElement,
+      overrides: Partial<BrowserTabState> = {},
+    ) => {
+      const url = overrides.url ?? getWebviewUrl(webview);
+      const title = overrides.title ?? getWebviewTitle(webview);
+      const zoomFactor = overrides.zoomFactor ?? getWebviewZoomFactor(webview);
+
+      updateBrowserTab(projectId, tabId, (tab) => ({
+        ...tab,
+        canGoBack: getWebviewCanGoBack(webview),
+        canGoForward: getWebviewCanGoForward(webview),
+        title: title || getBrowserTabTitle(url) || tab.title,
+        url: url || tab.url,
+        zoomFactor,
+      }));
+      updateProjectUrlIfActive(tabId, url);
+    },
+    [projectId, updateBrowserTab, updateProjectUrlIfActive],
+  );
+
+  const handleWebviewLoadingChange = useCallback(
+    (tabId: string, loading: boolean) => {
+      setBrowserLoading(tabId, loading);
+      if (loading) {
+        setBrowserError(null);
+      }
+    },
+    [setBrowserError, setBrowserLoading],
+  );
+
+  const handleWebviewError = useCallback(
+    (tabId: string, event: WebviewFailEvent) => {
+      setBrowserLoading(tabId, false);
+      setBrowserError(
+        `${String(event.errorCode ?? "LOAD_FAILED")}${
+          event.errorDescription ? `: ${event.errorDescription}` : ""
+        }`,
+      );
+    },
+    [setBrowserError, setBrowserLoading],
   );
 
   const handleActivateTab = useCallback(
@@ -176,25 +407,15 @@ const BrowserPanelImpl = ({
         ...project,
         browserUrl: nextTab?.url ?? "",
       }));
-
-      syncAfterStateChange();
     },
-    [
-      projectId,
-      setActiveBrowserTab,
-      setBrowserError,
-      syncAfterStateChange,
-      tabs,
-      updateProject,
-    ],
+    [projectId, setActiveBrowserTab, setBrowserError, tabs, updateProject],
   );
 
   const handleReorderTab = useCallback(
     (fromIndex: number, toIndex: number) => {
       reorderBrowserTabs(projectId, fromIndex, toIndex);
-      syncAfterStateChange();
     },
-    [projectId, reorderBrowserTabs, syncAfterStateChange],
+    [projectId, reorderBrowserTabs],
   );
 
   const handleAddTab = useCallback(() => {
@@ -205,14 +426,7 @@ const BrowserPanelImpl = ({
       ...project,
       browserUrl: "",
     }));
-    syncAfterStateChange();
-  }, [
-    createBrowserTab,
-    projectId,
-    setBrowserError,
-    syncAfterStateChange,
-    updateProject,
-  ]);
+  }, [createBrowserTab, projectId, setBrowserError, updateProject]);
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -225,7 +439,6 @@ const BrowserPanelImpl = ({
           ...project,
           browserUrl: "",
         }));
-        syncAfterStateChange();
         return;
       }
 
@@ -237,7 +450,7 @@ const BrowserPanelImpl = ({
             null)
           : activeTab;
 
-      getDesktopApi()?.updateBrowser({ destroyTab: tabId });
+      webviewRefs.current.delete(tabId);
       closeBrowserTab(projectId, tabId);
       setBrowserError(null);
       setBrowserUrlDraft(fallbackTab?.url ?? "");
@@ -246,8 +459,6 @@ const BrowserPanelImpl = ({
         ...project,
         browserUrl: fallbackTab?.url ?? "",
       }));
-
-      syncAfterStateChange();
     },
     [
       activeTab,
@@ -256,7 +467,6 @@ const BrowserPanelImpl = ({
       projectId,
       setBrowserError,
       setProjectRightPanelOpen,
-      syncAfterStateChange,
       tabs,
       updateProject,
     ],
@@ -273,6 +483,7 @@ const BrowserPanelImpl = ({
     }
 
     setBrowserError(null);
+    setBrowserLoading(activeTab.id, true);
     updateBrowserTab(projectId, activeTab.id, (tab) => ({
       ...tab,
       title: getBrowserTabTitle(nextUrl),
@@ -283,13 +494,19 @@ const BrowserPanelImpl = ({
       browserUrl: nextUrl,
     }));
     setBrowserUrlDraft(nextUrl);
-    syncAfterStateChange(true);
+
+    try {
+      getActiveWebview()?.loadURL(nextUrl);
+    } catch {
+      setBrowserLoading(activeTab.id, false);
+    }
   }, [
     activeTab,
     browserUrlDraft,
+    getActiveWebview,
     projectId,
     setBrowserError,
-    syncAfterStateChange,
+    setBrowserLoading,
     updateBrowserTab,
     updateProject,
   ]);
@@ -299,23 +516,29 @@ const BrowserPanelImpl = ({
       return;
     }
 
-    if (isBrowserLoading) {
-      getDesktopApi()?.updateBrowser({
-        projectId,
-        stop: true,
-        tabId: activeTab.id,
-      });
+    const webview = getActiveWebview();
+    if (!webview) {
       return;
     }
 
-    setBrowserError(null);
-    syncAfterStateChange(true);
+    try {
+      if (isBrowserLoading) {
+        webview.stop();
+        setBrowserLoading(activeTab.id, false);
+        return;
+      }
+
+      setBrowserError(null);
+      webview.reload();
+    } catch {
+      setBrowserLoading(activeTab.id, false);
+    }
   }, [
     activeTab,
+    getActiveWebview,
     isBrowserLoading,
-    projectId,
     setBrowserError,
-    syncAfterStateChange,
+    setBrowserLoading,
   ]);
 
   const handleForceReload = useCallback(() => {
@@ -324,8 +547,12 @@ const BrowserPanelImpl = ({
     }
 
     setBrowserError(null);
-    syncAfterStateChange(true);
-  }, [activeTab?.url, setBrowserError, syncAfterStateChange]);
+    try {
+      getActiveWebview()?.reloadIgnoringCache();
+    } catch {
+      // ignore reload failures; webview events will surface load errors
+    }
+  }, [activeTab?.url, getActiveWebview, setBrowserError]);
 
   const handleOpenExternal = useCallback(() => {
     if (!activeTab?.url) {
@@ -341,12 +568,12 @@ const BrowserPanelImpl = ({
     }
 
     setBrowserError(null);
-    getDesktopApi()?.updateBrowser({
-      goBack: true,
-      projectId,
-      tabId: activeTab.id,
-    });
-  }, [activeTab, projectId, setBrowserError]);
+    try {
+      getActiveWebview()?.goBack();
+    } catch {
+      // ignore history failures
+    }
+  }, [activeTab?.canGoBack, getActiveWebview, setBrowserError]);
 
   const handleGoForward = useCallback(() => {
     if (!activeTab?.canGoForward) {
@@ -354,31 +581,65 @@ const BrowserPanelImpl = ({
     }
 
     setBrowserError(null);
-    getDesktopApi()?.updateBrowser({
-      goForward: true,
-      projectId,
-      tabId: activeTab.id,
-    });
-  }, [activeTab, projectId, setBrowserError]);
+    try {
+      getActiveWebview()?.goForward();
+    } catch {
+      // ignore history failures
+    }
+  }, [activeTab?.canGoForward, getActiveWebview, setBrowserError]);
 
   const handleOpenDevTools = useCallback(() => {
-    if (!activeTab) {
-      return;
+    try {
+      getActiveWebview()?.openDevTools();
+    } catch {
+      setBrowserError("Failed to open DevTools.");
     }
+  }, [getActiveWebview, setBrowserError]);
 
-    onSyncBrowserBounds();
-    window.requestAnimationFrame(() => {
-      getDesktopApi()?.updateBrowser({
-        openDevTools: true,
-        projectId,
-        tabId: activeTab.id,
-      });
-    });
-  }, [activeTab, onSyncBrowserBounds, projectId]);
-
-  const handleBrowserAction = useCallback(
-    (payload: BrowserUpdatePayload) => {
+  const updateActiveZoomFactor = useCallback(
+    (updater: (current: number) => number) => {
       if (!activeTab) {
+        return;
+      }
+
+      const webview = getActiveWebview();
+      const nextZoomFactor = clampBrowserZoom(
+        updater(activeTab.zoomFactor ?? 1),
+      );
+      try {
+        webview?.setZoomFactor(nextZoomFactor);
+      } catch {
+        // Keep UI state consistent even if the guest is not ready yet.
+      }
+
+      updateBrowserTab(projectId, activeTab.id, (tab) => ({
+        ...tab,
+        zoomFactor: nextZoomFactor,
+      }));
+    },
+    [activeTab, getActiveWebview, projectId, updateBrowserTab],
+  );
+
+  const handleZoomOut = useCallback(() => {
+    updateActiveZoomFactor((current) => current - BROWSER_ZOOM_STEP);
+  }, [updateActiveZoomFactor]);
+
+  const handleZoomIn = useCallback(() => {
+    updateActiveZoomFactor((current) => current + BROWSER_ZOOM_STEP);
+  }, [updateActiveZoomFactor]);
+
+  const handleResetZoom = useCallback(() => {
+    updateActiveZoomFactor(() => 1);
+  }, [updateActiveZoomFactor]);
+
+  const handleBrowserUtilityAction = useCallback(
+    (payload: {
+      clearCache?: boolean;
+      clearCookies?: boolean;
+      takeScreenshot?: boolean;
+    }) => {
+      const webview = getActiveWebview();
+      if (!activeTab || !webview) {
         return;
       }
 
@@ -387,69 +648,37 @@ const BrowserPanelImpl = ({
         ...payload,
         projectId,
         tabId: activeTab.id,
+        webContentsId: webview.getWebContentsId(),
       });
     },
-    [activeTab, projectId, setBrowserError],
+    [activeTab, getActiveWebview, projectId, setBrowserError],
   );
 
-  const handleZoomOut = useCallback(() => {
-    handleBrowserAction({ zoomDelta: -BROWSER_ZOOM_STEP });
-  }, [handleBrowserAction]);
-
-  const handleZoomIn = useCallback(() => {
-    handleBrowserAction({ zoomDelta: BROWSER_ZOOM_STEP });
-  }, [handleBrowserAction]);
-
-  const handleResetZoom = useCallback(() => {
-    handleBrowserAction({ resetZoom: true });
-  }, [handleBrowserAction]);
-
   const handleClearCookies = useCallback(() => {
-    handleBrowserAction({ clearCookies: true });
-  }, [handleBrowserAction]);
+    handleBrowserUtilityAction({ clearCookies: true });
+  }, [handleBrowserUtilityAction]);
 
   const handleClearCache = useCallback(() => {
-    handleBrowserAction({ clearCache: true });
-  }, [handleBrowserAction]);
+    handleBrowserUtilityAction({ clearCache: true });
+  }, [handleBrowserUtilityAction]);
 
   const handleTakeScreenshot = useCallback(() => {
-    handleBrowserAction({ takeScreenshot: true });
-  }, [handleBrowserAction]);
-
-  useEffect(() => {
-    if (!active) {
-      return;
-    }
-
-    const container = browserContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const sync = () => onSyncBrowserBounds();
-    const observer = new ResizeObserver(sync);
-    observer.observe(container);
-    const frame = window.requestAnimationFrame(sync);
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [active, onSyncBrowserBounds]);
+    handleBrowserUtilityAction({ takeScreenshot: true });
+  }, [handleBrowserUtilityAction]);
 
   return (
     <div
       id={`browser-panel-${projectId}`}
       className="flex h-full flex-col overflow-hidden"
     >
-      <div className="flex items-center gap-2 bg-surface-50 dark:bg-surface-900 px-3 py-1.5">
+      <div className="flex items-center gap-2 bg-surface-50 px-3 py-1.5 dark:bg-surface-900">
         <Globe className="size-4 shrink-0 text-muted-foreground" />
         <StandardTabs
           activeId={activeTab?.id ?? null}
           after={
             <button
               aria-label="New tab"
-              className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground"
+              className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 hover:text-foreground dark:hover:bg-surface-800"
               onClick={handleAddTab}
               title="New tab"
               type="button"
@@ -468,7 +697,7 @@ const BrowserPanelImpl = ({
         />
       </div>
 
-      <div className="flex items-center gap-0.5 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-1.5 py-2">
+      <div className="flex items-center gap-0.5 border-surface-200 border-b bg-surface-50 px-1.5 py-2 dark:border-surface-800 dark:bg-surface-900">
         <button
           className={cn(
             "rounded p-1 transition-colors",
@@ -520,7 +749,7 @@ const BrowserPanelImpl = ({
 
         <div className="group relative mx-1.5 flex-1">
           <Input
-            className="h-7 rounded-full border-surface-200 dark:border-surface-800 bg-surface-100 dark:bg-surface-950 px-3 pr-14 text-xs focus:border-surface-300 dark:focus:border-surface-700"
+            className="h-7 rounded-full border-surface-200 bg-surface-100 px-3 pr-14 text-xs focus:border-surface-300 dark:border-surface-800 dark:bg-surface-950 dark:focus:border-surface-700"
             disabled={!activeTab}
             onChange={(event) => {
               setBrowserUrlDraft(event.currentTarget.value);
@@ -549,11 +778,6 @@ const BrowserPanelImpl = ({
           >
             <ExternalLink className="size-3.5" />
           </button>
-          {isBrowserLoading ? (
-            <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-8">
-              <Spinner className="size-3.5 text-muted-foreground" />
-            </div>
-          ) : null}
         </div>
 
         <DropdownMenu>
@@ -563,11 +787,11 @@ const BrowserPanelImpl = ({
                 aria-label="Browser actions"
                 className={cn(
                   "rounded p-1 transition-colors",
-                  activeTab?.url && !browserResizeHidden
+                  activeTab?.url
                     ? "text-muted-foreground hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted data-[popup-open]:text-foreground"
                     : "text-surface-400 dark:text-surface-600",
                 )}
-                disabled={!activeTab?.url || browserResizeHidden}
+                disabled={!activeTab?.url}
                 title="Browser actions"
                 type="button"
               />
@@ -604,7 +828,7 @@ const BrowserPanelImpl = ({
                 >
                   <Minus className="size-3.5" />
                 </button>
-                <div className="min-w-14 border-x border-surface-200 px-2 text-center text-muted-foreground dark:border-surface-800">
+                <div className="min-w-14 border-surface-200 border-x px-2 text-center text-muted-foreground dark:border-surface-800">
                   {browserZoomPercent}
                 </div>
                 <button
@@ -641,16 +865,27 @@ const BrowserPanelImpl = ({
       </div>
 
       <div className="min-h-0 flex-1">
-        <div className="relative h-full" ref={browserContainerRef}>
-          <div
-            className="absolute top-px right-[2px] bottom-[2px] left-[2px]"
-            ref={browserHostRef}
-          />
-          {browserVisible && browserResizeHidden ? (
-            <div className="absolute inset-0 bg-background" />
+        <div className="relative h-full">
+          {tabs.map((tab) =>
+            tab.url ? (
+              <BrowserWebview
+                active={tab.id === activeTab?.id}
+                key={tab.id}
+                onError={handleWebviewError}
+                onLoadingChange={handleWebviewLoadingChange}
+                onRef={handleWebviewRef(tab.id)}
+                onStateChange={handleWebviewStateChange}
+                tab={tab}
+              />
+            ) : null,
+          )}
+          {!browserVisible ? (
+            <div className="flex h-full items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
+              Enter a URL to start browsing.
+            </div>
           ) : null}
           {browserError ? (
-            <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive-border bg-background px-3 py-2 text-xs text-destructive shadow-sm">
+            <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive-border bg-background px-3 py-2 text-destructive text-xs shadow-sm">
               {browserError}
             </div>
           ) : null}

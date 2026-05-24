@@ -285,6 +285,7 @@ async function createMainWindow() {
       preload: path.join(__dirname, "preload.js"),
       sandbox: false,
       spellcheck: false,
+      webviewTag: true,
     },
     width: 1920,
   });

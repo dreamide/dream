@@ -6,14 +6,10 @@ import { WorkspaceSlidingPanel } from "./sliding-panel";
 
 export interface WorkspaceRightPanelProps {
   active: boolean;
-  browserHostRef: RefObject<HTMLDivElement | null>;
-  browserResizeHidden: boolean;
   handleVisible: boolean;
   maxWidth: number;
-  onResize: () => void;
   onResizeEnd: (width: number) => void;
   onResizeStart: () => void;
-  onSyncBrowserBounds: (reload?: boolean) => void;
   onToggleRightPanel: () => void;
   open: boolean;
   project: ProjectConfig;
@@ -26,14 +22,10 @@ export interface WorkspaceRightPanelProps {
 
 const WorkspaceRightPanelImpl = ({
   active,
-  browserHostRef,
-  browserResizeHidden,
   handleVisible,
   maxWidth,
-  onResize,
   onResizeEnd,
   onResizeStart,
-  onSyncBrowserBounds,
   onToggleRightPanel,
   open,
   project,
@@ -50,7 +42,6 @@ const WorkspaceRightPanelImpl = ({
     maxWidth={maxWidth}
     minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
     onHandleDoubleClick={onToggleRightPanel}
-    onResize={onResize}
     onResizeEnd={onResizeEnd}
     onResizeStart={onResizeStart}
     open={open}
@@ -63,9 +54,6 @@ const WorkspaceRightPanelImpl = ({
   >
     <RightPanelViews
       active={active}
-      browserHostRef={browserHostRef}
-      browserResizeHidden={browserResizeHidden}
-      onSyncBrowserBounds={onSyncBrowserBounds}
       project={project}
       rightPanelView={rightPanelView}
     />

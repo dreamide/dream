@@ -139,13 +139,6 @@ export interface TerminalStatusEvent {
   signal?: NodeJS.Signals | null;
 }
 
-export interface BrowserBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 export interface BrowserErrorEvent {
   code: number | string;
   description: string;
@@ -386,22 +379,12 @@ export interface TerminalResizePayload {
 }
 
 export interface BrowserUpdatePayload {
-  bounds?: BrowserBounds;
   clearCache?: boolean;
   clearCookies?: boolean;
-  goBack?: boolean;
-  goForward?: boolean;
-  openDevTools?: boolean;
   projectId?: string;
-  resetZoom?: boolean;
   tabId?: string;
   takeScreenshot?: boolean;
-  reload?: boolean;
-  stop?: boolean;
-  visible?: boolean;
-  url?: string;
-  destroyTab?: string;
-  zoomDelta?: number;
+  webContentsId?: number;
 }
 
 export interface DesktopApi {
