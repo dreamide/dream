@@ -175,6 +175,30 @@ export const getProviderModelsFromResponse = (
   };
 };
 
+const shouldReconcileProviderSelection = (
+  providerModels: IdeState["providerModels"][AiProvider],
+): boolean => {
+  return (
+    providerModels.source === "cli" &&
+    providerModels.error === null &&
+    providerModels.models.length > 0
+  );
+};
+
+const reconcileProviderSelection = (
+  selectedModels: string[],
+  availableModelIds: string[],
+  providerModels: IdeState["providerModels"][AiProvider],
+): string[] => {
+  const selected = dedupeModels(selectedModels);
+
+  if (!shouldReconcileProviderSelection(providerModels)) {
+    return selected;
+  }
+
+  return selected.filter((model) => availableModelIds.includes(model));
+};
+
 export const reconcileSettingsWithProviderModels = (
   settings: AppSettings,
   providerModels: IdeState["providerModels"],
@@ -186,15 +210,21 @@ export const reconcileSettingsWithProviderModels = (
   const openCodeModelIds = providerModels.opencode.models.map(
     (model) => model.id,
   );
-  const openAiSelectedModels = dedupeModels(
+  const openAiSelectedModels = reconcileProviderSelection(
     settings.openAiSelectedModels,
-  ).filter((model) => openAiModelIds.includes(model));
-  const anthropicSelectedModels = dedupeModels(
+    openAiModelIds,
+    providerModels.openai,
+  );
+  const anthropicSelectedModels = reconcileProviderSelection(
     settings.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
-  ).filter((model) => anthropicModelIds.includes(model));
-  const openCodeSelectedModels = dedupeModels(
+    anthropicModelIds,
+    providerModels.anthropic,
+  );
+  const openCodeSelectedModels = reconcileProviderSelection(
     settings.openCodeSelectedModels,
-  ).filter((model) => openCodeModelIds.includes(model));
+    openCodeModelIds,
+    providerModels.opencode,
+  );
   const nextSettings = {
     ...settings,
     anthropicSelectedModels,
