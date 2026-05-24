@@ -84,8 +84,6 @@ const getBrowserTabTitle = (url: string) => {
   }
 };
 
-const isNewBrowserTab = (tab: BrowserTabState) => tab.url.trim().length === 0;
-
 const clampBrowserZoom = (value: number) =>
   Math.min(MAX_BROWSER_ZOOM, Math.max(MIN_BROWSER_ZOOM, value));
 
@@ -430,8 +428,9 @@ const BrowserPanelImpl = ({ active = true, project }: BrowserPanelProps) => {
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
-      const closingTab = tabs.find((tab) => tab.id === tabId) ?? null;
-      if (tabs.length === 1 && closingTab && isNewBrowserTab(closingTab)) {
+      if (tabs.length === 1) {
+        webviewRefs.current.delete(tabId);
+        closeBrowserTab(projectId, tabId);
         setProjectRightPanelOpen(projectId, false);
         setBrowserError(null);
         setBrowserUrlDraft("");
