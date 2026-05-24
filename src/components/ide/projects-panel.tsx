@@ -1,4 +1,4 @@
-import { FolderGit2, Search, Trash2 } from "lucide-react";
+import { Archive, FolderGit2, FolderX, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -385,7 +385,7 @@ export const ProjectSidebar = ({
                         {removing ? (
                           <Spinner className="size-3.5" />
                         ) : (
-                          <Trash2 className="size-3.5" />
+                          <FolderX className="size-3.5" />
                         )}
                       </Button>
                     </div>
@@ -469,18 +469,18 @@ export const ProjectSidebar = ({
                     </button>
                     <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                       <Button
-                        aria-label={`Delete ${chat.title}`}
-                        className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-destructive"
+                        aria-label={`Archive ${chat.title}`}
+                        className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                         onClick={(event) => {
                           event.stopPropagation();
                           deleteChat(chat.id);
                         }}
                         size="icon-sm"
-                        title="Delete chat"
+                        title="Archive chat"
                         type="button"
                         variant="ghost"
                       >
-                        <Trash2 className="size-3.5" />
+                        <Archive className="size-3.5" />
                       </Button>
                     </div>
                   </div>

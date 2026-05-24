@@ -1,4 +1,4 @@
-import { Ellipsis, FilePenLine, Trash2, X } from "lucide-react";
+import { Archive, Ellipsis, FilePenLine, X } from "lucide-react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -155,8 +155,8 @@ export const ChatPanelHeader = ({
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onDeleteChat}>
-                    <Trash2 className="size-4" />
-                    Delete
+                    <Archive className="size-4" />
+                    Archive
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

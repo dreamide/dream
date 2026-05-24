@@ -4,13 +4,13 @@ import {
   Camera,
   Code2,
   EllipsisVertical,
+  Eraser,
   ExternalLink,
   Globe,
   Minus,
   Plus,
   RotateCcw,
   RotateCw,
-  Trash2,
   X,
 } from "lucide-react";
 import {
@@ -873,11 +873,11 @@ const BrowserPanelImpl = ({ active = true, project }: BrowserPanelProps) => {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleClearCookies}>
-              <Trash2 className="size-4" />
+              <Eraser className="size-4" />
               Clear cookies
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleClearCache}>
-              <Trash2 className="size-4" />
+              <Eraser className="size-4" />
               Clear cache
             </DropdownMenuItem>
           </DropdownMenuContent>

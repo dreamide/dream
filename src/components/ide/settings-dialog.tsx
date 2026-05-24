@@ -1,5 +1,5 @@
 import {
-  MessageSquare,
+  Archive,
   Monitor,
   Moon,
   Plug,
@@ -204,6 +204,11 @@ export const SettingsDialog = () => {
     () => new Set(selectedDeletedChatIds),
     [selectedDeletedChatIds],
   );
+  const allDeletedChatsSelected =
+    deletedChats.length > 0 &&
+    selectedDeletedChatIds.length === deletedChats.length;
+  const someDeletedChatsSelected =
+    selectedDeletedChatIds.length > 0 && !allDeletedChatsSelected;
 
   useEffect(() => {
     setSelectedDeletedChatIds((previous) => {
@@ -221,6 +226,12 @@ export const SettingsDialog = () => {
 
       return previous.filter((id) => id !== chatId);
     });
+  };
+
+  const toggleAllDeletedChatSelection = (checked: boolean) => {
+    setSelectedDeletedChatIds(
+      checked ? deletedChats.map((chat) => chat.id) : [],
+    );
   };
 
   const handleRestoreSelectedChats = () => {
@@ -294,8 +305,8 @@ export const SettingsDialog = () => {
                 type="button"
               >
                 <span className="flex items-center gap-2">
-                  <MessageSquare className="size-4" />
-                  Chats
+                  <Archive className="size-4" />
+                  Archived Chats
                 </span>
               </button>
             </div>
@@ -727,9 +738,9 @@ export const SettingsDialog = () => {
                 <div className="space-y-4 rounded-lg p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
-                      <h3 className="font-medium text-sm">Deleted Chats</h3>
+                      <h3 className="font-medium text-sm">Archived Chats</h3>
                       <p className="text-muted-foreground text-sm">
-                        {deletedChats.length} deleted{" "}
+                        {deletedChats.length} archived{" "}
                         {deletedChats.length === 1 ? "chat" : "chats"}
                       </p>
                     </div>
@@ -750,7 +761,7 @@ export const SettingsDialog = () => {
                         variant="destructive"
                       >
                         <Trash2 className="size-4" />
-                        Permanently delete
+                        Delete
                       </Button>
                     </div>
                   </div>
@@ -758,7 +769,7 @@ export const SettingsDialog = () => {
                   {deletedChats.length === 0 ? (
                     <div className="flex min-h-[280px] items-center justify-center rounded-md border border-surface-200 dark:border-surface-800">
                       <p className="text-muted-foreground text-sm">
-                        No deleted chats.
+                        No archived chats.
                       </p>
                     </div>
                   ) : (
@@ -766,11 +777,20 @@ export const SettingsDialog = () => {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-10" />
+                            <TableHead className="w-10">
+                              <Checkbox
+                                aria-label="Select all archived chats"
+                                checked={allDeletedChatsSelected}
+                                indeterminate={someDeletedChatsSelected}
+                                onCheckedChange={(checked) =>
+                                  toggleAllDeletedChatSelection(checked)
+                                }
+                              />
+                            </TableHead>
                             <TableHead>Chat</TableHead>
                             <TableHead>Project</TableHead>
                             <TableHead className="text-right">
-                              Deleted
+                              Archived
                             </TableHead>
                           </TableRow>
                         </TableHeader>
