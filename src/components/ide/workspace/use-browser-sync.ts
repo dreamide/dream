@@ -162,33 +162,10 @@ export const useWorkspaceBrowserSync = ({
 
   const hideBrowserForRightResize = useCallback(() => {
     onResizeStart();
-
-    if (
-      !active ||
-      !activeBrowserTab?.url ||
-      !rightVisible ||
-      rightPanelView !== "browser"
-    ) {
-      return;
-    }
-
-    lastSentBrowserUrlRef.current = null;
-    lastSentBrowserTabIdRef.current = null;
-    browserResizeHiddenRef.current = true;
-    setBrowserResizeHidden(true);
-    getDesktopApi()?.updateBrowser({
-      projectId,
-      tabId: activeBrowserTab.id,
-      visible: false,
-    });
-  }, [
-    active,
-    activeBrowserTab,
-    onResizeStart,
-    projectId,
-    rightPanelView,
-    rightVisible,
-  ]);
+    browserResizeHiddenRef.current = false;
+    setBrowserResizeHidden(false);
+    syncBrowserBounds();
+  }, [onResizeStart, syncBrowserBounds]);
 
   const restoreBrowserAfterRightResize = useCallback(() => {
     window.requestAnimationFrame(() => {

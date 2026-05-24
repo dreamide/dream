@@ -153,6 +153,7 @@ const ProjectWorkspaceComponent = ({
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const historyPanelRef = useRef<HTMLDivElement | null>(null);
   const isDraggingRef = useRef(false);
+  const rightResizeBrowserSyncFrameRef = useRef<number | null>(null);
   const rightPanelViewPersistTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -499,17 +500,37 @@ const ProjectWorkspaceComponent = ({
       if (rightPanelViewPersistTimerRef.current !== null) {
         clearTimeout(rightPanelViewPersistTimerRef.current);
       }
+      if (rightResizeBrowserSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(rightResizeBrowserSyncFrameRef.current);
+      }
     },
     [],
   );
 
   const handleRightResizeEndWithBrowserSync = useCallback(
     (width: number) => {
+      if (rightResizeBrowserSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(rightResizeBrowserSyncFrameRef.current);
+        rightResizeBrowserSyncFrameRef.current = null;
+      }
       handleRightResizeEnd(width);
       restoreBrowserAfterRightResize();
     },
     [handleRightResizeEnd, restoreBrowserAfterRightResize],
   );
+
+  const handleRightResize = useCallback(() => {
+    if (rightResizeBrowserSyncFrameRef.current !== null) {
+      return;
+    }
+
+    rightResizeBrowserSyncFrameRef.current = window.requestAnimationFrame(
+      () => {
+        rightResizeBrowserSyncFrameRef.current = null;
+        syncBrowserBounds();
+      },
+    );
+  }, [syncBrowserBounds]);
 
   useEffect(() => {
     let rafId: number | null = null;
@@ -599,6 +620,7 @@ const ProjectWorkspaceComponent = ({
         browserResizeHidden={browserResizeHidden}
         handleVisible={middleVisible}
         maxWidth={boundedRightPanelMaxWidth}
+        onResize={handleRightResize}
         onResizeEnd={handleRightResizeEndWithBrowserSync}
         onResizeStart={hideBrowserForRightResize}
         onSyncBrowserBounds={syncBrowserBounds}

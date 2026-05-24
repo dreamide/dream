@@ -10,6 +10,7 @@ export interface WorkspaceRightPanelProps {
   browserResizeHidden: boolean;
   handleVisible: boolean;
   maxWidth: number;
+  onResize: () => void;
   onResizeEnd: (width: number) => void;
   onResizeStart: () => void;
   onSyncBrowserBounds: (reload?: boolean) => void;
@@ -29,6 +30,7 @@ const WorkspaceRightPanelImpl = ({
   browserResizeHidden,
   handleVisible,
   maxWidth,
+  onResize,
   onResizeEnd,
   onResizeStart,
   onSyncBrowserBounds,
@@ -48,6 +50,7 @@ const WorkspaceRightPanelImpl = ({
     maxWidth={maxWidth}
     minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
     onHandleDoubleClick={onToggleRightPanel}
+    onResize={onResize}
     onResizeEnd={onResizeEnd}
     onResizeStart={onResizeStart}
     open={open}

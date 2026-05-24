@@ -22,6 +22,7 @@ export interface WorkspaceSlidingPanelProps {
   maxWidth: number;
   minWidth: number;
   onHandleDoubleClick?: () => void;
+  onResize?: (width: number) => void;
   onResizeEnd?: (width: number) => void;
   onResizeStart?: () => void;
   open: boolean;
@@ -45,6 +46,7 @@ export const WorkspaceSlidingPanel = ({
   maxWidth,
   minWidth,
   onHandleDoubleClick,
+  onResize,
   onResizeEnd,
   onResizeStart,
   open,
@@ -118,8 +120,10 @@ export const WorkspaceSlidingPanel = ({
       if (track) {
         track.style.width = `${nextSlotWidth}px`;
       }
+
+      onResize?.(clampedWidth);
     },
-    [clampWidth, getPanel, handleWidth, maxWidth, widthRef],
+    [clampWidth, getPanel, handleWidth, maxWidth, onResize, widthRef],
   );
 
   const handleResizeStart = useCallback(() => {
