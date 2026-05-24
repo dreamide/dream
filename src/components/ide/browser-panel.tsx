@@ -87,6 +87,19 @@ const getBrowserTabTitle = (url: string) => {
 const clampBrowserZoom = (value: number) =>
   Math.min(MAX_BROWSER_ZOOM, Math.max(MIN_BROWSER_ZOOM, value));
 
+const getBrowserFaviconUrl = (url: string) => {
+  try {
+    const hostname = new URL(url).hostname;
+    if (!hostname) {
+      return null;
+    }
+
+    return `https://icons.duckduckgo.com/ip3/${hostname}.ico`;
+  } catch {
+    return null;
+  }
+};
+
 const getWebviewUrl = (webview: ElectronWebviewElement) => {
   try {
     return webview.getURL() || "";
@@ -275,12 +288,20 @@ const BrowserPanelImpl = ({ active = true, project }: BrowserPanelProps) => {
     () =>
       tabs.map((tab) => {
         const tabLoading = browserLoading[tab.id] ?? false;
+        const faviconUrl = getBrowserFaviconUrl(tab.url);
 
         return {
           id: tab.id,
           label: tab.title || "New Tab",
           leading: tabLoading ? (
             <Spinner className="size-3 shrink-0 text-muted-foreground" />
+          ) : faviconUrl ? (
+            <img
+              alt=""
+              className="size-3.5 shrink-0 rounded-[2px]"
+              draggable={false}
+              src={faviconUrl}
+            />
           ) : null,
         };
       }),
