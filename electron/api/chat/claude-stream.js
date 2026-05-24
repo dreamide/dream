@@ -26,6 +26,57 @@ const CLAUDE_PERMISSION_MODE_MAP = {
   "bypass-permissions": "bypassPermissions",
 };
 
+const isClaudeImageMediaType = (mediaType) =>
+  typeof mediaType === "string" &&
+  mediaType.trim().toLowerCase().startsWith("image/");
+
+const isImageDataUrl = (value) =>
+  typeof value === "string" && /^data:image\/[^;,]+(?:;[^,]*)?,/i.test(value);
+
+const normalizeClaudeImageInputs = (modelMessages) => {
+  let hasImageInput = false;
+  let changed = false;
+
+  const normalizedMessages = modelMessages.map((message) => {
+    if (!Array.isArray(message.content)) {
+      return message;
+    }
+
+    let changedContent = false;
+    const content = message.content.map((part) => {
+      if (part?.type === "image") {
+        hasImageInput = true;
+        return part;
+      }
+
+      if (
+        part?.type === "file" &&
+        isClaudeImageMediaType(part.mediaType ?? part.mimeType)
+      ) {
+        hasImageInput = true;
+
+        if (isImageDataUrl(part.data)) {
+          changed = true;
+          changedContent = true;
+          return {
+            image: part.data,
+            type: "image",
+          };
+        }
+      }
+
+      return part;
+    });
+
+    return changedContent ? { ...message, content } : message;
+  });
+
+  return {
+    hasImageInput,
+    messages: changed ? normalizedMessages : modelMessages,
+  };
+};
+
 const createClaudeNativePermissionHandler = (writer) => {
   return async (toolName, input, options) => {
     const toolCallId =
@@ -169,19 +220,24 @@ export const streamClaudeResponse = async ({
 }) => {
   const usesReasoningModel =
     getModelReasoningEfforts("anthropic", model).length > 0;
+  let usesClaudeImageInput = false;
   const providerFactory = (modelId, writer) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
       ...(claudePermissionMode === "ask-permissions"
         ? {
             canUseTool: createClaudeNativePermissionHandler(writer),
-            streamingInput: "auto",
+            streamingInput: usesClaudeImageInput ? "always" : "auto",
           }
         : {}),
       ...(claudePermissionMode === "accept-edits"
         ? {
             canUseTool: createClaudeAcceptEditsPermissionHandler(),
-            streamingInput: "auto",
+            streamingInput: usesClaudeImageInput ? "always" : "auto",
           }
+        : {}),
+      ...(usesClaudeImageInput &&
+      !["ask-permissions", "accept-edits"].includes(claudePermissionMode)
+        ? { streamingInput: "always" }
         : {}),
       continue: false,
       cwd: projectPath,
@@ -198,6 +254,9 @@ export const streamClaudeResponse = async ({
   let modelMessages;
   try {
     modelMessages = await convertToModelMessages(messages);
+    const normalized = normalizeClaudeImageInputs(modelMessages);
+    modelMessages = normalized.messages;
+    usesClaudeImageInput = normalized.hasImageInput;
   } catch (err) {
     console.error("[chat] Failed to convert messages:", err);
     const detail =
