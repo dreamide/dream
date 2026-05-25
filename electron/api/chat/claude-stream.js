@@ -242,6 +242,26 @@ export const streamClaudeResponse = async ({
       continue: false,
       cwd: projectPath,
       persistSession: false,
+      // Pin the Claude Code CLI tool catalog so the model sees the full set
+      // up front and has no reason to invoke the ToolSearch discovery meta-tool.
+      // This eliminates the "Read, Glob, Grep, Bash · N tools" preamble chip.
+      allowedTools: [
+        "Read",
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "Glob",
+        "Grep",
+        "Bash",
+        "BashOutput",
+        "KillBash",
+        "Task",
+        "TodoWrite",
+        "WebFetch",
+        "WebSearch",
+        "NotebookEdit",
+      ],
+      disallowedTools: ["ToolSearch"],
       permissionMode: CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
       ...(claudePermissionMode === "bypass-permissions"
         ? { allowDangerouslySkipPermissions: true }
