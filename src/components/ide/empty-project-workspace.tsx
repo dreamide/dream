@@ -1,4 +1,4 @@
-import { Folder, FolderOpen, History } from "lucide-react";
+import { Folder, FolderOpen, GitFork, History } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import dreamSvg from "@/assets/dream.svg";
 import { Button } from "@/components/ui/button";
@@ -56,34 +56,40 @@ export const EmptyProjectWorkspace = () => {
               Recently closed
             </div>
             <div className="grid w-full gap-1">
-              {recentProjects.map((project) => (
-                <button
-                  className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-sm border border-transparent px-3 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:border-surface-300 dark:focus-visible:border-surface-700 focus-visible:outline-none"
-                  key={project.id}
-                  onClick={() => addProject(project.path)}
-                  type="button"
-                >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    {project.icon ? (
-                      <ProjectTabIcon
-                        icon={project.icon}
-                        projectName={project.name}
-                        projectPath={project.path}
-                      />
-                    ) : (
-                      <Folder className="size-4" />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-foreground text-sm">
-                      {project.name}
+              {recentProjects.map((project) => {
+                const isWorktree = project.worktree?.kind === "worktree";
+
+                return (
+                  <button
+                    className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-sm border border-transparent px-3 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:border-surface-300 dark:hover:bg-[color-mix(in_oklab,var(--muted)_70%,var(--background))] dark:focus-visible:border-surface-700 focus-visible:outline-none"
+                    key={project.id}
+                    onClick={() => addProject(project.path)}
+                    type="button"
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      {isWorktree ? (
+                        <GitFork className="size-4" />
+                      ) : project.icon ? (
+                        <ProjectTabIcon
+                          icon={project.icon}
+                          projectName={project.name}
+                          projectPath={project.path}
+                        />
+                      ) : (
+                        <Folder className="size-4" />
+                      )}
                     </span>
-                    <span className="block truncate text-muted-foreground text-xs">
-                      {project.path}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-foreground text-sm">
+                        {project.name}
+                      </span>
+                      <span className="block truncate text-muted-foreground text-xs">
+                        {isWorktree ? "worktree" : project.path}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}
