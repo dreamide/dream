@@ -692,29 +692,54 @@ const defaultMessageResponseComponents = {
 } as NonNullable<MessageResponseProps["components"]>;
 
 export const MAX_STREAMDOWN_MARKDOWN_CHARS = 100_000;
-const LARGE_MESSAGE_PREVIEW_HEAD_CHARS = 60_000;
-const LARGE_MESSAGE_PREVIEW_TAIL_CHARS = 12_000;
+const LARGE_MESSAGE_INITIAL_PERCENT = 10;
+const LARGE_MESSAGE_PERCENT_STEP = 10;
 
-const getLargeMessagePreview = (value: string) => {
+const getLargeMessagePreview = (value: string, percent: number) => {
   if (value.length <= MAX_STREAMDOWN_MARKDOWN_CHARS) {
     return value;
   }
 
-  const omittedChars =
-    value.length -
-    LARGE_MESSAGE_PREVIEW_HEAD_CHARS -
-    LARGE_MESSAGE_PREVIEW_TAIL_CHARS;
+  const visibleChars = Math.max(
+    1,
+    Math.ceil(value.length * (Math.min(percent, 100) / 100)),
+  );
 
-  return `${value.slice(0, LARGE_MESSAGE_PREVIEW_HEAD_CHARS)}\n\n[... ${omittedChars.toLocaleString()} characters omitted from preview ...]\n\n${value.slice(-LARGE_MESSAGE_PREVIEW_TAIL_CHARS)}`;
+  return value.slice(0, visibleChars);
 };
 
 export const MessageResponse = memo(
   ({ children, className, components, ...props }: MessageResponseProps) => {
+    const [largeMessagePercent, setLargeMessagePercent] = useState(
+      LARGE_MESSAGE_INITIAL_PERCENT,
+    );
+    useEffect(() => {
+      setLargeMessagePercent(LARGE_MESSAGE_INITIAL_PERCENT);
+    }, [children]);
+
     const largeTextPreview =
       typeof children === "string" &&
       children.length > MAX_STREAMDOWN_MARKDOWN_CHARS
-        ? getLargeMessagePreview(children)
+        ? getLargeMessagePreview(children, largeMessagePercent)
         : null;
+    const largeTextVisibleChars = largeTextPreview?.length ?? 0;
+    const largeTextTotalChars =
+      typeof children === "string" ? children.length : 0;
+    const largeTextPercentShown =
+      largeTextTotalChars > 0
+        ? Math.min(
+            100,
+            Math.ceil((largeTextVisibleChars / largeTextTotalChars) * 100),
+          )
+        : 100;
+    const showMoreLargeText = useCallback(() => {
+      setLargeMessagePercent((current) =>
+        Math.min(100, current + LARGE_MESSAGE_PERCENT_STEP),
+      );
+    }, []);
+    const showAllLargeText = useCallback(() => {
+      setLargeMessagePercent(100);
+    }, []);
     const mergedComponents = useMemo(
       () => ({ ...defaultMessageResponseComponents, ...components }),
       [components],
@@ -737,9 +762,35 @@ export const MessageResponse = memo(
             className,
           )}
         >
-          <div className="mb-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning-foreground">
-            Large message preview. Markdown rendering was skipped to keep Dream
-            responsive.
+          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning-foreground">
+            <div className="min-w-0 flex-1">
+              Large message preview. Showing {largeTextPercentShown}% (
+              {largeTextVisibleChars.toLocaleString()} of{" "}
+              {largeTextTotalChars.toLocaleString()} characters). Markdown
+              rendering was skipped to keep Dream responsive.
+            </div>
+            {largeTextPercentShown < 100 ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  className="h-7 px-2 text-xs"
+                  onClick={showMoreLargeText}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Show more
+                </Button>
+                <Button
+                  className="h-7 px-2 text-xs"
+                  onClick={showAllLargeText}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Show all
+                </Button>
+              </div>
+            ) : null}
           </div>
           <pre className="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 font-mono text-xs">
             {largeTextPreview}

@@ -9,6 +9,7 @@ import {
 } from "./codex-prompt.js";
 
 const OPENCODE_SERVER_TIMEOUT_MS = 10000;
+const MAX_OPENCODE_TEXT_CHARS = 250_000;
 const OPENCODE_WRITE_TOOL_NAMES = new Set([
   "apply-patch",
   "applypatch",
@@ -95,6 +96,25 @@ const extractOpenCodePartText = (part) => {
 
 const getOpenCodePartType = (part) =>
   part?.type === "reasoning" ? "reasoning" : "text";
+
+const isLikelySubmittedOpenCodePrompt = (text, prompt) => {
+  const normalizedText = typeof text === "string" ? text.trim() : "";
+  const normalizedPrompt = typeof prompt === "string" ? prompt.trim() : "";
+
+  if (!normalizedText) {
+    return false;
+  }
+
+  if (normalizedText === normalizedPrompt) {
+    return true;
+  }
+
+  return (
+    normalizedText.startsWith("You are an expert coding copilot") &&
+    normalizedText.includes("Conversation transcript:") &&
+    normalizedText.includes("Continue the conversation naturally")
+  );
+};
 
 const normalizeOpenCodeToolName = (toolName) =>
   String(toolName ?? "")
@@ -194,6 +214,8 @@ export const streamOpenCodeResponse = ({
         const startedToolCalls = new Set();
         const streamedTextByPartId = new Map();
         let hasWrittenText = false;
+        let streamedTextChars = 0;
+        let textLimitReached = false;
         let opencode = null;
         const serverAbortController = new AbortController();
 
@@ -208,12 +230,37 @@ export const streamOpenCodeResponse = ({
         };
 
         const writeText = (text, idHint, type = "text") => {
-          if (!text) {
+          if (!text || finished || abortSignal?.aborted || textLimitReached) {
+            return;
+          }
+          const remainingChars = MAX_OPENCODE_TEXT_CHARS - streamedTextChars;
+          if (remainingChars <= 0) {
+            textLimitReached = true;
+            finish(resolve);
             return;
           }
           const id = idHint || `opencode-${type}-${++textPartIndex}`;
-          writeCodexTextPart((event) => writer.write(event), id, text, type);
+          const nextText =
+            text.length > remainingChars ? text.slice(0, remainingChars) : text;
+          writeCodexTextPart(
+            (event) => writer.write(event),
+            id,
+            nextText,
+            type,
+          );
+          streamedTextChars += nextText.length;
           hasWrittenText = true;
+
+          if (nextText.length < text.length) {
+            textLimitReached = true;
+            writeCodexTextPart(
+              (event) => writer.write(event),
+              `opencode-output-limit-${++textPartIndex}`,
+              `\n\n[OpenCode output stopped after ${MAX_OPENCODE_TEXT_CHARS.toLocaleString()} characters to keep Dream responsive.]`,
+              "text",
+            );
+            finish(resolve);
+          }
         };
 
         const ensureWriteToolStarted = (part) => {
@@ -472,25 +519,41 @@ export const streamOpenCodeResponse = ({
               }
             })();
 
-            const promptResult = await opencode.client.session.prompt({
-              body: {
-                agent: agentMode === "plan" ? "plan" : "build",
-                model: {
-                  modelID,
-                  providerID,
+            const promptResult = await opencode.client.session.prompt(
+              {
+                body: {
+                  agent: agentMode === "plan" ? "plan" : "build",
+                  model: {
+                    modelID,
+                    providerID,
+                  },
+                  parts: [{ text: prompt, type: "text" }],
                 },
-                parts: [{ text: prompt, type: "text" }],
+                path: { id: activeSessionId },
+                query: { directory: projectPath },
               },
-              path: { id: activeSessionId },
-              query: { directory: projectPath },
-            });
+              { signal: serverAbortController.signal },
+            );
 
-            if (!hasWrittenText) {
+            if (finished || abortSignal?.aborted) {
+              return;
+            }
+
+            if (!hasWrittenText && !textLimitReached) {
+              let wroteFallbackText = false;
               for (const part of promptResult.data?.parts ?? []) {
-                writeText(
-                  extractOpenCodePartText(part),
-                  part.id,
-                  getOpenCodePartType(part),
+                const text = extractOpenCodePartText(part);
+                if (!text || isLikelySubmittedOpenCodePrompt(text, prompt)) {
+                  continue;
+                }
+
+                writeText(text, part.id, getOpenCodePartType(part));
+                wroteFallbackText = true;
+              }
+
+              if (!wroteFallbackText) {
+                throw new Error(
+                  "OpenCode completed without returning assistant text.",
                 );
               }
             }
