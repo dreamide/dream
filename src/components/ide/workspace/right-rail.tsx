@@ -7,6 +7,7 @@ import { GitActionsMenu } from "../git-actions-menu";
 import { ToggleButton } from "../ide-helpers";
 
 export interface WorkspaceRightRailProps {
+  browserHiddenWithActiveTab: boolean;
   onOpenTerminal: () => void;
   onSelectRightPanelView: (view: RightPanelView) => void;
   projectId: string;
@@ -17,6 +18,7 @@ export interface WorkspaceRightRailProps {
 }
 
 const WorkspaceRightRailImpl = ({
+  browserHiddenWithActiveTab,
   onOpenTerminal,
   onSelectRightPanelView,
   projectId,
@@ -42,6 +44,7 @@ const WorkspaceRightRailImpl = ({
     </ToggleButton>
     <ToggleButton
       active={rightVisible && rightPanelView === "browser"}
+      highlighted={browserHiddenWithActiveTab}
       onClick={() => onSelectRightPanelView("browser")}
       title="Browser"
     >

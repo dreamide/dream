@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { ProjectConfig } from "@/types/ide";
+import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import type { RightPanelView } from "./ide-types";
 import { moveTabItem } from "./standard-tabs";
@@ -27,6 +27,8 @@ export interface ProjectWorkspaceProps {
   project: ProjectConfig;
 }
 
+const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
+
 const ProjectWorkspaceComponent = ({
   active,
   project,
@@ -47,6 +49,12 @@ const ProjectWorkspaceComponent = ({
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds[projectId] ?? EMPTY_TERMINAL_SESSION_IDS,
+  );
+  const browserTabs = useIdeStore(
+    (s) => s.browserTabsByProject[projectId] ?? EMPTY_BROWSER_TABS,
+  );
+  const activeBrowserTabId = useIdeStore(
+    (s) => s.activeBrowserTabIdByProject[projectId] ?? null,
   );
   const historyOpen = projectUi.chatHistoryPanelOpen;
   const setProjectPanelSizes = useIdeStore((s) => s.setProjectPanelSizes);
@@ -97,6 +105,13 @@ const ProjectWorkspaceComponent = ({
     rightVisible && rightPanelView === "terminal" && hasProjectTerminalSessions;
   const terminalHiddenWithActiveSession =
     hasProjectTerminalSessions && !terminalPanelVisible;
+  const activeBrowserTab =
+    browserTabs.find((tab) => tab.id === activeBrowserTabId) ??
+    browserTabs[0] ??
+    null;
+  const browserPanelVisible = rightVisible && rightPanelView === "browser";
+  const browserHiddenWithActiveTab =
+    Boolean(activeBrowserTab?.url) && !browserPanelVisible;
   const rightPanelTransitionEnabledRef = useRef(false);
   const rightPanelTransition = rightPanelTransitionEnabledRef.current
     ? SLIDING_PANEL_TRANSITION
@@ -574,6 +589,7 @@ const ProjectWorkspaceComponent = ({
       />
 
       <WorkspaceRightRail
+        browserHiddenWithActiveTab={browserHiddenWithActiveTab}
         onOpenTerminal={handleOpenTerminal}
         onSelectRightPanelView={handleSelectRightPanelView}
         projectId={projectId}

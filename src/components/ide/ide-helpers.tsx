@@ -291,11 +291,13 @@ export const ToggleButton = ({
   active,
   children,
   disabled,
+  highlighted,
   onClick,
   title,
 }: PropsWithChildren<{
   active: boolean;
   disabled?: boolean;
+  highlighted?: boolean;
   onClick: () => void;
   title: string;
 }>) => (
@@ -305,7 +307,9 @@ export const ToggleButton = ({
       "size-8 [-webkit-app-region:no-drag]",
       active
         ? "text-foreground hover:text-foreground"
-        : "text-muted-foreground hover:text-foreground",
+        : highlighted
+          ? "text-success-highlight hover:text-success-highlight-hover"
+          : "text-muted-foreground hover:text-foreground",
     )}
     disabled={disabled}
     onClick={onClick}
