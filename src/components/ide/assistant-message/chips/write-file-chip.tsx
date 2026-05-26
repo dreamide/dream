@@ -11,6 +11,12 @@ import {
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type {
+  ProjectGitChangeStatus,
+  ProjectGitDiffResponse,
+  ProjectGitStatusEntry,
+  ProjectGitStatusResponse,
+} from "@/types/ide";
 import type { ToolLikePart } from "../../assistant-message-tools";
 import { IdeDiffViewer } from "../../diff-viewer";
 import { normalizeProjectPathKey } from "../../ide-state";
@@ -31,6 +37,7 @@ import {
   getStringFromPaths,
   getWriteFileStateLabel,
   inferLanguage,
+  isRecord,
   isString,
   JsonBlock,
   normalizeEmbeddedLineNumbers,
@@ -102,6 +109,137 @@ const getEditDiffFromInput = (
   return null;
 };
 
+const getFirstChangeStringFromPaths = (
+  value: unknown,
+  paths: ReadonlyArray<readonly string[]>,
+): string | null => {
+  if (!isRecord(value) || !Array.isArray(value.changes)) {
+    return null;
+  }
+
+  for (const change of value.changes) {
+    const value = getStringFromPaths(change, paths);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const getFirstChangePath = (value: unknown): string | null =>
+  getFirstChangeStringFromPaths(value, [
+    ["path"],
+    ["filePath"],
+    ["file_path"],
+    ["filename"],
+    ["name"],
+    ["file", "path"],
+    ["file", "filePath"],
+    ["file", "filename"],
+    ["file", "name"],
+  ]);
+
+const getFirstChangeDiff = (value: unknown): string | null =>
+  getFirstChangeStringFromPaths(value, [["diff"], ["patch"], ["file", "diff"]]);
+
+const getFirstChangeStatus = (value: unknown): string | null =>
+  getFirstChangeStringFromPaths(value, [
+    ["status"],
+    ["kind"],
+    ["type"],
+    ["file", "status"],
+    ["file", "kind"],
+  ]);
+
+const normalizePathForCompare = (value: string) =>
+  value.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+
+const getProjectRelativeFilePath = (
+  filePath: string | null,
+  projectPath: string | null | undefined,
+): string | null => {
+  if (!filePath) {
+    return null;
+  }
+
+  const normalizedFilePath = filePath.replace(/\\/g, "/");
+  if (!projectPath) {
+    return normalizedFilePath;
+  }
+
+  const normalizedProjectPath = projectPath
+    .replace(/\\/g, "/")
+    .replace(/\/+$/g, "");
+  const filePathKey = normalizePathForCompare(normalizedFilePath);
+  const projectPathKey = normalizePathForCompare(normalizedProjectPath);
+  const projectPrefix = `${projectPathKey}/`;
+
+  if (filePathKey.startsWith(projectPrefix)) {
+    return normalizedFilePath.slice(normalizedProjectPath.length + 1);
+  }
+
+  return normalizedFilePath;
+};
+
+const inferProjectGitStatus = (
+  status: string | null,
+): ProjectGitChangeStatus => {
+  const normalizedStatus = status?.toLowerCase() ?? "";
+
+  if (normalizedStatus.includes("add") || normalizedStatus.includes("create")) {
+    return "added";
+  }
+  if (
+    normalizedStatus.includes("delete") ||
+    normalizedStatus.includes("remove")
+  ) {
+    return "deleted";
+  }
+  if (normalizedStatus.includes("rename")) {
+    return "renamed";
+  }
+  if (normalizedStatus.includes("copy")) {
+    return "copied";
+  }
+  if (normalizedStatus.includes("untracked")) {
+    return "untracked";
+  }
+
+  return "modified";
+};
+
+const getChangeStateLabel = (status: string | null): string | null => {
+  const normalizedStatus = status?.toLowerCase() ?? "";
+
+  if (normalizedStatus.includes("add") || normalizedStatus.includes("create")) {
+    return "created";
+  }
+  if (
+    normalizedStatus.includes("delete") ||
+    normalizedStatus.includes("remove")
+  ) {
+    return "deleted";
+  }
+  if (normalizedStatus.includes("rename")) {
+    return "renamed";
+  }
+  if (
+    normalizedStatus.includes("update") ||
+    normalizedStatus.includes("modify")
+  ) {
+    return "modified";
+  }
+
+  return null;
+};
+
+const readResponseText = async (response: Response) => {
+  const text = await response.text();
+  return text.trim() || response.statusText || "Request failed.";
+};
+
 export const WriteFileChip = ({
   defaultExpanded = false,
   part,
@@ -114,6 +252,15 @@ export const WriteFileChip = ({
   onToolApproval?: ToolApprovalHandler;
 }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [gitDiff, setGitDiff] = useState<{
+    diff: string;
+    filePath: string;
+  } | null>(null);
+  const [gitDiffError, setGitDiffError] = useState<{
+    filePath: string;
+    message: string;
+  } | null>(null);
+  const [gitDiffLoading, setGitDiffLoading] = useState(false);
   const projects = useIdeStore((s) => s.projects);
   const openProjectFile = useIdeStore((s) => s.openProjectFile);
   const output = part.output;
@@ -146,7 +293,13 @@ export const WriteFileChip = ({
       ["file", "filename"],
       ["file", "name"],
     ]) ??
+    getFirstChangePath(part.input) ??
+    getFirstChangePath(output) ??
     getFilePathFromOutputText(output);
+  const projectRelativeFilePath = getProjectRelativeFilePath(
+    filePath,
+    projectPath,
+  );
   const filename =
     filePath?.split(/[\\/]/).pop() ??
     getStringFromPaths(part.input, [
@@ -185,11 +338,16 @@ export const WriteFileChip = ({
     [["previousContent"], ["previous_content"], ["file", "previousContent"]],
     { allowEmpty: true },
   );
-  const savedDiff = getStringFromPaths(
-    output,
-    [["diff"], ["patch"], ["changes", "diff"], ["file", "diff"]],
-    { allowEmpty: true },
-  );
+  const savedDiff =
+    getStringFromPaths(
+      output,
+      [["diff"], ["patch"], ["changes", "diff"], ["file", "diff"]],
+      { allowEmpty: true },
+    ) ??
+    getFirstChangeDiff(part.input) ??
+    getFirstChangeDiff(output);
+  const changeStatus =
+    getFirstChangeStatus(output) ?? getFirstChangeStatus(part.input);
   const mode =
     getStringFromPaths(part.input, [
       ["mode"],
@@ -213,7 +371,15 @@ export const WriteFileChip = ({
     (previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
       : getEditDiffFromInput(part.input, filePath));
-  const displayDiffCode = diffCode;
+  const fetchedGitDiffCode =
+    gitDiff && gitDiff.filePath === projectRelativeFilePath
+      ? gitDiff.diff
+      : null;
+  const currentGitDiffError =
+    gitDiffError && gitDiffError.filePath === projectRelativeFilePath
+      ? gitDiffError.message
+      : null;
+  const displayDiffCode = diffCode ?? fetchedGitDiffCode;
   const displayFilename =
     filename === "file" && isRunning ? "Writing" : filename;
   const projectId = useMemo(() => {
@@ -228,33 +394,123 @@ export const WriteFileChip = ({
       )?.id ?? null
     );
   }, [projectPath, projects]);
-  const canOpenFile = Boolean(projectId && filePath);
+  const canOpenFile = Boolean(projectId && projectRelativeFilePath);
   const parsedDiff = useMemo(
     () =>
       !isRunning && displayDiffCode ? parseSingleDiff(displayDiffCode) : null,
     [displayDiffCode, isRunning],
   );
-  const writeFileStateLabel = getWriteFileStateLabel(
-    parsedDiff,
-    mode,
-    previousContent,
-  );
+  const writeFileStateLabel =
+    getWriteFileStateLabel(parsedDiff, mode, previousContent) ??
+    getChangeStateLabel(changeStatus);
   const writeDiffStats = getDiffStats(parsedDiff);
   const showFileDetails = expanded && !isApprovalRequested;
+  const shouldLoadGitDiff =
+    showFileDetails &&
+    !isRunning &&
+    !diffCode &&
+    !fetchedGitDiffCode &&
+    !currentGitDiffError &&
+    Boolean(projectPath && projectRelativeFilePath);
 
   const handleOpenFile = useCallback(() => {
-    if (!projectId || !filePath) {
+    if (!projectId || !projectRelativeFilePath) {
       return;
     }
 
-    openProjectFile(projectId, filePath);
-  }, [filePath, openProjectFile, projectId]);
+    openProjectFile(projectId, projectRelativeFilePath);
+  }, [openProjectFile, projectId, projectRelativeFilePath]);
 
   useEffect(() => {
     if (defaultExpanded) {
       setExpanded(true);
     }
   }, [defaultExpanded]);
+
+  useEffect(() => {
+    if (!shouldLoadGitDiff || !projectPath || !projectRelativeFilePath) {
+      return;
+    }
+
+    const abortController = new AbortController();
+
+    const loadGitDiff = async () => {
+      setGitDiffLoading(true);
+
+      try {
+        const statusResponse = await fetch("/api/project-git-status", {
+          body: JSON.stringify({ projectPath }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+          signal: abortController.signal,
+        });
+
+        if (!statusResponse.ok) {
+          throw new Error(await readResponseText(statusResponse));
+        }
+
+        const status =
+          (await statusResponse.json()) as ProjectGitStatusResponse;
+        const normalizedTarget = normalizePathForCompare(
+          projectRelativeFilePath,
+        );
+        const matchingChange: ProjectGitStatusEntry | undefined =
+          status.changes.find(
+            (change) =>
+              normalizePathForCompare(change.path) === normalizedTarget,
+          );
+        const diffStatus =
+          matchingChange?.status ?? inferProjectGitStatus(changeStatus);
+        const previousPath = matchingChange?.previousPath ?? null;
+
+        const diffResponse = await fetch("/api/project-git-diff", {
+          body: JSON.stringify({
+            filePath: matchingChange?.path ?? projectRelativeFilePath,
+            previousPath,
+            projectPath,
+            status: diffStatus,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+          signal: abortController.signal,
+        });
+
+        if (!diffResponse.ok) {
+          throw new Error(await readResponseText(diffResponse));
+        }
+
+        const payload = (await diffResponse.json()) as ProjectGitDiffResponse;
+
+        setGitDiff({
+          diff: payload.diff,
+          filePath: projectRelativeFilePath,
+        });
+        setGitDiffError(null);
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        setGitDiffError({
+          filePath: projectRelativeFilePath,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to load the file diff.",
+        });
+      } finally {
+        if (!abortController.signal.aborted) {
+          setGitDiffLoading(false);
+        }
+      }
+    };
+
+    void loadGitDiff();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [changeStatus, projectPath, projectRelativeFilePath, shouldLoadGitDiff]);
 
   return (
     <div className={expanded || isApprovalRequested ? "w-full" : undefined}>
@@ -463,6 +719,21 @@ export const WriteFileChip = ({
                 </CodeBlockHeader>
               </CodeBlock>
             </div>
+          ) : shouldLoadGitDiff || gitDiffLoading ? (
+            <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
+              Loading diff...
+            </p>
+          ) : currentGitDiffError ? (
+            <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
+              Diff unavailable: {currentGitDiffError}
+            </p>
+          ) : projectRelativeFilePath ? (
+            <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
+              {writeFileStateLabel
+                ? `${writeFileStateLabel[0]?.toUpperCase()}${writeFileStateLabel.slice(1)} ${projectRelativeFilePath}.`
+                : `Changed ${projectRelativeFilePath}.`}{" "}
+              No diff output is available for this write.
+            </p>
           ) : outputMessage ? (
             <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
               {outputMessage}

@@ -23,6 +23,12 @@ export type ChatMessageMetadata = {
   usage?: LanguageModelUsage;
 };
 
+type FooterItem = {
+  id: "model" | "reasoning" | "speed" | "time" | "duration";
+  text: string;
+  shimmer: boolean;
+};
+
 const parseMessageTime = (value: string | undefined) => {
   if (!value) {
     return null;
@@ -122,12 +128,12 @@ export const MessageHoverFooter = ({
       : null;
   const text = getMessageText(message);
   const footerItems = [
-    { text: modelLabel, shimmer: false },
-    { text: reasoningLabel, shimmer: false },
-    { text: modelSpeedLabel, shimmer: false },
-    { text: time, shimmer: isRunning },
-    { text: duration, shimmer: false },
-  ].filter((item): item is { text: string; shimmer: boolean } => !!item.text);
+    { id: "model", text: modelLabel, shimmer: false },
+    { id: "reasoning", text: reasoningLabel, shimmer: false },
+    { id: "speed", text: modelSpeedLabel, shimmer: false },
+    { id: "time", text: time, shimmer: isRunning },
+    { id: "duration", text: duration, shimmer: false },
+  ].filter((item): item is FooterItem => !!item.text);
   const positionClassName =
     message.role === "user"
       ? "ml-auto justify-end text-right"
@@ -169,7 +175,7 @@ export const MessageHoverFooter = ({
       {footerItems.length > 0 ? (
         <span>
           {footerItems.map((item, i) => (
-            <Fragment key={item.text}>
+            <Fragment key={item.id}>
               {i > 0 ? " · " : null}
               {item.shimmer ? (
                 <Shimmer as="span" duration={2}>
