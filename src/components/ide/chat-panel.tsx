@@ -70,6 +70,7 @@ import {
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
+import { ProjectBranchFooter } from "./project-status-bar";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
@@ -1049,6 +1050,8 @@ export const ChatPanel = ({
           selectedReasoningLabel={selectedReasoningLabel}
           status={status}
         />
+
+        <ProjectBranchFooter project={project} />
       </div>
 
       <EditChatDialog

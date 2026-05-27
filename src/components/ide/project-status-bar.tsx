@@ -1,4 +1,4 @@
-import { FolderGit2, Settings } from "lucide-react";
+import { FolderGit2 } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
+import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
 import { BranchSwitcher } from "./branch-switcher";
 import { useIdeStore } from "./ide-store";
@@ -140,38 +141,30 @@ const CreateWorktreeDialog = ({
   );
 };
 
-export const ProjectStatusBar = ({
+export const ProjectBranchFooter = ({
+  className,
   project,
 }: {
-  project: ProjectConfig | null;
+  className?: string;
+  project: ProjectConfig;
 }) => {
-  const gitRefreshKey = useIdeStore((s) =>
-    project ? (s.projectGitRefreshKeys[project.id] ?? 0) : 0,
+  const gitRefreshKey = useIdeStore(
+    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-  const { branch, isRepo } = useProjectGitStatus(project?.path, gitRefreshKey);
+  const { branch, isRepo, loading } = useProjectGitStatus(
+    project.path,
+    gitRefreshKey,
+  );
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
-  const openSettings = () => {
-    setSettingsSection("appearance");
-    setSettingsOpen(true);
-  };
+
+  if (!project.worktree && !isRepo && !loading) {
+    return null;
+  }
 
   return (
     <>
-      <div className="flex min-h-9 shrink-0 items-center gap-2 pr-3 pl-2 text-xs">
-        <Button
-          aria-label="Settings"
-          className="size-8 text-muted-foreground hover:text-foreground"
-          onClick={openSettings}
-          size="icon"
-          title="Settings"
-          variant="ghost"
-        >
-          <Settings className="size-4" />
-        </Button>
-
-        <div className="flex min-w-0 flex-1 justify-end">
+      <div className={cn("shrink-0 px-2 pt-1 pb-2", className)}>
+        <div className="mx-auto flex w-full max-w-[700px] justify-end">
           {project?.worktree ? (
             <Button
               aria-label={`Worktree ${project.worktree.branch}`}
@@ -199,14 +192,12 @@ export const ProjectStatusBar = ({
         </div>
       </div>
 
-      {project ? (
-        <CreateWorktreeDialog
-          baseRef={branch}
-          onOpenChange={setCreateWorktreeOpen}
-          open={createWorktreeOpen}
-          project={project}
-        />
-      ) : null}
+      <CreateWorktreeDialog
+        baseRef={branch}
+        onOpenChange={setCreateWorktreeOpen}
+        open={createWorktreeOpen}
+        project={project}
+      />
     </>
   );
 };

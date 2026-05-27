@@ -1,12 +1,15 @@
 import {
   type ComponentProps,
+  createContext,
   startTransition,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { Block, type BlockProps, parseMarkdownIntoBlocks } from "streamdown";
 import {
   MAX_STREAMDOWN_MARKDOWN_CHARS,
   MessageResponse,
@@ -43,6 +46,14 @@ export const streamingTextAnimation = {
 const INLINE_CODE_CLASS_NAME =
   "rounded bg-muted px-1.5 py-0.5 font-mono text-sm";
 
+type MarkdownBlockAnimationContextValue = {
+  animationStartOffset: number;
+  markdownText: string;
+};
+
+const MarkdownBlockAnimationContext =
+  createContext<MarkdownBlockAnimationContextValue | null>(null);
+
 type InlineCodeAnimationStyle = NonNullable<ComponentProps<"code">["style"]> &
   Record<
     "--sd-animation" | "--sd-delay" | "--sd-duration" | "--sd-easing",
@@ -51,7 +62,7 @@ type InlineCodeAnimationStyle = NonNullable<ComponentProps<"code">["style"]> &
 
 const inlineCodeAnimationStyle: InlineCodeAnimationStyle = {
   "--sd-animation": "sd-searIn",
-  "--sd-delay": `${STREAMING_TEXT_REVEAL_DURATION_MS}ms`,
+  "--sd-delay": "0ms",
   "--sd-duration": `${STREAMING_TEXT_REVEAL_DURATION_MS}ms`,
   "--sd-easing": "cubic-bezier(0.16, 1, 0.3, 1)",
 };
@@ -91,38 +102,51 @@ const getMarkdownNodeOffsets = (node: unknown) => {
 
 const getAnimatedTokenCount = (text: string) => text.match(/\S+/g)?.length ?? 0;
 
+const getMarkdownBlockStartOffsets = (markdownText: string) => {
+  const blocks = parseMarkdownIntoBlocks(markdownText);
+  let searchOffset = 0;
+
+  return blocks.map((block) => {
+    const blockStartOffset = markdownText.indexOf(block, searchOffset);
+
+    if (blockStartOffset === -1) {
+      return searchOffset;
+    }
+
+    searchOffset = blockStartOffset + block.length;
+    return blockStartOffset;
+  });
+};
+
 const getInlineCodeDelay = (
   animationStartOffset: number,
   markdownText: string,
   nodeStartOffset: number | null,
 ) => {
   if (nodeStartOffset === null || nodeStartOffset <= animationStartOffset) {
-    return STREAMING_TEXT_REVEAL_DURATION_MS;
+    return 0;
   }
 
   return (
-    STREAMING_TEXT_REVEAL_DURATION_MS +
     getAnimatedTokenCount(
       markdownText.slice(animationStartOffset, nodeStartOffset),
-    ) *
-      streamingTextAnimation.stagger
+    ) * streamingTextAnimation.stagger
   );
 };
 
 const InlineCode = ({
   animate,
-  animationStartOffset,
   className,
-  markdownText,
   node,
   style,
   ...props
 }: ComponentProps<"code"> & {
   animate: boolean;
-  animationStartOffset: number;
-  markdownText: string;
   node?: unknown;
 }) => {
+  const animationContext = useContext(MarkdownBlockAnimationContext);
+  const animationStartOffset = animationContext?.animationStartOffset ?? 0;
+  const markdownText = animationContext?.markdownText ?? "";
   const nodeOffsets = getMarkdownNodeOffsets(node);
   const shouldAnimate =
     animate && (nodeOffsets === null || nodeOffsets.end > animationStartOffset);
@@ -472,31 +496,48 @@ export const StreamingMessageResponse = ({
           ).length,
     [projectPath, visibleText],
   );
+  const markdownBlockStartOffsets = useMemo(
+    () => getMarkdownBlockStartOffsets(markdownText),
+    [markdownText],
+  );
+  const streamingMarkdownBlock = useMemo(() => {
+    const StreamingMarkdownBlock = (props: BlockProps) => {
+      const blockStartOffset = markdownBlockStartOffsets[props.index] ?? 0;
+      const blockAnimationStartOffset = Math.min(
+        props.content.length,
+        Math.max(0, markdownAnimationStartOffset - blockStartOffset),
+      );
+
+      return (
+        <MarkdownBlockAnimationContext.Provider
+          value={{
+            animationStartOffset: blockAnimationStartOffset,
+            markdownText: props.content,
+          }}
+        >
+          <Block {...props} />
+        </MarkdownBlockAnimationContext.Provider>
+      );
+    };
+
+    return StreamingMarkdownBlock;
+  }, [markdownAnimationStartOffset, markdownBlockStartOffsets]);
   const markdownComponents = useMemo<
     NonNullable<MessageResponseProps["components"]>
   >(
     () => ({
       a: (props) => <MarkdownFileLink {...props} projectPath={projectPath} />,
       inlineCode: (props) => (
-        <InlineCode
-          animate={animateStreamedText}
-          animationStartOffset={markdownAnimationStartOffset}
-          markdownText={markdownText}
-          {...props}
-        />
+        <InlineCode animate={animateStreamedText} {...props} />
       ),
     }),
-    [
-      animateStreamedText,
-      markdownAnimationStartOffset,
-      markdownText,
-      projectPath,
-    ],
+    [animateStreamedText, projectPath],
   );
 
   return (
     <MessageResponse
       animated={hasStreamedRef.current ? streamingTextAnimation : undefined}
+      BlockComponent={streamingMarkdownBlock}
       components={markdownComponents}
       isAnimating={animateStreamedText}
     >
