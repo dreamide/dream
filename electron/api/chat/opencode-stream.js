@@ -210,18 +210,59 @@ export const streamOpenCodeResponse = ({
         let preparedAttachments = null;
         let textPartIndex = 0;
         let activeSessionId = null;
+        let submittedPrompt = "";
         const permissionIds = new Set();
         const startedToolCalls = new Set();
         const streamedTextByPartId = new Map();
+        const messageRoleById = new Map();
+        const pendingPartEventsByMessageId = new Map();
+        const activeTextParts = new Map();
+        const completedTextParts = new Set();
         let hasWrittenText = false;
         let streamedTextChars = 0;
         let textLimitReached = false;
         let opencode = null;
         const serverAbortController = new AbortController();
 
+        const getTextPartKey = (id, type) => `${type}:${id}`;
+
+        const startTextPart = (id, type) => {
+          const key = getTextPartKey(id, type);
+          if (completedTextParts.has(key)) {
+            return false;
+          }
+
+          if (!activeTextParts.has(key)) {
+            writer.write({ type: `${type}-start`, id });
+            activeTextParts.set(key, { id, type });
+          }
+
+          return true;
+        };
+
+        const closeTextPart = (id, type) => {
+          const key = getTextPartKey(id, type);
+          if (!activeTextParts.has(key)) {
+            return;
+          }
+
+          writer.write({ type: `${type}-end`, id });
+          activeTextParts.delete(key);
+          completedTextParts.add(key);
+        };
+
+        const closeActiveTextParts = () => {
+          for (const { id, type } of activeTextParts.values()) {
+            writer.write({ type: `${type}-end`, id });
+            completedTextParts.add(getTextPartKey(id, type));
+          }
+          activeTextParts.clear();
+        };
+
         const finish = (callback) => {
           if (finished) return;
           finished = true;
+          closeActiveTextParts();
           abortSignal?.removeEventListener("abort", handleAbort);
           serverAbortController.abort();
           preparedAttachments?.cleanup?.();
@@ -229,7 +270,7 @@ export const streamOpenCodeResponse = ({
           callback();
         };
 
-        const writeText = (text, idHint, type = "text") => {
+        const writeText = (text, idHint, type = "text", end = false) => {
           if (!text || finished || abortSignal?.aborted || textLimitReached) {
             return;
           }
@@ -242,14 +283,17 @@ export const streamOpenCodeResponse = ({
           const id = idHint || `opencode-${type}-${++textPartIndex}`;
           const nextText =
             text.length > remainingChars ? text.slice(0, remainingChars) : text;
-          writeCodexTextPart(
-            (event) => writer.write(event),
-            id,
-            nextText,
-            type,
-          );
+          if (!startTextPart(id, type)) {
+            return;
+          }
+
+          writer.write({ type: `${type}-delta`, delta: nextText, id });
           streamedTextChars += nextText.length;
           hasWrittenText = true;
+
+          if (end) {
+            closeTextPart(id, type);
+          }
 
           if (nextText.length < text.length) {
             textLimitReached = true;
@@ -260,6 +304,53 @@ export const streamOpenCodeResponse = ({
               "text",
             );
             finish(resolve);
+          }
+        };
+
+        const isOpenCodePartFinished = (part) =>
+          typeof part?.time?.end === "number" ||
+          (part?.type === "tool" &&
+            (part.state?.status === "completed" ||
+              part.state?.status === "error"));
+
+        const getOpenCodeMessageId = (part) =>
+          typeof part?.messageID === "string" && part.messageID.trim()
+            ? part.messageID
+            : null;
+
+        const queuePendingPartEvent = (messageId, event) => {
+          const pendingEvents = pendingPartEventsByMessageId.get(messageId);
+          if (pendingEvents) {
+            pendingEvents.push(event);
+            return;
+          }
+
+          pendingPartEventsByMessageId.set(messageId, [event]);
+        };
+
+        const handleMessageUpdated = async (message) => {
+          if (
+            !message ||
+            message.sessionID !== activeSessionId ||
+            typeof message.id !== "string"
+          ) {
+            return;
+          }
+
+          if (message.role !== "assistant" && message.role !== "user") {
+            return;
+          }
+
+          messageRoleById.set(message.id, message.role);
+
+          const pendingEvents = pendingPartEventsByMessageId.get(message.id);
+          if (!pendingEvents) {
+            return;
+          }
+
+          pendingPartEventsByMessageId.delete(message.id);
+          for (const pendingEvent of pendingEvents) {
+            await handleMessagePartUpdated(pendingEvent);
           }
         };
 
@@ -395,6 +486,78 @@ export const streamOpenCodeResponse = ({
           });
         };
 
+        const handleMessagePartUpdated = async (event) => {
+          if (!event || typeof event !== "object") {
+            return;
+          }
+
+          const part = event.properties?.part;
+          if (part?.sessionID !== activeSessionId) {
+            return;
+          }
+
+          const messageId = getOpenCodeMessageId(part);
+          if (messageId) {
+            const role = messageRoleById.get(messageId);
+            if (role === "user") {
+              return;
+            }
+
+            if (!role) {
+              queuePendingPartEvent(messageId, event);
+              return;
+            }
+
+            if (role !== "assistant") {
+              return;
+            }
+          }
+
+          if (handleWriteToolPart(part)) {
+            return;
+          }
+
+          const text = extractOpenCodePartText(part);
+          if (!text) {
+            return;
+          }
+
+          if (isLikelySubmittedOpenCodePrompt(text, submittedPrompt)) {
+            return;
+          }
+
+          const id = part.id || `opencode-part-${++textPartIndex}`;
+          const type = getOpenCodePartType(part);
+          if (typeof event.properties?.delta === "string") {
+            streamedTextByPartId.set(id, text);
+            writeText(event.properties.delta, id, type);
+            if (isOpenCodePartFinished(part)) {
+              closeTextPart(id, type);
+            }
+            return;
+          }
+
+          const previousText = streamedTextByPartId.get(id) ?? "";
+          if (previousText === text) {
+            if (isOpenCodePartFinished(part)) {
+              closeTextPart(id, type);
+            }
+            return;
+          }
+
+          streamedTextByPartId.set(id, text);
+          writeText(
+            text.startsWith(previousText)
+              ? text.slice(previousText.length)
+              : text,
+            id,
+            type,
+          );
+          if (isOpenCodePartFinished(part)) {
+            closeTextPart(id, type);
+          }
+        };
+
         const handleEvent = async (event) => {
           if (!event || typeof event !== "object") {
             return;
@@ -411,49 +574,19 @@ export const streamOpenCodeResponse = ({
             return;
           }
 
+          if (event.type === "message.updated") {
+            await handleMessageUpdated(event.properties?.info);
+            return;
+          }
+
           if (event.type === "permission.updated") {
             await handlePermission(event.properties);
             return;
           }
 
-          if (event.type !== "message.part.updated") {
-            return;
+          if (event.type === "message.part.updated") {
+            await handleMessagePartUpdated(event);
           }
-
-          const part = event.properties?.part;
-          if (part?.sessionID !== activeSessionId) {
-            return;
-          }
-
-          if (handleWriteToolPart(part)) {
-            return;
-          }
-
-          const text = extractOpenCodePartText(part);
-          if (!text) {
-            return;
-          }
-
-          const id = part.id || `opencode-part-${++textPartIndex}`;
-          if (typeof event.properties?.delta === "string") {
-            streamedTextByPartId.set(id, text);
-            writeText(event.properties.delta, id, getOpenCodePartType(part));
-            return;
-          }
-
-          const previousText = streamedTextByPartId.get(id) ?? "";
-          if (previousText === text) {
-            return;
-          }
-
-          streamedTextByPartId.set(id, text);
-          writeText(
-            text.startsWith(previousText)
-              ? text.slice(previousText.length)
-              : text,
-            id,
-            getOpenCodePartType(part),
-          );
         };
 
         const handleAbort = () => {
@@ -478,6 +611,7 @@ export const streamOpenCodeResponse = ({
                 "You are running through the real OpenCode server with native project tools. Respect the active project root and complete the latest user request.",
               systemPrompt,
             });
+            submittedPrompt = prompt;
 
             const { modelID, providerID } = parseOpenCodeModel(model);
             opencode = await createOpencode({
@@ -547,7 +681,7 @@ export const streamOpenCodeResponse = ({
                   continue;
                 }
 
-                writeText(text, part.id, getOpenCodePartType(part));
+                writeText(text, part.id, getOpenCodePartType(part), true);
                 wroteFallbackText = true;
               }
 

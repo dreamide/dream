@@ -174,6 +174,40 @@ const InlineCode = ({
   );
 };
 
+type StreamingMarkdownBlockContextValue = {
+  markdownAnimationStartOffset: number;
+  markdownBlockStartOffsets: readonly number[];
+};
+
+const StreamingMarkdownBlockContext =
+  createContext<StreamingMarkdownBlockContextValue | null>(null);
+
+const StreamingMarkdownBlock = (props: BlockProps) => {
+  const animationContext = useContext(StreamingMarkdownBlockContext);
+  const blockStartOffset =
+    animationContext?.markdownBlockStartOffsets[props.index] ?? 0;
+  const blockAnimationStartOffset = animationContext
+    ? Math.min(
+        props.content.length,
+        Math.max(
+          0,
+          animationContext.markdownAnimationStartOffset - blockStartOffset,
+        ),
+      )
+    : 0;
+
+  return (
+    <MarkdownBlockAnimationContext.Provider
+      value={{
+        animationStartOffset: blockAnimationStartOffset,
+        markdownText: props.content,
+      }}
+    >
+      <Block {...props} />
+    </MarkdownBlockAnimationContext.Provider>
+  );
+};
+
 const MARKDOWN_BLOCK_BOUNDARY_PATTERN =
   /\n(?:([ \t]*\n)|([ \t]*(?:[-*+]\s+|\d+[.)]\s+|#{1,6}\s+|>\s+)))/g;
 
@@ -500,28 +534,13 @@ export const StreamingMessageResponse = ({
     () => getMarkdownBlockStartOffsets(markdownText),
     [markdownText],
   );
-  const streamingMarkdownBlock = useMemo(() => {
-    const StreamingMarkdownBlock = (props: BlockProps) => {
-      const blockStartOffset = markdownBlockStartOffsets[props.index] ?? 0;
-      const blockAnimationStartOffset = Math.min(
-        props.content.length,
-        Math.max(0, markdownAnimationStartOffset - blockStartOffset),
-      );
-
-      return (
-        <MarkdownBlockAnimationContext.Provider
-          value={{
-            animationStartOffset: blockAnimationStartOffset,
-            markdownText: props.content,
-          }}
-        >
-          <Block {...props} />
-        </MarkdownBlockAnimationContext.Provider>
-      );
-    };
-
-    return StreamingMarkdownBlock;
-  }, [markdownAnimationStartOffset, markdownBlockStartOffsets]);
+  const streamingMarkdownBlockContext = useMemo(
+    () => ({
+      markdownAnimationStartOffset,
+      markdownBlockStartOffsets,
+    }),
+    [markdownAnimationStartOffset, markdownBlockStartOffsets],
+  );
   const markdownComponents = useMemo<
     NonNullable<MessageResponseProps["components"]>
   >(
@@ -535,13 +554,17 @@ export const StreamingMessageResponse = ({
   );
 
   return (
-    <MessageResponse
-      animated={hasStreamedRef.current ? streamingTextAnimation : undefined}
-      BlockComponent={streamingMarkdownBlock}
-      components={markdownComponents}
-      isAnimating={animateStreamedText}
+    <StreamingMarkdownBlockContext.Provider
+      value={streamingMarkdownBlockContext}
     >
-      {markdownText}
-    </MessageResponse>
+      <MessageResponse
+        animated={hasStreamedRef.current ? streamingTextAnimation : undefined}
+        BlockComponent={StreamingMarkdownBlock}
+        components={markdownComponents}
+        isAnimating={animateStreamedText}
+      >
+        {markdownText}
+      </MessageResponse>
+    </StreamingMarkdownBlockContext.Provider>
   );
 };
