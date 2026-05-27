@@ -345,7 +345,6 @@ const CLAUDE_CODE_MODEL_OPTIONS = [
 export const normalizeClaudeCodeModel = (modelId) => {
   const trimmed = modelId.trim().toLowerCase();
   if (!trimmed) return "sonnet";
-  if (trimmed.startsWith("claude-")) return trimmed;
   const usesOneMillionContext = /\[1m\]/i.test(trimmed);
   if (trimmed.includes("opus")) {
     return usesOneMillionContext ? "opus[1m]" : "opus";
@@ -354,6 +353,7 @@ export const normalizeClaudeCodeModel = (modelId) => {
   if (trimmed.includes("sonnet")) {
     return usesOneMillionContext ? "sonnet[1m]" : "sonnet";
   }
+  if (trimmed.startsWith("claude-")) return trimmed;
   return trimmed;
 };
 

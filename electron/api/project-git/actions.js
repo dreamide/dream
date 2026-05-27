@@ -7,6 +7,7 @@ import {
   resolveCodexCliLaunch,
 } from "../chat/codex-cli-launch.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
+import { normalizeClaudeCodeModel } from "../providers/model-options.js";
 import {
   fetchAnthropicLowCostModel,
   fetchOpenAiLowCostModel,
@@ -207,7 +208,7 @@ const generateClaudeCommitMessage = async ({
 }) => {
   const model = (await fetchAnthropicLowCostModel()) || "haiku";
   const result = await generateText({
-    model: claudeCode(model, {
+    model: claudeCode(normalizeClaudeCodeModel(model), {
       continue: false,
       cwd: projectPath,
       persistSession: false,

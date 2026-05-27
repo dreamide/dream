@@ -261,7 +261,6 @@ export const streamClaudeResponse = async ({
         "WebSearch",
         "NotebookEdit",
       ],
-      disallowedTools: ["ToolSearch"],
       permissionMode: CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
       ...(claudePermissionMode === "bypass-permissions"
         ? { allowDangerouslySkipPermissions: true }
