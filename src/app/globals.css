@@ -183,15 +183,12 @@
   --warning-surface: oklch(0.973 0.071 103.193);
   --warning-foreground: oklch(0.421 0.095 57.708);
   --warning-border: oklch(0.905 0.182 98.111);
-  --streaming-sear-start-color: rgb(255 255 255);
+  --streaming-sear-start-color: currentColor;
   --streaming-sear-start-opacity: 0;
-  --streaming-sear-start-shadow:
-    0 0 2px rgb(255 255 255 / 0.9), 0 0 8px rgb(255 255 255 / 0.42),
-    0 0 14px rgb(229 231 235 / 0.22);
-  --streaming-sear-peak-color: rgb(255 255 255);
-  --streaming-sear-peak-opacity: 1;
-  --streaming-sear-peak-shadow:
-    0 0 1px rgb(255 255 255 / 0.76), 0 0 6px rgb(255 255 255 / 0.34);
+  --streaming-sear-start-shadow: none;
+  --streaming-sear-peak-color: currentColor;
+  --streaming-sear-peak-opacity: 0.72;
+  --streaming-sear-peak-shadow: none;
   --border: var(--surface-200);
   --input: var(--surface-200);
   --ring: var(--surface-400);
