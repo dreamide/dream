@@ -46,57 +46,36 @@ export const streamingTextAnimation = {
 const INLINE_CODE_CLASS_NAME =
   "rounded bg-muted px-1.5 py-0.5 font-mono text-sm";
 
-type MarkdownBlockAnimationContextValue = {
-  animationStartOffset: number;
-  markdownText: string;
+type InlineCodeRange = {
+  end: number;
+  start: number;
 };
 
-const MarkdownBlockAnimationContext =
-  createContext<MarkdownBlockAnimationContextValue | null>(null);
-
-type InlineCodeAnimationStyle = NonNullable<ComponentProps<"code">["style"]> &
-  Record<
-    "--sd-animation" | "--sd-delay" | "--sd-duration" | "--sd-easing",
-    string
-  >;
-
-const inlineCodeAnimationStyle: InlineCodeAnimationStyle = {
-  "--sd-animation": "sd-searIn",
-  "--sd-delay": "0ms",
-  "--sd-duration": `${STREAMING_TEXT_REVEAL_DURATION_MS}ms`,
-  "--sd-easing": "cubic-bezier(0.16, 1, 0.3, 1)",
+type HastNode = {
+  children?: HastNode[];
+  position?: {
+    end?: { offset?: number };
+    start?: { offset?: number };
+  };
+  properties?: Record<string, unknown>;
+  tagName?: string;
+  type?: string;
+  value?: string;
 };
 
-const getMarkdownNodeOffsets = (node: unknown) => {
-  if (!node || typeof node !== "object" || !("position" in node)) {
-    return null;
-  }
+const SKIP_DREAM_STREAMING_ANIMATION_TAGS = new Set([
+  "annotation",
+  "math",
+  "pre",
+  "svg",
+]);
 
-  const position = node.position;
-  if (
-    !position ||
-    typeof position !== "object" ||
-    !("start" in position) ||
-    !("end" in position)
-  ) {
-    return null;
-  }
+const getHastNodeOffsets = (node: HastNode) => {
+  const start = node.position?.start?.offset;
+  const end = node.position?.end?.offset;
 
-  const start = position.start;
-  const end = position.end;
-  if (
-    !start ||
-    typeof start !== "object" ||
-    !("offset" in start) ||
-    !end ||
-    typeof end !== "object" ||
-    !("offset" in end)
-  ) {
-    return null;
-  }
-
-  return typeof start.offset === "number" && typeof end.offset === "number"
-    ? { end: end.offset, start: start.offset }
+  return typeof start === "number" && typeof end === "number"
+    ? { end, start }
     : null;
 };
 
@@ -118,63 +97,187 @@ const getMarkdownBlockStartOffsets = (markdownText: string) => {
   });
 };
 
-const getInlineCodeDelay = (
-  animationStartOffset: number,
-  markdownText: string,
-  nodeStartOffset: number | null,
-) => {
-  if (nodeStartOffset === null || nodeStartOffset <= animationStartOffset) {
-    return 0;
+const getInlineCodeRanges = (markdownText: string): InlineCodeRange[] => {
+  const ranges: InlineCodeRange[] = [];
+  let index = 0;
+
+  while (index < markdownText.length) {
+    if (
+      markdownText[index] !== "`" ||
+      isEscapedMarkdownCharacter(markdownText, index)
+    ) {
+      index++;
+      continue;
+    }
+
+    const delimiterLength = getBacktickRunLength(markdownText, index);
+    if (
+      delimiterLength === 0 ||
+      delimiterLength > INLINE_CODE_MAX_DELIMITER_LENGTH
+    ) {
+      index += Math.max(1, delimiterLength);
+      continue;
+    }
+
+    const rangeEnd = findClosingInlineCodeDelimiter(
+      markdownText.slice(index),
+      delimiterLength,
+    );
+    if (rangeEnd === -1) {
+      index += delimiterLength;
+      continue;
+    }
+
+    ranges.push({
+      end: index + rangeEnd,
+      start: index,
+    });
+    index += rangeEnd;
   }
 
-  return (
-    getAnimatedTokenCount(
-      markdownText.slice(animationStartOffset, nodeStartOffset),
-    ) * streamingTextAnimation.stagger
-  );
+  return ranges;
 };
 
-const InlineCode = ({
-  animate,
-  className,
-  node,
-  style,
-  ...props
-}: ComponentProps<"code"> & {
-  animate: boolean;
-  node?: unknown;
-}) => {
-  const animationContext = useContext(MarkdownBlockAnimationContext);
-  const animationStartOffset = animationContext?.animationStartOffset ?? 0;
-  const markdownText = animationContext?.markdownText ?? "";
-  const nodeOffsets = getMarkdownNodeOffsets(node);
-  const shouldAnimate =
-    animate && (nodeOffsets === null || nodeOffsets.end > animationStartOffset);
-  const delay = getInlineCodeDelay(
-    animationStartOffset,
-    markdownText,
-    nodeOffsets?.start ?? null,
-  );
-  const animatedStyle = shouldAnimate
-    ? ({
-        ...inlineCodeAnimationStyle,
-        ...style,
-        "--sd-delay": `${delay}ms`,
-      } as ComponentProps<"code">["style"])
-    : style;
+const getSearAnimationStyle = (delayMs: number) =>
+  [
+    "--sd-animation:sd-searIn",
+    `--sd-duration:${STREAMING_TEXT_REVEAL_DURATION_MS}ms`,
+    "--sd-easing:cubic-bezier(0.16, 1, 0.3, 1)",
+    `--sd-delay:${delayMs}ms`,
+  ].join(";");
 
+const appendHastStyle = (node: HastNode, style: string) => {
+  node.properties = node.properties ?? {};
+  const existingStyle = node.properties.style;
+  node.properties.style =
+    typeof existingStyle === "string" && existingStyle
+      ? `${existingStyle};${style}`
+      : style;
+};
+
+const splitTextForSearAnimation = (
+  value: string,
+  nodeStartOffset: number,
+  animationStartOffset: number,
+  animatedTokenIndex: { current: number },
+): HastNode[] => {
+  const cutoff = Math.min(
+    value.length,
+    Math.max(0, animationStartOffset - nodeStartOffset),
+  );
+  const nodes: HastNode[] = [];
+  const stableText = value.slice(0, cutoff);
+  const animatedText = value.slice(cutoff);
+
+  if (stableText) {
+    nodes.push({ type: "text", value: stableText });
+  }
+
+  for (const token of animatedText.match(/\s+|\S+\s*/g) ?? []) {
+    if (!/\S/.test(token)) {
+      nodes.push({ type: "text", value: token });
+      continue;
+    }
+
+    nodes.push({
+      children: [{ type: "text", value: token }],
+      properties: {
+        "data-sd-animate": true,
+        style: getSearAnimationStyle(
+          animatedTokenIndex.current * streamingTextAnimation.stagger,
+        ),
+      },
+      tagName: "span",
+      type: "element",
+    });
+    animatedTokenIndex.current++;
+  }
+
+  return nodes;
+};
+
+const createDreamStreamingRehypePlugin =
+  (animationStartOffset: number, inlineCodeRanges: InlineCodeRange[]) => () => {
+    return (tree: HastNode) => {
+      const animatedTokenIndex = { current: 0 };
+      let inlineCodeRangeIndex = 0;
+
+      const visit = (node: HastNode, parentTagName: string | null = null) => {
+        if (!node.children?.length) {
+          return;
+        }
+
+        if (
+          node.tagName &&
+          SKIP_DREAM_STREAMING_ANIMATION_TAGS.has(node.tagName.toLowerCase())
+        ) {
+          return;
+        }
+
+        for (let index = 0; index < node.children.length; index++) {
+          const child = node.children[index];
+          const childTagName = child.tagName?.toLowerCase() ?? null;
+
+          if (childTagName === "code" && parentTagName !== "pre") {
+            const offsets =
+              inlineCodeRanges[inlineCodeRangeIndex++] ??
+              getHastNodeOffsets(child);
+
+            if (offsets && offsets.end > animationStartOffset) {
+              child.properties = child.properties ?? {};
+              child.properties["data-sd-animate"] = true;
+              appendHastStyle(
+                child,
+                getSearAnimationStyle(
+                  animatedTokenIndex.current * streamingTextAnimation.stagger,
+                ),
+              );
+              animatedTokenIndex.current++;
+            }
+            continue;
+          }
+
+          if (child.type === "text" && typeof child.value === "string") {
+            const offsets = getHastNodeOffsets(child);
+            if (
+              !offsets ||
+              offsets.end <= animationStartOffset ||
+              !child.value.trim()
+            ) {
+              continue;
+            }
+
+            const replacement = splitTextForSearAnimation(
+              child.value,
+              offsets.start,
+              animationStartOffset,
+              animatedTokenIndex,
+            );
+            node.children.splice(index, 1, ...replacement);
+            index += replacement.length - 1;
+            continue;
+          }
+
+          visit(child, childTagName);
+        }
+      };
+
+      visit(tree);
+    };
+  };
+
+const InlineCode = ({ className, ...props }: ComponentProps<"code">) => {
   return (
     <code
       className={[INLINE_CODE_CLASS_NAME, className].filter(Boolean).join(" ")}
-      data-sd-animate={shouldAnimate ? true : undefined}
       data-streamdown="inline-code"
-      style={animatedStyle}
       {...props}
     />
   );
 };
 
 type StreamingMarkdownBlockContextValue = {
+  animateStreamedText: boolean;
   markdownAnimationStartOffset: number;
   markdownBlockStartOffsets: readonly number[];
 };
@@ -184,6 +287,10 @@ const StreamingMarkdownBlockContext =
 
 const StreamingMarkdownBlock = (props: BlockProps) => {
   const animationContext = useContext(StreamingMarkdownBlockContext);
+  const inlineCodeRanges = useMemo(
+    () => getInlineCodeRanges(props.content),
+    [props.content],
+  );
   const blockStartOffset =
     animationContext?.markdownBlockStartOffsets[props.index] ?? 0;
   const blockAnimationStartOffset = animationContext
@@ -195,21 +302,39 @@ const StreamingMarkdownBlock = (props: BlockProps) => {
         ),
       )
     : 0;
-
-  return (
-    <MarkdownBlockAnimationContext.Provider
-      value={{
-        animationStartOffset: blockAnimationStartOffset,
-        markdownText: props.content,
-      }}
-    >
-      <Block {...props} />
-    </MarkdownBlockAnimationContext.Provider>
+  const rehypePlugins = useMemo(
+    () =>
+      animationContext?.animateStreamedText
+        ? [
+            ...(props.rehypePlugins ?? []),
+            createDreamStreamingRehypePlugin(
+              blockAnimationStartOffset,
+              inlineCodeRanges,
+            ),
+          ]
+        : props.rehypePlugins,
+    [
+      animationContext?.animateStreamedText,
+      blockAnimationStartOffset,
+      inlineCodeRanges,
+      props.rehypePlugins,
+    ],
   );
+
+  return <Block {...props} rehypePlugins={rehypePlugins} />;
 };
 
 const MARKDOWN_BLOCK_BOUNDARY_PATTERN =
   /\n(?:([ \t]*\n)|([ \t]*(?:[-*+]\s+|\d+[.)]\s+|#{1,6}\s+|>\s+)))/g;
+const INLINE_CODE_MAX_DELIMITER_LENGTH = 2;
+
+type StreamingRevealToken = {
+  animatedTokenCount: number;
+  blocked: boolean;
+  forceChunkEnd: boolean;
+  kind: "inline-code" | "text" | "whitespace";
+  text: string;
+};
 
 const getMarkdownBlockBoundaryCutoff = (
   text: string,
@@ -231,6 +356,129 @@ const getMarkdownBlockBoundaryCutoff = (
 
 export const getNextStreamingWordToken = (text: string) =>
   text.match(/^(\s+|\S+\s*)/)?.[0] ?? text.slice(0, 1);
+
+const getBacktickRunLength = (text: string, index: number) => {
+  let length = 0;
+
+  while (text[index + length] === "`") {
+    length++;
+  }
+
+  return length;
+};
+
+const isEscapedMarkdownCharacter = (text: string, index: number) => {
+  let backslashCount = 0;
+
+  for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor--) {
+    backslashCount++;
+  }
+
+  return backslashCount % 2 === 1;
+};
+
+const findClosingInlineCodeDelimiter = (
+  text: string,
+  delimiterLength: number,
+) => {
+  for (
+    let index = delimiterLength;
+    index < text.length;
+    index += Math.max(1, getBacktickRunLength(text, index))
+  ) {
+    if (text[index] !== "`" || isEscapedMarkdownCharacter(text, index)) {
+      continue;
+    }
+
+    const runLength = getBacktickRunLength(text, index);
+    if (runLength === delimiterLength) {
+      return index + runLength;
+    }
+  }
+
+  return -1;
+};
+
+const consumeTrailingWhitespace = (text: string, startIndex: number) => {
+  let endIndex = startIndex;
+
+  while (endIndex < text.length && /\s/.test(text[endIndex])) {
+    endIndex++;
+  }
+
+  return endIndex;
+};
+
+const getNextStreamingRevealToken = (
+  text: string,
+  holdIncompleteInlineCode: boolean,
+): StreamingRevealToken => {
+  const whitespaceMatch = text.match(/^\s+/);
+  if (whitespaceMatch) {
+    return {
+      animatedTokenCount: 0,
+      blocked: false,
+      forceChunkEnd: false,
+      kind: "whitespace",
+      text: whitespaceMatch[0],
+    };
+  }
+
+  const delimiterLength = getBacktickRunLength(text, 0);
+  if (
+    delimiterLength > 0 &&
+    delimiterLength <= INLINE_CODE_MAX_DELIMITER_LENGTH
+  ) {
+    const codeEnd = findClosingInlineCodeDelimiter(text, delimiterLength);
+
+    if (codeEnd === -1) {
+      return holdIncompleteInlineCode
+        ? {
+            animatedTokenCount: 0,
+            blocked: true,
+            forceChunkEnd: false,
+            kind: "inline-code",
+            text: "",
+          }
+        : {
+            animatedTokenCount: 1,
+            blocked: false,
+            forceChunkEnd: false,
+            kind: "text",
+            text: getNextStreamingWordToken(text),
+          };
+    }
+
+    const tokenEnd = consumeTrailingWhitespace(text, codeEnd);
+    return {
+      animatedTokenCount: 1,
+      blocked: false,
+      forceChunkEnd: true,
+      kind: "inline-code",
+      text: text.slice(0, tokenEnd),
+    };
+  }
+
+  let tokenEnd = 0;
+  while (tokenEnd < text.length && !/\s/.test(text[tokenEnd])) {
+    if (
+      text[tokenEnd] === "`" &&
+      !isEscapedMarkdownCharacter(text, tokenEnd) &&
+      getBacktickRunLength(text, tokenEnd) <= INLINE_CODE_MAX_DELIMITER_LENGTH
+    ) {
+      break;
+    }
+    tokenEnd++;
+  }
+
+  return {
+    animatedTokenCount: tokenEnd > 0 ? 1 : 0,
+    blocked: false,
+    forceChunkEnd: false,
+    kind: "text",
+    text: tokenEnd > 0 ? text.slice(0, tokenEnd) : text.slice(0, 1),
+  };
+};
 
 export const getBacklogPressure = (remainingLength: number) => {
   if (remainingLength <= STREAMING_BACKLOG_START_CHARS) {
@@ -258,20 +506,44 @@ const getNextStreamingChunk = (
   targetText: string,
   targetChunkSize: number,
   maxAnimatedTokens = Number.POSITIVE_INFINITY,
+  holdIncompleteInlineCode = true,
 ) => {
   const remainingText = targetText.slice(currentText.length);
   let chunkLength = 0;
   let animatedTokenCount = 0;
+  let blocked = false;
 
   while (chunkLength < remainingText.length && chunkLength < targetChunkSize) {
-    const token = getNextStreamingWordToken(remainingText.slice(chunkLength));
-    if (/\S/.test(token)) {
-      if (animatedTokenCount >= maxAnimatedTokens) {
+    const token = getNextStreamingRevealToken(
+      remainingText.slice(chunkLength),
+      holdIncompleteInlineCode,
+    );
+
+    if (token.blocked) {
+      blocked = chunkLength === 0;
+      break;
+    }
+
+    if (!token.text) {
+      break;
+    }
+
+    if (token.kind === "inline-code" && animatedTokenCount > 0) {
+      break;
+    }
+
+    if (token.animatedTokenCount > 0) {
+      if (animatedTokenCount + token.animatedTokenCount > maxAnimatedTokens) {
         break;
       }
-      animatedTokenCount++;
+      animatedTokenCount += token.animatedTokenCount;
     }
-    chunkLength += token.length;
+
+    chunkLength += token.text.length;
+
+    if (token.forceChunkEnd) {
+      break;
+    }
   }
 
   const boundaryCutoff = getMarkdownBlockBoundaryCutoff(
@@ -287,6 +559,7 @@ const getNextStreamingChunk = (
 
   return {
     animatedTokenCount,
+    blocked,
     nextText: targetText.slice(0, currentText.length + chunkLength),
   };
 };
@@ -316,15 +589,19 @@ export const getNextStreamingFrame = (
     const pressure = getBacklogPressure(remainingText.length);
 
     if (pressure === 0) {
-      const { animatedTokenCount, nextText } = getNextStreamingChunk(
+      const { animatedTokenCount, blocked, nextText } = getNextStreamingChunk(
         currentText,
         targetText,
-        getNextStreamingWordToken(remainingText).length,
+        Math.max(
+          1,
+          getNextStreamingRevealToken(remainingText, true).text.length,
+        ),
         STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
       );
 
       return {
         intervalMs: STREAMING_WORD_INTERVAL_MS,
+        blocked,
         nextText,
         animatedTokenCount,
       };
@@ -342,7 +619,7 @@ export const getNextStreamingFrame = (
         pressure * (STREAMING_WORD_INTERVAL_MS - STREAMING_MIN_INTERVAL_MS),
     );
 
-    const { animatedTokenCount, nextText } = getNextStreamingChunk(
+    const { animatedTokenCount, blocked, nextText } = getNextStreamingChunk(
       currentText,
       targetText,
       targetChunkSize,
@@ -351,6 +628,7 @@ export const getNextStreamingFrame = (
 
     return {
       intervalMs: getStreamingFrameInterval(intervalMs, animatedTokenCount),
+      blocked,
       nextText,
       animatedTokenCount,
     };
@@ -369,6 +647,7 @@ export const getNextStreamingFrame = (
     targetText,
     targetChunkSize,
     STREAMING_FINISHED_MAX_ANIMATED_TOKENS_PER_TICK,
+    false,
   );
 
   return {
@@ -450,13 +729,17 @@ export const StreamingMessageResponse = ({
       return;
     }
 
-    const { intervalMs, nextText } = getNextStreamingFrame(
+    const { blocked, intervalMs, nextText } = getNextStreamingFrame(
       currentText,
       targetText,
       isStreamingRef.current,
     );
 
     if (nextText === currentText) {
+      if (blocked) {
+        return;
+      }
+
       animationStartOffsetRef.current = 0;
       visibleTextRef.current = targetText;
       startTransition(() => {
@@ -536,21 +819,24 @@ export const StreamingMessageResponse = ({
   );
   const streamingMarkdownBlockContext = useMemo(
     () => ({
+      animateStreamedText,
       markdownAnimationStartOffset,
       markdownBlockStartOffsets,
     }),
-    [markdownAnimationStartOffset, markdownBlockStartOffsets],
+    [
+      animateStreamedText,
+      markdownAnimationStartOffset,
+      markdownBlockStartOffsets,
+    ],
   );
   const markdownComponents = useMemo<
     NonNullable<MessageResponseProps["components"]>
   >(
     () => ({
       a: (props) => <MarkdownFileLink {...props} projectPath={projectPath} />,
-      inlineCode: (props) => (
-        <InlineCode animate={animateStreamedText} {...props} />
-      ),
+      inlineCode: (props) => <InlineCode {...props} />,
     }),
-    [animateStreamedText, projectPath],
+    [projectPath],
   );
 
   return (
@@ -558,7 +844,6 @@ export const StreamingMessageResponse = ({
       value={streamingMarkdownBlockContext}
     >
       <MessageResponse
-        animated={hasStreamedRef.current ? streamingTextAnimation : undefined}
         BlockComponent={StreamingMarkdownBlock}
         components={markdownComponents}
         isAnimating={animateStreamedText}
