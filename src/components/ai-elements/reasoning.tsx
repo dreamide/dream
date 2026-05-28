@@ -11,7 +11,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { streamingTextAnimation } from "@/components/ide/assistant-message/streaming-message";
+import {
+  getMarkdownBlockStartOffsets,
+  STREAMING_TEXT_REVEAL_DURATION_MS,
+  STREAMING_TEXT_REVEAL_SETTLE_MS,
+  StreamingMarkdownBlock,
+  StreamingMarkdownBlockContext,
+} from "@/components/ide/assistant-message/streaming-message";
 import { Streamdown } from "streamdown";
 import {
   Collapsible,
@@ -211,6 +217,15 @@ export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => {
     const { dir, ...contentProps } = props;
     const { isStreaming } = useReasoning();
+    const previousChildrenRef = useRef(isStreaming ? "" : children);
+    const previousIsStreamingRef = useRef(isStreaming);
+    const lastAnimationStartOffsetRef = useRef(
+      previousChildrenRef.current.length,
+    );
+    const animationTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
+      null,
+    );
+    const [isSettlingAnimation, setIsSettlingAnimation] = useState(false);
 
     // Track whether this component was ever in a streaming state so that
     // already-visible text keeps its animation styles after streaming stops,
@@ -219,6 +234,76 @@ export const ReasoningContent = memo(
     if (isStreaming) {
       hasStreamedRef.current = true;
     }
+
+    const previousChildren = previousChildrenRef.current;
+    const hasTextUpdate = children !== previousChildren;
+    const markdownAnimationStartOffset =
+      hasTextUpdate && children.startsWith(previousChildren)
+        ? previousChildren.length
+        : hasTextUpdate
+          ? children.length
+          : lastAnimationStartOffsetRef.current;
+    const didJustStopStreaming = previousIsStreamingRef.current && !isStreaming;
+    const animateStreamedText =
+      hasStreamedRef.current &&
+      (isStreaming ||
+        hasTextUpdate ||
+        didJustStopStreaming ||
+        isSettlingAnimation);
+    const markdownBlockStartOffsets = useMemo(
+      () => getMarkdownBlockStartOffsets(children),
+      [children],
+    );
+    const streamingMarkdownBlockContext = useMemo(
+      () => ({
+        animateStreamedText,
+        markdownAnimationStartOffset,
+        markdownBlockStartOffsets,
+      }),
+      [
+        animateStreamedText,
+        markdownAnimationStartOffset,
+        markdownBlockStartOffsets,
+      ],
+    );
+
+    useEffect(() => {
+      const previousText = previousChildrenRef.current;
+
+      if (children !== previousText) {
+        lastAnimationStartOffsetRef.current = children.startsWith(previousText)
+          ? previousText.length
+          : children.length;
+        previousChildrenRef.current = children;
+      }
+
+      if (animationTimeoutIdRef.current !== null) {
+        clearTimeout(animationTimeoutIdRef.current);
+        animationTimeoutIdRef.current = null;
+      }
+
+      if (previousIsStreamingRef.current && !isStreaming) {
+        setIsSettlingAnimation(true);
+        animationTimeoutIdRef.current = setTimeout(() => {
+          animationTimeoutIdRef.current = null;
+          setIsSettlingAnimation(false);
+        }, STREAMING_TEXT_REVEAL_DURATION_MS + STREAMING_TEXT_REVEAL_SETTLE_MS);
+      } else if (isStreaming) {
+        setIsSettlingAnimation(false);
+      }
+
+      previousIsStreamingRef.current = isStreaming;
+    }, [children, isStreaming]);
+
+    useEffect(
+      () => () => {
+        if (animationTimeoutIdRef.current !== null) {
+          clearTimeout(animationTimeoutIdRef.current);
+          animationTimeoutIdRef.current = null;
+        }
+      },
+      [],
+    );
 
     return (
       <CollapsibleContent
@@ -230,15 +315,17 @@ export const ReasoningContent = memo(
         dir={dir}
         {...contentProps}
       >
-        <Streamdown
-          animated={
-            hasStreamedRef.current ? streamingTextAnimation : undefined
-          }
-          isAnimating={isStreaming}
-          plugins={streamdownPlugins}
+        <StreamingMarkdownBlockContext.Provider
+          value={streamingMarkdownBlockContext}
         >
-          {children}
-        </Streamdown>
+          <Streamdown
+            BlockComponent={StreamingMarkdownBlock}
+            isAnimating={isStreaming}
+            plugins={streamdownPlugins}
+          >
+            {children}
+          </Streamdown>
+        </StreamingMarkdownBlockContext.Provider>
       </CollapsibleContent>
     );
   },

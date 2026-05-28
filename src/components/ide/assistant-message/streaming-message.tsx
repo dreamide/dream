@@ -81,7 +81,7 @@ const getHastNodeOffsets = (node: HastNode) => {
 
 const getAnimatedTokenCount = (text: string) => text.match(/\S+/g)?.length ?? 0;
 
-const getMarkdownBlockStartOffsets = (markdownText: string) => {
+export const getMarkdownBlockStartOffsets = (markdownText: string) => {
   const blocks = parseMarkdownIntoBlocks(markdownText);
   let searchOffset = 0;
 
@@ -196,7 +196,7 @@ const splitTextForSearAnimation = (
   return nodes;
 };
 
-const createDreamStreamingRehypePlugin =
+export const createDreamStreamingRehypePlugin =
   (animationStartOffset: number, inlineCodeRanges: InlineCodeRange[]) => () => {
     return (tree: HastNode) => {
       const animatedTokenIndex = { current: 0 };
@@ -276,16 +276,16 @@ const InlineCode = ({ className, ...props }: ComponentProps<"code">) => {
   );
 };
 
-type StreamingMarkdownBlockContextValue = {
+export type StreamingMarkdownBlockContextValue = {
   animateStreamedText: boolean;
   markdownAnimationStartOffset: number;
   markdownBlockStartOffsets: readonly number[];
 };
 
-const StreamingMarkdownBlockContext =
+export const StreamingMarkdownBlockContext =
   createContext<StreamingMarkdownBlockContextValue | null>(null);
 
-const StreamingMarkdownBlock = (props: BlockProps) => {
+export const StreamingMarkdownBlock = (props: BlockProps) => {
   const animationContext = useContext(StreamingMarkdownBlockContext);
   const inlineCodeRanges = useMemo(
     () => getInlineCodeRanges(props.content),
