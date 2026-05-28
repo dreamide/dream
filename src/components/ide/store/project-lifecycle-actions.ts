@@ -91,19 +91,13 @@ export const createProjectLifecycleActions = (
       }
 
       const nextActiveProjectId = ensureActiveProject(state.projects, id);
-      const nextActiveProject = state.projects.find(
-        (project) => project.id === nextActiveProjectId,
-      );
-      const nextActiveChatId = nextActiveProject
-        ? ensureActiveChatForProject(
-            state.chats,
-            nextActiveProject.id,
-            nextActiveProject.ui.activeChatId,
-          )
-        : null;
       const nextCompletedChatIds = { ...state.completedChatIds };
-      if (nextActiveChatId) {
-        delete nextCompletedChatIds[nextActiveChatId];
+      if (nextActiveProjectId) {
+        for (const chat of state.chats) {
+          if (chat.projectId === nextActiveProjectId) {
+            delete nextCompletedChatIds[chat.id];
+          }
+        }
       }
       const completedChatIdsChanged =
         Object.keys(nextCompletedChatIds).length !==
