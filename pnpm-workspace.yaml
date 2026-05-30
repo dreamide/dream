@@ -1,4 +1,5 @@
 allowBuilds:
+  core-js: set this to true or false
   electron: true
   electron-winstaller: true
   esbuild: true
