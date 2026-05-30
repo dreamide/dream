@@ -149,7 +149,8 @@ const ProjectWorkspaceComponent = ({
   }, [active, activeChatId, addChat, projectId]);
 
   // ── Refs ─────────────────────────────────────────────────────────────
-  const rightWidthRef = useRef(BROWSER_PANEL_DEFAULT_WIDTH_PX);
+  const desiredRightWidthRef = useRef(BROWSER_PANEL_DEFAULT_WIDTH_PX);
+  const renderedRightWidthRef = useRef(BROWSER_PANEL_DEFAULT_WIDTH_PX);
   const horizontalPanelsRef = useRef<HTMLDivElement | null>(null);
   const rightPanelRef = useRef<HTMLDivElement | null>(null);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -160,7 +161,7 @@ const ProjectWorkspaceComponent = ({
   > | null>(null);
 
   if (!isDraggingRef.current) {
-    rightWidthRef.current = projectPanelSizes.rightPanelWidth;
+    desiredRightWidthRef.current = projectPanelSizes.rightPanelWidth;
   }
 
   const markRightPanelDragging = useCallback(() => {
@@ -233,11 +234,12 @@ const ProjectWorkspaceComponent = ({
     }
 
     const maxRightWidth = getRightPanelMaxWidth();
-    const nextRightWidth = Math.min(
-      maxRightWidth,
-      Math.max(BROWSER_PANEL_MIN_WIDTH_PX, rightWidthRef.current),
+    const desiredRightWidth = Math.max(
+      BROWSER_PANEL_MIN_WIDTH_PX,
+      desiredRightWidthRef.current,
     );
-    rightWidthRef.current = nextRightWidth;
+    const nextRightWidth = Math.min(maxRightWidth, desiredRightWidth);
+    renderedRightWidthRef.current = nextRightWidth;
 
     const rightPanel = rightPanelRef.current;
     if (rightPanel) {
@@ -260,7 +262,8 @@ const ProjectWorkspaceComponent = ({
   const handleRightResizeEnd = useCallback(
     (width: number) => {
       isDraggingRef.current = false;
-      rightWidthRef.current = width;
+      desiredRightWidthRef.current = width;
+      renderedRightWidthRef.current = width;
 
       if (!active) {
         return;
@@ -584,8 +587,8 @@ const ProjectWorkspaceComponent = ({
         rightPanelRef={rightPanelRef}
         rightPanelTransition={rightPanelTransition}
         rightPanelView={rightPanelView}
-        width={rightWidthRef.current}
-        widthRef={rightWidthRef}
+        width={desiredRightWidthRef.current}
+        widthRef={renderedRightWidthRef}
       />
 
       <WorkspaceRightRail
