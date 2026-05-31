@@ -20,6 +20,7 @@ import {
 } from "@/lib/ide-defaults";
 import type {
   AgentMode,
+  AiProvider,
   AppSettings,
   BrowserTabState,
   ChatConfig,
@@ -240,10 +241,8 @@ const normalizeChatColumnWidths = (value: unknown): Record<string, number> => {
   return widths;
 };
 
-const normalizeProvider = (
-  value: unknown,
-): "openai" | "anthropic" | "opencode" => {
-  return value === "anthropic" || value === "opencode"
+const normalizeProvider = (value: unknown): AiProvider => {
+  return value === "anthropic" || value === "opencode" || value === "cursor"
     ? value
     : DEFAULT_PROVIDER;
 };
@@ -561,6 +560,11 @@ export const mergePersistedState = (
       typeof rawSettings.groupToolCalls === "boolean"
         ? rawSettings.groupToolCalls
         : DEFAULT_SETTINGS.groupToolCalls,
+    cursorSelectedModels: dedupeModels(
+      Array.isArray(rawSettings.cursorSelectedModels)
+        ? rawSettings.cursorSelectedModels
+        : [],
+    ),
     openAiSelectedModels: dedupeModels(
       Array.isArray(rawSettings.openAiSelectedModels)
         ? rawSettings.openAiSelectedModels

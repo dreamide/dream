@@ -21,7 +21,7 @@ export const chatRequestBodySchema = z.object({
     )
     .default([]),
   projectPath: z.string().min(1),
-  provider: z.enum(["openai", "anthropic", "opencode"]),
+  provider: z.enum(["openai", "anthropic", "opencode", "cursor"]),
   agentMode: z.enum(["plan", "build"]).default("build"),
   remoteConversationId: z.string().nullable().optional(),
   remoteConversationModel: z.string().nullable().optional(),
@@ -64,7 +64,7 @@ export const chatTitleRequestBodySchema = z.object({
   fallbackModel: z.string().min(1).optional(),
   projectPath: z.string().min(1),
   promptText: z.string(),
-  provider: z.enum(["openai", "anthropic", "opencode"]),
+  provider: z.enum(["openai", "anthropic", "opencode", "cursor"]),
 });
 
 export const SYSTEM_PROMPT = `You are an expert coding copilot embedded in a desktop IDE.

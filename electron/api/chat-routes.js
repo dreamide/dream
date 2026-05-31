@@ -3,6 +3,7 @@ import { resolvePersistedProjectPath } from "../persisted-state.js";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCodexCliResponse } from "./chat/codex-cli-stream.js";
+import { streamCursorResponse } from "./chat/cursor-stream.js";
 import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
 import {
   chatRequestBodySchema,
@@ -12,6 +13,10 @@ import {
 } from "./chat/schema.js";
 import { generateChatTitle } from "./chat/title.js";
 import { readCodexAccessToken } from "./providers/codex-auth.js";
+import {
+  getCursorCliUnavailableMessage,
+  isCursorCliAvailable,
+} from "./providers/cursor-cli.js";
 import { isCliCommandAvailable } from "./shared/cli.js";
 
 const validateProjectPath = async (projectPath) => {
@@ -69,6 +74,18 @@ const validateOpenCodeReady = async () => {
   return null;
 };
 
+const validateCursorReady = async () => {
+  const cursorInstalled = await isCursorCliAvailable();
+  if (!cursorInstalled) {
+    return {
+      message: getCursorCliUnavailableMessage(),
+      status: 400,
+    };
+  }
+
+  return null;
+};
+
 export const registerChatRoutes = (app) => {
   app.post("/api/chat-title", async (c) => {
     let rawBody;
@@ -98,6 +115,11 @@ export const registerChatRoutes = (app) => {
       const openCodeError = await validateOpenCodeReady();
       if (openCodeError) {
         return c.text(openCodeError.message, openCodeError.status);
+      }
+    } else if (provider === "cursor") {
+      const cursorError = await validateCursorReady();
+      if (cursorError) {
+        return c.text(cursorError.message, cursorError.status);
       }
     } else {
       const claudeError = await validateClaudeReady();
@@ -236,6 +258,29 @@ export const registerChatRoutes = (app) => {
         model,
         projectReferencesPrompt,
         projectPath: resolvedProjectPath,
+        responseMessageMetadata,
+        systemPrompt: SYSTEM_PROMPT,
+      });
+    }
+
+    if (provider === "cursor") {
+      const cursorError = await validateCursorReady();
+      if (cursorError) {
+        return c.text(cursorError.message, cursorError.status);
+      }
+
+      return streamCursorResponse({
+        abortSignal: c.req.raw.signal,
+        codexPermissionMode,
+        messages,
+        model,
+        modelSpeed,
+        projectReferencesPrompt,
+        projectPath: resolvedProjectPath,
+        remoteConversationId,
+        remoteConversationModel,
+        remoteConversationModelSpeed,
+        remoteConversationProjectPath,
         responseMessageMetadata,
         systemPrompt: SYSTEM_PROMPT,
       });

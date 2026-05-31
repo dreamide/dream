@@ -18,6 +18,7 @@ const DEFAULT_PERSISTED_STATE = {
   settings: {
     anthropicSelectedModels: [],
     autoAcceptPermissions: false,
+    cursorSelectedModels: [],
     defaultModel: "",
     expandToolCalls: false,
     groupToolCalls: false,
@@ -544,6 +545,14 @@ function saveStateToRelationalDatabase(database, state) {
     );
     writeConfig(
       database,
+      "settings.cursorSelectedModels",
+      Array.isArray(settings.cursorSelectedModels)
+        ? settings.cursorSelectedModels
+        : [],
+      now,
+    );
+    writeConfig(
+      database,
       "settings.autoAcceptPermissions",
       settings.autoAcceptPermissions === true,
       now,
@@ -991,6 +1000,11 @@ function loadStateFromRelationalDatabase(database) {
         config["settings.openCodeSelectedModels"],
       )
         ? config["settings.openCodeSelectedModels"]
+        : [],
+      cursorSelectedModels: Array.isArray(
+        config["settings.cursorSelectedModels"],
+      )
+        ? config["settings.cursorSelectedModels"]
         : [],
       showReasoningSummaries:
         typeof config["settings.showReasoningSummaries"] === "boolean"

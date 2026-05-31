@@ -6,6 +6,9 @@ export const execFileAsync = promisify(execFile);
 const CLI_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
 const cliVersionCache = new Map();
 
+const quotePowerShellString = (value) =>
+  `'${String(value).replace(/'/g, "''")}'`;
+
 export const isCliCommandAvailable = async (commandName) => {
   try {
     if (process.platform === "win32") {
@@ -14,7 +17,7 @@ export const isCliCommandAvailable = async (commandName) => {
         [
           "-NoProfile",
           "-Command",
-          `(Get-Command ${commandName} -ErrorAction Stop).Path`,
+          `(Get-Command ${quotePowerShellString(commandName)} -ErrorAction Stop).Path`,
         ],
         {
           encoding: "utf8",
@@ -42,7 +45,7 @@ const readCliVersion = async (commandName) => {
         [
           "-NoProfile",
           "-Command",
-          `$command = (Get-Command ${commandName} -ErrorAction Stop).Path; & $command --version`,
+          `$command = (Get-Command ${quotePowerShellString(commandName)} -ErrorAction Stop).Path; & $command --version`,
         ],
         {
           encoding: "utf8",
@@ -100,7 +103,7 @@ export const execCliCommand = async (commandName, args = [], options = {}) => {
       "-NoProfile",
       "-Command",
       [
-        `$command = (Get-Command ${commandName} -ErrorAction Stop).Path`,
+        `$command = (Get-Command ${quotePowerShellString(commandName)} -ErrorAction Stop).Path`,
         ["& $command", ...args.map((arg) => JSON.stringify(String(arg)))].join(
           " ",
         ),

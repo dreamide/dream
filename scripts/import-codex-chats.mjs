@@ -27,6 +27,7 @@ const DEFAULT_PERSISTED_STATE = {
     anthropicSelectedModels: [],
     autoAcceptPermissions: false,
     connectedProviders: [],
+    cursorSelectedModels: [],
     defaultAnthropicModel: "",
     defaultOpenAiModel: "",
     expandToolCalls: false,
@@ -338,6 +339,11 @@ const loadRelationalPersistedState = (database) => {
         config["settings.anthropicSelectedModels"],
       )
         ? config["settings.anthropicSelectedModels"]
+        : [],
+      cursorSelectedModels: Array.isArray(
+        config["settings.cursorSelectedModels"],
+      )
+        ? config["settings.cursorSelectedModels"]
         : [],
       autoAcceptPermissions:
         typeof config["settings.autoAcceptPermissions"] === "boolean"

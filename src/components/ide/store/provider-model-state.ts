@@ -16,6 +16,14 @@ export const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
     source: "unavailable",
     version: null,
   },
+  cursor: {
+    error: null,
+    installed: false,
+    loading: false,
+    models: [],
+    source: "unavailable",
+    version: null,
+  },
   fetchedAt: null,
   openai: {
     error: null,
@@ -63,6 +71,21 @@ export const toggleProviderModelInSettings = (
     const nextSettings = {
       ...settings,
       openCodeSelectedModels,
+    };
+    return {
+      ...nextSettings,
+      defaultModel: getPreferredDefaultModel(nextSettings),
+    };
+  }
+
+  if (provider === "cursor") {
+    const current = dedupeModels(settings.cursorSelectedModels);
+    const cursorSelectedModels = current.includes(model)
+      ? current.filter((value) => value !== model)
+      : [...current, model];
+    const nextSettings = {
+      ...settings,
+      cursorSelectedModels,
     };
     return {
       ...nextSettings,
@@ -128,6 +151,19 @@ export const markProviderModelsLoading = (
           ? true
           : providerModels.opencode.loading,
   },
+  cursor: {
+    ...providerModels.cursor,
+    error:
+      provider === undefined || provider === "cursor"
+        ? null
+        : providerModels.cursor.error,
+    loading:
+      provider === undefined
+        ? true
+        : provider === "cursor"
+          ? true
+          : providerModels.cursor.loading,
+  },
 });
 
 export const getProviderModelsFromResponse = (
@@ -166,9 +202,20 @@ export const getProviderModelsFromResponse = (
         version: payload.opencode.version ?? null,
       }
     : previous.opencode;
+  const cursor = payload.cursor
+    ? {
+        error: payload.cursor.error ?? null,
+        installed: payload.cursor.installed,
+        loading: false,
+        models: dedupeModelOptions(payload.cursor.models),
+        source: payload.cursor.source,
+        version: payload.cursor.version ?? null,
+      }
+    : previous.cursor;
 
   return {
     anthropic,
+    cursor,
     fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
     openai,
     opencode,
@@ -210,6 +257,7 @@ export const reconcileSettingsWithProviderModels = (
   const openCodeModelIds = providerModels.opencode.models.map(
     (model) => model.id,
   );
+  const cursorModelIds = providerModels.cursor.models.map((model) => model.id);
   const openAiSelectedModels = reconcileProviderSelection(
     settings.openAiSelectedModels,
     openAiModelIds,
@@ -225,9 +273,15 @@ export const reconcileSettingsWithProviderModels = (
     openCodeModelIds,
     providerModels.opencode,
   );
+  const cursorSelectedModels = reconcileProviderSelection(
+    settings.cursorSelectedModels,
+    cursorModelIds,
+    providerModels.cursor,
+  );
   const nextSettings = {
     ...settings,
     anthropicSelectedModels,
+    cursorSelectedModels,
     openCodeSelectedModels,
     openAiSelectedModels,
   };
@@ -243,6 +297,7 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   a.openAiSelectedModels.length === b.openAiSelectedModels.length &&
   a.anthropicSelectedModels.length === b.anthropicSelectedModels.length &&
   a.openCodeSelectedModels.length === b.openCodeSelectedModels.length &&
+  a.cursorSelectedModels.length === b.cursorSelectedModels.length &&
   a.openAiSelectedModels.every(
     (model, index) => b.openAiSelectedModels[index] === model,
   ) &&
@@ -251,6 +306,9 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   ) &&
   a.openCodeSelectedModels.every(
     (model, index) => b.openCodeSelectedModels[index] === model,
+  ) &&
+  a.cursorSelectedModels.every(
+    (model, index) => b.cursorSelectedModels[index] === model,
   );
 
 export const getProviderModelsErrorState = (
@@ -287,5 +345,12 @@ export const getProviderModelsErrorState = (
       provider && provider !== "opencode"
         ? providerModels.opencode.loading
         : false,
+  },
+  cursor: {
+    ...providerModels.cursor,
+    error:
+      provider && provider !== "cursor" ? providerModels.cursor.error : message,
+    loading:
+      provider && provider !== "cursor" ? providerModels.cursor.loading : false,
   },
 });

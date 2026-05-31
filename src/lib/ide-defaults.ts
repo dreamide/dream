@@ -11,7 +11,12 @@ import type {
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
-export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "opencode"];
+export const ALL_PROVIDERS: AiProvider[] = [
+  "openai",
+  "anthropic",
+  "opencode",
+  "cursor",
+];
 export const CLAUDE_CODE_MODEL_IDS = {
   haiku: "haiku",
   opusOneMillion: "opus[1m]",
@@ -51,6 +56,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultModel: "",
   expandToolCalls: false,
   groupToolCalls: false,
+  cursorSelectedModels: [],
   openAiSelectedModels: [],
   openCodeSelectedModels: [],
   showReasoningSummaries: true,
@@ -198,6 +204,10 @@ export const getModelsForProvider = (
 
   if (provider === "opencode") {
     return clean(settings.openCodeSelectedModels);
+  }
+
+  if (provider === "cursor") {
+    return clean(settings.cursorSelectedModels);
   }
 
   return clean(settings.openAiSelectedModels);

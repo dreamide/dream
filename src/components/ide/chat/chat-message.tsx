@@ -29,6 +29,7 @@ export const PROVIDER_LABELS: Record<AiProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
   opencode: "OpenCode",
+  cursor: "Cursor",
 };
 
 export const CHAT_STREAM_UPDATE_THROTTLE_MS = 50;

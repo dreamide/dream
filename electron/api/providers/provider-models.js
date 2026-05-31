@@ -5,6 +5,12 @@ import {
 } from "../shared/cli.js";
 import { readCodexAccessToken, readCodexModelsCache } from "./codex-auth.js";
 import {
+  execCursorCliCommand,
+  getCursorCliUnavailableMessage,
+  getCursorCliVersion,
+  isCursorCliAvailable,
+} from "./cursor-cli.js";
+import {
   createModelOption,
   dedupeModelOptions,
   fetchClaudeCodeModelOptionsFromModelsDev,
@@ -21,6 +27,7 @@ const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
 const OPENCODE_LOW_COST_MODEL = "opencode-go/deepseek-v4-flash";
+const CURSOR_AUTO_MODEL = "auto";
 
 const dedupeAndSort = (models) => {
   return dedupeModelOptions(models)
@@ -77,6 +84,70 @@ const parseOpenCodeModelsOutput = (value) => {
 
   return Array.from(ids).map((id) =>
     createModelOption("opencode", id, formatOpenCodeModelLabel(id)),
+  );
+};
+
+const formatCursorModelLabel = (id) => {
+  const trimmed = String(id ?? "").trim();
+  if (!trimmed || trimmed.toLowerCase() === CURSOR_AUTO_MODEL) {
+    return "Cursor Auto";
+  }
+
+  return trimmed;
+};
+
+const createCursorDefaultModels = () => [
+  createModelOption("cursor", CURSOR_AUTO_MODEL, "Cursor Auto"),
+];
+
+const parseCursorModelsOutput = (value) => {
+  const clean = stripAnsi(value);
+  const models = new Map();
+
+  for (const rawLine of clean.split(/\r?\n/)) {
+    const line = rawLine
+      .replace(/[│|]/g, " ")
+      .replace(/^[\s*>•\-*]+/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!line) {
+      continue;
+    }
+
+    const modelCommandMatch = line.match(/^\/model\s+(.+)$/i);
+    const candidateLine = (modelCommandMatch?.[1] ?? line).trim();
+    const lower = candidateLine.toLowerCase();
+    if (
+      !candidateLine ||
+      lower.startsWith("available models") ||
+      lower.startsWith("tip:") ||
+      lower.startsWith("usage:") ||
+      lower.startsWith("commands:") ||
+      lower.startsWith("options:") ||
+      lower.includes("cursor-agent")
+    ) {
+      continue;
+    }
+
+    const modelMatch = candidateLine.match(
+      /^([a-zA-Z0-9][a-zA-Z0-9_.:/+-]*)(?:\s+-\s+(.+))?$/,
+    );
+    if (!modelMatch) {
+      continue;
+    }
+
+    const id = modelMatch[1].trim();
+    const label = modelMatch[2]?.trim();
+    models.set(
+      id,
+      id.toLowerCase() === CURSOR_AUTO_MODEL
+        ? "Cursor Auto"
+        : label || formatCursorModelLabel(id),
+    );
+  }
+
+  return Array.from(models.entries()).map(([id, label]) =>
+    createModelOption("cursor", id, label),
   );
 };
 
@@ -240,6 +311,48 @@ export const fetchOpenCodeLowCostModel = async (selectedModel) => {
   }
 
   return model || OPENCODE_LOW_COST_MODEL;
+};
+
+export const fetchCursorLowCostModel = async (selectedModel) =>
+  selectedModel?.trim() || CURSOR_AUTO_MODEL;
+
+export const fetchCursorModels = async ({ force = false } = {}) => {
+  const installed = await isCursorCliAvailable({ force });
+  if (!installed) {
+    return {
+      error: getCursorCliUnavailableMessage(),
+      installed: false,
+      models: [],
+      source: "unavailable",
+      version: null,
+    };
+  }
+  const version = await getCursorCliVersion({ force });
+
+  for (const args of [["models"], ["--list-models"]]) {
+    try {
+      const result = await execCursorCliCommand(args, {
+        maxBuffer: 1024 * 1024,
+        timeout: 10_000,
+      });
+      const models = dedupeAndSort(
+        parseCursorModelsOutput(`${result.stdout}\n${result.stderr}`),
+      );
+      if (models.length > 0) {
+        return { installed: true, models, source: "cli", version };
+      }
+    } catch {
+      // Cursor does not currently document a stable model-listing command.
+      // Fall back to the CLI default model below.
+    }
+  }
+
+  return {
+    installed: true,
+    models: createCursorDefaultModels(),
+    source: "cli",
+    version,
+  };
 };
 
 export const fetchOpenCodeModels = async ({ force = false } = {}) => {

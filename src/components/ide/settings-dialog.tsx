@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
 import openCodeLogo from "@/assets/opencode.svg";
+import { CursorIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -124,9 +125,14 @@ export const SettingsDialog = () => {
     () => getModelsForProvider("opencode", settings),
     [settings],
   );
+  const cursorModels = useMemo(
+    () => getModelsForProvider("cursor", settings),
+    [settings],
+  );
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
   const availableOpenCodeModels = providerModels.opencode.models;
+  const availableCursorModels = providerModels.cursor.models;
 
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
@@ -146,14 +152,24 @@ export const SettingsDialog = () => {
       getModelOptionsForProvider("opencode", settings, availableOpenCodeModels),
     [availableOpenCodeModels, settings],
   );
+  const cursorModelOptions = useMemo(
+    () => getModelOptionsForProvider("cursor", settings, availableCursorModels),
+    [availableCursorModels, settings],
+  );
   const groupedDefaultModelOptions = useMemo(
     () =>
       [
         { models: openAiModelOptions, provider: "openai" as const },
         { models: anthropicModelOptions, provider: "anthropic" as const },
         { models: openCodeModelOptions, provider: "opencode" as const },
+        { models: cursorModelOptions, provider: "cursor" as const },
       ].filter((group) => group.models.length > 0),
-    [anthropicModelOptions, openAiModelOptions, openCodeModelOptions],
+    [
+      anthropicModelOptions,
+      cursorModelOptions,
+      openAiModelOptions,
+      openCodeModelOptions,
+    ],
   );
 
   const selectedDefaultModel = useMemo(() => {
@@ -252,6 +268,10 @@ export const SettingsDialog = () => {
 
   const handleRefreshOpenCodeProvider = () => {
     void refreshProviderModels({ force: true, provider: "opencode" });
+  };
+
+  const handleRefreshCursorProvider = () => {
+    void refreshProviderModels({ force: true, provider: "cursor" });
   };
 
   return (
@@ -481,8 +501,8 @@ export const SettingsDialog = () => {
 
                   {installedProviderCount === 0 ? (
                     <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
-                      Install Codex CLI, Claude Code CLI, or OpenCode CLI, then
-                      refresh this section.
+                      Install Codex CLI, Claude Code CLI, OpenCode CLI, or
+                      Cursor Agent CLI, then refresh this section.
                     </p>
                   ) : null}
 
@@ -510,11 +530,7 @@ export const SettingsDialog = () => {
                       version={providerModels.openai.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
-                        {!providerModels.openai.installed ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            Install Codex CLI to use OpenAI models.
-                          </p>
-                        ) : availableOpenAiModels.length === 0 ? (
+                        {availableOpenAiModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             No CLI models available yet. Refresh Providers.
                           </p>
@@ -574,11 +590,7 @@ export const SettingsDialog = () => {
                       version={providerModels.anthropic.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
-                        {!providerModels.anthropic.installed ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            Install Claude Code CLI to use Anthropic models.
-                          </p>
-                        ) : availableAnthropicModels.length === 0 ? (
+                        {availableAnthropicModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             No CLI models available yet. Refresh Providers.
                           </p>
@@ -643,11 +655,7 @@ export const SettingsDialog = () => {
                       version={providerModels.opencode.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
-                        {!providerModels.opencode.installed ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            Install OpenCode CLI to use OpenCode providers.
-                          </p>
-                        ) : availableOpenCodeModels.length === 0 ? (
+                        {availableOpenCodeModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             No CLI models available yet. Run opencode auth login
                             or configure opencode.json, then refresh Providers.
@@ -678,6 +686,72 @@ export const SettingsDialog = () => {
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
                                       toggleProviderModel("opencode", model.id);
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label="Refresh Cursor provider"
+                          disabled={providerModels.cursor.loading}
+                          onClick={handleRefreshCursorProvider}
+                          size="icon-xs"
+                          title="Refresh Cursor provider"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      error={providerModels.cursor.error}
+                      icon={
+                        <CursorIcon
+                          aria-hidden="true"
+                          className="size-4 text-foreground"
+                          role="presentation"
+                        />
+                      }
+                      installed={providerModels.cursor.installed}
+                      label="Cursor"
+                      loading={providerModels.cursor.loading}
+                      runtimeLabel="Cursor Agent CLI"
+                      version={providerModels.cursor.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableCursorModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            No CLI models available yet. Refresh Providers.
+                          </p>
+                        ) : (
+                          availableCursorModels.map((model) => {
+                            const isSelected = cursorModels.includes(model.id);
+
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel("cursor", model.id);
                                     }
                                   }}
                                 />

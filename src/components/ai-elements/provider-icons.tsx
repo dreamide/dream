@@ -55,11 +55,25 @@ export const OpenCodeIcon = ({ className, ...props }: IconProps) => (
   </svg>
 );
 
+export const CursorIcon = ({ className, ...props }: IconProps) => (
+  <svg
+    className={cn("size-3.5", className)}
+    fill="currentColor"
+    role="img"
+    viewBox="90 67 332 379"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path d="m415.348 156.575-151.504-87.4699c-4.865-2.8094-10.868-2.8094-15.733 0l-151.4964 87.4699c-4.0897 2.361-6.6146 6.728-6.6146 11.458v176.383c0 4.73 2.5249 9.097 6.6146 11.459l151.5034 87.469c4.865 2.81 10.868 2.81 15.733 0l151.504-87.469c4.09-2.362 6.615-6.729 6.615-11.459v-176.383c0-4.73-2.525-9.097-6.615-11.458zm-9.517 18.528-146.254 253.319c-.989 1.707-3.599 1.01-3.599-.967v-165.871c0-3.314-1.771-6.38-4.645-8.044l-143.644-82.932c-1.707-.989-1.01-3.599.967-3.599h292.51c4.153 0 6.749 4.502 4.672 8.101h-.007z" />
+  </svg>
+);
+
 export const ProviderIcon = ({
   provider,
   ...props
 }: IconProps & { provider: AiProvider }) => {
   if (provider === "anthropic") return <AnthropicIcon {...props} />;
   if (provider === "opencode") return <OpenCodeIcon {...props} />;
+  if (provider === "cursor") return <CursorIcon {...props} />;
   return <OpenAiIcon {...props} />;
 };

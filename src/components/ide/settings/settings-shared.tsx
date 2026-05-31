@@ -25,6 +25,7 @@ export const ProviderStatusCard = ({
   action,
   children,
   error,
+  icon,
   installed,
   label,
   logoSrc,
@@ -35,26 +36,32 @@ export const ProviderStatusCard = ({
   action?: ReactNode;
   children?: ReactNode;
   error: string | null;
+  icon?: ReactNode;
   installed: boolean;
   label: string;
-  logoSrc: string;
+  logoSrc?: string;
   loading: boolean;
   runtimeLabel: string;
   version: string | null;
 }) => {
   const displayVersion = formatCliVersion(version);
+  const statusMessage =
+    error || (!loading && !installed ? "CLI not detected." : null);
 
   return (
     <div className="rounded-lg border border-surface-200 dark:border-surface-800 p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <img
-              alt=""
-              aria-hidden="true"
-              className="size-4 shrink-0 dark:invert"
-              src={logoSrc}
-            />
+            {icon ??
+              (logoSrc ? (
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="size-4 shrink-0 dark:invert"
+                  src={logoSrc}
+                />
+              ) : null)}
             <p className="font-medium text-sm">{label}</p>
           </div>
           <p className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -65,22 +72,19 @@ export const ProviderStatusCard = ({
               </span>
             ) : null}
           </p>
-          {!loading && !installed ? (
-            <p className="text-amber-700 text-sm">CLI not detected</p>
-          ) : null}
         </div>
         <div className="flex size-6 items-center justify-center">
           {loading ? <Spinner className="size-3.5" /> : action}
         </div>
       </div>
 
-      {error ? (
-        <p className="mt-3 rounded-md bg-warning-surface px-3 py-2 text-amber-700 text-sm">
-          {error}
+      {statusMessage ? (
+        <p className="mt-3 rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-destructive text-sm dark:border-destructive-border-strong dark:bg-destructive-surface dark:text-destructive-muted">
+          {statusMessage}
         </p>
       ) : null}
 
-      {children ? <div className="mt-4">{children}</div> : null}
+      {children && installed ? <div className="mt-4">{children}</div> : null}
     </div>
   );
 };

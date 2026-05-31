@@ -179,9 +179,11 @@ export const IdeShell = () => {
       prev.anthropicSelectedModels.map(normalizeClaudeCodeModelId),
     );
     const openCodeSelectedModels = dedupeModels(prev.openCodeSelectedModels);
+    const cursorSelectedModels = dedupeModels(prev.cursorSelectedModels);
     const nextSettings = {
       ...prev,
       anthropicSelectedModels,
+      cursorSelectedModels,
       openCodeSelectedModels,
       openAiSelectedModels,
     };
@@ -193,6 +195,7 @@ export const IdeShell = () => {
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
       openCodeSelectedModels.length !== prev.openCodeSelectedModels.length ||
+      cursorSelectedModels.length !== prev.cursorSelectedModels.length ||
       !openAiSelectedModels.every(
         (m, i) => prev.openAiSelectedModels[i] === m,
       ) ||
@@ -201,7 +204,8 @@ export const IdeShell = () => {
       ) ||
       !openCodeSelectedModels.every(
         (m, i) => prev.openCodeSelectedModels[i] === m,
-      );
+      ) ||
+      !cursorSelectedModels.every((m, i) => prev.cursorSelectedModels[i] === m);
 
     if (changed) {
       store.setSettings({

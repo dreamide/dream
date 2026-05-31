@@ -623,7 +623,9 @@ export const ChatPanel = ({
       ? `anthropic:${selectedModel}`
       : selectedProvider === "opencode"
         ? `opencode:${selectedModel}`
-        : `openai:${selectedModel}`;
+        : selectedProvider === "cursor"
+          ? `cursor:${selectedModel}`
+          : `openai:${selectedModel}`;
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";

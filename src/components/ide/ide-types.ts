@@ -46,6 +46,7 @@ export interface ProviderModelsResponse {
   openai?: ProviderModelFetchResult;
   anthropic?: ProviderModelFetchResult;
   opencode?: ProviderModelFetchResult;
+  cursor?: ProviderModelFetchResult;
 }
 
 export interface ProviderModelState {
@@ -145,11 +146,17 @@ export const normalizeModelSpeed = (value: unknown): ModelSpeed => {
     : "standard";
 };
 
-export const ALL_PROVIDERS: AiProvider[] = ["openai", "anthropic", "opencode"];
+export const ALL_PROVIDERS: AiProvider[] = [
+  "openai",
+  "anthropic",
+  "opencode",
+  "cursor",
+];
 
 export const getProviderLabel = (provider: AiProvider): string => {
   if (provider === "openai") return "OpenAI";
   if (provider === "opencode") return "OpenCode";
+  if (provider === "cursor") return "Cursor";
   return "Anthropic";
 };
 
@@ -159,6 +166,9 @@ export const getProviderDescription = (provider: AiProvider): string => {
   }
   if (provider === "opencode") {
     return "Uses the local OpenCode CLI and its configured providers.";
+  }
+  if (provider === "cursor") {
+    return "Uses the local Cursor Agent CLI.";
   }
   return "Uses the local Claude Code CLI for Claude models.";
 };
@@ -176,6 +186,10 @@ export const getEnabledProviders = (settings: AppSettings): AiProvider[] => {
 
   if (settings.openCodeSelectedModels.length > 0) {
     providers.push("opencode");
+  }
+
+  if (settings.cursorSelectedModels.length > 0) {
+    providers.push("cursor");
   }
 
   return providers;

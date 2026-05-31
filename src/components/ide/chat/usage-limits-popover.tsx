@@ -1,8 +1,6 @@
 import { GaugeIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import anthropicLogo from "@/assets/anthropic.svg";
-import openAiLogo from "@/assets/openai.svg";
-import openCodeLogo from "@/assets/opencode.svg";
+import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -215,12 +213,6 @@ export const UsageLimitsPopover = ({
     error: null,
     loading: false,
   });
-  const logoSrc =
-    provider === "anthropic"
-      ? anthropicLogo
-      : provider === "opencode"
-        ? openCodeLogo
-        : openAiLogo;
   const now = Date.now();
   const limits = usageLimits.data?.limits ?? [];
   const stats = usageLimits.data?.stats ?? [];
@@ -297,11 +289,11 @@ export const UsageLimitsPopover = ({
         side="top"
       >
         <div className="flex items-center gap-2 font-medium text-sm">
-          <img
-            alt=""
+          <ProviderIcon
             aria-hidden="true"
-            className="size-4 shrink-0 dark:invert"
-            src={logoSrc}
+            className="size-4 shrink-0 text-foreground"
+            provider={provider}
+            role="presentation"
           />
           <span>{PROVIDER_LABELS[provider]}</span>
         </div>

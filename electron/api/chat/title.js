@@ -52,6 +52,43 @@ export const sanitizeGeneratedChatTitle = (value) => {
   return title.slice(0, CHAT_TITLE_MAX_LENGTH).trim();
 };
 
+const LOCAL_TITLE_LEADING_FILLERS = new Set([
+  "can",
+  "could",
+  "please",
+  "would",
+  "you",
+]);
+
+const toLocalTitleWord = (word) => {
+  if (/^[A-Z0-9._/-]+$/.test(word)) {
+    return word;
+  }
+
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+};
+
+const generateLocalChatTitle = (promptText) => {
+  const words = String(promptText ?? "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[`*_>#:[\]{}()]/g, " ")
+    .match(/[a-zA-Z0-9][a-zA-Z0-9._/+:-]*/g);
+
+  if (!words || words.length === 0) {
+    return "";
+  }
+
+  const meaningfulWords = words.filter(
+    (word, index) =>
+      index > 3 || !LOCAL_TITLE_LEADING_FILLERS.has(word.toLowerCase()),
+  );
+  const titleWords = (meaningfulWords.length > 0 ? meaningfulWords : words)
+    .slice(0, 6)
+    .map(toLocalTitleWord);
+
+  return sanitizeGeneratedChatTitle(titleWords.join(" ")) || "New Chat";
+};
+
 const parseCodexJsonLine = (line, onEvent) => {
   const trimmed = line.trim();
   if (!trimmed) {
@@ -314,6 +351,10 @@ export const generateChatTitle = async ({
       throw new Error("No OpenCode title model is available.");
     }
     return generateOpenCodeChatTitle({ model, projectPath, promptText });
+  }
+
+  if (provider === "cursor") {
+    return generateLocalChatTitle(normalizedPrompt);
   }
 
   const model = (await fetchOpenAiLowCostModel()) || fallbackModel?.trim();

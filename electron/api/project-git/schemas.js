@@ -77,7 +77,9 @@ export const projectGitCommitRequestSchema = z.object({
 export const projectGitCommitMessageRequestSchema = z.object({
   includeUnstaged: z.boolean().default(true),
   projectPath: z.string().min(1),
-  provider: z.enum(["openai", "anthropic", "opencode"]).default("openai"),
+  provider: z
+    .enum(["openai", "anthropic", "opencode", "cursor"])
+    .default("openai"),
 });
 
 export const projectGitPushRequestSchema = z.object({
