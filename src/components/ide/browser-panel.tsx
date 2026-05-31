@@ -291,6 +291,7 @@ const BrowserPanelImpl = ({
   const browserZoomFactor = activeTab?.zoomFactor ?? 1;
   const browserZoomPercent = `${Math.round(browserZoomFactor * 100)}%`;
   const browserVisible = Boolean(activeTab?.url);
+  const canOpenExternalBrowserUrl = Boolean(activeTab?.url);
   const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
       tabs.map((tab) => {
@@ -792,19 +793,17 @@ const BrowserPanelImpl = ({
             placeholder="Enter URL..."
             value={browserUrlDraft}
           />
-          <button
-            aria-label="Open current URL in system browser"
-            className={cn(
-              "-translate-y-1/2 absolute top-1/2 right-2 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus:outline-none group-focus-within:opacity-100 group-hover:opacity-100",
-              activeTab?.url ? "" : "pointer-events-none",
-            )}
-            disabled={!activeTab?.url}
-            onClick={handleOpenExternal}
-            title="Open in system browser"
-            type="button"
-          >
-            <ExternalLink className="size-3.5" />
-          </button>
+          {canOpenExternalBrowserUrl ? (
+            <button
+              aria-label="Open current URL in system browser"
+              className="-translate-y-1/2 absolute top-1/2 right-2 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus:outline-none group-focus-within:opacity-100 group-hover:opacity-100"
+              onClick={handleOpenExternal}
+              title="Open in system browser"
+              type="button"
+            >
+              <ExternalLink className="size-3.5" />
+            </button>
+          ) : null}
         </div>
 
         <DropdownMenu>

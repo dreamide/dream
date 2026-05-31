@@ -1,6 +1,11 @@
 import { CheckIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { motion } from "motion/react";
-import { createContext, type ComponentProps, type ReactNode, useContext } from "react";
+import {
+  type ComponentProps,
+  createContext,
+  type ReactNode,
+  useContext,
+} from "react";
 import {
   Confirmation,
   ConfirmationAction,
@@ -56,6 +61,9 @@ export {
   STREAMING_MAX_CHARS_PER_TICK,
   STREAMING_MIN_CHARS_PER_TICK,
   STREAMING_MIN_INTERVAL_MS,
+  STREAMING_SMOOTH_REVEAL_BUFFER_MS,
+  STREAMING_SMOOTH_REVEAL_CHECK_INTERVAL_MS,
+  STREAMING_SMOOTH_REVEAL_MAX_DELAY_MS,
   STREAMING_WORD_INTERVAL_MS,
   StreamingMessageResponse,
 } from "./streaming-message";

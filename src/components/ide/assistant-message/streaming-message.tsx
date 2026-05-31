@@ -34,6 +34,9 @@ export const STREAMING_TEXT_REVEAL_DURATION_MS = 220;
 export const STREAMING_TEXT_REVEAL_SETTLE_MS = 140;
 export const STREAMING_MAX_ANIMATED_TOKENS_PER_TICK = 8;
 export const STREAMING_FINISHED_MAX_ANIMATED_TOKENS_PER_TICK = 10;
+export const STREAMING_SMOOTH_REVEAL_BUFFER_MS = 240;
+export const STREAMING_SMOOTH_REVEAL_MAX_DELAY_MS = 260;
+export const STREAMING_SMOOTH_REVEAL_CHECK_INTERVAL_MS = 24;
 
 export const streamingTextAnimation = {
   animation: "searIn",
@@ -80,6 +83,9 @@ const getHastNodeOffsets = (node: HastNode) => {
 };
 
 const getAnimatedTokenCount = (text: string) => text.match(/\S+/g)?.length ?? 0;
+
+const getAnimationNow = () =>
+  typeof performance !== "undefined" ? performance.now() : Date.now();
 
 export const getMarkdownBlockStartOffsets = (markdownText: string) => {
   const blocks = parseMarkdownIntoBlocks(markdownText);
@@ -578,6 +584,27 @@ const getStreamingFrameInterval = (
   );
 };
 
+const getStreamingRevealBufferTokenCount = (
+  text: string,
+  maxTokenCount: number,
+) => {
+  let cursor = 0;
+  let tokenCount = 0;
+
+  while (cursor < text.length && tokenCount < maxTokenCount) {
+    const token = getNextStreamingRevealToken(text.slice(cursor), true);
+
+    if (token.blocked || !token.text) {
+      break;
+    }
+
+    cursor += token.text.length;
+    tokenCount += token.animatedTokenCount;
+  }
+
+  return tokenCount;
+};
+
 export const getNextStreamingFrame = (
   currentText: string,
   targetText: string,
@@ -660,6 +687,57 @@ export const getNextStreamingFrame = (
   };
 };
 
+// While streaming, keep a small unread tail so the reveal loop does not catch
+// the network stream and pause between tiny provider chunks.
+export const getStreamingRevealDelayMs = ({
+  currentText,
+  isStreaming,
+  pendingElapsedMs,
+  targetText,
+}: {
+  currentText: string;
+  isStreaming: boolean;
+  pendingElapsedMs: number;
+  targetText: string;
+}) => {
+  if (
+    !isStreaming ||
+    currentText === targetText ||
+    !targetText.startsWith(currentText) ||
+    pendingElapsedMs >= STREAMING_SMOOTH_REVEAL_MAX_DELAY_MS
+  ) {
+    return 0;
+  }
+
+  const frame = getNextStreamingFrame(currentText, targetText, true);
+  if (frame.blocked || frame.nextText === currentText) {
+    return 0;
+  }
+
+  const bufferAfterNextFrame = targetText.slice(frame.nextText.length);
+  if (getBacklogPressure(bufferAfterNextFrame.length) > 0) {
+    return 0;
+  }
+
+  const targetBufferTokenCount = Math.max(
+    1,
+    Math.ceil(STREAMING_SMOOTH_REVEAL_BUFFER_MS / STREAMING_WORD_INTERVAL_MS),
+  );
+  const bufferedTokenCount = getStreamingRevealBufferTokenCount(
+    bufferAfterNextFrame,
+    targetBufferTokenCount,
+  );
+
+  if (bufferedTokenCount >= targetBufferTokenCount) {
+    return 0;
+  }
+
+  return Math.min(
+    STREAMING_SMOOTH_REVEAL_CHECK_INTERVAL_MS,
+    Math.max(0, STREAMING_SMOOTH_REVEAL_MAX_DELAY_MS - pendingElapsedMs),
+  );
+};
+
 export const StreamingMessageResponse = ({
   isStreaming,
   projectPath,
@@ -674,6 +752,9 @@ export const StreamingMessageResponse = ({
   const targetTextRef = useRef(text);
   const visibleTextRef = useRef(isStreaming ? "" : text);
   const animationStartOffsetRef = useRef(0);
+  const pendingRevealStartedAtRef = useRef<number | null>(
+    isStreaming && text ? getAnimationNow() : null,
+  );
   const timeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animationTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -715,17 +796,36 @@ export const StreamingMessageResponse = ({
   tickRef.current = () => {
     const targetText = targetTextRef.current;
     const currentText = visibleTextRef.current;
+    const now = getAnimationNow();
 
     if (currentText === targetText) {
+      pendingRevealStartedAtRef.current = null;
       return;
     }
 
     if (!targetText.startsWith(currentText)) {
       animationStartOffsetRef.current = 0;
+      pendingRevealStartedAtRef.current = null;
       visibleTextRef.current = targetText;
       startTransition(() => {
         setVisibleText(targetText);
       });
+      return;
+    }
+
+    if (pendingRevealStartedAtRef.current === null) {
+      pendingRevealStartedAtRef.current = now;
+    }
+
+    const revealDelayMs = getStreamingRevealDelayMs({
+      currentText,
+      isStreaming: isStreamingRef.current,
+      pendingElapsedMs: now - pendingRevealStartedAtRef.current,
+      targetText,
+    });
+
+    if (revealDelayMs > 0) {
+      scheduleTick(revealDelayMs);
       return;
     }
 
@@ -741,6 +841,7 @@ export const StreamingMessageResponse = ({
       }
 
       animationStartOffsetRef.current = 0;
+      pendingRevealStartedAtRef.current = null;
       visibleTextRef.current = targetText;
       startTransition(() => {
         setVisibleText(targetText);
@@ -749,6 +850,7 @@ export const StreamingMessageResponse = ({
     }
 
     animationStartOffsetRef.current = currentText.length;
+    pendingRevealStartedAtRef.current = nextText === targetText ? null : now;
     visibleTextRef.current = nextText;
     keepTextAnimationActive(nextText === targetText);
     startTransition(() => {
@@ -769,17 +871,23 @@ export const StreamingMessageResponse = ({
     if (!hasStreamedRef.current) {
       if (visibleTextRef.current !== text) {
         visibleTextRef.current = text;
+        pendingRevealStartedAtRef.current = null;
         setVisibleText(text);
       }
       return;
     }
 
     if (visibleTextRef.current !== targetTextRef.current) {
+      if (pendingRevealStartedAtRef.current === null) {
+        pendingRevealStartedAtRef.current = getAnimationNow();
+      }
       scheduleTick(
         isStreaming
           ? STREAMING_WORD_INTERVAL_MS
           : STREAMING_FINISHED_INTERVAL_MS,
       );
+    } else {
+      pendingRevealStartedAtRef.current = null;
     }
   }, [isStreaming, scheduleTick, text]);
 
