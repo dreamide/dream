@@ -84,7 +84,11 @@ export const ProviderStatusCard = ({
         </p>
       ) : null}
 
-      {children && installed ? <div className="mt-4">{children}</div> : null}
+      {children && installed ? (
+        <div className="mt-4 max-h-[min(34vh,22rem)] overflow-y-auto pr-1">
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 };
