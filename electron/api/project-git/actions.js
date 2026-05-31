@@ -22,19 +22,19 @@ import {
 import {
   getGitCommandErrorMessage,
   getGitRepositoryInfo,
-  getProjectGitCachedDiff,
-  getProjectGitDiff,
+  getProjectGitBulkCachedDiff,
+  getProjectGitBulkDiff,
+  getProjectGitChangesFingerprint,
   getProjectGitMetadata,
   gitRefExists,
   listProjectGitChanges,
   runGhCommand,
   runGitCommand,
 } from "./core.js";
-import { hashContent, normalizePath } from "./files.js";
+import { normalizePath } from "./files.js";
 
 const COMMIT_MESSAGE_DIFF_MAX_CHARS = 20_000;
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 30;
-const COMMIT_MESSAGE_CACHE_VERSION = 3;
 const commitMessageCache = new Map();
 const commitMessageRequests = new Map();
 
@@ -164,35 +164,6 @@ const buildCommitMessagePrompt = ({
     .join("\n");
 };
 
-const getCommitMessageCacheKey = ({
-  changes,
-  customInstructions,
-  diffText,
-  includeUnstaged,
-  projectPath,
-  provider,
-}) =>
-  hashContent(
-    JSON.stringify({
-      changes: changes
-        .map((change) => ({
-          addedLines: change.addedLines,
-          path: change.path,
-          previousPath: change.previousPath,
-          removedLines: change.removedLines,
-          staged: change.staged,
-          status: change.status,
-          unstaged: change.unstaged,
-        }))
-        .sort((a, b) => a.path.localeCompare(b.path)),
-      customInstructions: normalizeGitActionText(customInstructions),
-      diffHash: hashContent(diffText),
-      includeUnstaged,
-      projectPath: path.resolve(projectPath),
-      provider,
-      version: COMMIT_MESSAGE_CACHE_VERSION,
-    }),
-  );
 
 const setCommitMessageCacheEntry = (key, value) => {
   commitMessageCache.set(key, value);
@@ -676,39 +647,16 @@ export const generateProjectGitCommitMessage = async (
     return "";
   }
 
-  const diffPayloads = await Promise.all(
-    changes.map(async (change) => {
-      try {
-        const diffPayload = includeUnstaged
-          ? await getProjectGitDiff(projectPath, change.path, {
-              previousPath: change.previousPath,
-              status: change.status,
-            })
-          : await getProjectGitCachedDiff(projectPath, change.path, {
-              previousPath: change.previousPath,
-              status: change.status,
-            });
-        return diffPayload.diff || "";
-      } catch {
-        return "";
-      }
-    }),
-  );
-
-  const diffText = diffPayloads.join("\n\n");
-
-  if (!diffText.trim()) {
-    return "";
-  }
-
-  const cacheKey = getCommitMessageCacheKey({
-    changes,
+  // Use a lightweight fingerprint (derived from git status metadata) so we can
+  // check the cache *before* fetching any diffs. This avoids the most expensive
+  // part of the pipeline when the result is already cached.
+  const cacheKey = getProjectGitChangesFingerprint(changes, {
     customInstructions,
-    diffText,
     includeUnstaged,
     projectPath,
     provider,
   });
+
   const cachedMessage = commitMessageCache.get(cacheKey);
   if (cachedMessage) {
     return cachedMessage;
@@ -724,6 +672,17 @@ export const generateProjectGitCommitMessage = async (
   }
 
   const request = (async () => {
+    // Fetch all diffs in bulk — one git subprocess for all tracked files and
+    // parallel file reads for untracked files, instead of N separate subprocess
+    // spawns with redundant repo-info / HEAD resolution each time.
+    const diffText = includeUnstaged
+      ? await getProjectGitBulkDiff(projectPath, changes)
+      : await getProjectGitBulkCachedDiff(projectPath, changes);
+
+    if (!diffText.trim()) {
+      return "";
+    }
+
     const aiMessage = await generateAiCommitMessage({
       changes,
       customInstructions,

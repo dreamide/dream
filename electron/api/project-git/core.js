@@ -1087,3 +1087,146 @@ export const getProjectGitCachedDiff = async (
     status,
   };
 };
+
+/**
+ * Fetch diffs for multiple changed files in bulk, minimizing git subprocess
+ * spawns. Instead of calling getGitRepositoryInfo + getGitDiffBaseRef + git diff
+ * per file, this resolves repo info and HEAD once, runs a single `git diff` for
+ * all tracked files, and batches untracked file reads.
+ *
+ * @param {string} projectPath
+ * @param {Array<{path: string, previousPath?: string, status: string}>} changes
+ * @returns {Promise<string>} Combined diff text for all files.
+ */
+export const getProjectGitBulkDiff = async (projectPath, changes) => {
+  if (changes.length === 0) {
+    return "";
+  }
+
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const trackedChanges = changes.filter((c) => c.status !== "untracked");
+  const untrackedChanges = changes.filter((c) => c.status === "untracked");
+
+  const parts = [];
+
+  // Single git diff for all tracked files
+  if (trackedChanges.length > 0) {
+    const baseRef = await getGitDiffBaseRef(repoInfo.repoRoot);
+    const repoRelativePaths = trackedChanges.map((c) =>
+      normalizePath(
+        path.relative(
+          repoInfo.repoRoot,
+          resolveProjectPath(projectPath, normalizePath(c.path)),
+        ),
+      ),
+    );
+
+    const diffResult = await runGitCommand(repoInfo.repoRoot, [
+      "diff",
+      "--find-renames",
+      "--no-ext-diff",
+      "--submodule=diff",
+      baseRef,
+      "--",
+      ...repoRelativePaths,
+    ]);
+
+    if (diffResult.stdout) {
+      parts.push(diffResult.stdout);
+    }
+  }
+
+  // Batch untracked file diffs (no git subprocess needed, just file reads)
+  if (untrackedChanges.length > 0) {
+    const untrackedDiffs = await Promise.all(
+      untrackedChanges.map(async (c) => {
+        try {
+          return await buildUntrackedFileDiff(
+            projectPath,
+            normalizePath(c.path),
+          );
+        } catch {
+          return "";
+        }
+      }),
+    );
+
+    for (const diff of untrackedDiffs) {
+      if (diff) {
+        parts.push(diff);
+      }
+    }
+  }
+
+  return parts.join("\n\n");
+};
+
+/**
+ * Bulk cached (staged-only) diff. Same optimisation as getProjectGitBulkDiff
+ * but uses `git diff --cached`.
+ */
+export const getProjectGitBulkCachedDiff = async (projectPath, changes) => {
+  if (changes.length === 0) {
+    return "";
+  }
+
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const repoRelativePaths = changes.map((c) =>
+    normalizePath(
+      path.relative(
+        repoInfo.repoRoot,
+        resolveProjectPath(projectPath, normalizePath(c.path)),
+      ),
+    ),
+  );
+
+  const diffResult = await runGitCommand(repoInfo.repoRoot, [
+    "diff",
+    "--cached",
+    "--find-renames",
+    "--no-ext-diff",
+    "--submodule=diff",
+    "--",
+    ...repoRelativePaths,
+  ]);
+
+  return diffResult.stdout || "";
+};
+
+/**
+ * Build a lightweight fingerprint for a set of git changes that can be used as
+ * a cache key *without* fetching the full diff text. Uses the information
+ * already available from `git status --porcelain=v2` (file paths, staging
+ * state, line counts).
+ */
+export const getProjectGitChangesFingerprint = (
+  changes,
+  { customInstructions = "", includeUnstaged = true, projectPath, provider },
+) =>
+  hashContent(
+    JSON.stringify({
+      changes: changes
+        .map((c) => ({
+          addedLines: c.addedLines,
+          path: c.path,
+          previousPath: c.previousPath,
+          removedLines: c.removedLines,
+          staged: c.staged,
+          status: c.status,
+          unstaged: c.unstaged,
+        }))
+        .sort((a, b) => a.path.localeCompare(b.path)),
+      customInstructions,
+      includeUnstaged,
+      projectPath,
+      provider,
+    }),
+  );
