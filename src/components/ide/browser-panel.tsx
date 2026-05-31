@@ -36,6 +36,7 @@ import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
+import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
@@ -45,6 +46,7 @@ const MAX_BROWSER_ZOOM = 3;
 
 export interface BrowserPanelProps {
   active?: boolean;
+  onClosePanel: () => void;
   project: ProjectConfig;
 }
 
@@ -249,7 +251,11 @@ const BrowserWebview = memo(
 );
 BrowserWebview.displayName = "BrowserWebview";
 
-const BrowserPanelImpl = ({ active = true, project }: BrowserPanelProps) => {
+const BrowserPanelImpl = ({
+  active = true,
+  onClosePanel,
+  project,
+}: BrowserPanelProps) => {
   const webviewRefs = useRef(new Map<string, ElectronWebviewElement>());
   const [browserUrlDraft, setBrowserUrlDraft] = useState("");
 
@@ -693,7 +699,7 @@ const BrowserPanelImpl = ({ active = true, project }: BrowserPanelProps) => {
       className="flex h-full flex-col overflow-hidden"
     >
       <div className="flex items-center gap-2 bg-surface-50 px-3 py-1.5 dark:bg-surface-900">
-        <Globe className="size-4 shrink-0 text-muted-foreground" />
+        <RightPanelHeaderIconButton icon={Globe} onClose={onClosePanel} />
         <StandardTabs
           activeId={activeTab?.id ?? null}
           after={

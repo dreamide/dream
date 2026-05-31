@@ -16,6 +16,7 @@ import { getDesktopApi } from "@/lib/electron";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { useMaterialFileTreeIcons } from "./material-file-icon";
+import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 
 const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
 const FILE_TREE_MIN_WIDTH_PX = 250;
@@ -24,6 +25,7 @@ const FILE_TREE_ITEM_HEIGHT_PX = 24;
 
 export interface FileExplorerPanelProps {
   active?: boolean;
+  onClosePanel: () => void;
   projectId?: string | null;
 }
 
@@ -330,6 +332,7 @@ const ProjectFileTree = ({
 
 const FileExplorerPanelImpl = ({
   active = true,
+  onClosePanel,
   projectId: requestedProjectId,
 }: FileExplorerPanelProps) => {
   const activeProject = useIdeStore((s) =>
@@ -630,7 +633,7 @@ const FileExplorerPanelImpl = ({
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex min-h-[50px] items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2 text-sm font-medium">
-          <Files className="size-4 text-muted-foreground" />
+          <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
           <span>Files</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
@@ -644,7 +647,7 @@ const FileExplorerPanelImpl = ({
     <div className="flex h-full flex-col overflow-hidden">
       <div className="grid min-h-[50px] grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Files className="size-4 shrink-0 text-muted-foreground" />
+          <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
           <div className="truncate text-sm font-medium">Files</div>
         </div>
         <button

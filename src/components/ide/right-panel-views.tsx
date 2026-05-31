@@ -13,6 +13,7 @@ const RIGHT_PANEL_SURFACE_CLASSES =
 
 export interface RightPanelViewsProps {
   active?: boolean;
+  onClosePanel: () => void;
   project: ProjectConfig;
   rightPanelView: RightPanelView;
 }
@@ -53,20 +54,29 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
           <RightPanelViewSlot active={rightPanelView === "explorer"}>
             <FileExplorerPanel
               active={props.active}
+              onClosePanel={props.onClosePanel}
               projectId={props.project.id}
             />
           </RightPanelViewSlot>
           <RightPanelViewSlot active={rightPanelView === "changes"}>
-            <ChangesPanel projectId={props.project.id} />
+            <ChangesPanel
+              onClosePanel={props.onClosePanel}
+              projectId={props.project.id}
+            />
           </RightPanelViewSlot>
           <RightPanelViewSlot active={rightPanelView === "browser"}>
-            <BrowserPanel active={props.active} project={props.project} />
+            <BrowserPanel
+              active={props.active}
+              onClosePanel={props.onClosePanel}
+              project={props.project}
+            />
           </RightPanelViewSlot>
           {rightPanelView === "terminal" ? (
             <RightPanelViewSlot active={true}>
               <ProjectTerminalTabsPanel
                 active={props.active}
                 embedded={true}
+                onClosePanel={props.onClosePanel}
                 projectId={props.project.id}
               />
             </RightPanelViewSlot>

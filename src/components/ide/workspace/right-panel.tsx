@@ -8,6 +8,7 @@ export interface WorkspaceRightPanelProps {
   active: boolean;
   handleVisible: boolean;
   maxWidth: number;
+  onCloseRightPanel: () => void;
   onResizeEnd: (width: number) => void;
   onResizeStart: () => void;
   onToggleRightPanel: () => void;
@@ -24,6 +25,7 @@ const WorkspaceRightPanelImpl = ({
   active,
   handleVisible,
   maxWidth,
+  onCloseRightPanel,
   onResizeEnd,
   onResizeStart,
   onToggleRightPanel,
@@ -54,6 +56,7 @@ const WorkspaceRightPanelImpl = ({
   >
     <RightPanelViews
       active={active}
+      onClosePanel={onCloseRightPanel}
       project={project}
       rightPanelView={rightPanelView}
     />

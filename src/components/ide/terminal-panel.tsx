@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { echoPipeFallbackInput } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
+import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { StandardTabs } from "./standard-tabs";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
@@ -451,10 +452,12 @@ export const TerminalPanel = ({
 export const ProjectTerminalTabsPanel = ({
   active = true,
   embedded = false,
+  onClosePanel,
   projectId,
 }: {
   active?: boolean;
   embedded?: boolean;
+  onClosePanel?: () => void;
   projectId: string;
 }) => {
   const projectTerminalSessionIds = useIdeStore(
@@ -504,7 +507,14 @@ export const ProjectTerminalTabsPanel = ({
     <>
       <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-          <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
+          {onClosePanel ? (
+            <RightPanelHeaderIconButton
+              icon={TerminalSquare}
+              onClose={onClosePanel}
+            />
+          ) : (
+            <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
+          )}
           <StandardTabs
             activeId={resolvedActiveSessionId}
             after={

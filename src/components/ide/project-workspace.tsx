@@ -405,6 +405,19 @@ const ProjectWorkspaceComponent = ({
     setProjectTerminalPanelOpen,
   ]);
 
+  const handleCloseRightPanel = useCallback(() => {
+    setProjectRightPanelOpen(projectId, false);
+
+    if (rightPanelView === "terminal") {
+      setProjectTerminalPanelOpen(projectId, false);
+    }
+  }, [
+    projectId,
+    rightPanelView,
+    setProjectRightPanelOpen,
+    setProjectTerminalPanelOpen,
+  ]);
+
   const schedulePersistRightPanelView = useCallback(
     (view: RightPanelView) => {
       if (rightPanelViewPersistTimerRef.current !== null) {
@@ -579,6 +592,7 @@ const ProjectWorkspaceComponent = ({
         active={active}
         handleVisible={middleVisible}
         maxWidth={boundedRightPanelMaxWidth}
+        onCloseRightPanel={handleCloseRightPanel}
         onResizeEnd={handleRightResizeEnd}
         onResizeStart={markRightPanelDragging}
         onToggleRightPanel={handleToggleRightPanel}

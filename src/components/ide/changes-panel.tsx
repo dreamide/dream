@@ -15,8 +15,10 @@ import type { ProjectGitDiffResponse } from "@/types/ide";
 import { ChangesRow, type DiffViewMode, readResponseText } from "./changes";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
+import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 
 export interface ChangesPanelProps {
+  onClosePanel: () => void;
   projectId?: string | null;
 }
 
@@ -32,6 +34,7 @@ const getExpandedPaths = (
 };
 
 const ChangesPanelImpl = ({
+  onClosePanel,
   projectId: requestedProjectId,
 }: ChangesPanelProps) => {
   const activeProject = useIdeStore((s) =>
@@ -432,7 +435,7 @@ const ChangesPanelImpl = ({
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2 text-sm font-medium">
-          <Code className="size-4 text-muted-foreground" />
+          <RightPanelHeaderIconButton icon={Code} onClose={onClosePanel} />
           <span>Changes</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
@@ -445,7 +448,7 @@ const ChangesPanelImpl = ({
   return (
     <div className="changes-panel flex h-full flex-col overflow-hidden">
       <div className="flex items-center gap-3 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
-        <Code className="size-4 text-muted-foreground" />
+        <RightPanelHeaderIconButton icon={Code} onClose={onClosePanel} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">Changes</div>
         </div>
