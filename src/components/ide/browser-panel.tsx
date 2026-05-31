@@ -3,10 +3,11 @@ import {
   ArrowRight,
   Camera,
   Code2,
+  Cookie,
   EllipsisVertical,
-  Eraser,
   ExternalLink,
   Globe,
+  HardDrive,
   Minus,
   Plus,
   RotateCcw,
@@ -873,11 +874,11 @@ const BrowserPanelImpl = ({ active = true, project }: BrowserPanelProps) => {
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleClearCookies}>
-              <Eraser className="size-4" />
+              <Cookie className="size-4" />
               Clear cookies
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleClearCache}>
-              <Eraser className="size-4" />
+              <HardDrive className="size-4" />
               Clear cache
             </DropdownMenuItem>
           </DropdownMenuContent>
