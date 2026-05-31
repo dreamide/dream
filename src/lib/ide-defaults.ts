@@ -1,13 +1,19 @@
-import { createModelOption, type ModelOption } from "@/lib/models";
+import {
+  createModelOption,
+  type ModelOption,
+  normalizeModelSpeed,
+} from "@/lib/models";
 import type {
   AiProvider,
   AppSettings,
   ChatConfig,
+  ModelSpeed,
   PanelSizes,
   PanelVisibility,
   PersistedIdeState,
   ProjectConfig,
   ProjectUiState,
+  ReasoningEffort,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
@@ -54,6 +60,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   anthropicSelectedModels: [],
   autoAcceptPermissions: false,
   defaultModel: "",
+  defaultModelSpeed: "standard",
+  defaultReasoningEffort: null,
   expandToolCalls: false,
   groupToolCalls: false,
   cursorSelectedModels: [],
@@ -110,12 +118,12 @@ export const createProjectConfig = (
     id: crypto.randomUUID(),
     icon: null,
     model: defaultSelection.model,
-    modelSpeed: "standard",
+    modelSpeed: defaultSelection.modelSpeed,
     name,
     path,
     browserUrl: "http://127.0.0.1:3000",
     provider: defaultSelection.provider,
-    reasoningEffort: null,
+    reasoningEffort: defaultSelection.reasoningEffort,
     runCommand: "pnpm dev",
     ui: {
       ...DEFAULT_PROJECT_UI,
@@ -270,16 +278,79 @@ export const getPreferredDefaultModel = (
   return getFirstAvailableModel(settings);
 };
 
+const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
+  ["low", "medium", "high", "xhigh", "max"].includes(value as string);
+
+export const resolveModelSpeedForModel = (
+  value: unknown,
+  availableModelSpeedTiers: ModelSpeed[],
+): ModelSpeed => {
+  const normalized = normalizeModelSpeed(value);
+
+  return availableModelSpeedTiers.length > 0 &&
+    availableModelSpeedTiers.includes(normalized)
+    ? normalized
+    : "standard";
+};
+
+export const resolveReasoningEffortForModel = (
+  value: unknown,
+  availableReasoningEfforts: ReasoningEffort[],
+): ReasoningEffort | null => {
+  if (availableReasoningEfforts.length === 0) {
+    return null;
+  }
+
+  const selected =
+    isReasoningEffort(value) && availableReasoningEfforts.includes(value)
+      ? value
+      : availableReasoningEfforts.includes("medium")
+        ? "medium"
+        : (availableReasoningEfforts[0] ?? null);
+
+  return selected === "medium" ? null : selected;
+};
+
 export const getDefaultModelSelection = (
   settings: AppSettings,
-): { model: string; provider: AiProvider } => {
+): {
+  model: string;
+  modelSpeed: ModelSpeed;
+  provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
+} => {
   const model = getPreferredDefaultModel(settings);
   const provider =
     getProviderForModel(model, settings) ??
     getConnectedProviders(settings)[0] ??
     DEFAULT_PROVIDER;
 
-  return { model, provider };
+  return {
+    model,
+    modelSpeed: normalizeModelSpeed(settings.defaultModelSpeed),
+    provider,
+    reasoningEffort: isReasoningEffort(settings.defaultReasoningEffort)
+      ? settings.defaultReasoningEffort
+      : null,
+  };
+};
+
+export const normalizeDefaultModelSettings = (
+  settings: AppSettings,
+  preferredModel = settings.defaultModel,
+): AppSettings => {
+  const defaultModel = getPreferredDefaultModel(settings, preferredModel);
+  const defaultSelection = getDefaultModelSelection({
+    ...settings,
+    defaultModel,
+  });
+
+  return {
+    ...settings,
+    defaultModel,
+    defaultModelSpeed: defaultSelection.modelSpeed,
+    defaultReasoningEffort: defaultSelection.reasoningEffort,
+  };
 };
 
 export const getModelOptionsForProvider = (

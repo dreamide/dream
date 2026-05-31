@@ -15,6 +15,7 @@ import {
   DEFAULT_PROJECT_UI,
   DEFAULT_PROVIDER,
   DEFAULT_SETTINGS,
+  getDefaultModelSelection,
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
@@ -548,6 +549,10 @@ export const mergePersistedState = (
       typeof rawSettings.defaultModel === "string"
         ? rawSettings.defaultModel
         : "",
+    defaultModelSpeed: normalizeModelSpeed(rawSettings.defaultModelSpeed),
+    defaultReasoningEffort: normalizeReasoningEffort(
+      rawSettings.defaultReasoningEffort,
+    ),
     expandToolCalls:
       typeof rawSettings.expandToolCalls === "boolean"
         ? rawSettings.expandToolCalls
@@ -599,6 +604,9 @@ export const mergePersistedState = (
     mergedSettings,
     legacyDefaultCandidates[0] ?? "",
   );
+  const defaultSelection = getDefaultModelSelection(mergedSettings);
+  mergedSettings.defaultModelSpeed = defaultSelection.modelSpeed;
+  mergedSettings.defaultReasoningEffort = defaultSelection.reasoningEffort;
 
   const projects = (Array.isArray(state.projects) ? state.projects : []).map(
     (project) => normalizeProject(project, mergedSettings),

@@ -77,6 +77,8 @@ export interface ProjectWorktreeInfo {
 export interface AppSettings {
   autoAcceptPermissions: boolean;
   defaultModel: string;
+  defaultModelSpeed: ModelSpeed;
+  defaultReasoningEffort: ReasoningEffort | null;
   expandToolCalls: boolean;
   groupToolCalls: boolean;
   openAiSelectedModels: string[];

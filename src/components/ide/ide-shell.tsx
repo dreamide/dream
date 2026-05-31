@@ -6,8 +6,8 @@ import {
   getDefaultModelForProvider,
   getDefaultModelSelection,
   getModelsForProvider,
-  getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
+  normalizeDefaultModelSettings,
 } from "@/lib/ide-defaults";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
@@ -187,11 +187,15 @@ export const IdeShell = () => {
       openCodeSelectedModels,
       openAiSelectedModels,
     };
-    const defaultModel = getPreferredDefaultModel(nextSettings);
+    const normalizedDefaultSettings =
+      normalizeDefaultModelSettings(nextSettings);
     const enabledProviders = getConnectedProviders(nextSettings);
 
     const changed =
-      defaultModel !== prev.defaultModel ||
+      normalizedDefaultSettings.defaultModel !== prev.defaultModel ||
+      normalizedDefaultSettings.defaultModelSpeed !== prev.defaultModelSpeed ||
+      normalizedDefaultSettings.defaultReasoningEffort !==
+        prev.defaultReasoningEffort ||
       openAiSelectedModels.length !== prev.openAiSelectedModels.length ||
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
       openCodeSelectedModels.length !== prev.openCodeSelectedModels.length ||
@@ -208,14 +212,11 @@ export const IdeShell = () => {
       !cursorSelectedModels.every((m, i) => prev.cursorSelectedModels[i] === m);
 
     if (changed) {
-      store.setSettings({
-        ...nextSettings,
-        defaultModel,
-      });
+      store.setSettings(normalizedDefaultSettings);
     }
 
     // Fix projects whose provider/model is no longer valid.
-    const effectiveSettings = { ...nextSettings, defaultModel };
+    const effectiveSettings = normalizedDefaultSettings;
     const defaultSelection = getDefaultModelSelection(effectiveSettings);
     const { chats, projects } = store;
     let projectsChanged = false;

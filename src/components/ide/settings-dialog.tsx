@@ -47,12 +47,20 @@ import { getDesktopApi } from "@/lib/electron";
 import {
   getModelOptionsForProvider,
   getModelsForProvider,
+  resolveModelSpeedForModel,
+  resolveReasoningEffortForModel,
 } from "@/lib/ide-defaults";
+import { getModelReasoningEfforts, getModelSpeedTiers } from "@/lib/models";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
-import type { BaseColor } from "@/types/ide";
+import type { BaseColor, ModelSpeed, ReasoningEffort } from "@/types/ide";
 import { useIdeStore } from "./ide-store";
-import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
+import {
+  ALL_PROVIDERS,
+  getProviderLabel,
+  MODEL_SPEED_OPTIONS,
+  REASONING_EFFORT_OPTIONS,
+} from "./ide-types";
 
 import {
   formatDeletedDate,
@@ -184,13 +192,72 @@ export const SettingsDialog = () => {
     return enabledModelIds[0] ?? "";
   }, [groupedDefaultModelOptions, settings.defaultModel]);
 
-  const selectedDefaultModelOption = useMemo(
-    () =>
-      groupedDefaultModelOptions
-        .flatMap((group) => group.models)
-        .find((model) => model.id === selectedDefaultModel) ?? null,
-    [groupedDefaultModelOptions, selectedDefaultModel],
+  const getDefaultModelEntry = (modelId: string) => {
+    for (const group of groupedDefaultModelOptions) {
+      const model = group.models.find((item) => item.id === modelId);
+      if (model) {
+        return { model, provider: group.provider };
+      }
+    }
+
+    return null;
+  };
+
+  const getDefaultModelCapabilities = (
+    entry: ReturnType<typeof getDefaultModelEntry>,
+  ) => {
+    if (!entry) {
+      return {
+        reasoningEfforts: [] as ReasoningEffort[],
+        speedTiers: [] as ModelSpeed[],
+      };
+    }
+
+    return {
+      reasoningEfforts: entry.model.reasoningEfforts?.length
+        ? entry.model.reasoningEfforts
+        : getModelReasoningEfforts(entry.provider, entry.model.id),
+      speedTiers: entry.model.speedTiers?.length
+        ? entry.model.speedTiers
+        : getModelSpeedTiers(entry.provider, entry.model.id),
+    };
+  };
+
+  const selectedDefaultModelEntry = getDefaultModelEntry(selectedDefaultModel);
+  const selectedDefaultModelOption = selectedDefaultModelEntry?.model ?? null;
+  const defaultModelCapabilities = getDefaultModelCapabilities(
+    selectedDefaultModelEntry,
   );
+  const defaultModelSpeedOptions = MODEL_SPEED_OPTIONS.filter((option) =>
+    defaultModelCapabilities.speedTiers.includes(option.value),
+  );
+  const selectedDefaultModelSpeed = resolveModelSpeedForModel(
+    settings.defaultModelSpeed,
+    defaultModelCapabilities.speedTiers,
+  );
+  const selectedDefaultModelSpeedLabel =
+    defaultModelSpeedOptions.find(
+      (option) => option.value === selectedDefaultModelSpeed,
+    )?.label ??
+    MODEL_SPEED_OPTIONS.find(
+      (option) => option.value === selectedDefaultModelSpeed,
+    )?.label ??
+    "Speed";
+  const defaultReasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter(
+    (option) =>
+      defaultModelCapabilities.reasoningEfforts.includes(option.value),
+  );
+  const selectedDefaultReasoningEffort =
+    defaultModelCapabilities.reasoningEfforts.length > 0
+      ? (resolveReasoningEffortForModel(
+          settings.defaultReasoningEffort,
+          defaultModelCapabilities.reasoningEfforts,
+        ) ?? "medium")
+      : null;
+  const selectedDefaultReasoningLabel =
+    defaultReasoningEffortOptions.find(
+      (option) => option.value === selectedDefaultReasoningEffort,
+    )?.label ?? "Effort";
 
   const installedProviderCount = ALL_PROVIDERS.filter(
     (provider) => providerModels[provider].installed,
@@ -765,44 +832,133 @@ export const SettingsDialog = () => {
 
                   <div className="rounded-lg p-4">
                     <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
                       description="New chats start on this model automatically."
                       label="Default model for new chats"
                     >
-                      <Select
-                        onValueChange={(value) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            defaultModel: value ?? "",
-                          }))
-                        }
-                        value={selectedDefaultModel}
-                      >
-                        <SelectTrigger
-                          className="w-full"
-                          disabled={groupedDefaultModelOptions.length === 0}
-                          id="default-model"
+                      <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                        <Select
+                          onValueChange={(value) => {
+                            const defaultModel = value ?? "";
+                            const capabilities = getDefaultModelCapabilities(
+                              getDefaultModelEntry(defaultModel),
+                            );
+
+                            setSettings((previous) => ({
+                              ...previous,
+                              defaultModel,
+                              defaultModelSpeed: resolveModelSpeedForModel(
+                                previous.defaultModelSpeed,
+                                capabilities.speedTiers,
+                              ),
+                              defaultReasoningEffort:
+                                resolveReasoningEffortForModel(
+                                  previous.defaultReasoningEffort,
+                                  capabilities.reasoningEfforts,
+                                ),
+                            }));
+                          }}
+                          value={selectedDefaultModel}
                         >
-                          <SelectValue placeholder="Enable a model first">
-                            {selectedDefaultModelOption?.label}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="min-w-72">
-                          {groupedDefaultModelOptions.map((group) => (
-                            <SelectGroup key={group.provider}>
-                              {groupedDefaultModelOptions.length > 1 ? (
-                                <SelectLabel>
-                                  {getProviderLabel(group.provider)}
-                                </SelectLabel>
-                              ) : null}
-                              {group.models.map((model) => (
-                                <SelectItem key={model.id} value={model.id}>
-                                  {model.label}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          <SelectTrigger
+                            className="w-full"
+                            disabled={groupedDefaultModelOptions.length === 0}
+                            id="default-model"
+                          >
+                            <SelectValue placeholder="Enable a model first">
+                              {selectedDefaultModelOption?.label}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="min-w-72">
+                            {groupedDefaultModelOptions.map((group) => (
+                              <SelectGroup key={group.provider}>
+                                {groupedDefaultModelOptions.length > 1 ? (
+                                  <SelectLabel>
+                                    {getProviderLabel(group.provider)}
+                                  </SelectLabel>
+                                ) : null}
+                                {group.models.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {defaultReasoningEffortOptions.length > 0 &&
+                        selectedDefaultReasoningEffort ? (
+                          <Select
+                            onValueChange={(value) =>
+                              setSettings((previous) => ({
+                                ...previous,
+                                defaultReasoningEffort:
+                                  value === "medium"
+                                    ? null
+                                    : (value as ReasoningEffort),
+                              }))
+                            }
+                            value={selectedDefaultReasoningEffort}
+                          >
+                            <SelectTrigger
+                              aria-label="Default reasoning effort"
+                              className="w-full sm:w-32"
+                            >
+                              <SelectValue>
+                                {selectedDefaultReasoningLabel}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Effort</SelectLabel>
+                                {defaultReasoningEffortOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+
+                        {defaultModelSpeedOptions.length > 0 ? (
+                          <Select
+                            onValueChange={(value) =>
+                              setSettings((previous) => ({
+                                ...previous,
+                                defaultModelSpeed: value as ModelSpeed,
+                              }))
+                            }
+                            value={selectedDefaultModelSpeed}
+                          >
+                            <SelectTrigger
+                              aria-label="Default model speed"
+                              className="w-full sm:w-32"
+                            >
+                              <SelectValue>
+                                {selectedDefaultModelSpeedLabel}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Speed</SelectLabel>
+                                {defaultModelSpeedOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+                      </div>
                     </SettingsControlRow>
                   </div>
                 </div>

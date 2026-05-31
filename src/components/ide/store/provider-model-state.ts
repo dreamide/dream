@@ -1,6 +1,6 @@
 import {
-  getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
+  normalizeDefaultModelSettings,
 } from "@/lib/ide-defaults";
 import { dedupeModelOptions, isVisibleOpenAiModelOption } from "@/lib/models";
 import type { AiProvider, AppSettings } from "@/types/ide";
@@ -57,10 +57,7 @@ export const toggleProviderModelInSettings = (
       ...settings,
       openAiSelectedModels,
     };
-    return {
-      ...nextSettings,
-      defaultModel: getPreferredDefaultModel(nextSettings),
-    };
+    return normalizeDefaultModelSettings(nextSettings);
   }
 
   if (provider === "opencode") {
@@ -72,10 +69,7 @@ export const toggleProviderModelInSettings = (
       ...settings,
       openCodeSelectedModels,
     };
-    return {
-      ...nextSettings,
-      defaultModel: getPreferredDefaultModel(nextSettings),
-    };
+    return normalizeDefaultModelSettings(nextSettings);
   }
 
   if (provider === "cursor") {
@@ -87,10 +81,7 @@ export const toggleProviderModelInSettings = (
       ...settings,
       cursorSelectedModels,
     };
-    return {
-      ...nextSettings,
-      defaultModel: getPreferredDefaultModel(nextSettings),
-    };
+    return normalizeDefaultModelSettings(nextSettings);
   }
 
   const current = dedupeModels(settings.anthropicSelectedModels);
@@ -101,10 +92,7 @@ export const toggleProviderModelInSettings = (
     ...settings,
     anthropicSelectedModels,
   };
-  return {
-    ...nextSettings,
-    defaultModel: getPreferredDefaultModel(nextSettings),
-  };
+  return normalizeDefaultModelSettings(nextSettings);
 };
 
 export const markProviderModelsLoading = (
@@ -286,14 +274,13 @@ export const reconcileSettingsWithProviderModels = (
     openAiSelectedModels,
   };
 
-  return {
-    ...nextSettings,
-    defaultModel: getPreferredDefaultModel(nextSettings),
-  };
+  return normalizeDefaultModelSettings(nextSettings);
 };
 
 export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   a.defaultModel === b.defaultModel &&
+  a.defaultModelSpeed === b.defaultModelSpeed &&
+  a.defaultReasoningEffort === b.defaultReasoningEffort &&
   a.openAiSelectedModels.length === b.openAiSelectedModels.length &&
   a.anthropicSelectedModels.length === b.anthropicSelectedModels.length &&
   a.openCodeSelectedModels.length === b.openCodeSelectedModels.length &&

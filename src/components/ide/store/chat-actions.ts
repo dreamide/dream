@@ -59,9 +59,15 @@ export const createChatActions = (
       const defaultSelection = getDefaultModelSelection(state.settings);
       const nextChat = createChatConfig(project, {
         model: defaultSelection.model || project.model,
+        modelSpeed: defaultSelection.model
+          ? defaultSelection.modelSpeed
+          : project.modelSpeed,
         provider: defaultSelection.model
           ? defaultSelection.provider
           : project.provider,
+        reasoningEffort: defaultSelection.model
+          ? defaultSelection.reasoningEffort
+          : project.reasoningEffort,
         title,
       });
 
@@ -96,9 +102,15 @@ export const createChatActions = (
       const defaultSelection = getDefaultModelSelection(state.settings);
       const nextChat = createChatConfig(project, {
         model: defaultSelection.model || project.model,
+        modelSpeed: defaultSelection.model
+          ? defaultSelection.modelSpeed
+          : project.modelSpeed,
         provider: defaultSelection.model
           ? defaultSelection.provider
           : project.provider,
+        reasoningEffort: defaultSelection.model
+          ? defaultSelection.reasoningEffort
+          : project.reasoningEffort,
       });
       const nextChats = [...state.chats, nextChat];
 
