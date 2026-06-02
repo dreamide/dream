@@ -57,6 +57,7 @@ type ToolChipItem = {
 type ToolChipRenderContext = {
   addToolApprovalResponse: ToolApprovalResponder;
   expandToolCalls: boolean;
+  messageParts: UIMessage["parts"];
   messageId: string;
   projectPath: string;
 };
@@ -140,6 +141,7 @@ export const ChatMessage = memo(
               const toolChipContext: ToolChipRenderContext = {
                 addToolApprovalResponse,
                 expandToolCalls,
+                messageParts: nonSourceParts,
                 messageId: message.id,
                 projectPath,
               };

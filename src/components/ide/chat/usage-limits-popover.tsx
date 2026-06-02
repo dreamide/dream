@@ -269,7 +269,7 @@ export const UsageLimitsPopover = ({
   const stats = usageLimits.data?.stats ?? [];
   const modelStats = usageLimits.data?.modelStats ?? [];
   const hasUsageStats = stats.length > 0 || modelStats.length > 0;
-  const usageTitle = provider === "opencode" ? "Usage stats" : "Usage limits";
+  const usageTitle = provider === "opencode" ? "Usage stats" : "Plan usage";
 
   const fetchUsageLimits = useCallback(async () => {
     setUsageLimits((current) => ({
