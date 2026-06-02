@@ -1,3 +1,5 @@
+import { Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ProjectTabs } from "./header/project-tabs";
 import { WindowControls } from "./header/window-controls";
@@ -7,6 +9,13 @@ export const IdeHeader = () => {
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
+  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
+  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+
+  const openSettings = () => {
+    setSettingsSection("appearance");
+    setSettingsOpen(true);
+  };
 
   return (
     <header
@@ -22,6 +31,17 @@ export const IdeHeader = () => {
         />
 
         <ProjectTabs />
+
+        <Button
+          aria-label="Settings"
+          className="mr-2 size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+          onClick={openSettings}
+          size="icon"
+          title="Settings"
+          variant="ghost"
+        >
+          <Settings className="size-4" />
+        </Button>
 
         {!isMacOs && isElectron && appReady ? <WindowControls /> : null}
       </div>

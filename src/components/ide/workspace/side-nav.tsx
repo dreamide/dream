@@ -1,13 +1,7 @@
-import {
-  History,
-  MessageSquarePlus,
-  MessagesSquare,
-  Settings,
-} from "lucide-react";
+import { History, MessageSquarePlus, MessagesSquare } from "lucide-react";
 import { memo, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useIdeStore } from "../ide-store";
 
 export interface WorkspaceSideNavProps {
   historyButtonRef: RefObject<HTMLButtonElement | null>;
@@ -26,14 +20,6 @@ const WorkspaceSideNavImpl = ({
   onToggleMultiChat,
   onToggleHistory,
 }: WorkspaceSideNavProps) => {
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-
-  const openSettings = () => {
-    setSettingsSection("appearance");
-    setSettingsOpen(true);
-  };
-
   return (
     <aside className="flex w-12 shrink-0 flex-col items-center py-2">
       <div className="flex flex-col items-center gap-1">
@@ -79,19 +65,6 @@ const WorkspaceSideNavImpl = ({
           variant="ghost"
         >
           <MessagesSquare className="size-4" />
-        </Button>
-      </div>
-
-      <div className="mt-auto flex flex-col items-center gap-1">
-        <Button
-          aria-label="Settings"
-          className="size-8 text-muted-foreground hover:text-foreground"
-          onClick={openSettings}
-          size="icon"
-          title="Settings"
-          variant="ghost"
-        >
-          <Settings className="size-4" />
         </Button>
       </div>
     </aside>

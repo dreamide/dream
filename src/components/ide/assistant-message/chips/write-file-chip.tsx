@@ -240,6 +240,12 @@ const readResponseText = async (response: Response) => {
   return text.trim() || response.statusText || "Request failed.";
 };
 
+const WRITE_CHIP_PREVIEW_CLASSES = "max-h-96 overflow-auto";
+const WRITE_CHIP_HEADER_CLASSES = cn(
+  CHIP_DETAIL_HEADER_CLASSES,
+  "sticky top-0 z-10 bg-background",
+);
+
 export const WriteFileChip = ({
   defaultExpanded = false,
   part,
@@ -309,7 +315,7 @@ export const WriteFileChip = ({
     ]) ??
     getStringFromPaths(output, [["filename"], ["name"], ["file", "name"]]) ??
     "file";
-  const headerFilePath = filePath ?? filename;
+  const headerFilePath = projectRelativeFilePath ?? filePath ?? filename;
   const content =
     getStringFromPaths(
       part.input,
@@ -605,21 +611,21 @@ export const WriteFileChip = ({
           {displayDiffCode !== null && filePath ? (
             <div>
               {parsedDiff ? (
-                <div className="max-h-96 flex flex-col overflow-hidden rounded-md border bg-background text-xs">
-                  <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                    <CodeBlockTitle className="min-w-0 flex-1">
+                <div className="max-h-96 overflow-auto rounded-md border bg-background text-xs">
+                  <CodeBlockHeader className={WRITE_CHIP_HEADER_CLASSES}>
+                    <CodeBlockTitle className="min-w-0 flex-1 overflow-hidden">
                       <MaterialFileIcon
                         className="size-3.5"
                         path={headerFilePath}
                       />
                       <CodeBlockFilename
-                        className="min-w-0 break-all"
+                        className="block min-w-0 flex-1 truncate"
                         title={headerFilePath}
                       >
                         {headerFilePath}
                       </CodeBlockFilename>
                     </CodeBlockTitle>
-                    <CodeBlockActions>
+                    <CodeBlockActions className="shrink-0">
                       <Button
                         aria-label={`Open ${filename} in Files`}
                         className="shrink-0"
@@ -635,31 +641,29 @@ export const WriteFileChip = ({
                       <CodeBlockCopyButton text={displayDiffCode} />
                     </CodeBlockActions>
                   </CodeBlockHeader>
-                  <div className="min-h-0 flex-1 overflow-auto">
-                    <IdeDiffViewer fileDiff={parsedDiff} />
-                  </div>
+                  <IdeDiffViewer fileDiff={parsedDiff} />
                 </div>
               ) : (
                 <CodeBlock
-                  className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                  className={WRITE_CHIP_PREVIEW_CLASSES}
                   code={displayDiffCode}
                   language="diff"
                   style={{ contentVisibility: "visible" }}
                 >
-                  <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                    <CodeBlockTitle className="min-w-0 flex-1">
+                  <CodeBlockHeader className={WRITE_CHIP_HEADER_CLASSES}>
+                    <CodeBlockTitle className="min-w-0 flex-1 overflow-hidden">
                       <MaterialFileIcon
                         className="size-3.5"
                         path={headerFilePath}
                       />
                       <CodeBlockFilename
-                        className="min-w-0 break-all"
+                        className="block min-w-0 flex-1 truncate"
                         title={headerFilePath}
                       >
                         {headerFilePath}
                       </CodeBlockFilename>
                     </CodeBlockTitle>
-                    <CodeBlockActions>
+                    <CodeBlockActions className="shrink-0">
                       <Button
                         aria-label={`Open ${filename} in Files`}
                         className="shrink-0"
@@ -681,27 +685,27 @@ export const WriteFileChip = ({
           ) : content !== null && filePath ? (
             <div>
               <CodeBlock
-                className="max-h-96 flex flex-col [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                className={WRITE_CHIP_PREVIEW_CLASSES}
                 code={previewCode}
                 language={previewLanguage}
                 showLineNumbers
                 startingLineNumber={previewStartLine}
                 style={{ contentVisibility: "visible" }}
               >
-                <CodeBlockHeader className={CHIP_DETAIL_HEADER_CLASSES}>
-                  <CodeBlockTitle className="min-w-0 flex-1">
+                <CodeBlockHeader className={WRITE_CHIP_HEADER_CLASSES}>
+                  <CodeBlockTitle className="min-w-0 flex-1 overflow-hidden">
                     <MaterialFileIcon
                       className="size-3.5"
                       path={headerFilePath}
                     />
                     <CodeBlockFilename
-                      className="min-w-0 break-all"
+                      className="block min-w-0 flex-1 truncate"
                       title={headerFilePath}
                     >
                       {headerFilePath}
                     </CodeBlockFilename>
                   </CodeBlockTitle>
-                  <CodeBlockActions>
+                  <CodeBlockActions className="shrink-0">
                     <Button
                       aria-label={`Open ${filename} in Files`}
                       className="shrink-0"
