@@ -1,4 +1,5 @@
 import { ListChecks } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { PromptInputButton } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -72,6 +73,44 @@ const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
 };
 
 export const TodoListPopover = ({ summary }: { summary: ChatTodoSummary }) => {
+  const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
+  const [isListScrollable, setIsListScrollable] = useState(false);
+  const handleListRef = useCallback((element: HTMLDivElement | null) => {
+    setListElement(element);
+  }, []);
+
+  useEffect(() => {
+    if (!listElement) {
+      setIsListScrollable(false);
+      return;
+    }
+
+    const updateScrollableState = () => {
+      setIsListScrollable(
+        listElement.scrollHeight > listElement.clientHeight + 1,
+      );
+    };
+
+    updateScrollableState();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateScrollableState);
+      return () => window.removeEventListener("resize", updateScrollableState);
+    }
+
+    const resizeObserver = new ResizeObserver(updateScrollableState);
+    resizeObserver.observe(listElement);
+    if (listElement.firstElementChild) {
+      resizeObserver.observe(listElement.firstElementChild);
+    }
+    window.addEventListener("resize", updateScrollableState);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateScrollableState);
+    };
+  }, [listElement]);
+
   if (summary.totalCount === 0) {
     return null;
   }
@@ -107,7 +146,13 @@ export const TodoListPopover = ({ summary }: { summary: ChatTodoSummary }) => {
             {progressLabel}
           </span>
         </div>
-        <div className="max-h-72 overflow-y-auto pr-1">
+        <div
+          className={cn(
+            "max-h-[min(70vh,32rem)] pr-1",
+            isListScrollable ? "overflow-y-auto" : "overflow-y-hidden",
+          )}
+          ref={handleListRef}
+        >
           <div className="space-y-0.5">
             {summary.todos.map((todo) => (
               <TodoRow key={todo.id} todo={todo} />

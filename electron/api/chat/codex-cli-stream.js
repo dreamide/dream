@@ -231,6 +231,12 @@ export const streamCodexCliResponse = ({
           }
 
           if (event.type === "item.started" && event.item) {
+            if (
+              writeCodexTodoListPartFromResponseItem(writeEvent, event.item)
+            ) {
+              return;
+            }
+
             if (event.item.type === "command_execution") {
               ensureCommandToolStarted(event.item);
               return;
@@ -249,6 +255,10 @@ export const streamCodexCliResponse = ({
           }
 
           const item = event.item;
+          if (writeCodexTodoListPartFromResponseItem(writeEvent, item)) {
+            return;
+          }
+
           if (item.type === "agent_message" && typeof item.text === "string") {
             writeCodexTextPart(
               writeEvent,

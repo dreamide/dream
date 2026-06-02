@@ -379,6 +379,10 @@ export const streamCodexAppServerResponse = ({
 
           if (method === "item/started" && params?.item) {
             const item = params.item;
+            if (writeCodexTodoListPartFromResponseItem(writeEvent, item)) {
+              return;
+            }
+
             if (item.type === "commandExecution") {
               ensureCommandToolStarted(item);
             } else if (item.type === "fileChange") {
@@ -423,6 +427,10 @@ export const streamCodexAppServerResponse = ({
 
           if (method === "item/completed" && params?.item) {
             const item = params.item;
+            if (writeCodexTodoListPartFromResponseItem(writeEvent, item)) {
+              return;
+            }
+
             if (item.type === "agentMessage") {
               endTextPart(item.id, "text");
             } else if (item.type === "reasoning") {

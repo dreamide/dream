@@ -59,11 +59,14 @@ const getArrayFromPayload = (payload, keys = TODO_ARRAY_KEYS, depth = 0) => {
 
 const normalizeToolName = (toolName) =>
   String(toolName ?? "")
+    .split(/[.:/]+/)
+    .pop()
     .replace(/[\s_-]+/g, "")
     .toLowerCase();
 
 const TODO_TOOL_NAMES = new Set([
   "todo",
+  "todolist",
   "todos",
   "todowrite",
   "updateplan",
@@ -94,7 +97,7 @@ export const writeCodexTodoListPart = (writeEvent, payload) => {
 };
 
 export const writeCodexTodoListPartFromResponseItem = (writeEvent, item) => {
-  const toolName = normalizeToolName(item?.name ?? item?.tool);
+  const toolName = normalizeToolName(item?.name ?? item?.tool ?? item?.type);
   if (!TODO_TOOL_NAMES.has(toolName)) {
     return false;
   }

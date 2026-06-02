@@ -187,7 +187,11 @@ export const normalizeChatTodos = (value: unknown): ChatTodoItem[] | null => {
 };
 
 const normalizeToolName = (name: string) =>
-  name.replace(/[\s_-]+/g, "").toLowerCase();
+  name
+    .split(/[.:/]+/)
+    .pop()
+    ?.replace(/[\s_-]+/g, "")
+    .toLowerCase() ?? "";
 
 export const isTodoToolPart = (part: UIMessage["parts"][number]) => {
   if (!isToolLikePart(part)) {
@@ -198,6 +202,7 @@ export const isTodoToolPart = (part: UIMessage["parts"][number]) => {
   return (
     toolName === "todowrite" ||
     toolName === "todo" ||
+    toolName === "todolist" ||
     toolName === "todos" ||
     toolName === "updatetodo" ||
     toolName === "updatetodos" ||
