@@ -57,6 +57,7 @@ import {
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
+import { getLatestChatTodoSummary } from "./chat/todo-list";
 import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   getCommitChanges,
@@ -617,6 +618,10 @@ export const ChatPanel = ({
   const contextUsedTokens =
     (contextUsage ? getUsageTotalTokens(contextUsage) : undefined) ??
     fallbackEstimatedTokens;
+  const todoSummary = useMemo(
+    () => getLatestChatTodoSummary(messages),
+    [messages],
+  );
 
   const modelId =
     selectedProvider === "anthropic"
@@ -1051,6 +1056,7 @@ export const ChatPanel = ({
           selectedReasoningEffort={selectedReasoningEffortForControl}
           selectedReasoningLabel={selectedReasoningLabel}
           status={status}
+          todoSummary={todoSummary}
         />
 
         <ProjectBranchFooter project={project} />

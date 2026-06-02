@@ -17,6 +17,7 @@ import {
   type MessagePart,
   type ToolLikePart,
 } from "../assistant-message-tools";
+import { isTodoListPart } from "../chat/todo-list";
 import { stringifyPart } from "../ide-state";
 import {
   ActionApproval,
@@ -135,6 +136,10 @@ export const AssistantMessagePart = ({
   projectPath: string;
   showReasoningSummaries?: boolean;
 }) => {
+  if (isTodoListPart(part)) {
+    return null;
+  }
+
   if (part.type === "text") {
     return (
       <StreamingMessageResponse

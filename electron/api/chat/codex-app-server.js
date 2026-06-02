@@ -17,6 +17,8 @@ import {
   getCodexAppTurnSandboxPolicy,
   getCodexReasoningEffort,
   writeCodexApprovalRequest,
+  writeCodexTodoListPart,
+  writeCodexTodoListPartFromResponseItem,
 } from "./codex-common.js";
 import {
   buildCodexConversationPrompt,
@@ -342,6 +344,16 @@ export const streamCodexAppServerResponse = ({
         const handleNotification = (message) => {
           const { method, params } = message;
           if (!method) {
+            return;
+          }
+
+          if (method === "turn/plan/updated") {
+            writeCodexTodoListPart(writeEvent, params);
+            return;
+          }
+
+          if (method === "rawResponseItem/completed") {
+            writeCodexTodoListPartFromResponseItem(writeEvent, params?.item);
             return;
           }
 

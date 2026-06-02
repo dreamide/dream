@@ -56,6 +56,8 @@ import type {
 import { PromptAttachments } from "../chat";
 import { AGENT_MODE_OPTIONS } from "../ide-types";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
+import type { ChatTodoSummary } from "./todo-list";
+import { TodoListPopover } from "./todo-list-popover";
 import { UsageLimitsPopover } from "./usage-limits-popover";
 
 export interface ChatPanelModelOption {
@@ -505,6 +507,7 @@ export interface ChatComposerProps {
   selectedReasoningEffort: ReasoningEffort;
   selectedReasoningLabel: string;
   status: ChatStatus;
+  todoSummary: ChatTodoSummary;
 }
 
 export const ChatComposer = ({
@@ -541,6 +544,7 @@ export const ChatComposer = ({
   selectedReasoningEffort,
   selectedReasoningLabel,
   status,
+  todoSummary,
 }: ChatComposerProps) => {
   const AgentModeIcon = getAgentModeIcon(agentMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -891,6 +895,7 @@ export const ChatComposer = ({
                       <PromptInputActionAddAttachments />
                     </PromptInputActionMenuContent>
                   </PromptInputActionMenu>
+                  <TodoListPopover summary={todoSummary} />
                 </PromptInputTools>
                 <div className="ml-auto flex items-center gap-2">
                   <PromptInputSubmit

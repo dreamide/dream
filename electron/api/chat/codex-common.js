@@ -12,6 +12,100 @@ export const writeCodexTextPart = (writeEvent, id, text, type) => {
   writeEvent({ type: `${type}-end`, id });
 };
 
+const TODO_ARRAY_KEYS = [
+  "plan",
+  "todos",
+  "tasks",
+  "items",
+  "steps",
+  "entries",
+  "data",
+  "input",
+  "arguments",
+  "args",
+  "result",
+];
+
+const getArrayFromPayload = (payload, keys = TODO_ARRAY_KEYS, depth = 0) => {
+  if (depth > 4) {
+    return null;
+  }
+
+  if (typeof payload === "string") {
+    try {
+      return getArrayFromPayload(JSON.parse(payload), keys, depth + 1);
+    } catch {
+      return null;
+    }
+  }
+
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  for (const key of keys) {
+    const todos = getArrayFromPayload(payload[key], keys, depth + 1);
+    if (todos) {
+      return todos;
+    }
+  }
+
+  return null;
+};
+
+const normalizeToolName = (toolName) =>
+  String(toolName ?? "")
+    .replace(/[\s_-]+/g, "")
+    .toLowerCase();
+
+const TODO_TOOL_NAMES = new Set([
+  "todo",
+  "todos",
+  "todowrite",
+  "updateplan",
+  "updatetodo",
+  "updatetodos",
+]);
+
+export const writeCodexTodoListPart = (writeEvent, payload) => {
+  const todos = getArrayFromPayload(payload);
+
+  if (!todos) {
+    return false;
+  }
+
+  writeEvent({
+    data: {
+      explanation:
+        payload && typeof payload === "object"
+          ? (payload.explanation ?? null)
+          : null,
+      todos,
+    },
+    id: "codex-todos",
+    type: "data-todos",
+  });
+
+  return true;
+};
+
+export const writeCodexTodoListPartFromResponseItem = (writeEvent, item) => {
+  const toolName = normalizeToolName(item?.name ?? item?.tool);
+  if (!TODO_TOOL_NAMES.has(toolName)) {
+    return false;
+  }
+
+  return (
+    writeCodexTodoListPart(writeEvent, item?.arguments) ||
+    writeCodexTodoListPart(writeEvent, item?.input) ||
+    writeCodexTodoListPart(writeEvent, item)
+  );
+};
+
 export const buildCodexExecArgs = ({
   addDirs = [],
   codexPermissionMode,

@@ -12,6 +12,8 @@ import {
   buildCodexExecArgs,
   codexSessionsByChatId,
   writeCodexTextPart,
+  writeCodexTodoListPart,
+  writeCodexTodoListPartFromResponseItem,
 } from "./codex-common.js";
 import {
   buildCodexConversationPrompt,
@@ -180,6 +182,28 @@ export const streamCodexCliResponse = ({
             if (detail) {
               stderrBuffer += `${detail}\n`;
             }
+            return;
+          }
+
+          if (
+            event.type === "turn.plan.updated" ||
+            event.type === "turn/plan/updated" ||
+            event.type === "plan.updated" ||
+            event.type === "plan.update"
+          ) {
+            writeCodexTodoListPart(writeEvent, event);
+            return;
+          }
+
+          if (
+            event.type === "response_item" ||
+            event.type === "rawResponseItem.completed" ||
+            event.type === "rawResponseItem/completed"
+          ) {
+            writeCodexTodoListPartFromResponseItem(
+              writeEvent,
+              event.payload ?? event.item ?? event.response_item,
+            );
             return;
           }
 
