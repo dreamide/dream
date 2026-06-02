@@ -1067,10 +1067,7 @@ export const ChatComposer = ({
               ) : null}
 
               <div className="ml-auto flex items-center gap-1">
-                <UsageLimitsPopover
-                  projectPath={projectPath}
-                  provider={selectedProvider}
-                />
+                <UsageLimitsPopover provider={selectedProvider} />
                 <Context
                   maxTokens={contextWindow}
                   modelId={modelId}

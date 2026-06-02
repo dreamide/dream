@@ -202,10 +202,8 @@ const OpenCodeUsageStats = ({
 
 export const UsageLimitsPopover = ({
   provider,
-  projectPath,
 }: {
   provider: ChatConfig["provider"];
-  projectPath?: string;
 }) => {
   const [open, setOpen] = useState(false);
   const [usageLimits, setUsageLimits] = useState<UsageLimitsState>({
@@ -231,7 +229,6 @@ export const UsageLimitsPopover = ({
       const response = await fetch("/api/provider-usage-limits", {
         body: JSON.stringify({
           provider,
-          ...(provider === "opencode" && projectPath ? { projectPath } : {}),
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
@@ -256,7 +253,7 @@ export const UsageLimitsPopover = ({
         loading: false,
       }));
     }
-  }, [projectPath, provider]);
+  }, [provider]);
 
   useEffect(() => {
     if (!open) {
