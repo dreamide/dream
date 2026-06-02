@@ -148,6 +148,82 @@ const UsageLimitRow = ({
 const getModelUsageStatValue = (model: ModelUsageStat, label: string) =>
   model.stats.find((stat) => stat.label === label)?.value;
 
+const OpenCodeModelStatsList = ({
+  modelStats,
+}: {
+  modelStats: ModelUsageStat[];
+}) => {
+  const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
+  const [isScrollable, setIsScrollable] = useState(false);
+  const handleListRef = useCallback((element: HTMLDivElement | null) => {
+    setListElement(element);
+  }, []);
+
+  useEffect(() => {
+    if (!listElement) {
+      setIsScrollable(false);
+      return;
+    }
+
+    const updateScrollableState = () => {
+      setIsScrollable(listElement.scrollHeight > listElement.clientHeight + 1);
+    };
+
+    updateScrollableState();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateScrollableState);
+      return () => window.removeEventListener("resize", updateScrollableState);
+    }
+
+    const resizeObserver = new ResizeObserver(updateScrollableState);
+    resizeObserver.observe(listElement);
+    if (listElement.firstElementChild) {
+      resizeObserver.observe(listElement.firstElementChild);
+    }
+    window.addEventListener("resize", updateScrollableState);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateScrollableState);
+    };
+  }, [listElement]);
+
+  return (
+    <div
+      className={`max-h-[min(45vh,18rem)] pr-1 ${
+        isScrollable ? "overflow-y-auto" : "overflow-y-hidden"
+      }`}
+      ref={handleListRef}
+    >
+      <div className="space-y-2">
+        {modelStats.map((model) => {
+          const messages = getModelUsageStatValue(model, "Messages");
+          const cost = getModelUsageStatValue(model, "Cost");
+
+          return (
+            <div key={model.id} className="min-w-0 space-y-0.5">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="min-w-0 truncate">{model.id}</span>
+                {messages ? (
+                  <span className="shrink-0 text-muted-foreground">
+                    {messages} msgs
+                  </span>
+                ) : null}
+              </div>
+              {cost ? (
+                <div className="truncate text-[11px] text-muted-foreground">
+                  {cost}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const OpenCodeUsageStats = ({
   modelStats,
   stats,
@@ -171,30 +247,7 @@ const OpenCodeUsageStats = ({
     {modelStats.length > 0 ? (
       <div className="space-y-2">
         <div className="font-medium text-xs">Top models</div>
-        <div className="space-y-2">
-          {modelStats.slice(0, 3).map((model) => {
-            const messages = getModelUsageStatValue(model, "Messages");
-            const cost = getModelUsageStatValue(model, "Cost");
-
-            return (
-              <div key={model.id} className="min-w-0 space-y-0.5">
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="min-w-0 truncate">{model.id}</span>
-                  {messages ? (
-                    <span className="shrink-0 text-muted-foreground">
-                      {messages} msgs
-                    </span>
-                  ) : null}
-                </div>
-                {cost ? (
-                  <div className="truncate text-[11px] text-muted-foreground">
-                    {cost}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
+        <OpenCodeModelStatsList modelStats={modelStats} />
       </div>
     ) : null}
   </div>
