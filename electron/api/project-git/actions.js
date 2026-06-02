@@ -164,7 +164,6 @@ const buildCommitMessagePrompt = ({
     .join("\n");
 };
 
-
 const setCommitMessageCacheEntry = (key, value) => {
   commitMessageCache.set(key, value);
   if (commitMessageCache.size <= COMMIT_MESSAGE_CACHE_MAX_ENTRIES) {
@@ -999,6 +998,84 @@ const buildGeneratedPullRequestBody = ({
     .join("\n");
 };
 
+const getProjectPullRequestGenerationContext = async (
+  projectPath,
+  requestedBaseBranch,
+) => {
+  const repoInfo = await ensureProjectGitRepository(projectPath);
+  const headBranch = getGitActionBranchName(repoInfo.branch);
+  if (!headBranch) {
+    throw new Error("Cannot create a pull request from a detached HEAD.");
+  }
+
+  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, headBranch);
+  const baseBranch =
+    normalizeGitActionText(requestedBaseBranch) ||
+    metadata.baseBranch ||
+    "main";
+  const baseRef = await getPullRequestBaseRef(
+    repoInfo.repoRoot,
+    metadata.remoteName,
+    baseBranch,
+  );
+
+  return {
+    baseBranch,
+    baseRef,
+    headBranch,
+    repoRoot: repoInfo.repoRoot,
+  };
+};
+
+export const generateProjectPullRequestDetails = async (
+  projectPath,
+  {
+    baseBranch: requestedBaseBranch = "",
+    customInstructions = "",
+    includeUnstaged = true,
+    nextStep = "create",
+    provider = "openai",
+  } = {},
+) => {
+  const context = await getProjectPullRequestGenerationContext(
+    projectPath,
+    requestedBaseBranch,
+  );
+  const [existingCommitSubjects, diffStat] = await Promise.all([
+    readPullRequestCommitSubjects(context.repoRoot, context.baseRef),
+    readPullRequestDiffStat(context.repoRoot, context.baseRef),
+  ]);
+  const generatedCommitMessage =
+    nextStep === "commit-push-create"
+      ? await generateProjectGitCommitMessage(projectPath, {
+          customInstructions,
+          includeUnstaged,
+          provider,
+        })
+      : "";
+  const commitSubjects = generatedCommitMessage
+    ? [
+        generatedCommitMessage,
+        ...existingCommitSubjects.filter(
+          (subject) => subject !== generatedCommitMessage,
+        ),
+      ]
+    : existingCommitSubjects;
+
+  return {
+    baseBranch: context.baseBranch,
+    commitMessage: generatedCommitMessage || null,
+    description: buildGeneratedPullRequestBody({
+      branch: context.headBranch,
+      commitSubjects,
+      customInstructions,
+      diffStat,
+    }),
+    headBranch: context.headBranch,
+    title: buildGeneratedPullRequestTitle(context.headBranch, commitSubjects),
+  };
+};
+
 const parsePullRequestUrl = (output) => {
   const match = output.match(/https?:\/\/\S+/);
   return match?.[0] ?? null;
@@ -1032,45 +1109,27 @@ export const createProjectPullRequest = async (
     push = await pushProjectGitChanges(projectPath, { nextStep: "push" });
   }
 
-  const repoInfo = await ensureProjectGitRepository(projectPath);
-  const headBranch = getGitActionBranchName(repoInfo.branch);
-  if (!headBranch) {
-    throw new Error("Cannot create a pull request from a detached HEAD.");
-  }
-
-  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, headBranch);
-  const baseBranch =
-    normalizeGitActionText(requestedBaseBranch) ||
-    metadata.baseBranch ||
-    "main";
-  const baseRef = await getPullRequestBaseRef(
-    repoInfo.repoRoot,
-    metadata.remoteName,
-    baseBranch,
-  );
-  const [commitSubjects, diffStat] = await Promise.all([
-    readPullRequestCommitSubjects(repoInfo.repoRoot, baseRef),
-    readPullRequestDiffStat(repoInfo.repoRoot, baseRef),
-  ]);
-  const pullRequestTitle =
-    normalizeGitActionText(title) ||
-    buildGeneratedPullRequestTitle(headBranch, commitSubjects);
-  const pullRequestBody =
-    normalizeGitActionText(description) ||
-    buildGeneratedPullRequestBody({
-      branch: headBranch,
-      commitSubjects,
+  const generatedDetails = await generateProjectPullRequestDetails(
+    projectPath,
+    {
+      baseBranch: requestedBaseBranch,
       customInstructions,
-      diffStat,
-    });
+      includeUnstaged,
+      nextStep: "create",
+    },
+  );
+  const pullRequestTitle =
+    normalizeGitActionText(title) || generatedDetails.title;
+  const pullRequestBody =
+    normalizeGitActionText(description) || generatedDetails.description;
 
   const args = [
     "pr",
     "create",
     "--base",
-    baseBranch,
+    generatedDetails.baseBranch,
     "--head",
-    headBranch,
+    generatedDetails.headBranch,
     "--title",
     pullRequestTitle,
     "--body",
@@ -1085,10 +1144,10 @@ export const createProjectPullRequest = async (
   const output = `${createResult.stdout}\n${createResult.stderr}`.trim();
 
   return {
-    baseBranch,
+    baseBranch: generatedDetails.baseBranch,
     commit,
     draft,
-    headBranch,
+    headBranch: generatedDetails.headBranch,
     push,
     status: await listProjectGitChanges(projectPath),
     title: pullRequestTitle,

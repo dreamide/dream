@@ -108,3 +108,16 @@ export const projectGitCreatePullRequestSchema = z.object({
   projectPath: z.string().min(1),
   title: nullableTrimmedStringSchema,
 });
+
+export const projectGitPullRequestDetailsRequestSchema = z.object({
+  baseBranch: nullableTrimmedStringSchema,
+  customInstructions: nullableTrimmedStringSchema,
+  includeUnstaged: z.boolean().default(true),
+  nextStep: z
+    .enum(["create", "push-create", "commit-push-create"])
+    .default("create"),
+  projectPath: z.string().min(1),
+  provider: z
+    .enum(["openai", "anthropic", "opencode", "cursor"])
+    .default("openai"),
+});

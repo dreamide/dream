@@ -7,6 +7,7 @@ import {
   detectProjectIcon,
   ensureProjectDirectory,
   generateProjectGitCommitMessage,
+  generateProjectPullRequestDetails,
   getProjectGitDiff,
   getProjectGitPushPreview,
   listProjectFiles,
@@ -23,6 +24,7 @@ import {
   projectGitCreatePullRequestSchema,
   projectGitCreateWorktreeRequestSchema,
   projectGitDiffRequestSchema,
+  projectGitPullRequestDetailsRequestSchema,
   projectGitPushPreviewRequestSchema,
   projectGitPushRequestSchema,
   projectGitRemoveWorktreeRequestSchema,
@@ -419,6 +421,35 @@ export const registerProjectGitRoutes = (app) => {
         error instanceof Error
           ? error.message
           : "Unable to create a pull request.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-pull-request-details", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitPullRequestDetailsRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { projectPath, ...options } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(
+        await generateProjectPullRequestDetails(projectPath, options),
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to generate pull request details.";
       return c.text(message, 400);
     }
   });

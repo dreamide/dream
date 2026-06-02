@@ -33,8 +33,10 @@ export const NextStepSelector = <Value extends string>({
       return (
         <label
           className={cn(
-            "flex h-12 items-center gap-3 px-3 text-sm transition-colors",
-            index > 0 ? "border-t border-surface-200 dark:border-surface-800" : "",
+            "flex h-12 items-center gap-2 px-3 text-sm transition-colors",
+            index > 0
+              ? "border-t border-surface-200 dark:border-surface-800"
+              : "",
             option.disabled
               ? "cursor-not-allowed text-surface-400 dark:text-surface-600"
               : "cursor-pointer text-foreground hover:bg-surface-100 dark:hover:bg-surface-800",
@@ -50,7 +52,7 @@ export const NextStepSelector = <Value extends string>({
           />
           <span
             className={cn(
-              "flex size-6 shrink-0 items-center justify-center [&_svg]:size-4",
+              "flex size-4 shrink-0 items-center justify-center [&_svg]:size-4",
               option.disabled
                 ? "text-surface-400 dark:text-surface-600"
                 : "text-muted-foreground",

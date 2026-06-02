@@ -363,6 +363,23 @@ export interface ProjectGitCreatePrResponse {
   url: string | null;
 }
 
+export interface ProjectGitPullRequestDetailsRequest {
+  baseBranch?: string | null;
+  customInstructions?: string | null;
+  includeUnstaged: boolean;
+  nextStep: ProjectGitCreatePrNextStep;
+  projectPath: string;
+  provider: AiProvider;
+}
+
+export interface ProjectGitPullRequestDetailsResponse {
+  baseBranch: string;
+  commitMessage: string | null;
+  description: string;
+  headBranch: string;
+  title: string;
+}
+
 export interface StartTerminalPayload {
   projectId: string;
   cwd: string;

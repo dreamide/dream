@@ -87,6 +87,8 @@ const GitActionDialogHost = ({
       onOpenChange={onOpenChange}
       open
       projectPath={projectPath}
+      provider={provider}
+      refreshToken={refreshToken}
       status={status}
     />
   );
