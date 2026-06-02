@@ -1,5 +1,9 @@
 import { spawn } from "node:child_process";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
+import {
+  getProjectGitDiff,
+  listProjectGitChanges,
+} from "../project-git-service.js";
 import { readCodexChatGptAuthTokens } from "../providers/codex-auth.js";
 import {
   findRateLimitsObject,
@@ -26,6 +30,184 @@ import {
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
 
+const isRecord = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const getString = (value) => (typeof value === "string" ? value : null);
+
+const getFirstString = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const normalizePathForCompare = (value) =>
+  value.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+
+const getProjectRelativeFilePath = (projectPath, filePath) => {
+  if (!filePath) {
+    return null;
+  }
+
+  const normalizedFilePath = filePath.replace(/\\/g, "/");
+  const normalizedProjectPath = projectPath
+    .replace(/\\/g, "/")
+    .replace(/\/+$/g, "");
+  const filePathKey = normalizePathForCompare(normalizedFilePath);
+  const projectPathKey = normalizePathForCompare(normalizedProjectPath);
+  const projectPrefix = `${projectPathKey}/`;
+
+  if (filePathKey.startsWith(projectPrefix)) {
+    return normalizedFilePath.slice(normalizedProjectPath.length + 1);
+  }
+
+  return normalizedFilePath;
+};
+
+const getFileChangePath = (change) =>
+  getFirstString(
+    change?.path,
+    change?.filePath,
+    change?.file_path,
+    change?.filename,
+    change?.name,
+    change?.file?.path,
+    change?.file?.filePath,
+    change?.file?.filename,
+    change?.file?.name,
+  );
+
+const inferProjectGitStatus = (change) => {
+  const normalizedStatus = String(
+    change?.status ?? change?.kind ?? change?.type ?? "",
+  ).toLowerCase();
+
+  if (
+    normalizedStatus.includes("add") ||
+    normalizedStatus.includes("create") ||
+    normalizedStatus.includes("new") ||
+    normalizedStatus.includes("untracked")
+  ) {
+    return "untracked";
+  }
+  if (
+    normalizedStatus.includes("delete") ||
+    normalizedStatus.includes("remove")
+  ) {
+    return "deleted";
+  }
+  if (normalizedStatus.includes("rename")) {
+    return "renamed";
+  }
+  if (normalizedStatus.includes("copy")) {
+    return "copied";
+  }
+
+  return "modified";
+};
+
+const getMatchingGitChange = (gitChanges, projectPath, filePath) => {
+  const projectRelativePath = getProjectRelativeFilePath(projectPath, filePath);
+  if (!projectRelativePath) {
+    return null;
+  }
+
+  const targetKey = normalizePathForCompare(projectRelativePath);
+  return (
+    gitChanges.find(
+      (change) => normalizePathForCompare(change.path) === targetKey,
+    ) ?? null
+  );
+};
+
+const loadFileChangeDiff = async ({ change, gitChanges, projectPath }) => {
+  const filePath = getFileChangePath(change);
+  if (!filePath) {
+    return null;
+  }
+
+  const matchingChange = getMatchingGitChange(
+    gitChanges,
+    projectPath,
+    filePath,
+  );
+  const projectRelativePath = getProjectRelativeFilePath(projectPath, filePath);
+  const diffPath = matchingChange?.path ?? projectRelativePath ?? filePath;
+  const payload = await getProjectGitDiff(projectPath, diffPath, {
+    previousPath: matchingChange?.previousPath ?? null,
+    status: matchingChange?.status ?? inferProjectGitStatus(change),
+  });
+
+  if (!payload.diff.trim()) {
+    return null;
+  }
+
+  return {
+    diff: payload.diff,
+    filePath: payload.filePath,
+    previousPath: payload.previousPath,
+    status: payload.status,
+  };
+};
+
+const buildFileChangeOutput = async ({ item, projectPath }) => {
+  const changes = Array.isArray(item.changes) ? item.changes : [];
+  const output = {
+    changes,
+    diff: getString(item.diff) ?? getString(item.patch),
+    filePath:
+      getFirstString(item.filePath, item.path, item.file_path, item.file) ??
+      getFileChangePath(changes[0]) ??
+      null,
+    status: item.status ?? "completed",
+  };
+
+  if (output.diff?.trim()) {
+    return output;
+  }
+
+  try {
+    const gitStatus = await listProjectGitChanges(projectPath);
+    const enrichedChanges = await Promise.all(
+      changes.map(async (change) => {
+        if (!isRecord(change)) {
+          return change;
+        }
+
+        const diff = await loadFileChangeDiff({
+          change,
+          gitChanges: gitStatus.changes,
+          projectPath,
+        }).catch(() => null);
+
+        return diff
+          ? {
+              ...change,
+              diff: diff.diff,
+              previousPath: diff.previousPath,
+              status: diff.status,
+            }
+          : change;
+      }),
+    );
+    const diffs = enrichedChanges
+      .map((change) => (isRecord(change) ? getString(change.diff) : null))
+      .filter((diff) => diff?.trim());
+
+    return {
+      ...output,
+      changes: enrichedChanges,
+      diff: diffs.length > 0 ? diffs.join("\n\n") : output.diff,
+    };
+  } catch {
+    return output;
+  }
+};
+
 export const streamCodexAppServerResponse = ({
   abortSignal,
   codexPermissionMode,
@@ -51,6 +233,7 @@ export const streamCodexAppServerResponse = ({
         const commandOutputs = new Map();
         const startedTextParts = new Set();
         const startedToolCalls = new Set();
+        const pendingToolCompletions = new Set();
         let nextRequestId = 1;
         let stdoutBuffer = "";
         let stderrBuffer = "";
@@ -77,6 +260,23 @@ export const streamCodexAppServerResponse = ({
 
         const writeEvent = (event) => {
           writer.write(event);
+        };
+
+        const trackToolCompletion = (completion) => {
+          pendingToolCompletions.add(completion);
+          completion
+            .catch((error) => {
+              console.error("[codex app-server tool completion]", error);
+            })
+            .finally(() => {
+              pendingToolCompletions.delete(completion);
+            });
+        };
+
+        const waitForPendingToolCompletions = async () => {
+          while (pendingToolCompletions.size > 0) {
+            await Promise.allSettled([...pendingToolCompletions]);
+          }
         };
 
         const sendJson = (message) => {
@@ -182,7 +382,7 @@ export const streamCodexAppServerResponse = ({
           });
         };
 
-        const completeToolCall = (item) => {
+        const completeToolCall = async (item) => {
           if (!item?.id) {
             return;
           }
@@ -211,12 +411,14 @@ export const streamCodexAppServerResponse = ({
 
           if (item.type === "fileChange") {
             ensureFileToolStarted(item);
+            const output = await buildFileChangeOutput({ item, projectPath });
+            if (finished) {
+              return;
+            }
+
             writeEvent({
               dynamic: true,
-              output: {
-                changes: item.changes ?? [],
-                status: item.status ?? "completed",
-              },
+              output,
               providerExecuted: true,
               toolCallId: item.id,
               type: "tool-output-available",
@@ -444,7 +646,7 @@ export const streamCodexAppServerResponse = ({
               }
               endTextPart(item.id, "reasoning");
             } else {
-              completeToolCall(item);
+              trackToolCompletion(completeToolCall(item));
             }
             return;
           }
@@ -464,7 +666,10 @@ export const streamCodexAppServerResponse = ({
               return;
             }
 
-            finish(resolve);
+            void (async () => {
+              await waitForPendingToolCompletions();
+              finish(resolve);
+            })();
           }
         };
 

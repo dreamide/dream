@@ -112,15 +112,16 @@ const getEditDiffFromInput = (
 const getFirstChangeStringFromPaths = (
   value: unknown,
   paths: ReadonlyArray<readonly string[]>,
+  options?: { allowEmpty?: boolean },
 ): string | null => {
   if (!isRecord(value) || !Array.isArray(value.changes)) {
     return null;
   }
 
   for (const change of value.changes) {
-    const value = getStringFromPaths(change, paths);
+    const value = getStringFromPaths(change, paths, options);
 
-    if (value) {
+    if (value !== null && (options?.allowEmpty || value.length > 0)) {
       return value;
     }
   }
@@ -143,6 +144,40 @@ const getFirstChangePath = (value: unknown): string | null =>
 
 const getFirstChangeDiff = (value: unknown): string | null =>
   getFirstChangeStringFromPaths(value, [["diff"], ["patch"], ["file", "diff"]]);
+
+const getFirstChangeContent = (value: unknown): string | null =>
+  getFirstChangeStringFromPaths(
+    value,
+    [
+      ["content"],
+      ["contents"],
+      ["text"],
+      ["newContent"],
+      ["new_content"],
+      ["newText"],
+      ["new_text"],
+      ["file", "content"],
+      ["file", "text"],
+      ["file", "newContent"],
+    ],
+    { allowEmpty: true },
+  );
+
+const getFirstChangePreviousContent = (value: unknown): string | null =>
+  getFirstChangeStringFromPaths(
+    value,
+    [
+      ["previousContent"],
+      ["previous_content"],
+      ["oldContent"],
+      ["old_content"],
+      ["oldText"],
+      ["old_text"],
+      ["file", "previousContent"],
+      ["file", "oldContent"],
+    ],
+    { allowEmpty: true },
+  );
 
 const getFirstChangeStatus = (value: unknown): string | null =>
   getFirstChangeStringFromPaths(value, [
@@ -328,6 +363,8 @@ export const WriteFileChip = ({
       ],
       { allowEmpty: true },
     ) ??
+    getFirstChangeContent(part.input) ??
+    getFirstChangeContent(output) ??
     getStringFromPaths(
       output,
       [
@@ -339,12 +376,15 @@ export const WriteFileChip = ({
       ],
       { allowEmpty: true },
     );
-  const previousContent = getStringFromPaths(
-    output,
-    [["previousContent"], ["previous_content"], ["file", "previousContent"]],
-    { allowEmpty: true },
-  );
-  const savedDiff =
+  const previousContent =
+    getStringFromPaths(
+      output,
+      [["previousContent"], ["previous_content"], ["file", "previousContent"]],
+      { allowEmpty: true },
+    ) ??
+    getFirstChangePreviousContent(output) ??
+    getFirstChangePreviousContent(part.input);
+  const savedDiffCandidate =
     getStringFromPaths(
       output,
       [["diff"], ["patch"], ["changes", "diff"], ["file", "diff"]],
@@ -352,6 +392,10 @@ export const WriteFileChip = ({
     ) ??
     getFirstChangeDiff(part.input) ??
     getFirstChangeDiff(output);
+  const savedDiff =
+    savedDiffCandidate && savedDiffCandidate.trim().length > 0
+      ? savedDiffCandidate
+      : null;
   const changeStatus =
     getFirstChangeStatus(output) ?? getFirstChangeStatus(part.input);
   const mode =
@@ -377,10 +421,10 @@ export const WriteFileChip = ({
     (previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
       : getEditDiffFromInput(part.input, filePath));
+  const hasFetchedGitDiff =
+    Boolean(gitDiff) && gitDiff?.filePath === projectRelativeFilePath;
   const fetchedGitDiffCode =
-    gitDiff && gitDiff.filePath === projectRelativeFilePath
-      ? gitDiff.diff
-      : null;
+    hasFetchedGitDiff && gitDiff?.diff.trim() ? gitDiff.diff : null;
   const currentGitDiffError =
     gitDiffError && gitDiffError.filePath === projectRelativeFilePath
       ? gitDiffError.message
@@ -415,7 +459,7 @@ export const WriteFileChip = ({
     showFileDetails &&
     !isRunning &&
     !diffCode &&
-    !fetchedGitDiffCode &&
+    !hasFetchedGitDiff &&
     !currentGitDiffError &&
     Boolean(projectPath && projectRelativeFilePath);
 
