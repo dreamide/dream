@@ -12,11 +12,15 @@ import {
   useState,
 } from "react";
 import {
+  getMarkdownBlockAnimationTokenStartIndices,
   getMarkdownBlockStartOffsets,
+  getStreamingTailAnimationStartOffset,
+  STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
   STREAMING_TEXT_REVEAL_DURATION_MS,
   STREAMING_TEXT_REVEAL_SETTLE_MS,
   StreamingMarkdownBlock,
   StreamingMarkdownBlockContext,
+  type StreamingMarkdownBlockContextValue,
 } from "@/components/ide/assistant-message/streaming-message";
 import { Streamdown } from "streamdown";
 import {
@@ -239,40 +243,49 @@ export const ReasoningContent = memo(
     const hasTextUpdate = children !== previousChildren;
     const markdownAnimationStartOffset =
       hasTextUpdate && children.startsWith(previousChildren)
-        ? previousChildren.length
+        ? getStreamingTailAnimationStartOffset({
+            currentText: previousChildren,
+            maxAnimatedTokens: STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
+            nextText: children,
+          })
         : hasTextUpdate
           ? children.length
           : lastAnimationStartOffsetRef.current;
     const didJustStopStreaming = previousIsStreamingRef.current && !isStreaming;
     const animateStreamedText =
       hasStreamedRef.current &&
-      (isStreaming ||
-        hasTextUpdate ||
-        didJustStopStreaming ||
-        isSettlingAnimation);
+      (hasTextUpdate || didJustStopStreaming || isSettlingAnimation);
     const markdownBlockStartOffsets = useMemo(
       () => getMarkdownBlockStartOffsets(children),
       [children],
     );
-    const streamingMarkdownBlockContext = useMemo(
-      () => ({
-        animateStreamedText,
-        markdownAnimationStartOffset,
-        markdownBlockStartOffsets,
-      }),
-      [
-        animateStreamedText,
-        markdownAnimationStartOffset,
-        markdownBlockStartOffsets,
-      ],
+    const markdownBlockAnimationTokenStartIndices = useMemo(
+      () =>
+        getMarkdownBlockAnimationTokenStartIndices(
+          children,
+          markdownAnimationStartOffset,
+        ),
+      [children, markdownAnimationStartOffset],
     );
+    const streamingMarkdownBlockContext: StreamingMarkdownBlockContextValue = {
+      animateStreamedText,
+      markdownAnimationStartOffset,
+      markdownBlockAnimationTokenStartIndices,
+      markdownBlockStartOffsets,
+    };
 
     useEffect(() => {
       const previousText = previousChildrenRef.current;
 
-      if (children !== previousText) {
+      const hasNewText = children !== previousText;
+
+      if (hasNewText) {
         lastAnimationStartOffsetRef.current = children.startsWith(previousText)
-          ? previousText.length
+          ? getStreamingTailAnimationStartOffset({
+              currentText: previousText,
+              maxAnimatedTokens: STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
+              nextText: children,
+            })
           : children.length;
         previousChildrenRef.current = children;
       }
@@ -282,13 +295,13 @@ export const ReasoningContent = memo(
         animationTimeoutIdRef.current = null;
       }
 
-      if (previousIsStreamingRef.current && !isStreaming) {
+      if (hasNewText || (previousIsStreamingRef.current && !isStreaming)) {
         setIsSettlingAnimation(true);
         animationTimeoutIdRef.current = setTimeout(() => {
           animationTimeoutIdRef.current = null;
           setIsSettlingAnimation(false);
         }, STREAMING_TEXT_REVEAL_DURATION_MS + STREAMING_TEXT_REVEAL_SETTLE_MS);
-      } else if (isStreaming) {
+      } else if (!isStreaming) {
         setIsSettlingAnimation(false);
       }
 
@@ -320,7 +333,7 @@ export const ReasoningContent = memo(
         >
           <Streamdown
             BlockComponent={StreamingMarkdownBlock}
-            isAnimating={isStreaming}
+            isAnimating={animateStreamedText}
             plugins={streamdownPlugins}
           >
             {children}
