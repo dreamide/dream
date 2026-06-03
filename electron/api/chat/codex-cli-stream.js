@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import {
+  getProjectGitDiff,
+  listProjectGitChanges,
+} from "../project-git-service.js";
+import {
   findRateLimitsObject,
   storeProviderUsageLimitSnapshot,
 } from "../providers/usage-limits.js";
@@ -34,6 +38,188 @@ const CODEX_CLI_FILE_CHANGE_ITEM_TYPES = new Set([
 
 const isCodexCliFileChangeItem = (item) =>
   CODEX_CLI_FILE_CHANGE_ITEM_TYPES.has(item?.type);
+
+const isRecord = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const getString = (value) => (typeof value === "string" ? value : null);
+
+const getFirstString = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const normalizePathForCompare = (value) =>
+  value.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+
+const getProjectRelativeFilePath = (projectPath, filePath) => {
+  if (!filePath) {
+    return null;
+  }
+
+  const normalizedFilePath = filePath.replace(/\\/g, "/");
+  const normalizedProjectPath = projectPath
+    .replace(/\\/g, "/")
+    .replace(/\/+$/g, "");
+  const filePathKey = normalizePathForCompare(normalizedFilePath);
+  const projectPathKey = normalizePathForCompare(normalizedProjectPath);
+  const projectPrefix = `${projectPathKey}/`;
+
+  if (filePathKey.startsWith(projectPrefix)) {
+    return normalizedFilePath.slice(normalizedProjectPath.length + 1);
+  }
+
+  return normalizedFilePath;
+};
+
+const getFileChangePath = (change) =>
+  getFirstString(
+    change?.path,
+    change?.filePath,
+    change?.file_path,
+    change?.filename,
+    change?.name,
+    change?.file?.path,
+    change?.file?.filePath,
+    change?.file?.filename,
+    change?.file?.name,
+  );
+
+const inferProjectGitStatus = (change) => {
+  const normalizedStatus = String(
+    change?.status ?? change?.kind ?? change?.type ?? "",
+  ).toLowerCase();
+
+  if (
+    normalizedStatus.includes("add") ||
+    normalizedStatus.includes("create") ||
+    normalizedStatus.includes("new") ||
+    normalizedStatus.includes("untracked")
+  ) {
+    return "untracked";
+  }
+  if (
+    normalizedStatus.includes("delete") ||
+    normalizedStatus.includes("remove")
+  ) {
+    return "deleted";
+  }
+  if (normalizedStatus.includes("rename")) {
+    return "renamed";
+  }
+  if (normalizedStatus.includes("copy")) {
+    return "copied";
+  }
+
+  return "modified";
+};
+
+const getMatchingGitChange = (gitChanges, projectPath, filePath) => {
+  const projectRelativePath = getProjectRelativeFilePath(projectPath, filePath);
+  if (!projectRelativePath) {
+    return null;
+  }
+
+  const targetKey = normalizePathForCompare(projectRelativePath);
+  return (
+    gitChanges.find(
+      (change) => normalizePathForCompare(change.path) === targetKey,
+    ) ?? null
+  );
+};
+
+const loadFileChangeDiff = async ({ change, gitChanges, projectPath }) => {
+  const filePath = getFileChangePath(change);
+  if (!filePath) {
+    return null;
+  }
+
+  const matchingChange = getMatchingGitChange(
+    gitChanges,
+    projectPath,
+    filePath,
+  );
+  const projectRelativePath = getProjectRelativeFilePath(projectPath, filePath);
+  const diffPath = matchingChange?.path ?? projectRelativePath ?? filePath;
+  const payload = await getProjectGitDiff(projectPath, diffPath, {
+    previousPath: matchingChange?.previousPath ?? null,
+    status: matchingChange?.status ?? inferProjectGitStatus(change),
+  });
+
+  if (!payload.diff.trim()) {
+    return null;
+  }
+
+  return {
+    diff: payload.diff,
+    filePath: payload.filePath,
+    previousPath: payload.previousPath,
+    status: payload.status,
+  };
+};
+
+const buildFileChangeOutput = async ({ item, projectPath }) => {
+  const changes = Array.isArray(item.changes)
+    ? item.changes
+    : Array.isArray(item.files)
+      ? item.files
+      : [];
+  const output = {
+    changes,
+    diff: getString(item.diff) ?? getString(item.patch),
+    filePath:
+      getFirstString(item.filePath, item.path, item.file_path, item.file) ??
+      getFileChangePath(changes[0]) ??
+      null,
+    status: item.status ?? "completed",
+  };
+
+  if (output.diff?.trim()) {
+    return output;
+  }
+
+  try {
+    const gitStatus = await listProjectGitChanges(projectPath);
+    const enrichedChanges = await Promise.all(
+      changes.map(async (change) => {
+        if (!isRecord(change)) {
+          return change;
+        }
+
+        const diff = await loadFileChangeDiff({
+          change,
+          gitChanges: gitStatus.changes,
+          projectPath,
+        }).catch(() => null);
+
+        return diff
+          ? {
+              ...change,
+              diff: diff.diff,
+              previousPath: diff.previousPath,
+              status: diff.status,
+            }
+          : change;
+      }),
+    );
+    const diffs = enrichedChanges
+      .map((change) => (isRecord(change) ? getString(change.diff) : null))
+      .filter((diff) => diff?.trim());
+
+    return {
+      ...output,
+      changes: enrichedChanges,
+      diff: diffs.length > 0 ? diffs.join("\n\n") : output.diff,
+    };
+  } catch {
+    return output;
+  }
+};
 
 export const streamCodexCliResponse = ({
   abortSignal,
@@ -90,6 +276,7 @@ export const streamCodexCliResponse = ({
         let resumedRetryAttempted = false;
         let fullPrompt = "";
         let child;
+        const pendingOutputWrites = new Set();
 
         const finish = (callback) => {
           if (finished) return;
@@ -102,6 +289,17 @@ export const streamCodexCliResponse = ({
         const writeEvent = (event) => {
           hasStreamedOutput = true;
           writer.write(event);
+        };
+
+        const finishAfterPendingOutputWrites = (callback) => {
+          if (pendingOutputWrites.size === 0) {
+            finish(callback);
+            return;
+          }
+
+          void Promise.allSettled([...pendingOutputWrites]).finally(() => {
+            finish(callback);
+          });
         };
 
         writer.write({
@@ -298,22 +496,23 @@ export const streamCodexCliResponse = ({
 
           if (isCodexCliFileChangeItem(item)) {
             ensureFileToolStarted(item);
-            writeEvent({
-              type: "tool-output-available",
-              dynamic: true,
-              output: {
-                changes: item.changes ?? item.files ?? [],
-                diff: item.diff ?? item.patch ?? null,
-                filePath:
-                  item.filePath ??
-                  item.path ??
-                  item.file_path ??
-                  item.file ??
-                  null,
-                status: item.status ?? "completed",
-              },
-              toolCallId: item.id,
-            });
+            const outputWrite = buildFileChangeOutput({ item, projectPath })
+              .then((output) => {
+                if (finished) {
+                  return;
+                }
+
+                writeEvent({
+                  type: "tool-output-available",
+                  dynamic: true,
+                  output,
+                  toolCallId: item.id,
+                });
+              })
+              .finally(() => {
+                pendingOutputWrites.delete(outputWrite);
+              });
+            pendingOutputWrites.add(outputWrite);
             return;
           }
 
@@ -402,7 +601,7 @@ export const streamCodexCliResponse = ({
                 }
 
                 if (code === 0 || abortSignal?.aborted) {
-                  finish(resolve);
+                  finishAfterPendingOutputWrites(resolve);
                   return;
                 }
 
