@@ -128,6 +128,15 @@ const GitActionsMenuImpl = ({
     setProjectRightPanelOpen(projectId, true);
   }, [projectId, setProjectRightPanelOpen, setProjectRightPanelView]);
 
+  const handleMenuOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        bumpProjectGitRefreshKey(projectId);
+      }
+    },
+    [bumpProjectGitRefreshKey, projectId],
+  );
+
   const handleOpenDialog = useCallback(
     (dialog: GitActionDialog) => {
       if (dialog === "push" && !canPush) {
@@ -169,7 +178,7 @@ const GitActionsMenuImpl = ({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={handleMenuOpenChange}>
         <DropdownMenuTrigger
           render={
             <Button

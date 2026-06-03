@@ -14,6 +14,7 @@ const RIGHT_PANEL_SURFACE_CLASSES =
 export interface RightPanelViewsProps {
   active?: boolean;
   onClosePanel: () => void;
+  open: boolean;
   project: ProjectConfig;
   rightPanelView: RightPanelView;
 }
@@ -60,6 +61,9 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
           </RightPanelViewSlot>
           <RightPanelViewSlot active={rightPanelView === "changes"}>
             <ChangesPanel
+              active={
+                props.active && props.open && rightPanelView === "changes"
+              }
               onClosePanel={props.onClosePanel}
               projectId={props.project.id}
             />

@@ -18,6 +18,7 @@ import { useIdeStore } from "./ide-store";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 
 export interface ChangesPanelProps {
+  active?: boolean;
   onClosePanel: () => void;
   projectId?: string | null;
 }
@@ -34,6 +35,7 @@ const getExpandedPaths = (
 };
 
 const ChangesPanelImpl = ({
+  active = true,
   onClosePanel,
   projectId: requestedProjectId,
 }: ChangesPanelProps) => {
@@ -51,6 +53,8 @@ const ChangesPanelImpl = ({
   >({});
   const previousGitRefreshKeyByProjectRef = useRef<Record<string, number>>({});
   const queuedProjectIdRef = useRef<string | null>(null);
+  const wasActiveRef = useRef(false);
+  const activeProjectIdRef = useRef<string | null>(null);
 
   const [expandedPathsByProject, setExpandedPathsByProject] = useState<
     Record<string, string[]>
@@ -72,6 +76,9 @@ const ChangesPanelImpl = ({
   const projectPath = activeProject?.path ?? null;
   const gitRefreshKey = useIdeStore((s) =>
     projectId ? (s.projectGitRefreshKeys[projectId] ?? 0) : 0,
+  );
+  const bumpProjectGitRefreshKey = useIdeStore(
+    (s) => s.bumpProjectGitRefreshKey,
   );
   const {
     changes,
@@ -122,6 +129,19 @@ const ChangesPanelImpl = ({
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
   }, [projectId]);
+
+  useEffect(() => {
+    const shouldRefresh =
+      active &&
+      !!projectId &&
+      (!wasActiveRef.current || activeProjectIdRef.current !== projectId);
+    wasActiveRef.current = active;
+    activeProjectIdRef.current = projectId;
+
+    if (shouldRefresh) {
+      bumpProjectGitRefreshKey(projectId);
+    }
+  }, [active, bumpProjectGitRefreshKey, projectId]);
 
   useEffect(() => {
     void gitRefreshKey;
@@ -428,8 +448,8 @@ const ChangesPanelImpl = ({
     if (!projectId) {
       return;
     }
-    useIdeStore.getState().bumpProjectGitRefreshKey(projectId);
-  }, [projectId]);
+    bumpProjectGitRefreshKey(projectId);
+  }, [bumpProjectGitRefreshKey, projectId]);
 
   if (!activeProject) {
     return (
