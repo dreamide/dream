@@ -115,7 +115,11 @@ const ExpandedDiffBody = ({
   }
 
   if (!diff) {
-    return null;
+    return (
+      <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
+        <Spinner className="size-4" />
+      </div>
+    );
   }
 
   const showAddedFileContents =

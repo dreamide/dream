@@ -48,6 +48,9 @@ const ChangesPanelImpl = ({
   const diffLoadQueueRef = useRef<string[]>([]);
   const diffLoadQueuedPathsRef = useRef(new Set<string>());
   const diffLoadProcessingRef = useRef(false);
+  const projectDiffErrorsRef = useRef<Record<string, string>>({});
+  const projectDiffLoadingRef = useRef<Record<string, boolean>>({});
+  const projectDiffsRef = useRef<Record<string, ProjectGitDiffResponse>>({});
   const diffRefreshPendingByProjectRef = useRef<
     Record<string, { refreshKey: number; sawLoading: boolean }>
   >({});
@@ -129,6 +132,12 @@ const ChangesPanelImpl = ({
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
   }, [projectId]);
+
+  useEffect(() => {
+    projectDiffsRef.current = projectDiffs;
+    projectDiffErrorsRef.current = projectDiffErrors;
+    projectDiffLoadingRef.current = projectDiffLoading;
+  }, [projectDiffErrors, projectDiffLoading, projectDiffs]);
 
   useEffect(() => {
     const shouldRefresh =
@@ -226,6 +235,7 @@ const ChangesPanelImpl = ({
         ...current,
         [projectId]: {
           ...(current[projectId] ?? {}),
+          [nextFilePath]: payload,
           [payload.filePath]: payload,
         },
       }));
@@ -286,15 +296,19 @@ const ChangesPanelImpl = ({
       }
 
       if (
-        projectDiffs[filePath] ||
-        projectDiffErrors[filePath] ||
-        projectDiffLoading[filePath] ||
+        projectDiffsRef.current[filePath] ||
+        projectDiffErrorsRef.current[filePath] ||
+        projectDiffLoadingRef.current[filePath] ||
         diffLoadQueuedPathsRef.current.has(filePath)
       ) {
         return;
       }
 
       diffLoadQueuedPathsRef.current.add(filePath);
+      projectDiffLoadingRef.current = {
+        ...projectDiffLoadingRef.current,
+        [filePath]: true,
+      };
       if (priority) {
         diffLoadQueueRef.current.unshift(filePath);
       } else {
@@ -311,14 +325,7 @@ const ChangesPanelImpl = ({
 
       void processQueuedDiffLoads();
     },
-    [
-      processQueuedDiffLoads,
-      projectDiffErrors,
-      projectDiffLoading,
-      projectDiffs,
-      projectId,
-      projectPath,
-    ],
+    [processQueuedDiffLoads, projectId, projectPath],
   );
 
   useEffect(() => {
