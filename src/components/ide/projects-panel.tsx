@@ -2,6 +2,14 @@ import { Archive, FolderTree, FolderX, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -57,6 +65,9 @@ const readResponseText = async (response: Response) => {
   const text = await response.text();
   return text.trim() || `Request failed (${response.status}).`;
 };
+
+const isMissingWorktreeError = (message: string) =>
+  message.toLowerCase().includes("worktree was not found");
 
 const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
   const [worktrees, setWorktrees] = useState<ProjectGitWorktreeInfo[]>([]);
@@ -149,6 +160,8 @@ export const ProjectSidebar = ({
   const [removingWorktreePath, setRemovingWorktreePath] = useState<
     string | null
   >(null);
+  const [pendingRemoveWorktree, setPendingRemoveWorktree] =
+    useState<ProjectGitWorktreeInfo | null>(null);
   const [worktreeError, setWorktreeError] = useState<string | null>(null);
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
@@ -251,51 +264,58 @@ export const ProjectSidebar = ({
     [closeProject],
   );
 
-  const handleRemoveWorktree = useCallback(
-    async (worktree: ProjectGitWorktreeInfo) => {
-      const branchLabel = worktree.branch ?? worktree.path;
-      const confirmed = window.confirm(
-        `Remove worktree "${branchLabel}"?\n\nThis removes the worktree folder from disk. Git will refuse if it has uncommitted changes.`,
-      );
-      if (!confirmed) {
+  const handleRemoveWorktree = useCallback(async () => {
+    if (!pendingRemoveWorktree) {
+      return;
+    }
+
+    setRemovingWorktreePath(pendingRemoveWorktree.path);
+    setWorktreeError(null);
+    try {
+      const response = await fetch("/api/project-git-worktree-remove", {
+        body: JSON.stringify({
+          force: false,
+          projectPath: project.path,
+          worktreePath: pendingRemoveWorktree.path,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(await readResponseText(response));
+      }
+
+      purgeWorktreeProjectState(pendingRemoveWorktree.path);
+      bumpProjectGitRefreshKey(project.id);
+      setPendingRemoveWorktree(null);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to remove worktree.";
+      bumpProjectGitRefreshKey(project.id);
+      if (isMissingWorktreeError(message)) {
+        purgeWorktreeProjectState(pendingRemoveWorktree.path);
+        setPendingRemoveWorktree(null);
         return;
       }
 
-      setRemovingWorktreePath(worktree.path);
-      setWorktreeError(null);
-      try {
-        const response = await fetch("/api/project-git-worktree-remove", {
-          body: JSON.stringify({
-            force: false,
-            projectPath: project.path,
-            worktreePath: worktree.path,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-        if (!response.ok) {
-          throw new Error(await readResponseText(response));
-        }
-
-        purgeWorktreeProjectState(worktree.path);
-        bumpProjectGitRefreshKey(project.id);
-      } catch (error) {
-        setWorktreeError(
-          error instanceof Error ? error.message : "Unable to remove worktree.",
-        );
-      } finally {
-        setRemovingWorktreePath(null);
-      }
-    },
-    [
-      bumpProjectGitRefreshKey,
-      project.id,
-      project.path,
-      purgeWorktreeProjectState,
-    ],
-  );
+      setWorktreeError(message);
+    } finally {
+      setRemovingWorktreePath(null);
+    }
+  }, [
+    bumpProjectGitRefreshKey,
+    pendingRemoveWorktree,
+    project.id,
+    project.path,
+    purgeWorktreeProjectState,
+  ]);
 
   const activeProjectPathKey = normalizeProjectPathKey(project.path);
+  const pendingRemoveWorktreeLabel =
+    pendingRemoveWorktree?.branch ?? pendingRemoveWorktree?.path ?? "worktree";
+  const isRemovingPendingWorktree =
+    !!pendingRemoveWorktree &&
+    removingWorktreePath === pendingRemoveWorktree.path;
 
   return (
     <div
@@ -375,7 +395,8 @@ export const ProjectSidebar = ({
                         disabled={removing}
                         onClick={(event) => {
                           event.stopPropagation();
-                          void handleRemoveWorktree(worktree);
+                          setWorktreeError(null);
+                          setPendingRemoveWorktree(worktree);
                         }}
                         size="icon-sm"
                         title="Remove worktree"
@@ -490,6 +511,61 @@ export const ProjectSidebar = ({
           </section>
         </div>
       </ScrollArea>
+      <Dialog
+        onOpenChange={(open) => {
+          if (open || isRemovingPendingWorktree) {
+            return;
+          }
+
+          setPendingRemoveWorktree(null);
+        }}
+        open={!!pendingRemoveWorktree}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Remove Worktree</DialogTitle>
+            <DialogDescription>
+              Remove{" "}
+              <span className="break-all font-medium text-foreground">
+                {pendingRemoveWorktreeLabel}
+              </span>{" "}
+              from disk. Git will refuse if the worktree has uncommitted
+              changes.
+            </DialogDescription>
+          </DialogHeader>
+          {worktreeError ? (
+            <p className="min-w-0 whitespace-pre-wrap break-words rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-destructive text-sm">
+              {worktreeError}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              disabled={isRemovingPendingWorktree}
+              onClick={() => setPendingRemoveWorktree(null)}
+              type="button"
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isRemovingPendingWorktree}
+              onClick={() => {
+                void handleRemoveWorktree();
+              }}
+              variant="destructive"
+            >
+              {isRemovingPendingWorktree ? (
+                <>
+                  <Spinner className="size-4" />
+                  Removing
+                </>
+              ) : (
+                "Remove Worktree"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
