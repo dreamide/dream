@@ -263,6 +263,7 @@ export const streamClaudeResponse = async ({
         "WebFetch",
         "WebSearch",
         "NotebookEdit",
+        "ExitPlanMode",
       ],
       disallowedTools: ["ToolSearch"],
       permissionMode: CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
