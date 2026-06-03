@@ -11,6 +11,7 @@ import {
   fetchOpenAiLowCostModel,
   fetchOpenCodeLowCostModel,
 } from "../providers/provider-models.js";
+import { resolveCliCommandPath } from "../shared/cli.js";
 import {
   getCodexCliSpawnErrorMessage,
   resolveCodexCliLaunch,
@@ -214,8 +215,12 @@ const generateCodexChatTitle = ({ model, projectPath, promptText }) =>
 const generateClaudeChatTitle = async ({ model, projectPath, promptText }) => {
   const usesReasoningModel =
     getModelReasoningEfforts("anthropic", model).length > 0;
+  const claudeExecutablePath = await resolveCliCommandPath("claude");
   const result = await generateText({
     model: claudeCode(normalizeClaudeCodeModel(model), {
+      ...(claudeExecutablePath
+        ? { pathToClaudeCodeExecutable: claudeExecutablePath }
+        : {}),
       continue: false,
       cwd: projectPath,
       persistSession: false,

@@ -19,6 +19,7 @@ import {
   fetchOpenAiLowCostModel,
   fetchOpenCodeLowCostModel,
 } from "../providers/provider-models.js";
+import { resolveCliCommandPath } from "../shared/cli.js";
 import {
   getGitCommandErrorMessage,
   getGitRepositoryInfo,
@@ -183,8 +184,12 @@ const generateClaudeCommitMessage = async ({
   projectPath,
 }) => {
   const model = (await fetchAnthropicLowCostModel()) || "haiku";
+  const claudeExecutablePath = await resolveCliCommandPath("claude");
   const result = await generateText({
     model: claudeCode(normalizeClaudeCodeModel(model), {
+      ...(claudeExecutablePath
+        ? { pathToClaudeCodeExecutable: claudeExecutablePath }
+        : {}),
       continue: false,
       cwd: projectPath,
       persistSession: false,

@@ -10,9 +10,14 @@ const quotePowerShellString = (value) =>
   `'${String(value).replace(/'/g, "''")}'`;
 
 export const isCliCommandAvailable = async (commandName) => {
+  const commandPath = await resolveCliCommandPath(commandName);
+  return commandPath !== null;
+};
+
+export const resolveCliCommandPath = async (commandName) => {
   try {
     if (process.platform === "win32") {
-      await execFileAsync(
+      const result = await execFileAsync(
         "powershell.exe",
         [
           "-NoProfile",
@@ -24,16 +29,18 @@ export const isCliCommandAvailable = async (commandName) => {
           windowsHide: true,
         },
       );
-      return true;
+
+      return result.stdout.trim() || null;
     }
 
-    await execFileAsync("which", [commandName], {
+    const result = await execFileAsync("which", [commandName], {
       encoding: "utf8",
       windowsHide: true,
     });
-    return true;
+
+    return result.stdout.trim().split(/\r?\n/)[0] || null;
   } catch {
-    return false;
+    return null;
   }
 };
 

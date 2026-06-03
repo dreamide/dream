@@ -11,6 +11,7 @@ import {
   getModelReasoningEfforts,
   normalizeClaudeCodeModel,
 } from "../providers/model-options.js";
+import { resolveCliCommandPath } from "../shared/cli.js";
 import { waitForToolApproval } from "../tool-approvals.js";
 import { formatStreamError } from "./errors.js";
 import { createClaudeProjectTools } from "./project-tools.js";
@@ -221,8 +222,12 @@ export const streamClaudeResponse = async ({
   const usesReasoningModel =
     getModelReasoningEfforts("anthropic", model).length > 0;
   let usesClaudeImageInput = false;
+  const claudeExecutablePath = await resolveCliCommandPath("claude");
   const providerFactory = (modelId, writer) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
+      ...(claudeExecutablePath
+        ? { pathToClaudeCodeExecutable: claudeExecutablePath }
+        : {}),
       ...(claudePermissionMode === "ask-permissions"
         ? {
             canUseTool: createClaudeNativePermissionHandler(writer),
