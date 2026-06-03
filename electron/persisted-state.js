@@ -20,6 +20,8 @@ const DEFAULT_PERSISTED_STATE = {
     autoAcceptPermissions: false,
     cursorSelectedModels: [],
     defaultModel: "",
+    defaultModelSpeed: "standard",
+    defaultReasoningEffort: null,
     expandToolCalls: false,
     groupToolCalls: false,
     openAiSelectedModels: [],
@@ -521,6 +523,18 @@ function saveStateToRelationalDatabase(database, state) {
     );
     writeConfig(
       database,
+      "settings.defaultModelSpeed",
+      settings.defaultModelSpeed ?? "standard",
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.defaultReasoningEffort",
+      settings.defaultReasoningEffort ?? null,
+      now,
+    );
+    writeConfig(
+      database,
       "settings.openAiSelectedModels",
       Array.isArray(settings.openAiSelectedModels)
         ? settings.openAiSelectedModels
@@ -978,6 +992,14 @@ function loadStateFromRelationalDatabase(database) {
         typeof config["settings.defaultModel"] === "string"
           ? config["settings.defaultModel"]
           : "",
+      defaultModelSpeed:
+        typeof config["settings.defaultModelSpeed"] === "string"
+          ? config["settings.defaultModelSpeed"]
+          : "standard",
+      defaultReasoningEffort:
+        typeof config["settings.defaultReasoningEffort"] === "string"
+          ? config["settings.defaultReasoningEffort"]
+          : null,
       autoAcceptPermissions:
         typeof config["settings.autoAcceptPermissions"] === "boolean"
           ? config["settings.autoAcceptPermissions"]

@@ -29,6 +29,8 @@ const DEFAULT_PERSISTED_STATE = {
     connectedProviders: [],
     cursorSelectedModels: [],
     defaultAnthropicModel: "",
+    defaultModelSpeed: "standard",
+    defaultReasoningEffort: null,
     defaultOpenAiModel: "",
     expandToolCalls: false,
     groupToolCalls: false,
@@ -330,6 +332,14 @@ const loadRelationalPersistedState = (database) => {
         typeof config["settings.defaultModel"] === "string"
           ? config["settings.defaultModel"]
           : "",
+      defaultModelSpeed:
+        typeof config["settings.defaultModelSpeed"] === "string"
+          ? config["settings.defaultModelSpeed"]
+          : "standard",
+      defaultReasoningEffort:
+        typeof config["settings.defaultReasoningEffort"] === "string"
+          ? config["settings.defaultReasoningEffort"]
+          : null,
       openAiSelectedModels: Array.isArray(
         config["settings.openAiSelectedModels"],
       )
