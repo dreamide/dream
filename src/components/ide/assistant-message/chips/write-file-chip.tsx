@@ -601,6 +601,8 @@ export const WriteFileChip = ({
       : null;
   const displayDiffCode =
     diffCode ?? siblingCommandDiffCode ?? fetchedGitDiffCode;
+  const isFetchedGitDiffCode =
+    fetchedGitDiffCode !== null && displayDiffCode === fetchedGitDiffCode;
   const canExpand =
     !isApprovalRequested &&
     (hasError || displayDiffCode !== null || content !== null || hasOutput);
@@ -625,6 +627,7 @@ export const WriteFileChip = ({
     [displayDiffCode, isRunning],
   );
   const showAddedFileContents =
+    !isFetchedGitDiffCode &&
     !!parsedDiff &&
     parsedDiff.type === "new" &&
     parsedDiff.deletionLines.length === 0;
@@ -637,7 +640,6 @@ export const WriteFileChip = ({
   const writeDiffStats = getDiffStats(parsedDiff);
   const showFileDetails = expanded && !isApprovalRequested;
   const shouldLoadGitDiff =
-    showFileDetails &&
     !isRunning &&
     !diffCode &&
     !siblingCommandDiffCode &&

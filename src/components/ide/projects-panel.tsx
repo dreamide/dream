@@ -1,4 +1,4 @@
-import { Archive, FolderGit2, FolderX, Search } from "lucide-react";
+import { Archive, FolderTree, FolderX, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -325,7 +325,7 @@ export const ProjectSidebar = ({
           {worktrees.length > 0 || worktreesLoading ? (
             <section className="space-y-1">
               <div className="flex items-center gap-2 px-1 font-medium text-muted-foreground text-xs">
-                <FolderGit2 className="size-3.5" />
+                <FolderTree className="size-3.5" />
                 Worktrees
               </div>
               {worktrees.map((worktree) => {
@@ -355,7 +355,7 @@ export const ProjectSidebar = ({
                       type="button"
                     >
                       <div className="flex min-w-0 items-center gap-2 pr-9">
-                        <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
+                        <FolderTree className="size-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm leading-5">
                             {worktree.branch ?? "Detached worktree"}

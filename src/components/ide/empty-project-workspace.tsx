@@ -1,4 +1,4 @@
-import { Folder, FolderOpen, GitFork, History } from "lucide-react";
+import { Folder, FolderOpen, FolderTree, History } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import dreamSvg from "@/assets/dream.svg";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,7 @@ export const EmptyProjectWorkspace = () => {
                   >
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                       {isWorktree ? (
-                        <GitFork className="size-4" />
+                        <FolderTree className="size-4" />
                       ) : project.icon ? (
                         <ProjectTabIcon
                           icon={project.icon}

@@ -1,4 +1,4 @@
-import { FolderGit2 } from "lucide-react";
+import { FolderTree } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -174,7 +174,7 @@ export const ProjectBranchFooter = ({
               title={`Worktree ${project.worktree.branch}`}
               variant="ghost"
             >
-              <FolderGit2 className="size-3.5 shrink-0" />
+              <FolderTree className="size-3.5 shrink-0" />
               <span className="shrink-0">worktree</span>
               <span className="truncate text-foreground">
                 {project.worktree.branch}

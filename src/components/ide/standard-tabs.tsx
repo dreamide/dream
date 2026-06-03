@@ -562,6 +562,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                   )
                 }
                 role="tab"
+                title={item.label}
                 type="button"
               >
                 {item.leading}
