@@ -469,7 +469,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               zIndex: isDragging ? 10 : 0,
             };
             const tabClasses = cn(
-              "flex h-8 w-full select-none items-center gap-2 rounded-sm border px-3 text-sm opacity-100",
+              "flex h-8 w-full select-none items-center gap-2 rounded-sm border px-3 text-xs opacity-100",
               hasRightAdornment && "pr-8",
               isActive
                 ? "border-surface-300 dark:border-surface-700 dark:border-surface-800 bg-background dark:bg-muted text-foreground"
@@ -486,7 +486,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                 {item.leading}
                 <Input
                   autoFocus
-                  className="h-5 min-w-0 flex-1 border-0 bg-transparent px-0 py-0 text-sm leading-5 shadow-none focus-visible:ring-0"
+                  className="h-5 min-w-0 flex-1 border-0 bg-transparent px-0 py-0 text-xs leading-5 shadow-none focus-visible:ring-0"
                   onBlur={() => commitRename(item.id)}
                   onChange={(event) =>
                     setEditingLabel(event.currentTarget.value)

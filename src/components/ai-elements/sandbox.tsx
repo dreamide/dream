@@ -108,7 +108,7 @@ export const SandboxTabsTrigger = ({
 }: SandboxTabsTriggerProps) => (
   <TabsTrigger
     className={cn(
-      "rounded-none border-0 border-transparent border-b-2 px-4 py-2 font-medium text-muted-foreground text-sm transition-colors data-[active]:border-primary data-[active]:bg-transparent data-[active]:text-foreground data-[active]:shadow-none",
+      "rounded-none border-0 border-transparent border-b-2 px-4 py-2 font-medium text-muted-foreground text-xs transition-colors data-[active]:border-primary data-[active]:bg-transparent data-[active]:text-foreground data-[active]:shadow-none",
       className,
     )}
     {...props}
