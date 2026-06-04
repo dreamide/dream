@@ -169,6 +169,7 @@ const createClaudeNativePermissionHandler = (writer) => {
 
 const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
   "edit",
+  "exitplanmode",
   "glob",
   "grep",
   "ls",
