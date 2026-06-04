@@ -72,8 +72,12 @@ const ToolPartCard = ({
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isCompleted = state === "output-available" || state === "output-error";
   const approvalTitle =
-    getStringFromPaths(part.input, [["title"], ["permission", "title"]]) ??
-    `Allow ${formatToolName(toolName)}?`;
+    getStringFromPaths(part.input, [
+      ["title"],
+      ["displayName"],
+      ["permission", "title"],
+      ["permission", "displayName"],
+    ]) ?? `Allow ${formatToolName(toolName)}?`;
   const approvalDescription = getStringFromPaths(part.input, [
     ["description"],
     ["decisionReason"],

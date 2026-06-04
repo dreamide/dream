@@ -176,13 +176,16 @@ const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
   "read",
   "write",
 ]);
+const CLAUDE_ACCEPT_EDITS_PROMPT_TOOLS = new Set(["exitplanmode"]);
 
 const normalizeClaudeToolName = (toolName) =>
   String(toolName ?? "")
     .replace(/[\s_-]+/g, "")
     .toLowerCase();
 
-const createClaudeAcceptEditsPermissionHandler = () => {
+const createClaudeAcceptEditsPermissionHandler = (writer) => {
+  const promptForPermission = createClaudeNativePermissionHandler(writer);
+
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const toolUseID =
@@ -197,6 +200,10 @@ const createClaudeAcceptEditsPermissionHandler = () => {
         ...(toolUseID ? { toolUseID } : {}),
         updatedInput: input,
       };
+    }
+
+    if (CLAUDE_ACCEPT_EDITS_PROMPT_TOOLS.has(normalizedToolName)) {
+      return promptForPermission(toolName, input, options);
     }
 
     return {
@@ -231,7 +238,7 @@ export const streamClaudeResponse = async ({
         : {}),
       ...(claudePermissionMode === "accept-edits"
         ? {
-            canUseTool: createClaudeAcceptEditsPermissionHandler(),
+            canUseTool: createClaudeAcceptEditsPermissionHandler(writer),
             streamingInput: usesClaudeImageInput ? "always" : "auto",
           }
         : {}),
