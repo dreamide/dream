@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
@@ -6,6 +7,7 @@ import { app } from "electron";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const appRoot = path.resolve(__dirname, "..");
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
@@ -32,7 +34,8 @@ const DEFAULT_PERSISTED_STATE = {
   chatSort: "recent",
 };
 const RELATIONAL_SCHEMA_VERSION = 2;
-const SQLITE_STATE_FILENAME = "dream.sqlite";
+const STATE_DB_FILENAME = "dream.db";
+const STATE_DB_PATH_ENV_VAR = "DREAM_DB_PATH";
 const DRIZZLE_MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
 let stateDatabase = null;
 
@@ -68,6 +71,19 @@ function normalizeProjectPathKey(projectPath) {
     /^[a-zA-Z]:\//.test(normalized) || trimmed.includes("\\");
 
   return isWindowsPath ? normalized.toLowerCase() : normalized;
+}
+
+function resolveStateDatabasePath() {
+  const configuredPath = process.env[STATE_DB_PATH_ENV_VAR]?.trim();
+  if (configuredPath) {
+    if (path.isAbsolute(configuredPath)) {
+      return path.resolve(configuredPath);
+    }
+
+    return path.resolve(appRoot, configuredPath);
+  }
+
+  return path.join(app.getPath("userData"), STATE_DB_FILENAME);
 }
 
 function getProjectName(projectPath) {
@@ -1165,10 +1181,8 @@ function getStateDatabase() {
     return stateDatabase;
   }
 
-  const databasePath = path.join(
-    app.getPath("userData"),
-    SQLITE_STATE_FILENAME,
-  );
+  const databasePath = resolveStateDatabasePath();
+  mkdirSync(path.dirname(databasePath), { recursive: true });
   const database = new DatabaseSync(databasePath);
   const legacyState = loadLegacyAppState(database);
   database.exec(`

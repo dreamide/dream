@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 
+import "../electron/load-env.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const appRoot = path.resolve(__dirname, "..");
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
@@ -44,7 +50,8 @@ const DEFAULT_PERSISTED_STATE = {
 };
 
 const PERSISTED_STATE_KEY = "ide-state";
-const SQLITE_STATE_FILENAME = "dream.sqlite";
+const STATE_DB_FILENAME = "dream.db";
+const STATE_DB_PATH_ENV_VAR = "DREAM_DB_PATH";
 const LEGACY_STORE_FILENAME = "dream-settings.json";
 
 const cloneDefaultPersistedState = () =>
@@ -449,7 +456,7 @@ const resolveUserDataDir = (preferredUserDataDir) => {
   const candidates = getUserDataCandidates();
   const existingCandidate = candidates.find((candidate) => {
     return (
-      existsSync(path.join(candidate, SQLITE_STATE_FILENAME)) ||
+      existsSync(path.join(candidate, STATE_DB_FILENAME)) ||
       existsSync(path.join(candidate, LEGACY_STORE_FILENAME))
     );
   });
@@ -457,6 +464,19 @@ const resolveUserDataDir = (preferredUserDataDir) => {
   return (
     existingCandidate ?? candidates.at(-1) ?? path.join(os.homedir(), ".dream")
   );
+};
+
+const resolveStateDatabasePath = (userDataDir) => {
+  const configuredPath = process.env[STATE_DB_PATH_ENV_VAR]?.trim();
+  if (configuredPath) {
+    if (path.isAbsolute(configuredPath)) {
+      return path.resolve(configuredPath);
+    }
+
+    return path.resolve(appRoot, configuredPath);
+  }
+
+  return path.join(userDataDir, STATE_DB_FILENAME);
 };
 
 const readJsonLines = (filePath) => {
@@ -575,7 +595,7 @@ const createImportedMessage = (sessionId, role, index, text) => {
 };
 
 const loadPersistedState = (userDataDir) => {
-  const databasePath = path.join(userDataDir, SQLITE_STATE_FILENAME);
+  const databasePath = resolveStateDatabasePath(userDataDir);
   if (existsSync(databasePath)) {
     const database = new DatabaseSync(databasePath);
     database.exec(`
@@ -625,8 +645,8 @@ const loadPersistedState = (userDataDir) => {
 };
 
 const savePersistedState = (userDataDir, state) => {
-  mkdirSync(userDataDir, { recursive: true });
-  const databasePath = path.join(userDataDir, SQLITE_STATE_FILENAME);
+  const databasePath = resolveStateDatabasePath(userDataDir);
+  mkdirSync(path.dirname(databasePath), { recursive: true });
   const database = new DatabaseSync(databasePath);
   database.exec(`
     PRAGMA journal_mode = WAL;
