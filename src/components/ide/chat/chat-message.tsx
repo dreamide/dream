@@ -13,6 +13,7 @@ import { AssistantMessagePart } from "../assistant-message-part";
 import { isChipToolPart } from "../assistant-message-tools";
 import { UserMessageContent } from "./message-content";
 import { MessageHoverFooter } from "./message-footer";
+import { isTodoListPart } from "./todo-list";
 import {
   getMessagePartKey,
   type ToolApprovalResponder,
@@ -56,6 +57,7 @@ type ToolChipItem = {
 type ToolChipRenderContext = {
   addToolApprovalResponse: ToolApprovalResponder;
   expandToolCalls: boolean;
+  messageParts: UIMessage["parts"];
   messageId: string;
   projectPath: string;
 };
@@ -139,6 +141,7 @@ export const ChatMessage = memo(
               const toolChipContext: ToolChipRenderContext = {
                 addToolApprovalResponse,
                 expandToolCalls,
+                messageParts: nonSourceParts,
                 messageId: message.id,
                 projectPath,
               };
@@ -169,6 +172,7 @@ export const ChatMessage = memo(
                 part: (typeof nonSourceParts)[number],
                 partIndex: number,
               ) => {
+                if (isTodoListPart(part)) return true;
                 if (part.type === "step-start") return true;
                 if (
                   part.type === "reasoning" &&

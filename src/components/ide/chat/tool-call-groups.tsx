@@ -54,6 +54,7 @@ type ToolChipItem = {
 type ToolChipRenderContext = {
   addToolApprovalResponse: ToolApprovalResponder;
   expandToolCalls: boolean;
+  messageParts: UIMessage["parts"];
   messageId: string;
   projectPath: string;
 };
@@ -135,6 +136,7 @@ const renderToolChip = (
   {
     addToolApprovalResponse,
     expandToolCalls,
+    messageParts,
     messageId,
     projectPath,
   }: ToolChipRenderContext,
@@ -187,8 +189,10 @@ const renderToolChip = (
       <WriteFileChip
         defaultExpanded={expandToolCalls}
         key={key}
+        messageParts={messageParts}
         onToolApproval={addToolApprovalResponse}
         part={chipPart}
+        partIndex={index}
         projectPath={projectPath}
       />
     );

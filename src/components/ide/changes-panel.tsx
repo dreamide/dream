@@ -18,6 +18,7 @@ import { useIdeStore } from "./ide-store";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 
 export interface ChangesPanelProps {
+  active?: boolean;
   onClosePanel: () => void;
   projectId?: string | null;
 }
@@ -34,6 +35,7 @@ const getExpandedPaths = (
 };
 
 const ChangesPanelImpl = ({
+  active = true,
   onClosePanel,
   projectId: requestedProjectId,
 }: ChangesPanelProps) => {
@@ -46,11 +48,16 @@ const ChangesPanelImpl = ({
   const diffLoadQueueRef = useRef<string[]>([]);
   const diffLoadQueuedPathsRef = useRef(new Set<string>());
   const diffLoadProcessingRef = useRef(false);
+  const projectDiffErrorsRef = useRef<Record<string, string>>({});
+  const projectDiffLoadingRef = useRef<Record<string, boolean>>({});
+  const projectDiffsRef = useRef<Record<string, ProjectGitDiffResponse>>({});
   const diffRefreshPendingByProjectRef = useRef<
     Record<string, { refreshKey: number; sawLoading: boolean }>
   >({});
   const previousGitRefreshKeyByProjectRef = useRef<Record<string, number>>({});
   const queuedProjectIdRef = useRef<string | null>(null);
+  const wasActiveRef = useRef(false);
+  const activeProjectIdRef = useRef<string | null>(null);
 
   const [expandedPathsByProject, setExpandedPathsByProject] = useState<
     Record<string, string[]>
@@ -73,12 +80,17 @@ const ChangesPanelImpl = ({
   const gitRefreshKey = useIdeStore((s) =>
     projectId ? (s.projectGitRefreshKeys[projectId] ?? 0) : 0,
   );
+  const bumpProjectGitRefreshKey = useIdeStore(
+    (s) => s.bumpProjectGitRefreshKey,
+  );
   const {
     changes,
     error: statusError,
     isRepo,
     loading: statusLoading,
+    status: gitStatus,
   } = useProjectGitStatus(projectPath, gitRefreshKey);
+  const hasStaleGitStatus = statusLoading && gitStatus !== null;
 
   const expandedPaths = getExpandedPaths(expandedPathsByProject, projectId);
   const expandedPathSet = useMemo(
@@ -124,6 +136,25 @@ const ChangesPanelImpl = ({
   }, [projectId]);
 
   useEffect(() => {
+    projectDiffsRef.current = projectDiffs;
+    projectDiffErrorsRef.current = projectDiffErrors;
+    projectDiffLoadingRef.current = projectDiffLoading;
+  }, [projectDiffErrors, projectDiffLoading, projectDiffs]);
+
+  useEffect(() => {
+    const shouldRefresh =
+      active &&
+      !!projectId &&
+      (!wasActiveRef.current || activeProjectIdRef.current !== projectId);
+    wasActiveRef.current = active;
+    activeProjectIdRef.current = projectId;
+
+    if (shouldRefresh) {
+      bumpProjectGitRefreshKey(projectId);
+    }
+  }, [active, bumpProjectGitRefreshKey, projectId]);
+
+  useEffect(() => {
     void gitRefreshKey;
     if (!projectId) {
       return;
@@ -145,14 +176,6 @@ const ChangesPanelImpl = ({
     diffLoadQueueRef.current = [];
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
-    setDiffsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffErrorsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
     setDiffLoadingByProject((current) => ({
       ...current,
       [projectId]: {},
@@ -206,6 +229,7 @@ const ChangesPanelImpl = ({
         ...current,
         [projectId]: {
           ...(current[projectId] ?? {}),
+          [nextFilePath]: payload,
           [payload.filePath]: payload,
         },
       }));
@@ -260,21 +284,26 @@ const ChangesPanelImpl = ({
   }, [changesByPath, projectId, projectPath]);
 
   const queueDiffLoad = useCallback(
-    (filePath: string, priority = false) => {
+    (filePath: string, priority = false, force = false) => {
       if (!projectId || !projectPath) {
         return;
       }
 
       if (
-        projectDiffs[filePath] ||
-        projectDiffErrors[filePath] ||
-        projectDiffLoading[filePath] ||
+        (!force &&
+          (projectDiffsRef.current[filePath] ||
+            projectDiffErrorsRef.current[filePath])) ||
+        projectDiffLoadingRef.current[filePath] ||
         diffLoadQueuedPathsRef.current.has(filePath)
       ) {
         return;
       }
 
       diffLoadQueuedPathsRef.current.add(filePath);
+      projectDiffLoadingRef.current = {
+        ...projectDiffLoadingRef.current,
+        [filePath]: true,
+      };
       if (priority) {
         diffLoadQueueRef.current.unshift(filePath);
       } else {
@@ -291,14 +320,7 @@ const ChangesPanelImpl = ({
 
       void processQueuedDiffLoads();
     },
-    [
-      processQueuedDiffLoads,
-      projectDiffErrors,
-      projectDiffLoading,
-      projectDiffs,
-      projectId,
-      projectPath,
-    ],
+    [processQueuedDiffLoads, projectId, projectPath],
   );
 
   useEffect(() => {
@@ -307,6 +329,7 @@ const ChangesPanelImpl = ({
     }
 
     const pending = diffRefreshPendingByProjectRef.current[projectId];
+    let forceDiffRefresh = false;
     if (pending?.refreshKey === gitRefreshKey) {
       if (statusLoading) {
         pending.sawLoading = true;
@@ -317,6 +340,7 @@ const ChangesPanelImpl = ({
         return;
       }
 
+      forceDiffRefresh = true;
       delete diffRefreshPendingByProjectRef.current[projectId];
     }
 
@@ -326,7 +350,7 @@ const ChangesPanelImpl = ({
 
     for (const filePath of expandedPaths) {
       if (changesByPath.has(filePath)) {
-        queueDiffLoad(filePath);
+        queueDiffLoad(filePath, false, forceDiffRefresh);
       }
     }
   }, [
@@ -428,8 +452,8 @@ const ChangesPanelImpl = ({
     if (!projectId) {
       return;
     }
-    useIdeStore.getState().bumpProjectGitRefreshKey(projectId);
-  }, [projectId]);
+    bumpProjectGitRefreshKey(projectId);
+  }, [bumpProjectGitRefreshKey, projectId]);
 
   if (!activeProject) {
     return (
@@ -517,11 +541,14 @@ const ChangesPanelImpl = ({
           </div>
         ) : null}
 
-        {!statusError && !statusLoading && !isRepo ? (
+        {!statusError && (!statusLoading || hasStaleGitStatus) && !isRepo ? (
           <AppShellPlaceholder message="This project is not inside a Git repository." />
         ) : null}
 
-        {!statusError && statusLoading && changes.length === 0 ? (
+        {!statusError &&
+        statusLoading &&
+        !hasStaleGitStatus &&
+        changes.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Spinner className="size-4" />
@@ -529,7 +556,10 @@ const ChangesPanelImpl = ({
           </div>
         ) : null}
 
-        {!statusError && !statusLoading && isRepo && changes.length === 0 ? (
+        {!statusError &&
+        (!statusLoading || hasStaleGitStatus) &&
+        isRepo &&
+        changes.length === 0 ? (
           <AppShellPlaceholder message="Working tree is clean." />
         ) : null}
 

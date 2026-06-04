@@ -17,6 +17,10 @@ export const formatStreamError = (error) => {
     details.push(msg);
   }
 
+  if (typeof error.stderr === "string" && error.stderr.trim().length > 0) {
+    details.push(error.stderr.trim());
+  }
+
   const errData = error.data?.error ?? error.data;
   if (errData && typeof errData === "object") {
     const errType = errData.type ?? errData.code;

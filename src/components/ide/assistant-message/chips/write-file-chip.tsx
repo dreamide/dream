@@ -17,7 +17,11 @@ import type {
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
 } from "@/types/ide";
-import type { ToolLikePart } from "../../assistant-message-tools";
+import {
+  getChipToolKind,
+  type MessagePart,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import { IdeDiffViewer } from "../../diff-viewer";
 import { normalizeProjectPathKey } from "../../ide-state";
 import { useIdeStore } from "../../ide-store";
@@ -112,15 +116,16 @@ const getEditDiffFromInput = (
 const getFirstChangeStringFromPaths = (
   value: unknown,
   paths: ReadonlyArray<readonly string[]>,
+  options?: { allowEmpty?: boolean },
 ): string | null => {
   if (!isRecord(value) || !Array.isArray(value.changes)) {
     return null;
   }
 
   for (const change of value.changes) {
-    const value = getStringFromPaths(change, paths);
+    const value = getStringFromPaths(change, paths, options);
 
-    if (value) {
+    if (value !== null && (options?.allowEmpty || value.length > 0)) {
       return value;
     }
   }
@@ -135,6 +140,8 @@ const getFirstChangePath = (value: unknown): string | null =>
     ["file_path"],
     ["filename"],
     ["name"],
+    ["title"],
+    ["file", "file"],
     ["file", "path"],
     ["file", "filePath"],
     ["file", "filename"],
@@ -142,7 +149,46 @@ const getFirstChangePath = (value: unknown): string | null =>
   ]);
 
 const getFirstChangeDiff = (value: unknown): string | null =>
-  getFirstChangeStringFromPaths(value, [["diff"], ["patch"], ["file", "diff"]]);
+  getFirstChangeStringFromPaths(value, [
+    ["diff"],
+    ["patch"],
+    ["file", "diff"],
+    ["file", "patch"],
+  ]);
+
+const getFirstChangeContent = (value: unknown): string | null =>
+  getFirstChangeStringFromPaths(
+    value,
+    [
+      ["content"],
+      ["contents"],
+      ["text"],
+      ["newContent"],
+      ["new_content"],
+      ["newText"],
+      ["new_text"],
+      ["file", "content"],
+      ["file", "text"],
+      ["file", "newContent"],
+    ],
+    { allowEmpty: true },
+  );
+
+const getFirstChangePreviousContent = (value: unknown): string | null =>
+  getFirstChangeStringFromPaths(
+    value,
+    [
+      ["previousContent"],
+      ["previous_content"],
+      ["oldContent"],
+      ["old_content"],
+      ["oldText"],
+      ["old_text"],
+      ["file", "previousContent"],
+      ["file", "oldContent"],
+    ],
+    { allowEmpty: true },
+  );
 
 const getFirstChangeStatus = (value: unknown): string | null =>
   getFirstChangeStringFromPaths(value, [
@@ -181,6 +227,136 @@ const getProjectRelativeFilePath = (
   }
 
   return normalizedFilePath;
+};
+
+const getPathBasename = (filePath: string): string | null => {
+  const basename = filePath.split(/[\\/]/).pop();
+  return basename && basename.length > 0 ? basename : null;
+};
+
+const getDiffPathTargets = (
+  filePath: string | null,
+  projectRelativeFilePath: string | null,
+) => {
+  const targets = new Set<string>();
+
+  for (const value of [projectRelativeFilePath, filePath]) {
+    if (!value) {
+      continue;
+    }
+
+    const normalized = normalizePathForCompare(value);
+    if (normalized.length === 0) {
+      continue;
+    }
+
+    targets.add(normalized);
+
+    const basename = getPathBasename(value);
+    if (basename && !normalized.includes("/")) {
+      targets.add(normalizePathForCompare(basename));
+    }
+  }
+
+  return [...targets];
+};
+
+const getDiffChunks = (outputText: string): string[] => {
+  const markerPattern = /^diff --git |^Index: /gm;
+  const markers = [...outputText.matchAll(markerPattern)];
+
+  if (markers.length === 0) {
+    return [];
+  }
+
+  return markers
+    .map((marker, index) => {
+      const start = marker.index ?? 0;
+      const end =
+        index + 1 < markers.length
+          ? (markers[index + 1].index ?? 0)
+          : undefined;
+      return outputText.slice(start, end).trim();
+    })
+    .filter((chunk) => chunk.length > 0);
+};
+
+const commandOutputContainsDiffForFile = (
+  outputText: string,
+  filePath: string | null,
+  projectRelativeFilePath: string | null,
+): string | null => {
+  const targets = getDiffPathTargets(filePath, projectRelativeFilePath);
+  if (targets.length === 0) {
+    return null;
+  }
+
+  for (const chunk of getDiffChunks(outputText)) {
+    const normalizedChunk = normalizePathForCompare(chunk);
+    if (targets.some((target) => normalizedChunk.includes(target))) {
+      return chunk;
+    }
+  }
+
+  return null;
+};
+
+const getToolOutputText = (part: MessagePart): string | null => {
+  if (!isRecord(part)) {
+    return null;
+  }
+
+  const output = (part as ToolLikePart).output;
+  if (isString(output)) {
+    return output;
+  }
+
+  return getStringFromPaths(
+    output,
+    [["output"], ["text"], ["content"], ["stdout"]],
+    { allowEmpty: true },
+  );
+};
+
+const findSiblingCommandDiff = ({
+  filePath,
+  messageParts,
+  partIndex,
+  projectRelativeFilePath,
+}: {
+  filePath: string | null;
+  messageParts?: MessagePart[];
+  partIndex?: number;
+  projectRelativeFilePath: string | null;
+}): string | null => {
+  if (!messageParts || partIndex === undefined) {
+    return null;
+  }
+
+  const followingParts = messageParts.slice(partIndex + 1);
+  const precedingParts = messageParts.slice(0, partIndex).reverse();
+
+  for (const part of [...followingParts, ...precedingParts]) {
+    if (getChipToolKind(part) !== "command") {
+      continue;
+    }
+
+    const outputText = getToolOutputText(part);
+    if (!outputText) {
+      continue;
+    }
+
+    const diff = commandOutputContainsDiffForFile(
+      outputText,
+      filePath,
+      projectRelativeFilePath,
+    );
+    if (diff) {
+      return diff;
+    }
+  }
+
+  return null;
 };
 
 const inferProjectGitStatus = (
@@ -248,12 +424,16 @@ const WRITE_CHIP_HEADER_CLASSES = cn(
 
 export const WriteFileChip = ({
   defaultExpanded = false,
+  messageParts,
   part,
+  partIndex,
   projectPath,
   onToolApproval,
 }: {
   defaultExpanded?: boolean;
+  messageParts?: MessagePart[];
   part: ToolLikePart;
+  partIndex?: number;
   projectPath?: string | null;
   onToolApproval?: ToolApprovalHandler;
 }) => {
@@ -282,6 +462,8 @@ export const WriteFileChip = ({
       ["file_path"],
       ["filename"],
       ["name"],
+      ["title"],
+      ["file", "file"],
       ["file", "path"],
       ["file", "filePath"],
       ["file", "filename"],
@@ -293,7 +475,9 @@ export const WriteFileChip = ({
       ["file_path"],
       ["filename"],
       ["name"],
+      ["title"],
       ["file"],
+      ["file", "file"],
       ["file", "path"],
       ["file", "filePath"],
       ["file", "filename"],
@@ -311,9 +495,17 @@ export const WriteFileChip = ({
     getStringFromPaths(part.input, [
       ["filename"],
       ["name"],
+      ["title"],
+      ["file", "file"],
       ["file", "name"],
     ]) ??
-    getStringFromPaths(output, [["filename"], ["name"], ["file", "name"]]) ??
+    getStringFromPaths(output, [
+      ["filename"],
+      ["name"],
+      ["title"],
+      ["file", "file"],
+      ["file", "name"],
+    ]) ??
     "file";
   const headerFilePath = projectRelativeFilePath ?? filePath ?? filename;
   const content =
@@ -328,6 +520,8 @@ export const WriteFileChip = ({
       ],
       { allowEmpty: true },
     ) ??
+    getFirstChangeContent(part.input) ??
+    getFirstChangeContent(output) ??
     getStringFromPaths(
       output,
       [
@@ -339,19 +533,32 @@ export const WriteFileChip = ({
       ],
       { allowEmpty: true },
     );
-  const previousContent = getStringFromPaths(
-    output,
-    [["previousContent"], ["previous_content"], ["file", "previousContent"]],
-    { allowEmpty: true },
-  );
-  const savedDiff =
+  const previousContent =
     getStringFromPaths(
       output,
-      [["diff"], ["patch"], ["changes", "diff"], ["file", "diff"]],
+      [["previousContent"], ["previous_content"], ["file", "previousContent"]],
+      { allowEmpty: true },
+    ) ??
+    getFirstChangePreviousContent(output) ??
+    getFirstChangePreviousContent(part.input);
+  const savedDiffCandidate =
+    getStringFromPaths(
+      output,
+      [
+        ["diff"],
+        ["patch"],
+        ["changes", "diff"],
+        ["file", "diff"],
+        ["file", "patch"],
+      ],
       { allowEmpty: true },
     ) ??
     getFirstChangeDiff(part.input) ??
     getFirstChangeDiff(output);
+  const savedDiff =
+    savedDiffCandidate && savedDiffCandidate.trim().length > 0
+      ? savedDiffCandidate
+      : null;
   const changeStatus =
     getFirstChangeStatus(output) ?? getFirstChangeStatus(part.input);
   const mode =
@@ -364,9 +571,6 @@ export const WriteFileChip = ({
   const hasOutput = output !== undefined;
   const outputMessage = formatWriteOutputMessage(output);
   const approvalId = part.approval?.id;
-  const canExpand =
-    !isApprovalRequested &&
-    (hasError || savedDiff !== null || content !== null || hasOutput);
   const previewLanguage = inferLanguage(filePath ?? filename);
   const normalizedContent =
     content !== null ? normalizeEmbeddedLineNumbers(content) : null;
@@ -377,15 +581,31 @@ export const WriteFileChip = ({
     (previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
       : getEditDiffFromInput(part.input, filePath));
+  const siblingCommandDiffCode = useMemo(
+    () =>
+      findSiblingCommandDiff({
+        filePath,
+        messageParts,
+        partIndex,
+        projectRelativeFilePath,
+      }),
+    [filePath, messageParts, partIndex, projectRelativeFilePath],
+  );
+  const hasFetchedGitDiff =
+    Boolean(gitDiff) && gitDiff?.filePath === projectRelativeFilePath;
   const fetchedGitDiffCode =
-    gitDiff && gitDiff.filePath === projectRelativeFilePath
-      ? gitDiff.diff
-      : null;
+    hasFetchedGitDiff && gitDiff?.diff.trim() ? gitDiff.diff : null;
   const currentGitDiffError =
     gitDiffError && gitDiffError.filePath === projectRelativeFilePath
       ? gitDiffError.message
       : null;
-  const displayDiffCode = diffCode ?? fetchedGitDiffCode;
+  const displayDiffCode =
+    diffCode ?? siblingCommandDiffCode ?? fetchedGitDiffCode;
+  const isFetchedGitDiffCode =
+    fetchedGitDiffCode !== null && displayDiffCode === fetchedGitDiffCode;
+  const canExpand =
+    !isApprovalRequested &&
+    (hasError || displayDiffCode !== null || content !== null || hasOutput);
   const displayFilename =
     filename === "file" && isRunning ? "Writing" : filename;
   const projectId = useMemo(() => {
@@ -406,16 +626,24 @@ export const WriteFileChip = ({
       !isRunning && displayDiffCode ? parseSingleDiff(displayDiffCode) : null,
     [displayDiffCode, isRunning],
   );
+  const showAddedFileContents =
+    !isFetchedGitDiffCode &&
+    !!parsedDiff &&
+    parsedDiff.type === "new" &&
+    parsedDiff.deletionLines.length === 0;
+  const addedFileContents = showAddedFileContents
+    ? parsedDiff.additionLines.join("")
+    : null;
   const writeFileStateLabel =
     getWriteFileStateLabel(parsedDiff, mode, previousContent) ??
     getChangeStateLabel(changeStatus);
   const writeDiffStats = getDiffStats(parsedDiff);
   const showFileDetails = expanded && !isApprovalRequested;
   const shouldLoadGitDiff =
-    showFileDetails &&
     !isRunning &&
     !diffCode &&
-    !fetchedGitDiffCode &&
+    !siblingCommandDiffCode &&
+    !hasFetchedGitDiff &&
     !currentGitDiffError &&
     Boolean(projectPath && projectRelativeFilePath);
 
@@ -569,12 +797,10 @@ export const WriteFileChip = ({
         >
           {showFileDetails && writeDiffStats ? (
             <span className="flex shrink-0 items-center gap-1 font-medium text-xs">
-              <span className="text-emerald-600 dark:text-emerald-400">
+              <span className="text-emerald-500">
                 +{writeDiffStats.additions}
               </span>
-              <span className="text-destructive dark:text-destructive-muted">
-                -{writeDiffStats.deletions}
-              </span>
+              <span className="text-rose-500">-{writeDiffStats.deletions}</span>
             </span>
           ) : null}
           <ApprovalStatusLabel approval={part.approval} state={state} />
@@ -610,7 +836,46 @@ export const WriteFileChip = ({
           {/* Content preview */}
           {displayDiffCode !== null && filePath ? (
             <div>
-              {parsedDiff ? (
+              {showAddedFileContents && addedFileContents !== null ? (
+                <CodeBlock
+                  className={WRITE_CHIP_PREVIEW_CLASSES}
+                  code={addedFileContents}
+                  language={previewLanguage}
+                  showLineNumbers
+                  startingLineNumber={1}
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className={WRITE_CHIP_HEADER_CLASSES}>
+                    <CodeBlockTitle className="min-w-0 flex-1 overflow-hidden">
+                      <MaterialFileIcon
+                        className="size-3.5"
+                        path={headerFilePath}
+                      />
+                      <CodeBlockFilename
+                        className="block min-w-0 flex-1 truncate"
+                        title={headerFilePath}
+                      >
+                        {headerFilePath}
+                      </CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions className="shrink-0">
+                      <Button
+                        aria-label={`Open ${filename} in Files`}
+                        className="shrink-0"
+                        disabled={!canOpenFile}
+                        onClick={handleOpenFile}
+                        size="icon-xs"
+                        title="Open in Files"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <ExternalLinkIcon className="size-3.5" />
+                      </Button>
+                      <CodeBlockCopyButton />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              ) : parsedDiff ? (
                 <div className="max-h-96 overflow-auto rounded-md border bg-background text-xs">
                   <CodeBlockHeader className={WRITE_CHIP_HEADER_CLASSES}>
                     <CodeBlockTitle className="min-w-0 flex-1 overflow-hidden">

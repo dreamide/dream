@@ -96,7 +96,7 @@ const ExpandedDiffBody = ({
   diffLoading: boolean;
   mode: DiffViewMode;
 }) => {
-  if (diffLoading) {
+  if (diffLoading && !diff) {
     return (
       <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
         <Spinner className="size-4" />
@@ -115,7 +115,11 @@ const ExpandedDiffBody = ({
   }
 
   if (!diff) {
-    return null;
+    return (
+      <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
+        <Spinner className="size-4" />
+      </div>
+    );
   }
 
   const showAddedFileContents =

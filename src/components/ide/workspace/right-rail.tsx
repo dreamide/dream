@@ -1,13 +1,12 @@
 import { Code, Files, Globe, TerminalSquare } from "lucide-react";
 import { memo } from "react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import type { RightPanelView } from "@/types/ide";
 import { GitActionsMenu } from "../git-actions-menu";
-import { ToggleButton } from "../ide-helpers";
+import { WorkspaceNavButton } from "./nav-button";
 
 export interface WorkspaceRightRailProps {
   browserHiddenWithActiveTab: boolean;
+  changesAvailable: boolean;
   onOpenTerminal: () => void;
   onSelectRightPanelView: (view: RightPanelView) => void;
   projectId: string;
@@ -19,6 +18,7 @@ export interface WorkspaceRightRailProps {
 
 const WorkspaceRightRailImpl = ({
   browserHiddenWithActiveTab,
+  changesAvailable,
   onOpenTerminal,
   onSelectRightPanelView,
   projectId,
@@ -28,45 +28,38 @@ const WorkspaceRightRailImpl = ({
   terminalHiddenWithActiveSession,
 }: WorkspaceRightRailProps) => (
   <aside className="relative z-20 flex w-12 shrink-0 flex-col items-center gap-1 py-2">
-    <ToggleButton
+    <WorkspaceNavButton
       active={rightVisible && rightPanelView === "changes"}
+      accent={changesAvailable}
       onClick={() => onSelectRightPanelView("changes")}
       title="Changes"
     >
       <Code className="size-4" />
-    </ToggleButton>
-    <ToggleButton
+    </WorkspaceNavButton>
+    <WorkspaceNavButton
       active={rightVisible && rightPanelView === "explorer"}
       onClick={() => onSelectRightPanelView("explorer")}
       title="Files"
     >
       <Files className="size-4" />
-    </ToggleButton>
-    <ToggleButton
+    </WorkspaceNavButton>
+    <WorkspaceNavButton
       active={rightVisible && rightPanelView === "browser"}
-      highlighted={browserHiddenWithActiveTab}
+      accent={browserHiddenWithActiveTab}
       onClick={() => onSelectRightPanelView("browser")}
       title="Browser"
     >
       <Globe className="size-4" />
-    </ToggleButton>
-    <Button
+    </WorkspaceNavButton>
+    <WorkspaceNavButton
       aria-label="Terminal"
-      className={cn(
-        "size-8",
-        rightVisible && rightPanelView === "terminal"
-          ? "text-foreground hover:text-foreground"
-          : terminalHiddenWithActiveSession
-            ? "text-success-highlight hover:text-success-highlight-hover"
-            : "text-muted-foreground hover:text-foreground",
-      )}
+      active={rightVisible && rightPanelView === "terminal"}
+      accent={terminalHiddenWithActiveSession}
       onClick={onOpenTerminal}
-      size="icon"
       title="Terminal"
-      variant="ghost"
     >
       <TerminalSquare className="size-4" />
-    </Button>
+    </WorkspaceNavButton>
     <GitActionsMenu projectId={projectId} projectPath={projectPath} />
   </aside>
 );

@@ -28,9 +28,12 @@ contextBridge.exposeInMainWorld("dream", {
 
   loadState: () => ipcRenderer.invoke("state:load"),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
+  getThemePreferences: () => ipcRenderer.invoke("theme:get-preferences"),
   setThemePreference: (theme) => ipcRenderer.invoke("theme:set", { theme }),
   setBaseColor: (baseColor) =>
     ipcRenderer.invoke("theme:set-base-color", { baseColor }),
+  setAccentColor: (accentColor) =>
+    ipcRenderer.invoke("theme:set-accent-color", { accentColor }),
 
   getDefaultTerminalShell: () =>
     ipcRenderer.invoke("terminal:get-default-shell"),

@@ -164,7 +164,6 @@ export const RunCommandChip = ({
                 >
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <TerminalIcon size={14} />
                       <CodeBlockFilename>Command</CodeBlockFilename>
                       {exitCode !== null ? (
                         <Badge
@@ -191,7 +190,6 @@ export const RunCommandChip = ({
                 >
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <TerminalIcon size={14} />
                       <CodeBlockFilename>Output</CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>

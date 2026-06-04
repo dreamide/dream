@@ -62,7 +62,6 @@ const getCommitMessageCacheKey = ({
   includeUnstaged,
   projectPath,
   provider,
-  refreshToken,
 }: CommitMessageCacheParams) =>
   JSON.stringify({
     changes: changes
@@ -79,7 +78,6 @@ const getCommitMessageCacheKey = ({
     includeUnstaged,
     projectPath,
     provider,
-    refreshToken,
     version: COMMIT_MESSAGE_CACHE_VERSION,
   });
 

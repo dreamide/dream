@@ -57,6 +57,7 @@ import {
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
+import { getLatestChatTodoSummary } from "./chat/todo-list";
 import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   getCommitChanges,
@@ -80,17 +81,19 @@ const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
 const CHAT_CONVERSATION_FADE_HEIGHT_PX = 24;
 const CHAT_CONVERSATION_FADE_HORIZONTAL_INSET =
   "max(0px, calc((100% - 700px) / 2))";
+const CHAT_CONVERSATION_FADE_RIGHT_INSET =
+  "max(12px, calc((100% - 700px) / 2))";
 const CHAT_CONVERSATION_TOP_FADE_STYLE: CSSProperties = {
   background: `linear-gradient(to bottom, ${WORKSPACE_VIEWPORT_BACKGROUND} 0%, transparent 100%)`,
   height: CHAT_CONVERSATION_FADE_HEIGHT_PX,
   left: CHAT_CONVERSATION_FADE_HORIZONTAL_INSET,
-  right: CHAT_CONVERSATION_FADE_HORIZONTAL_INSET,
+  right: CHAT_CONVERSATION_FADE_RIGHT_INSET,
 };
 const CHAT_CONVERSATION_BOTTOM_FADE_STYLE: CSSProperties = {
   background: `linear-gradient(to top, ${WORKSPACE_VIEWPORT_BACKGROUND} 0%, transparent 100%)`,
   height: CHAT_CONVERSATION_FADE_HEIGHT_PX,
   left: CHAT_CONVERSATION_FADE_HORIZONTAL_INSET,
-  right: CHAT_CONVERSATION_FADE_HORIZONTAL_INSET,
+  right: CHAT_CONVERSATION_FADE_RIGHT_INSET,
 };
 
 const addOptionalTokens = (
@@ -251,6 +254,7 @@ export const ChatPanel = ({
         settings,
         providerModels[provider].models,
       ).map((model) => ({
+        contextWindow: model.contextWindow,
         id: model.id,
         label: model.label,
         provider,
@@ -589,7 +593,8 @@ export const ChatPanel = ({
   const selectedReasoningLabelForMetadata =
     selectedReasoningEffort !== null ? selectedReasoningLabel : undefined;
 
-  const contextWindow = getModelContextWindow(selectedModel);
+  const contextWindow =
+    selectedModelOption?.contextWindow ?? getModelContextWindow(selectedModel);
   const fallbackEstimatedTokens = useMemo(() => {
     let total = 0;
     for (const message of messages) {
@@ -617,6 +622,10 @@ export const ChatPanel = ({
   const contextUsedTokens =
     (contextUsage ? getUsageTotalTokens(contextUsage) : undefined) ??
     fallbackEstimatedTokens;
+  const todoSummary = useMemo(
+    () => getLatestChatTodoSummary(messages),
+    [messages],
+  );
 
   const modelId =
     selectedProvider === "anthropic"
@@ -1051,6 +1060,7 @@ export const ChatPanel = ({
           selectedReasoningEffort={selectedReasoningEffortForControl}
           selectedReasoningLabel={selectedReasoningLabel}
           status={status}
+          todoSummary={todoSummary}
         />
 
         <ProjectBranchFooter project={project} />

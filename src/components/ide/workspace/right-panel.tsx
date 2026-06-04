@@ -57,6 +57,7 @@ const WorkspaceRightPanelImpl = ({
     <RightPanelViews
       active={active}
       onClosePanel={onCloseRightPanel}
+      open={open}
       project={project}
       rightPanelView={rightPanelView}
     />

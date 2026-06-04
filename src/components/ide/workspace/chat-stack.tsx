@@ -22,7 +22,7 @@ import {
 } from "./constants";
 
 const CHAT_DRAG_THRESHOLD = 4;
-const CHAT_DRAG_FLIP_DURATION_MS = 180;
+const CHAT_REPOSITION_ANIMATION_SUPPRESSION_MS = 420;
 const CHAT_CLOSE_ANIMATION_DURATION_MS = 180;
 const CHAT_RESIZE_DRAG_THRESHOLD_PX = 2;
 const CHAT_SPLITTER_WIDTH_PX = 8;
@@ -304,7 +304,7 @@ const WorkspaceChatStackImpl = ({
     settlingCleanupTimeoutRef.current = window.setTimeout(() => {
       setSettlingChatIds([]);
       settlingCleanupTimeoutRef.current = null;
-    }, CHAT_DRAG_FLIP_DURATION_MS);
+    }, CHAT_REPOSITION_ANIMATION_SUPPRESSION_MS);
   }, [settlingChatIds.length]);
 
   useLayoutEffect(() => {
@@ -565,7 +565,11 @@ const WorkspaceChatStackImpl = ({
       }
 
       const target = event.target;
-      if (target instanceof Element && target.closest("button")) {
+      if (
+        target instanceof Element &&
+        target.closest("button") &&
+        !target.closest("[data-chat-header-drag-handle=true]")
+      ) {
         return;
       }
 
@@ -746,6 +750,9 @@ const WorkspaceChatStackImpl = ({
   return (
     <div
       className="min-h-0 flex-1 overflow-x-auto"
+      data-chat-stack-repositioning={
+        dragChat?.moved || settlingChatIds.length > 0 ? "true" : undefined
+      }
       ref={containerRef}
       style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
     >

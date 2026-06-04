@@ -105,6 +105,7 @@ export const ChatPanelHeader = ({
             ) : titleText ? (
               <button
                 className="block h-6 min-w-0 flex-1 truncate border-b border-transparent p-0 text-left font-medium text-sm leading-5"
+                data-chat-header-drag-handle="true"
                 onDoubleClick={(event) => {
                   if (!onRenameChat) {
                     return;
@@ -115,7 +116,6 @@ export const ChatPanelHeader = ({
                   setDraftTitle(title);
                   setEditingTitle(true);
                 }}
-                onPointerDown={(event) => event.stopPropagation()}
                 title="Double-click to rename"
                 type="button"
               >

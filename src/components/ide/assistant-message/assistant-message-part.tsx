@@ -1,76 +1,128 @@
+import { MapIcon, WrenchIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { BundledLanguage } from "shiki";
+import {
+  CodeBlock,
+  CodeBlockActions,
+  CodeBlockCopyButton,
+  CodeBlockFilename,
+  CodeBlockHeader,
+  CodeBlockTitle,
+} from "@/components/ai-elements/code-block";
 import {
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
 import type { ToolPart } from "@/components/ai-elements/tool";
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolInput,
-} from "@/components/ai-elements/tool";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   getToolName,
   isToolLikePart,
   type MessagePart,
+  normalizeToolName,
   type ToolLikePart,
 } from "../assistant-message-tools";
+import { isTodoListPart } from "../chat/todo-list";
 import { stringifyPart } from "../ide-state";
 import {
   ActionApproval,
+  CHIP_ERROR_SUBTEXT_CLASSES,
+  CHIP_SUBTEXT_CLASSES,
+  ChipButton,
   formatToolName,
+  getExpandedChipClasses,
   getStringFromPaths,
   isRecord,
   isString,
-  JsonBlock,
+  RUN_COMMAND_HEADER_CLASSES,
   StreamingMessageResponse,
+  TOOL_STATE_LABELS,
   type ToolApprovalHandler,
 } from "./shared";
 
-const renderToolOutput = (part: ToolLikePart) => {
+const getGenericToolOutputCode = (part: ToolLikePart) => {
   const hasError = isString(part.errorText) && part.errorText.length > 0;
 
   if (hasError) {
-    return (
-      <div className="space-y-2">
-        <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-          Error
-        </h4>
-        <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
-          {part.errorText}
-        </pre>
-      </div>
-    );
+    return {
+      code: part.errorText ?? "",
+      label: "Error",
+      language: "log" as BundledLanguage,
+    };
   }
 
   if (part.output === undefined) {
     return null;
   }
 
-  const outputContent = <JsonBlock value={part.output} />;
+  return {
+    code: isString(part.output) ? part.output : stringifyPart(part.output),
+    label: "Result",
+    language: isString(part.output)
+      ? ("log" as BundledLanguage)
+      : ("json" as BundledLanguage),
+  };
+};
 
+const GenericToolCodeSection = ({
+  code,
+  label,
+  language,
+  maxHeightClassName,
+}: {
+  code: string;
+  label: string;
+  language: BundledLanguage;
+  maxHeightClassName: string;
+}) => {
   return (
-    <div className="space-y-2">
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        Result
-      </h4>
-      {outputContent}
-    </div>
+    <CodeBlock
+      className={cn(
+        maxHeightClassName,
+        "flex flex-col rounded-none border-0 [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1 [&_pre]:text-xs",
+      )}
+      code={code}
+      language={language}
+      style={{ contentVisibility: "visible" }}
+    >
+      <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
+        <CodeBlockTitle>
+          <CodeBlockFilename>{label}</CodeBlockFilename>
+        </CodeBlockTitle>
+        <CodeBlockActions>
+          <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
+        </CodeBlockActions>
+      </CodeBlockHeader>
+    </CodeBlock>
   );
 };
 
-const ToolPartCard = ({
+const GenericToolChip = ({
   onToolApproval,
   part,
 }: {
   onToolApproval?: ToolApprovalHandler;
   part: ToolLikePart;
 }) => {
+  const [expanded, setExpanded] = useState(false);
   const toolName = getToolName(part);
+  const isEnterPlanMode = normalizeToolName(toolName) === "enter-plan-mode";
+  const ToolIcon = isEnterPlanMode ? MapIcon : WrenchIcon;
+  const tone = isEnterPlanMode ? "cyan" : "slate";
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
+  const isRunning = state === "input-available" || state === "input-streaming";
   const isCompleted = state === "output-available" || state === "output-error";
+  const hasError = isString(part.errorText) && part.errorText.length > 0;
+  const hasParameters = isRecord(part.input);
+  const parametersCode = hasParameters
+    ? JSON.stringify(part.input, null, 2)
+    : null;
+  const outputCode = getGenericToolOutputCode(part);
+  const hasOutput = part.output !== undefined || hasError;
+  const canExpand =
+    hasParameters || hasOutput || state === "approval-requested";
   const approvalTitle =
     getStringFromPaths(part.input, [
       ["title"],
@@ -85,44 +137,96 @@ const ToolPartCard = ({
     ["permission", "description"],
   ]);
 
-  const toolHeaderProps =
-    part.type === "dynamic-tool"
-      ? {
-          type: "dynamic-tool" as const,
-          state,
-          toolName: isString(part.toolName) ? part.toolName : toolName,
-        }
-      : {
-          type: part.type as `tool-${string}`,
-          state,
-        };
+  useEffect(() => {
+    if (isCompleted) {
+      setExpanded(true);
+    }
+  }, [isCompleted]);
 
   return (
-    <Tool defaultOpen={isCompleted}>
-      <ToolHeader title={formatToolName(toolName)} {...toolHeaderProps} />
-      <ToolContent>
-        {part.approval?.id && part.approval && onToolApproval ? (
-          <ActionApproval
-            approval={part.approval}
-            onToolApproval={onToolApproval}
-            state={state}
-          >
-            <span className="space-y-1 text-sm">
-              <span className="block">{approvalTitle}</span>
-              {approvalDescription ? (
-                <span className="block text-muted-foreground text-xs">
-                  {approvalDescription}
-                </span>
+    <div
+      className={
+        expanded || state === "approval-requested" ? "w-full" : undefined
+      }
+    >
+      <div className="flex items-center gap-2">
+        <ChipButton
+          aria-label={formatToolName(toolName)}
+          className={cn(
+            canExpand && "cursor-pointer",
+            isRunning && "animate-pulse",
+          )}
+          hasError={hasError}
+          onClick={() => canExpand && setExpanded(!expanded)}
+          tone={tone}
+          type="button"
+        >
+          <ToolIcon className="size-3.5 shrink-0" />
+          {!isRunning ? (
+            <>
+              <span className="max-w-56 truncate font-medium">
+                {formatToolName(toolName)}
+              </span>
+              <span className={CHIP_SUBTEXT_CLASSES}>
+                {TOOL_STATE_LABELS[state]}
+              </span>
+              {hasError ? (
+                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
               ) : null}
-            </span>
-          </ActionApproval>
-        ) : null}
-        {isRecord(part.input) ? (
-          <ToolInput input={part.input as ToolPart["input"]} />
-        ) : null}
-        {renderToolOutput(part)}
-      </ToolContent>
-    </Tool>
+            </>
+          ) : null}
+        </ChipButton>
+      </div>
+
+      {part.approval?.id && part.approval && onToolApproval ? (
+        <ActionApproval
+          approval={part.approval}
+          className="mt-2"
+          onToolApproval={onToolApproval}
+          state={state}
+        >
+          <span className="space-y-1 text-sm">
+            <span className="block">{approvalTitle}</span>
+            {approvalDescription ? (
+              <span className="block text-muted-foreground text-xs">
+                {approvalDescription}
+              </span>
+            ) : null}
+          </span>
+        </ActionApproval>
+      ) : null}
+
+      {expanded ? (
+        <div
+          className={getExpandedChipClasses(tone, hasError)}
+          style={{ borderColor: "currentColor" }}
+        >
+          {parametersCode !== null || outputCode !== null ? (
+            <div className="overflow-hidden rounded-md border bg-background">
+              {parametersCode !== null ? (
+                <GenericToolCodeSection
+                  code={parametersCode}
+                  label="Parameters"
+                  language="json"
+                  maxHeightClassName="max-h-64"
+                />
+              ) : null}
+              {parametersCode !== null && outputCode !== null ? (
+                <div className="border-t" />
+              ) : null}
+              {outputCode !== null ? (
+                <GenericToolCodeSection
+                  code={outputCode.code}
+                  label={outputCode.label}
+                  language={outputCode.language}
+                  maxHeightClassName="max-h-96"
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 };
 
@@ -139,6 +243,10 @@ export const AssistantMessagePart = ({
   projectPath: string;
   showReasoningSummaries?: boolean;
 }) => {
+  if (isTodoListPart(part)) {
+    return null;
+  }
+
   if (part.type === "text") {
     return (
       <StreamingMessageResponse
@@ -187,7 +295,7 @@ export const AssistantMessagePart = ({
   }
 
   if (isToolLikePart(part)) {
-    return <ToolPartCard onToolApproval={onToolApproval} part={part} />;
+    return <GenericToolChip onToolApproval={onToolApproval} part={part} />;
   }
 
   return (

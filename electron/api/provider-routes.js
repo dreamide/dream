@@ -110,11 +110,7 @@ export const registerProviderRoutes = (app) => {
     }
 
     if (parsed.data.provider === "opencode") {
-      return c.json(
-        await fetchOpenCodeUsageStats({
-          projectPath: parsed.data.projectPath,
-        }),
-      );
+      return c.json(await fetchOpenCodeUsageStats());
     }
 
     const result =

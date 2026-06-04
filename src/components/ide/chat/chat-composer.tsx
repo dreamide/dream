@@ -56,9 +56,12 @@ import type {
 import { PromptAttachments } from "../chat";
 import { AGENT_MODE_OPTIONS } from "../ide-types";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
+import type { ChatTodoSummary } from "./todo-list";
+import { TodoListPopover } from "./todo-list-popover";
 import { UsageLimitsPopover } from "./usage-limits-popover";
 
 export interface ChatPanelModelOption {
+  contextWindow?: number;
   id: string;
   label: string;
   provider: AiProvider;
@@ -505,6 +508,7 @@ export interface ChatComposerProps {
   selectedReasoningEffort: ReasoningEffort;
   selectedReasoningLabel: string;
   status: ChatStatus;
+  todoSummary: ChatTodoSummary;
 }
 
 export const ChatComposer = ({
@@ -541,6 +545,7 @@ export const ChatComposer = ({
   selectedReasoningEffort,
   selectedReasoningLabel,
   status,
+  todoSummary,
 }: ChatComposerProps) => {
   const AgentModeIcon = getAgentModeIcon(agentMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -891,10 +896,11 @@ export const ChatComposer = ({
                       <PromptInputActionAddAttachments />
                     </PromptInputActionMenuContent>
                   </PromptInputActionMenu>
+                  <TodoListPopover summary={todoSummary} />
                 </PromptInputTools>
                 <div className="ml-auto flex items-center gap-2">
                   <PromptInputSubmit
-                    className="size-8 rounded-md"
+                    className="size-8 rounded-md bg-surface-900 text-surface-50 hover:bg-surface-800 dark:bg-surface-200 dark:text-surface-900 dark:hover:bg-surface-300"
                     disabled={
                       !isActive ||
                       (!isProcessing &&
@@ -1062,10 +1068,7 @@ export const ChatComposer = ({
               ) : null}
 
               <div className="ml-auto flex items-center gap-1">
-                <UsageLimitsPopover
-                  projectPath={projectPath}
-                  provider={selectedProvider}
-                />
+                <UsageLimitsPopover provider={selectedProvider} />
                 <Context
                   maxTokens={contextWindow}
                   modelId={modelId}

@@ -114,7 +114,6 @@ export const TaskOutputChip = ({
                 >
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <WrenchIcon size={14} />
                       <CodeBlockFilename>Parameters</CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>
@@ -135,7 +134,6 @@ export const TaskOutputChip = ({
                 >
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <WrenchIcon size={14} />
                       <CodeBlockFilename>
                         {hasError ? "Error" : "Result"}
                       </CodeBlockFilename>

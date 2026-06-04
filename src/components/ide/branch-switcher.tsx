@@ -1,11 +1,4 @@
-import {
-  Check,
-  ChevronDown,
-  GitBranch,
-  GitBranchPlus,
-  Plus,
-  RotateCw,
-} from "lucide-react";
+import { Check, ChevronDown, GitBranch, Plus, RotateCw } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +10,14 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -69,7 +70,7 @@ const BranchSwitcherImpl = ({
   } = useProjectGitBranches(projectPath, gitRefreshKey);
 
   const [open, setOpen] = useState(false);
-  const [createMode, setCreateMode] = useState(false);
+  const [createBranchOpen, setCreateBranchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [createBranchName, setCreateBranchName] = useState("");
   const normalizedSearchValue = normalizeBranchName(searchValue);
@@ -95,10 +96,16 @@ const BranchSwitcherImpl = ({
     }
 
     clearError();
-    setCreateMode(false);
     setSearchValue("");
-    setCreateBranchName("");
   }, [clearError, open]);
+
+  useEffect(() => {
+    if (createBranchOpen) {
+      return;
+    }
+
+    setCreateBranchName("");
+  }, [createBranchOpen]);
 
   const handleCheckout = useCallback(
     async (branchName: string, create = false) => {
@@ -123,24 +130,25 @@ const BranchSwitcherImpl = ({
     [bumpProjectGitRefreshKey, checkoutBranch, currentBranch, projectId],
   );
 
-  const handleOpenCreateForm = useCallback(() => {
-    setCreateMode(true);
+  const handleOpenCreateDialog = useCallback(() => {
+    clearError();
+    setOpen(false);
     setCreateBranchName("");
-  }, []);
-
-  const handleCancelCreate = useCallback(() => {
-    setCreateMode(false);
-    setCreateBranchName("");
-  }, []);
+    setCreateBranchOpen(true);
+  }, [clearError]);
 
   const handleCreateBranch = useCallback(async () => {
     if (!canSubmitCreateBranch) {
       return;
     }
 
-    await handleCheckout(normalizedCreateBranchName, true);
-    setCreateMode(false);
-    setCreateBranchName("");
+    try {
+      await handleCheckout(normalizedCreateBranchName, true);
+      setCreateBranchOpen(false);
+      setCreateBranchName("");
+    } catch {
+      // checkoutBranch stores the displayable error in hook state.
+    }
   }, [canSubmitCreateBranch, handleCheckout, normalizedCreateBranchName]);
 
   if (!isRepo && !loading) {
@@ -148,88 +156,38 @@ const BranchSwitcherImpl = ({
   }
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger
-        render={
-          <Button
-            aria-label="Switch Git branch"
-            className="h-8 max-w-[220px] gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-            disabled={loading && !currentBranch}
-            size="sm"
-            variant="ghost"
-          />
-        }
-      >
-        {switching ? (
-          <Spinner className="size-3.5" />
-        ) : (
-          <GitBranch className="size-3.5 shrink-0" />
-        )}
-        <span className="truncate">{currentBranch ?? "Branches"}</span>
-        <ChevronDown className="size-3.5 shrink-0 opacity-70" />
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-[360px] gap-0 overflow-hidden p-0"
-        side="top"
-        sideOffset={8}
-      >
-        {createMode ? (
-          <form
-            className="flex flex-col gap-3 p-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleCreateBranch();
-            }}
-          >
-            <div className="space-y-2">
-              <div className="text-sm font-medium">New branch name</div>
-              <Input
-                autoFocus
-                disabled={switching}
-                onChange={(event) => {
-                  setCreateBranchName(event.target.value);
-                }}
-                placeholder="feature/my-branch"
-                value={createBranchName}
-              />
-              {normalizedCreateBranchName && createBranchAlreadyExists ? (
-                <div className="text-destructive text-xs">
-                  A branch with that name already exists.
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                disabled={switching}
-                onClick={handleCancelCreate}
-                type="button"
-                variant="ghost"
-              >
-                Cancel
-              </Button>
-              <Button disabled={!canSubmitCreateBranch} type="submit">
-                {switching ? (
-                  <>
-                    <Spinner className="size-3.5" />
-                    <span>Create and checkout branch</span>
-                  </>
-                ) : (
-                  "Create and checkout branch"
-                )}
-              </Button>
-            </div>
-
-            {error ? (
-              <div className="text-destructive text-xs">{error}</div>
-            ) : null}
-          </form>
-        ) : (
+    <>
+      <Popover onOpenChange={setOpen} open={open}>
+        <PopoverTrigger
+          render={
+            <Button
+              aria-label="Switch Git branch"
+              className="h-8 max-w-[220px] gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+              disabled={loading && !currentBranch}
+              size="sm"
+              variant="ghost"
+            />
+          }
+        >
+          {switching ? (
+            <Spinner className="size-3.5" />
+          ) : (
+            <GitBranch className="size-3.5 shrink-0" />
+          )}
+          <span className="truncate">{currentBranch ?? "Branches"}</span>
+          <ChevronDown className="size-3.5 shrink-0 opacity-70" />
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          className="w-[360px] gap-0 overflow-hidden p-0"
+          side="top"
+          sideOffset={8}
+        >
           <Command shouldFilter>
             <div className="flex items-center gap-1 px-1 pt-1">
               <div className="min-w-0 flex-1">
                 <CommandInput
+                  className="text-xs"
                   onValueChange={setSearchValue}
                   placeholder="Search branches"
                   value={searchValue}
@@ -263,7 +221,7 @@ const BranchSwitcherImpl = ({
                 <CommandGroup heading="Branches">
                   {branches.map((branch) => (
                     <CommandItem
-                      className="data-[selected=true]:bg-transparent data-[selected=true]:hover:bg-muted hover:bg-muted"
+                      className="text-xs data-[selected=true]:bg-transparent data-[selected=true]:hover:bg-muted hover:bg-muted"
                       disabled={switching}
                       key={branch.name}
                       keywords={[branch.current ? "current" : ""]}
@@ -301,13 +259,13 @@ const BranchSwitcherImpl = ({
             <div className="flex flex-col gap-1 p-1">
               <button
                 className={cn(
-                  "flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm",
+                  "flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs",
                   loading || switching
                     ? "cursor-not-allowed text-surface-400 dark:text-surface-500"
                     : "text-foreground hover:bg-muted",
                 )}
                 disabled={loading || switching}
-                onClick={handleOpenCreateForm}
+                onClick={handleOpenCreateDialog}
                 type="button"
               >
                 <Plus className="size-3.5 shrink-0" />
@@ -318,7 +276,7 @@ const BranchSwitcherImpl = ({
 
               {onCreateWorktree ? (
                 <button
-                  className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-foreground hover:bg-muted"
+                  className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted"
                   disabled={loading || switching}
                   onClick={() => {
                     clearError();
@@ -327,7 +285,7 @@ const BranchSwitcherImpl = ({
                   }}
                   type="button"
                 >
-                  <GitBranchPlus className="size-3.5 shrink-0 text-muted-foreground" />
+                  <Plus className="size-3.5 shrink-0 text-muted-foreground" />
                   <span className="truncate">New worktree</span>
                 </button>
               ) : null}
@@ -339,9 +297,74 @@ const BranchSwitcherImpl = ({
               </div>
             ) : null}
           </Command>
-        )}
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+
+      <Dialog onOpenChange={setCreateBranchOpen} open={createBranchOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New branch</DialogTitle>
+            <DialogDescription>
+              Create and checkout a new branch in this repository.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            className="grid gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleCreateBranch();
+            }}
+          >
+            <div className="grid gap-2">
+              <label className="font-medium text-sm" htmlFor="branch-name">
+                New branch name
+              </label>
+              <Input
+                autoFocus
+                disabled={switching}
+                id="branch-name"
+                onChange={(event) => {
+                  setCreateBranchName(event.target.value);
+                }}
+                placeholder="feature/my-branch"
+                value={createBranchName}
+              />
+              {normalizedCreateBranchName && createBranchAlreadyExists ? (
+                <div className="text-destructive text-xs">
+                  A branch with that name already exists.
+                </div>
+              ) : null}
+            </div>
+
+            {error ? (
+              <div className="text-destructive text-sm">{error}</div>
+            ) : null}
+
+            <DialogFooter>
+              <Button
+                disabled={switching}
+                onClick={() => setCreateBranchOpen(false)}
+                type="button"
+                variant="ghost"
+              >
+                Cancel
+              </Button>
+              <Button disabled={!canSubmitCreateBranch} type="submit">
+                {switching ? (
+                  <>
+                    <Spinner className="size-3.5" />
+                    <span>Create and checkout branch</span>
+                  </>
+                ) : (
+                  "Create and checkout branch"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

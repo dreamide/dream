@@ -74,6 +74,7 @@ Use the available tools to inspect files before proposing changes.
 Always reference concrete files and exact updates.
 When writing files, prefer complete and correct output over partial snippets.
 Never attempt to access files outside the active project root.
+When the user asks to create, update, show, or test a todo list, checklist, or task list for the chat/session, use the available planning or todo tracking tool (for example update_plan when available) instead of creating or editing a TODO file. Keep one item current/in progress when appropriate so the IDE can show task progress. Only create or edit a file-based TODO list when the user explicitly asks for a file.
 
 Important: Always explain your reasoning and findings in text before and after making tool calls. Briefly describe what you are looking for, what you found, and what you plan to do next. Do not make sequences of tool calls without any explanatory text in between.`;
 

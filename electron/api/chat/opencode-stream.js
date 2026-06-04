@@ -1,7 +1,7 @@
 import { createOpencode } from "@opencode-ai/sdk";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { waitForToolApproval } from "../tool-approvals.js";
-import { writeCodexTextPart } from "./codex-common.js";
+import { writeCodexTextPart, writeCodexTodoListPart } from "./codex-common.js";
 import {
   buildCodexConversationPrompt,
   getLatestUserMessage,
@@ -22,6 +22,18 @@ const OPENCODE_WRITE_TOOL_NAMES = new Set([
   "write",
   "write-file",
   "writefile",
+]);
+const OPENCODE_TODO_TOOL_NAMES = new Set([
+  "todo",
+  "todo-write",
+  "todowrite",
+  "todos",
+  "update-plan",
+  "update-todo",
+  "update-todos",
+  "updateplan",
+  "updatetodo",
+  "updatetodos",
 ]);
 
 const getOpenCodeErrorDetail = (event) => {
@@ -125,6 +137,12 @@ const normalizeOpenCodeToolName = (toolName) =>
 const isOpenCodeWriteToolPart = (part) =>
   part?.type === "tool" &&
   OPENCODE_WRITE_TOOL_NAMES.has(normalizeOpenCodeToolName(part.tool));
+
+const isOpenCodeTodoToolPart = (part) =>
+  part?.type === "tool" &&
+  OPENCODE_TODO_TOOL_NAMES.has(
+    normalizeOpenCodeToolName(part.tool ?? part.name),
+  );
 
 const createOpenCodePermissionInput = (permission) => ({
   callID: permission.callID ?? null,
@@ -409,6 +427,23 @@ export const streamOpenCodeResponse = ({
           return true;
         };
 
+        const handleTodoToolPart = (part) => {
+          if (!isOpenCodeTodoToolPart(part)) {
+            return false;
+          }
+
+          const writeTodoPart = (payload) =>
+            writeCodexTodoListPart((event) => writer.write(event), payload);
+
+          return (
+            writeTodoPart(part.state?.input) ||
+            writeTodoPart(part.state?.structured) ||
+            writeTodoPart(part.state?.metadata) ||
+            writeTodoPart(part.metadata) ||
+            writeTodoPart(part.state?.output)
+          );
+        };
+
         const handlePermission = async (permission) => {
           if (
             !permission?.id ||
@@ -513,7 +548,7 @@ export const streamOpenCodeResponse = ({
             }
           }
 
-          if (handleWriteToolPart(part)) {
+          if (handleTodoToolPart(part) || handleWriteToolPart(part)) {
             return;
           }
 

@@ -1,15 +1,55 @@
 import { create } from "zustand";
-import type { BaseColor } from "@/types/ide";
 import { getDesktopApi } from "@/lib/electron";
+import type { AccentColor, BaseColor } from "@/types/ide";
 
 const UI_STORAGE_KEY = "dream-ui-preferences";
 const DEFAULT_BASE_COLOR: BaseColor = "zinc";
+const DEFAULT_ACCENT_COLOR: AccentColor = "green";
+
+export const BASE_COLORS = [
+  "neutral",
+  "slate",
+  "gray",
+  "zinc",
+  "stone",
+] as const satisfies readonly BaseColor[];
+
+export const ACCENT_COLORS = [
+  "black-white",
+  "red",
+  "orange",
+  "amber",
+  "yellow",
+  "lime",
+  "green",
+  "emerald",
+  "teal",
+  "cyan",
+  "sky",
+  "blue",
+  "indigo",
+  "violet",
+  "purple",
+  "fuchsia",
+  "pink",
+  "rose",
+] as const satisfies readonly AccentColor[];
 
 interface UiState {
+  accentColor: AccentColor;
   baseColor: BaseColor;
+  setAccentColor: (color: AccentColor) => void;
   setBaseColor: (color: BaseColor) => void;
-  hydrateUi: () => void;
+  hydrateUi: () => Promise<void>;
 }
+
+const isBaseColor = (value: unknown): value is BaseColor =>
+  typeof value === "string" &&
+  (BASE_COLORS as readonly string[]).includes(value);
+
+const isAccentColor = (value: unknown): value is AccentColor =>
+  typeof value === "string" &&
+  (ACCENT_COLORS as readonly string[]).includes(value);
 
 function applyBaseColor(color: BaseColor) {
   if (typeof document === "undefined") {
@@ -23,39 +63,109 @@ function applyBaseColor(color: BaseColor) {
   }
 }
 
+function applyAccentColor(color: AccentColor) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  document.documentElement.setAttribute("data-accent-color", color);
+}
+
+function persistUiPreferences(preferences: {
+  accentColor: AccentColor;
+  baseColor: BaseColor;
+}) {
+  try {
+    localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(preferences));
+  } catch {
+    // ignore
+  }
+}
+
 export const useUiStore = create<UiState>((set, _get) => ({
+  accentColor: DEFAULT_ACCENT_COLOR,
   baseColor: DEFAULT_BASE_COLOR,
+
+  setAccentColor: (color) => {
+    applyAccentColor(color);
+    set({ accentColor: color });
+    persistUiPreferences({
+      accentColor: color,
+      baseColor: useUiStore.getState().baseColor,
+    });
+    void getDesktopApi()?.setAccentColor(color);
+  },
 
   setBaseColor: (color) => {
     applyBaseColor(color);
     set({ baseColor: color });
-    try {
-      localStorage.setItem(
-        UI_STORAGE_KEY,
-        JSON.stringify({ baseColor: color }),
-      );
-    } catch {
-      // ignore
-    }
+    persistUiPreferences({
+      accentColor: useUiStore.getState().accentColor,
+      baseColor: color,
+    });
     void getDesktopApi()?.setBaseColor(color);
   },
 
-  hydrateUi: () => {
+  hydrateUi: async () => {
+    let hydratedFromLocalStorage = false;
+
     try {
       const raw = localStorage.getItem(UI_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as { baseColor?: BaseColor };
-        if (parsed.baseColor) {
-          applyBaseColor(parsed.baseColor);
-          set({ baseColor: parsed.baseColor });
-        }
-        return;
-      }
+        const parsed = JSON.parse(raw) as {
+          accentColor?: unknown;
+          baseColor?: unknown;
+        };
+        const baseColor = isBaseColor(parsed.baseColor)
+          ? parsed.baseColor
+          : DEFAULT_BASE_COLOR;
+        const accentColor = isAccentColor(parsed.accentColor)
+          ? parsed.accentColor
+          : DEFAULT_ACCENT_COLOR;
 
-      applyBaseColor(DEFAULT_BASE_COLOR);
-      set({ baseColor: DEFAULT_BASE_COLOR });
+        applyBaseColor(baseColor);
+        applyAccentColor(accentColor);
+        set({ accentColor, baseColor });
+        hydratedFromLocalStorage = true;
+      }
     } catch {
       // ignore
+    }
+
+    try {
+      const preferences = await getDesktopApi()?.getThemePreferences();
+      const baseColor = isBaseColor(preferences?.baseColor)
+        ? preferences.baseColor
+        : hydratedFromLocalStorage
+          ? useUiStore.getState().baseColor
+          : DEFAULT_BASE_COLOR;
+      const accentColor = isAccentColor(preferences?.accentColor)
+        ? preferences.accentColor
+        : hydratedFromLocalStorage
+          ? useUiStore.getState().accentColor
+          : DEFAULT_ACCENT_COLOR;
+
+      applyBaseColor(baseColor);
+      applyAccentColor(accentColor);
+      set({ accentColor, baseColor });
+      persistUiPreferences({ accentColor, baseColor });
+
+      if (!isAccentColor(preferences?.accentColor)) {
+        void getDesktopApi()?.setAccentColor(accentColor);
+      }
+
+      return;
+    } catch {
+      // ignore
+    }
+
+    if (!hydratedFromLocalStorage) {
+      applyBaseColor(DEFAULT_BASE_COLOR);
+      applyAccentColor(DEFAULT_ACCENT_COLOR);
+      set({
+        accentColor: DEFAULT_ACCENT_COLOR,
+        baseColor: DEFAULT_BASE_COLOR,
+      });
     }
   },
 }));

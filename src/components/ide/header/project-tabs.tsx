@@ -1,4 +1,4 @@
-import { FolderGit2, Plus } from "lucide-react";
+import { FolderTree, Plus } from "lucide-react";
 import {
   type FormEvent,
   useCallback,
@@ -262,7 +262,7 @@ export const ProjectTabs = () => {
             className="flex size-4 shrink-0 items-center justify-center self-center leading-none text-muted-foreground"
             key={`${project.id}:worktree:${project.worktree.branch}`}
           >
-            <FolderGit2 className="size-3.5" />
+            <FolderTree className="size-3.5" />
           </span>
         ) : project.icon ? (
           <span

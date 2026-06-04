@@ -53,7 +53,7 @@ export const ProjectActionsMenu = ({
         render={
           <Button
             aria-label={`${project.label} actions`}
-            className="h-8 w-8 bg-transparent p-0 hover:bg-transparent data-[state=open]:bg-transparent [-webkit-app-region:no-drag]"
+            className="h-8 w-8 bg-transparent p-0 hover:!bg-transparent data-[state=open]:!bg-transparent aria-expanded:!bg-transparent [-webkit-app-region:no-drag]"
             onClick={(event) => {
               event.stopPropagation();
             }}
@@ -66,7 +66,7 @@ export const ProjectActionsMenu = ({
           />
         }
       >
-        <Ellipsis className="size-4" />
+        <Ellipsis className="size-4 opacity-50 transition-opacity group-hover/button:opacity-100" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
