@@ -88,7 +88,9 @@ const ChangesPanelImpl = ({
     error: statusError,
     isRepo,
     loading: statusLoading,
+    status: gitStatus,
   } = useProjectGitStatus(projectPath, gitRefreshKey);
+  const hasStaleGitStatus = statusLoading && gitStatus !== null;
 
   const expandedPaths = getExpandedPaths(expandedPathsByProject, projectId);
   const expandedPathSet = useMemo(
@@ -174,14 +176,6 @@ const ChangesPanelImpl = ({
     diffLoadQueueRef.current = [];
     diffLoadQueuedPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
-    setDiffsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffErrorsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
     setDiffLoadingByProject((current) => ({
       ...current,
       [projectId]: {},
@@ -290,14 +284,15 @@ const ChangesPanelImpl = ({
   }, [changesByPath, projectId, projectPath]);
 
   const queueDiffLoad = useCallback(
-    (filePath: string, priority = false) => {
+    (filePath: string, priority = false, force = false) => {
       if (!projectId || !projectPath) {
         return;
       }
 
       if (
-        projectDiffsRef.current[filePath] ||
-        projectDiffErrorsRef.current[filePath] ||
+        (!force &&
+          (projectDiffsRef.current[filePath] ||
+            projectDiffErrorsRef.current[filePath])) ||
         projectDiffLoadingRef.current[filePath] ||
         diffLoadQueuedPathsRef.current.has(filePath)
       ) {
@@ -334,6 +329,7 @@ const ChangesPanelImpl = ({
     }
 
     const pending = diffRefreshPendingByProjectRef.current[projectId];
+    let forceDiffRefresh = false;
     if (pending?.refreshKey === gitRefreshKey) {
       if (statusLoading) {
         pending.sawLoading = true;
@@ -344,6 +340,7 @@ const ChangesPanelImpl = ({
         return;
       }
 
+      forceDiffRefresh = true;
       delete diffRefreshPendingByProjectRef.current[projectId];
     }
 
@@ -353,7 +350,7 @@ const ChangesPanelImpl = ({
 
     for (const filePath of expandedPaths) {
       if (changesByPath.has(filePath)) {
-        queueDiffLoad(filePath);
+        queueDiffLoad(filePath, false, forceDiffRefresh);
       }
     }
   }, [
@@ -544,11 +541,14 @@ const ChangesPanelImpl = ({
           </div>
         ) : null}
 
-        {!statusError && !statusLoading && !isRepo ? (
+        {!statusError && (!statusLoading || hasStaleGitStatus) && !isRepo ? (
           <AppShellPlaceholder message="This project is not inside a Git repository." />
         ) : null}
 
-        {!statusError && statusLoading && changes.length === 0 ? (
+        {!statusError &&
+        statusLoading &&
+        !hasStaleGitStatus &&
+        changes.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Spinner className="size-4" />
@@ -556,7 +556,10 @@ const ChangesPanelImpl = ({
           </div>
         ) : null}
 
-        {!statusError && !statusLoading && isRepo && changes.length === 0 ? (
+        {!statusError &&
+        (!statusLoading || hasStaleGitStatus) &&
+        isRepo &&
+        changes.length === 0 ? (
           <AppShellPlaceholder message="Working tree is clean." />
         ) : null}
 
