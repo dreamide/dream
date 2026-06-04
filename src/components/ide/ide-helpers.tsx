@@ -1,7 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import type { CSSProperties, PropsWithChildren } from "react";
 import { useCallback, useEffect, useRef } from "react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 // ── Panel resize handle ───────────────────────────────────────────────
@@ -286,40 +285,6 @@ export const HorizontalResizablePanel = ({
     </>
   );
 };
-
-export const ToggleButton = ({
-  active,
-  children,
-  disabled,
-  highlighted,
-  onClick,
-  title,
-}: PropsWithChildren<{
-  active: boolean;
-  disabled?: boolean;
-  highlighted?: boolean;
-  onClick: () => void;
-  title: string;
-}>) => (
-  <Button
-    aria-label={title}
-    className={cn(
-      "size-8 [-webkit-app-region:no-drag]",
-      active
-        ? "bg-primary-surface text-primary hover:bg-primary-surface-hover hover:text-primary"
-        : highlighted
-          ? "text-primary hover:text-primary-hover"
-          : "text-muted-foreground hover:text-foreground",
-    )}
-    disabled={disabled}
-    onClick={onClick}
-    size="icon"
-    title={title}
-    variant="ghost"
-  >
-    {children}
-  </Button>
-);
 
 export const AppShellPlaceholder = ({ message }: { message: string }) => (
   <div className="flex h-full items-center justify-center p-4 text-center text-muted-foreground text-sm">

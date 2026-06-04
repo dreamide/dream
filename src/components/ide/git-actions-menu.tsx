@@ -6,7 +6,6 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { memo, useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
-import { cn } from "@/lib/utils";
 import type { AiProvider, ProjectGitStatusResponse } from "@/types/ide";
 import { CommitDialog } from "./git-actions/commit-dialog";
 import { CreatePrDialog } from "./git-actions/create-pr-dialog";
@@ -22,6 +20,7 @@ import { PushDialog } from "./git-actions/push-dialog";
 import { GitMenuDeltaSummary } from "./git-actions/summary";
 import { getStatusFileCount, hasPushableCommits } from "./git-actions/utils";
 import { useIdeStore } from "./ide-store";
+import { WorkspaceNavButton } from "./workspace/nav-button";
 
 type GitActionDialog = "commit" | "push" | "pr" | null;
 type ActiveGitActionDialog = Exclude<GitActionDialog, null>;
@@ -181,17 +180,10 @@ const GitActionsMenuImpl = ({
       <DropdownMenu onOpenChange={handleMenuOpenChange}>
         <DropdownMenuTrigger
           render={
-            <Button
+            <WorkspaceNavButton
               aria-label="Open Git actions"
-              className={cn(
-                "size-8 [-webkit-app-region:no-drag]",
-                hasGitActivity
-                  ? "text-primary hover:text-primary-hover"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              size="icon"
+              accent={hasGitActivity}
               title="Git actions"
-              variant="ghost"
             />
           }
         >
