@@ -35,6 +35,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
+import { normalizeBrowserUrlInput } from "./browser-url";
 import { useIdeStore } from "./ide-store";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
@@ -64,19 +65,6 @@ type WebviewFailEvent = Event & {
   errorDescription?: string;
   validatedURL?: string;
   isMainFrame?: boolean;
-};
-
-const normalizeBrowserUrlInput = (value: string) => {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed)) {
-    return trimmed;
-  }
-
-  return `https://${trimmed}`;
 };
 
 const getBrowserTabTitle = (url: string) => {
