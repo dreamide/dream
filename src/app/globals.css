@@ -999,6 +999,51 @@
   );
 }
 
+.dark .dream-diff-surface .dream-diff-viewer {
+  --diffs-addition-color-override: var(--color-green-400);
+  --diffs-deletion-color-override: var(--color-red-400);
+  --diffs-bg-addition-override: color-mix(
+    in oklab,
+    var(--color-green-500) 28%,
+    var(--color-background)
+  );
+  --diffs-bg-addition-number-override: color-mix(
+    in oklab,
+    var(--color-green-500) 38%,
+    var(--color-background)
+  );
+  --diffs-bg-addition-hover-override: color-mix(
+    in oklab,
+    var(--color-green-500) 34%,
+    var(--color-background)
+  );
+  --diffs-bg-addition-emphasis-override: color-mix(
+    in oklab,
+    var(--color-green-500) 50%,
+    transparent
+  );
+  --diffs-bg-deletion-override: color-mix(
+    in oklab,
+    var(--color-red-500) 28%,
+    var(--color-background)
+  );
+  --diffs-bg-deletion-number-override: color-mix(
+    in oklab,
+    var(--color-red-500) 38%,
+    var(--color-background)
+  );
+  --diffs-bg-deletion-hover-override: color-mix(
+    in oklab,
+    var(--color-red-500) 34%,
+    var(--color-background)
+  );
+  --diffs-bg-deletion-emphasis-override: color-mix(
+    in oklab,
+    var(--color-red-500) 50%,
+    transparent
+  );
+}
+
 .xterm .xterm-scrollable-element > .scrollbar,
 .xterm .xterm-scrollable-element > .shadow {
   display: none;
