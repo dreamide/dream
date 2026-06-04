@@ -44,6 +44,11 @@
   }
 }
 
+[data-chat-stack-repositioning="true"]
+  [data-sd-animate][style*="--sd-animation"] {
+  animation: none;
+}
+
 .animate-status-dot-pulse {
   position: relative;
 }
