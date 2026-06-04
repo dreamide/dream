@@ -14,6 +14,7 @@ import {
   createModelOption,
   dedupeModelOptions,
   fetchClaudeCodeModelOptionsFromModelsDev,
+  fetchOpenCodeContextWindowsFromModelsDev,
   getModelReasoningEfforts,
   getModelSpeedTiers,
   isVisibleOpenAiModelOption,
@@ -61,7 +62,7 @@ const formatOpenCodeModelLabel = (id) => {
   return `${providerLabel} / ${modelId}`;
 };
 
-const parseOpenCodeModelsOutput = (value) => {
+const parseOpenCodeModelsOutput = (value, contextWindows = new Map()) => {
   const clean = stripAnsi(value);
   const ids = new Set();
   const modelPattern =
@@ -83,7 +84,14 @@ const parseOpenCodeModelsOutput = (value) => {
   }
 
   return Array.from(ids).map((id) =>
-    createModelOption("opencode", id, formatOpenCodeModelLabel(id)),
+    createModelOption(
+      "opencode",
+      id,
+      formatOpenCodeModelLabel(id),
+      [],
+      [],
+      contextWindows.get(id),
+    ),
   );
 };
 
@@ -370,11 +378,17 @@ export const fetchOpenCodeModels = async ({ force = false } = {}) => {
 
   try {
     const args = ["models", ...(force ? ["--refresh"] : [])];
-    const result = await execCliCommand("opencode", args, {
-      maxBuffer: 10 * 1024 * 1024,
-    });
+    const [result, contextWindows] = await Promise.all([
+      execCliCommand("opencode", args, {
+        maxBuffer: 10 * 1024 * 1024,
+      }),
+      fetchOpenCodeContextWindowsFromModelsDev(),
+    ]);
     const models = dedupeAndSort(
-      parseOpenCodeModelsOutput(`${result.stdout}\n${result.stderr}`),
+      parseOpenCodeModelsOutput(
+        `${result.stdout}\n${result.stderr}`,
+        contextWindows,
+      ),
     );
     if (models.length === 0) {
       return {

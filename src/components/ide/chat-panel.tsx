@@ -252,6 +252,7 @@ export const ChatPanel = ({
         settings,
         providerModels[provider].models,
       ).map((model) => ({
+        contextWindow: model.contextWindow,
         id: model.id,
         label: model.label,
         provider,
@@ -590,7 +591,8 @@ export const ChatPanel = ({
   const selectedReasoningLabelForMetadata =
     selectedReasoningEffort !== null ? selectedReasoningLabel : undefined;
 
-  const contextWindow = getModelContextWindow(selectedModel);
+  const contextWindow =
+    selectedModelOption?.contextWindow ?? getModelContextWindow(selectedModel);
   const fallbackEstimatedTokens = useMemo(() => {
     let total = 0;
     for (const message of messages) {

@@ -84,6 +84,11 @@ export const normalizeModelSpeedTiers = (value) => {
   return tiers.length > 0 ? ["standard", ...tiers] : [];
 };
 
+const normalizeContextWindow = (value) =>
+  typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.trunc(value)
+    : undefined;
+
 export const getModelReasoningEfforts = (provider, modelId) => {
   const id = modelId.trim().toLowerCase();
   if (!id) return [];
@@ -231,15 +236,20 @@ export const createModelOption = (
   label,
   reasoningEfforts = [],
   speedTiers = [],
+  contextWindow,
 ) => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
   const normalizedReasoningEfforts =
     normalizeReasoningEfforts(reasoningEfforts);
   const normalizedSpeedTiers = normalizeModelSpeedTiers(speedTiers);
+  const normalizedContextWindow = normalizeContextWindow(contextWindow);
   return {
     id: trimmedId,
     label: getModelDisplayLabel(provider, trimmedId, trimmedLabel),
+    ...(normalizedContextWindow
+      ? { contextWindow: normalizedContextWindow }
+      : {}),
     ...(normalizedReasoningEfforts.length > 0
       ? { reasoningEfforts: normalizedReasoningEfforts }
       : {}),
@@ -261,11 +271,13 @@ export const dedupeModelOptions = (models) => {
     );
     const reasoningEfforts = normalizeReasoningEfforts(model.reasoningEfforts);
     const speedTiers = normalizeModelSpeedTiers(model.speedTiers);
+    const contextWindow = normalizeContextWindow(model.contextWindow);
     const existing = seen.get(id);
     if (!existing) {
       seen.set(id, {
         id,
         label,
+        ...(contextWindow ? { contextWindow } : {}),
         ...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
         ...(speedTiers.length > 0 ? { speedTiers } : {}),
       });
@@ -274,6 +286,9 @@ export const dedupeModelOptions = (models) => {
     seen.set(id, {
       id,
       label: existing.label || label,
+      ...(existing.contextWindow || contextWindow
+        ? { contextWindow: existing.contextWindow ?? contextWindow }
+        : {}),
       ...(existing.reasoningEfforts?.length || reasoningEfforts.length
         ? {
             reasoningEfforts: Array.from(
@@ -416,6 +431,30 @@ const getModelsDevAnthropicModels = (payload) => {
   return Object.values(models).filter(isModelsDevModelRecord);
 };
 
+const getModelsDevProviderModels = (payload, providerId) => {
+  const models = payload?.[providerId]?.models;
+  if (!models || typeof models !== "object") {
+    return [];
+  }
+
+  return Object.values(models).filter(isModelsDevModelRecord);
+};
+
+const getModelsDevModelContextWindow = (model) =>
+  normalizeContextWindow(model?.limit?.context);
+
+const addOpenCodeContextWindow = (contextWindows, providerId, model) => {
+  const contextWindow = getModelsDevModelContextWindow(model);
+  if (!contextWindow) {
+    return;
+  }
+
+  contextWindows.set(`${providerId}/${model.id}`, contextWindow);
+  if (providerId === "opencode" && !model.id.endsWith("-free")) {
+    contextWindows.set(`${providerId}/${model.id}-free`, contextWindow);
+  }
+};
+
 const getClaudeCodeModelOrder = (model) =>
   CLAUDE_CODE_MODEL_ORDER[model.family] ??
   CLAUDE_CODE_MODEL_ORDER[model.id] ??
@@ -514,5 +553,28 @@ export const fetchClaudeCodeModelOptionsFromModelsDev = async () => {
     return parsedModels;
   } catch {
     return CLAUDE_CODE_MODEL_OPTIONS;
+  }
+};
+
+export const fetchOpenCodeContextWindowsFromModelsDev = async () => {
+  try {
+    const response = await fetch(MODELS_DEV_API_URL, {
+      method: "GET",
+    });
+    if (!response.ok) {
+      throw new Error(`Models.dev request failed (${response.status}).`);
+    }
+
+    const payload = await response.json();
+    const contextWindows = new Map();
+    for (const providerId of ["opencode", "opencode-go"]) {
+      for (const model of getModelsDevProviderModels(payload, providerId)) {
+        addOpenCodeContextWindow(contextWindows, providerId, model);
+      }
+    }
+
+    return contextWindows;
+  } catch {
+    return new Map();
   }
 };

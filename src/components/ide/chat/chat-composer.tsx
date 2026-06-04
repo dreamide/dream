@@ -61,6 +61,7 @@ import { TodoListPopover } from "./todo-list-popover";
 import { UsageLimitsPopover } from "./usage-limits-popover";
 
 export interface ChatPanelModelOption {
+  contextWindow?: number;
   id: string;
   label: string;
   provider: AiProvider;

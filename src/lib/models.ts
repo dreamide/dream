@@ -3,6 +3,7 @@ import type { AiProvider, ModelSpeed, ReasoningEffort } from "@/types/ide";
 export interface ModelOption {
   id: string;
   label: string;
+  contextWindow?: number;
   reasoningEfforts?: ReasoningEffort[];
   speedTiers?: ModelSpeed[];
 }
@@ -56,6 +57,11 @@ export const normalizeModelSpeedTiers = (
 
   return normalized.length > 0 ? ["standard", ...normalized] : [];
 };
+
+const normalizeContextWindow = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.trunc(value)
+    : undefined;
 
 const OPENAI_TOKEN_LABELS: Record<string, string> = {
   audio: "Audio",
@@ -197,16 +203,21 @@ export const createModelOption = (
   label?: string | null,
   reasoningEfforts: ReasoningEffort[] = [],
   speedTiers: ModelSpeed[] = [],
+  contextWindow?: number,
 ): ModelOption => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
   const normalizedReasoningEfforts =
     normalizeReasoningEfforts(reasoningEfforts);
   const normalizedSpeedTiers = normalizeModelSpeedTiers(speedTiers);
+  const normalizedContextWindow = normalizeContextWindow(contextWindow);
 
   return {
     id: trimmedId,
     label: getModelDisplayLabel(provider, trimmedId, trimmedLabel),
+    ...(normalizedContextWindow
+      ? { contextWindow: normalizedContextWindow }
+      : {}),
     ...(normalizedReasoningEfforts.length > 0
       ? { reasoningEfforts: normalizedReasoningEfforts }
       : {}),
@@ -232,12 +243,14 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
     );
     const reasoningEfforts = normalizeReasoningEfforts(model.reasoningEfforts);
     const speedTiers = normalizeModelSpeedTiers(model.speedTiers);
+    const contextWindow = normalizeContextWindow(model.contextWindow);
     const existing = seen.get(id);
 
     if (!existing) {
       seen.set(id, {
         id,
         label,
+        ...(contextWindow ? { contextWindow } : {}),
         ...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
         ...(speedTiers.length > 0 ? { speedTiers } : {}),
       });
@@ -247,6 +260,9 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
     seen.set(id, {
       id,
       label: existing.label || label,
+      ...(existing.contextWindow || contextWindow
+        ? { contextWindow: existing.contextWindow ?? contextWindow }
+        : {}),
       ...(existing.reasoningEfforts?.length || reasoningEfforts.length
         ? {
             reasoningEfforts: Array.from(
@@ -292,7 +308,7 @@ const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
   // Anthropic
   [/^(sonnet|opus)(?:\[1m\])?$/, 1_000_000],
   [/^haiku$/, 200_000],
-  [/^claude-(sonnet|opus)-4-[67]/, 1_000_000],
+  [/^claude-(sonnet|opus)-4-(?:[6-9]|\d{2,})/, 1_000_000],
   [/^claude-haiku-4/, 200_000],
   [/^claude-3[.-]7/, 200_000],
   [/^claude-3[.-]5/, 200_000],
