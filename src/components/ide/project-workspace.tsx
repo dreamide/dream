@@ -1,5 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
+import { getStatusFileCount } from "./git-actions/utils";
 import { useIdeStore } from "./ide-store";
 import type { RightPanelView } from "./ide-types";
 import { moveTabItem } from "./standard-tabs";
@@ -79,6 +81,13 @@ const ProjectWorkspaceComponent = ({
   );
   const updateProject = useIdeStore((s) => s.updateProject);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
+  const gitRefreshKey = useIdeStore(
+    (s) => s.projectGitRefreshKeys[projectId] ?? 0,
+  );
+  const { status: projectGitStatus } = useProjectGitStatus(
+    project.path,
+    gitRefreshKey,
+  );
 
   // ── Local workspace state ───────────────────────────────────────────
   const [historyPanelWidth, setHistoryPanelWidth] = useState(() =>
@@ -105,6 +114,7 @@ const ProjectWorkspaceComponent = ({
     rightVisible && rightPanelView === "terminal" && hasProjectTerminalSessions;
   const terminalHiddenWithActiveSession =
     hasProjectTerminalSessions && !terminalPanelVisible;
+  const changesAvailable = getStatusFileCount(projectGitStatus) > 0;
   const activeBrowserTab =
     browserTabs.find((tab) => tab.id === activeBrowserTabId) ??
     browserTabs[0] ??
@@ -607,6 +617,7 @@ const ProjectWorkspaceComponent = ({
 
       <WorkspaceRightRail
         browserHiddenWithActiveTab={browserHiddenWithActiveTab}
+        changesAvailable={changesAvailable}
         onOpenTerminal={handleOpenTerminal}
         onSelectRightPanelView={handleSelectRightPanelView}
         projectId={projectId}

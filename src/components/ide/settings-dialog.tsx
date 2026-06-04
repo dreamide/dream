@@ -370,7 +370,7 @@ export const SettingsDialog = () => {
             <div className="space-y-1">
               <button
                 className={cn(
-                  "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
+                  "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
                   settingsSection === "appearance"
                     ? "font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -385,7 +385,7 @@ export const SettingsDialog = () => {
               </button>
               <button
                 className={cn(
-                  "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
+                  "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
                   settingsSection === "providers"
                     ? "font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -400,7 +400,7 @@ export const SettingsDialog = () => {
               </button>
               <button
                 className={cn(
-                  "w-full rounded-md px-3 py-2 text-left font-medium text-sm transition-colors",
+                  "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
                   settingsSection === "chats"
                     ? "font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -417,9 +417,9 @@ export const SettingsDialog = () => {
           </nav>
 
           <div className="min-w-0 flex-1 overflow-y-auto">
-            <div className="space-y-4 p-5">
+            <div className="space-y-4 p-3">
               {settingsSection === "appearance" ? (
-                <div className="space-y-4 rounded-lg p-3">
+                <div className="space-y-4">
                   <SettingsControlRow
                     description="Controls the interface theme."
                     label="Theme"

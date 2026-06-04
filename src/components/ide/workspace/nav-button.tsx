@@ -20,10 +20,10 @@ export const WorkspaceNavButton = ({
     aria-label={props["aria-label"] ?? title}
     className={cn(
       "size-8 [-webkit-app-region:no-drag]",
-      accent
-        ? "bg-primary-surface text-primary hover:bg-primary-surface-hover hover:text-primary"
-        : active
-          ? "bg-muted text-foreground hover:bg-muted hover:text-foreground"
+      active
+        ? "bg-muted text-foreground hover:bg-muted hover:text-foreground"
+        : accent
+          ? "bg-primary-surface text-primary hover:bg-primary-surface-hover hover:text-primary"
           : "text-muted-foreground hover:text-foreground",
       className,
     )}

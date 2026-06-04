@@ -797,12 +797,10 @@ export const WriteFileChip = ({
         >
           {showFileDetails && writeDiffStats ? (
             <span className="flex shrink-0 items-center gap-1 font-medium text-xs">
-              <span className="text-emerald-600 dark:text-emerald-400">
+              <span className="text-emerald-500">
                 +{writeDiffStats.additions}
               </span>
-              <span className="text-destructive dark:text-destructive-muted">
-                -{writeDiffStats.deletions}
-              </span>
+              <span className="text-rose-500">-{writeDiffStats.deletions}</span>
             </span>
           ) : null}
           <ApprovalStatusLabel approval={part.approval} state={state} />
