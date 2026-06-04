@@ -51,9 +51,14 @@ import {
   resolveReasoningEffortForModel,
 } from "@/lib/ide-defaults";
 import { getModelReasoningEfforts, getModelSpeedTiers } from "@/lib/models";
-import { useUiStore } from "@/lib/ui-store";
+import { ACCENT_COLORS, BASE_COLORS, useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
-import type { BaseColor, ModelSpeed, ReasoningEffort } from "@/types/ide";
+import type {
+  AccentColor,
+  BaseColor,
+  ModelSpeed,
+  ReasoningEffort,
+} from "@/types/ide";
 import { useIdeStore } from "./ide-store";
 import {
   ALL_PROVIDERS,
@@ -68,6 +73,16 @@ import {
   SettingsControlRow,
   SettingsSwitchRow,
 } from "./settings";
+
+const getAccentColorLabel = (color: AccentColor) =>
+  color === "black-white"
+    ? "Black / white"
+    : color.charAt(0).toUpperCase() + color.slice(1);
+
+const getAccentColorSwatch = (color: AccentColor) =>
+  color === "black-white"
+    ? "linear-gradient(135deg, var(--foreground) 0 50%, var(--background) 50% 100%)"
+    : `var(--color-${color}-500)`;
 
 export const SettingsDialog = () => {
   const settings = useIdeStore((s) => s.settings);
@@ -86,7 +101,9 @@ export const SettingsDialog = () => {
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
 
+  const accentColor = useUiStore((s) => s.accentColor);
   const baseColor = useUiStore((s) => s.baseColor);
+  const setAccentColor = useUiStore((s) => s.setAccentColor);
   const setBaseColor = useUiStore((s) => s.setBaseColor);
   const { setTheme, theme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
@@ -453,9 +470,7 @@ export const SettingsDialog = () => {
                         className="w-full justify-start"
                         id="base-color-tabs"
                       >
-                        {(
-                          ["neutral", "slate", "gray", "zinc", "stone"] as const
-                        ).map((color) => (
+                        {BASE_COLORS.map((color) => (
                           <TabsTrigger
                             className="capitalize"
                             key={color}
@@ -466,6 +481,38 @@ export const SettingsDialog = () => {
                         ))}
                       </TabsList>
                     </Tabs>
+                  </SettingsControlRow>
+
+                  <SettingsControlRow
+                    controlClassName="md:w-[34rem]"
+                    description="Controls primary actions and active states."
+                    label="Accent color"
+                  >
+                    <div className="grid grid-cols-9 gap-2">
+                      {ACCENT_COLORS.map((color) => {
+                        const selected = accentColor === color;
+
+                        return (
+                          <button
+                            aria-label={getAccentColorLabel(color)}
+                            aria-pressed={selected}
+                            className={cn(
+                              "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                              selected
+                                ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                                : "ring-1 ring-transparent",
+                            )}
+                            key={color}
+                            onClick={() => setAccentColor(color)}
+                            style={{
+                              background: getAccentColorSwatch(color),
+                            }}
+                            title={getAccentColorLabel(color)}
+                            type="button"
+                          />
+                        );
+                      })}
+                    </div>
                   </SettingsControlRow>
 
                   <SettingsControlRow

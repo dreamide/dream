@@ -58,6 +58,11 @@ const DARK_WINDOW_BACKGROUNDS = {
   zinc: "#09090b",
   stone: "#0c0a09",
 };
+const DEFAULT_THEME_PREFERENCES = {
+  accentColor: "green",
+  baseColor: "zinc",
+  theme: "dark",
+};
 
 app.setName(APP_NAME);
 mkdirSync(APP_USER_DATA_PATH, { recursive: true });
@@ -77,23 +82,25 @@ function normalizeThemePreference(value) {
 function loadThemePreference() {
   try {
     if (!existsSync(THEME_PREFERENCES_PATH)) {
-      return { theme: "dark", baseColor: "zinc" };
+      return DEFAULT_THEME_PREFERENCES;
     }
 
     const parsed = JSON.parse(readFileSync(THEME_PREFERENCES_PATH, "utf8"));
     return {
+      accentColor: parsed?.accentColor ?? DEFAULT_THEME_PREFERENCES.accentColor,
       theme: normalizeThemePreference(parsed?.theme),
-      baseColor: parsed?.baseColor ?? "zinc",
+      baseColor: parsed?.baseColor ?? DEFAULT_THEME_PREFERENCES.baseColor,
     };
   } catch {
-    return { theme: "dark", baseColor: "zinc" };
+    return DEFAULT_THEME_PREFERENCES;
   }
 }
 
-function saveThemePreference(theme, baseColor) {
+function saveThemePreference(theme, baseColor, accentColor) {
   try {
     const existing = loadThemePreference();
     const data = {
+      accentColor: accentColor ?? existing.accentColor,
       theme: normalizeThemePreference(theme ?? existing.theme),
       baseColor: baseColor ?? existing.baseColor,
     };
@@ -363,9 +370,16 @@ ipcMain.handle("theme:set", (_event, { theme } = {}) => {
   return true;
 });
 
+ipcMain.handle("theme:get-preferences", () => loadThemePreference());
+
 ipcMain.handle("theme:set-base-color", (_event, { baseColor } = {}) => {
   saveThemePreference(null, baseColor);
   applyWindowThemeBackground(null, baseColor);
+  return true;
+});
+
+ipcMain.handle("theme:set-accent-color", (_event, { accentColor } = {}) => {
+  saveThemePreference(null, null, accentColor);
   return true;
 });
 

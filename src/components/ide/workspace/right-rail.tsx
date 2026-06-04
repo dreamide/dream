@@ -55,9 +55,9 @@ const WorkspaceRightRailImpl = ({
       className={cn(
         "size-8",
         rightVisible && rightPanelView === "terminal"
-          ? "text-foreground hover:text-foreground"
+          ? "bg-primary-surface text-primary hover:bg-primary-surface-hover hover:text-primary"
           : terminalHiddenWithActiveSession
-            ? "text-success-highlight hover:text-success-highlight-hover"
+            ? "text-primary hover:text-primary-hover"
             : "text-muted-foreground hover:text-foreground",
       )}
       onClick={onOpenTerminal}

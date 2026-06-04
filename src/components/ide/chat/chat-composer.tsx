@@ -900,7 +900,7 @@ export const ChatComposer = ({
                 </PromptInputTools>
                 <div className="ml-auto flex items-center gap-2">
                   <PromptInputSubmit
-                    className="size-8 rounded-md"
+                    className="size-8 rounded-md bg-surface-900 text-surface-50 hover:bg-surface-800 dark:bg-surface-200 dark:text-surface-900 dark:hover:bg-surface-300"
                     disabled={
                       !isActive ||
                       (!isProcessing &&

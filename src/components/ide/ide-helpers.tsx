@@ -306,9 +306,9 @@ export const ToggleButton = ({
     className={cn(
       "size-8 [-webkit-app-region:no-drag]",
       active
-        ? "text-foreground hover:text-foreground"
+        ? "bg-primary-surface text-primary hover:bg-primary-surface-hover hover:text-primary"
         : highlighted
-          ? "text-success-highlight hover:text-success-highlight-hover"
+          ? "text-primary hover:text-primary-hover"
           : "text-muted-foreground hover:text-foreground",
     )}
     disabled={disabled}

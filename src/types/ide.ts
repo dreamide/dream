@@ -2,6 +2,25 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
 
 export type AiProvider = "openai" | "anthropic" | "opencode" | "cursor";
+export type AccentColor =
+  | "black-white"
+  | "red"
+  | "orange"
+  | "amber"
+  | "yellow"
+  | "lime"
+  | "green"
+  | "emerald"
+  | "teal"
+  | "cyan"
+  | "sky"
+  | "blue"
+  | "indigo"
+  | "violet"
+  | "purple"
+  | "fuchsia"
+  | "pink"
+  | "rose";
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ModelSpeed = "standard" | "fast";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -426,8 +445,14 @@ export interface DesktopApi {
 
   loadState: () => Promise<Partial<PersistedIdeState>>;
   saveState: (state: PersistedIdeState) => Promise<boolean>;
+  getThemePreferences: () => Promise<{
+    accentColor?: string;
+    baseColor?: string;
+    theme?: "dark" | "light" | "system";
+  }>;
   setThemePreference: (theme: "dark" | "light" | "system") => Promise<boolean>;
   setBaseColor: (baseColor: string) => Promise<boolean>;
+  setAccentColor: (accentColor: string) => Promise<boolean>;
 
   getDefaultTerminalShell: () => Promise<string>;
   startTerminal: (payload: StartTerminalPayload) => Promise<{

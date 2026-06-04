@@ -28,7 +28,7 @@ const WorkspaceSideNavImpl = ({
           className={cn(
             "size-8",
             historyOpen
-              ? "text-foreground hover:text-foreground"
+              ? "bg-primary-surface text-primary hover:bg-primary-surface-hover hover:text-primary"
               : "text-muted-foreground hover:text-foreground",
           )}
           onClick={onToggleHistory}
@@ -55,7 +55,7 @@ const WorkspaceSideNavImpl = ({
           className={cn(
             "size-8",
             multiChat
-              ? "text-success-highlight hover:text-success-highlight-hover"
+              ? "text-primary hover:text-primary-hover"
               : "text-muted-foreground hover:text-foreground",
           )}
           data-state={multiChat ? "on" : "off"}
