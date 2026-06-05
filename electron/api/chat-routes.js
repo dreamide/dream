@@ -292,6 +292,7 @@ export const registerChatRoutes = (app) => {
     }
 
     return streamClaudeResponse({
+      agentMode,
       claudePermissionMode,
       messages,
       model,

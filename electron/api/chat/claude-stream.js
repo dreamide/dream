@@ -212,6 +212,7 @@ const createClaudeAcceptEditsPermissionHandler = () => {
 };
 
 export const streamClaudeResponse = async ({
+  agentMode,
   claudePermissionMode,
   messages,
   model,
@@ -271,8 +272,14 @@ export const streamClaudeResponse = async ({
         "NotebookEdit",
         "ExitPlanMode",
       ],
-      disallowedTools: ["ToolSearch"],
-      permissionMode: CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
+      // AskUserQuestion requires Claude's interactive bridge answer path. This
+      // chat surface only supports permission approvals, so keep questions in
+      // normal assistant text instead of surfacing an unanswerable tool call.
+      disallowedTools: ["ToolSearch", "AskUserQuestion"],
+      permissionMode:
+        agentMode === "plan"
+          ? "plan"
+          : CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
       ...(claudePermissionMode === "bypass-permissions"
         ? { allowDangerouslySkipPermissions: true }
         : {}),
