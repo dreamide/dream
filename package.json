@@ -16,6 +16,7 @@
     "package:dir": "pnpm vite:build && cross-env HOME=.electron-home electron-builder --dir",
     "package:mac": "pnpm vite:build && cross-env HOME=.electron-home electron-builder --mac",
     "package:win": "pnpm vite:build && cross-env HOME=.electron-home electron-builder --win",
+    "package:win:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-win-signed.ps1",
     "package:linux": "pnpm vite:build && cross-env HOME=.electron-home electron-builder --linux",
     "dist": "pnpm package",
     "lint": "biome check .",
@@ -129,8 +130,7 @@
       "target": [
         "AppImage"
       ]
-    },
-    "publish": "never"
+    }
   },
   "type": "module"
 }
