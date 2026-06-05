@@ -13,7 +13,11 @@ import type {
   ProjectGitDiffResponse,
   ProjectGitStatusEntry,
 } from "@/types/ide";
-import { IdeDiffViewer } from "../diff-viewer";
+import {
+  DIFF_RENDER_CHANGED_LINE_LIMIT,
+  IdeDiffViewer,
+  LargeDiffGuard,
+} from "../diff-viewer";
 import { MaterialFileIcon } from "../material-file-icon";
 
 export type DiffViewMode = "unified" | "split";
@@ -88,13 +92,17 @@ const ExpandedDiffBody = ({
   diff,
   diffError,
   diffLoading,
+  forceRenderDiff,
   mode,
+  onForceRenderDiff,
 }: {
   change: ProjectGitStatusEntry;
   diff: ProjectGitDiffResponse | null;
   diffError: string | null;
   diffLoading: boolean;
+  forceRenderDiff: boolean;
   mode: DiffViewMode;
+  onForceRenderDiff: () => void;
 }) => {
   if (diffLoading && !diff) {
     return (
@@ -130,6 +138,9 @@ const ExpandedDiffBody = ({
   const addedFileContents = showAddedFileContents
     ? (diff.parsedDiff?.additionLines.join("") ?? "")
     : null;
+  const changedLineCount = change.addedLines + change.removedLines;
+  const diffTooLarge =
+    changedLineCount > DIFF_RENDER_CHANGED_LINE_LIMIT && !forceRenderDiff;
 
   return (
     <div className="bg-surface-50 dark:bg-surface-900">
@@ -140,7 +151,12 @@ const ExpandedDiffBody = ({
       ) : null}
       <div className="overflow-x-auto text-xs">
         <DiffEmptyState diff={diff.diff} />
-        {diff.diff.trim().length > 0 ? (
+        {diff.diff.trim().length > 0 && diffTooLarge ? (
+          <LargeDiffGuard
+            changedLineCount={changedLineCount}
+            onRenderAnyway={onForceRenderDiff}
+          />
+        ) : diff.diff.trim().length > 0 ? (
           showAddedFileContents && addedFileContents !== null ? (
             <CodeBlock
               className="dream-diff-viewer w-full rounded-none border-0"
@@ -158,9 +174,11 @@ const ExpandedDiffBody = ({
             </CodeBlock>
           ) : diff.parsedDiff ? (
             <IdeDiffViewer
+              changedLineCount={changedLineCount}
               className="min-w-[720px]"
               diffStyle={mode}
               fileDiff={diff.parsedDiff}
+              largeDiffGuardEnabled={false}
             />
           ) : (
             <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-surface-100 dark:bg-surface-900 p-4 font-mono text-xs">
@@ -182,7 +200,9 @@ export const ChangesRow = ({
   diffError,
   diffLoading,
   expanded,
+  forceRenderDiff,
   mode,
+  onForceRenderDiff,
   onToggle,
 }: {
   change: ProjectGitStatusEntry;
@@ -190,7 +210,9 @@ export const ChangesRow = ({
   diffError: string | null;
   diffLoading: boolean;
   expanded: boolean;
+  forceRenderDiff: boolean;
   mode: DiffViewMode;
+  onForceRenderDiff: () => void;
   onToggle: () => void;
 }) => {
   const statusLabel = CHANGE_STATUS_LABELS[change.status] ?? null;
@@ -254,7 +276,9 @@ export const ChangesRow = ({
           diff={diff}
           diffError={diffError}
           diffLoading={diffLoading}
+          forceRenderDiff={forceRenderDiff}
           mode={mode}
+          onForceRenderDiff={onForceRenderDiff}
         />
       ) : null}
     </div>

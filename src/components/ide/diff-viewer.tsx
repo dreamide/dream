@@ -1,11 +1,14 @@
 import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
 import { useTheme } from "next-themes";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type DiffViewMode = "unified" | "split";
 type PierreDiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
 type ParsedFileDiff = FileDiffProps<undefined>["fileDiff"];
+
+export const DIFF_RENDER_CHANGED_LINE_LIMIT = 500;
 
 const DIFF_UNMODIFIED_LINES_CSS = `
 [data-separator='line-info'] {
@@ -33,16 +36,54 @@ const DIFF_UNMODIFIED_LINES_CSS = `
 }
 `;
 
+const getFileDiffChangedLineCount = (fileDiff: ParsedFileDiff) =>
+  (fileDiff?.additionLines.length ?? 0) + (fileDiff?.deletionLines.length ?? 0);
+
+export const LargeDiffGuard = ({
+  changedLineCount,
+  limit = DIFF_RENDER_CHANGED_LINE_LIMIT,
+  onRenderAnyway,
+}: {
+  changedLineCount: number;
+  limit?: number;
+  onRenderAnyway: () => void;
+}) => (
+  <div className="px-4 py-4 text-sm">
+    <div className="font-medium text-foreground">Diff too large to render</div>
+    <div className="mt-2 text-muted-foreground">
+      Limit: {limit} changed lines. Current: {changedLineCount} changed lines.
+    </div>
+    <Button
+      className="mt-3"
+      onClick={onRenderAnyway}
+      size="sm"
+      type="button"
+      variant="outline"
+    >
+      Render anyway
+    </Button>
+  </div>
+);
+
 export const IdeDiffViewer = ({
+  changedLineCount,
   className,
   diffStyle = "unified",
   fileDiff,
+  largeDiffGuardEnabled = true,
+  renderChangedLineLimit = DIFF_RENDER_CHANGED_LINE_LIMIT,
 }: {
+  changedLineCount?: number;
   className?: string;
   diffStyle?: DiffViewMode;
   fileDiff: ParsedFileDiff;
+  largeDiffGuardEnabled?: boolean;
+  renderChangedLineLimit?: number;
 }) => {
   const { resolvedTheme } = useTheme();
+  const [renderAnyway, setRenderAnyway] = useState(false);
+  const resolvedChangedLineCount =
+    changedLineCount ?? getFileDiffChangedLineCount(fileDiff);
   const diffOptions = useMemo<PierreDiffOptions>(
     () => ({
       diffIndicators: "bars",
@@ -59,6 +100,22 @@ export const IdeDiffViewer = ({
     }),
     [diffStyle, resolvedTheme],
   );
+
+  if (
+    largeDiffGuardEnabled &&
+    resolvedChangedLineCount > renderChangedLineLimit &&
+    !renderAnyway
+  ) {
+    return (
+      <div className={cn("dream-diff-surface", className)}>
+        <LargeDiffGuard
+          changedLineCount={resolvedChangedLineCount}
+          limit={renderChangedLineLimit}
+          onRenderAnyway={() => setRenderAnyway(true)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={cn("dream-diff-surface", className)}>
