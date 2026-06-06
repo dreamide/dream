@@ -38,7 +38,13 @@ import type {
   ProjectConfig,
   ProjectReference,
 } from "@/types/ide";
-import { getChipToolKind } from "./assistant-message-tools";
+import {
+  getChipToolKind,
+  getToolName,
+  isToolLikePart,
+  normalizeToolName,
+  type ToolLikePart,
+} from "./assistant-message-tools";
 import {
   CHAT_CONTENT_BOTTOM_PADDING_PX,
   CHAT_STREAM_UPDATE_THROTTLE_MS,
@@ -186,6 +192,211 @@ const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
   references
     .map((reference) => `- ${reference.kind}: ${reference.path}`)
     .join("\n");
+
+const getAskUserQuestionApprovalPayload = (reason?: string) => {
+  if (!reason) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(reason);
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !("answers" in parsed) ||
+      !parsed.answers ||
+      typeof parsed.answers !== "object"
+    ) {
+      return null;
+    }
+
+    return parsed as { answers: Record<string, unknown> };
+  } catch {
+    return null;
+  }
+};
+
+const getAskUserQuestionApprovalId = (part: UIMessage["parts"][number]) => {
+  if (!isToolLikePart(part)) {
+    return null;
+  }
+
+  return (
+    part.approval?.id ??
+    (typeof part.toolCallId === "string"
+      ? `anthropic:${part.toolCallId}`
+      : null)
+  );
+};
+
+const isAskUserQuestionPart = (
+  part: UIMessage["parts"][number],
+): part is ToolLikePart =>
+  isToolLikePart(part) &&
+  normalizeToolName(getToolName(part)) === "ask-user-question";
+
+const getAskUserQuestionPayloadFromPart = (
+  part: UIMessage["parts"][number],
+) => {
+  if (!isAskUserQuestionPart(part)) {
+    return null;
+  }
+
+  const outputPayload =
+    part.output &&
+    typeof part.output === "object" &&
+    !Array.isArray(part.output)
+      ? (part.output as { answers?: unknown })
+      : null;
+
+  if (
+    outputPayload?.answers &&
+    typeof outputPayload.answers === "object" &&
+    !Array.isArray(outputPayload.answers)
+  ) {
+    return { answers: outputPayload.answers as Record<string, unknown> };
+  }
+
+  return getAskUserQuestionApprovalPayload(part.approval?.reason);
+};
+
+const preserveAskUserQuestionAnswers = (
+  messages: UIMessage[],
+  sourceMessages: UIMessage[],
+) => {
+  const answersByApprovalId = new Map<
+    string,
+    { answers: Record<string, unknown>; reason?: string }
+  >();
+
+  for (const message of sourceMessages) {
+    for (const part of message.parts) {
+      const approvalId = getAskUserQuestionApprovalId(part);
+      const payload = getAskUserQuestionPayloadFromPart(part);
+      if (approvalId && payload) {
+        answersByApprovalId.set(approvalId, {
+          ...payload,
+          reason: isToolLikePart(part) ? part.approval?.reason : undefined,
+        });
+      }
+    }
+  }
+
+  if (answersByApprovalId.size === 0) {
+    return messages;
+  }
+
+  let changed = false;
+  const nextMessages = messages.map((message) => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    let partsChanged = false;
+    const nextParts = message.parts.map((part) => {
+      if (!isAskUserQuestionPart(part)) {
+        return part;
+      }
+
+      const approvalId = getAskUserQuestionApprovalId(part);
+      const payload = approvalId ? answersByApprovalId.get(approvalId) : null;
+      if (!approvalId || !payload) {
+        return part;
+      }
+
+      const updatedInput =
+        part.input &&
+        typeof part.input === "object" &&
+        !Array.isArray(part.input)
+          ? { ...part.input, answers: payload.answers }
+          : part.input;
+
+      changed = true;
+      partsChanged = true;
+      return {
+        ...part,
+        approval: {
+          ...(part.approval ?? { id: approvalId }),
+          approved: true,
+          ...(payload.reason ? { reason: payload.reason } : {}),
+        },
+        input: updatedInput,
+        output: { answers: payload.answers },
+        state: "output-available",
+      } as UIMessage["parts"][number];
+    });
+
+    return partsChanged ? { ...message, parts: nextParts } : message;
+  });
+
+  return changed ? nextMessages : messages;
+};
+
+const addAskUserQuestionAnswerToMessages = (
+  messages: UIMessage[],
+  response: Parameters<ToolApprovalResponder>[0],
+) => {
+  if (!response.approved || !response.id.startsWith("anthropic:")) {
+    return messages;
+  }
+
+  const approvalPayload = getAskUserQuestionApprovalPayload(response.reason);
+  if (!approvalPayload) {
+    return messages;
+  }
+
+  let changed = false;
+  const nextMessages = messages.map((message) => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    let partsChanged = false;
+    const nextParts = message.parts.map((part) => {
+      if (
+        !isToolLikePart(part) ||
+        normalizeToolName(getToolName(part)) !== "ask-user-question"
+      ) {
+        return part;
+      }
+
+      const approvalId = getAskUserQuestionApprovalId(part);
+      if (approvalId !== response.id) {
+        return part;
+      }
+
+      changed = true;
+      partsChanged = true;
+      const updatedInput =
+        part.input &&
+        typeof part.input === "object" &&
+        !Array.isArray(part.input)
+          ? { ...part.input, ...approvalPayload }
+          : part.input;
+
+      return {
+        ...part,
+        approval: {
+          ...(part.approval ?? { id: response.id }),
+          approved: true,
+          reason: response.reason,
+        },
+        input: updatedInput,
+        output: approvalPayload,
+        state: "output-available",
+      } as UIMessage["parts"][number];
+    });
+
+    return !partsChanged
+      ? message
+      : {
+          ...message,
+          parts: nextParts,
+        };
+  });
+
+  return changed ? nextMessages : messages;
+};
 
 export const ChatPanel = ({
   canCloseChat = false,
@@ -352,9 +563,13 @@ export const ChatPanel = ({
         },
       };
 
+      const finalMessagesWithQuestionAnswers = preserveAskUserQuestionAnswers(
+        [finalAssistantMessage],
+        latestMessagesRef.current,
+      );
       const nextMessages = mergeChatMessageHistories(
         latestMessagesRef.current,
-        [finalAssistantMessage],
+        finalMessagesWithQuestionAnswers,
       );
       latestMessagesRef.current = nextMessages;
       setMessages(nextMessages);
@@ -389,15 +604,28 @@ export const ChatPanel = ({
 
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
     (response) => {
-      void Promise.resolve(
-        addAiSdkToolApprovalResponse({
-          approved: response.approved,
-          id: response.id,
-          reason: response.reason,
-        }),
-      ).catch((error: unknown) => {
-        console.debug("[tool approval ai-sdk response]", error);
-      });
+      const messagesWithApprovalAnswer = addAskUserQuestionAnswerToMessages(
+        latestMessagesRef.current,
+        response,
+      );
+      if (messagesWithApprovalAnswer !== latestMessagesRef.current) {
+        latestMessagesRef.current = messagesWithApprovalAnswer;
+        setMessages(messagesWithApprovalAnswer);
+        setMessagesForChat(chat.id, messagesWithApprovalAnswer);
+        useIdeStore.getState().persist();
+      }
+
+      if (!response.id.startsWith("anthropic:")) {
+        void Promise.resolve(
+          addAiSdkToolApprovalResponse({
+            approved: response.approved,
+            id: response.id,
+            reason: response.reason,
+          }),
+        ).catch((error: unknown) => {
+          console.debug("[tool approval ai-sdk response]", error);
+        });
+      }
 
       void fetch("/api/tool-approval-response", {
         body: JSON.stringify({
@@ -412,7 +640,7 @@ export const ChatPanel = ({
         console.error("[tool approval response]", error);
       });
     },
-    [addAiSdkToolApprovalResponse],
+    [addAiSdkToolApprovalResponse, chat.id, setMessages, setMessagesForChat],
   );
 
   useChatMessageSync({

@@ -78,8 +78,60 @@ const normalizeClaudeImageInputs = (modelMessages) => {
   };
 };
 
-const createClaudeNativePermissionHandler = (writer) => {
+const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
+  "edit",
+  "exitplanmode",
+  "glob",
+  "grep",
+  "ls",
+  "multiedit",
+  "notebookedit",
+  "read",
+  "write",
+]);
+
+const createClaudePermissionHandler = (writer, { mode }) => {
   return async (toolName, input, options) => {
+    const normalizedToolName = normalizeClaudeToolName(toolName);
+    const toolUseID =
+      typeof options?.toolUseID === "string" ? options.toolUseID : undefined;
+
+    if (
+      normalizedToolName !== "askuserquestion" &&
+      mode === "accept-edits" &&
+      CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS.has(normalizedToolName)
+    ) {
+      return {
+        behavior: "allow",
+        ...(options?.suggestions
+          ? { updatedPermissions: options.suggestions }
+          : {}),
+        ...(toolUseID ? { toolUseID } : {}),
+        updatedInput: input,
+      };
+    }
+
+    if (normalizedToolName !== "askuserquestion" && mode === "bypass") {
+      return {
+        behavior: "allow",
+        ...(options?.suggestions
+          ? { updatedPermissions: options.suggestions }
+          : {}),
+        ...(toolUseID ? { toolUseID } : {}),
+        updatedInput: input,
+      };
+    }
+
+    if (normalizedToolName !== "askuserquestion" && mode === "accept-edits") {
+      return {
+        behavior: "deny",
+        interrupt: false,
+        message:
+          "Accept edits only auto-approves file read and edit tools. Switch to Bypass permissions to allow this action.",
+        ...(toolUseID ? { toolUseID } : {}),
+      };
+    }
+
     const toolCallId =
       typeof options?.toolUseID === "string" && options.toolUseID.length > 0
         ? options.toolUseID
@@ -148,13 +200,30 @@ const createClaudeNativePermissionHandler = (writer) => {
     });
 
     if (response.approved) {
+      const questionApproval =
+        normalizedToolName === "askuserquestion"
+          ? parseAskUserQuestionApproval(response.reason)
+          : null;
+
+      if (questionApproval) {
+        writer.write({
+          dynamic: true,
+          output: questionApproval,
+          providerExecuted: true,
+          toolCallId,
+          type: "tool-output-available",
+        });
+      }
+
       return {
         behavior: "allow",
         ...(response.scope === "session" && options?.suggestions
           ? { updatedPermissions: options.suggestions }
           : {}),
         toolUseID: options?.toolUseID,
-        updatedInput: input,
+        updatedInput: questionApproval
+          ? { ...input, ...questionApproval }
+          : input,
       };
     }
 
@@ -167,48 +236,42 @@ const createClaudeNativePermissionHandler = (writer) => {
   };
 };
 
-const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
-  "edit",
-  "exitplanmode",
-  "glob",
-  "grep",
-  "ls",
-  "multiedit",
-  "notebookedit",
-  "read",
-  "write",
-]);
-
 const normalizeClaudeToolName = (toolName) =>
   String(toolName ?? "")
     .replace(/[\s_-]+/g, "")
     .toLowerCase();
 
-const createClaudeAcceptEditsPermissionHandler = () => {
-  return async (toolName, input, options) => {
-    const normalizedToolName = normalizeClaudeToolName(toolName);
-    const toolUseID =
-      typeof options?.toolUseID === "string" ? options.toolUseID : undefined;
+const parseAskUserQuestionApproval = (reason) => {
+  if (typeof reason !== "string" || reason.trim().length === 0) {
+    return null;
+  }
 
-    if (CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS.has(normalizedToolName)) {
-      return {
-        behavior: "allow",
-        ...(options?.suggestions
-          ? { updatedPermissions: options.suggestions }
-          : {}),
-        ...(toolUseID ? { toolUseID } : {}),
-        updatedInput: input,
-      };
+  try {
+    const parsed = JSON.parse(reason);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const answers =
+      parsed.answers && typeof parsed.answers === "object"
+        ? parsed.answers
+        : null;
+    const annotations =
+      parsed.annotations && typeof parsed.annotations === "object"
+        ? parsed.annotations
+        : null;
+
+    if (!answers) {
+      return null;
     }
 
     return {
-      behavior: "deny",
-      interrupt: false,
-      message:
-        "Accept edits only auto-approves file read and edit tools. Switch to Bypass permissions to allow this action.",
-      ...(toolUseID ? { toolUseID } : {}),
+      answers,
+      ...(annotations ? { annotations } : {}),
     };
-  };
+  } catch {
+    return null;
+  }
 };
 
 export const streamClaudeResponse = async ({
@@ -224,37 +287,29 @@ export const streamClaudeResponse = async ({
   const usesReasoningModel =
     getModelReasoningEfforts("anthropic", model).length > 0;
   let usesClaudeImageInput = false;
+  const claudePermissionHandlerMode =
+    agentMode === "plan"
+      ? "ask"
+      : claudePermissionMode === "accept-edits"
+        ? "accept-edits"
+        : claudePermissionMode === "bypass-permissions"
+          ? "bypass"
+          : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
   const providerFactory = (modelId, writer) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
       ...(claudeExecutablePath
         ? { pathToClaudeCodeExecutable: claudeExecutablePath }
         : {}),
-      ...(claudePermissionMode === "ask-permissions"
-        ? {
-            canUseTool: createClaudeNativePermissionHandler(writer),
-            streamingInput: usesClaudeImageInput ? "always" : "auto",
-          }
-        : {}),
-      ...(claudePermissionMode === "accept-edits"
-        ? {
-            canUseTool: createClaudeAcceptEditsPermissionHandler(),
-            streamingInput: usesClaudeImageInput ? "always" : "auto",
-          }
-        : {}),
-      ...(usesClaudeImageInput &&
-      !["ask-permissions", "accept-edits"].includes(claudePermissionMode)
-        ? { streamingInput: "always" }
-        : {}),
+      canUseTool: createClaudePermissionHandler(writer, {
+        mode: claudePermissionHandlerMode,
+      }),
+      streamingInput: usesClaudeImageInput ? "always" : "auto",
       continue: false,
       cwd: projectPath,
       persistSession: false,
       // Pin the Claude Code CLI tool catalog so the model sees the full set
       // up front and has no reason to invoke the ToolSearch discovery meta-tool.
-      // Keep ToolSearch explicitly denied because Claude Code may still expose
-      // it as a deferred-tool loader even when the regular tool catalog is
-      // pinned. This eliminates the "Read, Glob, Grep, Bash · N tools" preamble
-      // chip.
       allowedTools: [
         "Read",
         "Write",
@@ -270,17 +325,15 @@ export const streamClaudeResponse = async ({
         "WebFetch",
         "WebSearch",
         "NotebookEdit",
+        "EnterPlanMode",
+        "AskUserQuestion",
         "ExitPlanMode",
       ],
-      // AskUserQuestion requires Claude's interactive bridge answer path. This
-      // chat surface only supports permission approvals, so keep questions in
-      // normal assistant text instead of surfacing an unanswerable tool call.
-      disallowedTools: ["ToolSearch", "AskUserQuestion"],
       permissionMode:
         agentMode === "plan"
           ? "plan"
           : CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
-      ...(claudePermissionMode === "bypass-permissions"
+      ...(agentMode !== "plan" && claudePermissionMode === "bypass-permissions"
         ? { allowDangerouslySkipPermissions: true }
         : {}),
       ...(usesReasoningModel

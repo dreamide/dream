@@ -1,4 +1,9 @@
-import { MapIcon, WrenchIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CircleQuestionMarkIcon,
+  MapIcon,
+  WrenchIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -99,6 +104,334 @@ const GenericToolCodeSection = ({
   );
 };
 
+type AskUserQuestionOption = {
+  description: string;
+  label: string;
+};
+
+type AskUserQuestionItem = {
+  header: string;
+  multiSelect: boolean;
+  options: AskUserQuestionOption[];
+  question: string;
+};
+
+type AskUserQuestionSummaryItem = {
+  answer: string;
+  question: string;
+};
+
+const askUserQuestionAnswerCache = new Map<string, Record<string, string>>();
+
+const getAskUserQuestions = (input: unknown): AskUserQuestionItem[] => {
+  if (!isRecord(input) || !Array.isArray(input.questions)) {
+    return [];
+  }
+
+  return input.questions.flatMap((question): AskUserQuestionItem[] => {
+    if (!isRecord(question) || !Array.isArray(question.options)) {
+      return [];
+    }
+
+    const questionText = isString(question.question) ? question.question : "";
+    const header = isString(question.header) ? question.header : "Question";
+    if (!questionText) {
+      return [];
+    }
+
+    const options = question.options.flatMap(
+      (option): AskUserQuestionOption[] => {
+        if (!isRecord(option) || !isString(option.label)) {
+          return [];
+        }
+
+        return [
+          {
+            description: isString(option.description) ? option.description : "",
+            label: option.label,
+          },
+        ];
+      },
+    );
+
+    if (options.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        header,
+        multiSelect: question.multiSelect === true,
+        options,
+        question: questionText,
+      },
+    ];
+  });
+};
+
+const getAnswerMapFromValue = (
+  value: unknown,
+): Record<string, string> | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const answers = isRecord(value.answers) ? value.answers : value;
+  const answerEntries = Object.entries(answers).flatMap(([key, answer]) => {
+    if (isString(answer)) {
+      return [[key, answer] as const];
+    }
+
+    if (Array.isArray(answer)) {
+      const labels = answer.filter(isString);
+      return labels.length > 0 ? [[key, labels.join(", ")] as const] : [];
+    }
+
+    return [];
+  });
+
+  return answerEntries.length > 0 ? Object.fromEntries(answerEntries) : null;
+};
+
+const getAnswerMapFromJson = (
+  value: unknown,
+): Record<string, string> | null => {
+  if (!isString(value) || value.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    return getAnswerMapFromValue(JSON.parse(value));
+  } catch {
+    return null;
+  }
+};
+
+const getAnswerMapFromClaudeOutputText = (
+  value: unknown,
+): Record<string, string> | null => {
+  if (!isString(value)) {
+    return null;
+  }
+
+  const answerEntries = [...value.matchAll(/"([^"]+)"="([^"]*)"/g)].map(
+    ([, question, answer]) => [question, answer] as const,
+  );
+
+  return answerEntries.length > 0 ? Object.fromEntries(answerEntries) : null;
+};
+
+const getAskUserQuestionAnswerMap = (
+  part: ToolLikePart,
+  approvalId: string | null,
+): Record<string, string> => {
+  return (
+    (approvalId ? askUserQuestionAnswerCache.get(approvalId) : null) ??
+    getAnswerMapFromJson(part.approval?.reason) ??
+    getAnswerMapFromValue(part.input) ??
+    getAnswerMapFromValue(part.output) ??
+    getAnswerMapFromJson(part.output) ??
+    getAnswerMapFromClaudeOutputText(part.output) ??
+    {}
+  );
+};
+
+const getAskUserQuestionSummary = (
+  questions: AskUserQuestionItem[],
+  part: ToolLikePart,
+  approvalId: string | null,
+): AskUserQuestionSummaryItem[] => {
+  const answerMap = getAskUserQuestionAnswerMap(part, approvalId);
+  const answerValues = Object.values(answerMap).filter(
+    (answer) => answer.length > 0,
+  );
+
+  const summaries = questions.flatMap((question) => {
+    const answer = answerMap[question.question];
+    return answer
+      ? [
+          {
+            answer,
+            question: question.question,
+          },
+        ]
+      : [];
+  });
+
+  if (summaries.length > 0) {
+    return summaries;
+  }
+
+  if (questions.length === 1 && answerValues.length === 1) {
+    return [
+      {
+        answer: answerValues[0],
+        question: questions[0].question,
+      },
+    ];
+  }
+
+  return Object.entries(answerMap).map(([question, answer]) => ({
+    answer,
+    question,
+  }));
+};
+
+const AskUserQuestionSummary = ({
+  items,
+}: {
+  items: AskUserQuestionSummaryItem[];
+}) => {
+  return (
+    <div className="space-y-3 p-2 text-sm">
+      {items.map((item) => (
+        <div className="space-y-1" key={item.question}>
+          <div className="text-foreground">{item.question}</div>
+          <div className="text-muted-foreground">{item.answer}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const AskUserQuestionApproval = ({
+  approvalId,
+  onToolApproval,
+  questions,
+}: {
+  approvalId: string;
+  onToolApproval: ToolApprovalHandler;
+  questions: AskUserQuestionItem[];
+}) => {
+  const [answers, setAnswers] = useState<Record<string, string[]>>({});
+
+  const buildReason = (nextAnswers: Record<string, string[]>) =>
+    JSON.stringify({
+      answers: Object.fromEntries(
+        questions.map((question) => [
+          question.question,
+          (nextAnswers[question.question] ?? []).join(", "),
+        ]),
+      ),
+    });
+
+  const canSubmit = questions.every(
+    (question) => (answers[question.question] ?? []).length > 0,
+  );
+
+  const submit = (nextAnswers = answers) => {
+    askUserQuestionAnswerCache.set(
+      approvalId,
+      Object.fromEntries(
+        questions.map((question) => [
+          question.question,
+          (nextAnswers[question.question] ?? []).join(", "),
+        ]),
+      ),
+    );
+    onToolApproval({
+      approved: true,
+      id: approvalId,
+      reason: buildReason(nextAnswers),
+    });
+  };
+
+  const chooseSingle = (question: AskUserQuestionItem, label: string) => {
+    setAnswers({ ...answers, [question.question]: [label] });
+  };
+
+  const toggleMulti = (question: AskUserQuestionItem, label: string) => {
+    const current = answers[question.question] ?? [];
+    const nextSelected = current.includes(label)
+      ? current.filter((item) => item !== label)
+      : [...current, label];
+    setAnswers({ ...answers, [question.question]: nextSelected });
+  };
+
+  return (
+    <div className="mt-2 w-full rounded-md border border-success-border bg-success-surface p-3 text-sm">
+      <div className="space-y-3">
+        {questions.map((question) => {
+          const selected = answers[question.question] ?? [];
+
+          return (
+            <div className="space-y-2" key={question.question}>
+              <div>
+                <div className="font-medium">{question.question}</div>
+                <div className="text-emerald-200/80 text-xs">
+                  {question.header}
+                </div>
+              </div>
+              <div className="space-y-2">
+                {question.options.map((option, optionIndex) => {
+                  const isSelected = selected.includes(option.label);
+
+                  return (
+                    <button
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-md bg-[#021f12] px-3 py-2 text-left text-emerald-50 transition-colors hover:bg-[#01170d]",
+                        isSelected && "bg-[#01170d]",
+                      )}
+                      key={option.label}
+                      onClick={() =>
+                        question.multiSelect
+                          ? toggleMulti(question, option.label)
+                          : chooseSingle(question, option.label)
+                      }
+                      type="button"
+                    >
+                      <span className="shrink-0 font-medium text-emerald-200 text-sm">
+                        {optionIndex + 1}.
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-sm">
+                          {option.label}
+                        </span>
+                        {option.description ? (
+                          <span className="block text-emerald-200/80 text-xs">
+                            {option.description}
+                          </span>
+                        ) : null}
+                      </span>
+                      {isSelected ? (
+                        <CheckIcon className="size-4 shrink-0 self-center text-emerald-300" />
+                      ) : (
+                        <span className="size-4 shrink-0 self-center" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex justify-end gap-2">
+        <button
+          className="h-8 rounded-md border px-3 text-sm"
+          onClick={() =>
+            onToolApproval({
+              approved: false,
+              id: approvalId,
+            })
+          }
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          className="h-8 rounded-md bg-emerald-600 px-3 text-sm text-white disabled:opacity-50"
+          disabled={!canSubmit}
+          onClick={() => submit()}
+          type="button"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const GenericToolChip = ({
   onToolApproval,
   part,
@@ -109,20 +442,24 @@ const GenericToolChip = ({
   const [expanded, setExpanded] = useState(false);
   const toolName = getToolName(part);
   const isEnterPlanMode = normalizeToolName(toolName) === "enter-plan-mode";
-  const ToolIcon = isEnterPlanMode ? MapIcon : WrenchIcon;
-  const tone = isEnterPlanMode ? "cyan" : "slate";
+  const isAskUserQuestion = normalizeToolName(toolName) === "ask-user-question";
+  const ToolIcon = isAskUserQuestion
+    ? CircleQuestionMarkIcon
+    : isEnterPlanMode
+      ? MapIcon
+      : WrenchIcon;
+  const tone = isAskUserQuestion ? "green" : isEnterPlanMode ? "cyan" : "slate";
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const isCompleted = state === "output-available" || state === "output-error";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
-  const hasParameters = isRecord(part.input);
+  const hasParameters = !isAskUserQuestion && isRecord(part.input);
   const parametersCode = hasParameters
     ? JSON.stringify(part.input, null, 2)
     : null;
-  const outputCode = getGenericToolOutputCode(part);
-  const hasOutput = part.output !== undefined || hasError;
-  const canExpand =
-    hasParameters || hasOutput || state === "approval-requested";
+  const outputCode = isAskUserQuestion ? null : getGenericToolOutputCode(part);
+  const hasOutput =
+    !isAskUserQuestion && (part.output !== undefined || hasError);
   const approvalTitle =
     getStringFromPaths(part.input, [["title"], ["permission", "title"]]) ??
     `Allow ${formatToolName(toolName)}?`;
@@ -132,17 +469,54 @@ const GenericToolChip = ({
     ["blockedPath"],
     ["permission", "description"],
   ]);
+  const askUserQuestions = isAskUserQuestion
+    ? getAskUserQuestions(part.input)
+    : [];
+  const askUserQuestionApprovalId =
+    isAskUserQuestion && typeof part.toolCallId === "string"
+      ? (part.approval?.id ?? `anthropic:${part.toolCallId}`)
+      : null;
+  const askUserQuestionSummary = isAskUserQuestion
+    ? getAskUserQuestionSummary(
+        askUserQuestions,
+        part,
+        askUserQuestionApprovalId,
+      )
+    : [];
+  const hasAskUserQuestionSummary = askUserQuestionSummary.length > 0;
+  const shouldShowAskUserQuestionApproval =
+    isAskUserQuestion &&
+    askUserQuestions.length > 0 &&
+    !!askUserQuestionApprovalId &&
+    !!onToolApproval &&
+    state !== "output-available" &&
+    state !== "output-error" &&
+    state !== "approval-responded" &&
+    state !== "output-denied";
+  const canExpandAskUserQuestion =
+    isAskUserQuestion &&
+    !shouldShowAskUserQuestionApproval &&
+    hasAskUserQuestionSummary &&
+    (isCompleted || state === "approval-responded");
+  const canExpand =
+    canExpandAskUserQuestion ||
+    (!isAskUserQuestion &&
+      (hasParameters || hasOutput || state === "approval-requested"));
 
   useEffect(() => {
-    if (isCompleted) {
+    if (isCompleted && (!isAskUserQuestion || hasAskUserQuestionSummary)) {
       setExpanded(true);
     }
-  }, [isCompleted]);
+  }, [hasAskUserQuestionSummary, isCompleted, isAskUserQuestion]);
 
   return (
     <div
       className={
-        expanded || state === "approval-requested" ? "w-full" : undefined
+        expanded ||
+        state === "approval-requested" ||
+        shouldShowAskUserQuestionApproval
+          ? "w-full"
+          : undefined
       }
     >
       <div className="flex items-center gap-2">
@@ -158,7 +532,7 @@ const GenericToolChip = ({
           type="button"
         >
           <ToolIcon className="size-3.5 shrink-0" />
-          {!isRunning ? (
+          {!isRunning || isAskUserQuestion ? (
             <>
               <span className="max-w-56 truncate font-medium">
                 {formatToolName(toolName)}
@@ -174,7 +548,13 @@ const GenericToolChip = ({
         </ChipButton>
       </div>
 
-      {part.approval?.id && part.approval && onToolApproval ? (
+      {shouldShowAskUserQuestionApproval ? (
+        <AskUserQuestionApproval
+          approvalId={askUserQuestionApprovalId}
+          onToolApproval={onToolApproval}
+          questions={askUserQuestions}
+        />
+      ) : part.approval?.id && part.approval && onToolApproval ? (
         <ActionApproval
           approval={part.approval}
           className="mt-2"
@@ -197,7 +577,9 @@ const GenericToolChip = ({
           className={getExpandedChipClasses(tone, hasError)}
           style={{ borderColor: "currentColor" }}
         >
-          {parametersCode !== null || outputCode !== null ? (
+          {hasAskUserQuestionSummary ? (
+            <AskUserQuestionSummary items={askUserQuestionSummary} />
+          ) : parametersCode !== null || outputCode !== null ? (
             <div className="overflow-hidden rounded-md border bg-background">
               {parametersCode !== null ? (
                 <GenericToolCodeSection
