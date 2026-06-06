@@ -461,8 +461,12 @@ const GenericToolChip = ({
   const hasOutput =
     !isAskUserQuestion && (part.output !== undefined || hasError);
   const approvalTitle =
-    getStringFromPaths(part.input, [["title"], ["permission", "title"]]) ??
-    `Allow ${formatToolName(toolName)}?`;
+    getStringFromPaths(part.input, [
+      ["title"],
+      ["displayName"],
+      ["permission", "title"],
+      ["permission", "displayName"],
+    ]) ?? `Allow ${formatToolName(toolName)}?`;
   const approvalDescription = getStringFromPaths(part.input, [
     ["description"],
     ["decisionReason"],
