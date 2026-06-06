@@ -336,7 +336,7 @@ const addAskUserQuestionAnswerToMessages = (
   messages: UIMessage[],
   response: Parameters<ToolApprovalResponder>[0],
 ) => {
-  if (!response.approved || !response.id.startsWith("anthropic:")) {
+  if (!response.approved) {
     return messages;
   }
 

@@ -110,6 +110,7 @@ type AskUserQuestionOption = {
 
 type AskUserQuestionItem = {
   header: string;
+  id: string;
   multiSelect: boolean;
   options: AskUserQuestionOption[];
   question: string;
@@ -137,6 +138,10 @@ const getAskUserQuestions = (input: unknown): AskUserQuestionItem[] => {
     if (!questionText) {
       return [];
     }
+    const id =
+      isString(question.id) && question.id.trim()
+        ? question.id.trim()
+        : questionText;
 
     const options = question.options.flatMap(
       (option): AskUserQuestionOption[] => {
@@ -160,6 +165,7 @@ const getAskUserQuestions = (input: unknown): AskUserQuestionItem[] => {
     return [
       {
         header,
+        id,
         multiSelect: question.multiSelect === true,
         options,
         question: questionText,
@@ -246,7 +252,7 @@ const getAskUserQuestionSummary = (
   );
 
   const summaries = questions.flatMap((question) => {
-    const answer = answerMap[question.question];
+    const answer = answerMap[question.id] ?? answerMap[question.question];
     return answer
       ? [
           {
@@ -308,14 +314,14 @@ const AskUserQuestionApproval = ({
     JSON.stringify({
       answers: Object.fromEntries(
         questions.map((question) => [
-          question.question,
-          (nextAnswers[question.question] ?? []).join(", "),
+          question.id,
+          (nextAnswers[question.id] ?? []).join(", "),
         ]),
       ),
     });
 
   const canSubmit = questions.every(
-    (question) => (answers[question.question] ?? []).length > 0,
+    (question) => (answers[question.id] ?? []).length > 0,
   );
 
   const submit = (nextAnswers = answers) => {
@@ -323,8 +329,8 @@ const AskUserQuestionApproval = ({
       approvalId,
       Object.fromEntries(
         questions.map((question) => [
-          question.question,
-          (nextAnswers[question.question] ?? []).join(", "),
+          question.id,
+          (nextAnswers[question.id] ?? []).join(", "),
         ]),
       ),
     );
@@ -336,25 +342,25 @@ const AskUserQuestionApproval = ({
   };
 
   const chooseSingle = (question: AskUserQuestionItem, label: string) => {
-    setAnswers({ ...answers, [question.question]: [label] });
+    setAnswers({ ...answers, [question.id]: [label] });
   };
 
   const toggleMulti = (question: AskUserQuestionItem, label: string) => {
-    const current = answers[question.question] ?? [];
+    const current = answers[question.id] ?? [];
     const nextSelected = current.includes(label)
       ? current.filter((item) => item !== label)
       : [...current, label];
-    setAnswers({ ...answers, [question.question]: nextSelected });
+    setAnswers({ ...answers, [question.id]: nextSelected });
   };
 
   return (
     <div className="mt-2 w-full rounded-md border border-success-border bg-success-surface p-3 text-sm">
       <div className="space-y-3">
         {questions.map((question) => {
-          const selected = answers[question.question] ?? [];
+          const selected = answers[question.id] ?? [];
 
           return (
-            <div className="space-y-2" key={question.question}>
+            <div className="space-y-2" key={question.id}>
               <div>
                 <div className="font-medium">{question.question}</div>
                 <div className="text-emerald-200/80 text-xs">

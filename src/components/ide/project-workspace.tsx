@@ -507,6 +507,26 @@ const ProjectWorkspaceComponent = ({
     setRightPanelView(persistedRightPanelView);
   }, [persistedRightPanelView]);
 
+  useEffect(() => {
+    if (
+      !active ||
+      !rightVisible ||
+      rightPanelView !== "terminal" ||
+      hasProjectTerminalSessions
+    ) {
+      return;
+    }
+
+    void openProjectTerminal(projectId);
+  }, [
+    active,
+    hasProjectTerminalSessions,
+    openProjectTerminal,
+    projectId,
+    rightPanelView,
+    rightVisible,
+  ]);
+
   useEffect(
     () => () => {
       if (rightPanelViewPersistTimerRef.current !== null) {

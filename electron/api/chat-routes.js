@@ -2,7 +2,6 @@ import { promises as fs } from "node:fs";
 import { resolvePersistedProjectPath } from "../persisted-state.js";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
-import { streamCodexCliResponse } from "./chat/codex-cli-stream.js";
 import { streamCursorResponse } from "./chat/cursor-stream.js";
 import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
 import {
@@ -209,23 +208,7 @@ export const registerChatRoutes = (app) => {
         return c.text(codexError.message, codexError.status);
       }
 
-      if (codexPermissionMode === "default") {
-        return streamCodexAppServerResponse({
-          abortSignal: c.req.raw.signal,
-          chatId: resolvedChatId,
-          codexPermissionMode,
-          messages,
-          model,
-          projectReferencesPrompt,
-          projectPath: resolvedProjectPath,
-          modelSpeed,
-          reasoningEffort,
-          responseMessageMetadata,
-          systemPrompt: SYSTEM_PROMPT,
-        });
-      }
-
-      return streamCodexCliResponse({
+      return streamCodexAppServerResponse({
         abortSignal: c.req.raw.signal,
         chatId: resolvedChatId,
         codexPermissionMode,
@@ -235,10 +218,6 @@ export const registerChatRoutes = (app) => {
         projectPath: resolvedProjectPath,
         modelSpeed,
         reasoningEffort,
-        remoteConversationId,
-        remoteConversationModel,
-        remoteConversationModelSpeed,
-        remoteConversationProjectPath,
         responseMessageMetadata,
         systemPrompt: SYSTEM_PROMPT,
       });

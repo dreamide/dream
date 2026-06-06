@@ -35,6 +35,9 @@ const isRecord = (value) =>
 
 const getString = (value) => (typeof value === "string" ? value : null);
 
+const getNonEmptyString = (value) =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
 const getFirstString = (...values) => {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
@@ -43,6 +46,19 @@ const getFirstString = (...values) => {
   }
 
   return null;
+};
+
+const parseJsonObject = (value) => {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 };
 
 const normalizePathForCompare = (value) =>
@@ -152,6 +168,114 @@ const loadFileChangeDiff = async ({ change, gitChanges, projectPath }) => {
     previousPath: payload.previousPath,
     status: payload.status,
   };
+};
+
+const normalizeCodexUserInputQuestions = (questions) => {
+  if (!Array.isArray(questions)) {
+    return [];
+  }
+
+  return questions.flatMap((question) => {
+    if (!isRecord(question)) {
+      return [];
+    }
+
+    const id = getNonEmptyString(question.id);
+    const questionText = getNonEmptyString(question.question);
+    if (!id || !questionText) {
+      return [];
+    }
+
+    const options = Array.isArray(question.options)
+      ? question.options.flatMap((option) => {
+          if (!isRecord(option)) {
+            return [];
+          }
+
+          const label = getNonEmptyString(option.label);
+          if (!label) {
+            return [];
+          }
+
+          return [
+            {
+              description: getString(option.description) ?? "",
+              label,
+            },
+          ];
+        })
+      : [];
+
+    return [
+      {
+        header: getString(question.header) ?? "Question",
+        id,
+        isOther: question.isOther === true,
+        isSecret: question.isSecret === true,
+        options,
+        question: questionText,
+      },
+    ];
+  });
+};
+
+const parseQuestionApprovalAnswers = (reason) => {
+  const parsed = parseJsonObject(reason);
+  return isRecord(parsed?.answers) ? parsed.answers : {};
+};
+
+const normalizeQuestionAnswerValues = (value) => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+};
+
+const getQuestionAnswerValues = (answers, question) => {
+  for (const key of [question.id, question.question]) {
+    const values = normalizeQuestionAnswerValues(answers[key]);
+    if (values.length > 0) {
+      return values;
+    }
+  }
+
+  return [];
+};
+
+const buildCodexUserInputResponse = ({ questions, reason }) => {
+  const approvalAnswers = parseQuestionApprovalAnswers(reason);
+  const answers = {};
+
+  for (const question of questions) {
+    const values = getQuestionAnswerValues(approvalAnswers, question);
+    if (values.length > 0) {
+      answers[question.id] = { answers: values };
+    }
+  }
+
+  return { answers };
+};
+
+const buildQuestionUiOutput = ({ questions, reason }) => {
+  const approvalAnswers = parseQuestionApprovalAnswers(reason);
+  const answers = {};
+
+  for (const question of questions) {
+    const values = getQuestionAnswerValues(approvalAnswers, question);
+    if (values.length > 0) {
+      answers[question.question] = values.join(", ");
+    }
+  }
+
+  return { answers };
 };
 
 const buildFileChangeOutput = async ({ item, projectPath }) => {
@@ -529,6 +653,71 @@ export const streamCodexAppServerResponse = ({
               return;
             }
 
+            if (method === "item/tool/requestUserInput") {
+              const questions = normalizeCodexUserInputQuestions(
+                params?.questions,
+              );
+              const toolCallId = params?.itemId ?? `codex-question-${id}`;
+              const approvalId = [
+                "codex",
+                "question",
+                params?.threadId,
+                params?.turnId,
+                toolCallId,
+              ]
+                .filter(Boolean)
+                .join(":");
+              const response = await writeCodexApprovalRequest({
+                approvalId,
+                input: {
+                  itemId: toolCallId,
+                  questions,
+                  threadId: params?.threadId ?? null,
+                  turnId: params?.turnId ?? null,
+                },
+                provider: "openai",
+                request: { method, params },
+                signal: abortSignal,
+                title: "Question",
+                toolCallId,
+                toolName: "ask-user-question",
+                writer,
+              });
+
+              if (!response.approved) {
+                const message =
+                  response.reason || "User cancelled the question request.";
+                writer.write({
+                  dynamic: true,
+                  errorText: message,
+                  providerExecuted: true,
+                  toolCallId,
+                  type: "tool-output-error",
+                });
+                sendErrorResponse(id, message);
+                return;
+              }
+
+              writer.write({
+                dynamic: true,
+                output: buildQuestionUiOutput({
+                  questions,
+                  reason: response.reason,
+                }),
+                providerExecuted: true,
+                toolCallId,
+                type: "tool-output-available",
+              });
+              sendResponse(
+                id,
+                buildCodexUserInputResponse({
+                  questions,
+                  reason: response.reason,
+                }),
+              );
+              return;
+            }
+
             sendErrorResponse(
               id,
               `Unsupported Codex app-server request: ${method}`,
@@ -742,6 +931,8 @@ export const streamCodexAppServerResponse = ({
               [
                 ...launch.argsPrefix,
                 ...(modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : []),
+                "--enable",
+                "default_mode_request_user_input",
                 "app-server",
               ],
               {
@@ -787,7 +978,10 @@ export const streamCodexAppServerResponse = ({
               getCodexAppApprovalPolicy(codexPermissionMode);
 
             await sendRequest("initialize", {
-              capabilities: {},
+              capabilities: {
+                experimentalApi: true,
+                requestAttestation: false,
+              },
               clientInfo: { name: "Dream", version: "0.1.0" },
             });
             const threadResponse = await sendRequest("thread/start", {
