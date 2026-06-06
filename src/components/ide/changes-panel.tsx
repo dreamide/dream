@@ -74,6 +74,8 @@ const ChangesPanelImpl = ({
   const [diffLoadingByProject, setDiffLoadingByProject] = useState<
     Record<string, Record<string, boolean>>
   >({});
+  const [forcedRenderedDiffsByProject, setForcedRenderedDiffsByProject] =
+    useState<Record<string, string[]>>({});
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
@@ -111,6 +113,13 @@ const ChangesPanelImpl = ({
   const projectDiffLoading = projectId
     ? (diffLoadingByProject[projectId] ?? {})
     : {};
+  const forcedRenderedDiffs = projectId
+    ? (forcedRenderedDiffsByProject[projectId] ?? [])
+    : [];
+  const forcedRenderedDiffPathSet = useMemo(
+    () => new Set(forcedRenderedDiffs),
+    [forcedRenderedDiffs],
+  );
   const allExpanded =
     changes.length > 0 &&
     changes.every((change) => expandedPathSet.has(change.path));
@@ -179,6 +188,10 @@ const ChangesPanelImpl = ({
     setDiffLoadingByProject((current) => ({
       ...current,
       [projectId]: {},
+    }));
+    setForcedRenderedDiffsByProject((current) => ({
+      ...current,
+      [projectId]: [],
     }));
   }, [gitRefreshKey, projectId]);
 
@@ -455,6 +468,27 @@ const ChangesPanelImpl = ({
     bumpProjectGitRefreshKey(projectId);
   }, [bumpProjectGitRefreshKey, projectId]);
 
+  const handleForceRenderDiff = useCallback(
+    (filePath: string) => {
+      if (!projectId) {
+        return;
+      }
+
+      setForcedRenderedDiffsByProject((current) => {
+        const currentPaths = current[projectId] ?? [];
+        if (currentPaths.includes(filePath)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [projectId]: [...currentPaths, filePath],
+        };
+      });
+    },
+    [projectId],
+  );
+
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
@@ -572,8 +606,10 @@ const ChangesPanelImpl = ({
                 diffError={projectDiffErrors[change.path] ?? null}
                 diffLoading={projectDiffLoading[change.path] ?? false}
                 expanded={expandedPathSet.has(change.path)}
+                forceRenderDiff={forcedRenderedDiffPathSet.has(change.path)}
                 key={change.path}
                 mode={diffViewMode}
+                onForceRenderDiff={() => handleForceRenderDiff(change.path)}
                 onToggle={() => handleTogglePath(change.path)}
               />
             ))}
