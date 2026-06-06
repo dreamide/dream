@@ -99,6 +99,27 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Verify signed macOS app and notarization
+        if: env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_path="$(find release -maxdepth 2 -type d -name 'Dream.app' -print -quit)"
+          if [[ -z "$app_path" ]]; then
+            echo "Could not find Dream.app under release." >&2
+            find release -maxdepth 3 -print >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          spctl --assess --type execute --verbose=4 "$app_path"
+          xcrun stapler validate "$app_path"
+
+          while IFS= read -r dmg_path; do
+            xcrun stapler validate "$dmg_path"
+          done < <(find release -maxdepth 1 -type f -name '*.dmg' -print)
+
       - name: Package unsigned macOS installer
         if: env.ENABLE_SIGNING != 'true' || env.MAC_SIGNING_AVAILABLE != 'true'
         run: pnpm exec electron-builder --mac --universal --publish never -c.mac.identity=null
@@ -166,6 +187,21 @@ jobs:
           environment_name: ${{ env.SSL_COM_ENVIRONMENT_NAME }}
           signing_method: v2
 
+      - name: Verify signed Windows app executable
+        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
+        shell: pwsh
+        run: |
+          $appPath = Join-Path $env:GITHUB_WORKSPACE "release\win-unpacked\Dream.exe"
+          if (-not (Test-Path -LiteralPath $appPath)) {
+            throw "Could not find signed app executable: $appPath"
+          }
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $appPath
+          $signature | Format-List
+          if ($signature.Status -ne "Valid") {
+            throw "Invalid Windows app executable signature: $($signature.Status)"
+          }
+
       - name: Package signed Windows installer
         if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
         run: pnpm exec electron-builder --win nsis --x64 --prepackaged release/win-unpacked --publish never
@@ -188,6 +224,24 @@ jobs:
           clean_logs: true
           environment_name: ${{ env.SSL_COM_ENVIRONMENT_NAME }}
           signing_method: v2
+
+      - name: Verify signed Windows installer
+        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
+        shell: pwsh
+        run: |
+          $releasePath = Join-Path $env:GITHUB_WORKSPACE "release"
+          $installers = @(Get-ChildItem -LiteralPath $releasePath -Filter "*.exe" -File)
+          if ($installers.Count -eq 0) {
+            throw "Could not find signed Windows installer under: $releasePath"
+          }
+
+          foreach ($installer in $installers) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+            $signature | Format-List
+            if ($signature.Status -ne "Valid") {
+              throw "Invalid Windows installer signature for $($installer.FullName): $($signature.Status)"
+            }
+          }
 
       - name: Package unsigned Windows installer
         if: env.ENABLE_SIGNING != 'true' || env.WINDOWS_SIGNING_AVAILABLE != 'true'
