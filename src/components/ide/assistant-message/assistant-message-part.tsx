@@ -33,7 +33,6 @@ import { isTodoListPart } from "../chat/todo-list";
 import { stringifyPart } from "../ide-state";
 import {
   ActionApproval,
-  CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   formatToolName,
@@ -441,19 +440,23 @@ const GenericToolChip = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
   const toolName = getToolName(part);
-  const isEnterPlanMode = normalizeToolName(toolName) === "enter-plan-mode";
-  const isAskUserQuestion = normalizeToolName(toolName) === "ask-user-question";
+  const normalizedToolName = normalizeToolName(toolName);
+  const isPlanModeTool =
+    normalizedToolName === "enter-plan-mode" ||
+    normalizedToolName === "exit-plan-mode";
+  const isAskUserQuestion = normalizedToolName === "ask-user-question";
   const ToolIcon = isAskUserQuestion
     ? CircleQuestionMarkIcon
-    : isEnterPlanMode
+    : isPlanModeTool
       ? MapIcon
       : WrenchIcon;
-  const tone = isAskUserQuestion ? "green" : isEnterPlanMode ? "cyan" : "slate";
+  const tone = isAskUserQuestion ? "green" : "slate";
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const isCompleted = state === "output-available" || state === "output-error";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
-  const hasParameters = !isAskUserQuestion && isRecord(part.input);
+  const hasParameters =
+    !isAskUserQuestion && !isPlanModeTool && isRecord(part.input);
   const parametersCode = hasParameters
     ? JSON.stringify(part.input, null, 2)
     : null;
@@ -544,9 +547,6 @@ const GenericToolChip = ({
               <span className={CHIP_SUBTEXT_CLASSES}>
                 {TOOL_STATE_LABELS[state]}
               </span>
-              {hasError ? (
-                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
-              ) : null}
             </>
           ) : null}
         </ChipButton>
