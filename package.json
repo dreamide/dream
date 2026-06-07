@@ -120,7 +120,8 @@
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/**/*darwin*/**"
     },
     "win": {
       "target": [

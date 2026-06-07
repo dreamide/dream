@@ -183,7 +183,6 @@ jobs:
           file_path: ${{ github.workspace }}/release/win-unpacked/Dream.exe
           override: true
           malware_block: false
-          clean_logs: true
           environment_name: ${{ env.SSL_COM_ENVIRONMENT_NAME }}
           signing_method: v2
 
@@ -208,20 +207,33 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      - name: Locate Windows installer
+        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
+        shell: pwsh
+        run: |
+          $releasePath = Join-Path $env:GITHUB_WORKSPACE "release"
+          $installer = Get-ChildItem -LiteralPath $releasePath -Filter "*.exe" -File |
+            Where-Object { $_.Name -notlike "*.__uninstaller.exe" } |
+            Select-Object -First 1
+
+          if (-not $installer) {
+            throw "Could not find Windows installer under: $releasePath"
+          }
+
+          "WINDOWS_INSTALLER_PATH=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Sign Windows installer with SSL.com
         if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
         uses: sslcom/esigner-codesign@v1.3.2
         with:
-          command: batch_sign
+          command: sign
           username: ${{ secrets.SSL_COM_USERNAME }}
           password: ${{ secrets.SSL_COM_PASSWORD }}
           credential_id: ${{ secrets.SSL_COM_CREDENTIAL_ID }}
           totp_secret: ${{ secrets.SSL_COM_TOTP_SECRET }}
-          dir_path: ${{ github.workspace }}/release
-          output_path: ${{ github.workspace }}/release
+          file_path: ${{ env.WINDOWS_INSTALLER_PATH }}
           override: true
           malware_block: false
-          clean_logs: true
           environment_name: ${{ env.SSL_COM_ENVIRONMENT_NAME }}
           signing_method: v2
 
@@ -229,18 +241,18 @@ jobs:
         if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
         shell: pwsh
         run: |
-          $releasePath = Join-Path $env:GITHUB_WORKSPACE "release"
-          $installers = @(Get-ChildItem -LiteralPath $releasePath -Filter "*.exe" -File)
-          if ($installers.Count -eq 0) {
-            throw "Could not find signed Windows installer under: $releasePath"
+          if (-not $env:WINDOWS_INSTALLER_PATH) {
+            throw "WINDOWS_INSTALLER_PATH was not set."
           }
 
-          foreach ($installer in $installers) {
-            $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
-            $signature | Format-List
-            if ($signature.Status -ne "Valid") {
-              throw "Invalid Windows installer signature for $($installer.FullName): $($signature.Status)"
-            }
+          if (-not (Test-Path -LiteralPath $env:WINDOWS_INSTALLER_PATH)) {
+            throw "Could not find signed Windows installer: $env:WINDOWS_INSTALLER_PATH"
+          }
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $env:WINDOWS_INSTALLER_PATH
+          $signature | Format-List
+          if ($signature.Status -ne "Valid") {
+            throw "Invalid Windows installer signature for $($env:WINDOWS_INSTALLER_PATH): $($signature.Status)"
           }
 
       - name: Package unsigned Windows installer

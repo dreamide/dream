@@ -6,6 +6,14 @@ allowBuilds:
   msw: true
   node-pty: true
 
+supportedArchitectures:
+  os:
+    - current
+    - darwin
+  cpu:
+    - x64
+    - arm64
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
