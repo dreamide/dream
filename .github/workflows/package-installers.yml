@@ -91,11 +91,96 @@ jobs:
 
       - name: Validate macOS entitlements
         if: env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
-        run: plutil -lint build/entitlements.mac.plist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "::group::macOS signing context"
+          sw_vers
+          xcodebuild -version
+          xcrun notarytool --version || true
+          xcrun stapler --version || true
+          echo "Runner arch: $(uname -m)"
+          echo "Node: $(node --version)"
+          echo "pnpm: $(pnpm --version)"
+          echo "::endgroup::"
+
+          echo "::group::macOS entitlements"
+          plutil -lint build/entitlements.mac.plist
+          plutil -p build/entitlements.mac.plist
+          echo "::endgroup::"
 
       - name: Package signed macOS installer
         if: env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
-        run: pnpm exec electron-builder --mac --universal --publish never
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          log_dir="$PWD/macos-package-logs"
+          log_path="$log_dir/electron-builder-macos.log"
+          mkdir -p "$log_dir"
+          echo "MACOS_PACKAGE_LOG_DIR=$log_dir" >> "$GITHUB_ENV"
+
+          snapshot_release() {
+            if [[ ! -d release ]]; then
+              echo "release directory has not been created yet"
+              return
+            fi
+
+            du -sh release 2>/dev/null || true
+            find release -maxdepth 2 \( -type d -name '*.app' -o -type f \) -print |
+              sort |
+              tail -n 80
+          }
+
+          started_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          start_epoch="$(date +%s)"
+          echo "Starting signed macOS electron-builder at $started_at" | tee "$log_path"
+
+          (
+            while true; do
+              sleep 60
+              elapsed_seconds="$(($(date +%s) - start_epoch))"
+              {
+                echo ""
+                echo "::group::macOS packaging heartbeat (${elapsed_seconds}s)"
+                echo "UTC now: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+                snapshot_release
+                echo "::endgroup::"
+              } | tee -a "$log_path"
+            done
+          ) &
+          heartbeat_pid="$!"
+
+          cleanup_heartbeat() {
+            kill "$heartbeat_pid" 2>/dev/null || true
+            wait "$heartbeat_pid" 2>/dev/null || true
+          }
+          trap cleanup_heartbeat EXIT
+
+          set +e
+          DEBUG=electron-builder,electron-builder:* pnpm exec electron-builder --mac --universal --publish never 2>&1 |
+            tee -a "$log_path"
+          builder_status="${PIPESTATUS[0]}"
+          set -e
+
+          cleanup_heartbeat
+          trap - EXIT
+
+          {
+            echo ""
+            echo "::group::final macOS release snapshot"
+            snapshot_release
+            echo "::endgroup::"
+            echo "electron-builder exited with status $builder_status"
+          } | tee -a "$log_path"
+
+          if [[ "$builder_status" -ne 0 ]]; then
+            echo "::group::last 200 lines from electron-builder"
+            tail -n 200 "$log_path"
+            echo "::endgroup::"
+            exit "$builder_status"
+          fi
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
@@ -123,6 +208,14 @@ jobs:
           while IFS= read -r dmg_path; do
             xcrun stapler validate "$dmg_path"
           done < <(find release -maxdepth 1 -type f -name '*.dmg' -print)
+
+      - name: Upload macOS packaging logs
+        if: always() && env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: dream-macos-package-logs
+          if-no-files-found: ignore
+          path: macos-package-logs/*
 
       - name: Package unsigned macOS installer
         if: env.ENABLE_SIGNING != 'true' || env.MAC_SIGNING_AVAILABLE != 'true'
