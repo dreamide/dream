@@ -64,7 +64,7 @@ jobs:
   package-macos:
     name: Package macOS
     runs-on: blacksmith-6vcpu-macos-15
-    timeout-minutes: 60
+    timeout-minutes: 70
     env:
       MAC_SIGNING_AVAILABLE: ${{ secrets.MAC_CSC_LINK != '' && secrets.MAC_CSC_KEY_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
@@ -112,6 +112,7 @@ jobs:
 
       - name: Package signed macOS installer
         if: env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
+        timeout-minutes: 45
         shell: bash
         run: |
           set -euo pipefail
@@ -159,7 +160,7 @@ jobs:
           trap cleanup_heartbeat EXIT
 
           set +e
-          DEBUG=electron-builder,electron-builder:* pnpm exec electron-builder --mac --universal --publish never 2>&1 |
+          DEBUG=electron-builder,electron-builder:*,electron-osx-sign,electron-osx-sign:* pnpm exec electron-builder --mac --universal --publish never 2>&1 |
             tee -a "$log_path"
           builder_status="${PIPESTATUS[0]}"
           set -e
