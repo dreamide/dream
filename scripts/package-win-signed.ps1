@@ -66,6 +66,29 @@ function Invoke-Step {
   }
 }
 
+function Protect-CodeSignToolOutput {
+  param(
+    [AllowNull()]
+    [object[]]$Output
+  )
+
+  if (-not $Output) {
+    return @()
+  }
+
+  $secretsToRedact = @($username, $password, $credentialId, $totpSecret) |
+    Where-Object { -not [string]::IsNullOrEmpty($_) }
+
+  foreach ($line in $Output) {
+    $redactedLine = [string]$line
+    foreach ($secret in $secretsToRedact) {
+      $redactedLine = $redactedLine.Replace($secret, "***")
+    }
+
+    $redactedLine
+  }
+}
+
 function Invoke-CodeSignTool {
   param(
     [Parameter(Mandatory = $true)]
@@ -105,8 +128,9 @@ function Invoke-CodeSignTool {
     Pop-Location
     $ErrorActionPreference = $previousErrorActionPreference
   }
-  $output | Set-Content -LiteralPath $logPath
-  $output | ForEach-Object {
+  $redactedOutput = Protect-CodeSignToolOutput -Output $output
+  $redactedOutput | Set-Content -LiteralPath $logPath
+  $redactedOutput | ForEach-Object {
     Write-Host $_
   }
 
@@ -374,6 +398,13 @@ $signedInstaller = Invoke-CodeSignTool `
 Copy-Item -LiteralPath $signedInstaller -Destination $installer.FullName -Force
 $finalInstaller = Join-Path $releaseDir $installer.Name
 Copy-Item -LiteralPath $installer.FullName -Destination $finalInstaller -Force
+Get-ChildItem -LiteralPath $buildReleaseDir -Filter "*.blockmap" -File |
+  Copy-Item -Destination $releaseDir -Force
+
+$latestYml = Join-Path $buildReleaseDir "latest.yml"
+if (Test-Path -LiteralPath $latestYml) {
+  Copy-Item -LiteralPath $latestYml -Destination $releaseDir -Force
+}
 
 Invoke-Step "Verify signed installer" {
   Assert-CodeSignature -Path $finalInstaller

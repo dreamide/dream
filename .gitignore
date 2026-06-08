@@ -17,7 +17,9 @@
 /dist/
 
 # production
-/build
+/build/*
+!/build/
+!/build/entitlements.mac.plist
 /release
 /.electron-home
 

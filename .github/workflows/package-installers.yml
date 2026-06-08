@@ -28,16 +28,16 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.3
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.8
         with:
           version: 11.3.0
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -52,7 +52,7 @@ jobs:
         run: pnpm exec electron-builder --linux --publish never
 
       - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: dream-linux
           if-no-files-found: error
@@ -69,16 +69,16 @@ jobs:
       MAC_SIGNING_AVAILABLE: ${{ secrets.MAC_CSC_LINK != '' && secrets.MAC_CSC_KEY_PASSWORD != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.3
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.8
         with:
           version: 11.3.0
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -88,6 +88,10 @@ jobs:
 
       - name: Build renderer
         run: pnpm vite:build
+
+      - name: Validate macOS entitlements
+        if: env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
+        run: plutil -lint build/entitlements.mac.plist
 
       - name: Package signed macOS installer
         if: env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
@@ -127,7 +131,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: dream-macos
           if-no-files-found: error
@@ -145,16 +149,16 @@ jobs:
       WINDOWS_SIGNING_AVAILABLE: ${{ secrets.SSL_COM_USERNAME != '' && secrets.SSL_COM_PASSWORD != '' && secrets.SSL_COM_CREDENTIAL_ID != '' && secrets.SSL_COM_TOTP_SECRET != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.3
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.8
         with:
           version: 11.3.0
           run_install: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -163,97 +167,61 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build renderer
+        if: env.ENABLE_SIGNING != 'true' || env.WINDOWS_SIGNING_AVAILABLE != 'true'
         run: pnpm vite:build
 
-      - name: Package unpacked Windows app
-        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
-        run: pnpm exec electron-builder --win dir --x64 --publish never
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Sign Windows app executable with SSL.com
-        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
-        uses: sslcom/esigner-codesign@v1.3.2
-        with:
-          command: sign
-          username: ${{ secrets.SSL_COM_USERNAME }}
-          password: ${{ secrets.SSL_COM_PASSWORD }}
-          credential_id: ${{ secrets.SSL_COM_CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.SSL_COM_TOTP_SECRET }}
-          file_path: ${{ github.workspace }}/release/win-unpacked/Dream.exe
-          override: true
-          malware_block: false
-          environment_name: ${{ env.SSL_COM_ENVIRONMENT_NAME }}
-          signing_method: v2
-
-      - name: Verify signed Windows app executable
+      - name: Install SSL.com CodeSignTool
         if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
         shell: pwsh
         run: |
-          $appPath = Join-Path $env:GITHUB_WORKSPACE "release\win-unpacked\Dream.exe"
-          if (-not (Test-Path -LiteralPath $appPath)) {
-            throw "Could not find signed app executable: $appPath"
+          $toolVersion = "v1.3.2"
+          $toolRoot = Join-Path $env:RUNNER_TEMP "CodeSignTool-$toolVersion"
+          $downloadPath = Join-Path $env:RUNNER_TEMP "CodeSignTool-$toolVersion-windows.zip"
+          $downloadUrl = "https://github.com/SSLcom/CodeSignTool/releases/download/$toolVersion/CodeSignTool-$toolVersion-windows.zip"
+
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $downloadPath
+
+          if (Test-Path -LiteralPath $toolRoot) {
+            Remove-Item -LiteralPath $toolRoot -Recurse -Force
           }
 
-          $signature = Get-AuthenticodeSignature -LiteralPath $appPath
-          $signature | Format-List
-          if ($signature.Status -ne "Valid") {
-            throw "Invalid Windows app executable signature: $($signature.Status)"
+          Expand-Archive -LiteralPath $downloadPath -DestinationPath $toolRoot -Force
+
+          $codeSignTool = Join-Path $toolRoot "CodeSignTool.bat"
+          if (-not (Test-Path -LiteralPath $codeSignTool)) {
+            throw "Could not find CodeSignTool.bat after expanding $downloadPath"
           }
+
+          $configPath = Join-Path $toolRoot "conf\code_sign_tool.properties"
+          if ($env:SSL_COM_ENVIRONMENT_NAME -eq "TEST") {
+            @(
+              "CLIENT_ID=qOUeZCCzSqgA93acB3LYq6lBNjgZdiOxQc-KayC3UMw"
+              "OAUTH2_ENDPOINT=https://oauth-sandbox.ssl.com/oauth2/token"
+              "CSC_API_ENDPOINT=https://cs-try.ssl.com"
+              "TSA_URL=http://ts.ssl.com"
+              "TSA_LEGACY_URL=http://ts.ssl.com/legacy"
+            ) | Set-Content -LiteralPath $configPath -Encoding ASCII
+          } else {
+            @(
+              "CLIENT_ID=kaXTRACNijSWsFdRKg_KAfD3fqrBlzMbWs6TwWHwAn8"
+              "OAUTH2_ENDPOINT=https://login.ssl.com/oauth2/token"
+              "CSC_API_ENDPOINT=https://cs.ssl.com"
+              "TSA_URL=http://ts.ssl.com"
+              "TSA_LEGACY_URL=http://ts.ssl.com/legacy"
+            ) | Set-Content -LiteralPath $configPath -Encoding ASCII
+          }
+
+          "SSL_COM_CODESIGNTOOL=$codeSignTool" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Package signed Windows installer
         if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
-        run: pnpm exec electron-builder --win nsis --x64 --prepackaged release/win-unpacked --publish never
+        shell: pwsh
+        run: pnpm package:win:signed
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Locate Windows installer
-        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
-        shell: pwsh
-        run: |
-          $releasePath = Join-Path $env:GITHUB_WORKSPACE "release"
-          $installer = Get-ChildItem -LiteralPath $releasePath -Filter "*.exe" -File |
-            Where-Object { $_.Name -notlike "*.__uninstaller.exe" } |
-            Select-Object -First 1
-
-          if (-not $installer) {
-            throw "Could not find Windows installer under: $releasePath"
-          }
-
-          "WINDOWS_INSTALLER_PATH=$($installer.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Sign Windows installer with SSL.com
-        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
-        uses: sslcom/esigner-codesign@v1.3.2
-        with:
-          command: sign
-          username: ${{ secrets.SSL_COM_USERNAME }}
-          password: ${{ secrets.SSL_COM_PASSWORD }}
-          credential_id: ${{ secrets.SSL_COM_CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.SSL_COM_TOTP_SECRET }}
-          file_path: ${{ env.WINDOWS_INSTALLER_PATH }}
-          override: true
-          malware_block: false
-          environment_name: ${{ env.SSL_COM_ENVIRONMENT_NAME }}
-          signing_method: v2
-
-      - name: Verify signed Windows installer
-        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
-        shell: pwsh
-        run: |
-          if (-not $env:WINDOWS_INSTALLER_PATH) {
-            throw "WINDOWS_INSTALLER_PATH was not set."
-          }
-
-          if (-not (Test-Path -LiteralPath $env:WINDOWS_INSTALLER_PATH)) {
-            throw "Could not find signed Windows installer: $env:WINDOWS_INSTALLER_PATH"
-          }
-
-          $signature = Get-AuthenticodeSignature -LiteralPath $env:WINDOWS_INSTALLER_PATH
-          $signature | Format-List
-          if ($signature.Status -ne "Valid") {
-            throw "Invalid Windows installer signature for $($env:WINDOWS_INSTALLER_PATH): $($signature.Status)"
-          }
+          SSL_COM_USERNAME: ${{ secrets.SSL_COM_USERNAME }}
+          SSL_COM_PASSWORD: ${{ secrets.SSL_COM_PASSWORD }}
+          SSL_COM_CREDENTIAL_ID: ${{ secrets.SSL_COM_CREDENTIAL_ID }}
+          SSL_COM_TOTP_SECRET: ${{ secrets.SSL_COM_TOTP_SECRET }}
 
       - name: Package unsigned Windows installer
         if: env.ENABLE_SIGNING != 'true' || env.WINDOWS_SIGNING_AVAILABLE != 'true'
@@ -262,7 +230,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: dream-windows
           if-no-files-found: error
