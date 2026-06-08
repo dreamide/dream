@@ -24,7 +24,7 @@ submit_json="$log_dir/notary-submit.json"
 wait_json="$log_dir/notary-wait.json"
 notary_log_json="$log_dir/notary-log.json"
 stapler_log="$log_dir/stapler.log"
-wait_timeout="${NOTARY_WAIT_TIMEOUT:-12m}"
+wait_timeout="${NOTARY_WAIT_TIMEOUT:-30m}"
 
 auth_args=(
   --apple-id "$APPLE_ID"

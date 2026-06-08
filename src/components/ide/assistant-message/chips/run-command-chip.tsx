@@ -9,7 +9,6 @@ import {
   CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
 import type { ToolPart } from "@/components/ai-elements/tool";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ToolLikePart } from "../../assistant-message-tools";
 import {
@@ -49,10 +48,6 @@ export const RunCommandChip = ({
       : isRecord(output) && isString(output.command)
         ? output.command
         : null;
-  const exitCode =
-    isRecord(output) && typeof output.exitCode === "number"
-      ? output.exitCode
-      : null;
   const commandOutput = useMemo(() => {
     if (isString(output)) {
       return stripAnsiSequences(output);
@@ -113,9 +108,6 @@ export const RunCommandChip = ({
               <span className="max-w-64 truncate font-medium">
                 {displayCommand ?? "Command"}
               </span>
-              {exitCode !== null ? (
-                <span className={CHIP_SUBTEXT_CLASSES}>exit {exitCode}</span>
-              ) : null}
               {status === "running" ? (
                 <span className={CHIP_SUBTEXT_CLASSES}>running</span>
               ) : null}
@@ -165,14 +157,6 @@ export const RunCommandChip = ({
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
                       <CodeBlockFilename>Command</CodeBlockFilename>
-                      {exitCode !== null ? (
-                        <Badge
-                          variant="secondary"
-                          className="ml-1 font-mono text-xs"
-                        >
-                          Exit {exitCode}
-                        </Badge>
-                      ) : null}
                     </CodeBlockTitle>
                     <CodeBlockActions>
                       <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />

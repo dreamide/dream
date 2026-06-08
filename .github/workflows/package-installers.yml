@@ -191,7 +191,7 @@ jobs:
 
       - name: Notarize signed macOS app
         if: env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
-        timeout-minutes: 18
+        timeout-minutes: 35
         shell: bash
         run: |
           set -euo pipefail
@@ -207,7 +207,7 @@ jobs:
             exit 1
           fi
 
-          NOTARY_WAIT_TIMEOUT=12m bash scripts/notarize-macos-app.sh "$app_path"
+          NOTARY_WAIT_TIMEOUT=30m bash scripts/notarize-macos-app.sh "$app_path"
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
