@@ -37,27 +37,30 @@ export const normalizeCodeFenceLanguageMarkers = (markdown: string) =>
   );
 
 const inferLanguageFromFirstLine = (code: string, language: string) => {
+  const trimmedCode = code
+    .replace(/^(?:[ \t]*\r?\n)+/, "")
+    .replace(/(?:\r?\n[ \t]*)+$/, "");
   const displayLanguage = language.trim().toLowerCase();
   if (displayLanguage) {
-    return { code, language: displayLanguage };
+    return { code: trimmedCode, language: displayLanguage };
   }
 
-  const newlineIndex = code.indexOf("\n");
+  const newlineIndex = trimmedCode.indexOf("\n");
   if (newlineIndex === -1) {
-    return { code, language: "" };
+    return { code: trimmedCode, language: "" };
   }
 
-  const firstLine = code.slice(0, newlineIndex).trim().toLowerCase();
+  const firstLine = trimmedCode.slice(0, newlineIndex).trim().toLowerCase();
   if (!firstLine || firstLine.includes(" ")) {
-    return { code, language: "" };
+    return { code: trimmedCode, language: "" };
   }
 
   if (!codeFenceLanguageMarkers.has(firstLine)) {
-    return { code, language: "" };
+    return { code: trimmedCode, language: "" };
   }
 
   return {
-    code: code.slice(newlineIndex + 1),
+    code: trimmedCode.slice(newlineIndex + 1),
     language: firstLine,
   };
 };
@@ -72,13 +75,13 @@ export const StreamdownCodeBlock = ({
 
   return (
     <CodeBlock
-      className="my-4 [&_pre]:py-2"
+      className="my-3 [&_pre]:py-2"
       code={normalized.code}
       language={resolveBundledLanguage(highlightLanguage)}
       showLineNumbers
       style={{ contentVisibility: "visible" }}
     >
-      <CodeBlockHeader className="min-h-8 px-2.5 py-1">
+      <CodeBlockHeader className="min-h-7 px-2.5 py-0.5">
         {displayLanguage ? (
           <CodeBlockTitle>
             <CodeBlockFilename>{displayLanguage}</CodeBlockFilename>
@@ -88,10 +91,10 @@ export const StreamdownCodeBlock = ({
         )}
         <CodeBlockActions>
           <CodeBlockDownloadButton
-            className="h-7 w-7 [&_svg]:size-3.5"
+            className="h-7 w-7 [&_svg]:size-3"
             language={highlightLanguage}
           />
-          <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3.5" />
+          <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
         </CodeBlockActions>
       </CodeBlockHeader>
     </CodeBlock>
