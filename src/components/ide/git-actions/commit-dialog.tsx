@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
@@ -274,9 +275,10 @@ export const CommitDialog = ({
                 value={commitMessage}
               />
               {generatingCommitMessage ? (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 text-muted-foreground text-sm">
-                  <Spinner className="size-4" />
-                  <span>Generating commit message...</span>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
+                  <Shimmer as="span" duration={1.5}>
+                    Generating commit message...
+                  </Shimmer>
                 </div>
               ) : null}
             </div>
