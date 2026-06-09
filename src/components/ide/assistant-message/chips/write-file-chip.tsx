@@ -623,8 +623,10 @@ export const WriteFileChip = ({
   const canOpenFile = Boolean(projectId && projectRelativeFilePath);
   const parsedDiff = useMemo(
     () =>
-      !isRunning && displayDiffCode ? parseSingleDiff(displayDiffCode) : null,
-    [displayDiffCode, isRunning],
+      !isRunning && displayDiffCode
+        ? parseSingleDiff(displayDiffCode, filePath)
+        : null,
+    [displayDiffCode, filePath, isRunning],
   );
   const showAddedFileContents =
     !isFetchedGitDiffCode &&

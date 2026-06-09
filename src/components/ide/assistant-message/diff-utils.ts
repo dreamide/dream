@@ -78,9 +78,13 @@ export const buildWriteDiff = ({
   ].join("\n");
 };
 
-export const parseSingleDiff = (diff: string) => {
+export const parseSingleDiff = (diff: string, filePath?: string | null) => {
   try {
-    const parsedPatches = parsePatchFiles(diff);
+    const normalizedDiff =
+      filePath && diff.trimStart().startsWith("@@")
+        ? [`--- ${filePath}`, `+++ ${filePath}`, diff].join("\n")
+        : diff;
+    const parsedPatches = parsePatchFiles(normalizedDiff);
     if (parsedPatches.length !== 1) {
       return null;
     }
