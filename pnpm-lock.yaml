@@ -23,6 +23,18 @@ importers:
       ai-sdk-provider-claude-code:
         specifier: ^3.4.4
         version: 3.4.4(zod@4.4.3)
+      ccount:
+        specifier: 2.0.1
+        version: 2.0.1
+      character-entities-html4:
+        specifier: 2.1.0
+        version: 2.1.0
+      character-entities-legacy:
+        specifier: 3.0.0
+        version: 3.0.0
+      comma-separated-tokens:
+        specifier: 2.0.3
+        version: 2.0.3
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -32,18 +44,39 @@ importers:
       get-port:
         specifier: ^7.2.0
         version: 7.2.0
+      hast-util-to-html:
+        specifier: 9.0.5
+        version: 9.0.5
+      hast-util-whitespace:
+        specifier: 3.0.0
+        version: 3.0.0
       hono:
         specifier: ^4.12.23
         version: 4.12.23
+      html-void-elements:
+        specifier: 3.0.0
+        version: 3.0.0
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
+      property-information:
+        specifier: 7.1.0
+        version: 7.1.0
       sirv:
         specifier: ^3.0.2
         version: 3.0.2
+      space-separated-tokens:
+        specifier: 2.0.2
+        version: 2.0.2
+      stringify-entities:
+        specifier: 4.0.4
+        version: 4.0.4
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+      zwitch:
+        specifier: 2.0.4
+        version: 2.0.4
     devDependencies:
       '@ai-sdk/gateway':
         specifier: ^3.0.121
