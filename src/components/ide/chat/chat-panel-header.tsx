@@ -1,6 +1,7 @@
 import { Archive, Ellipsis, FilePenLine, X } from "lucide-react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 
 export interface ChatPanelHeaderProps {
   canShowChatMenu: boolean;
@@ -42,8 +42,9 @@ export const ChatPanelHeader = ({
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const titleText =
-    isTitleGenerating && title.trim().toLowerCase() === "new chat" ? "" : title;
+  const isShowingGeneratedTitlePlaceholder =
+    isTitleGenerating && title.trim().toLowerCase() === "new chat";
+  const titleText = isShowingGeneratedTitlePlaceholder ? "" : title;
 
   useEffect(() => {
     if (!editingTitle) {
@@ -80,8 +81,16 @@ export const ChatPanelHeader = ({
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-h-6 min-w-0 items-center gap-2">
-            {isTitleGenerating ? <Spinner className="size-3 shrink-0" /> : null}
-            {editingTitle ? (
+            {isShowingGeneratedTitlePlaceholder ? (
+              <span
+                aria-live="polite"
+                className="block h-6 min-w-0 flex-1 truncate font-medium text-sm leading-5"
+              >
+                <Shimmer as="span" duration={1.5}>
+                  Generating title...
+                </Shimmer>
+              </span>
+            ) : editingTitle ? (
               <Input
                 ref={inputRef}
                 className="h-6 min-w-0 flex-1 rounded-none border-0 border-b border-surface-300 bg-transparent px-0 py-0 font-medium text-sm leading-5 shadow-none focus-visible:ring-0 dark:border-surface-700"
