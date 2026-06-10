@@ -7,6 +7,7 @@ import {
   getLatestUserMessage,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
+import { formatStreamError } from "./errors.js";
 
 const OPENCODE_SERVER_TIMEOUT_MS = 10000;
 const MAX_OPENCODE_TEXT_CHARS = 250_000;
@@ -219,8 +220,7 @@ export const streamOpenCodeResponse = ({
 }) => {
   const stream = createUIMessageStream({
     originalMessages: messages,
-    onError: (error) =>
-      error instanceof Error ? error.message : "OpenCode request failed.",
+    onError: (error) => formatStreamError(error),
     execute: ({ writer }) =>
       new Promise((resolve, reject) => {
         let stderrBuffer = "";
@@ -240,6 +240,7 @@ export const streamOpenCodeResponse = ({
         let streamedTextChars = 0;
         let textLimitReached = false;
         let opencode = null;
+        let eventsError = null;
         const serverAbortController = new AbortController();
 
         const getTextPartKey = (id, type) => `${type}:${id}`;
@@ -686,7 +687,16 @@ export const streamOpenCodeResponse = ({
                 }
                 await handleEvent(event);
               }
-            })();
+            })().catch((error) => {
+              if (
+                !finished &&
+                !abortSignal?.aborted &&
+                !serverAbortController.signal.aborted
+              ) {
+                eventsError = error;
+                stderrBuffer += `${formatStreamError(error)}\n`;
+              }
+            });
 
             const promptResult = await opencode.client.session.prompt(
               {
@@ -721,6 +731,10 @@ export const streamOpenCodeResponse = ({
               }
 
               if (!wroteFallbackText) {
+                if (eventsError) {
+                  throw eventsError;
+                }
+
                 throw new Error(
                   "OpenCode completed without returning assistant text.",
                 );
@@ -728,14 +742,7 @@ export const streamOpenCodeResponse = ({
             }
 
             serverAbortController.abort();
-            await eventsPromise.catch((error) => {
-              if (
-                !abortSignal?.aborted &&
-                !serverAbortController.signal.aborted
-              ) {
-                throw error;
-              }
-            });
+            await eventsPromise;
             finish(resolve);
           })
           .catch((error) => {
