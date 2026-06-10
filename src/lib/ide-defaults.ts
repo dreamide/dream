@@ -57,6 +57,7 @@ export const normalizeClaudeCodeModelId = (modelId: string): string => {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  autoCompactContext: true,
   anthropicSelectedModels: [],
   autoAcceptPermissions: false,
   defaultModel: "",

@@ -94,6 +94,7 @@ export interface ProjectWorktreeInfo {
 }
 
 export interface AppSettings {
+  autoCompactContext: boolean;
   autoAcceptPermissions: boolean;
   defaultModel: string;
   defaultModelSpeed: ModelSpeed;

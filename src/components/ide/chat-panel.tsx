@@ -54,6 +54,7 @@ import {
   PROVIDER_LABELS,
   type ToolApprovalResponder,
 } from "./chat";
+import { maybeAutoCompactMessages } from "./chat/auto-compact";
 import { ChatComposer, type ChatPanelModelOption } from "./chat/chat-composer";
 import { ChatErrorBanner } from "./chat/chat-error-banner";
 import { ChatPanelHeader } from "./chat/chat-panel-header";
@@ -491,6 +492,7 @@ export const ChatPanel = ({
   const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
   const warmedCommitMessageKeysRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
+  const autoCompactionFingerprintRef = useRef<string | null>(null);
 
   const transport = useMemo(
     () => new DefaultChatTransport({ api: "/api/chat" }),
@@ -866,6 +868,48 @@ export const ChatPanel = ({
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    if (!settings.autoCompactContext || isProcessing || contextWindow <= 0) {
+      return;
+    }
+
+    const firstMessageId = messages[0]?.id ?? "";
+    const lastMessageId = messages.at(-1)?.id ?? "";
+    const usageBucket = Math.floor((contextUsedTokens / contextWindow) * 100);
+    const fingerprint = `${chat.id}:${messages.length}:${firstMessageId}:${lastMessageId}:${usageBucket}`;
+
+    if (autoCompactionFingerprintRef.current === fingerprint) {
+      return;
+    }
+
+    const result = maybeAutoCompactMessages({
+      contextWindow,
+      messages,
+      usedTokens: contextUsedTokens,
+    });
+
+    if (!result.compacted) {
+      autoCompactionFingerprintRef.current = fingerprint;
+      return;
+    }
+
+    autoCompactionFingerprintRef.current = `${chat.id}:${result.messages.length}:${result.messages[0]?.id ?? ""}:${result.messages.at(-1)?.id ?? ""}`;
+    latestMessagesRef.current = result.messages;
+    setMessages(result.messages);
+    setMessagesForChat(chat.id, result.messages);
+    useIdeStore.getState().persist();
+  }, [
+    chat.id,
+    contextUsedTokens,
+    contextWindow,
+    isProcessing,
+    messages,
+    setMessages,
+    setMessagesForChat,
+    settings.autoCompactContext,
+  ]);
+
   const { conversationContextRef, scrollConversationToBottom } =
     useChatAutoScroll({
       isActive,

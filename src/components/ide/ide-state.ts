@@ -536,6 +536,10 @@ export const mergePersistedState = (
 
   const mergedSettings: AppSettings = {
     ...DEFAULT_SETTINGS,
+    autoCompactContext:
+      typeof rawSettings.autoCompactContext === "boolean"
+        ? rawSettings.autoCompactContext
+        : DEFAULT_SETTINGS.autoCompactContext,
     anthropicSelectedModels: dedupeModels(
       Array.isArray(rawSettings.anthropicSelectedModels)
         ? rawSettings.anthropicSelectedModels.map(normalizeClaudeCodeModelId)

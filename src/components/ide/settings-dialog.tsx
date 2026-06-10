@@ -562,6 +562,17 @@ export const SettingsDialog = () => {
 
                     <div className="mt-2 border-surface-200 dark:border-surface-800 border-l pl-4">
                       <SettingsSwitchRow
+                        checked={settings.autoCompactContext}
+                        description="Summarize older messages before the chat runs out of context"
+                        label="Auto compact context"
+                        onCheckedChange={(checked) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            autoCompactContext: checked,
+                          }))
+                        }
+                      />
+                      <SettingsSwitchRow
                         checked={settings.showReasoningSummaries}
                         description="Display model reasoning summaries"
                         label="Show reasoning summaries"

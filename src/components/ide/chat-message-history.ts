@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { hasAutoCompactionSummary } from "./chat/auto-compact";
 
 const getPartTextLength = (part: UIMessage["parts"][number]) => {
   if ("text" in part && typeof part.text === "string") {
@@ -84,6 +85,13 @@ export const mergeChatMessageHistories = (
 
   if (nextMessages.length === 0) {
     return previousMessages;
+  }
+
+  if (
+    previousMessages.length > nextMessages.length &&
+    hasAutoCompactionSummary(nextMessages)
+  ) {
+    return nextMessages;
   }
 
   if (canAcceptNextHistory(previousMessages, nextMessages)) {
