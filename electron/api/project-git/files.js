@@ -44,7 +44,6 @@ const walkFiles = async (root, current, maxResults, output) => {
   entries.sort((a, b) => a.name.localeCompare(b.name));
   for (const entry of entries) {
     if (output.length >= maxResults) return;
-    if (entry.name.startsWith(".") && entry.name !== ".env") continue;
     if (entry.isDirectory() && BLOCKED_DIRECTORIES.has(entry.name)) continue;
     const absolute = path.join(current, entry.name);
     const relative = normalizePath(path.relative(root, absolute));
