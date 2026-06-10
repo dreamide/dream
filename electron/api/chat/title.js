@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createOpencode } from "@opencode-ai/sdk";
 import { generateText } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
 import {
@@ -19,6 +20,8 @@ import {
 import { getCodexErrorDetail } from "./codex-prompt.js";
 
 const CHAT_TITLE_MAX_LENGTH = 60;
+const OPENCODE_TITLE_SERVER_TIMEOUT_MS = 10000;
+const OPENCODE_TITLE_REQUEST_TIMEOUT_MS = 60000;
 const CHAT_TITLE_SYSTEM_PROMPT =
   "Generate concise chat titles. Return only the title, with no quotes or extra commentary.";
 
@@ -237,99 +240,94 @@ const generateClaudeChatTitle = async ({ model, projectPath, promptText }) => {
   return sanitizeGeneratedChatTitle(result.text);
 };
 
-const generateOpenCodeChatTitle = ({ model, projectPath, promptText }) =>
-  new Promise((resolve, reject) => {
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-    const outputLines = [];
+const parseOpenCodeModel = (model) => {
+  const [providerID, ...modelParts] = String(model ?? "").split("/");
+  const modelID = modelParts.join("/");
 
-    const handleStdoutChunk = (chunk) => {
-      stdoutBuffer += chunk.toString();
-      const lines = stdoutBuffer.split(/\r?\n/);
-      stdoutBuffer = lines.pop() ?? "";
+  if (!providerID || !modelID) {
+    throw new Error(
+      "OpenCode model must use provider/model format, for example opencode-go/kimi-k2.6.",
+    );
+  }
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          continue;
-        }
+  return { modelID, providerID };
+};
 
-        try {
-          const event = JSON.parse(trimmed);
-          const text =
-            event.type === "text" &&
-            event.part?.type === "text" &&
-            typeof event.part.text === "string"
-              ? event.part.text
-              : "";
-          if (text) {
-            outputLines.push(text);
-          }
-        } catch {
-          outputLines.push(trimmed);
-        }
-      }
-    };
+const getOpenCodePartText = (part) =>
+  part?.type === "text" && typeof part.text === "string" ? part.text : "";
 
-    const child = spawn(
-      "opencode",
-      [
-        "run",
-        "--format",
-        "json",
-        "--dir",
-        projectPath,
-        "--model",
-        model,
-        "--agent",
-        "plan",
-      ],
+const generateOpenCodeChatTitle = async ({
+  model,
+  projectPath,
+  promptText,
+}) => {
+  const { modelID, providerID } = parseOpenCodeModel(model);
+  const requestAbortController = new AbortController();
+  const requestTimeout = setTimeout(() => {
+    requestAbortController.abort();
+  }, OPENCODE_TITLE_REQUEST_TIMEOUT_MS);
+  let opencode = null;
+
+  try {
+    opencode = await createOpencode({
+      hostname: "127.0.0.1",
+      port: 0,
+      signal: requestAbortController.signal,
+      timeout: OPENCODE_TITLE_SERVER_TIMEOUT_MS,
+    });
+
+    const sessionResult = await opencode.client.session.create(
       {
-        cwd: projectPath,
-        env: process.env,
-        shell: process.platform === "win32",
-        stdio: ["pipe", "pipe", "pipe"],
-        windowsHide: true,
+        body: {
+          agent: "plan",
+          model: {
+            id: modelID,
+            providerID,
+          },
+        },
+        query: { directory: projectPath },
       },
+      { signal: requestAbortController.signal },
+    );
+    const sessionId = sessionResult.data?.id;
+
+    if (!sessionId) {
+      throw new Error("OpenCode did not return a session id.");
+    }
+
+    const promptResult = await opencode.client.session.prompt(
+      {
+        body: {
+          agent: "plan",
+          model: {
+            modelID,
+            providerID,
+          },
+          parts: [
+            {
+              text: [
+                CHAT_TITLE_SYSTEM_PROMPT,
+                "",
+                buildChatTitlePrompt(promptText).join("\n"),
+              ].join("\n"),
+              type: "text",
+            },
+          ],
+        },
+        path: { id: sessionId },
+        query: { directory: projectPath },
+      },
+      { signal: requestAbortController.signal },
     );
 
-    child.stdin.end(
-      [
-        CHAT_TITLE_SYSTEM_PROMPT,
-        "",
-        buildChatTitlePrompt(promptText).join("\n"),
-      ].join("\n"),
+    return sanitizeGeneratedChatTitle(
+      (promptResult.data?.parts ?? []).map(getOpenCodePartText).join(" "),
     );
-    child.stdout.on("data", handleStdoutChunk);
-    child.stderr.on("data", (chunk) => {
-      stderrBuffer += chunk.toString();
-    });
-    child.on("error", (error) => {
-      reject(
-        new Error(
-          error instanceof Error
-            ? error.message
-            : "OpenCode CLI request failed.",
-        ),
-      );
-    });
-    child.on("close", (code) => {
-      if (stdoutBuffer.trim()) {
-        outputLines.push(stdoutBuffer.trim());
-      }
-
-      if (code === 0) {
-        resolve(sanitizeGeneratedChatTitle(outputLines.join(" ")));
-        return;
-      }
-
-      reject(
-        new Error(
-          stderrBuffer.trim() || `OpenCode CLI exited with code ${code}.`,
-        ),
-      );
-    });
-  });
+  } finally {
+    clearTimeout(requestTimeout);
+    opencode?.server.close();
+  }
+};
 
 export const generateChatTitle = async ({
   fallbackModel,
