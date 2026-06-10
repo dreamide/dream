@@ -430,7 +430,7 @@ const AskUserQuestionApproval = ({
           onClick={() => submit()}
           type="button"
         >
-          Save
+          Submit
         </button>
       </div>
     </div>
@@ -467,6 +467,10 @@ const GenericToolChip = ({
     ? JSON.stringify(part.input, null, 2)
     : null;
   const outputCode = isAskUserQuestion ? null : getGenericToolOutputCode(part);
+  const toolStateLabel =
+    isAskUserQuestion && state === "input-available"
+      ? "Waiting"
+      : TOOL_STATE_LABELS[state];
   const hasOutput =
     !isAskUserQuestion && (part.output !== undefined || hasError);
   const approvalTitle =
@@ -551,7 +555,7 @@ const GenericToolChip = ({
                 {formatToolName(toolName)}
               </span>
               <span className={CHIP_SUBTEXT_CLASSES}>
-                {TOOL_STATE_LABELS[state]}
+                {toolStateLabel}
               </span>
             </>
           ) : null}
