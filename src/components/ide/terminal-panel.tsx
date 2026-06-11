@@ -22,6 +22,54 @@ const TERMINAL_FONT_FAMILY_FALLBACK =
   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const getDefaultTerminalName = (index: number) => `Terminal ${index + 1}`;
 
+const DARK_TERMINAL_THEME = {
+  background: "#0b0f14",
+  foreground: "#d6deeb",
+  cursor: "#f8fafc",
+  cursorAccent: "#0b0f14",
+  selectionBackground: "rgba(245, 158, 11, 0.32)",
+  black: "#5c6773",
+  red: "#ff6b6b",
+  green: "#7ee787",
+  yellow: "#f2cc60",
+  blue: "#f59e0b",
+  magenta: "#d2a8ff",
+  cyan: "#39c5cf",
+  white: "#d6deeb",
+  brightBlack: "#8b949e",
+  brightRed: "#ff8787",
+  brightGreen: "#a7f3d0",
+  brightYellow: "#ffe08a",
+  brightBlue: "#fbbf24",
+  brightMagenta: "#e5c7ff",
+  brightCyan: "#7dd3fc",
+  brightWhite: "#ffffff",
+};
+
+const LIGHT_TERMINAL_THEME = {
+  background: "#ffffff",
+  foreground: "#1f2328",
+  cursor: "#1f2328",
+  cursorAccent: "#ffffff",
+  selectionBackground: "rgba(180, 83, 9, 0.24)",
+  black: "#24292f",
+  red: "#b42318",
+  green: "#116329",
+  yellow: "#7a4f01",
+  blue: "#9a3412",
+  magenta: "#6639ba",
+  cyan: "#0a6b76",
+  white: "#57606a",
+  brightBlack: "#57606a",
+  brightRed: "#cf222e",
+  brightGreen: "#1a7f37",
+  brightYellow: "#9a6700",
+  brightBlue: "#c2410c",
+  brightMagenta: "#8250df",
+  brightCyan: "#087990",
+  brightWhite: "#1f2328",
+};
+
 const isCopyShortcut = (event: KeyboardEvent) =>
   (event.ctrlKey || event.metaKey) &&
   !event.altKey &&
@@ -82,67 +130,9 @@ const TerminalSurface = ({
   );
 };
 
-const resolveTerminalTheme = (host: HTMLElement, resolvedTheme?: string) => {
-  const style = getComputedStyle(host);
-  const bg = style.getPropertyValue("--background").trim();
-  const fg = style.getPropertyValue("--foreground").trim();
-  const accent = style.getPropertyValue("--ring").trim();
-  const primary = style.getPropertyValue("--primary").trim();
-  const destructive = style.getPropertyValue("--destructive").trim();
-  const muted = style.getPropertyValue("--muted").trim();
-  const mutedForeground = style.getPropertyValue("--muted-foreground").trim();
-  const chart1 = style.getPropertyValue("--chart-1").trim();
-  const chart2 = style.getPropertyValue("--chart-2").trim();
-  const chart3 = style.getPropertyValue("--chart-3").trim();
-  const chart4 = style.getPropertyValue("--chart-4").trim();
-  const chart5 = style.getPropertyValue("--chart-5").trim();
+const resolveTerminalTheme = (_host: HTMLElement, resolvedTheme?: string) => {
   const isDark = resolvedTheme === "dark";
-
-  const ansi = isDark
-    ? {
-        black: muted || "#1f2937",
-        red: destructive || "#f87171",
-        green: chart2 || "#4ade80",
-        yellow: chart3 || "#fbbf24",
-        blue: primary || chart1 || "#60a5fa",
-        magenta: chart4 || "#c084fc",
-        cyan: chart5 || "#22d3ee",
-        white: fg || "#e5e7eb",
-        brightBlack: mutedForeground || "#9ca3af",
-        brightRed: destructive || "#fca5a5",
-        brightGreen: chart2 || "#86efac",
-        brightYellow: chart3 || "#fcd34d",
-        brightBlue: primary || chart1 || "#93c5fd",
-        brightMagenta: chart4 || "#d8b4fe",
-        brightCyan: chart5 || "#67e8f9",
-        brightWhite: "#ffffff",
-      }
-    : {
-        black: fg || "#111827",
-        red: destructive || "#b91c1c",
-        green: chart2 || "#166534",
-        yellow: chart3 || "#92400e",
-        blue: primary || chart1 || "#1d4ed8",
-        magenta: chart4 || "#7e22ce",
-        cyan: chart5 || "#155e75",
-        white: muted || "#d1d5db",
-        brightBlack: mutedForeground || "#4b5563",
-        brightRed: destructive || "#dc2626",
-        brightGreen: chart2 || "#15803d",
-        brightYellow: chart3 || "#a16207",
-        brightBlue: primary || chart1 || "#2563eb",
-        brightMagenta: chart4 || "#9333ea",
-        brightCyan: chart5 || "#0f766e",
-        brightWhite: bg || "#f9fafb",
-      };
-
-  return {
-    background: bg || "#0a0f1d",
-    cursor: fg || "#f8fafc",
-    foreground: fg || "#e2e8f0",
-    selectionBackground: accent || "rgba(96, 165, 250, 0.3)",
-    ...ansi,
-  };
+  return isDark ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME;
 };
 
 const resolveCssCustomProperty = (
@@ -251,6 +241,7 @@ export const TerminalPanel = ({
       cursorStyle: "bar",
       fontFamily: resolveTerminalFontFamily(host),
       fontSize: 12,
+      minimumContrastRatio: 4.5,
       theme: resolveTerminalTheme(host, resolvedTheme),
     });
     terminalInstanceRef.current = terminal;

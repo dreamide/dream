@@ -79,6 +79,7 @@ const OPENAI_TOKEN_LABELS: Record<string, string> = {
 
 const ANTHROPIC_TOKEN_LABELS: Record<string, string> = {
   claude: "Claude",
+  fable: "Fable",
   haiku: "Haiku",
   "opus[1m]": "Opus 1M",
   opus: "Opus",
@@ -386,9 +387,9 @@ export const getModelReasoningEfforts = (
       return ANTHROPIC_REASONING_EFFORTS;
     }
 
-    // New format: claude-{variant}-{major} e.g. claude-sonnet-4-20250514,
-    // claude-opus-4-20250514
-    const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
+    // New format: claude-{variant}-{major} e.g. claude-sonnet-4,
+    // claude-fable-5
+    const newFormat = id.match(/^claude-[a-z][a-z0-9]*-(\d+)(?:$|-)/);
     if (newFormat) {
       const major = Number(newFormat[1]);
       if (major >= 4) {

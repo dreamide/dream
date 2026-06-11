@@ -107,7 +107,7 @@ export const getModelReasoningEfforts = (provider, modelId) => {
     if (["opus", "opus[1m]", "sonnet", "sonnet[1m]", "haiku"].includes(id)) {
       return ANTHROPIC_REASONING_EFFORTS;
     }
-    const newFormat = id.match(/^claude-(?:sonnet|opus|haiku)-(\d+)/);
+    const newFormat = id.match(/^claude-[a-z][a-z0-9]*-(\d+)(?:$|-)/);
     if (newFormat) {
       const major = Number(newFormat[1]);
       if (major >= 4) return ANTHROPIC_REASONING_EFFORTS;
@@ -157,6 +157,7 @@ const OPENAI_TOKEN_LABELS = {
 
 const ANTHROPIC_TOKEN_LABELS = {
   claude: "Claude",
+  fable: "Fable",
   haiku: "Haiku",
   "opus[1m]": "Opus 1M",
   opus: "Opus",
@@ -374,22 +375,26 @@ export const normalizeClaudeCodeModel = (modelId) => {
 
 const MODELS_DEV_API_URL = "https://models.dev/api.json";
 const CLAUDE_CODE_MODEL_ORDER = {
-  "claude-opus": 0,
-  "claude-sonnet": 1,
-  "claude-haiku": 2,
-  opus: 3,
-  sonnet: 4,
-  haiku: 5,
+  "claude-fable": 0,
+  "claude-opus": 1,
+  "claude-sonnet": 2,
+  "claude-haiku": 3,
+  fable: 4,
+  opus: 5,
+  sonnet: 6,
+  haiku: 7,
 };
 
 const isModelsDevModelRecord = (value) =>
   value !== null && typeof value === "object" && typeof value.id === "string";
 
 const isClaudeCodeModelName = (model) =>
-  /^claude-(opus|sonnet|haiku)-\d+-\d{1,2}$/.test(model.id);
+  /^claude-[a-z][a-z0-9]*-\d+(?:-\d{1,2})?$/.test(model.id);
 
 const getClaudeCodeModelVersion = (model) => {
-  const match = model.id.match(/^claude-(opus|sonnet|haiku)-(\d+)-(\d{1,2})$/);
+  const match = model.id.match(
+    /^claude-([a-z][a-z0-9]*)-(\d+)(?:-(\d{1,2}))?$/,
+  );
   if (!match) {
     return null;
   }
@@ -397,7 +402,7 @@ const getClaudeCodeModelVersion = (model) => {
   return {
     family: match[1],
     major: Number(match[2]),
-    minor: Number(match[3]),
+    minor: match[3] ? Number(match[3]) : 0,
   };
 };
 
@@ -419,7 +424,7 @@ const isSupportedClaudeCodeModel = (model) => {
     return version.major > 4 || (version.major === 4 && version.minor >= 5);
   }
 
-  return false;
+  return version.major >= 5;
 };
 
 const getModelsDevAnthropicModels = (payload) => {
@@ -511,8 +516,10 @@ const parseClaudeCodeModelOptionsFromModelsDev = (payload) => {
       .filter((model) => model.status !== "deprecated")
       .filter(isClaudeCodeModelName)
       .filter(isSupportedClaudeCodeModel)
-      .filter((model) =>
-        ["claude-opus", "claude-sonnet", "claude-haiku"].includes(model.family),
+      .filter(
+        (model) =>
+          typeof model.family === "string" &&
+          model.family.startsWith("claude-"),
       ),
   )
     .sort((a, b) => {
