@@ -20,7 +20,12 @@ export const CHAT_HISTORY_PANEL_MIN_WIDTH_PX = 200;
 /** Duration (ms) for panel slide animations. */
 export const PANEL_TRANSITION_MS = 200;
 export const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-export const SLIDING_PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), transform ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+// Intentionally animates only compositor-friendly properties (transform,
+// opacity). Animating `width` here forces a relayout + repaint of the entire
+// workspace on every animation frame, which is visibly janky on large
+// (e.g. 4K) windows — the surrounding content now reflows once (width snaps)
+// while the panel itself still slides in/out via transform.
+export const SLIDING_PANEL_TRANSITION = `transform ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 export const CHAT_KEEP_ALIVE_LIMIT = 10;
 
 export const clampChatHistoryPanelWidth = (width: number) =>

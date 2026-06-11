@@ -54,6 +54,31 @@ export const IdeShell = () => {
     useUiStore.getState().hydrateUi();
   }, [hydrate]);
 
+  // Dev-only: log main-thread stalls (>=100ms) so interaction delays (e.g.
+  // slow tab switches) can be attributed instead of guessed at.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    if (typeof PerformanceObserver === "undefined") return;
+
+    let observer: PerformanceObserver | null = null;
+    try {
+      observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (entry.duration >= 100) {
+            console.warn(
+              `[perf] main thread blocked for ${Math.round(entry.duration)}ms`,
+            );
+          }
+        }
+      });
+      observer.observe({ entryTypes: ["longtask"] });
+    } catch {
+      // longtask entries unsupported — nothing to observe.
+    }
+
+    return () => observer?.disconnect();
+  }, []);
+
   // Mark app ready once hydration completes, and auto-refresh models
   useEffect(() => {
     if (!stateHydrated) return;
@@ -335,8 +360,13 @@ export const IdeShell = () => {
                   className={cn(
                     "absolute inset-0 min-h-0",
                     active
-                      ? "translate-x-0 pointer-events-auto opacity-100"
-                      : "translate-x-full pointer-events-none opacity-0",
+                      ? "visible translate-x-0 pointer-events-auto opacity-100"
+                      : // `invisible` (visibility: hidden) drops inactive
+                        // workspaces out of paint/hit-testing entirely while
+                        // preserving layout and keeping <webview>/terminal
+                        // state alive (unlike display: none, which destroys
+                        // webview surfaces and forces an expensive re-show).
+                        "invisible translate-x-full pointer-events-none opacity-0",
                   )}
                   inert={!active}
                   key={project.id}

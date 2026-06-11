@@ -213,7 +213,7 @@ export const WorkspaceSlidingPanel = ({
         pointerEvents: open ? "auto" : "none",
         transition,
         width: open ? slotWidth : 0,
-        willChange: "width, opacity",
+        willChange: "opacity",
         ...style,
       }}
     >

@@ -547,8 +547,12 @@ ipcMain.on("browser:update", (_event, payload) => {
 async function logGpuDiagnostics() {
   const gpuStatus = app.getGPUFeatureStatus();
   console.log("[gpu] feature status:", gpuStatus);
+  // Only flag genuine software fallback. "disabled_off"/"disabled_off_ok"
+  // mark experimental features (raw_draw, skia_graphite, webnn, ...) that
+  // are off by default everywhere — Chrome on a healthy machine shows the
+  // same — so they are not a degradation signal.
   const degraded = Object.entries(gpuStatus).filter(([, value]) =>
-    /disabled|software/i.test(String(value)),
+    /software/i.test(String(value)),
   );
   if (degraded.length > 0) {
     console.warn(
