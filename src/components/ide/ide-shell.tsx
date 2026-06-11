@@ -131,7 +131,16 @@ export const IdeShell = () => {
           if (persistTimer !== null) clearTimeout(persistTimer);
           persistTimer = setTimeout(() => {
             persistTimer = null;
-            useIdeStore.getState().persist();
+            // Serializing the full state for IPC blocks the renderer thread;
+            // run it during an idle period so it never lands in the middle of
+            // a click-driven animation frame. The timeout still guarantees a
+            // save within ~2s even if the thread stays busy.
+            const runPersist = () => useIdeStore.getState().persist();
+            if (typeof requestIdleCallback === "function") {
+              requestIdleCallback(runPersist, { timeout: 2000 });
+            } else {
+              runPersist();
+            }
           }, 300);
         }
       }

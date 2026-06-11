@@ -1,9 +1,9 @@
 import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { readMigrationFiles } from "drizzle-orm/migrator";
-import { app } from "electron";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,7 +73,7 @@ function normalizeProjectPathKey(projectPath) {
   return isWindowsPath ? normalized.toLowerCase() : normalized;
 }
 
-function resolveStateDatabasePath() {
+export function resolveStateDatabasePath() {
   const configuredPath = process.env[STATE_DB_PATH_ENV_VAR]?.trim();
   if (configuredPath) {
     if (path.isAbsolute(configuredPath)) {
@@ -83,6 +83,11 @@ function resolveStateDatabasePath() {
     return path.resolve(appRoot, configuredPath);
   }
 
+  // Lazy-loaded so this module also works inside worker threads, where the
+  // "electron" module is unavailable. Workers must set DREAM_DB_PATH (the
+  // save worker always does), so this branch never runs there.
+  const require = createRequire(import.meta.url);
+  const { app } = require("electron");
   return path.join(app.getPath("userData"), STATE_DB_FILENAME);
 }
 

@@ -20,8 +20,9 @@ import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import {
   closePersistedStateDatabase,
   loadPersistedState,
-  savePersistedState,
+  resolveStateDatabasePath,
 } from "./persisted-state.js";
+import { createStateSaveQueue } from "./state-save-queue.js";
 import { createProcessSessionManager } from "./process-sessions.js";
 import { createRendererServerManager } from "./renderer-server.js";
 import { initializeAutoUpdater } from "./updater.js";
@@ -387,7 +388,17 @@ async function createMainWindow() {
 ipcMain.handle("projects:pick-directory", pickDirectory);
 ipcMain.handle("state:load", () => loadPersistedState());
 
-ipcMain.handle("state:save", (_event, state) => savePersistedState(state));
+// State saves rewrite the entire database synchronously; doing that on this
+// (main) thread blocked input-event delivery to every window for the duration
+// of the write — the cause of click-to-action lag on Windows. The queue runs
+// the write in a worker thread and coalesces bursts to the latest snapshot.
+let stateSaveQueue = null;
+const getStateSaveQueue = () =>
+  (stateSaveQueue ??= createStateSaveQueue({
+    databasePath: resolveStateDatabasePath(),
+  }));
+
+ipcMain.handle("state:save", (_event, state) => getStateSaveQueue().save(state));
 
 ipcMain.handle("theme:set", (_event, { theme } = {}) => {
   const normalizedTheme = normalizeThemePreference(theme);
@@ -614,13 +625,33 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on("before-quit", async () => {
+// Electron does not wait for async "before-quit" listeners, so we must
+// preventDefault, finish cleanup (including flushing any state save still
+// queued in the worker), and then re-trigger quit ourselves. Without this,
+// the final renderer-side persist could be lost on exit.
+let quitCleanupDone = false;
+app.on("before-quit", (event) => {
+  if (quitCleanupDone) {
+    return;
+  }
+  event.preventDefault();
+
   updateManager?.stop();
   processSessionManager.stopAllProcesses();
 
-  await rendererServerManager?.stop();
-
-  closePersistedStateDatabase();
+  Promise.resolve()
+    .then(async () => {
+      await rendererServerManager?.stop();
+      await stateSaveQueue?.flushAndClose();
+      closePersistedStateDatabase();
+    })
+    .catch((error) => {
+      console.error("Error during quit cleanup:", error);
+    })
+    .finally(() => {
+      quitCleanupDone = true;
+      app.quit();
+    });
 });
 
 app.on("window-all-closed", () => {
