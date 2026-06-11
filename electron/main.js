@@ -31,6 +31,16 @@ const __dirname = path.dirname(__filename);
 const appIconPath = path.join(__dirname, "..", "public", "icon.png");
 
 const isDevelopment = process.env.NODE_ENV === "development";
+
+// Diagnostic only: opt-in via env var to test whether software rendering is
+// caused by Chromium's GPU blocklist (do NOT enable in production builds —
+// blocklist entries exist because the matched configs crash or misrender).
+if (process.env.DREAM_IGNORE_GPU_BLOCKLIST === "1") {
+  app.commandLine.appendSwitch("ignore-gpu-blocklist");
+  console.warn(
+    "[gpu] --ignore-gpu-blocklist enabled via DREAM_IGNORE_GPU_BLOCKLIST (diagnostic mode)",
+  );
+}
 const rendererUrlFromEnv = process.env.ELECTRON_RENDERER_URL?.trim();
 const rendererStartupTimeoutMs = Number(
   process.env.VITE_READY_TIMEOUT_MS ?? 45000,
@@ -526,23 +536,48 @@ ipcMain.on("browser:update", (_event, payload) => {
   browserSessionManager.update(payload);
 });
 
-app.whenReady().then(async () => {
-  if (isDevelopment) {
-    // Diagnostic for "slow on Windows" reports: if the GPU is blocklisted,
-    // Chromium silently falls back to software rendering.
-    const gpuStatus = app.getGPUFeatureStatus();
-    console.log("[gpu] feature status:", gpuStatus);
-    const degraded = Object.entries(gpuStatus).filter(([, value]) =>
-      /disabled|software/i.test(String(value)),
+// Diagnostic for "slow on Windows" reports: if the GPU is blocklisted,
+// Chromium silently falls back to software rendering.
+//
+// IMPORTANT: this must run only after the first window has loaded. Calling
+// app.getGPUFeatureStatus() before the GPU process has spawned (e.g. at the
+// top of whenReady, before any BrowserWindow exists) returns placeholder
+// values where every feature reads "disabled_software"/"disabled_off",
+// which looks exactly like a software-rendering fallback but is meaningless.
+async function logGpuDiagnostics() {
+  const gpuStatus = app.getGPUFeatureStatus();
+  console.log("[gpu] feature status:", gpuStatus);
+  const degraded = Object.entries(gpuStatus).filter(([, value]) =>
+    /disabled|software/i.test(String(value)),
+  );
+  if (degraded.length > 0) {
+    console.warn(
+      "[gpu] degraded features (software rendering likely):",
+      Object.fromEntries(degraded),
     );
-    if (degraded.length > 0) {
+    // Dig into *why* the fallback happened: device/vendor ids, driver
+    // version, and aux attributes expose blocklisting, virtual display
+    // adapters (RDP/VM), or repeated GPU-process crashes.
+    try {
+      const gpuInfo = await app.getGPUInfo("complete");
       console.warn(
-        "[gpu] degraded features (software rendering likely):",
-        Object.fromEntries(degraded),
+        "[gpu] device info:",
+        JSON.stringify(
+          {
+            gpuDevice: gpuInfo.gpuDevice,
+            auxAttributes: gpuInfo.auxAttributes,
+          },
+          null,
+          2,
+        ),
       );
+    } catch (error) {
+      console.warn("[gpu] failed to fetch detailed GPU info:", error);
     }
   }
+}
 
+app.whenReady().then(async () => {
   configureApplicationMenu(app, APP_NAME);
 
   if (process.platform === "darwin" && existsSync(appIconPath)) {
@@ -552,6 +587,15 @@ app.whenReady().then(async () => {
   rendererServerManager = await createStartupRendererServerManager();
   await rendererServerManager.start();
   await createMainWindow();
+
+  if (isDevelopment) {
+    // Log GPU status only once a renderer is up — see logGpuDiagnostics()
+    // for why querying earlier yields bogus all-disabled placeholders.
+    mainWindow?.webContents.once("did-finish-load", () => {
+      void logGpuDiagnostics();
+    });
+  }
+
   updateManager = initializeAutoUpdater({
     app,
     getMainWindow: () => mainWindow,

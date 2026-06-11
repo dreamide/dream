@@ -13,6 +13,10 @@ import {
 } from "../providers/model-options.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
 import { waitForToolApproval } from "../tool-approvals.js";
+import {
+  buildCodexMessageFilePartsSummary,
+  getLatestUserMessage,
+} from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { createClaudeProjectTools } from "./project-tools.js";
 import {
@@ -76,6 +80,35 @@ const normalizeClaudeImageInputs = (modelMessages) => {
     hasImageInput,
     messages: changed ? normalizedMessages : modelMessages,
   };
+};
+
+const appendClaudeAttachmentTextToLatestUserMessage = (messages) => {
+  const latestUserMessage = getLatestUserMessage(messages);
+  const attachmentText = buildCodexMessageFilePartsSummary(latestUserMessage);
+  if (!latestUserMessage || !attachmentText) {
+    return messages;
+  }
+
+  const attachmentPrompt = [
+    "Current turn attachments:",
+    attachmentText,
+    "Use these attachment contents as part of the user's latest request.",
+  ].join("\n\n");
+
+  return messages.map((message) =>
+    message === latestUserMessage
+      ? {
+          ...message,
+          parts: [
+            ...(Array.isArray(message.parts) ? message.parts : []),
+            {
+              text: attachmentPrompt,
+              type: "text",
+            },
+          ],
+        }
+      : message,
+  );
 };
 
 const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
@@ -343,7 +376,9 @@ export const streamClaudeResponse = async ({
 
   let modelMessages;
   try {
-    modelMessages = await convertToModelMessages(messages);
+    modelMessages = await convertToModelMessages(
+      appendClaudeAttachmentTextToLatestUserMessage(messages),
+    );
     const normalized = normalizeClaudeImageInputs(modelMessages);
     modelMessages = normalized.messages;
     usesClaudeImageInput = normalized.hasImageInput;

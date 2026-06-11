@@ -259,6 +259,15 @@ const buildCodexFilePartSummary = (part) => {
   return `[Attached file: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
 };
 
+export const buildCodexMessageFilePartsSummary = (message) => {
+  const fileParts = getCodexMessageFileParts(message);
+  if (fileParts.length === 0) {
+    return null;
+  }
+
+  return fileParts.map(buildCodexFilePartSummary).join("\n\n");
+};
+
 export const getCodexMessageFileParts = (message) => {
   if (!message || typeof message !== "object") {
     return [];

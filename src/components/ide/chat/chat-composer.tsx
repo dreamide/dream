@@ -33,6 +33,7 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import {
@@ -474,6 +475,45 @@ const InlineProjectReferenceMentions = ({
   );
 };
 
+const ChatComposerSubmitButton = ({
+  isActive,
+  isProcessing,
+  isProviderInstalled,
+  onStop,
+  promptText,
+  selectedModel,
+  selectedReferenceCount,
+  status,
+}: {
+  isActive: boolean;
+  isProcessing: boolean;
+  isProviderInstalled: boolean;
+  onStop: () => void;
+  promptText: string;
+  selectedModel: string;
+  selectedReferenceCount: number;
+  status: ChatStatus;
+}) => {
+  const attachments = usePromptInputAttachments();
+  const hasPromptContent =
+    promptText.trim() !== "" ||
+    selectedReferenceCount > 0 ||
+    attachments.files.length > 0;
+
+  return (
+    <PromptInputSubmit
+      className="size-8 rounded-md bg-surface-900 text-surface-50 hover:bg-surface-800 dark:bg-surface-200 dark:text-surface-900 dark:hover:bg-surface-300"
+      disabled={
+        !isActive ||
+        (!isProcessing &&
+          (!isProviderInstalled || selectedModel === "" || !hasPromptContent))
+      }
+      onStop={onStop}
+      status={status}
+    />
+  );
+};
+
 export interface ChatComposerProps {
   agentMode: AgentMode;
   allModelOptions: ChatPanelModelOption[];
@@ -899,17 +939,14 @@ export const ChatComposer = ({
                   <TodoListPopover summary={todoSummary} />
                 </PromptInputTools>
                 <div className="ml-auto flex items-center gap-2">
-                  <PromptInputSubmit
-                    className="size-8 rounded-md bg-surface-900 text-surface-50 hover:bg-surface-800 dark:bg-surface-200 dark:text-surface-900 dark:hover:bg-surface-300"
-                    disabled={
-                      !isActive ||
-                      (!isProcessing &&
-                        (!isProviderInstalled ||
-                          selectedModel === "" ||
-                          (promptText.trim() === "" &&
-                            selectedReferences.length === 0)))
-                    }
+                  <ChatComposerSubmitButton
+                    isActive={isActive}
+                    isProcessing={isProcessing}
+                    isProviderInstalled={isProviderInstalled}
                     onStop={onStop}
+                    promptText={promptText}
+                    selectedModel={selectedModel}
+                    selectedReferenceCount={selectedReferences.length}
                     status={status}
                   />
                 </div>
