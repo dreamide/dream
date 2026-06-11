@@ -375,3 +375,63 @@ jobs:
             release/*.exe
             release/*.blockmap
             release/latest.yml
+
+  publish-release:
+    name: Publish GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - package-linux
+      - package-macos
+      - package-windows
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v7.0.1
+        with:
+          name: dream-linux
+          path: release-assets
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v7.0.1
+        with:
+          name: dream-macos
+          path: release-assets
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v7.0.1
+        with:
+          name: dream-windows
+          path: release-assets
+
+      - name: Publish release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          mapfile -t assets < <(
+            find release-assets -type f \( \
+              -name '*.AppImage' -o \
+              -name '*.blockmap' -o \
+              -name '*.dmg' -o \
+              -name '*.exe' -o \
+              -name '*.yml' -o \
+              -name '*.zip' \
+            \) -print | sort
+          )
+
+          if [[ "${#assets[@]}" -eq 0 ]]; then
+            echo "No release assets found." >&2
+            exit 1
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" "${assets[@]}" --title "$tag" --generate-notes
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

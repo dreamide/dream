@@ -52,4 +52,9 @@ contextBridge.exposeInMainWorld("dream", {
 
   detectEditors: () => ipcRenderer.invoke("editors:detect"),
   openInEditor: (payload) => ipcRenderer.invoke("editors:open", payload),
+
+  getUpdateStatus: () => ipcRenderer.invoke("updates:get-status"),
+  checkForUpdates: () => ipcRenderer.invoke("updates:check"),
+  installUpdate: () => ipcRenderer.invoke("updates:install"),
+  onUpdateStatus: (listener) => subscribe("updates:status", listener),
 });

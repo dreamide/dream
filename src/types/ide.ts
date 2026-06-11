@@ -192,6 +192,35 @@ export interface BrowserPageStateEvent {
   zoomFactor: number;
 }
 
+export type UpdateState =
+  | "idle"
+  | "disabled"
+  | "checking"
+  | "available"
+  | "downloading"
+  | "downloaded"
+  | "not-available"
+  | "error";
+
+export interface UpdateProgress {
+  bytesPerSecond: number;
+  percent: number;
+  total: number;
+  transferred: number;
+}
+
+export interface UpdateStatusEvent {
+  currentVersion: string;
+  enabled: boolean;
+  error: string | null;
+  manual: boolean;
+  progress: UpdateProgress | null;
+  releaseDate: string | null;
+  state: UpdateState;
+  updatedAt: string;
+  updateVersion: string | null;
+}
+
 export type ProjectGitChangeStatus =
   | "modified"
   | "added"
@@ -484,6 +513,11 @@ export interface DesktopApi {
     projectPath: string;
     editorId: string;
   }) => Promise<boolean>;
+
+  getUpdateStatus: () => Promise<UpdateStatusEvent>;
+  checkForUpdates: () => Promise<UpdateStatusEvent>;
+  installUpdate: () => Promise<boolean>;
+  onUpdateStatus: (listener: (event: UpdateStatusEvent) => void) => () => void;
 }
 
 export interface DetectedEditor {

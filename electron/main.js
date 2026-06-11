@@ -24,6 +24,7 @@ import {
 } from "./persisted-state.js";
 import { createProcessSessionManager } from "./process-sessions.js";
 import { createRendererServerManager } from "./renderer-server.js";
+import { initializeAutoUpdater } from "./updater.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,6 +73,7 @@ app.setPath("userData", APP_USER_DATA_PATH);
 app.setPath("sessionData", APP_SESSION_DATA_PATH);
 
 let mainWindow = null;
+let updateManager = null;
 
 function normalizeThemePreference(value) {
   return value === "light" || value === "dark" || value === "system"
@@ -337,13 +339,27 @@ async function createMainWindow() {
     browserSessionManager.hideForRendererNavigation();
   });
 
+  // Throttle embedded-view layout during interactive resize. Windows fires
+  // "resize" far more often than macOS during live drag-resize; running
+  // applyState() per event causes main-process jank there.
+  const RESIZE_THROTTLE_MS = 32;
   let resizeFrame = null;
   mainWindow.on("resize", () => {
     if (resizeFrame !== null) return;
     resizeFrame = setTimeout(() => {
       resizeFrame = null;
       browserSessionManager.applyState();
-    }, 0);
+    }, RESIZE_THROTTLE_MS);
+  });
+
+  // Emitted once when an interactive resize ends (Windows/macOS): cancel any
+  // pending throttled pass and sync the embedded views to the final bounds.
+  mainWindow.on("resized", () => {
+    if (resizeFrame !== null) {
+      clearTimeout(resizeFrame);
+      resizeFrame = null;
+    }
+    browserSessionManager.applyState();
   });
 
   mainWindow.on("closed", () => {
@@ -511,6 +527,22 @@ ipcMain.on("browser:update", (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
+  if (isDevelopment) {
+    // Diagnostic for "slow on Windows" reports: if the GPU is blocklisted,
+    // Chromium silently falls back to software rendering.
+    const gpuStatus = app.getGPUFeatureStatus();
+    console.log("[gpu] feature status:", gpuStatus);
+    const degraded = Object.entries(gpuStatus).filter(([, value]) =>
+      /disabled|software/i.test(String(value)),
+    );
+    if (degraded.length > 0) {
+      console.warn(
+        "[gpu] degraded features (software rendering likely):",
+        Object.fromEntries(degraded),
+      );
+    }
+  }
+
   configureApplicationMenu(app, APP_NAME);
 
   if (process.platform === "darwin" && existsSync(appIconPath)) {
@@ -520,6 +552,12 @@ app.whenReady().then(async () => {
   rendererServerManager = await createStartupRendererServerManager();
   await rendererServerManager.start();
   await createMainWindow();
+  updateManager = initializeAutoUpdater({
+    app,
+    getMainWindow: () => mainWindow,
+    ipcMain,
+    isDevelopment,
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -529,6 +567,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", async () => {
+  updateManager?.stop();
   processSessionManager.stopAllProcesses();
 
   await rendererServerManager?.stop();

@@ -36,6 +36,7 @@
     "comma-separated-tokens": "2.0.3",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "electron-updater": "^6.8.9",
     "get-port": "^7.2.0",
     "hast-util-to-html": "9.0.5",
     "hast-util-whitespace": "3.0.0",
@@ -108,6 +109,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dreamide",
+        "repo": "dream"
+      }
+    ],
     "afterPack": "scripts/prune-packaged-app.cjs",
     "files": [
       "electron/**/*",
