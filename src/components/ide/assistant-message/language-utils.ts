@@ -85,8 +85,20 @@ export const normalizeEmbeddedLineNumbers = (
     };
   }
 
-  const parsedLines = lines.map((line) => {
-    const match = line.match(/^\s*(\d+)\s*(?:\||:|->|→|↦|›)\s?(.*)$/);
+  type ParsedLine = {
+    code: string;
+    kind: "bare" | "explicit" | "spaces" | "tab";
+    lineNumber: number;
+    spacePrefix?: string;
+  };
+
+  const parseLine = (line: string): ParsedLine | null => {
+    const explicitMatch = line.match(/^\s*(\d+)\s*(?:\||:|->|→|↦|›)\s?(.*)$/);
+    const tabMatch = line.match(/^\s*(\d+)\t+(.*)$/);
+    const spacesMatch = line.match(/^\s*(\d+)( {2,})(.*)$/);
+    const bareMatch = line.match(/^\s*(\d+)\s*$/);
+    const match = explicitMatch ?? tabMatch ?? spacesMatch ?? bareMatch;
+
     if (!match) {
       return null;
     }
@@ -96,17 +108,61 @@ export const normalizeEmbeddedLineNumbers = (
       return null;
     }
 
+    if (explicitMatch) {
+      return {
+        code: explicitMatch[2] ?? "",
+        kind: "explicit",
+        lineNumber,
+      };
+    }
+
+    if (tabMatch) {
+      return {
+        code: tabMatch[2] ?? "",
+        kind: "tab",
+        lineNumber,
+      };
+    }
+
+    if (spacesMatch) {
+      return {
+        code: spacesMatch[3] ?? "",
+        kind: "spaces",
+        lineNumber,
+        spacePrefix: spacesMatch[2] ?? "",
+      };
+    }
+
     return {
-      code: match[2] ?? "",
+      code: "",
+      kind: "bare",
       lineNumber,
     };
-  });
+  };
+
+  const parsedLines = lines.map(parseLine);
 
   let bestRun: {
-    lines: string[];
+    lines: ParsedLine[];
     startingLineNumber: number;
     startsAtRequestedLine: boolean;
   } | null = null;
+
+  const getNormalizedRunLines = (runLines: ParsedLine[]): string[] => {
+    const spacePrefixWidth = Math.min(
+      ...runLines
+        .filter((line) => line.kind === "spaces" && line.code.trim().length > 0)
+        .map((line) => line.spacePrefix?.length ?? 0),
+    );
+
+    return runLines.map((line) => {
+      if (line.kind !== "spaces" || !Number.isFinite(spacePrefixWidth)) {
+        return line.code;
+      }
+
+      return `${line.spacePrefix?.slice(spacePrefixWidth) ?? ""}${line.code}`;
+    });
+  };
 
   for (let index = 0; index < parsedLines.length; index += 1) {
     const parsedLine = parsedLines[index];
@@ -114,7 +170,7 @@ export const normalizeEmbeddedLineNumbers = (
       continue;
     }
 
-    const runLines = [parsedLine.code];
+    const runLines = [parsedLine];
     const runStart = parsedLine.lineNumber;
     let expected = parsedLine.lineNumber + 1;
 
@@ -128,11 +184,19 @@ export const normalizeEmbeddedLineNumbers = (
         break;
       }
 
-      runLines.push(nextLine.code);
+      runLines.push(nextLine);
       expected += 1;
     }
 
     if (runLines.length < 2) {
+      continue;
+    }
+
+    const hasLineNumberSeparator = runLines.some(
+      (line) => line.kind !== "bare",
+    );
+    const hasCode = runLines.some((line) => line.code.trim().length > 0);
+    if (!hasLineNumberSeparator || !hasCode) {
       continue;
     }
 
@@ -162,7 +226,7 @@ export const normalizeEmbeddedLineNumbers = (
   }
 
   return {
-    code: bestRun.lines.join("\n"),
+    code: getNormalizedRunLines(bestRun.lines).join("\n"),
     hadEmbeddedLineNumbers: true,
     startingLineNumber: bestRun.startingLineNumber,
   };
