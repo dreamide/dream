@@ -111,6 +111,9 @@ const getUsageContextTokens = (usage: LanguageModelUsage) => {
   return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
 };
 
+// A turn's exact input usage already includes the previous chat history.
+// Summing exact usage across turns double-counts older messages, so the latest
+// assistant usage is the best exact snapshot of current context pressure.
 const getLatestAssistantUsage = (messages: UIMessage[]) => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
