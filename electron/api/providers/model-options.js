@@ -534,7 +534,14 @@ const parseClaudeCodeModelOptionsFromModelsDev = (payload) => {
       );
     })
     .map((model) =>
-      createModelOption("anthropic", model.id, getModelsDevLabel(model)),
+      createModelOption(
+        "anthropic",
+        model.id,
+        getModelsDevLabel(model),
+        [],
+        [],
+        getModelsDevModelContextWindow(model),
+      ),
     );
 };
 

@@ -309,6 +309,7 @@ const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
   // Anthropic
   [/^(sonnet|opus)(?:\[1m\])?$/, 1_000_000],
   [/^haiku$/, 200_000],
+  [/^claude-fable-5(?:$|-)/, 1_000_000],
   [/^claude-(sonnet|opus)-4-(?:[6-9]|\d{2,})/, 1_000_000],
   [/^claude-haiku-4/, 200_000],
   [/^claude-3[.-]7/, 200_000],
