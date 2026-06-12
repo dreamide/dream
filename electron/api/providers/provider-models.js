@@ -159,6 +159,22 @@ const parseCursorModelsOutput = (value) => {
   );
 };
 
+const getOpenAiModelContextWindow = (entry) => {
+  for (const value of [
+    entry?.context_window,
+    entry?.contextWindow,
+    entry?.limit?.context,
+    entry?.max_context_window,
+    entry?.maxContextWindow,
+  ]) {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
 const createOpenAiModelOptionsFromCodexEntries = (entries) =>
   (entries ?? []).flatMap((entry) => {
     const rawId = entry?.slug ?? entry?.id;
@@ -178,6 +194,7 @@ const createOpenAiModelOptionsFromCodexEntries = (entries) =>
         ? reasoningEfforts
         : getModelReasoningEfforts("openai", id),
       speedTiers.length > 0 ? speedTiers : getModelSpeedTiers("openai", id),
+      getOpenAiModelContextWindow(entry),
     );
     return isVisibleOpenAiModelOption(model) ? [model] : [];
   });
@@ -220,6 +237,12 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
           normalizeModelSpeedTiers(entry.additional_speed_tiers).length > 0
             ? entry.additional_speed_tiers
             : cachedEntry?.additional_speed_tiers,
+        context_window: entry.context_window ?? cachedEntry?.context_window,
+        contextWindow: entry.contextWindow ?? cachedEntry?.contextWindow,
+        max_context_window:
+          entry.max_context_window ?? cachedEntry?.max_context_window,
+        maxContextWindow:
+          entry.maxContextWindow ?? cachedEntry?.maxContextWindow,
       },
     ]);
   });

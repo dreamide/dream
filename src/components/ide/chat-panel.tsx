@@ -103,19 +103,7 @@ const CHAT_CONVERSATION_BOTTOM_FADE_STYLE: CSSProperties = {
   right: CHAT_CONVERSATION_FADE_RIGHT_INSET,
 };
 
-const addOptionalTokens = (
-  left: number | undefined,
-  right: number | undefined,
-) =>
-  left === undefined && right === undefined
-    ? undefined
-    : (left ?? 0) + (right ?? 0);
-
-const getUsageTotalTokens = (usage: LanguageModelUsage) => {
-  if (usage.totalTokens !== undefined) {
-    return usage.totalTokens;
-  }
-
+const getUsageContextTokens = (usage: LanguageModelUsage) => {
   if (usage.inputTokens === undefined && usage.outputTokens === undefined) {
     return undefined;
   }
@@ -123,70 +111,21 @@ const getUsageTotalTokens = (usage: LanguageModelUsage) => {
   return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
 };
 
-const addLanguageModelUsage = (
-  total: LanguageModelUsage,
-  usage: LanguageModelUsage,
-): LanguageModelUsage => ({
-  inputTokens: addOptionalTokens(total.inputTokens, usage.inputTokens),
-  inputTokenDetails: {
-    noCacheTokens: addOptionalTokens(
-      total.inputTokenDetails?.noCacheTokens,
-      usage.inputTokenDetails?.noCacheTokens,
-    ),
-    cacheReadTokens: addOptionalTokens(
-      total.inputTokenDetails?.cacheReadTokens,
-      usage.inputTokenDetails?.cacheReadTokens,
-    ),
-    cacheWriteTokens: addOptionalTokens(
-      total.inputTokenDetails?.cacheWriteTokens,
-      usage.inputTokenDetails?.cacheWriteTokens,
-    ),
-  },
-  outputTokens: addOptionalTokens(total.outputTokens, usage.outputTokens),
-  outputTokenDetails: {
-    textTokens: addOptionalTokens(
-      total.outputTokenDetails?.textTokens,
-      usage.outputTokenDetails?.textTokens,
-    ),
-    reasoningTokens: addOptionalTokens(
-      total.outputTokenDetails?.reasoningTokens,
-      usage.outputTokenDetails?.reasoningTokens,
-    ),
-  },
-  totalTokens: addOptionalTokens(
-    getUsageTotalTokens(total),
-    getUsageTotalTokens(usage),
-  ),
-  reasoningTokens: addOptionalTokens(
-    total.reasoningTokens,
-    usage.reasoningTokens,
-  ),
-  cachedInputTokens: addOptionalTokens(
-    total.cachedInputTokens,
-    usage.cachedInputTokens,
-  ),
-});
-
-const getAssistantUsage = (messages: UIMessage[]) => {
-  let usage: LanguageModelUsage | undefined;
-
-  for (const message of messages) {
+const getLatestAssistantUsage = (messages: UIMessage[]) => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
     if (message.role !== "assistant") {
       continue;
     }
 
     const messageUsage = (message.metadata as ChatMessageMetadata | undefined)
       ?.usage;
-    if (!messageUsage) {
-      continue;
+    if (messageUsage) {
+      return messageUsage;
     }
-
-    usage = usage
-      ? addLanguageModelUsage(usage, messageUsage)
-      : { ...messageUsage };
   }
 
-  return usage;
+  return undefined;
 };
 
 const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
@@ -848,9 +787,12 @@ export const ChatPanel = ({
     }
     return total;
   }, [messages]);
-  const contextUsage = useMemo(() => getAssistantUsage(messages), [messages]);
+  const contextUsage = useMemo(
+    () => getLatestAssistantUsage(messages),
+    [messages],
+  );
   const contextUsedTokens =
-    (contextUsage ? getUsageTotalTokens(contextUsage) : undefined) ??
+    (contextUsage ? getUsageContextTokens(contextUsage) : undefined) ??
     fallbackEstimatedTokens;
   const todoSummary = useMemo(
     () => getLatestChatTodoSummary(messages),

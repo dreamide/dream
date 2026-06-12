@@ -38,6 +38,28 @@ const useContextValue = () => {
   return context;
 };
 
+const clampPercent = (value: number) =>
+  Math.min(PERCENT_MAX, Math.max(0, value));
+
+const clampRatio = (value: number) => Math.min(1, Math.max(0, value));
+
+const getUsageCacheReadTokens = (usage: LanguageModelUsage | undefined) =>
+  usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0;
+
+const getUsageBillableInputTokens = (
+  usage: LanguageModelUsage | undefined,
+) => {
+  const inputTokens = usage?.inputTokens ?? 0;
+  const noCacheTokens = usage?.inputTokenDetails?.noCacheTokens;
+  const cacheWriteTokens = usage?.inputTokenDetails?.cacheWriteTokens;
+
+  if (noCacheTokens !== undefined || cacheWriteTokens !== undefined) {
+    return (noCacheTokens ?? 0) + (cacheWriteTokens ?? 0);
+  }
+
+  return Math.max(0, inputTokens - getUsageCacheReadTokens(usage));
+};
+
 export type ContextProps = ComponentProps<typeof Popover> & ContextSchema;
 
 export const Context = ({
@@ -62,8 +84,8 @@ export const Context = ({
 const ContextIcon = () => {
   const { usedTokens, maxTokens } = useContextValue();
   const circumference = 2 * Math.PI * ICON_RADIUS;
-  const usedPercent = usedTokens / maxTokens;
-  const dashOffset = circumference * (1 - usedPercent);
+  const usedRatio = maxTokens > 0 ? clampRatio(usedTokens / maxTokens) : 0;
+  const dashOffset = circumference * (1 - usedRatio);
 
   return (
     <svg
@@ -134,7 +156,7 @@ export const ContextContentHeader = ({
   ...props
 }: ContextContentHeaderProps) => {
   const { usedTokens, maxTokens, usage } = useContextValue();
-  const usedPercent = usedTokens / maxTokens;
+  const usedPercent = maxTokens > 0 ? usedTokens / maxTokens : 0;
   const usageLabel = usage ? "Exact" : "Estimated";
   const displayPct = new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 1,
@@ -164,7 +186,10 @@ export const ContextContentHeader = ({
             </p>
           </div>
           <div className="space-y-2">
-            <Progress className="bg-muted" value={usedPercent * PERCENT_MAX} />
+            <Progress
+              className="bg-muted"
+              value={clampPercent(usedPercent * PERCENT_MAX)}
+            />
           </div>
         </>
       )}
@@ -196,7 +221,8 @@ export const ContextContentFooter = ({
     ? getUsage({
         modelId,
         usage: {
-          input: usage?.inputTokens ?? 0,
+          cacheReads: getUsageCacheReadTokens(usage),
+          input: getUsageBillableInputTokens(usage),
           output: usage?.outputTokens ?? 0,
         },
       }).costUSD?.totalUSD
@@ -232,7 +258,7 @@ export const ContextInputUsage = ({
   ...props
 }: ContextInputUsageProps) => {
   const { usage, modelId } = useContextValue();
-  const inputTokens = usage?.inputTokens ?? 0;
+  const inputTokens = getUsageBillableInputTokens(usage);
 
   if (children) {
     return children;
@@ -353,8 +379,7 @@ export const ContextCacheUsage = ({
   ...props
 }: ContextCacheUsageProps) => {
   const { usage, modelId } = useContextValue();
-  const cacheTokens =
-    usage?.inputTokenDetails?.cacheReadTokens ?? usage?.cachedInputTokens ?? 0;
+  const cacheTokens = getUsageCacheReadTokens(usage);
 
   if (children) {
     return children;

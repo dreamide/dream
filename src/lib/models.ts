@@ -318,6 +318,8 @@ const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
 
   // OpenAI
   [/^o[134]/, 200_000],
+  [/^gpt-5\.(4|5)(?:$|[-.])/, 272_000],
+  [/^gpt-5\.3-codex-spark(?:$|[-.])/, 128_000],
   [/^gpt-5/, 200_000],
   [/^gpt-4o/, 128_000],
   [/^gpt-4-turbo/, 128_000],

@@ -22,7 +22,6 @@ import { createClaudeProjectTools } from "./project-tools.js";
 import {
   DEFAULT_TOOL_STEP_LIMIT,
   REASONING_TOOL_STEP_LIMIT,
-  SYSTEM_PROMPT,
 } from "./schema.js";
 
 const CLAUDE_PERMISSION_MODE_MAP = {
@@ -123,11 +122,47 @@ const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
   "write",
 ]);
 
+const CLAUDE_DIRECT_WEB_TOOLS = new Set(["webfetch", "websearch"]);
+
+const getClaudeToolSearchQuery = (input) => {
+  if (typeof input === "string") {
+    return input.trim();
+  }
+
+  if (!input || typeof input !== "object") {
+    return "";
+  }
+
+  const value =
+    input.query ??
+    input.pattern ??
+    input.tool ??
+    input.toolName ??
+    input.tool_name ??
+    input.name;
+  return typeof value === "string" ? value.trim() : "";
+};
+
 const createClaudePermissionHandler = (writer, { mode }) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const toolUseID =
       typeof options?.toolUseID === "string" ? options.toolUseID : undefined;
+
+    if (
+      normalizedToolName === "toolsearch" &&
+      CLAUDE_DIRECT_WEB_TOOLS.has(
+        normalizeClaudeToolName(getClaudeToolSearchQuery(input)),
+      )
+    ) {
+      return {
+        behavior: "deny",
+        interrupt: false,
+        message:
+          "WebFetch and WebSearch are already available. Use the matching web tool directly instead of ToolSearch.",
+        ...(toolUseID ? { toolUseID } : {}),
+      };
+    }
 
     if (
       normalizedToolName !== "askuserquestion" &&
@@ -406,9 +441,7 @@ export const streamClaudeResponse = async ({
             ? REASONING_TOOL_STEP_LIMIT
             : DEFAULT_TOOL_STEP_LIMIT,
         ),
-        system: [SYSTEM_PROMPT, projectReferencesPrompt]
-          .filter(Boolean)
-          .join("\n\n"),
+        ...(projectReferencesPrompt ? { system: projectReferencesPrompt } : {}),
         ...(usesReasoningModel ? {} : { temperature: 0.2 }),
         tools: createClaudeProjectTools({ claudePermissionMode, projectPath }),
       });

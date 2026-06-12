@@ -8,7 +8,6 @@ import {
   chatRequestBodySchema,
   chatTitleRequestBodySchema,
   formatProjectReferencesForPrompt,
-  SYSTEM_PROMPT,
 } from "./chat/schema.js";
 import { generateChatTitle } from "./chat/title.js";
 import { readCodexAccessToken } from "./providers/codex-auth.js";
@@ -219,7 +218,6 @@ export const registerChatRoutes = (app) => {
         modelSpeed,
         reasoningEffort,
         responseMessageMetadata,
-        systemPrompt: SYSTEM_PROMPT,
       });
     }
 
@@ -238,7 +236,6 @@ export const registerChatRoutes = (app) => {
         projectReferencesPrompt,
         projectPath: resolvedProjectPath,
         responseMessageMetadata,
-        systemPrompt: SYSTEM_PROMPT,
       });
     }
 
@@ -261,7 +258,6 @@ export const registerChatRoutes = (app) => {
         remoteConversationModelSpeed,
         remoteConversationProjectPath,
         responseMessageMetadata,
-        systemPrompt: SYSTEM_PROMPT,
       });
     }
 
