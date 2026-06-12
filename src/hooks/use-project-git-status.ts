@@ -68,12 +68,16 @@ export const useProjectGitStatus = (
       ? (cachedEntry.error ?? null)
       : null,
   );
+  const [statusRefreshToken, setStatusRefreshToken] = useState<number | null>(
+    cachedEntry?.refreshToken === refreshToken ? refreshToken : null,
+  );
 
   const refresh = useCallback(
     async (signal?: AbortSignal, force = false) => {
       if (!cacheKey || !projectPath) {
         setStatus(null);
         setError(null);
+        setStatusRefreshToken(null);
         setLoading(false);
         return;
       }
@@ -82,6 +86,7 @@ export const useProjectGitStatus = (
       if (!force && cached?.refreshToken === refreshToken) {
         setStatus(cached.status);
         setError(cached.error);
+        setStatusRefreshToken(cached.refreshToken);
         setLoading(false);
         return;
       }
@@ -143,6 +148,7 @@ export const useProjectGitStatus = (
 
         setStatus(entry.status);
         setError(entry.error);
+        setStatusRefreshToken(entry.refreshToken);
       } finally {
         if (!signal?.aborted) {
           setLoading(false);
@@ -165,6 +171,7 @@ export const useProjectGitStatus = (
 
       setStatus(entry.status);
       setError(entry.error);
+      setStatusRefreshToken(entry.refreshToken);
       setLoading(false);
     });
   }, [cacheKey, refreshToken]);
@@ -187,5 +194,6 @@ export const useProjectGitStatus = (
     refresh: () => refresh(undefined, true),
     repoRoot: status?.repoRoot ?? null,
     status,
+    statusRefreshToken,
   };
 };
