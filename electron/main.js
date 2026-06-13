@@ -22,9 +22,9 @@ import {
   loadPersistedState,
   resolveStateDatabasePath,
 } from "./persisted-state.js";
-import { createStateSaveQueue } from "./state-save-queue.js";
 import { createProcessSessionManager } from "./process-sessions.js";
 import { createRendererServerManager } from "./renderer-server.js";
+import { createStateSaveQueue } from "./state-save-queue.js";
 import { initializeAutoUpdater } from "./updater.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -398,7 +398,9 @@ const getStateSaveQueue = () =>
     databasePath: resolveStateDatabasePath(),
   }));
 
-ipcMain.handle("state:save", (_event, state) => getStateSaveQueue().save(state));
+ipcMain.handle("state:save", (_event, state) =>
+  getStateSaveQueue().save(state),
+);
 
 ipcMain.handle("theme:set", (_event, { theme } = {}) => {
   const normalizedTheme = normalizeThemePreference(theme);

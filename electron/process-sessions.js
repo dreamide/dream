@@ -164,9 +164,7 @@ export function stopChildProcess(child) {
   }
 }
 
-export function createProcessSessionManager({
-  sendToRenderer,
-}) {
+export function createProcessSessionManager({ sendToRenderer }) {
   const runProcesses = new Map();
   const terminalSessions = new Map();
   const terminalTransports = new Map();

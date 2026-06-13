@@ -234,8 +234,7 @@ export function AnimatedLogo({
     () =>
       respectReducedMotion &&
       typeof window !== "undefined" &&
-      window.matchMedia !== undefined &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
     [respectReducedMotion],
   );
 

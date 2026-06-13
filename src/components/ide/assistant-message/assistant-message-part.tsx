@@ -554,9 +554,7 @@ const GenericToolChip = ({
               <span className="max-w-56 truncate font-medium">
                 {formatToolName(toolName)}
               </span>
-              <span className={CHIP_SUBTEXT_CLASSES}>
-                {toolStateLabel}
-              </span>
+              <span className={CHIP_SUBTEXT_CLASSES}>{toolStateLabel}</span>
             </>
           ) : null}
         </ChipButton>

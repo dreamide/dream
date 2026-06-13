@@ -1,11 +1,12 @@
-import * as React from "react"
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import * as React from "react";
+import { Button } from "@/components/ui/button";
+import { useRegisterModalVisibility } from "@/lib/modal-visibility";
+import { cn } from "@/lib/utils";
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { useRegisterModalVisibility } from "@/lib/modal-visibility"
-
-type DialogOpenChangeHandler = NonNullable<DialogPrimitive.Root.Props["onOpenChange"]>
+type DialogOpenChangeHandler = NonNullable<
+  DialogPrimitive.Root.Props["onOpenChange"]
+>;
 
 function Dialog({
   defaultOpen = false,
@@ -13,23 +14,23 @@ function Dialog({
   open: controlledOpen,
   ...props
 }: DialogPrimitive.Root.Props) {
-  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
-  const open = controlledOpen ?? uncontrolledOpen
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const open = controlledOpen ?? uncontrolledOpen;
 
-  useRegisterModalVisibility(open)
+  useRegisterModalVisibility(open);
 
   const handleOpenChange = React.useCallback<DialogOpenChangeHandler>(
     (...args) => {
-      const [nextOpen] = args
+      const [nextOpen] = args;
 
       if (controlledOpen === undefined) {
-        setUncontrolledOpen(nextOpen)
+        setUncontrolledOpen(nextOpen);
       }
 
-      onOpenChange?.(...args)
+      onOpenChange?.(...args);
     },
-    [controlledOpen, onOpenChange]
-  )
+    [controlledOpen, onOpenChange],
+  );
 
   return (
     <DialogPrimitive.Root
@@ -39,19 +40,21 @@ function Dialog({
       open={controlledOpen}
       {...props}
     />
-  )
+  );
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
 }
 
 function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" keepMounted {...props} />
+  return (
+    <DialogPrimitive.Portal data-slot="dialog-portal" keepMounted {...props} />
+  );
 }
 
 function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
 function DialogOverlay({
@@ -63,11 +66,11 @@ function DialogOverlay({
       data-slot="dialog-overlay"
       className={cn(
         "fixed inset-0 isolate z-50 bg-overlay-strong duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function DialogContent({
@@ -82,14 +85,14 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl border border-surface-300 dark:border-surface-700 bg-background p-6 text-sm shadow-[0_32px_120px_rgba(0,0,0,0.55)] duration-100 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className
+          className,
         )}
         {...props}
       >
         {children}
       </DialogPrimitive.Popup>
     </DialogPortal>
-  )
+  );
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
@@ -99,7 +102,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("flex flex-col gap-2", className)}
       {...props}
     />
-  )
+  );
 }
 
 function DialogFooter({
@@ -108,14 +111,14 @@ function DialogFooter({
   children,
   ...props
 }: React.ComponentProps<"div"> & {
-  showCloseButton?: boolean
+  showCloseButton?: boolean;
 }) {
   return (
     <div
       data-slot="dialog-footer"
       className={cn(
         "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
-        className
+        className,
       )}
       {...props}
     >
@@ -126,7 +129,7 @@ function DialogFooter({
         </DialogPrimitive.Close>
       )}
     </div>
-  )
+  );
 }
 
 function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
@@ -136,7 +139,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
       className={cn("leading-none font-medium", className)}
       {...props}
     />
-  )
+  );
 }
 
 function DialogDescription({
@@ -148,11 +151,11 @@ function DialogDescription({
       data-slot="dialog-description"
       className={cn(
         "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -166,4 +169,4 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
-}
+};

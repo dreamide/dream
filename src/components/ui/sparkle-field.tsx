@@ -4,12 +4,13 @@
 */
 
 import {
+  type CSSProperties,
   forwardRef,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
-  type CSSProperties,
 } from "react";
 
 type PaletteName = "gold" | "cyan" | "mag" | "rain";
@@ -30,18 +31,26 @@ export interface SparkleFieldProps {
 }
 
 const PALETTES: Record<PaletteName, string[]> = {
-  gold: ['#ffe27a', '#ffb84a', '#fff7c2', '#ffd26a'],
-  cyan: ['#9bf2ff', '#6ac7ff', '#caf8ff', '#5ea3ff'],
-  mag:  ['#ff9ae5', '#ff6ac7', '#ffd0f0', '#c77bff'],
-  rain: ['#ffe27a', '#9bf2ff', '#ff9ae5', '#c7a6ff', '#b6ffb2'],
+  gold: ["#ffe27a", "#ffb84a", "#fff7c2", "#ffd26a"],
+  cyan: ["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"],
+  mag: ["#ff9ae5", "#ff6ac7", "#ffd0f0", "#c77bff"],
+  rain: ["#ffe27a", "#9bf2ff", "#ff9ae5", "#c7a6ff", "#b6ffb2"],
 };
-const DENSITY_MAP: Record<DensityName, number> = { low: 38, normal: 70, high: 130 };
+const DENSITY_MAP: Record<DensityName, number> = {
+  low: 38,
+  normal: 70,
+  high: 130,
+};
 
-function rand(a: number, b: number): number { return a + Math.random() * (b - a); }
-function pick<T>(arr: T[]): T { return arr[(Math.random() * arr.length) | 0]; }
+function rand(a: number, b: number): number {
+  return a + Math.random() * (b - a);
+}
+function pick<T>(arr: T[]): T {
+  return arr[(Math.random() * arr.length) | 0];
+}
 
 /* Inject shared styles exactly once. Keeps the component portable. */
-const STYLE_ID = 'sparkle-field-styles';
+const STYLE_ID = "sparkle-field-styles";
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
   const css = `
@@ -151,142 +160,161 @@ function ensureStyles() {
       100% { transform: translate3d(calc(var(--sway) * -0.8), -110%, 0) scale(.2); opacity: 0; }
     }
   `;
-  const el = document.createElement('style');
+  const el = document.createElement("style");
   el.id = STYLE_ID;
   el.textContent = css;
   document.head.appendChild(el);
 }
 
-export const SparkleField = forwardRef<SparkleFieldHandle, SparkleFieldProps>(function SparkleField(props, ref) {
-  const {
-    palette = 'gold',
-    density = 'normal',
-    height = '360px',
-    showRunes = true,
-    showGlow = true,
-    className = '',
-    style,
-  } = props;
+export const SparkleField = forwardRef<SparkleFieldHandle, SparkleFieldProps>(
+  function SparkleField(props, ref) {
+    const {
+      palette = "gold",
+      density = "normal",
+      height = "360px",
+      showRunes = true,
+      showGlow = true,
+      className = "",
+      style,
+    } = props;
 
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const fieldRef = useRef<HTMLDivElement | null>(null);
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const fieldRef = useRef<HTMLDivElement | null>(null);
 
-  const paletteArr = Array.isArray(palette)
-    ? palette
-    : PALETTES[palette] || PALETTES.gold;
-  const count = typeof density === 'number'
-    ? density
-    : (DENSITY_MAP[density] ?? DENSITY_MAP.normal);
+    const paletteArr = useMemo(
+      () => (Array.isArray(palette) ? palette : PALETTES[palette]),
+      [palette],
+    );
+    const count =
+      typeof density === "number"
+        ? density
+        : (DENSITY_MAP[density] ?? DENSITY_MAP.normal);
 
-  useLayoutEffect(ensureStyles, []);
+    useLayoutEffect(ensureStyles, []);
 
-  /* Build/rebuild ambient sparkles. */
-  useEffect(() => {
-    const field = fieldRef.current;
-    if (!field) return;
-
-    let cancelled = false;
-
-    function build() {
-      if (cancelled || !field) return;
-      field.innerHTML = '';
-      const width = field.clientWidth || 600;
-
-      for (let i = 0; i < count; i++) {
-        const s = document.createElement('span');
-        const r = Math.random();
-        if (r < 0.08)       s.className = 'sf-spark sf-ember';
-        else if (r < 0.6)   s.className = 'sf-spark sf-star';
-        else if (r < 0.9)   s.className = 'sf-spark sf-dot';
-        else                s.className = 'sf-spark sf-diamond';
-
-        const isEmber = s.classList.contains('sf-ember');
-        const size = isEmber
-          ? (Math.random() < 0.5 ? 4 : 3)
-          : (Math.random() < 0.6 ? 2 : 3);
-
-        const x = rand(4, width - 6);
-        const duration = rand(2.2, 5.8);
-        const delay = rand(-6, 0.2);
-        const sway = rand(-34, 34);
-
-        s.style.setProperty('--size', size + 'px');
-        s.style.setProperty('--c', pick(paletteArr));
-        s.style.setProperty('--sway', sway + 'px');
-        s.style.left = x + 'px';
-        s.style.animationDuration = duration.toFixed(2) + 's';
-        s.style.animationDelay = delay.toFixed(2) + 's';
-
-        field.appendChild(s);
-      }
-    }
-
-    build();
-
-    const ro = new ResizeObserver(() => {
-      // Rebuild on width change so sparkles respan the new area.
-      build();
-    });
-    ro.observe(field);
-
-    return () => {
-      cancelled = true;
-      ro.disconnect();
-    };
-  }, [count, paletteArr.join('|')]);
-
-  /* Expose imperative burst. */
-  useImperativeHandle(ref, () => ({
-    cast(opts = {}) {
+    /* Build/rebuild ambient sparkles. */
+    useEffect(() => {
       const field = fieldRef.current;
       if (!field) return;
-      const width = field.clientWidth || 600;
-      const burstCount = opts.count ?? 60;
-      for (let i = 0; i < burstCount; i++) {
-        const s = document.createElement('span');
-        s.className = 'sf-spark sf-star';
-        const size = Math.random() < 0.5 ? 2 : 3;
-        const x = rand(10, width - 10);
-        const duration = rand(.9, 1.6);
-        const sway = rand(-80, 80);
-        s.style.setProperty('--size', size + 'px');
-        s.style.setProperty('--c', pick(paletteArr));
-        s.style.setProperty('--sway', sway + 'px');
-        s.style.left = x + 'px';
-        s.style.animationDuration = duration.toFixed(2) + 's';
-        s.style.animationDelay = '0s';
-        field.appendChild(s);
-        setTimeout(() => s.remove(), duration * 1000 + 120);
+
+      let cancelled = false;
+
+      function build() {
+        if (cancelled || !field) return;
+        field.innerHTML = "";
+        const width = field.clientWidth || 600;
+
+        for (let i = 0; i < count; i++) {
+          const s = document.createElement("span");
+          const r = Math.random();
+          if (r < 0.08) s.className = "sf-spark sf-ember";
+          else if (r < 0.6) s.className = "sf-spark sf-star";
+          else if (r < 0.9) s.className = "sf-spark sf-dot";
+          else s.className = "sf-spark sf-diamond";
+
+          const isEmber = s.classList.contains("sf-ember");
+          const size = isEmber
+            ? Math.random() < 0.5
+              ? 4
+              : 3
+            : Math.random() < 0.6
+              ? 2
+              : 3;
+
+          const x = rand(4, width - 6);
+          const duration = rand(2.2, 5.8);
+          const delay = rand(-6, 0.2);
+          const sway = rand(-34, 34);
+
+          s.style.setProperty("--size", `${size}px`);
+          s.style.setProperty("--c", pick(paletteArr));
+          s.style.setProperty("--sway", `${sway}px`);
+          s.style.left = `${x}px`;
+          s.style.animationDuration = `${duration.toFixed(2)}s`;
+          s.style.animationDelay = `${delay.toFixed(2)}s`;
+
+          field.appendChild(s);
+        }
       }
-    },
-  }), [paletteArr.join('|')]);
 
-  const runeColors = paletteArr.length >= 4
-    ? paletteArr.slice(0, 5)
-    : [paletteArr[0], paletteArr[1 % paletteArr.length], paletteArr[2 % paletteArr.length], paletteArr[0], paletteArr[1 % paletteArr.length]];
+      build();
 
-  return (
-    <div
-      ref={rootRef}
-      className={`sf-root ${className}`}
-      style={{ height, ...style }}
-      aria-hidden="true"
-    >
-      <div ref={fieldRef} style={{ position: 'absolute', inset: 0 }} />
-      {showGlow && <div className="sf-glow" />}
-      {showRunes && (
-        <div className="sf-runes">
-          {runeColors.map((c, i) => (
-            <span
-              key={i}
-              className="sf-rune"
-              style={{ background: c, animationDelay: (i * 0.2) + 's' }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
+      const ro = new ResizeObserver(() => {
+        // Rebuild on width change so sparkles respan the new area.
+        build();
+      });
+      ro.observe(field);
+
+      return () => {
+        cancelled = true;
+        ro.disconnect();
+      };
+    }, [count, paletteArr]);
+
+    /* Expose imperative burst. */
+    useImperativeHandle(
+      ref,
+      () => ({
+        cast(opts = {}) {
+          const field = fieldRef.current;
+          if (!field) return;
+          const width = field.clientWidth || 600;
+          const burstCount = opts.count ?? 60;
+          for (let i = 0; i < burstCount; i++) {
+            const s = document.createElement("span");
+            s.className = "sf-spark sf-star";
+            const size = Math.random() < 0.5 ? 2 : 3;
+            const x = rand(10, width - 10);
+            const duration = rand(0.9, 1.6);
+            const sway = rand(-80, 80);
+            s.style.setProperty("--size", `${size}px`);
+            s.style.setProperty("--c", pick(paletteArr));
+            s.style.setProperty("--sway", `${sway}px`);
+            s.style.left = `${x}px`;
+            s.style.animationDuration = `${duration.toFixed(2)}s`;
+            s.style.animationDelay = "0s";
+            field.appendChild(s);
+            setTimeout(() => s.remove(), duration * 1000 + 120);
+          }
+        },
+      }),
+      [paletteArr],
+    );
+
+    const runeColors =
+      paletteArr.length >= 4
+        ? paletteArr.slice(0, 5)
+        : [
+            paletteArr[0],
+            paletteArr[1 % paletteArr.length],
+            paletteArr[2 % paletteArr.length],
+            paletteArr[0],
+            paletteArr[1 % paletteArr.length],
+          ];
+
+    return (
+      <div
+        ref={rootRef}
+        className={`sf-root ${className}`}
+        style={{ height, ...style }}
+        aria-hidden="true"
+      >
+        <div ref={fieldRef} style={{ position: "absolute", inset: 0 }} />
+        {showGlow && <div className="sf-glow" />}
+        {showRunes && (
+          <div className="sf-runes">
+            {runeColors.map((c, i) => (
+              <span
+                key={c}
+                className="sf-rune"
+                style={{ background: c, animationDelay: `${i * 0.2}s` }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  },
+);
 
 export default SparkleField;

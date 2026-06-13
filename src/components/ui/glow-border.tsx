@@ -1,15 +1,15 @@
-import type { ComponentProps } from "react"
+import type { ComponentProps } from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 interface GlowBorderProps extends ComponentProps<"div"> {
   /**
    * Gradient colors as an array of color strings.
    * Overrides the default gradient.
    */
-  colors?: string[]
+  colors?: string[];
   /** When true, hides the glow animation but keeps the DOM structure stable. */
-  disabled?: boolean
+  disabled?: boolean;
 }
 
 function GlowBorder({
@@ -20,11 +20,11 @@ function GlowBorder({
   children,
   ...props
 }: GlowBorderProps) {
-  const customStyle: Record<string, string> = {}
+  const customStyle: Record<string, string> = {};
 
   if (colors && colors.length > 0) {
     customStyle["--glow-border-gradient"] =
-      `linear-gradient(45deg, ${colors.join(", ")})`
+      `linear-gradient(45deg, ${colors.join(", ")})`;
   }
 
   return (
@@ -39,8 +39,8 @@ function GlowBorder({
     >
       {children}
     </div>
-  )
+  );
 }
 
-export { GlowBorder }
-export type { GlowBorderProps }
+export type { GlowBorderProps };
+export { GlowBorder };

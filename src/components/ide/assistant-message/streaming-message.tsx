@@ -866,17 +866,13 @@ export const getNextStreamingFrame = (
     const pressure = getBacklogPressure(remainingText.length);
 
     if (pressure === 0) {
-      const {
-        animationStartOffset,
-        animatedTokenCount,
-        blocked,
-        nextText,
-      } = getNextStreamingChunk(
-        currentText,
-        targetText,
-        STREAMING_MIN_CHARS_PER_TICK,
-        STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
-      );
+      const { animationStartOffset, animatedTokenCount, blocked, nextText } =
+        getNextStreamingChunk(
+          currentText,
+          targetText,
+          STREAMING_MIN_CHARS_PER_TICK,
+          STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
+        );
 
       return {
         intervalMs: getStreamingFrameInterval(
@@ -902,23 +898,16 @@ export const getNextStreamingFrame = (
         pressure * (STREAMING_WORD_INTERVAL_MS - STREAMING_MIN_INTERVAL_MS),
     );
 
-    const {
-      animationStartOffset,
-      animatedTokenCount,
-      blocked,
-      nextText,
-    } = getNextStreamingChunk(
-      currentText,
-      targetText,
-      targetChunkSize,
-      STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
-    );
+    const { animationStartOffset, animatedTokenCount, blocked, nextText } =
+      getNextStreamingChunk(
+        currentText,
+        targetText,
+        targetChunkSize,
+        STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
+      );
 
     return {
-      intervalMs: getStreamingFrameInterval(
-        intervalMs,
-        animatedTokenCount,
-      ),
+      intervalMs: getStreamingFrameInterval(intervalMs, animatedTokenCount),
       animationStartOffset,
       blocked,
       nextText,

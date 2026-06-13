@@ -33,12 +33,14 @@
 */
 
 import {
+  forwardRef,
   type HTMLAttributes,
   type ReactNode,
-  forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
 } from "react";
 
@@ -75,17 +77,21 @@ export interface SparklesProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const SPARKLES_PALETTES = {
-  arctic:  ['#7affd1', '#9bf2ff', '#caeaff', '#ffffff'],
-  gold:    ['#ffe27a', '#ffb84a', '#fff7c2', '#ffd26a'],
-  magenta: ['#ff9ae5', '#ff6ac7', '#ffd0f0', '#c77bff'],
-  emerald: ['#5cffb0', '#2aa86a', '#b6ffd8', '#fff9c2'],
-  ember:   ['#ffb347', '#ff6a4a', '#ffe7c2', '#ff4a7a'],
-  rainbow: ['#ffe27a', '#9bf2ff', '#ff9ae5', '#c7a6ff', '#b6ffb2'],
-  mono:    ['#ffffff', '#e0e4ff', '#b8beff', '#9098c9'],
+  arctic: ["#7affd1", "#9bf2ff", "#caeaff", "#ffffff"],
+  gold: ["#ffe27a", "#ffb84a", "#fff7c2", "#ffd26a"],
+  magenta: ["#ff9ae5", "#ff6ac7", "#ffd0f0", "#c77bff"],
+  emerald: ["#5cffb0", "#2aa86a", "#b6ffd8", "#fff9c2"],
+  ember: ["#ffb347", "#ff6a4a", "#ffe7c2", "#ff4a7a"],
+  rainbow: ["#ffe27a", "#9bf2ff", "#ff9ae5", "#c7a6ff", "#b6ffb2"],
+  mono: ["#ffffff", "#e0e4ff", "#b8beff", "#9098c9"],
 };
 
-function sparklesRand(a: number, b: number) { return a + Math.random() * (b - a); }
-function sparklesPick<T>(items: T[]) { return items[(Math.random() * items.length) | 0]; }
+function sparklesRand(a: number, b: number) {
+  return a + Math.random() * (b - a);
+}
+function sparklesPick<T>(items: T[]) {
+  return items[(Math.random() * items.length) | 0];
+}
 function sparklesHash(seed: string) {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
@@ -106,12 +112,14 @@ function sparklesSeededRand(seed: string) {
 }
 function sparklesHexToRGBA(hex: string, alpha: number) {
   const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const r = (n >> 16) & 255,
+    g = (n >> 8) & 255,
+    b = n & 255;
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
 /* ---------- Inject component styles once ---------- */
-const SPARKLES_STYLE_ID = 'sparkles-wrapper-styles';
+const SPARKLES_STYLE_ID = "sparkles-wrapper-styles";
 function ensureSparklesStyles() {
   if (document.getElementById(SPARKLES_STYLE_ID)) return;
   const css = `
@@ -222,212 +230,241 @@ function ensureSparklesStyles() {
       100% { transform: translate3d(calc(var(--sway) * -0.8), calc(var(--rise, 360px) * -1.05), 0) scale(.2); opacity: 0; }
     }
   `;
-  const el = document.createElement('style');
+  const el = document.createElement("style");
   el.id = SPARKLES_STYLE_ID;
   el.textContent = css;
   document.head.appendChild(el);
 }
 
-const Sparkles = forwardRef<SparklesHandle, SparklesProps>(function Sparkles(
-  props,
-  ref,
-) {
-  const {
-    disabled = false,
-    position = "top",
-    palette = 'arctic',
-    density = 80,
-    speed = 1,
-    sizeMul = 1,
-    sway = 40,
-    height = 360,
-    shape = 'mixed',
-    groundGlow = true,
-    syncKey,
-    clockSync = false,
-    className = '',
-    style,
-    children,
-    ...rest
-  } = props;
+const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
+  function Sparkles(props, ref) {
+    const {
+      disabled = false,
+      position = "top",
+      palette = "arctic",
+      density = 80,
+      speed = 1,
+      sizeMul = 1,
+      sway = 40,
+      height = 360,
+      shape = "mixed",
+      groundGlow = true,
+      syncKey,
+      clockSync = false,
+      className = "",
+      style,
+      children,
+      ...rest
+    } = props;
 
-  const fieldRef = useRef<HTMLDivElement | null>(null);
+    const fieldRef = useRef<HTMLDivElement | null>(null);
 
-  const paletteArr = Array.isArray(palette)
-    ? palette
-    : (SPARKLES_PALETTES[palette] || SPARKLES_PALETTES.arctic);
+    const paletteArr = useMemo(
+      () =>
+        Array.isArray(palette)
+          ? palette
+          : SPARKLES_PALETTES[palette] || SPARKLES_PALETTES.arctic,
+      [palette],
+    );
 
-  useLayoutEffect(ensureSparklesStyles, []);
+    useLayoutEffect(ensureSparklesStyles, []);
 
-  /* ---- Structural rebuild: only when element count/classes must change ---- */
-  const sparksRef = useRef<HTMLSpanElement[]>([]);
-  /* Store base (pre-multiplied) sizes so style-only updates can rescale */
-  const baseSizesRef = useRef<number[]>([]);
-  /* Store base (pre-speed) durations so speed changes don't rebuild */
-  const baseDursRef = useRef<number[]>([]);
-  const colorIndexesRef = useRef<number[]>([]);
-  const clockOffsetsRef = useRef<number[]>([]);
+    /* ---- Structural rebuild: only when element count/classes must change ---- */
+    const sparksRef = useRef<HTMLSpanElement[]>([]);
+    /* Store base (pre-multiplied) sizes so style-only updates can rescale */
+    const baseSizesRef = useRef<number[]>([]);
+    /* Store base (pre-speed) durations so speed changes don't rebuild */
+    const baseDursRef = useRef<number[]>([]);
+    const colorIndexesRef = useRef<number[]>([]);
+    const clockOffsetsRef = useRef<number[]>([]);
 
-  useEffect(() => {
-    const field = fieldRef.current;
-    if (!field) return;
-    const fieldEl = field;
+    useEffect(() => {
+      const field = fieldRef.current;
+      if (!field) return;
+      const fieldEl = field;
 
-    if (disabled) {
-      fieldEl.innerHTML = '';
-      sparksRef.current = [];
-      baseSizesRef.current = [];
-      baseDursRef.current = [];
-      colorIndexesRef.current = [];
-      clockOffsetsRef.current = [];
-      return;
-    }
+      if (disabled) {
+        fieldEl.innerHTML = "";
+        sparksRef.current = [];
+        baseSizesRef.current = [];
+        baseDursRef.current = [];
+        colorIndexesRef.current = [];
+        clockOffsetsRef.current = [];
+        return;
+      }
 
-    let cancelled = false;
+      let cancelled = false;
 
-    function build() {
-      if (cancelled) return;
-      fieldEl.innerHTML = '';
-      const sparks: HTMLSpanElement[] = [];
-      const bases: number[] = [];
-      const durs: number[] = [];
-      const colorIndexes: number[] = [];
-      const clockOffsets: number[] = [];
-      const width = fieldEl.clientWidth || 700;
-      const rand = syncKey
-        ? sparklesSeededRand(`${syncKey}:${density}:${position}:${shape}:${width}`)
-        : Math.random;
-      const randRange = (a: number, b: number) => a + rand() * (b - a);
-      const pickIndex = (length: number) =>
-        Math.min(length - 1, Math.floor(rand() * length));
+      function build() {
+        if (cancelled) return;
+        fieldEl.innerHTML = "";
+        const sparks: HTMLSpanElement[] = [];
+        const bases: number[] = [];
+        const durs: number[] = [];
+        const colorIndexes: number[] = [];
+        const clockOffsets: number[] = [];
+        const width = fieldEl.clientWidth || 700;
+        const rand = syncKey
+          ? sparklesSeededRand(
+              `${syncKey}:${density}:${position}:${shape}:${width}`,
+            )
+          : Math.random;
+        const randRange = (a: number, b: number) => a + rand() * (b - a);
+        const pickIndex = (length: number) =>
+          Math.min(length - 1, Math.floor(rand() * length));
+        const elapsed = Date.now() / 1000;
+
+        for (let i = 0; i < density; i++) {
+          const s = document.createElement("span");
+          let kind: Exclude<SparklesShape, "mixed">;
+          if (shape === "mixed") {
+            const r = rand();
+            if (r < 0.5) kind = "star";
+            else if (r < 0.75) kind = "dot";
+            else if (r < 0.9) kind = "glow";
+            else kind = "diamond";
+          } else kind = shape;
+
+          s.className = `sparkles-spark sparkles-spark-${position} sp-${kind}`;
+
+          const baseSize =
+            kind === "glow" ? randRange(3, 6) : rand() < 0.6 ? 2 : 3;
+          const baseDur = randRange(2.2, 5.8);
+          const x = randRange(6, width - 6);
+
+          /* Apply current visual props (will also be updated in the style effect) */
+          const size = Math.max(1, baseSize * sizeMul);
+          const duration = baseDur / speed;
+          const clockOffset = randRange(0, duration);
+          const delay = clockSync
+            ? -((elapsed + clockOffset) % duration)
+            : randRange(-duration, 0.2);
+          const swayV = randRange(-sway, sway);
+          const colorIndex = pickIndex(paletteArr.length);
+
+          s.style.setProperty("--size", `${size}px`);
+          s.style.setProperty("--c", paletteArr[colorIndex]);
+          s.style.setProperty("--sway", `${swayV.toFixed(1)}px`);
+          s.style.setProperty("--rise", `${height}px`);
+          s.style.left = `${x}px`;
+          s.style.animationDuration = `${duration.toFixed(2)}s`;
+          s.style.animationDelay = `${delay.toFixed(2)}s`;
+
+          fieldEl.appendChild(s);
+          sparks.push(s);
+          bases.push(baseSize);
+          durs.push(baseDur);
+          colorIndexes.push(colorIndex);
+          clockOffsets.push(clockOffset);
+        }
+        sparksRef.current = sparks;
+        baseSizesRef.current = bases;
+        baseDursRef.current = durs;
+        colorIndexesRef.current = colorIndexes;
+        clockOffsetsRef.current = clockOffsets;
+      }
+
+      build();
+      const ro = new ResizeObserver(() => build());
+      ro.observe(fieldEl);
+      return () => {
+        cancelled = true;
+        ro.disconnect();
+      };
+      /* Only structural props that change element count or CSS classes */
+    }, [
+      density,
+      disabled,
+      position,
+      shape,
+      syncKey,
+      clockSync,
+      paletteArr,
+      height,
+      speed,
+      sizeMul,
+      sway,
+    ]);
+
+    /* ---- Style-only patch: update existing sparkles in-place, no reset ---- */
+    useEffect(() => {
+      const field = fieldRef.current;
+      if (!field) return;
+
+      field.style.setProperty("--sp-h", `${height}px`);
+      field.style.setProperty(
+        "--sp-glow",
+        sparklesHexToRGBA(paletteArr[0], 0.45),
+      );
+      field.style.setProperty(
+        "--sp-glow-op",
+        !disabled && groundGlow ? ".9" : "0",
+      );
+
+      if (disabled) return;
+
+      const sparks = sparksRef.current;
+      const bases = baseSizesRef.current;
+      const durs = baseDursRef.current;
+      const colorIndexes = colorIndexesRef.current;
+      const clockOffsets = clockOffsetsRef.current;
       const elapsed = Date.now() / 1000;
 
-      for (let i = 0; i < density; i++) {
-        const s = document.createElement('span');
-        let kind: Exclude<SparklesShape, "mixed">;
-        if (shape === 'mixed') {
-          const r = rand();
-          if (r < 0.5) kind = 'star';
-          else if (r < 0.75) kind = 'dot';
-          else if (r < 0.9) kind = 'glow';
-          else kind = 'diamond';
-        } else kind = shape;
+      for (let i = 0; i < sparks.length; i++) {
+        const s = sparks[i];
+        if (!s.isConnected) continue;
+        const size = Math.max(1, bases[i] * sizeMul);
+        const duration = durs[i] / speed;
+        const colorIndex = colorIndexes[i] ?? 0;
 
-        s.className = `sparkles-spark sparkles-spark-${position} sp-${kind}`;
-
-        const baseSize = kind === 'glow' ? randRange(3, 6) : (rand() < 0.6 ? 2 : 3);
-        const baseDur = randRange(2.2, 5.8);
-        const x = randRange(6, width - 6);
-
-        /* Apply current visual props (will also be updated in the style effect) */
-        const size = Math.max(1, baseSize * sizeMul);
-        const duration = baseDur / speed;
-        const clockOffset = randRange(0, duration);
-        const delay = clockSync
-          ? -((elapsed + clockOffset) % duration)
-          : randRange(-duration, 0.2);
-        const swayV = randRange(-sway, sway);
-        const colorIndex = pickIndex(paletteArr.length);
-
-        s.style.setProperty('--size', size + 'px');
-        s.style.setProperty('--c', paletteArr[colorIndex]);
-        s.style.setProperty('--sway', swayV.toFixed(1) + 'px');
-        s.style.setProperty('--rise', height + 'px');
-        s.style.left = x + 'px';
-        s.style.animationDuration = duration.toFixed(2) + 's';
-        s.style.animationDelay = delay.toFixed(2) + 's';
-
-        fieldEl.appendChild(s);
-        sparks.push(s);
-        bases.push(baseSize);
-        durs.push(baseDur);
-        colorIndexes.push(colorIndex);
-        clockOffsets.push(clockOffset);
+        s.style.setProperty("--size", `${size}px`);
+        s.style.setProperty("--c", paletteArr[colorIndex % paletteArr.length]);
+        s.style.setProperty("--rise", `${height}px`);
+        s.style.animationDuration = `${duration.toFixed(2)}s`;
+        if (clockSync) {
+          s.style.animationDelay = `-${((elapsed + (clockOffsets[i] ?? 0)) % duration).toFixed(2)}s`;
+        }
       }
-      sparksRef.current = sparks;
-      baseSizesRef.current = bases;
-      baseDursRef.current = durs;
-      colorIndexesRef.current = colorIndexes;
-      clockOffsetsRef.current = clockOffsets;
-    }
+    }, [speed, sizeMul, height, groundGlow, paletteArr, disabled, clockSync]);
 
-    build();
-    const ro = new ResizeObserver(() => build());
-    ro.observe(fieldEl);
-    return () => { cancelled = true; ro.disconnect(); };
-    /* Only structural props that change element count or CSS classes */
-  }, [density, disabled, position, shape, syncKey, clockSync, paletteArr.length]);
+    const castBurst = useCallback(
+      (count = 70) => {
+        const field = fieldRef.current;
+        if (!field || disabled) return;
+        const fieldEl = field;
+        const width = fieldEl.clientWidth || 700;
+        for (let i = 0; i < count; i++) {
+          const s = document.createElement("span");
+          s.className = `sparkles-spark sparkles-spark-${position} ${Math.random() < 0.7 ? "sp-star" : "sp-glow"}`;
+          const size = (Math.random() < 0.5 ? 2 : 3) * sizeMul;
+          const dur = sparklesRand(0.9, 1.7) / speed;
+          const swayV = sparklesRand(-sway * 2.2, sway * 2.2);
+          s.style.setProperty("--size", `${size}px`);
+          s.style.setProperty("--c", sparklesPick(paletteArr));
+          s.style.setProperty("--sway", `${swayV.toFixed(1)}px`);
+          s.style.setProperty("--rise", `${height}px`);
+          s.style.left = `${sparklesRand(10, width - 10)}px`;
+          s.style.animationDuration = `${dur.toFixed(2)}s`;
+          fieldEl.appendChild(s);
+          setTimeout(() => s.remove(), dur * 1000 + 200);
+        }
+      },
+      [disabled, height, paletteArr, position, sizeMul, speed, sway],
+    );
 
-  /* ---- Style-only patch: update existing sparkles in-place, no reset ---- */
-  useEffect(() => {
-    const field = fieldRef.current;
-    if (!field) return;
+    useImperativeHandle(ref, () => ({ cast: castBurst }), [castBurst]);
 
-    field.style.setProperty('--sp-h', height + 'px');
-    field.style.setProperty('--sp-glow', sparklesHexToRGBA(paletteArr[0], .45));
-    field.style.setProperty('--sp-glow-op', !disabled && groundGlow ? '.9' : '0');
-
-    if (disabled) return;
-
-    const sparks = sparksRef.current;
-    const bases = baseSizesRef.current;
-    const durs = baseDursRef.current;
-    const colorIndexes = colorIndexesRef.current;
-    const clockOffsets = clockOffsetsRef.current;
-    const elapsed = Date.now() / 1000;
-
-    for (let i = 0; i < sparks.length; i++) {
-      const s = sparks[i];
-      if (!s.isConnected) continue;
-      const size = Math.max(1, bases[i] * sizeMul);
-      const duration = durs[i] / speed;
-      const colorIndex = colorIndexes[i] ?? 0;
-
-      s.style.setProperty('--size', size + 'px');
-      s.style.setProperty('--c', paletteArr[colorIndex % paletteArr.length]);
-      s.style.setProperty('--rise', height + 'px');
-      s.style.animationDuration = duration.toFixed(2) + 's';
-      if (clockSync) {
-        s.style.animationDelay = `-${((elapsed + (clockOffsets[i] ?? 0)) % duration).toFixed(2)}s`;
-      }
-    }
-  }, [speed, sizeMul, height, groundGlow, paletteArr.join('|'), disabled, clockSync]);
-
-  const castBurst = (count = 70) => {
-    const field = fieldRef.current;
-    if (!field || disabled) return;
-    const fieldEl = field;
-    const width = fieldEl.clientWidth || 700;
-    for (let i = 0; i < count; i++) {
-      const s = document.createElement('span');
-      s.className = `sparkles-spark sparkles-spark-${position} ${Math.random() < 0.7 ? 'sp-star' : 'sp-glow'}`;
-      const size = (Math.random() < 0.5 ? 2 : 3) * sizeMul;
-      const dur = sparklesRand(0.9, 1.7) / speed;
-      const swayV = sparklesRand(-sway * 2.2, sway * 2.2);
-      s.style.setProperty('--size', size + 'px');
-      s.style.setProperty('--c', sparklesPick(paletteArr));
-      s.style.setProperty('--sway', swayV.toFixed(1) + 'px');
-      s.style.setProperty('--rise', height + 'px');
-      s.style.left = sparklesRand(10, width - 10) + 'px';
-      s.style.animationDuration = dur.toFixed(2) + 's';
-      fieldEl.appendChild(s);
-      setTimeout(() => s.remove(), dur * 1000 + 200);
-    }
-  };
-
-  useImperativeHandle(ref, () => ({ cast: castBurst }),
-    [disabled, position, sway, sizeMul, speed, height, paletteArr.join('|')]);
-
-  return (
-    <div className={`sparkles-wrap ${className}`} style={style} {...rest}>
-      <div
-        ref={fieldRef}
-        className={`sparkles-field sparkles-field-${position}`}
-        aria-hidden="true"
-      />
-      {children}
-    </div>
-  );
-});
+    return (
+      <div className={`sparkles-wrap ${className}`} style={style} {...rest}>
+        <div
+          ref={fieldRef}
+          className={`sparkles-field sparkles-field-${position}`}
+          aria-hidden="true"
+        />
+        {children}
+      </div>
+    );
+  },
+);
 
 export default Sparkles;
