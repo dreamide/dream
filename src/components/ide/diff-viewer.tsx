@@ -37,7 +37,10 @@ const DIFF_UNMODIFIED_LINES_CSS = `
 `;
 
 const getFileDiffChangedLineCount = (fileDiff: ParsedFileDiff) =>
-  (fileDiff?.additionLines.length ?? 0) + (fileDiff?.deletionLines.length ?? 0);
+  fileDiff?.hunks.reduce(
+    (total, hunk) => total + hunk.additionLines + hunk.deletionLines,
+    0,
+  ) ?? 0;
 
 export const LargeDiffGuard = ({
   changedLineCount,
