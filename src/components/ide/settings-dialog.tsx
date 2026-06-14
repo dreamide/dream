@@ -84,6 +84,19 @@ const getAccentColorSwatch = (color: AccentColor) =>
     ? "linear-gradient(135deg, var(--foreground) 0 50%, var(--background) 50% 100%)"
     : `var(--color-${color}-500)`;
 
+const getBaseColorLabel = (color: BaseColor) =>
+  color.charAt(0).toUpperCase() + color.slice(1);
+
+const BASE_COLOR_SWATCHES: Record<BaseColor, string> = {
+  gray: "oklch(0.551 0.027 264.364)",
+  neutral: "oklch(0.556 0 0)",
+  slate: "oklch(0.554 0.046 257.417)",
+  stone: "oklch(0.553 0.013 58.071)",
+  zinc: "oklch(0.552 0.016 285.938)",
+};
+
+const getBaseColorSwatch = (color: BaseColor) => BASE_COLOR_SWATCHES[color];
+
 export const SettingsDialog = () => {
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
@@ -475,33 +488,35 @@ export const SettingsDialog = () => {
                   </SettingsControlRow>
 
                   <SettingsControlRow
+                    controlClassName="md:w-[34rem]"
                     description="Controls the base gray scale."
                     label="Base color"
                   >
-                    <Tabs
-                      className="w-full"
-                      onValueChange={(value) => {
-                        if (value) {
-                          setBaseColor(value as BaseColor);
-                        }
-                      }}
-                      value={baseColor}
-                    >
-                      <TabsList
-                        className="w-full justify-start"
-                        id="base-color-tabs"
-                      >
-                        {BASE_COLORS.map((color) => (
-                          <TabsTrigger
-                            className="capitalize"
+                    <div className="flex justify-end gap-2">
+                      {BASE_COLORS.map((color) => {
+                        const selected = baseColor === color;
+
+                        return (
+                          <button
+                            aria-label={getBaseColorLabel(color)}
+                            aria-pressed={selected}
+                            className={cn(
+                              "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                              selected
+                                ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                                : "ring-1 ring-transparent",
+                            )}
                             key={color}
-                            value={color}
-                          >
-                            {color}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
-                    </Tabs>
+                            onClick={() => setBaseColor(color)}
+                            style={{
+                              background: getBaseColorSwatch(color),
+                            }}
+                            title={getBaseColorLabel(color)}
+                            type="button"
+                          />
+                        );
+                      })}
+                    </div>
                   </SettingsControlRow>
 
                   <SettingsControlRow
@@ -913,7 +928,7 @@ export const SettingsDialog = () => {
                     <div className="space-y-4">
                       <SettingsControlRow
                         controlClassName="md:w-[34rem]"
-                        description="New chats start on this model automatically."
+                        description="You can switch models after a chat starts."
                         label="Default model for new chats"
                       >
                         <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -1044,8 +1059,8 @@ export const SettingsDialog = () => {
                       </SettingsControlRow>
 
                       <SettingsControlRow
-                        controlClassName="md:w-[34rem]"
-                        description="Commit messages and pull request details use this model."
+                        controlClassName="md:w-[34rem] md:justify-end"
+                        description="Used to draft commit messages and PR text."
                         label="Default model for commits and PRs"
                       >
                         <Select
@@ -1058,7 +1073,7 @@ export const SettingsDialog = () => {
                           value={selectedGitGenerationModel}
                         >
                           <SelectTrigger
-                            className="w-full"
+                            className="w-full md:w-72"
                             disabled={groupedDefaultModelOptions.length === 0}
                             id="default-git-generation-model"
                           >
