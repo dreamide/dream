@@ -135,6 +135,19 @@ const normalizeOpenCodeToolName = (toolName) =>
     .replace(/[\s_]+/g, "-")
     .toLowerCase();
 
+const getFirstString = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+};
+
+const isRecord = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
 const isOpenCodeWriteToolPart = (part) =>
   part?.type === "tool" &&
   OPENCODE_WRITE_TOOL_NAMES.has(normalizeOpenCodeToolName(part.tool));
@@ -187,6 +200,192 @@ const getOpenCodeToolStateInput = (part) => {
   return input && typeof input === "object" ? input : {};
 };
 
+const getOpenCodeDreamToolName = (toolName) => {
+  const normalized = normalizeOpenCodeToolName(toolName);
+
+  if (
+    normalized.includes("write") ||
+    normalized.includes("edit") ||
+    normalized.includes("patch")
+  ) {
+    return "writeFile";
+  }
+
+  if (normalized.includes("read")) {
+    return "readFile";
+  }
+
+  if (
+    normalized.includes("webfetch") ||
+    normalized.includes("web-fetch") ||
+    normalized.includes("web-search") ||
+    normalized.includes("fetch")
+  ) {
+    return "webFetch";
+  }
+
+  if (
+    normalized.includes("grep") ||
+    normalized.includes("search") ||
+    normalized.includes("glob") ||
+    normalized.includes("find")
+  ) {
+    return "searchInFiles";
+  }
+
+  if (
+    normalized.includes("list") ||
+    normalized === "ls" ||
+    normalized.includes("directory")
+  ) {
+    return "listFiles";
+  }
+
+  if (
+    normalized.includes("bash") ||
+    normalized.includes("command") ||
+    normalized.includes("shell") ||
+    normalized.includes("terminal") ||
+    normalized.startsWith("run-")
+  ) {
+    return "runCommand";
+  }
+
+  if (normalized.includes("task") || normalized.includes("agent")) {
+    return "agent";
+  }
+
+  return "command";
+};
+
+const getOpenCodeDreamToolTitle = (dreamToolName) => {
+  if (dreamToolName === "writeFile") return "File change";
+  if (dreamToolName === "readFile") return "Read file";
+  if (dreamToolName === "searchInFiles") return "Search";
+  if (dreamToolName === "listFiles") return "List files";
+  if (dreamToolName === "runCommand") return "Command";
+  if (dreamToolName === "webFetch") return "Web fetch";
+  if (dreamToolName === "agent") return "Agent";
+  return "Tool";
+};
+
+const normalizeOpenCodeToolInput = (dreamToolName, input) => {
+  if (!isRecord(input)) {
+    return {};
+  }
+
+  const path = getFirstString(
+    input.path,
+    input.filePath,
+    input.file_path,
+    input.filename,
+    input.file,
+  );
+  const command = getFirstString(input.command, input.cmd, input.shellCommand);
+  const query = getFirstString(input.query, input.pattern, input.search);
+  const url = getFirstString(input.url, input.uri);
+
+  if (dreamToolName === "readFile" || dreamToolName === "writeFile") {
+    return {
+      ...input,
+      ...(path ? { filePath: path, path } : {}),
+    };
+  }
+
+  if (dreamToolName === "runCommand") {
+    return {
+      ...input,
+      ...(command ? { command } : {}),
+    };
+  }
+
+  if (dreamToolName === "searchInFiles") {
+    return {
+      ...input,
+      ...(query ? { pattern: query, query } : {}),
+      ...(path ? { path } : {}),
+    };
+  }
+
+  if (dreamToolName === "listFiles") {
+    return {
+      ...input,
+      ...(path ? { directory: path, path } : {}),
+      ...(query ? { pattern: query } : {}),
+    };
+  }
+
+  if (dreamToolName === "webFetch") {
+    return {
+      ...input,
+      ...(url ? { url } : {}),
+    };
+  }
+
+  return input;
+};
+
+const getOpenCodeOutputText = (part) =>
+  typeof part?.state?.output === "string" ? part.state.output : "";
+
+const parseOpenCodeOutputLines = (output) =>
+  output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const normalizeOpenCodeToolOutput = (part, dreamToolName, input) => {
+  const outputText = getOpenCodeOutputText(part);
+  const baseOutput = {
+    ...part.state.metadata,
+    status: "completed",
+    title: part.state.title ?? "",
+  };
+
+  if (dreamToolName === "readFile") {
+    return {
+      ...baseOutput,
+      content: outputText,
+      filePath: input.filePath ?? input.path,
+      path: input.path ?? input.filePath,
+    };
+  }
+
+  if (dreamToolName === "runCommand") {
+    return {
+      ...baseOutput,
+      command: input.command,
+      output: outputText,
+    };
+  }
+
+  if (dreamToolName === "listFiles") {
+    const files = parseOpenCodeOutputLines(outputText);
+    return {
+      ...baseOutput,
+      count: files.length,
+      files,
+      output: outputText,
+    };
+  }
+
+  if (dreamToolName === "webFetch") {
+    return {
+      ...baseOutput,
+      text: outputText,
+    };
+  }
+
+  if (dreamToolName === "searchInFiles") {
+    return outputText;
+  }
+
+  return {
+    ...baseOutput,
+    output: outputText,
+  };
+};
+
 const getOpenCodeToolOutput = (part) => {
   if (part?.state?.status === "completed") {
     return {
@@ -231,6 +430,7 @@ export const streamOpenCodeResponse = ({
         let submittedPrompt = "";
         const permissionIds = new Set();
         const startedToolCalls = new Set();
+        const completedToolCalls = new Set();
         const streamedTextByPartId = new Map();
         const messageRoleById = new Map();
         const pendingPartEventsByMessageId = new Map();
@@ -403,6 +603,37 @@ export const streamOpenCodeResponse = ({
           });
         };
 
+        const ensureOpenCodeToolStarted = ({
+          input,
+          part,
+          title,
+          toolName,
+        }) => {
+          const toolCallId = part?.callID || part?.id;
+          if (!toolCallId || startedToolCalls.has(toolCallId)) {
+            return;
+          }
+
+          startedToolCalls.add(toolCallId);
+          writer.write({
+            dynamic: true,
+            providerExecuted: true,
+            title,
+            toolCallId,
+            toolName,
+            type: "tool-input-start",
+          });
+          writer.write({
+            dynamic: true,
+            input,
+            providerExecuted: true,
+            title,
+            toolCallId,
+            toolName,
+            type: "tool-input-available",
+          });
+        };
+
         const handleWriteToolPart = (part) => {
           if (!isOpenCodeWriteToolPart(part)) {
             return false;
@@ -424,6 +655,71 @@ export const streamOpenCodeResponse = ({
                   : "tool-output-available",
             });
           }
+
+          return true;
+        };
+
+        const handleGenericToolPart = (part) => {
+          if (part?.type !== "tool") {
+            return false;
+          }
+
+          const toolCallId = part.callID || part.id;
+          if (!toolCallId) {
+            return false;
+          }
+
+          const dreamToolName = getOpenCodeDreamToolName(
+            part.tool ?? part.name,
+          );
+          const input = normalizeOpenCodeToolInput(
+            dreamToolName,
+            getOpenCodeToolStateInput(part),
+          );
+          const title =
+            part.state?.title ?? getOpenCodeDreamToolTitle(dreamToolName);
+
+          ensureOpenCodeToolStarted({
+            input,
+            part,
+            title,
+            toolName: dreamToolName,
+          });
+
+          if (
+            part.state?.status !== "completed" &&
+            part.state?.status !== "error"
+          ) {
+            return true;
+          }
+
+          if (completedToolCalls.has(toolCallId)) {
+            return true;
+          }
+
+          completedToolCalls.add(toolCallId);
+          if (part.state.status === "error") {
+            writer.write({
+              dynamic: true,
+              errorText:
+                typeof part.state.error === "string"
+                  ? part.state.error
+                  : JSON.stringify(part.state.error ?? ""),
+              output: part.state.metadata ?? null,
+              providerExecuted: true,
+              toolCallId,
+              type: "tool-output-error",
+            });
+            return true;
+          }
+
+          writer.write({
+            dynamic: true,
+            output: normalizeOpenCodeToolOutput(part, dreamToolName, input),
+            providerExecuted: true,
+            toolCallId,
+            type: "tool-output-available",
+          });
 
           return true;
         };
@@ -549,7 +845,11 @@ export const streamOpenCodeResponse = ({
             }
           }
 
-          if (handleTodoToolPart(part) || handleWriteToolPart(part)) {
+          if (
+            handleTodoToolPart(part) ||
+            handleWriteToolPart(part) ||
+            handleGenericToolPart(part)
+          ) {
             return;
           }
 
