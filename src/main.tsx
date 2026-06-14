@@ -2,6 +2,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
 import "./app/globals.css";
+import { installApiSessionGuard } from "./lib/api-session";
+
+installApiSessionGuard();
 
 const rootElement = document.getElementById("root");
 

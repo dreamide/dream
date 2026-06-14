@@ -100,27 +100,22 @@ export const generateCachedProjectCommitMessage = (
   }
 
   const request = (async () => {
-    try {
-      const response = await fetch("/api/project-git-commit-message", {
-        body: JSON.stringify({
-          includeUnstaged: params.includeUnstaged,
-          projectPath: params.projectPath,
-          provider: params.provider,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
+    const response = await fetch("/api/project-git-commit-message", {
+      body: JSON.stringify({
+        includeUnstaged: params.includeUnstaged,
+        projectPath: params.projectPath,
+        provider: params.provider,
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
 
-      if (!response.ok) {
-        throw new Error(await readResponseText(response));
-      }
-
-      const payload =
-        (await response.json()) as ProjectGitCommitMessageResponse;
-      return payload.commitMessage.trim();
-    } catch {
-      return "";
+    if (!response.ok) {
+      throw new Error(await readResponseText(response));
     }
+
+    const payload = (await response.json()) as ProjectGitCommitMessageResponse;
+    return payload.commitMessage.trim();
   })();
 
   commitMessageRequests.set(cacheKey, request);
@@ -129,6 +124,9 @@ export const generateCachedProjectCommitMessage = (
       if (message) {
         setCommitMessageCacheEntry(cacheKey, message);
       }
+    })
+    .catch(() => {
+      // Callers decide whether generation failures should be shown or ignored.
     })
     .finally(() => {
       if (commitMessageRequests.get(cacheKey) === request) {
@@ -146,18 +144,22 @@ export const warmProjectCommitMessageForStatus = async ({
   refreshToken,
   status,
 }: WarmCommitMessageForStatusParams) => {
-  const changes = getCommitChanges(status, includeUnstaged);
-  if (changes.length === 0) {
+  try {
+    const changes = getCommitChanges(status, includeUnstaged);
+    if (changes.length === 0) {
+      return "";
+    }
+
+    return await generateCachedProjectCommitMessage({
+      changes,
+      includeUnstaged,
+      projectPath,
+      provider,
+      refreshToken,
+    });
+  } catch {
     return "";
   }
-
-  return await generateCachedProjectCommitMessage({
-    changes,
-    includeUnstaged,
-    projectPath,
-    provider,
-    refreshToken,
-  });
 };
 
 export const warmProjectCommitMessage = async ({

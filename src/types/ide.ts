@@ -458,6 +458,7 @@ export interface BrowserUpdatePayload {
 
 export interface DesktopApi {
   isElectron: true;
+  apiSessionToken: string;
 
   openExternal: (url: string) => Promise<boolean>;
   writeClipboardText: (text: string) => Promise<boolean>;

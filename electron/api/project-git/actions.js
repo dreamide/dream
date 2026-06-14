@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
+import { createOpencode } from "@opencode-ai/sdk";
 import { generateText } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
 import {
@@ -36,6 +37,8 @@ import { normalizePath } from "./files.js";
 
 const COMMIT_MESSAGE_DIFF_MAX_CHARS = 20_000;
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 30;
+const OPENCODE_COMMIT_MESSAGE_REQUEST_TIMEOUT_MS = 120_000;
+const OPENCODE_COMMIT_MESSAGE_SERVER_TIMEOUT_MS = 15_000;
 const commitMessageCache = new Map();
 const commitMessageRequests = new Map();
 
@@ -338,118 +341,100 @@ const generateCodexCommitMessage = async ({
       });
   });
 
+const parseOpenCodeModel = (model) => {
+  const [providerID, ...modelParts] = String(model ?? "").split("/");
+  const modelID = modelParts.join("/");
+
+  if (!providerID || !modelID) {
+    throw new Error(
+      "OpenCode model must use provider/model format, for example opencode-go/kimi-k2.6.",
+    );
+  }
+
+  return { modelID, providerID };
+};
+
+const getOpenCodePartText = (part) =>
+  part?.type === "text" && typeof part.text === "string" ? part.text : "";
+
 const generateOpenCodeCommitMessage = async ({
   customInstructions,
   diffText,
   changes,
   projectPath,
-}) =>
-  new Promise((resolve, reject) => {
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-    const outputLines = [];
+}) => {
+  const model = await fetchOpenCodeLowCostModel();
+  if (!model) {
+    throw new Error("No OpenCode commit message model is available.");
+  }
+
+  const { modelID, providerID } = parseOpenCodeModel(model);
+  const requestAbortController = new AbortController();
+  const requestTimeout = setTimeout(() => {
+    requestAbortController.abort();
+  }, OPENCODE_COMMIT_MESSAGE_REQUEST_TIMEOUT_MS);
+  let opencode = null;
+
+  try {
+    opencode = await createOpencode({
+      hostname: "127.0.0.1",
+      port: 0,
+      signal: requestAbortController.signal,
+      timeout: OPENCODE_COMMIT_MESSAGE_SERVER_TIMEOUT_MS,
+    });
+
+    const sessionResult = await opencode.client.session.create(
+      {
+        body: {
+          agent: "plan",
+          model: {
+            id: modelID,
+            providerID,
+          },
+        },
+        query: { directory: projectPath },
+      },
+      { signal: requestAbortController.signal },
+    );
+    const sessionId = sessionResult.data?.id;
+
+    if (!sessionId) {
+      throw new Error("OpenCode did not return a session id.");
+    }
+
     const prompt = [
       "You write concise, accurate git commit subjects. Return only the subject line.",
       buildCommitMessagePrompt({ changes, customInstructions, diffText }),
     ].join("\n\n");
-
-    const handleStdoutChunk = (chunk) => {
-      stdoutBuffer += chunk.toString();
-      const lines = stdoutBuffer.split(/\r?\n/);
-      stdoutBuffer = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          continue;
-        }
-
-        try {
-          const event = JSON.parse(trimmed);
-          const text =
-            event.type === "text" &&
-            event.part?.type === "text" &&
-            typeof event.part.text === "string"
-              ? event.part.text
-              : "";
-          if (text) {
-            outputLines.push(text);
-          }
-        } catch {
-          outputLines.push(trimmed);
-        }
-      }
-    };
-
-    void fetchOpenCodeLowCostModel()
-      .then((model) => {
-        if (!model) {
-          throw new Error("No OpenCode commit message model is available.");
-        }
-
-        const child = spawn(
-          "opencode",
-          [
-            "run",
-            "--format",
-            "json",
-            "--dir",
-            projectPath,
-            "--model",
-            model,
-            "--agent",
-            "plan",
-          ],
-          {
-            cwd: projectPath,
-            env: process.env,
-            shell: process.platform === "win32",
-            stdio: ["pipe", "pipe", "pipe"],
-            windowsHide: true,
+    const promptResult = await opencode.client.session.prompt(
+      {
+        body: {
+          agent: "plan",
+          model: {
+            modelID,
+            providerID,
           },
-        );
+          parts: [{ text: prompt, type: "text" }],
+        },
+        path: { id: sessionId },
+        query: { directory: projectPath },
+      },
+      { signal: requestAbortController.signal },
+    );
 
-        child.stdin.end(prompt);
-        child.stdout.on("data", handleStdoutChunk);
-        child.stderr.on("data", (chunk) => {
-          stderrBuffer += chunk.toString();
-        });
-        child.on("error", (error) => {
-          reject(
-            new Error(
-              error instanceof Error
-                ? error.message
-                : "OpenCode CLI request failed.",
-            ),
-          );
-        });
-        child.on("close", (code) => {
-          if (stdoutBuffer.trim()) {
-            outputLines.push(stdoutBuffer.trim());
-          }
-
-          if (code === 0) {
-            resolve(sanitizeGeneratedCommitMessage(outputLines.join(" ")));
-            return;
-          }
-
-          reject(
-            new Error(
-              stderrBuffer.trim() || `OpenCode CLI exited with code ${code}.`,
-            ),
-          );
-        });
-      })
-      .catch((error) => {
-        reject(
-          new Error(
-            error instanceof Error
-              ? error.message
-              : "OpenCode CLI request failed.",
-          ),
-        );
-      });
-  });
+    return sanitizeGeneratedCommitMessage(
+      (promptResult.data?.parts ?? []).map(getOpenCodePartText).join(" "),
+    );
+  } catch (error) {
+    if (requestAbortController.signal.aborted) {
+      throw new Error("OpenCode commit message request timed out.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(requestTimeout);
+    opencode?.server.close();
+  }
+};
 
 const getCursorEventText = (event) => {
   if (!event || typeof event !== "object") {
@@ -640,7 +625,12 @@ const generateAiCommitMessage = async ({
 
 export const generateProjectGitCommitMessage = async (
   projectPath,
-  { includeUnstaged = true, customInstructions = "", provider = "openai" } = {},
+  {
+    includeUnstaged = true,
+    customInstructions = "",
+    provider = "openai",
+    throwOnError = false,
+  } = {},
 ) => {
   const status = await listProjectGitChanges(projectPath);
   const changes = status.changes.filter((change) =>
@@ -670,7 +660,10 @@ export const generateProjectGitCommitMessage = async (
   if (existingRequest) {
     try {
       return await existingRequest;
-    } catch {
+    } catch (error) {
+      if (throwOnError) {
+        throw error;
+      }
       return "";
     }
   }
@@ -707,6 +700,9 @@ export const generateProjectGitCommitMessage = async (
     return message;
   } catch (error) {
     console.warn("[git] AI commit message generation failed:", error);
+    if (throwOnError) {
+      throw error;
+    }
     return "";
   } finally {
     commitMessageRequests.delete(cacheKey);

@@ -106,6 +106,7 @@ export const CommitDialog = ({
 
     let ignore = false;
     setCommitMessage("");
+    setError(null);
     setGeneratingCommitMessage(true);
     void generateCachedProjectCommitMessage({
       changes: commitChanges,
@@ -119,6 +120,16 @@ export const CommitDialog = ({
           return;
         }
         setCommitMessage(nextMessage);
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Unable to generate commit message.",
+        );
       })
       .finally(() => {
         if (!ignore) {

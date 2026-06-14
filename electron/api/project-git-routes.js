@@ -334,10 +334,10 @@ export const registerProjectGitRoutes = (app) => {
     try {
       await ensureProjectDirectory(projectPath);
       return c.json({
-        commitMessage: await generateProjectGitCommitMessage(
-          projectPath,
-          options,
-        ),
+        commitMessage: await generateProjectGitCommitMessage(projectPath, {
+          ...options,
+          throwOnError: true,
+        }),
       });
     } catch (error) {
       const message =

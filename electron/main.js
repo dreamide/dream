@@ -387,6 +387,18 @@ async function createMainWindow() {
 
 ipcMain.handle("projects:pick-directory", pickDirectory);
 ipcMain.handle("state:load", () => loadPersistedState());
+ipcMain.on("api:get-session-token", (event) => {
+  const apiSessionToken = rendererServerManager?.getApiSessionToken();
+  if (!apiSessionToken) {
+    console.error(
+      "API session token requested before renderer server startup.",
+    );
+    event.returnValue = "";
+    return;
+  }
+
+  event.returnValue = apiSessionToken;
+});
 
 // State saves rewrite the entire database synchronously; doing that on this
 // (main) thread blocked input-event delivery to every window for the duration

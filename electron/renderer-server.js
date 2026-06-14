@@ -3,7 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import sirv from "sirv";
 
-import { startApiServer } from "./api-server.js";
+import { createApiSessionToken, startApiServer } from "./api-server.js";
 import { stopChildProcess } from "./process-sessions.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,13 +43,15 @@ export function createRendererServerManager({
   rendererStartupTimeoutMs,
   rendererUrlFromEnv,
 }) {
+  const apiSessionToken = createApiSessionToken();
+
   let rendererUrl = developmentRendererUrl;
   let viteDevProcess = null;
   let productionHttpServer = null;
 
   async function start() {
     // Always start the API server (Hono) on the API port.
-    await startApiServer(apiServerPort);
+    await startApiServer({ port: apiServerPort, apiToken: apiSessionToken });
 
     if (isDevelopment) {
       rendererUrl = developmentRendererUrl;
@@ -191,6 +193,9 @@ export function createRendererServerManager({
   }
 
   return {
+    getApiServerPort: () => apiServerPort,
+    getApiSessionToken: () => apiSessionToken,
+    getInternalRendererPort: () => internalRendererPort,
     getUrl: () => rendererUrl,
     start,
     stop,

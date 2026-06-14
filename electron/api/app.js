@@ -8,6 +8,7 @@
  * This file is loaded by the Electron main process at startup.
  */
 
+import { randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { registerChatRoutes } from "./chat-routes.js";
@@ -15,22 +16,50 @@ import { registerProjectGitRoutes } from "./project-git-routes.js";
 import { registerProviderRoutes } from "./provider-routes.js";
 import { registerToolApprovalRoutes } from "./tool-approvals.js";
 
-const app = new Hono();
+export const API_SESSION_TOKEN_HEADER = "x-dream-api-token";
 
-registerToolApprovalRoutes(app);
-registerProviderRoutes(app);
-registerChatRoutes(app);
-registerProjectGitRoutes(app);
+// ---------------------------------------------------------------------------
+// Session token
+// ---------------------------------------------------------------------------
+
+export function createApiSessionToken() {
+  return randomBytes(32).toString("hex");
+}
 
 // ---------------------------------------------------------------------------
 // Exported start function
 // ---------------------------------------------------------------------------
 
-export function startApiServer(port) {
+function createApiApp(apiToken) {
+  if (!apiToken) {
+    throw new Error("API session token is required to start the API server.");
+  }
+
+  const guardedApp = new Hono();
+
+  guardedApp.use("/api/*", async (c, next) => {
+    if (c.req.header(API_SESSION_TOKEN_HEADER) !== apiToken) {
+      return c.text("Unauthorized", 401);
+    }
+
+    await next();
+  });
+
+  registerToolApprovalRoutes(guardedApp);
+  registerProviderRoutes(guardedApp);
+  registerChatRoutes(guardedApp);
+  registerProjectGitRoutes(guardedApp);
+
+  return guardedApp;
+}
+
+export function startApiServer({ port, apiToken }) {
+  const guardedApp = createApiApp(apiToken);
+
   return new Promise((resolve) => {
     serve(
       {
-        fetch: app.fetch,
+        fetch: guardedApp.fetch,
         hostname: "127.0.0.1",
         port,
       },
@@ -41,5 +70,3 @@ export function startApiServer(port) {
     );
   });
 }
-
-export { app };

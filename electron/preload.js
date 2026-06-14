@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+const apiSessionToken = ipcRenderer.sendSync("api:get-session-token");
+if (!apiSessionToken) {
+  throw new Error("Missing API session token from Electron main process.");
+}
+
 const subscribe = (channel, listener) => {
   const subscription = (_event, payload) => {
     listener(payload);
@@ -14,6 +19,7 @@ const subscribe = (channel, listener) => {
 
 contextBridge.exposeInMainWorld("dream", {
   isElectron: true,
+  apiSessionToken,
 
   openExternal: (url) => ipcRenderer.invoke("shell:open-external", { url }),
   writeClipboardText: (text) =>
