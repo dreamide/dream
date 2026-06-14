@@ -184,9 +184,11 @@ const generateClaudeCommitMessage = async ({
   customInstructions,
   diffText,
   changes,
+  model: requestedModel,
   projectPath,
 }) => {
-  const model = (await fetchAnthropicLowCostModel()) || "haiku";
+  const model =
+    requestedModel || (await fetchAnthropicLowCostModel()) || "haiku";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
   const result = await generateText({
     model: claudeCode(normalizeClaudeCodeModel(model), {
@@ -211,6 +213,7 @@ const generateCodexCommitMessage = async ({
   customInstructions,
   diffText,
   changes,
+  model: requestedModel,
   projectPath,
 }) =>
   new Promise((resolve, reject) => {
@@ -270,7 +273,12 @@ const generateCodexCommitMessage = async ({
       }
     };
 
-    void Promise.all([resolveCodexCliLaunch(), fetchOpenAiLowCostModel()])
+    void Promise.all([
+      resolveCodexCliLaunch(),
+      requestedModel
+        ? Promise.resolve(requestedModel)
+        : fetchOpenAiLowCostModel(),
+    ])
       .then(([launch, model]) => {
         const child = spawn(
           launch.command,
@@ -361,9 +369,10 @@ const generateOpenCodeCommitMessage = async ({
   customInstructions,
   diffText,
   changes,
+  model: requestedModel,
   projectPath,
 }) => {
-  const model = await fetchOpenCodeLowCostModel();
+  const model = requestedModel || (await fetchOpenCodeLowCostModel());
   if (!model) {
     throw new Error("No OpenCode commit message model is available.");
   }
@@ -465,6 +474,7 @@ const generateCursorCommitMessage = async ({
   customInstructions,
   diffText,
   changes,
+  model: requestedModel,
   projectPath,
 }) =>
   new Promise((resolve, reject) => {
@@ -517,7 +527,12 @@ const generateCursorCommitMessage = async ({
       }
     };
 
-    void Promise.all([resolveCursorCliLaunch(), fetchCursorLowCostModel()])
+    void Promise.all([
+      resolveCursorCliLaunch(),
+      requestedModel
+        ? Promise.resolve(requestedModel)
+        : fetchCursorLowCostModel(),
+    ])
       .then(([launch, model]) => {
         const child = spawn(
           launch.command,
@@ -583,6 +598,7 @@ const generateCursorCommitMessage = async ({
 
 const generateAiCommitMessage = async ({
   provider,
+  model,
   customInstructions,
   diffText,
   changes,
@@ -593,6 +609,7 @@ const generateAiCommitMessage = async ({
       changes,
       customInstructions,
       diffText,
+      model,
       projectPath,
     });
   }
@@ -602,6 +619,7 @@ const generateAiCommitMessage = async ({
       changes,
       customInstructions,
       diffText,
+      model,
       projectPath,
     });
   }
@@ -611,6 +629,7 @@ const generateAiCommitMessage = async ({
       changes,
       customInstructions,
       diffText,
+      model,
       projectPath,
     });
   }
@@ -619,6 +638,7 @@ const generateAiCommitMessage = async ({
     changes,
     customInstructions,
     diffText,
+    model,
     projectPath,
   });
 };
@@ -628,6 +648,7 @@ export const generateProjectGitCommitMessage = async (
   {
     includeUnstaged = true,
     customInstructions = "",
+    model = "",
     provider = "openai",
     throwOnError = false,
   } = {},
@@ -647,6 +668,7 @@ export const generateProjectGitCommitMessage = async (
   const cacheKey = getProjectGitChangesFingerprint(changes, {
     customInstructions,
     includeUnstaged,
+    model,
     projectPath,
     provider,
   });
@@ -684,6 +706,7 @@ export const generateProjectGitCommitMessage = async (
       changes,
       customInstructions,
       diffText,
+      model,
       projectPath,
       provider,
     });
@@ -1034,6 +1057,7 @@ export const generateProjectPullRequestDetails = async (
     baseBranch: requestedBaseBranch = "",
     customInstructions = "",
     includeUnstaged = true,
+    model = "",
     nextStep = "create",
     provider = "openai",
   } = {},
@@ -1051,6 +1075,7 @@ export const generateProjectPullRequestDetails = async (
       ? await generateProjectGitCommitMessage(projectPath, {
           customInstructions,
           includeUnstaged,
+          model,
           provider,
         })
       : "";

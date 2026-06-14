@@ -34,6 +34,7 @@ export const CommitDialog = ({
   onCompleted,
   onOpenChange,
   open,
+  model,
   projectPath,
   provider,
   refreshToken,
@@ -43,6 +44,7 @@ export const CommitDialog = ({
   onCompleted: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  model: string;
   projectPath: string;
   provider: AiProvider;
   refreshToken: number;
@@ -94,6 +96,7 @@ export const CommitDialog = ({
     const cachedMessage = getCachedProjectCommitMessage({
       changes: commitChanges,
       includeUnstaged,
+      model,
       projectPath,
       provider,
       refreshToken,
@@ -111,6 +114,7 @@ export const CommitDialog = ({
     void generateCachedProjectCommitMessage({
       changes: commitChanges,
       includeUnstaged,
+      model,
       projectPath,
       provider,
       refreshToken,
@@ -145,6 +149,7 @@ export const CommitDialog = ({
     commitChanges,
     hasCommitChanges,
     includeUnstaged,
+    model,
     open,
     projectPath,
     provider,

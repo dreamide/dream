@@ -97,6 +97,7 @@ export interface AppSettings {
   autoCompactContext: boolean;
   autoAcceptPermissions: boolean;
   defaultModel: string;
+  defaultGitGenerationModel: string;
   defaultModelSpeed: ModelSpeed;
   defaultReasoningEffort: ReasoningEffort | null;
   expandToolCalls: boolean;
@@ -416,6 +417,7 @@ export interface ProjectGitPullRequestDetailsRequest {
   baseBranch?: string | null;
   customInstructions?: string | null;
   includeUnstaged: boolean;
+  model?: string | null;
   nextStep: ProjectGitCreatePrNextStep;
   projectPath: string;
   provider: AiProvider;

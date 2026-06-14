@@ -21,6 +21,7 @@ const DEFAULT_PERSISTED_STATE = {
     anthropicSelectedModels: [],
     autoAcceptPermissions: false,
     cursorSelectedModels: [],
+    defaultGitGenerationModel: "",
     defaultModel: "",
     defaultModelSpeed: "standard",
     defaultReasoningEffort: null,
@@ -544,6 +545,12 @@ function saveStateToRelationalDatabase(database, state) {
     );
     writeConfig(
       database,
+      "settings.defaultGitGenerationModel",
+      settings.defaultGitGenerationModel ?? "",
+      now,
+    );
+    writeConfig(
+      database,
       "settings.defaultModelSpeed",
       settings.defaultModelSpeed ?? "standard",
       now,
@@ -1012,6 +1019,10 @@ function loadStateFromRelationalDatabase(database) {
       defaultModel:
         typeof config["settings.defaultModel"] === "string"
           ? config["settings.defaultModel"]
+          : "",
+      defaultGitGenerationModel:
+        typeof config["settings.defaultGitGenerationModel"] === "string"
+          ? config["settings.defaultGitGenerationModel"]
           : "",
       defaultModelSpeed:
         typeof config["settings.defaultModelSpeed"] === "string"

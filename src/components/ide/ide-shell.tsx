@@ -228,6 +228,8 @@ export const IdeShell = () => {
 
     const changed =
       normalizedDefaultSettings.defaultModel !== prev.defaultModel ||
+      normalizedDefaultSettings.defaultGitGenerationModel !==
+        prev.defaultGitGenerationModel ||
       normalizedDefaultSettings.defaultModelSpeed !== prev.defaultModelSpeed ||
       normalizedDefaultSettings.defaultReasoningEffort !==
         prev.defaultReasoningEffort ||

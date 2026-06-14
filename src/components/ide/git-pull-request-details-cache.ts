@@ -13,6 +13,7 @@ type PullRequestDetailsCacheParams = {
   branch: string | null;
   changes: ProjectGitStatusEntry[];
   includeUnstaged: boolean;
+  model: string;
   nextStep: ProjectGitCreatePrNextStep;
   projectPath: string;
   provider: AiProvider;
@@ -60,6 +61,7 @@ const getPullRequestDetailsCacheKey = ({
   branch,
   changes,
   includeUnstaged,
+  model,
   nextStep,
   projectPath,
   provider,
@@ -80,6 +82,7 @@ const getPullRequestDetailsCacheKey = ({
       }))
       .sort((a, b) => a.path.localeCompare(b.path)),
     includeUnstaged,
+    model,
     nextStep,
     projectPath,
     provider,
@@ -111,6 +114,7 @@ export const generateCachedProjectPullRequestDetails = (
         body: JSON.stringify({
           baseBranch: params.baseBranch,
           includeUnstaged: params.includeUnstaged,
+          model: params.model,
           nextStep: params.nextStep,
           projectPath: params.projectPath,
           provider: params.provider,

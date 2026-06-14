@@ -60,6 +60,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoCompactContext: true,
   anthropicSelectedModels: [],
   autoAcceptPermissions: false,
+  defaultGitGenerationModel: "",
   defaultModel: "",
   defaultModelSpeed: "standard",
   defaultReasoningEffort: null,
@@ -336,6 +337,24 @@ export const getDefaultModelSelection = (
   };
 };
 
+export const getDefaultGitGenerationModelSelection = (
+  settings: AppSettings,
+): {
+  model: string;
+  provider: AiProvider;
+} => {
+  const model = getPreferredDefaultModel(
+    settings,
+    settings.defaultGitGenerationModel || settings.defaultModel,
+  );
+  const provider =
+    getProviderForModel(model, settings) ??
+    getConnectedProviders(settings)[0] ??
+    DEFAULT_PROVIDER;
+
+  return { model, provider };
+};
+
 export const normalizeDefaultModelSettings = (
   settings: AppSettings,
   preferredModel = settings.defaultModel,
@@ -348,6 +367,10 @@ export const normalizeDefaultModelSettings = (
 
   return {
     ...settings,
+    defaultGitGenerationModel: getPreferredDefaultModel(
+      settings,
+      settings.defaultGitGenerationModel || defaultModel,
+    ),
     defaultModel,
     defaultModelSpeed: defaultSelection.modelSpeed,
     defaultReasoningEffort: defaultSelection.reasoningEffort,

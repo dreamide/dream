@@ -279,6 +279,7 @@ export const reconcileSettingsWithProviderModels = (
 
 export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   a.defaultModel === b.defaultModel &&
+  a.defaultGitGenerationModel === b.defaultGitGenerationModel &&
   a.defaultModelSpeed === b.defaultModelSpeed &&
   a.defaultReasoningEffort === b.defaultReasoningEffort &&
   a.openAiSelectedModels.length === b.openAiSelectedModels.length &&

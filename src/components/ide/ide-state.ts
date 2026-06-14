@@ -553,6 +553,10 @@ export const mergePersistedState = (
       typeof rawSettings.defaultModel === "string"
         ? rawSettings.defaultModel
         : "",
+    defaultGitGenerationModel:
+      typeof rawSettings.defaultGitGenerationModel === "string"
+        ? rawSettings.defaultGitGenerationModel
+        : "",
     defaultModelSpeed: normalizeModelSpeed(rawSettings.defaultModelSpeed),
     defaultReasoningEffort: normalizeReasoningEffort(
       rawSettings.defaultReasoningEffort,
@@ -607,6 +611,10 @@ export const mergePersistedState = (
   mergedSettings.defaultModel = getPreferredDefaultModel(
     mergedSettings,
     legacyDefaultCandidates[0] ?? "",
+  );
+  mergedSettings.defaultGitGenerationModel = getPreferredDefaultModel(
+    mergedSettings,
+    mergedSettings.defaultGitGenerationModel || mergedSettings.defaultModel,
   );
   const defaultSelection = getDefaultModelSelection(mergedSettings);
   mergedSettings.defaultModelSpeed = defaultSelection.modelSpeed;

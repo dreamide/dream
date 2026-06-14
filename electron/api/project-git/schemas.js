@@ -76,6 +76,7 @@ export const projectGitCommitRequestSchema = z.object({
 
 export const projectGitCommitMessageRequestSchema = z.object({
   includeUnstaged: z.boolean().default(true),
+  model: nullableTrimmedStringSchema,
   projectPath: z.string().min(1),
   provider: z
     .enum(["openai", "anthropic", "opencode", "cursor"])
@@ -113,6 +114,7 @@ export const projectGitPullRequestDetailsRequestSchema = z.object({
   baseBranch: nullableTrimmedStringSchema,
   customInstructions: nullableTrimmedStringSchema,
   includeUnstaged: z.boolean().default(true),
+  model: nullableTrimmedStringSchema,
   nextStep: z
     .enum(["create", "push-create", "commit-push-create"])
     .default("create"),

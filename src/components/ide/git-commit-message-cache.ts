@@ -11,6 +11,7 @@ const COMMIT_MESSAGE_CACHE_VERSION = 3;
 type CommitMessageCacheParams = {
   changes: ProjectGitStatusEntry[];
   includeUnstaged: boolean;
+  model: string;
   projectPath: string;
   provider: AiProvider;
   refreshToken: number;
@@ -20,6 +21,7 @@ type GenerateCommitMessageParams = CommitMessageCacheParams;
 
 type WarmCommitMessageParams = {
   includeUnstaged?: boolean;
+  model: string;
   projectPath: string;
   provider: AiProvider;
   refreshToken: number;
@@ -60,6 +62,7 @@ const setCommitMessageCacheEntry = (key: string, value: string) => {
 const getCommitMessageCacheKey = ({
   changes,
   includeUnstaged,
+  model,
   projectPath,
   provider,
 }: CommitMessageCacheParams) =>
@@ -76,6 +79,7 @@ const getCommitMessageCacheKey = ({
       }))
       .sort((a, b) => a.path.localeCompare(b.path)),
     includeUnstaged,
+    model,
     projectPath,
     provider,
     version: COMMIT_MESSAGE_CACHE_VERSION,
@@ -103,6 +107,7 @@ export const generateCachedProjectCommitMessage = (
     const response = await fetch("/api/project-git-commit-message", {
       body: JSON.stringify({
         includeUnstaged: params.includeUnstaged,
+        model: params.model,
         projectPath: params.projectPath,
         provider: params.provider,
       }),
@@ -139,6 +144,7 @@ export const generateCachedProjectCommitMessage = (
 
 export const warmProjectCommitMessageForStatus = async ({
   includeUnstaged = true,
+  model,
   projectPath,
   provider,
   refreshToken,
@@ -153,6 +159,7 @@ export const warmProjectCommitMessageForStatus = async ({
     return await generateCachedProjectCommitMessage({
       changes,
       includeUnstaged,
+      model,
       projectPath,
       provider,
       refreshToken,
@@ -164,6 +171,7 @@ export const warmProjectCommitMessageForStatus = async ({
 
 export const warmProjectCommitMessage = async ({
   includeUnstaged = true,
+  model,
   projectPath,
   provider,
   refreshToken,
@@ -181,6 +189,7 @@ export const warmProjectCommitMessage = async ({
 
     return await warmProjectCommitMessageForStatus({
       includeUnstaged,
+      model,
       projectPath,
       provider,
       refreshToken,

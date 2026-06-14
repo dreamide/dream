@@ -42,6 +42,7 @@ export const CreatePrDialog = ({
   onCompleted,
   onOpenChange,
   open,
+  model,
   projectPath,
   provider,
   refreshToken,
@@ -51,6 +52,7 @@ export const CreatePrDialog = ({
   onCompleted: (url: string | null, openPrPage: boolean) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  model: string;
   projectPath: string;
   provider: AiProvider;
   refreshToken: number;
@@ -106,6 +108,7 @@ export const CreatePrDialog = ({
       branch,
       changes: pullRequestChanges,
       includeUnstaged: true,
+      model,
       nextStep,
       projectPath,
       provider,
@@ -149,6 +152,7 @@ export const CreatePrDialog = ({
     branch,
     branchError,
     nextStep,
+    model,
     open,
     projectPath,
     provider,

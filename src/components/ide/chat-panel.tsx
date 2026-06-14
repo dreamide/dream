@@ -24,6 +24,7 @@ import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
+  getDefaultGitGenerationModelSelection,
   getModelOptionsForProvider,
 } from "@/lib/ide-defaults";
 import {
@@ -401,6 +402,10 @@ export const ChatPanel = ({
     : getPermissionModesForAgentMode(chat.agentMode);
   const { claudePermissionMode, codexPermissionMode } = permissionModes;
   const connectedProviders = getConnectedProviders(settings);
+  const gitGenerationModelSelection = useMemo(
+    () => getDefaultGitGenerationModelSelection(settings),
+    [settings],
+  );
   const allModelOptions = useMemo<ChatPanelModelOption[]>(() => {
     return connectedProviders.flatMap((provider) =>
       getModelOptionsForProvider(
@@ -662,7 +667,8 @@ export const ChatPanel = ({
         unstaged: change.unstaged,
       })),
       projectPath: project.path,
-      provider: project.provider,
+      model: gitGenerationModelSelection.model,
+      provider: gitGenerationModelSelection.provider,
       refreshToken: gitRefreshKey,
     });
     if (warmedCommitMessageKeysRef.current.has(warmKey)) {
@@ -671,12 +677,19 @@ export const ChatPanel = ({
 
     warmedCommitMessageKeysRef.current.add(warmKey);
     void warmProjectCommitMessageForStatus({
+      model: gitGenerationModelSelection.model,
       projectPath: project.path,
-      provider: project.provider,
+      provider: gitGenerationModelSelection.provider,
       refreshToken: gitRefreshKey,
       status: projectGitStatus,
     });
-  }, [gitRefreshKey, project.path, project.provider, projectGitStatus]);
+  }, [
+    gitGenerationModelSelection.model,
+    gitGenerationModelSelection.provider,
+    gitRefreshKey,
+    project.path,
+    projectGitStatus,
+  ]);
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
   useEffect(() => {

@@ -5,7 +5,7 @@ import {
   GitPullRequest,
   UploadCloud,
 } from "lucide-react";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
+import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import type { AiProvider, ProjectGitStatusResponse } from "@/types/ide";
 import { CommitDialog } from "./git-actions/commit-dialog";
 import { CreatePrDialog } from "./git-actions/create-pr-dialog";
@@ -36,6 +37,7 @@ const GitActionDialogHost = ({
   onActionCompleted,
   onOpenChange,
   onPrCompleted,
+  model,
   projectPath,
   provider,
   refreshToken,
@@ -46,6 +48,7 @@ const GitActionDialogHost = ({
   onActionCompleted: () => void;
   onOpenChange: (open: boolean) => void;
   onPrCompleted: (url: string | null, shouldOpen: boolean) => void;
+  model: string;
   projectPath: string;
   provider: AiProvider;
   refreshToken: number;
@@ -58,6 +61,7 @@ const GitActionDialogHost = ({
         onCompleted={onActionCompleted}
         onOpenChange={onOpenChange}
         open
+        model={model}
         projectPath={projectPath}
         provider={provider}
         refreshToken={refreshToken}
@@ -85,6 +89,7 @@ const GitActionDialogHost = ({
       onCompleted={onPrCompleted}
       onOpenChange={onOpenChange}
       open
+      model={model}
       projectPath={projectPath}
       provider={provider}
       refreshToken={refreshToken}
@@ -110,10 +115,10 @@ const GitActionsMenuImpl = ({
     (s) => s.setProjectRightPanelView,
   );
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
-  const provider = useIdeStore(
-    (s) =>
-      s.projects.find((project) => project.id === projectId)?.provider ??
-      "openai",
+  const settings = useIdeStore((s) => s.settings);
+  const gitGenerationModelSelection = useMemo(
+    () => getDefaultGitGenerationModelSelection(settings),
+    [settings],
   );
   const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey);
   const [activeDialog, setActiveDialog] = useState<GitActionDialog>(null);
@@ -229,8 +234,9 @@ const GitActionsMenuImpl = ({
           onActionCompleted={handleActionCompleted}
           onOpenChange={handleDialogOpenChange}
           onPrCompleted={handlePrCompleted}
+          model={gitGenerationModelSelection.model}
           projectPath={projectPath}
-          provider={provider}
+          provider={gitGenerationModelSelection.provider}
           refreshToken={gitRefreshKey}
           status={status}
         />
