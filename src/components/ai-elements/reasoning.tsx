@@ -4,6 +4,7 @@ import type { ComponentProps, ReactNode } from "react";
 import {
   createContext,
   memo,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -14,8 +15,7 @@ import {
 import {
   getMarkdownBlockAnimationTokenStartIndices,
   getMarkdownBlockStartOffsets,
-  getStreamingTailAnimationStartOffset,
-  STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
+  getNextStreamingFrame,
   STREAMING_TEXT_REVEAL_DURATION_MS,
   STREAMING_TEXT_REVEAL_SETTLE_MS,
   StreamingMarkdownBlock,
@@ -221,15 +221,20 @@ export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => {
     const { dir, ...contentProps } = props;
     const { isStreaming } = useReasoning();
-    const previousChildrenRef = useRef(isStreaming ? "" : children);
-    const previousIsStreamingRef = useRef(isStreaming);
-    const lastAnimationStartOffsetRef = useRef(
-      previousChildrenRef.current.length,
+    const visibleChildrenRef = useRef(isStreaming ? "" : children);
+    const animationStartOffsetRef = useRef(
+      visibleChildrenRef.current.length,
+    );
+    const revealTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
+      null,
     );
     const animationTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
       null,
     );
-    const [isSettlingAnimation, setIsSettlingAnimation] = useState(false);
+    const [visibleChildren, setVisibleChildren] = useState(
+      visibleChildrenRef.current,
+    );
+    const [animateStreamedText, setAnimateStreamedText] = useState(false);
 
     // Track whether this component was ever in a streaming state so that
     // already-visible text keeps its animation styles after streaming stops,
@@ -239,33 +244,37 @@ export const ReasoningContent = memo(
       hasStreamedRef.current = true;
     }
 
-    const previousChildren = previousChildrenRef.current;
-    const hasTextUpdate = children !== previousChildren;
-    const markdownAnimationStartOffset =
-      hasTextUpdate && children.startsWith(previousChildren)
-        ? getStreamingTailAnimationStartOffset({
-            currentText: previousChildren,
-            maxAnimatedTokens: STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
-            nextText: children,
-          })
-        : hasTextUpdate
-          ? children.length
-          : lastAnimationStartOffsetRef.current;
-    const didJustStopStreaming = previousIsStreamingRef.current && !isStreaming;
-    const animateStreamedText =
-      hasStreamedRef.current &&
-      (hasTextUpdate || didJustStopStreaming || isSettlingAnimation);
+    const keepTextAnimationActive = useCallback(
+      (settleAfterFinalTick: boolean) => {
+        if (animationTimeoutIdRef.current !== null) {
+          clearTimeout(animationTimeoutIdRef.current);
+          animationTimeoutIdRef.current = null;
+        }
+
+        setAnimateStreamedText(true);
+
+        if (settleAfterFinalTick) {
+          animationTimeoutIdRef.current = setTimeout(() => {
+            animationTimeoutIdRef.current = null;
+            setAnimateStreamedText(false);
+          }, STREAMING_TEXT_REVEAL_DURATION_MS + STREAMING_TEXT_REVEAL_SETTLE_MS);
+        }
+      },
+      [],
+    );
+
+    const markdownAnimationStartOffset = animationStartOffsetRef.current;
     const markdownBlockStartOffsets = useMemo(
-      () => getMarkdownBlockStartOffsets(children),
-      [children],
+      () => getMarkdownBlockStartOffsets(visibleChildren),
+      [visibleChildren],
     );
     const markdownBlockAnimationTokenStartIndices = useMemo(
       () =>
         getMarkdownBlockAnimationTokenStartIndices(
-          children,
+          visibleChildren,
           markdownAnimationStartOffset,
         ),
-      [children, markdownAnimationStartOffset],
+      [visibleChildren, markdownAnimationStartOffset],
     );
     const streamingMarkdownBlockContext: StreamingMarkdownBlockContextValue = {
       animateStreamedText,
@@ -275,41 +284,101 @@ export const ReasoningContent = memo(
     };
 
     useEffect(() => {
-      const previousText = previousChildrenRef.current;
-
-      const hasNewText = children !== previousText;
-
-      if (hasNewText) {
-        lastAnimationStartOffsetRef.current = children.startsWith(previousText)
-          ? getStreamingTailAnimationStartOffset({
-              currentText: previousText,
-              maxAnimatedTokens: STREAMING_MAX_ANIMATED_TOKENS_PER_TICK,
-              nextText: children,
-            })
-          : children.length;
-        previousChildrenRef.current = children;
+      if (isStreaming) {
+        hasStreamedRef.current = true;
       }
 
-      if (animationTimeoutIdRef.current !== null) {
-        clearTimeout(animationTimeoutIdRef.current);
-        animationTimeoutIdRef.current = null;
+      if (revealTimeoutIdRef.current !== null) {
+        clearTimeout(revealTimeoutIdRef.current);
+        revealTimeoutIdRef.current = null;
       }
 
-      if (hasNewText || (previousIsStreamingRef.current && !isStreaming)) {
-        setIsSettlingAnimation(true);
-        animationTimeoutIdRef.current = setTimeout(() => {
-          animationTimeoutIdRef.current = null;
-          setIsSettlingAnimation(false);
-        }, STREAMING_TEXT_REVEAL_DURATION_MS + STREAMING_TEXT_REVEAL_SETTLE_MS);
-      } else if (!isStreaming) {
-        setIsSettlingAnimation(false);
+      if (!hasStreamedRef.current) {
+        if (visibleChildrenRef.current !== children) {
+          animationStartOffsetRef.current = children.length;
+          visibleChildrenRef.current = children;
+          setVisibleChildren(children);
+        }
+        setAnimateStreamedText(false);
+        return;
       }
 
-      previousIsStreamingRef.current = isStreaming;
-    }, [children, isStreaming]);
+      let cancelled = false;
+
+      function scheduleRevealTick(delayMs: number) {
+        revealTimeoutIdRef.current = setTimeout(() => {
+          revealTimeoutIdRef.current = null;
+          runRevealTick();
+        }, delayMs);
+      }
+
+      function runRevealTick() {
+        if (cancelled) {
+          return;
+        }
+
+        const currentText = visibleChildrenRef.current;
+
+        if (currentText === children) {
+          if (!isStreaming) {
+            keepTextAnimationActive(true);
+          }
+          return;
+        }
+
+        if (!children.startsWith(currentText)) {
+          animationStartOffsetRef.current = children.length;
+          visibleChildrenRef.current = children;
+          keepTextAnimationActive(true);
+          startTransition(() => {
+            setVisibleChildren(children);
+          });
+          return;
+        }
+
+        const frame = getNextStreamingFrame(currentText, children, isStreaming);
+
+        if (frame.nextText === currentText) {
+          if (!isStreaming) {
+            animationStartOffsetRef.current = children.length;
+            visibleChildrenRef.current = children;
+            keepTextAnimationActive(true);
+            startTransition(() => {
+              setVisibleChildren(children);
+            });
+          }
+          return;
+        }
+
+        animationStartOffsetRef.current = frame.animationStartOffset;
+        visibleChildrenRef.current = frame.nextText;
+        keepTextAnimationActive(frame.nextText === children);
+        startTransition(() => {
+          setVisibleChildren(frame.nextText);
+        });
+
+        if (frame.nextText !== children) {
+          scheduleRevealTick(frame.intervalMs);
+        }
+      }
+
+      scheduleRevealTick(0);
+
+      return () => {
+        cancelled = true;
+        if (revealTimeoutIdRef.current !== null) {
+          clearTimeout(revealTimeoutIdRef.current);
+          revealTimeoutIdRef.current = null;
+        }
+      };
+    }, [children, isStreaming, keepTextAnimationActive]);
 
     useEffect(
       () => () => {
+        if (revealTimeoutIdRef.current !== null) {
+          clearTimeout(revealTimeoutIdRef.current);
+          revealTimeoutIdRef.current = null;
+        }
         if (animationTimeoutIdRef.current !== null) {
           clearTimeout(animationTimeoutIdRef.current);
           animationTimeoutIdRef.current = null;
@@ -336,7 +405,7 @@ export const ReasoningContent = memo(
             isAnimating={animateStreamedText}
             plugins={streamdownPlugins}
           >
-            {children}
+            {visibleChildren}
           </Streamdown>
         </StreamingMarkdownBlockContext.Provider>
       </CollapsibleContent>
