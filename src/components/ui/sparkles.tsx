@@ -118,6 +118,31 @@ function sparklesHexToRGBA(hex: string, alpha: number) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+const CUSTOM_SPARKLES_PALETTE_PREFIX = "custom:";
+const PRESET_SPARKLES_PALETTE_PREFIX = "preset:";
+
+const getSparklesPaletteKey = (palette: SparklesProps["palette"]) =>
+  Array.isArray(palette)
+    ? `${CUSTOM_SPARKLES_PALETTE_PREFIX}${palette.join("\u0000")}`
+    : `${PRESET_SPARKLES_PALETTE_PREFIX}${palette}`;
+
+const getSparklesPaletteColors = (paletteKey: string) => {
+  if (paletteKey.startsWith(CUSTOM_SPARKLES_PALETTE_PREFIX)) {
+    const colors = paletteKey
+      .slice(CUSTOM_SPARKLES_PALETTE_PREFIX.length)
+      .split("\u0000")
+      .filter(Boolean);
+
+    return colors.length > 0 ? colors : SPARKLES_PALETTES.arctic;
+  }
+
+  const paletteName = paletteKey.slice(
+    PRESET_SPARKLES_PALETTE_PREFIX.length,
+  ) as SparklesPaletteName;
+
+  return SPARKLES_PALETTES[paletteName] || SPARKLES_PALETTES.arctic;
+};
+
 /* ---------- Inject component styles once ---------- */
 const SPARKLES_STYLE_ID = "sparkles-wrapper-styles";
 function ensureSparklesStyles() {
@@ -258,13 +283,11 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
     } = props;
 
     const fieldRef = useRef<HTMLDivElement | null>(null);
+    const paletteKey = getSparklesPaletteKey(palette);
 
     const paletteArr = useMemo(
-      () =>
-        Array.isArray(palette)
-          ? palette
-          : SPARKLES_PALETTES[palette] || SPARKLES_PALETTES.arctic,
-      [palette],
+      () => getSparklesPaletteColors(paletteKey),
+      [paletteKey],
     );
 
     useLayoutEffect(ensureSparklesStyles, []);
