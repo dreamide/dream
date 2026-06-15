@@ -19,6 +19,7 @@ import {
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
+import { normalizeSparklesPaletteName } from "@/lib/sparkles-palettes";
 import type {
   AgentMode,
   AiProvider,
@@ -431,7 +432,12 @@ const normalizeChat = (
   const rawChat = chat as ChatConfig & {
     deletedAt?: unknown;
     metadata?: unknown;
+    sparklesPalette?: unknown;
   };
+  const rawMetadata =
+    rawChat.metadata && typeof rawChat.metadata === "object"
+      ? (rawChat.metadata as { sparklesPalette?: unknown })
+      : {};
   const deletedAt =
     typeof rawChat.deletedAt === "string" && rawChat.deletedAt.trim().length > 0
       ? rawChat.deletedAt
@@ -471,6 +477,9 @@ const normalizeChat = (
       chat.remoteConversationProjectPath.trim().length > 0
         ? chat.remoteConversationProjectPath
         : null,
+    sparklesPalette: normalizeSparklesPaletteName(
+      rawChat.sparklesPalette ?? rawMetadata.sparklesPalette,
+    ),
     title: title || "New chat",
     updatedAt,
   } as ChatConfig;

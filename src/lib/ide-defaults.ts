@@ -3,6 +3,7 @@ import {
   type ModelOption,
   normalizeModelSpeed,
 } from "@/lib/models";
+import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
 import type {
   AiProvider,
   AppSettings,
@@ -168,6 +169,7 @@ export const createChatConfig = (
     remoteConversationModel: null,
     remoteConversationModelSpeed: null,
     remoteConversationProjectPath: null,
+    sparklesPalette: DEFAULT_SPARKLES_PALETTE,
     title: overrides?.title?.trim() || "New chat",
     updatedAt: timestamp,
   };

@@ -1,5 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
+import type { SparklesPaletteName } from "@/lib/sparkles-palettes";
 
 export type AiProvider = "openai" | "anthropic" | "opencode" | "cursor";
 export type AccentColor =
@@ -47,6 +48,7 @@ export interface ChatConfig {
   remoteConversationModel: string | null;
   remoteConversationModelSpeed: ModelSpeed | null;
   remoteConversationProjectPath: string | null;
+  sparklesPalette: SparklesPaletteName;
 }
 
 export interface ChatTitleResponse {

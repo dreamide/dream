@@ -46,6 +46,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Sparkles from "@/components/ui/sparkles";
+import {
+  createAccentSparklesPalette,
+  type SparklesPaletteName,
+} from "@/lib/sparkles-palettes";
+import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type {
   AgentMode,
@@ -531,6 +536,7 @@ export interface ChatComposerProps {
   onPromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
   onPromptTextChange: (value: string) => void;
   onReasoningEffortChange: (effort: ReasoningEffort) => void;
+  onSparklesPaletteChange: (palette: SparklesPaletteName) => void;
   onStop: () => void;
   onSubmit: (prompt: PromptInputMessage) => void | Promise<void>;
   promptDomId: string;
@@ -547,6 +553,7 @@ export interface ChatComposerProps {
   selectedModelSpeedLabel: string;
   selectedReasoningEffort: ReasoningEffort;
   selectedReasoningLabel: string;
+  sparklesPalette: SparklesPaletteName;
   status: ChatStatus;
   todoSummary: ChatTodoSummary;
 }
@@ -568,6 +575,7 @@ export const ChatComposer = ({
   onPromptKeyDown,
   onPromptTextChange,
   onReasoningEffortChange,
+  onSparklesPaletteChange,
   onStop,
   onSubmit,
   promptDomId,
@@ -584,6 +592,7 @@ export const ChatComposer = ({
   selectedModelSpeedLabel,
   selectedReasoningEffort,
   selectedReasoningLabel,
+  sparklesPalette,
   status,
   todoSummary,
 }: ChatComposerProps) => {
@@ -598,6 +607,13 @@ export const ChatComposer = ({
   const [selectedReferences, setSelectedReferences] = useState<
     ProjectReference[]
   >([]);
+  const accentColor = useUiStore((s) => s.accentColor);
+  const accentSparklesPalette = useMemo(
+    () => createAccentSparklesPalette(accentColor),
+    [accentColor],
+  );
+  const resolvedSparklesPalette =
+    sparklesPalette === "accent" ? accentSparklesPalette : sparklesPalette;
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -879,12 +895,15 @@ export const ChatComposer = ({
           </div>
         ) : null}
         <Sparkles
+          cyclePalette={sparklesPalette}
+          cycleOnClick={isProcessing}
           density={70}
           disabled={!isProcessing}
           height={30}
+          onPaletteChange={onSparklesPaletteChange}
+          palette={resolvedSparklesPalette}
           sway={0}
           speed={2}
-          palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}
         >
           <div className="overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background shadow-md">
             <PromptInput

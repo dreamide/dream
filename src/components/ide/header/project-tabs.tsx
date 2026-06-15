@@ -10,6 +10,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
 import { getDesktopApi } from "@/lib/electron";
+import {
+  createAccentSparklesPalette,
+  DEFAULT_SPARKLES_PALETTE,
+  type SparklesPaletteName,
+} from "@/lib/sparkles-palettes";
+import { useUiStore } from "@/lib/ui-store";
 import type { DetectedEditor } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
 import {
@@ -32,6 +38,7 @@ import {
 export type ProjectTabItem = StandardTabItem & {
   completed: boolean;
   path: string;
+  sparklesPalette: SparklesPaletteName | string[];
   streaming: boolean;
   worktreeBranch: string | null;
 };
@@ -160,6 +167,11 @@ export const ProjectTabs = () => {
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
+  const accentColor = useUiStore((s) => s.accentColor);
+  const accentSparklesPalette = useMemo(
+    () => createAccentSparklesPalette(accentColor),
+    [accentColor],
+  );
   const streamingProjectIds = useMemo(
     () =>
       new Set(
@@ -277,17 +289,42 @@ export const ProjectTabs = () => {
           </span>
         ) : null;
 
+        const activeChatPalette =
+          (
+            chats.find(
+              (chat) =>
+                chat.id === project.ui.activeChatId &&
+                chat.projectId === project.id &&
+                chat.deletedAt === null,
+            ) ??
+            chats.find(
+              (chat) =>
+                chat.projectId === project.id && chat.deletedAt === null,
+            )
+          )?.sparklesPalette ?? DEFAULT_SPARKLES_PALETTE;
+
         return {
           completed,
           id: project.id,
           label: project.name,
           leading,
           path: project.path,
+          sparklesPalette:
+            activeChatPalette === "accent"
+              ? accentSparklesPalette
+              : activeChatPalette,
           streaming: streamingProjectIds.has(project.id),
           worktreeBranch: project.worktree?.branch ?? null,
         };
       }),
-    [activeProjectId, completedProjectIds, projects, streamingProjectIds],
+    [
+      activeProjectId,
+      accentSparklesPalette,
+      chats,
+      completedProjectIds,
+      projects,
+      streamingProjectIds,
+    ],
   );
 
   const handleProjectReorder = useCallback(
@@ -338,7 +375,10 @@ export const ProjectTabs = () => {
               />
             )}
             renderFrame={(project, tab) => (
-              <ProjectTabFrame streaming={project.streaming}>
+              <ProjectTabFrame
+                sparklesPalette={project.sparklesPalette}
+                streaming={project.streaming}
+              >
                 {tab}
               </ProjectTabFrame>
             )}

@@ -1273,6 +1273,13 @@ export const ChatPanel = ({
                 reasoningEffort === "medium" ? null : reasoningEffort,
             }));
           }}
+          onSparklesPaletteChange={(sparklesPalette) => {
+            updateChat(chat.id, (current) => ({
+              ...current,
+              sparklesPalette,
+            }));
+            useIdeStore.getState().persist();
+          }}
           onStop={stop}
           onSubmit={handleSubmit}
           promptDomId={promptDomId}
@@ -1289,6 +1296,7 @@ export const ChatPanel = ({
           selectedProvider={selectedProvider}
           selectedReasoningEffort={selectedReasoningEffortForControl}
           selectedReasoningLabel={selectedReasoningLabel}
+          sparklesPalette={chat.sparklesPalette}
           status={status}
           todoSummary={todoSummary}
         />

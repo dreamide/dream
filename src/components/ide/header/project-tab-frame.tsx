@@ -1,17 +1,22 @@
 import type { PropsWithChildren } from "react";
+import type { SparklesProps } from "@/components/ui/sparkles";
 import Sparkles from "@/components/ui/sparkles";
 
 export const ProjectTabFrame = ({
   children,
+  sparklesPalette,
   streaming,
-}: PropsWithChildren<{ streaming: boolean }>) => (
+}: PropsWithChildren<{
+  sparklesPalette: SparklesProps["palette"];
+  streaming: boolean;
+}>) => (
   <Sparkles
     className="w-full overflow-hidden"
     density={38}
     disabled={!streaming}
     groundGlow={true}
     height={10}
-    palette={["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"]}
+    palette={sparklesPalette}
     position="bottom"
     sizeMul={0.5}
     speed={3}

@@ -38,6 +38,18 @@ const RELATIONAL_SCHEMA_VERSION = 2;
 const STATE_DB_FILENAME = "dream.db";
 const STATE_DB_PATH_ENV_VAR = "DREAM_DB_PATH";
 const DRIZZLE_MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
+const DEFAULT_SPARKLES_PALETTE = "dream";
+const SPARKLES_PALETTE_NAMES = new Set([
+  "dream",
+  "accent",
+  "arctic",
+  "gold",
+  "magenta",
+  "emerald",
+  "ember",
+  "rainbow",
+  "mono",
+]);
 let stateDatabase = null;
 
 function cloneDefaultPersistedState() {
@@ -209,6 +221,12 @@ function getNestedRightPanelView(parent, key, fallback = "changes") {
     value === "terminal"
     ? value
     : fallback;
+}
+
+function normalizeSparklesPaletteName(value) {
+  return typeof value === "string" && SPARKLES_PALETTE_NAMES.has(value)
+    ? value
+    : DEFAULT_SPARKLES_PALETTE;
 }
 
 function runInTransaction(database, callback) {
@@ -486,6 +504,9 @@ function buildChatMetadata(chat) {
     ...metadata,
     modelSelection,
     remoteConversation,
+    sparklesPalette: normalizeSparklesPaletteName(
+      chat.sparklesPalette ?? metadata.sparklesPalette,
+    ),
   };
 }
 
@@ -935,6 +956,7 @@ function loadStateFromRelationalDatabase(database) {
         remoteConversation,
         "projectPath",
       ),
+      sparklesPalette: normalizeSparklesPaletteName(metadata.sparklesPalette),
       title: row.title || "New chat",
       updatedAt: row.updated_at,
     });

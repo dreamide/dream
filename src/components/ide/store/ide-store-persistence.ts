@@ -1,5 +1,6 @@
 import { getDesktopApi } from "@/lib/electron";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
 import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
 import {
   ensureActiveProject,
@@ -107,7 +108,8 @@ export const createPersistedIdeState = ({
     const messageCount = messagesByChatId[chat.id]?.length ?? 0;
     if (
       draftChatIdByProject[chat.projectId] === chat.id &&
-      messageCount === 0
+      messageCount === 0 &&
+      chat.sparklesPalette === DEFAULT_SPARKLES_PALETTE
     ) {
       return false;
     }

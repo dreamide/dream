@@ -8,8 +8,8 @@
     </Sparkles>
 
  Props:
-    palette    "arctic" | "gold" | "magenta" | "emerald" | "ember" | "rainbow" | "mono"
-               OR an array of hex strings for a custom palette   (default: "arctic")
+    palette    "dream" | "accent" | "arctic" | "gold" | "magenta" | "emerald" | "ember" | "rainbow" | "mono"
+               OR an array of hex strings for a custom palette   (default: "dream")
     disabled   disables sparkles and ground glow                 (default: false)
     position   "top" | "bottom" origin edge                      (default: "top")
     density    number of ambient sparkles                         (default: 80)
@@ -43,15 +43,12 @@ import {
   useMemo,
   useRef,
 } from "react";
-
-type SparklesPaletteName =
-  | "arctic"
-  | "gold"
-  | "magenta"
-  | "emerald"
-  | "ember"
-  | "rainbow"
-  | "mono";
+import {
+  DEFAULT_SPARKLES_PALETTE,
+  SPARKLES_PALETTE_ORDER,
+  SPARKLES_PALETTES,
+  type SparklesPaletteName,
+} from "@/lib/sparkles-palettes";
 
 type SparklesShape = "mixed" | "star" | "dot" | "glow" | "diamond" | "plus";
 type SparklesPosition = "top" | "bottom";
@@ -73,23 +70,17 @@ export interface SparklesProps extends HTMLAttributes<HTMLDivElement> {
   groundGlow?: boolean;
   syncKey?: string;
   clockSync?: boolean;
+  cyclePalette?: SparklesPaletteName;
+  cycleOnClick?: boolean;
+  cyclePalettes?: SparklesPaletteName[];
+  onPaletteChange?: (palette: SparklesPaletteName) => void;
   children?: ReactNode;
 }
-
-const SPARKLES_PALETTES = {
-  arctic: ["#7affd1", "#9bf2ff", "#caeaff", "#ffffff"],
-  gold: ["#ffe27a", "#ffb84a", "#fff7c2", "#ffd26a"],
-  magenta: ["#ff9ae5", "#ff6ac7", "#ffd0f0", "#c77bff"],
-  emerald: ["#5cffb0", "#2aa86a", "#b6ffd8", "#fff9c2"],
-  ember: ["#ffb347", "#ff6a4a", "#ffe7c2", "#ff4a7a"],
-  rainbow: ["#ffe27a", "#9bf2ff", "#ff9ae5", "#c7a6ff", "#b6ffb2"],
-  mono: ["#ffffff", "#e0e4ff", "#b8beff", "#9098c9"],
-};
 
 function sparklesRand(a: number, b: number) {
   return a + Math.random() * (b - a);
 }
-function sparklesPick<T>(items: T[]) {
+function sparklesPick<T>(items: readonly T[]) {
   return items[(Math.random() * items.length) | 0];
 }
 function sparklesHash(seed: string) {
@@ -111,6 +102,10 @@ function sparklesSeededRand(seed: string) {
   };
 }
 function sparklesHexToRGBA(hex: string, alpha: number) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) {
+    return `color-mix(in oklab, ${hex} ${Math.round(alpha * 100)}%, transparent)`;
+  }
+
   const n = parseInt(hex.slice(1), 16);
   const r = (n >> 16) & 255,
     g = (n >> 8) & 255,
@@ -120,6 +115,12 @@ function sparklesHexToRGBA(hex: string, alpha: number) {
 
 const CUSTOM_SPARKLES_PALETTE_PREFIX = "custom:";
 const PRESET_SPARKLES_PALETTE_PREFIX = "preset:";
+type PredefinedSparklesPaletteName = keyof typeof SPARKLES_PALETTES;
+const FALLBACK_SPARKLES_PALETTE: PredefinedSparklesPaletteName = "dream";
+
+const isPredefinedSparklesPaletteName = (
+  value: SparklesPaletteName,
+): value is PredefinedSparklesPaletteName => value in SPARKLES_PALETTES;
 
 const getSparklesPaletteKey = (palette: SparklesProps["palette"]) =>
   Array.isArray(palette)
@@ -133,14 +134,18 @@ const getSparklesPaletteColors = (paletteKey: string) => {
       .split("\u0000")
       .filter(Boolean);
 
-    return colors.length > 0 ? colors : SPARKLES_PALETTES.arctic;
+    return colors.length > 0
+      ? colors
+      : SPARKLES_PALETTES[FALLBACK_SPARKLES_PALETTE];
   }
 
   const paletteName = paletteKey.slice(
     PRESET_SPARKLES_PALETTE_PREFIX.length,
   ) as SparklesPaletteName;
 
-  return SPARKLES_PALETTES[paletteName] || SPARKLES_PALETTES.arctic;
+  return isPredefinedSparklesPaletteName(paletteName)
+    ? SPARKLES_PALETTES[paletteName]
+    : SPARKLES_PALETTES[FALLBACK_SPARKLES_PALETTE];
 };
 
 /* ---------- Inject component styles once ---------- */
@@ -266,7 +271,7 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
     const {
       disabled = false,
       position = "top",
-      palette = "arctic",
+      palette = DEFAULT_SPARKLES_PALETTE,
       density = 80,
       speed = 1,
       sizeMul = 1,
@@ -276,6 +281,10 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
       groundGlow = true,
       syncKey,
       clockSync = false,
+      cyclePalette,
+      cycleOnClick = false,
+      cyclePalettes = SPARKLES_PALETTE_ORDER,
+      onPaletteChange,
       className = "",
       style,
       children,
@@ -283,12 +292,14 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
     } = props;
 
     const fieldRef = useRef<HTMLDivElement | null>(null);
+    const paletteArrRef = useRef<readonly string[]>([]);
     const paletteKey = getSparklesPaletteKey(palette);
 
     const paletteArr = useMemo(
       () => getSparklesPaletteColors(paletteKey),
       [paletteKey],
     );
+    paletteArrRef.current = paletteArr;
 
     useLayoutEffect(ensureSparklesStyles, []);
 
@@ -363,10 +374,11 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
             ? -((elapsed + clockOffset) % duration)
             : randRange(-duration, 0.2);
           const swayV = randRange(-sway, sway);
-          const colorIndex = pickIndex(paletteArr.length);
+          const currentPalette = paletteArrRef.current;
+          const colorIndex = pickIndex(currentPalette.length);
 
           s.style.setProperty("--size", `${size}px`);
-          s.style.setProperty("--c", paletteArr[colorIndex]);
+          s.style.setProperty("--c", currentPalette[colorIndex]);
           s.style.setProperty("--sway", `${swayV.toFixed(1)}px`);
           s.style.setProperty("--rise", `${height}px`);
           s.style.left = `${x}px`;
@@ -402,7 +414,6 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
       shape,
       syncKey,
       clockSync,
-      paletteArr,
       height,
       speed,
       sizeMul,
@@ -423,6 +434,7 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
         "--sp-glow-op",
         !disabled && groundGlow ? ".9" : "0",
       );
+      field.style.pointerEvents = cycleOnClick ? "auto" : "none";
 
       if (disabled) return;
 
@@ -448,7 +460,16 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
           s.style.animationDelay = `-${((elapsed + (clockOffsets[i] ?? 0)) % duration).toFixed(2)}s`;
         }
       }
-    }, [speed, sizeMul, height, groundGlow, paletteArr, disabled, clockSync]);
+    }, [
+      speed,
+      sizeMul,
+      height,
+      groundGlow,
+      paletteArr,
+      disabled,
+      clockSync,
+      cycleOnClick,
+    ]);
 
     const castBurst = useCallback(
       (count = 70) => {
@@ -476,6 +497,48 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
     );
 
     useImperativeHandle(ref, () => ({ cast: castBurst }), [castBurst]);
+
+    useEffect(() => {
+      const field = fieldRef.current;
+      if (!field || !cycleOnClick) {
+        return;
+      }
+
+      const handleClick = (event: MouseEvent) => {
+        if (
+          event.defaultPrevented ||
+          !onPaletteChange ||
+          cyclePalettes.length === 0
+        ) {
+          return;
+        }
+
+        const currentPalette =
+          cyclePalette ?? (Array.isArray(palette) ? null : palette);
+        const currentIndex = currentPalette
+          ? cyclePalettes.indexOf(currentPalette)
+          : -1;
+        const nextPalette =
+          cyclePalettes[(currentIndex + 1) % cyclePalettes.length] ??
+          DEFAULT_SPARKLES_PALETTE;
+
+        onPaletteChange(nextPalette);
+        if (!disabled) {
+          castBurst(26);
+        }
+      };
+
+      field.addEventListener("click", handleClick);
+      return () => field.removeEventListener("click", handleClick);
+    }, [
+      castBurst,
+      cycleOnClick,
+      cyclePalette,
+      cyclePalettes,
+      disabled,
+      onPaletteChange,
+      palette,
+    ]);
 
     return (
       <div className={`sparkles-wrap ${className}`} style={style} {...rest}>
