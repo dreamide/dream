@@ -8,8 +8,8 @@
     </Sparkles>
 
  Props:
-    palette    "dream" | "accent" | "arctic" | "gold" | "magenta" | "emerald" | "ember" | "rainbow" | "mono"
-               OR an array of hex strings for a custom palette   (default: "dream")
+    palette    "aqua" | "accent" | "arctic" | "gold" | "magenta" | "emerald" | "ember" | "rainbow" | "mono"
+               OR an array of hex strings for a custom palette   (default: "aqua")
     disabled   disables sparkles and ground glow                 (default: false)
     position   "top" | "bottom" origin edge                      (default: "top")
     density    number of ambient sparkles                         (default: 80)
@@ -116,7 +116,7 @@ function sparklesHexToRGBA(hex: string, alpha: number) {
 const CUSTOM_SPARKLES_PALETTE_PREFIX = "custom:";
 const PRESET_SPARKLES_PALETTE_PREFIX = "preset:";
 type PredefinedSparklesPaletteName = keyof typeof SPARKLES_PALETTES;
-const FALLBACK_SPARKLES_PALETTE: PredefinedSparklesPaletteName = "dream";
+const FALLBACK_SPARKLES_PALETTE: PredefinedSparklesPaletteName = "aqua";
 
 const isPredefinedSparklesPaletteName = (
   value: SparklesPaletteName,
@@ -518,9 +518,20 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
         const currentIndex = currentPalette
           ? cyclePalettes.indexOf(currentPalette)
           : -1;
+        const defaultIndex = cyclePalettes.indexOf(DEFAULT_SPARKLES_PALETTE);
+        const baseIndex =
+          currentIndex >= 0
+            ? currentIndex
+            : defaultIndex >= 0
+              ? defaultIndex
+              : 0;
+        const rect = field.getBoundingClientRect();
+        const direction = event.clientX >= rect.left + rect.width / 2 ? 1 : -1;
         const nextPalette =
-          cyclePalettes[(currentIndex + 1) % cyclePalettes.length] ??
-          DEFAULT_SPARKLES_PALETTE;
+          cyclePalettes[
+            (baseIndex + direction + cyclePalettes.length) %
+              cyclePalettes.length
+          ] ?? DEFAULT_SPARKLES_PALETTE;
 
         onPaletteChange(nextPalette);
       };
