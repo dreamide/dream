@@ -28,7 +28,6 @@ import {
   getModelOptionsForProvider,
 } from "@/lib/ide-defaults";
 import {
-  estimateTokenCount,
   getModelContextWindow,
   getModelReasoningEfforts,
   getModelSpeedTiers,
@@ -55,7 +54,10 @@ import {
   PROVIDER_LABELS,
   type ToolApprovalResponder,
 } from "./chat";
-import { maybeAutoCompactMessages } from "./chat/auto-compact";
+import {
+  estimateMessages,
+  maybeAutoCompactMessages,
+} from "./chat/auto-compact";
 import { ChatComposer, type ChatPanelModelOption } from "./chat/chat-composer";
 import { ChatErrorBanner } from "./chat/chat-error-banner";
 import { ChatPanelHeader } from "./chat/chat-panel-header";
@@ -780,29 +782,10 @@ export const ChatPanel = ({
 
   const contextWindow =
     selectedModelOption?.contextWindow ?? getModelContextWindow(selectedModel);
-  const fallbackEstimatedTokens = useMemo(() => {
-    let total = 0;
-    for (const message of messages) {
-      for (const part of message.parts as Record<string, unknown>[]) {
-        if (part.type === "text" && typeof part.text === "string") {
-          total += estimateTokenCount(part.text);
-        } else if (part.type === "reasoning" && typeof part.text === "string") {
-          total += estimateTokenCount(part.text);
-        } else if (
-          typeof part.type === "string" &&
-          (part.type.startsWith("tool-") || part.type === "dynamic-tool")
-        ) {
-          if (part.input) {
-            total += estimateTokenCount(JSON.stringify(part.input));
-          }
-          if (part.output) {
-            total += estimateTokenCount(JSON.stringify(part.output));
-          }
-        }
-      }
-    }
-    return total;
-  }, [messages]);
+  const fallbackEstimatedTokens = useMemo(
+    () => estimateMessages(messages),
+    [messages],
+  );
   const contextUsage = useMemo(
     () => getLatestAssistantUsage(messages),
     [messages],
@@ -945,6 +928,61 @@ export const ChatPanel = ({
       const shouldGenerateTitle =
         chatMessages.length === 0 && chat.title === "New chat";
       const titleBeforeGeneration = chat.title;
+      const projectReferencesPrompt =
+        projectReferences.length > 0
+          ? formatProjectReferencesForPrompt(projectReferences)
+          : "";
+      const pendingUserMessage: UIMessage = {
+        id: "pending-submit",
+        metadata: { projectReferences },
+        parts: [
+          ...prompt.files,
+          ...(prompt.text
+            ? [{ text: prompt.text, type: "text" as const }]
+            : []),
+          ...(projectReferencesPrompt
+            ? [{ text: projectReferencesPrompt, type: "text" as const }]
+            : []),
+        ],
+        role: "user",
+      } as UIMessage;
+      const projectedContextUsedTokens =
+        contextUsedTokens + estimateMessages([pendingUserMessage]);
+      let remoteConversationIdForRequest = chat.remoteConversationId;
+      let remoteConversationModelForRequest = chat.remoteConversationModel;
+      let remoteConversationModelSpeedForRequest =
+        chat.remoteConversationModelSpeed;
+      let remoteConversationProjectPathForRequest =
+        chat.remoteConversationProjectPath;
+
+      if (settings.autoCompactContext) {
+        const compactionResult = maybeAutoCompactMessages({
+          contextWindow,
+          messages: latestMessagesRef.current,
+          usedTokens: projectedContextUsedTokens,
+        });
+
+        if (compactionResult.compacted) {
+          latestMessagesRef.current = compactionResult.messages;
+          setMessages(compactionResult.messages);
+          setMessagesForChat(chat.id, compactionResult.messages);
+          useIdeStore.getState().persist();
+
+          autoCompactionFingerprintRef.current = `${chat.id}:${compactionResult.messages.length}:${compactionResult.messages[0]?.id ?? ""}:${compactionResult.messages.at(-1)?.id ?? ""}`;
+          remoteConversationIdForRequest = null;
+          remoteConversationModelForRequest = null;
+          remoteConversationModelSpeedForRequest = null;
+          remoteConversationProjectPathForRequest = null;
+          updateChat(chat.id, (current) => ({
+            ...current,
+            remoteConversationId: null,
+            remoteConversationModel: null,
+            remoteConversationModelSpeed: null,
+            remoteConversationProjectPath: null,
+          }));
+        }
+      }
+
       const submittedAt = new Date().toISOString();
       pendingAssistantMetadataRef.current = {
         createdAt: submittedAt,
@@ -974,7 +1012,7 @@ export const ChatPanel = ({
             projectPath: submittedProjectPath,
             promptText:
               prompt.text ||
-              `Referenced project paths:\n${formatProjectReferencesForPrompt(projectReferences)}`,
+              `Referenced project paths:\n${projectReferencesPrompt}`,
             provider: activeProvider,
           }),
           headers: { "Content-Type": "application/json" },
@@ -1059,10 +1097,12 @@ export const ChatPanel = ({
               ...(selectedReasoningLabelForMetadata
                 ? { reasoningLabel: selectedReasoningLabelForMetadata }
                 : {}),
-              remoteConversationId: chat.remoteConversationId,
-              remoteConversationModel: chat.remoteConversationModel,
-              remoteConversationModelSpeed: chat.remoteConversationModelSpeed,
-              remoteConversationProjectPath: chat.remoteConversationProjectPath,
+              remoteConversationId: remoteConversationIdForRequest,
+              remoteConversationModel: remoteConversationModelForRequest,
+              remoteConversationModelSpeed:
+                remoteConversationModelSpeedForRequest,
+              remoteConversationProjectPath:
+                remoteConversationProjectPathForRequest,
               chatId: chat.id,
             },
           },
@@ -1082,6 +1122,8 @@ export const ChatPanel = ({
       codexPermissionMode,
       clearError,
       chatMessages,
+      contextUsedTokens,
+      contextWindow,
       isProcessing,
       handleActivateChat,
       providerModels,
@@ -1094,6 +1136,9 @@ export const ChatPanel = ({
       selectedReasoningLabelForMetadata,
       sendMessage,
       setChatTitleGenerating,
+      setMessages,
+      setMessagesForChat,
+      settings.autoCompactContext,
       scrollConversationToBottom,
       chat,
       updateChat,

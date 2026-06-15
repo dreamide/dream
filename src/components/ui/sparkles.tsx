@@ -523,22 +523,11 @@ const Sparkles = forwardRef<SparklesHandle, SparklesProps>(
           DEFAULT_SPARKLES_PALETTE;
 
         onPaletteChange(nextPalette);
-        if (!disabled) {
-          castBurst(26);
-        }
       };
 
       field.addEventListener("click", handleClick);
       return () => field.removeEventListener("click", handleClick);
-    }, [
-      castBurst,
-      cycleOnClick,
-      cyclePalette,
-      cyclePalettes,
-      disabled,
-      onPaletteChange,
-      palette,
-    ]);
+    }, [cycleOnClick, cyclePalette, cyclePalettes, onPaletteChange, palette]);
 
     return (
       <div className={`sparkles-wrap ${className}`} style={style} {...rest}>

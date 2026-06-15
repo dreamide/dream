@@ -48,9 +48,25 @@ const stringifyCompactValue = (value: unknown) => {
   }
 };
 
-const estimateCompactValue = (value: unknown) => {
-  const compactValue = stringifyCompactValue(value);
-  return compactValue ? estimateTokenCount(compactValue) : 0;
+const stringifyEstimatedValue = (value: unknown) => {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+};
+
+const estimateValue = (value: unknown) => {
+  const estimatedValue = stringifyEstimatedValue(value);
+  return estimatedValue ? estimateTokenCount(estimatedValue) : 0;
 };
 
 const getToolPartName = (part: Record<string, unknown>) => {
@@ -174,35 +190,49 @@ const createCompactionSummaryMessage = ({
   } as UIMessage;
 };
 
-const estimateMessages = (messages: UIMessage[]) => {
+const estimatePart = (part: Record<string, unknown>) => {
+  if (part.type === "text" && typeof part.text === "string") {
+    return estimateTokenCount(part.text);
+  }
+
+  if (part.type === "reasoning" && typeof part.text === "string") {
+    return estimateTokenCount(part.text);
+  }
+
+  if (part.type === "file") {
+    return (
+      estimateValue(part.filename) +
+      estimateValue(part.mediaType) +
+      estimateValue(part.url)
+    );
+  }
+
+  if (
+    typeof part.type === "string" &&
+    (part.type.startsWith("tool-") || part.type === "dynamic-tool")
+  ) {
+    let total = 0;
+    if (part.input !== undefined) {
+      total += estimateValue(part.input);
+    }
+    if (part.output !== undefined) {
+      total += estimateValue(part.output);
+    }
+    if (typeof part.errorText === "string") {
+      total += estimateTokenCount(part.errorText);
+    }
+    return total;
+  }
+
+  return estimateValue(part);
+};
+
+export const estimateMessages = (messages: UIMessage[]) => {
   let total = 0;
 
   for (const message of messages) {
     for (const part of message.parts as Record<string, unknown>[]) {
-      if (part.type === "text" && typeof part.text === "string") {
-        total += estimateTokenCount(part.text);
-        continue;
-      }
-
-      if (part.type === "reasoning" && typeof part.text === "string") {
-        total += estimateTokenCount(part.text);
-        continue;
-      }
-
-      if (
-        typeof part.type === "string" &&
-        (part.type.startsWith("tool-") || part.type === "dynamic-tool")
-      ) {
-        if (part.input !== undefined) {
-          total += estimateCompactValue(part.input);
-        }
-        if (part.output !== undefined) {
-          total += estimateCompactValue(part.output);
-        }
-        if (typeof part.errorText === "string") {
-          total += estimateTokenCount(part.errorText);
-        }
-      }
+      total += estimatePart(part);
     }
   }
 
