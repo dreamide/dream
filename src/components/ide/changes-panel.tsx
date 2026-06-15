@@ -11,11 +11,19 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
-import type { ProjectGitDiffResponse } from "@/types/ide";
+import type {
+  ProjectGitDiffResponse,
+  ProjectGitStatusEntry,
+} from "@/types/ide";
 import { ChangesRow, type DiffViewMode, readResponseText } from "./changes";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
+
+type DiffLoadRequest = {
+  filePath: string;
+  refreshKey: number;
+};
 
 export interface ChangesPanelProps {
   active?: boolean;
@@ -45,15 +53,19 @@ const ChangesPanelImpl = ({
         null)
       : s.getActiveProject(),
   );
-  const diffLoadQueueRef = useRef<string[]>([]);
-  const diffLoadQueuedPathsRef = useRef(new Set<string>());
+  const diffLoadInFlightPathsRef = useRef(new Map<string, number>());
+  const diffLoadQueueRef = useRef<DiffLoadRequest[]>([]);
+  const diffLoadQueuedPathsRef = useRef(new Map<string, number>());
   const diffLoadProcessingRef = useRef(false);
   const projectDiffErrorsRef = useRef<Record<string, string>>({});
   const projectDiffLoadingRef = useRef<Record<string, boolean>>({});
+  const projectDiffRefreshKeysRef = useRef<Record<string, number>>({});
   const projectDiffsRef = useRef<Record<string, ProjectGitDiffResponse>>({});
   const queuedProjectIdRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
   const activeProjectIdRef = useRef<string | null>(null);
+  const latestGitRefreshKeyRef = useRef(0);
+  const changesByPathRef = useRef(new Map<string, ProjectGitStatusEntry>());
 
   const [expandedPathsByProject, setExpandedPathsByProject] = useState<
     Record<string, string[]>
@@ -69,6 +81,9 @@ const ChangesPanelImpl = ({
   >({});
   const [diffLoadingByProject, setDiffLoadingByProject] = useState<
     Record<string, Record<string, boolean>>
+  >({});
+  const [diffRefreshKeysByProject, setDiffRefreshKeysByProject] = useState<
+    Record<string, Record<string, number>>
   >({});
   const [forcedRenderedDiffsByProject, setForcedRenderedDiffsByProject] =
     useState<Record<string, string[]>>({});
@@ -111,6 +126,9 @@ const ChangesPanelImpl = ({
   const projectDiffLoading = projectId
     ? (diffLoadingByProject[projectId] ?? {})
     : {};
+  const projectDiffRefreshKeys = projectId
+    ? (diffRefreshKeysByProject[projectId] ?? {})
+    : {};
   const forcedRenderedDiffs = projectId
     ? (forcedRenderedDiffsByProject[projectId] ?? [])
     : [];
@@ -134,6 +152,7 @@ const ChangesPanelImpl = ({
     queuedProjectIdRef.current = projectId;
     diffLoadQueueRef.current = [];
     diffLoadQueuedPathsRef.current.clear();
+    diffLoadInFlightPathsRef.current.clear();
     diffLoadProcessingRef.current = false;
   }, [projectId]);
 
@@ -141,7 +160,21 @@ const ChangesPanelImpl = ({
     projectDiffsRef.current = projectDiffs;
     projectDiffErrorsRef.current = projectDiffErrors;
     projectDiffLoadingRef.current = projectDiffLoading;
-  }, [projectDiffErrors, projectDiffLoading, projectDiffs]);
+    projectDiffRefreshKeysRef.current = projectDiffRefreshKeys;
+  }, [
+    projectDiffErrors,
+    projectDiffLoading,
+    projectDiffRefreshKeys,
+    projectDiffs,
+  ]);
+
+  useEffect(() => {
+    latestGitRefreshKeyRef.current = gitRefreshKey;
+  }, [gitRefreshKey]);
+
+  useEffect(() => {
+    changesByPathRef.current = changesByPath;
+  }, [changesByPath]);
 
   useEffect(() => {
     const shouldRefresh =
@@ -156,36 +189,6 @@ const ChangesPanelImpl = ({
     }
   }, [active, bumpProjectGitRefreshKey, projectId]);
 
-  useEffect(() => {
-    void gitRefreshKey;
-    if (!projectId) {
-      return;
-    }
-
-    diffLoadQueueRef.current = [];
-    diffLoadQueuedPathsRef.current.clear();
-    diffLoadProcessingRef.current = false;
-    projectDiffsRef.current = {};
-    projectDiffErrorsRef.current = {};
-    projectDiffLoadingRef.current = {};
-    setDiffsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffErrorsByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setDiffLoadingByProject((current) => ({
-      ...current,
-      [projectId]: {},
-    }));
-    setForcedRenderedDiffsByProject((current) => ({
-      ...current,
-      [projectId]: [],
-    }));
-  }, [gitRefreshKey, projectId]);
-
   const processQueuedDiffLoads = useCallback(async () => {
     if (
       diffLoadProcessingRef.current ||
@@ -196,15 +199,23 @@ const ChangesPanelImpl = ({
       return;
     }
 
-    const nextFilePath = diffLoadQueueRef.current[0];
-    if (!nextFilePath) {
+    const nextRequest = diffLoadQueueRef.current.shift();
+    if (!nextRequest) {
       return;
     }
+    const { filePath: nextFilePath, refreshKey: requestRefreshKey } =
+      nextRequest;
 
     diffLoadProcessingRef.current = true;
+    if (
+      diffLoadQueuedPathsRef.current.get(nextFilePath) === requestRefreshKey
+    ) {
+      diffLoadQueuedPathsRef.current.delete(nextFilePath);
+    }
+    diffLoadInFlightPathsRef.current.set(nextFilePath, requestRefreshKey);
 
     try {
-      const change = changesByPath.get(nextFilePath);
+      const change = changesByPathRef.current.get(nextFilePath);
       if (!change) {
         throw new Error("File does not have Git changes.");
       }
@@ -228,6 +239,14 @@ const ChangesPanelImpl = ({
       if (queuedProjectIdRef.current !== projectId) {
         return;
       }
+      const currentPayloadRefreshKey =
+        projectDiffRefreshKeysRef.current[nextFilePath] ?? -1;
+      if (
+        requestRefreshKey < latestGitRefreshKeyRef.current ||
+        requestRefreshKey < currentPayloadRefreshKey
+      ) {
+        return;
+      }
 
       setDiffsByProject((current) => ({
         ...current,
@@ -235,6 +254,14 @@ const ChangesPanelImpl = ({
           ...(current[projectId] ?? {}),
           [nextFilePath]: payload,
           [payload.filePath]: payload,
+        },
+      }));
+      setDiffRefreshKeysByProject((current) => ({
+        ...current,
+        [projectId]: {
+          ...(current[projectId] ?? {}),
+          [nextFilePath]: requestRefreshKey,
+          [payload.filePath]: requestRefreshKey,
         },
       }));
       setDiffErrorsByProject((current) => {
@@ -250,6 +277,9 @@ const ChangesPanelImpl = ({
       if (queuedProjectIdRef.current !== projectId) {
         return;
       }
+      if (requestRefreshKey < latestGitRefreshKeyRef.current) {
+        return;
+      }
 
       setDiffErrorsByProject((current) => ({
         ...current,
@@ -262,20 +292,29 @@ const ChangesPanelImpl = ({
         },
       }));
     } finally {
+      if (
+        diffLoadInFlightPathsRef.current.get(nextFilePath) === requestRefreshKey
+      ) {
+        diffLoadInFlightPathsRef.current.delete(nextFilePath);
+      }
+
       if (queuedProjectIdRef.current === projectId) {
+        const stillLoading =
+          diffLoadQueuedPathsRef.current.has(nextFilePath) ||
+          diffLoadInFlightPathsRef.current.has(nextFilePath);
+        projectDiffLoadingRef.current = {
+          ...projectDiffLoadingRef.current,
+          [nextFilePath]: stillLoading,
+        };
         setDiffLoadingByProject((current) => ({
           ...current,
           [projectId]: {
             ...(current[projectId] ?? {}),
-            [nextFilePath]: false,
+            [nextFilePath]: stillLoading,
           },
         }));
       }
 
-      diffLoadQueueRef.current = diffLoadQueueRef.current.filter(
-        (path) => path !== nextFilePath,
-      );
-      diffLoadQueuedPathsRef.current.delete(nextFilePath);
       diffLoadProcessingRef.current = false;
 
       if (
@@ -285,7 +324,7 @@ const ChangesPanelImpl = ({
         void processQueuedDiffLoads();
       }
     }
-  }, [changesByPath, projectId, projectPath]);
+  }, [projectId, projectPath]);
 
   const queueDiffLoad = useCallback(
     (filePath: string, priority = false, force = false) => {
@@ -293,25 +332,36 @@ const ChangesPanelImpl = ({
         return;
       }
 
+      const loadedRefreshKey = projectDiffRefreshKeysRef.current[filePath];
+      const queuedRefreshKey = diffLoadQueuedPathsRef.current.get(filePath);
+      const inFlightRefreshKey = diffLoadInFlightPathsRef.current.get(filePath);
+
       if (
         (!force &&
+          loadedRefreshKey === gitRefreshKey &&
           (projectDiffsRef.current[filePath] ||
             projectDiffErrorsRef.current[filePath])) ||
-        projectDiffLoadingRef.current[filePath] ||
-        diffLoadQueuedPathsRef.current.has(filePath)
+        (typeof queuedRefreshKey === "number" &&
+          queuedRefreshKey >= gitRefreshKey) ||
+        (typeof inFlightRefreshKey === "number" &&
+          inFlightRefreshKey >= gitRefreshKey)
       ) {
         return;
       }
 
-      diffLoadQueuedPathsRef.current.add(filePath);
+      diffLoadQueueRef.current = diffLoadQueueRef.current.filter(
+        (request) => request.filePath !== filePath,
+      );
+      diffLoadQueuedPathsRef.current.set(filePath, gitRefreshKey);
       projectDiffLoadingRef.current = {
         ...projectDiffLoadingRef.current,
         [filePath]: true,
       };
+      const request = { filePath, refreshKey: gitRefreshKey };
       if (priority) {
-        diffLoadQueueRef.current.unshift(filePath);
+        diffLoadQueueRef.current.unshift(request);
       } else {
-        diffLoadQueueRef.current.push(filePath);
+        diffLoadQueueRef.current.push(request);
       }
 
       setDiffLoadingByProject((current) => ({
@@ -324,7 +374,7 @@ const ChangesPanelImpl = ({
 
       void processQueuedDiffLoads();
     },
-    [processQueuedDiffLoads, projectId, projectPath],
+    [gitRefreshKey, processQueuedDiffLoads, projectId, projectPath],
   );
 
   useEffect(() => {
@@ -338,13 +388,19 @@ const ChangesPanelImpl = ({
 
     for (const filePath of expandedPaths) {
       if (changesByPath.has(filePath)) {
-        queueDiffLoad(filePath);
+        queueDiffLoad(
+          filePath,
+          false,
+          projectDiffRefreshKeys[filePath] !== gitRefreshKey,
+        );
       }
     }
   }, [
     changesByPath,
     expandedPaths,
+    gitRefreshKey,
     projectId,
+    projectDiffRefreshKeys,
     queueDiffLoad,
     shouldDeferDiffLoads,
     statusLoading,
