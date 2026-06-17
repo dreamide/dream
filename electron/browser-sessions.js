@@ -123,8 +123,30 @@ export function createBrowserSessionManager({ getMainWindow, sendToRenderer }) {
     }
   }
 
+  function openBrowserDevTools(payload) {
+    const guest = getGuestWebContents(payload, "DevTools");
+    if (!guest) {
+      return;
+    }
+
+    try {
+      guest.openDevTools({ mode: "detach" });
+    } catch {
+      sendBrowserActionError(
+        payload,
+        "OPEN_DEVTOOLS_FAILED",
+        "Failed to open browser DevTools.",
+      );
+    }
+  }
+
   function update(payload) {
     if (!payload || typeof payload !== "object") {
+      return;
+    }
+
+    if (payload.openDevTools === true) {
+      openBrowserDevTools(payload);
       return;
     }
 

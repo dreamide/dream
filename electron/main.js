@@ -14,7 +14,10 @@ import {
 } from "electron";
 import getPort from "get-port";
 
-import { configureApplicationMenu } from "./app-menu.js";
+import {
+  configureApplicationMenu,
+  toggleWebContentsDevToolsDetached,
+} from "./app-menu.js";
 import { createBrowserSessionManager } from "./browser-sessions.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import {
@@ -175,6 +178,31 @@ let rendererServerManager = null;
 function parsePort(value) {
   const port = Number(value);
   return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : null;
+}
+
+function isDevToolsShortcut(input) {
+  const key = typeof input?.key === "string" ? input.key.toLowerCase() : "";
+  return (
+    input?.type === "keyDown" &&
+    key === "i" &&
+    input.control &&
+    input.shift &&
+    !input.alt &&
+    !input.meta
+  );
+}
+
+function configureDetachedDevToolsShortcuts() {
+  app.on("web-contents-created", (_event, contents) => {
+    contents.on("before-input-event", (event, input) => {
+      if (!isDevToolsShortcut(input)) {
+        return;
+      }
+
+      event.preventDefault();
+      toggleWebContentsDevToolsDetached(contents);
+    });
+  });
 }
 
 async function createStartupRendererServerManager() {
@@ -562,6 +590,7 @@ ipcMain.on("browser:update", (_event, payload) => {
 });
 
 app.whenReady().then(async () => {
+  configureDetachedDevToolsShortcuts();
   configureApplicationMenu(app, APP_NAME);
 
   if (process.platform === "darwin" && existsSync(appIconPath)) {

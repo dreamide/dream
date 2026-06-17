@@ -605,12 +605,19 @@ const BrowserPanelImpl = ({
   }, [activeTab?.canGoForward, getActiveWebview, setBrowserError]);
 
   const handleOpenDevTools = useCallback(() => {
-    try {
-      getActiveWebview()?.openDevTools();
-    } catch {
-      setBrowserError("Failed to open DevTools.");
+    const webview = getActiveWebview();
+    if (!activeTab || !webview) {
+      return;
     }
-  }, [getActiveWebview, setBrowserError]);
+
+    setBrowserError(null);
+    getDesktopApi()?.updateBrowser({
+      openDevTools: true,
+      projectId,
+      tabId: activeTab.id,
+      webContentsId: webview.getWebContentsId(),
+    });
+  }, [activeTab, getActiveWebview, projectId, setBrowserError]);
 
   const updateActiveZoomFactor = useCallback(
     (updater: (current: number) => number) => {

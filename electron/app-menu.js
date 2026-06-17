@@ -1,4 +1,26 @@
-import { Menu } from "electron";
+import { BrowserWindow, Menu } from "electron";
+
+export function toggleWebContentsDevToolsDetached(webContents) {
+  if (!webContents || webContents.isDestroyed()) {
+    return;
+  }
+
+  if (webContents.isDevToolsOpened()) {
+    webContents.closeDevTools();
+    return;
+  }
+
+  webContents.openDevTools({ mode: "detach" });
+}
+
+function toggleFocusedDevToolsDetached(browserWindow) {
+  const targetWindow = browserWindow ?? BrowserWindow.getFocusedWindow();
+  if (!targetWindow || targetWindow.isDestroyed()) {
+    return;
+  }
+
+  toggleWebContentsDevToolsDetached(targetWindow.webContents);
+}
 
 export function configureApplicationMenu(app, appName) {
   if (process.platform !== "darwin") {
@@ -45,7 +67,13 @@ export function configureApplicationMenu(app, appName) {
         submenu: [
           { role: "reload" },
           { role: "forceReload" },
-          { role: "toggleDevTools" },
+          {
+            accelerator: "Alt+Command+I",
+            click: (_menuItem, browserWindow) => {
+              toggleFocusedDevToolsDetached(browserWindow);
+            },
+            label: "Toggle Developer Tools",
+          },
           { type: "separator" },
           { role: "resetZoom" },
           { role: "zoomIn" },

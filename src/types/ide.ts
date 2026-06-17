@@ -454,6 +454,7 @@ export interface TerminalResizePayload {
 export interface BrowserUpdatePayload {
   clearCache?: boolean;
   clearCookies?: boolean;
+  openDevTools?: boolean;
   projectId?: string;
   tabId?: string;
   takeScreenshot?: boolean;
