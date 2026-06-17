@@ -376,8 +376,8 @@ jobs:
             release/*.blockmap
             release/latest.yml
 
-  publish-release:
-    name: Publish GitHub release
+  upload-r2:
+    name: Upload release assets to Cloudflare R2
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     needs:
       - package-linux
@@ -386,22 +386,22 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 25
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Download Linux artifacts
-        uses: actions/download-artifact@v7.0.1
+        uses: actions/download-artifact@v8.0.1
         with:
           name: dream-linux
           path: release-assets
 
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v7.0.1
+        uses: actions/download-artifact@v8.0.1
         with:
           name: dream-macos
           path: release-assets
 
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v7.0.1
+        uses: actions/download-artifact@v8.0.1
         with:
           name: dream-windows
           path: release-assets
@@ -473,8 +473,37 @@ jobs:
           CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
           CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
 
+  publish-release:
+    name: Publish GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - package-linux
+      - package-macos
+      - package-windows
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: dream-linux
+          path: release-assets
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: dream-macos
+          path: release-assets
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: dream-windows
+          path: release-assets
+
       - name: Publish release assets
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           set -euo pipefail
