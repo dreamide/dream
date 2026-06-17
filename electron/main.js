@@ -561,51 +561,6 @@ ipcMain.on("browser:update", (_event, payload) => {
   browserSessionManager.update(payload);
 });
 
-// Diagnostic for "slow on Windows" reports: if the GPU is blocklisted,
-// Chromium silently falls back to software rendering.
-//
-// IMPORTANT: this must run only after the first window has loaded. Calling
-// app.getGPUFeatureStatus() before the GPU process has spawned (e.g. at the
-// top of whenReady, before any BrowserWindow exists) returns placeholder
-// values where every feature reads "disabled_software"/"disabled_off",
-// which looks exactly like a software-rendering fallback but is meaningless.
-async function logGpuDiagnostics() {
-  const gpuStatus = app.getGPUFeatureStatus();
-  console.log("[gpu] feature status:", gpuStatus);
-  // Only flag genuine software fallback. "disabled_off"/"disabled_off_ok"
-  // mark experimental features (raw_draw, skia_graphite, webnn, ...) that
-  // are off by default everywhere — Chrome on a healthy machine shows the
-  // same — so they are not a degradation signal.
-  const degraded = Object.entries(gpuStatus).filter(([, value]) =>
-    /software/i.test(String(value)),
-  );
-  if (degraded.length > 0) {
-    console.warn(
-      "[gpu] degraded features (software rendering likely):",
-      Object.fromEntries(degraded),
-    );
-    // Dig into *why* the fallback happened: device/vendor ids, driver
-    // version, and aux attributes expose blocklisting, virtual display
-    // adapters (RDP/VM), or repeated GPU-process crashes.
-    try {
-      const gpuInfo = await app.getGPUInfo("complete");
-      console.warn(
-        "[gpu] device info:",
-        JSON.stringify(
-          {
-            gpuDevice: gpuInfo.gpuDevice,
-            auxAttributes: gpuInfo.auxAttributes,
-          },
-          null,
-          2,
-        ),
-      );
-    } catch (error) {
-      console.warn("[gpu] failed to fetch detailed GPU info:", error);
-    }
-  }
-}
-
 app.whenReady().then(async () => {
   configureApplicationMenu(app, APP_NAME);
 
@@ -616,14 +571,6 @@ app.whenReady().then(async () => {
   rendererServerManager = await createStartupRendererServerManager();
   await rendererServerManager.start();
   await createMainWindow();
-
-  if (isDevelopment) {
-    // Log GPU status only once a renderer is up — see logGpuDiagnostics()
-    // for why querying earlier yields bogus all-disabled placeholders.
-    mainWindow?.webContents.once("did-finish-load", () => {
-      void logGpuDiagnostics();
-    });
-  }
 
   updateManager = initializeAutoUpdater({
     app,
