@@ -146,6 +146,7 @@
       "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/**/*darwin*/**"
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ]
