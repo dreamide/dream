@@ -17,7 +17,7 @@ permissions:
 
 env:
   ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
-  ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder-cache
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/../electron-builder-cache
   ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.sign == true }}
   SSL_COM_ENVIRONMENT_NAME: ${{ secrets.SSL_COM_ENVIRONMENT_NAME || 'PROD' }}
 
