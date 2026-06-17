@@ -378,13 +378,13 @@ jobs:
 
   publish-release:
     name: Publish GitHub release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     needs:
       - package-linux
       - package-macos
       - package-windows
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: write
     steps:
@@ -406,7 +406,75 @@ jobs:
           name: dream-windows
           path: release-assets
 
+      - name: Install AWS CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if command -v aws >/dev/null 2>&1; then
+            aws --version
+            exit 0
+          fi
+
+          case "$(uname -m)" in
+            x86_64)
+              aws_arch="x86_64"
+              ;;
+            aarch64 | arm64)
+              aws_arch="aarch64"
+              ;;
+            *)
+              echo "Unsupported AWS CLI architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o "$RUNNER_TEMP/awscliv2.zip"
+          unzip -q "$RUNNER_TEMP/awscliv2.zip" -d "$RUNNER_TEMP"
+          sudo "$RUNNER_TEMP/aws/install" --update
+          aws --version
+
+      - name: Upload release assets to Cloudflare R2
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=0
+          for name in \
+            AWS_ACCESS_KEY_ID \
+            AWS_SECRET_ACCESS_KEY \
+            CLOUDFLARE_R2_ACCOUNT_ID \
+            CLOUDFLARE_R2_BUCKET; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Missing required secret-backed environment variable: $name"
+              missing=1
+            fi
+          done
+
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+          endpoint="https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          echo "::group::R2 upload manifest"
+          find release-assets -type f -print | sort
+          echo "::endgroup::"
+
+          aws s3 cp release-assets/ "s3://${CLOUDFLARE_R2_BUCKET}/releases/" \
+            --endpoint-url "$endpoint" \
+            --recursive \
+            --only-show-errors
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: true
+          CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
+          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
+
       - name: Publish release assets
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           set -euo pipefail
