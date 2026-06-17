@@ -150,6 +150,9 @@
         "nsis"
       ]
     },
+    "nsis": {
+      "artifactName": "${productName}-${version}-${arch}-setup.${ext}"
+    },
     "linux": {
       "target": [
         "AppImage"
