@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { ProjectIconInfo } from "@/types/ide";
 
 export const areProjectIconsEqual = (
@@ -41,18 +41,67 @@ export const normalizeProjectIconResponse = (
 };
 
 export const ProjectTabIcon = ({
+  fallback = null,
   icon,
   projectName,
   projectPath,
 }: {
+  fallback?: ReactNode;
   icon: ProjectIconInfo | null;
   projectName: string;
   projectPath: string;
 }) => {
   const [failed, setFailed] = useState(false);
+  const [src, setSrc] = useState<string | null>(null);
 
-  if (!icon || failed) {
-    return null;
+  useEffect(() => {
+    setFailed(false);
+    setSrc(null);
+
+    if (!icon) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    let objectUrl: string | null = null;
+
+    void fetch(getProjectIconUrl(projectPath, icon.path), {
+      signal: abortController.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Unable to load project icon: ${response.status}`);
+        }
+
+        return response.blob();
+      })
+      .then((blob) => {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch((error: unknown) => {
+        if (
+          !abortController.signal.aborted &&
+          !(error instanceof DOMException && error.name === "AbortError")
+        ) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      abortController.abort();
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [icon, projectPath]);
+
+  if (!icon || failed || !src) {
+    return fallback;
   }
 
   return (
@@ -62,7 +111,7 @@ export const ProjectTabIcon = ({
       className="size-4 shrink-0 rounded-sm object-contain"
       draggable={false}
       onError={() => setFailed(true)}
-      src={getProjectIconUrl(projectPath, icon.path)}
+      src={src}
       title={projectName}
     />
   );

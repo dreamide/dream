@@ -71,6 +71,7 @@ export const EmptyProjectWorkspace = () => {
                         <FolderTree className="size-4" />
                       ) : project.icon ? (
                         <ProjectTabIcon
+                          fallback={<Folder className="size-4" />}
                           icon={project.icon}
                           projectName={project.name}
                           projectPath={project.path}
