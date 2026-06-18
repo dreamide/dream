@@ -312,6 +312,39 @@ export const dedupeModelOptions = (models) => {
   return Array.from(seen.values());
 };
 
+const getCursorModelPriority = (model) => {
+  const id = model.id.trim().toLowerCase();
+  const label = model.label.trim().toLowerCase();
+  const searchable = `${id} ${label}`;
+
+  if (id === "auto" || id === "cursor-auto" || label === "cursor auto") {
+    return 0;
+  }
+
+  if (
+    id === "composer" ||
+    id === "cursor-composer" ||
+    /\bcomposer\b/.test(searchable)
+  ) {
+    return 1;
+  }
+
+  return 2;
+};
+
+export const sortCursorModelOptions = (models) =>
+  models
+    .map((model, index) => ({
+      index,
+      model,
+      priority: getCursorModelPriority(model),
+    }))
+    .sort(
+      (left, right) =>
+        left.priority - right.priority || left.index - right.index,
+    )
+    .map(({ model }) => model);
+
 export const selectLowCostOpenAiModel = (models) => {
   const modelIds = models.map((model) => model?.id?.trim()).filter(Boolean);
   const modelIdsByLowercase = new Map(

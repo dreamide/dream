@@ -22,6 +22,7 @@ import {
   normalizeReasoningEfforts,
   selectLowCostAnthropicModel,
   selectLowCostOpenAiModel,
+  sortCursorModelOptions,
 } from "./model-options.js";
 
 const OPENAI_CODEX_CHATGPT_MODELS_URL =
@@ -370,7 +371,12 @@ export const fetchCursorModels = async ({ force = false } = {}) => {
         parseCursorModelsOutput(`${result.stdout}\n${result.stderr}`),
       );
       if (models.length > 0) {
-        return { installed: true, models, source: "cli", version };
+        return {
+          installed: true,
+          models: sortCursorModelOptions(models),
+          source: "cli",
+          version,
+        };
       }
     } catch {
       // Cursor does not currently document a stable model-listing command.
@@ -380,7 +386,7 @@ export const fetchCursorModels = async ({ force = false } = {}) => {
 
   return {
     installed: true,
-    models: createCursorDefaultModels(),
+    models: sortCursorModelOptions(createCursorDefaultModels()),
     source: "cli",
     version,
   };

@@ -287,6 +287,39 @@ export const dedupeModelOptions = (models: ModelOption[]): ModelOption[] => {
   return Array.from(seen.values());
 };
 
+const getCursorModelPriority = (model: ModelOption): number => {
+  const id = model.id.trim().toLowerCase();
+  const label = model.label.trim().toLowerCase();
+  const searchable = `${id} ${label}`;
+
+  if (id === "auto" || id === "cursor-auto" || label === "cursor auto") {
+    return 0;
+  }
+
+  if (
+    id === "composer" ||
+    id === "cursor-composer" ||
+    /\bcomposer\b/.test(searchable)
+  ) {
+    return 1;
+  }
+
+  return 2;
+};
+
+export const sortCursorModelOptions = (models: ModelOption[]): ModelOption[] =>
+  models
+    .map((model, index) => ({
+      index,
+      model,
+      priority: getCursorModelPriority(model),
+    }))
+    .sort(
+      (left, right) =>
+        left.priority - right.priority || left.index - right.index,
+    )
+    .map(({ model }) => model);
+
 /**
  * Determine which reasoning effort levels a model supports.
  *

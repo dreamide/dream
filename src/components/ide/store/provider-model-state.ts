@@ -2,7 +2,11 @@ import {
   normalizeClaudeCodeModelId,
   normalizeDefaultModelSettings,
 } from "@/lib/ide-defaults";
-import { dedupeModelOptions, isVisibleOpenAiModelOption } from "@/lib/models";
+import {
+  dedupeModelOptions,
+  isVisibleOpenAiModelOption,
+  sortCursorModelOptions,
+} from "@/lib/models";
 import type { AiProvider, AppSettings } from "@/types/ide";
 import { dedupeModels, type ProviderModelsResponse } from "../ide-types";
 import type { IdeState } from "./ide-store-types";
@@ -195,7 +199,9 @@ export const getProviderModelsFromResponse = (
         error: payload.cursor.error ?? null,
         installed: payload.cursor.installed,
         loading: false,
-        models: dedupeModelOptions(payload.cursor.models),
+        models: sortCursorModelOptions(
+          dedupeModelOptions(payload.cursor.models),
+        ),
         source: payload.cursor.source,
         version: payload.cursor.version ?? null,
       }
