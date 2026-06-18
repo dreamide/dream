@@ -59,6 +59,7 @@ import type {
   ModelSpeed,
   ReasoningEffort,
 } from "@/types/ide";
+import packageJson from "../../../package.json";
 import { useIdeStore } from "./ide-store";
 import {
   ALL_PROVIDERS,
@@ -96,6 +97,7 @@ const BASE_COLOR_SWATCHES: Record<BaseColor, string> = {
 };
 
 const getBaseColorSwatch = (color: BaseColor) => BASE_COLOR_SWATCHES[color];
+const appVersion = packageJson.version;
 
 export const SettingsDialog = () => {
   const settings = useIdeStore((s) => s.settings);
@@ -400,7 +402,7 @@ export const SettingsDialog = () => {
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1">
-          <nav className="w-64 shrink-0 p-3">
+          <nav className="flex w-64 shrink-0 flex-col p-3">
             <div className="space-y-1">
               <button
                 className={cn(
@@ -447,6 +449,9 @@ export const SettingsDialog = () => {
                   Archived Chats
                 </span>
               </button>
+            </div>
+            <div className="mt-auto px-3 py-2 font-mono text-muted-foreground text-xs">
+              v{appVersion}
             </div>
           </nav>
 
