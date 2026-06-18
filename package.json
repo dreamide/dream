@@ -123,6 +123,16 @@
       "public/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "public/icon.ico",
+        "to": "icon.ico"
+      },
+      {
+        "from": "public/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "icon": "public/icon.png",
     "mac": {
       "target": [

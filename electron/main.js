@@ -32,12 +32,10 @@ import { initializeAutoUpdater } from "./updater.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const appIconPath = path.join(
-  __dirname,
-  "..",
-  "public",
-  process.platform === "win32" ? "icon.ico" : "icon.png",
-);
+const appIconFileName = process.platform === "win32" ? "icon.ico" : "icon.png";
+const appIconPath = app.isPackaged
+  ? path.join(process.resourcesPath, appIconFileName)
+  : path.join(__dirname, "..", "public", appIconFileName);
 
 const isDevelopment = process.env.NODE_ENV === "development";
 

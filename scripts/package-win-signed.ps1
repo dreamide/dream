@@ -350,7 +350,7 @@ Invoke-Step "Build renderer" {
 New-Item -ItemType Directory -Path $buildReleaseDir -Force | Out-Null
 
 Invoke-Step "Package unpacked Windows app" {
-  pnpm exec electron-builder --win dir --x64 "--config.directories.output=$buildReleaseDir" --config.win.signAndEditExecutable=false --publish never
+  pnpm exec electron-builder --win dir --x64 "--config.directories.output=$buildReleaseDir" --config.win.signExecutable=false --publish never
 }
 
 $appExe = Join-Path $unpackedDir "Dream.exe"
@@ -374,7 +374,7 @@ Invoke-Step "Verify signed app executable" {
 }
 
 Invoke-Step "Package NSIS installer from signed app" {
-  pnpm exec electron-builder --win nsis --x64 --prepackaged "$unpackedDir" "--config.directories.output=$buildReleaseDir" --config.win.signAndEditExecutable=false --publish never
+  pnpm exec electron-builder --win nsis --x64 --prepackaged "$unpackedDir" "--config.directories.output=$buildReleaseDir" --config.win.signExecutable=false --publish never
 }
 
 $installer = Get-ChildItem -LiteralPath $buildReleaseDir -Filter "*.exe" -File |
