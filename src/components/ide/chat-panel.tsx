@@ -111,7 +111,11 @@ const getUsageContextTokens = (usage: LanguageModelUsage) => {
     return undefined;
   }
 
-  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
+  return (
+    (usage.inputTokens ?? 0) +
+    (usage.outputTokens ?? 0) +
+    (usage.outputTokenDetails?.reasoningTokens ?? usage.reasoningTokens ?? 0)
+  );
 };
 
 // A turn's exact input usage already includes the previous chat history.
