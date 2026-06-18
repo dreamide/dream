@@ -116,10 +116,12 @@ export const createProjectConfig = (
 ): ProjectConfig => {
   const name = path.split(/[\\/]/).filter(Boolean).pop() ?? "project";
   const defaultSelection = getDefaultModelSelection(settings);
+  const timestamp = new Date().toISOString();
 
   return {
     id: crypto.randomUUID(),
     icon: null,
+    lastUsedAt: timestamp,
     model: defaultSelection.model,
     modelSpeed: defaultSelection.modelSpeed,
     name,

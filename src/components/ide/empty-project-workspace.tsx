@@ -25,8 +25,71 @@ import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
 
+const formatLastUsedAt = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  const time = date.getTime();
+  if (!Number.isFinite(time)) {
+    return null;
+  }
+
+  const diffMs = Date.now() - time;
+  const pastMs = Math.max(0, diffMs);
+  const minutes = Math.floor(pastMs / 60_000);
+  if (minutes < 1) {
+    return "Just now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days === 1) {
+    return "Yesterday";
+  }
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  const now = new Date();
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+};
+
+const getLatestTimestamp = (left: string | null, right: string | null) => {
+  if (!left) {
+    return right;
+  }
+  if (!right) {
+    return left;
+  }
+
+  return Date.parse(right) > Date.parse(left) ? right : left;
+};
+
+const getTimestampMs = (value: string | null | undefined): number => {
+  if (!value) {
+    return 0;
+  }
+
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? time : 0;
+};
+
 export const EmptyProjectWorkspace = () => {
   const closedProjects = useIdeStore((s) => s.closedProjects);
+  const chats = useIdeStore((s) => s.chats);
   const settings = useIdeStore((s) => s.settings);
   const addProject = useIdeStore((s) => s.addProject);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
@@ -38,9 +101,43 @@ export const EmptyProjectWorkspace = () => {
   );
   const hasConnectedProvider = connectedProviders.length > 0;
 
+  const chatLastUsedAtByProject = useMemo(() => {
+    const timestamps = new Map<string, string>();
+
+    for (const chat of chats) {
+      const timestamp = chat.updatedAt || chat.createdAt;
+      if (!timestamp || !Number.isFinite(Date.parse(timestamp))) {
+        continue;
+      }
+
+      timestamps.set(
+        chat.projectId,
+        getLatestTimestamp(timestamps.get(chat.projectId) ?? null, timestamp) ??
+          timestamp,
+      );
+    }
+
+    return timestamps;
+  }, [chats]);
   const recentProjects = useMemo(
-    () => [...closedProjects].reverse().slice(0, 6),
-    [closedProjects],
+    () =>
+      closedProjects
+        .map((project, index) => ({
+          index,
+          lastUsedAt:
+            project.lastUsedAt ??
+            chatLastUsedAtByProject.get(project.id) ??
+            null,
+          project,
+        }))
+        .sort(
+          (left, right) =>
+            getTimestampMs(right.lastUsedAt) -
+              getTimestampMs(left.lastUsedAt) || right.index - left.index,
+        )
+        .slice(0, 6)
+        .map(({ project }) => project),
+    [chatLastUsedAtByProject, closedProjects],
   );
 
   const handleOpenFolder = useCallback(async () => {
@@ -128,6 +225,11 @@ export const EmptyProjectWorkspace = () => {
             <div className="grid w-full gap-1">
               {recentProjects.map((project) => {
                 const isWorktree = project.worktree?.kind === "worktree";
+                const lastUsedAt =
+                  project.lastUsedAt ??
+                  chatLastUsedAtByProject.get(project.id) ??
+                  null;
+                const lastUsedLabel = formatLastUsedAt(lastUsedAt);
 
                 return (
                   <button
@@ -150,10 +252,22 @@ export const EmptyProjectWorkspace = () => {
                         <Folder className="size-4" />
                       )}
                     </span>
-                    <span className="min-w-0 flex-1">
+                    <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
                       <span className="block truncate font-medium text-foreground text-sm">
                         {project.name}
                       </span>
+                      {lastUsedLabel ? (
+                        <span
+                          className="row-span-2 self-center whitespace-nowrap text-right text-muted-foreground/80 text-xs"
+                          title={
+                            lastUsedAt
+                              ? new Date(lastUsedAt).toLocaleString()
+                              : undefined
+                          }
+                        >
+                          {lastUsedLabel}
+                        </span>
+                      ) : null}
                       <span className="block truncate text-muted-foreground text-xs">
                         {isWorktree ? "worktree" : project.path}
                       </span>

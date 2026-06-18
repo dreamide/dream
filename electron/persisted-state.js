@@ -174,6 +174,11 @@ function getNestedWorktree(parent, key) {
   };
 }
 
+function getNestedTimestamp(parent, key) {
+  const value = getNestedString(parent, key, "");
+  return value && Number.isFinite(Date.parse(value)) ? value : null;
+}
+
 function getNestedStringArray(parent, key) {
   const value = parent?.[key];
   if (!Array.isArray(value)) {
@@ -386,6 +391,11 @@ function buildProjectMetadata(project) {
         ? project.browserUrl
         : "http://127.0.0.1:3000",
   };
+  const lastUsedAt =
+    typeof project.lastUsedAt === "string" &&
+    Number.isFinite(Date.parse(project.lastUsedAt))
+      ? project.lastUsedAt
+      : getNestedTimestamp(metadata, "lastUsedAt");
   const ui = {
     ...getNestedRecord(metadata, "ui"),
     activeChatId:
@@ -456,6 +466,7 @@ function buildProjectMetadata(project) {
     ...metadata,
     browser,
     icon,
+    lastUsedAt,
     modelSelection,
     runCommand:
       typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
@@ -843,6 +854,7 @@ function loadStateFromRelationalDatabase(database) {
     const browser = getNestedRecord(metadata, "browser");
     const ui = getNestedRecord(metadata, "ui");
     const worktree = getNestedWorktree(metadata, "worktree");
+    const lastUsedAt = getNestedTimestamp(metadata, "lastUsedAt");
     const project = {
       browserUrl: getNestedString(browser, "url", "http://127.0.0.1:3000"),
       id: row.id,
@@ -858,6 +870,7 @@ function loadStateFromRelationalDatabase(database) {
             mtimeMs: getNestedNumber(icon, "mtimeMs", 0),
           }
         : null,
+      lastUsedAt,
       metadata,
       model: getNestedString(modelSelection, "model", ""),
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),

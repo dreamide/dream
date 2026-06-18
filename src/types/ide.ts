@@ -65,6 +65,7 @@ export interface ProjectReference {
 export interface ProjectConfig {
   id: string;
   icon: ProjectIconInfo | null;
+  lastUsedAt: string | null;
   name: string;
   path: string;
   runCommand: string;

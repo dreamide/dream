@@ -274,6 +274,15 @@ const normalizeProjectIcon = (value: unknown): ProjectConfig["icon"] => {
   };
 };
 
+const normalizeProjectLastUsedAt = (value: unknown): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed && Number.isFinite(Date.parse(trimmed)) ? trimmed : null;
+};
+
 const normalizeProjectWorktree = (
   value: unknown,
 ): ProjectWorktreeInfo | null => {
@@ -368,6 +377,10 @@ const normalizeProject = (
     ...project,
     browserUrl,
     icon: normalizeProjectIcon(rawProject.icon ?? rawMetadata.icon),
+    lastUsedAt: normalizeProjectLastUsedAt(
+      rawProject.lastUsedAt ??
+        (rawMetadata as { lastUsedAt?: unknown }).lastUsedAt,
+    ),
     model: model || defaultModel,
     modelSpeed: normalizeModelSpeed(project.modelSpeed),
     provider,

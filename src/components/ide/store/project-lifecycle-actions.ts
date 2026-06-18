@@ -14,8 +14,18 @@ import {
   normalizeProjectPathKey,
   sanitizeProjectUiForChats,
 } from "../ide-state";
-import { updateProjectUiInList } from ".";
+import { updateProjectInList, updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+
+const touchProjectInList = (
+  projects: ProjectConfig[],
+  projectId: string,
+  lastUsedAt: string,
+) =>
+  updateProjectInList(projects, projectId, (project) => ({
+    ...project,
+    lastUsedAt,
+  }));
 
 export const createProjectLifecycleActions = (
   set: IdeStoreSet,
@@ -91,6 +101,7 @@ export const createProjectLifecycleActions = (
       }
 
       const nextActiveProjectId = ensureActiveProject(state.projects, id);
+      const lastUsedAt = new Date().toISOString();
       const nextCompletedChatIds = { ...state.completedChatIds };
       if (nextActiveProjectId) {
         for (const chat of state.chats) {
@@ -113,6 +124,9 @@ export const createProjectLifecycleActions = (
       return {
         activeProjectId: nextActiveProjectId,
         completedChatIds: nextCompletedChatIds,
+        projects: nextActiveProjectId
+          ? touchProjectInList(state.projects, nextActiveProjectId, lastUsedAt)
+          : state.projects,
       };
     });
   },
@@ -120,6 +134,7 @@ export const createProjectLifecycleActions = (
   addProject: (path: string) => {
     set((state) => {
       const pathKey = normalizeProjectPathKey(path);
+      const lastUsedAt = new Date().toISOString();
       const openProject = state.projects.find(
         (project) => normalizeProjectPathKey(project.path) === pathKey,
       );
@@ -152,7 +167,7 @@ export const createProjectLifecycleActions = (
           chats: nextChats,
           messagesByChatId: nextMessagesByChatId,
           projects: updateProjectUiInList(
-            state.projects,
+            touchProjectInList(state.projects, openProject.id, lastUsedAt),
             openProject.id,
             (project) =>
               sanitizeProjectUiForChats(
@@ -169,7 +184,7 @@ export const createProjectLifecycleActions = (
         (project) => normalizeProjectPathKey(project.path) === pathKey,
       );
       if (closedProject) {
-        const reopenedProject = { ...closedProject, path };
+        const reopenedProject = { ...closedProject, lastUsedAt, path };
         let nextChats = state.chats;
         let nextMessagesByChatId = state.messagesByChatId;
         let nextActiveChatId = ensureActiveChatForProject(
@@ -281,8 +296,14 @@ export const createProjectLifecycleActions = (
       );
       if (existingProject) {
         createdProjectId = existingProject.id;
+        const lastUsedAt = new Date().toISOString();
         return {
           activeProjectId: existingProject.id,
+          projects: touchProjectInList(
+            state.projects,
+            existingProject.id,
+            lastUsedAt,
+          ),
         };
       }
 
@@ -291,6 +312,7 @@ export const createProjectLifecycleActions = (
       );
       if (closedProject) {
         createdProjectId = closedProject.id;
+        const lastUsedAt = new Date().toISOString();
         return {
           activeProjectId: closedProject.id,
           closedProjects: state.closedProjects.filter(
@@ -300,6 +322,7 @@ export const createProjectLifecycleActions = (
             ...state.projects,
             {
               ...closedProject,
+              lastUsedAt,
               path: payload.path,
               worktree: {
                 baseRef: payload.baseRef,
@@ -381,6 +404,7 @@ export const createProjectLifecycleActions = (
       const closedProject = state.projects.find(
         (project) => project.id === projectId,
       );
+      const closedAt = new Date().toISOString();
       const nextProjects = state.projects.filter(
         (project) => project.id !== projectId,
       );
@@ -463,6 +487,7 @@ export const createProjectLifecycleActions = (
       const nextClosedProject = closedProject
         ? {
             ...closedProject,
+            lastUsedAt: closedAt,
             ui: sanitizeProjectUiForChats(
               state.chats,
               projectId,
