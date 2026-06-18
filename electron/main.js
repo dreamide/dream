@@ -32,7 +32,12 @@ import { initializeAutoUpdater } from "./updater.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const appIconPath = path.join(__dirname, "..", "public", "icon.png");
+const appIconPath = path.join(
+  __dirname,
+  "..",
+  "public",
+  process.platform === "win32" ? "icon.ico" : "icon.png",
+);
 
 const isDevelopment = process.env.NODE_ENV === "development";
 
@@ -51,6 +56,7 @@ const rendererStartupTimeoutMs = Number(
 );
 const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
+const APP_ID = "ai.dreamdream.dream";
 const APP_USER_DATA_DIR_NAME = "dreamide";
 const APP_USER_DATA_PATH = path.join(
   app.getPath("appData"),
@@ -80,6 +86,9 @@ const DEFAULT_THEME_PREFERENCES = {
 };
 
 app.setName(APP_NAME);
+if (process.platform === "win32") {
+  app.setAppUserModelId(APP_ID);
+}
 mkdirSync(APP_USER_DATA_PATH, { recursive: true });
 mkdirSync(APP_SESSION_DATA_PATH, { recursive: true });
 app.setPath("userData", APP_USER_DATA_PATH);
