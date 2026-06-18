@@ -42,7 +42,7 @@ const DEFAULT_SPARKLES_PALETTE = "dream";
 const SPARKLES_PALETTE_NAMES = new Set([
   "dream",
   "accent",
-  "arctic",
+  "violet",
   "gold",
   "magenta",
   "emerald",
@@ -229,6 +229,10 @@ function getNestedRightPanelView(parent, key, fallback = "changes") {
 }
 
 function normalizeSparklesPaletteName(value) {
+  if (value === "arctic") {
+    return "violet";
+  }
+
   return typeof value === "string" && SPARKLES_PALETTE_NAMES.has(value)
     ? value
     : DEFAULT_SPARKLES_PALETTE;

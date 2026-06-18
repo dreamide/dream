@@ -3,12 +3,12 @@
   the top edge of the children by default, like a spell being conjured.
 
   Usage:
-    <Sparkles palette="arctic">
+    <Sparkles palette="violet">
       <YourInput />
     </Sparkles>
 
  Props:
-    palette    "aqua" | "accent" | "arctic" | "gold" | "magenta" | "emerald" | "ember" | "rainbow" | "mono"
+    palette    "aqua" | "accent" | "violet" | "gold" | "magenta" | "emerald" | "ember" | "rainbow" | "mono"
                OR an array of hex strings for a custom palette   (default: "aqua")
     disabled   disables sparkles and ground glow                 (default: false)
     position   "top" | "bottom" origin edge                      (default: "top")

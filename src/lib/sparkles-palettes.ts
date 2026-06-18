@@ -1,6 +1,6 @@
 export const SPARKLES_PALETTES = {
   aqua: ["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"],
-  arctic: ["#7affd1", "#9bf2ff", "#caeaff", "#ffffff"],
+  violet: ["#c4b5fd", "#8b5cf6", "#ede9fe", "#7c3aed"],
   gold: ["#ffe27a", "#ffb84a", "#fff7c2", "#ffd26a"],
   magenta: ["#ff9ae5", "#ff6ac7", "#ffd0f0", "#c77bff"],
   emerald: ["#5cffb0", "#2aa86a", "#b6ffd8", "#fff9c2"],
@@ -16,7 +16,7 @@ export const DEFAULT_SPARKLES_PALETTE: SparklesPaletteName = "aqua";
 export const SPARKLES_PALETTE_ORDER: SparklesPaletteName[] = [
   "aqua",
   "accent",
-  "arctic",
+  "violet",
   "gold",
   "magenta",
   "emerald",
@@ -46,8 +46,10 @@ export const createAccentSparklesPalette = (accentColor?: string) => {
 export const normalizeSparklesPaletteName = (
   value: unknown,
 ): SparklesPaletteName =>
-  value === "dream"
-    ? "aqua"
-    : SPARKLES_PALETTE_ORDER.includes(value as SparklesPaletteName)
-      ? (value as SparklesPaletteName)
-      : DEFAULT_SPARKLES_PALETTE;
+  value === "arctic"
+    ? "violet"
+    : value === "dream"
+      ? "aqua"
+      : SPARKLES_PALETTE_ORDER.includes(value as SparklesPaletteName)
+        ? (value as SparklesPaletteName)
+        : DEFAULT_SPARKLES_PALETTE;
