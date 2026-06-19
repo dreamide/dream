@@ -130,11 +130,6 @@ const TerminalSurface = ({
   );
 };
 
-const resolveTerminalTheme = (_host: HTMLElement, resolvedTheme?: string) => {
-  const isDark = resolvedTheme === "dark";
-  return isDark ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME;
-};
-
 const resolveCssCustomProperty = (
   style: CSSStyleDeclaration,
   name: string,
@@ -159,6 +154,27 @@ const resolveCssCustomProperty = (
     fallback?.trim() ||
     ""
   );
+};
+
+const isTransparentColor = (value: string) =>
+  value === "transparent" || value === "rgba(0, 0, 0, 0)";
+
+const resolveTerminalTheme = (host: HTMLElement, resolvedTheme?: string) => {
+  const isDark = resolvedTheme === "dark";
+  const theme = isDark ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME;
+  const style = getComputedStyle(host);
+  const background =
+    resolveCssCustomProperty(style, "--background") || style.backgroundColor;
+
+  if (!background || isTransparentColor(background)) {
+    return theme;
+  }
+
+  return {
+    ...theme,
+    background,
+    cursorAccent: background,
+  };
 };
 
 const resolveTerminalFontFamily = (host: HTMLElement) => {
