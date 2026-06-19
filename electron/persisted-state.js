@@ -390,10 +390,7 @@ function buildProjectMetadata(project) {
   };
   const browser = {
     ...getNestedRecord(metadata, "browser"),
-    url:
-      typeof project.browserUrl === "string"
-        ? project.browserUrl
-        : "http://127.0.0.1:3000",
+    url: typeof project.browserUrl === "string" ? project.browserUrl : "",
   };
   const lastUsedAt =
     typeof project.lastUsedAt === "string" &&
@@ -860,7 +857,7 @@ function loadStateFromRelationalDatabase(database) {
     const worktree = getNestedWorktree(metadata, "worktree");
     const lastUsedAt = getNestedTimestamp(metadata, "lastUsedAt");
     const project = {
-      browserUrl: getNestedString(browser, "url", "http://127.0.0.1:3000"),
+      browserUrl: getNestedString(browser, "url", ""),
       id: row.id,
       icon: iconPath
         ? {

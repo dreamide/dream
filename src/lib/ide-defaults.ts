@@ -126,7 +126,7 @@ export const createProjectConfig = (
     modelSpeed: defaultSelection.modelSpeed,
     name,
     path,
-    browserUrl: "http://127.0.0.1:3000",
+    browserUrl: "",
     provider: defaultSelection.provider,
     reasoningEffort: defaultSelection.reasoningEffort,
     runCommand: "pnpm dev",

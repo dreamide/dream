@@ -194,7 +194,7 @@ const loadRelationalPersistedState = (database) => {
     const ui = getNestedRecord(metadata, "ui");
     const panelSizes = getNestedRecord(ui, "panelSizes");
     const project = {
-      browserUrl: getNestedString(browser, "url", "http://127.0.0.1:3000"),
+      browserUrl: getNestedString(browser, "url", ""),
       id: row.id,
       icon: iconPath
         ? {
@@ -825,7 +825,7 @@ const importCodexChatsIntoState = (currentState, codexRoot) => {
         model: getDefaultImportedModel(provider, nextState.settings ?? {}),
         name: path.basename(cwd) || "Imported Codex Chats",
         path: cwd,
-        browserUrl: "http://127.0.0.1:3000",
+        browserUrl: "",
         provider,
         reasoningEffort: "medium",
         runCommand: "pnpm dev",

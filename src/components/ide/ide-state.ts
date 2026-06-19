@@ -363,7 +363,7 @@ const normalizeProject = (
       ? rawProject.browserUrl
       : typeof rawProject.previewUrl === "string"
         ? rawProject.previewUrl
-        : "http://127.0.0.1:3000";
+        : "";
   const provider = normalizeProvider(project.provider);
   const model =
     typeof project.model === "string"
