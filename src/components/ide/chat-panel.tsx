@@ -1327,7 +1327,6 @@ export const ChatPanel = ({
               ...current,
               sparklesPalette,
             }));
-            useIdeStore.getState().persist();
           }}
           onStop={stop}
           onSubmit={handleSubmit}
