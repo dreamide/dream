@@ -389,7 +389,6 @@ export const createProjectLifecycleActions = (
       };
     });
 
-    get().persist();
     return createdProjectId;
   },
 

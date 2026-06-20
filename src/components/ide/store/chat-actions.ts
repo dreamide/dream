@@ -142,8 +142,6 @@ export const createChatActions = (
   },
 
   toggleProjectMultiChatMode: (projectId: string) => {
-    let didUpdate = false;
-
     set((state) => {
       const project = state.projects.find((item) => item.id === projectId);
       if (!project) {
@@ -153,7 +151,6 @@ export const createChatActions = (
       const multiChat = !project.ui.multiChat;
       const preferredActiveChatId =
         project.ui.activeChatId ?? project.ui.openChatIds[0] ?? null;
-      didUpdate = true;
 
       return {
         projects: updateProjectUiInList(state.projects, projectId, (item) =>
@@ -170,10 +167,6 @@ export const createChatActions = (
         ),
       };
     });
-
-    if (didUpdate) {
-      get().persist();
-    }
   },
 
   setActiveChatId: (projectId: string, chatId: string | null) => {
@@ -283,8 +276,6 @@ export const createChatActions = (
     if (projectIdNeedingNewChat) {
       get().addChat(projectIdNeedingNewChat);
     }
-
-    get().persist();
   },
 
   permanentlyDeleteChats: (chatIds: string[]) => {
@@ -358,7 +349,6 @@ export const createChatActions = (
         chats: nextChats,
       };
     });
-    get().persist();
   },
 
   restoreChats: (chatIds: string[]) => {
@@ -372,7 +362,6 @@ export const createChatActions = (
         idsToRestore.has(chat.id) ? { ...chat, deletedAt: null } : chat,
       ),
     }));
-    get().persist();
   },
 
   setMessagesForChat: (chatId: string, messages: UIMessage[]) => {

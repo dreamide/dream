@@ -114,7 +114,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   ...createProjectActions(set, get),
 
   // ── Actions: panels ─────────────────────────────────────────────────
-  ...createPanelActions(set, get),
+  ...createPanelActions(set),
 
   // ── Actions: settings ───────────────────────────────────────────────
   ...createSettingsActions(set, get),

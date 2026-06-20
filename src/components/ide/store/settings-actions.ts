@@ -50,7 +50,6 @@ export const createSettingsActions = (
         settings: nextSettings,
       };
     });
-    get().persist();
   },
 
   setSettingsOpen: (open) => set({ settingsOpen: open }),

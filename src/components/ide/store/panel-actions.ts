@@ -1,10 +1,9 @@
 import type { ProjectConfig } from "@/types/ide";
 import { updateProjectUiInList } from ".";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type { IdeState, IdeStoreSet } from "./ide-store-types";
 
 export const createPanelActions = (
   set: IdeStoreSet,
-  get: IdeStoreGet,
 ): Pick<
   IdeState,
   | "togglePanel"
@@ -195,8 +194,6 @@ export const createPanelActions = (
       return;
     }
 
-    let shouldPersist = false;
-
     set((state) => {
       if (
         !state.projects.some((project) => project.id === normalizedProjectId)
@@ -205,8 +202,6 @@ export const createPanelActions = (
       }
 
       const currentRequest = state.projectFileOpenRequests[normalizedProjectId];
-
-      shouldPersist = true;
 
       return {
         projectFileOpenRequests: {
@@ -227,10 +222,6 @@ export const createPanelActions = (
         ),
       };
     });
-
-    if (shouldPersist) {
-      get().persist();
-    }
   },
 
   setOutputPanelOpen: (open) => set({ outputPanelOpen: open }),

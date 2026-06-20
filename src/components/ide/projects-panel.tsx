@@ -259,7 +259,6 @@ export const ProjectSidebar = ({
           ),
         };
       });
-      useIdeStore.getState().persist();
     },
     [closeProject],
   );

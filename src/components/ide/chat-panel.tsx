@@ -529,7 +529,6 @@ export const ChatPanel = ({
       latestMessagesRef.current = nextMessages;
       setMessages(nextMessages);
       setMessagesForChat(chat.id, nextMessages);
-      useIdeStore.getState().persist();
 
       const remoteConversationId = metadata?.remoteConversationId?.trim();
 
@@ -567,7 +566,6 @@ export const ChatPanel = ({
         latestMessagesRef.current = messagesWithApprovalAnswer;
         setMessages(messagesWithApprovalAnswer);
         setMessagesForChat(chat.id, messagesWithApprovalAnswer);
-        useIdeStore.getState().persist();
       }
 
       if (!response.id.startsWith("anthropic:")) {
@@ -843,7 +841,6 @@ export const ChatPanel = ({
     latestMessagesRef.current = result.messages;
     setMessages(result.messages);
     setMessagesForChat(chat.id, result.messages);
-    useIdeStore.getState().persist();
   }, [
     chat.id,
     contextUsedTokens,
@@ -970,7 +967,6 @@ export const ChatPanel = ({
           latestMessagesRef.current = compactionResult.messages;
           setMessages(compactionResult.messages);
           setMessagesForChat(chat.id, compactionResult.messages);
-          useIdeStore.getState().persist();
 
           autoCompactionFingerprintRef.current = `${chat.id}:${compactionResult.messages.length}:${compactionResult.messages[0]?.id ?? ""}:${compactionResult.messages.at(-1)?.id ?? ""}`;
           remoteConversationIdForRequest = null;

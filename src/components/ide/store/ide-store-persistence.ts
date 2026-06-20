@@ -7,7 +7,6 @@ import {
   mergePersistedState,
   sanitizeProjectUiForChats,
 } from "../ide-state";
-import { STATE_STORAGE_KEY } from "../ide-types";
 import type { IdeState } from "./ide-store-types";
 
 const createEmptyPersistedState = (): PersistedIdeState => ({
@@ -23,6 +22,15 @@ const createEmptyPersistedState = (): PersistedIdeState => ({
 });
 
 const STATE_LOAD_TIMEOUT_MS = 8000;
+
+const requireDesktopApi = () => {
+  const desktopApi = getDesktopApi();
+  if (!desktopApi) {
+    throw new Error("Dream desktop API is unavailable.");
+  }
+
+  return desktopApi;
+};
 
 const withTimeout = async <T>(
   promise: Promise<T>,
@@ -46,30 +54,17 @@ const withTimeout = async <T>(
 };
 
 export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
-  const desktopApi = getDesktopApi();
-
-  if (desktopApi) {
-    try {
-      const rawState = await withTimeout(
-        desktopApi.loadState(),
-        STATE_LOAD_TIMEOUT_MS,
-        "Timed out loading persisted Dream state.",
-      );
-      return mergePersistedState(rawState);
-    } catch (error) {
-      console.warn("Unable to load persisted Dream state.", error);
-      return createEmptyPersistedState();
-    }
-  }
-
-  const rawState = localStorage.getItem(STATE_STORAGE_KEY);
-  if (!rawState) {
-    return createEmptyPersistedState();
-  }
+  const desktopApi = requireDesktopApi();
 
   try {
-    return mergePersistedState(JSON.parse(rawState) as PersistedIdeState);
-  } catch {
+    const rawState = await withTimeout(
+      desktopApi.loadState(),
+      STATE_LOAD_TIMEOUT_MS,
+      "Timed out loading persisted Dream state.",
+    );
+    return mergePersistedState(rawState);
+  } catch (error) {
+    console.warn("Unable to load persisted Dream state.", error);
     return createEmptyPersistedState();
   }
 };
@@ -158,11 +153,5 @@ export const createPersistedIdeState = ({
 };
 
 export const savePersistedIdeState = (state: PersistedIdeState) => {
-  const desktopApi = getDesktopApi();
-  if (desktopApi) {
-    void desktopApi.saveState(state);
-    return;
-  }
-
-  localStorage.setItem(STATE_STORAGE_KEY, JSON.stringify(state));
+  void requireDesktopApi().saveState(state);
 };

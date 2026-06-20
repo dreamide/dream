@@ -8,8 +8,6 @@ import type {
   RightPanelView,
 } from "@/types/ide";
 
-export const STATE_STORAGE_KEY = "dream:ide:state";
-
 export type SettingsSection = "appearance" | "providers" | "chats";
 
 export type TerminalStatus = "running" | "stopped";
