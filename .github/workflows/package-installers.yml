@@ -525,10 +525,10 @@ jobs:
             exit 1
           fi
 
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${assets[@]}" --clobber
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" "${assets[@]}" --title "$tag" --generate-notes
+            gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --title "$tag" --generate-notes
           fi
         env:
           GH_TOKEN: ${{ github.token }}
