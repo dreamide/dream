@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import { scrollElementToChatBottom } from "../chat";
 import { mergeChatMessageHistories } from "../chat-message-history";
+import { areMessagesEqual } from "../store";
 
 export const useChatMessageSync = ({
   chatId,
@@ -26,7 +27,7 @@ export const useChatMessageSync = ({
 
   useEffect(() => {
     const mergedMessages = mergeChatMessageHistories(chatMessages, messages);
-    if (mergedMessages !== messages) {
+    if (!areMessagesEqual(messages, mergedMessages)) {
       setMessages(mergedMessages);
     }
   }, [chatMessages, messages, setMessages]);
