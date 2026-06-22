@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -203,7 +203,9 @@ export const ChangesRow = ({
   forceRenderDiff,
   mode,
   onForceRenderDiff,
+  onRevert,
   onToggle,
+  reverting,
 }: {
   change: ProjectGitStatusEntry;
   diff: ProjectGitDiffResponse | null;
@@ -213,7 +215,9 @@ export const ChangesRow = ({
   forceRenderDiff: boolean;
   mode: DiffViewMode;
   onForceRenderDiff: () => void;
+  onRevert: () => void;
   onToggle: () => void;
+  reverting: boolean;
 }) => {
   const statusLabel = CHANGE_STATUS_LABELS[change.status] ?? null;
   const hasAddedLines = typeof change.addedLines === "number";
@@ -221,17 +225,20 @@ export const ChangesRow = ({
 
   return (
     <div className="border-b border-surface-200 dark:border-surface-700 bg-background">
-      <button
+      <div
         className={cn(
           "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors",
           expanded
             ? "sticky top-0 z-30 border-b border-surface-200 dark:border-surface-700 bg-background shadow-sm"
             : "hover:bg-surface-100 dark:hover:bg-surface-900",
         )}
-        onClick={onToggle}
-        type="button"
       >
-        <div className="min-w-0 flex-1">
+        <button
+          aria-expanded={expanded}
+          className="min-w-0 flex-1 text-left"
+          onClick={onToggle}
+          type="button"
+        >
           <div className="flex min-w-0 items-center gap-2">
             <MaterialFileIcon className="size-4 shrink-0" path={change.path} />
             <span className="min-w-0 truncate font-mono text-xs">
@@ -249,9 +256,26 @@ export const ChangesRow = ({
               </span>
             ) : null}
           </div>
-        </div>
+        </button>
 
         <div className="ml-auto flex shrink-0 items-center gap-3 font-mono text-sm tabular-nums">
+          <button
+            aria-label={`Revert changes to ${change.path}`}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            disabled={reverting}
+            onClick={(event) => {
+              event.stopPropagation();
+              onRevert();
+            }}
+            title="Revert file changes"
+            type="button"
+          >
+            {reverting ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <RotateCcw className="size-3.5" />
+            )}
+          </button>
           {hasAddedLines ? (
             <span className="font-medium text-emerald-600">
               {formatChangeCount(change.addedLines, "+")}
@@ -262,13 +286,21 @@ export const ChangesRow = ({
               {formatChangeCount(change.removedLines, "-")}
             </span>
           ) : null}
-          {expanded ? (
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-          )}
+          <button
+            aria-label={expanded ? "Collapse file diff" : "Expand file diff"}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={onToggle}
+            title={expanded ? "Collapse file diff" : "Expand file diff"}
+            type="button"
+          >
+            {expanded ? (
+              <ChevronDown className="size-4 shrink-0" />
+            ) : (
+              <ChevronRight className="size-4 shrink-0" />
+            )}
+          </button>
         </div>
-      </button>
+      </div>
 
       {expanded ? (
         <ExpandedDiffBody

@@ -61,6 +61,8 @@ export const projectGitDiffRequestSchema = z.object({
   ]),
 });
 
+export const projectGitRevertFileRequestSchema = projectGitDiffRequestSchema;
+
 const nullableTrimmedStringSchema = z
   .string()
   .transform((value) => value.trim())
