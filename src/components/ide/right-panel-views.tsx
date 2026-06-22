@@ -13,7 +13,9 @@ const RIGHT_PANEL_SURFACE_CLASSES =
 
 export interface RightPanelViewsProps {
   active?: boolean;
+  browserExpanded?: boolean;
   onClosePanel: () => void;
+  onToggleBrowserExpanded?: () => void;
   open: boolean;
   project: ProjectConfig;
   rightPanelView: RightPanelView;
@@ -43,11 +45,17 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
   const rightPanelView = props.rightPanelView;
 
   return (
-    <div className="flex h-full min-h-0 flex-col pt-2">
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-col",
+        props.browserExpanded ? "pt-0" : "pt-2",
+      )}
+    >
       <div
         className={cn(
           RIGHT_PANEL_SURFACE_CLASSES,
           "flex min-h-0 flex-1 flex-col",
+          props.browserExpanded && "rounded-none border-0 shadow-none",
         )}
         data-base-color={baseColor === "neutral" ? undefined : baseColor}
       >
@@ -71,7 +79,9 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
           <RightPanelViewSlot active={rightPanelView === "browser"}>
             <BrowserPanel
               active={props.active}
+              expanded={props.browserExpanded}
               onClosePanel={props.onClosePanel}
+              onToggleExpanded={props.onToggleBrowserExpanded}
               project={props.project}
             />
           </RightPanelViewSlot>

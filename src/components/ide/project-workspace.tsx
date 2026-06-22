@@ -99,6 +99,9 @@ const ProjectWorkspaceComponent = ({
   const [rightPanelView, setRightPanelView] = useState<RightPanelView>(
     () => persistedRightPanelView,
   );
+  const [browserExpandedRequested, setBrowserExpandedRequested] =
+    useState(false);
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
 
   // ── Derived values ──────────────────────────────────────────────────
   const middleVisible = true;
@@ -120,6 +123,7 @@ const ProjectWorkspaceComponent = ({
     browserTabs[0] ??
     null;
   const browserPanelVisible = rightVisible && rightPanelView === "browser";
+  const browserExpanded = browserExpandedRequested && browserPanelVisible;
   const browserHiddenWithActiveTab =
     Boolean(activeBrowserTab?.url) && !browserPanelVisible;
   const rightPanelTransitionEnabledRef = useRef(false);
@@ -216,14 +220,17 @@ const ProjectWorkspaceComponent = ({
 
   const getHorizontalChromeWidth = useCallback(() => {
     const rightHandleWidth =
-      rightVisible && middleVisible ? PANEL_RESIZE_HANDLE_SIZE_PX : 0;
-    const rightPadding = rightVisible ? PANEL_EDGE_PADDING_PX : 0;
+      rightVisible && middleVisible && !browserExpanded
+        ? PANEL_RESIZE_HANDLE_SIZE_PX
+        : 0;
+    const rightPadding =
+      rightVisible && !browserExpanded ? PANEL_EDGE_PADDING_PX : 0;
 
     return rightHandleWidth + rightPadding;
-  }, [rightVisible]);
+  }, [browserExpanded, rightVisible]);
 
   const getRightPanelMaxWidth = useCallback(() => {
-    if (!rightVisible || !middleVisible) {
+    if (!rightVisible || !middleVisible || browserExpanded) {
       return Number.POSITIVE_INFINITY;
     }
 
@@ -236,10 +243,10 @@ const ProjectWorkspaceComponent = ({
       CHAT_PANEL_MIN_WIDTH_PX;
 
     return Math.max(BROWSER_PANEL_MIN_WIDTH_PX, availableWidth);
-  }, [getHorizontalChromeWidth, rightVisible]);
+  }, [browserExpanded, getHorizontalChromeWidth, rightVisible]);
 
   const syncHorizontalPanelWidths = useCallback(() => {
-    if (!rightVisible || !middleVisible) {
+    if (!rightVisible || !middleVisible || browserExpanded) {
       return;
     }
 
@@ -267,7 +274,7 @@ const ProjectWorkspaceComponent = ({
         rightPanelSlot.style.width = `${nextSlotWidth}px`;
       }
     }
-  }, [getRightPanelMaxWidth, rightVisible]);
+  }, [browserExpanded, getRightPanelMaxWidth, rightVisible]);
 
   const handleRightResizeEnd = useCallback(
     (width: number) => {
@@ -404,6 +411,10 @@ const ProjectWorkspaceComponent = ({
     const nextOpen = !rightVisible;
     setProjectRightPanelOpen(projectId, nextOpen);
 
+    if (!nextOpen) {
+      setBrowserExpandedRequested(false);
+    }
+
     if (!nextOpen && rightPanelView === "terminal") {
       setProjectTerminalPanelOpen(projectId, false);
     }
@@ -416,6 +427,7 @@ const ProjectWorkspaceComponent = ({
   ]);
 
   const handleCloseRightPanel = useCallback(() => {
+    setBrowserExpandedRequested(false);
     setProjectRightPanelOpen(projectId, false);
 
     if (rightPanelView === "terminal") {
@@ -472,6 +484,7 @@ const ProjectWorkspaceComponent = ({
     (view: RightPanelView) => {
       if (rightVisible && rightPanelView === view) {
         setProjectRightPanelOpen(projectId, false);
+        setBrowserExpandedRequested(false);
         if (view === "terminal") {
           setProjectTerminalPanelOpen(projectId, false);
         }
@@ -480,6 +493,9 @@ const ProjectWorkspaceComponent = ({
 
       if (rightPanelView === "terminal" && view !== "terminal") {
         setProjectTerminalPanelOpen(projectId, false);
+      }
+      if (view !== "browser") {
+        setBrowserExpandedRequested(false);
       }
 
       setRightPanelView(view);
@@ -506,6 +522,27 @@ const ProjectWorkspaceComponent = ({
   useEffect(() => {
     setRightPanelView(persistedRightPanelView);
   }, [persistedRightPanelView]);
+
+  useEffect(() => {
+    if (!browserPanelVisible && browserExpandedRequested) {
+      setBrowserExpandedRequested(false);
+    }
+  }, [browserExpandedRequested, browserPanelVisible]);
+
+  useEffect(() => {
+    if (!active || !browserExpanded) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setBrowserExpandedRequested(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [active, browserExpanded]);
 
   useEffect(() => {
     if (
@@ -542,12 +579,15 @@ const ProjectWorkspaceComponent = ({
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         rafId = null;
+        const nextWidth = host?.getBoundingClientRect().width ?? 0;
+        setWorkspaceWidth(nextWidth);
         syncHorizontalPanelWidths();
       });
     };
     const observer = new ResizeObserver(update);
     const host = horizontalPanelsRef.current;
     if (host) {
+      setWorkspaceWidth(host.getBoundingClientRect().width);
       observer.observe(host);
     }
 
@@ -568,6 +608,10 @@ const ProjectWorkspaceComponent = ({
   const boundedRightPanelMaxWidth = Number.isFinite(rightPanelMaxWidth)
     ? rightPanelMaxWidth
     : Number.MAX_SAFE_INTEGER;
+  const browserExpandedWidth = Math.max(
+    BROWSER_PANEL_MIN_WIDTH_PX,
+    workspaceWidth || renderedRightWidthRef.current,
+  );
 
   return (
     <div
@@ -620,8 +664,12 @@ const ProjectWorkspaceComponent = ({
       {/* ─── RIGHT: Browser / Explorer ─── */}
       <WorkspaceRightPanel
         active={active}
+        browserExpanded={browserExpanded}
         handleVisible={middleVisible}
-        maxWidth={boundedRightPanelMaxWidth}
+        maxWidth={
+          browserExpanded ? browserExpandedWidth : boundedRightPanelMaxWidth
+        }
+        onBrowserExpandedChange={setBrowserExpandedRequested}
         onCloseRightPanel={handleCloseRightPanel}
         onResizeEnd={handleRightResizeEnd}
         onResizeStart={markRightPanelDragging}
@@ -631,7 +679,9 @@ const ProjectWorkspaceComponent = ({
         rightPanelRef={rightPanelRef}
         rightPanelTransition={rightPanelTransition}
         rightPanelView={rightPanelView}
-        width={desiredRightWidthRef.current}
+        width={
+          browserExpanded ? browserExpandedWidth : desiredRightWidthRef.current
+        }
         widthRef={renderedRightWidthRef}
       />
 
