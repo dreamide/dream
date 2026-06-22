@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ChatTodoItem, ChatTodoSummary } from "./todo-list";
 
@@ -30,12 +31,19 @@ const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
 
   return (
     <div className="flex gap-2 rounded-md px-1 py-1.5">
-      <Checkbox
-        aria-label={`${stateLabel}: ${todo.text}`}
-        checked={completed}
-        className="pointer-events-none mt-0.5"
-        tabIndex={-1}
-      />
+      {inProgress ? (
+        <Spinner
+          aria-label={`${stateLabel}: ${todo.text}`}
+          className="mt-0.5 size-4 shrink-0 text-accent-primary"
+        />
+      ) : (
+        <Checkbox
+          aria-label={`${stateLabel}: ${todo.text}`}
+          checked={completed}
+          className="pointer-events-none mt-0.5 data-checked:border-accent-primary data-checked:bg-accent-primary data-checked:text-white dark:data-checked:bg-accent-primary"
+          tabIndex={-1}
+        />
+      )}
       <div className="min-w-0 flex-1">
         {inProgress ? (
           <Shimmer

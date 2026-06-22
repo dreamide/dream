@@ -20,6 +20,7 @@ import {
   getCodexAppSandboxMode,
   getCodexAppTurnSandboxPolicy,
   getCodexReasoningEffort,
+  getCodexTokenCountMetadata,
   writeCodexApprovalRequest,
   writeCodexTodoListPart,
   writeCodexTodoListPartFromResponseItem,
@@ -865,6 +866,17 @@ export const streamCodexAppServerResponse = ({
         const handleMessage = (message) => {
           if (!message || typeof message !== "object") {
             return;
+          }
+
+          const tokenCountMetadata = getCodexTokenCountMetadata(message);
+          if (tokenCountMetadata) {
+            writer.write({
+              messageMetadata: {
+                ...responseMessageMetadata,
+                ...tokenCountMetadata,
+              },
+              type: "message-metadata",
+            });
           }
 
           const rateLimits = findRateLimitsObject(message);

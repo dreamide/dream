@@ -1,6 +1,19 @@
 import type { UIMessage } from "ai";
 import { hasAutoCompactionSummary } from "./chat/auto-compact";
 
+const getAutoCompactionSummaryIds = (messages: UIMessage[]) =>
+  new Set(
+    messages
+      .filter(
+        (message) =>
+          message.metadata &&
+          typeof message.metadata === "object" &&
+          (message.metadata as { autoCompacted?: unknown }).autoCompacted ===
+            true,
+      )
+      .map((message) => message.id),
+  );
+
 const getPartTextLength = (part: UIMessage["parts"][number]) => {
   if ("text" in part && typeof part.text === "string") {
     return part.text.length;
@@ -85,6 +98,21 @@ export const mergeChatMessageHistories = (
 
   if (nextMessages.length === 0) {
     return previousMessages;
+  }
+
+  const previousCompactionSummaryIds =
+    getAutoCompactionSummaryIds(previousMessages);
+  const hasNewCompactionSummary = nextMessages.some(
+    (message) =>
+      message.metadata &&
+      typeof message.metadata === "object" &&
+      (message.metadata as { autoCompacted?: unknown }).autoCompacted ===
+        true &&
+      !previousCompactionSummaryIds.has(message.id),
+  );
+
+  if (hasNewCompactionSummary) {
+    return nextMessages;
   }
 
   if (

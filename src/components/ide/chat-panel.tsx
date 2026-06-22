@@ -121,17 +121,16 @@ const getUsageContextTokens = (usage: LanguageModelUsage) => {
 // A turn's exact input usage already includes the previous chat history.
 // Summing exact usage across turns double-counts older messages, so the latest
 // assistant usage is the best exact snapshot of current context pressure.
-const getLatestAssistantUsage = (messages: UIMessage[]) => {
+const getLatestAssistantMetadata = (messages: UIMessage[]) => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.role !== "assistant") {
       continue;
     }
 
-    const messageUsage = (message.metadata as ChatMessageMetadata | undefined)
-      ?.usage;
-    if (messageUsage) {
-      return messageUsage;
+    const metadata = message.metadata as ChatMessageMetadata | undefined;
+    if (metadata) {
+      return metadata;
     }
   }
 
@@ -782,16 +781,23 @@ export const ChatPanel = ({
   const selectedReasoningLabelForMetadata =
     selectedReasoningEffort !== null ? selectedReasoningLabel : undefined;
 
+  const latestAssistantMetadata = useMemo(
+    () => getLatestAssistantMetadata(messages),
+    [messages],
+  );
+  const latestAssistantContextMetadata =
+    latestAssistantMetadata?.model === selectedModel
+      ? latestAssistantMetadata
+      : undefined;
   const contextWindow =
-    selectedModelOption?.contextWindow ?? getModelContextWindow(selectedModel);
+    latestAssistantContextMetadata?.contextWindow ??
+    selectedModelOption?.contextWindow ??
+    getModelContextWindow(selectedModel);
   const fallbackEstimatedTokens = useMemo(
     () => estimateMessages(messages),
     [messages],
   );
-  const contextUsage = useMemo(
-    () => getLatestAssistantUsage(messages),
-    [messages],
-  );
+  const contextUsage = latestAssistantContextMetadata?.usage;
   const contextUsedTokens =
     (contextUsage ? getUsageContextTokens(contextUsage) : undefined) ??
     fallbackEstimatedTokens;

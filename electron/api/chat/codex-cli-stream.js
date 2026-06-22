@@ -15,6 +15,7 @@ import {
 import {
   buildCodexExecArgs,
   codexSessionsByChatId,
+  getCodexTokenCountMetadata,
   writeCodexTextPart,
   writeCodexTodoListPart,
   writeCodexTodoListPartFromResponseItem,
@@ -368,6 +369,17 @@ export const streamCodexCliResponse = ({
         const handleEvent = (event) => {
           if (!event || typeof event !== "object") {
             return;
+          }
+
+          const tokenCountMetadata = getCodexTokenCountMetadata(event);
+          if (tokenCountMetadata) {
+            writer.write({
+              messageMetadata: {
+                ...responseMessageMetadata,
+                ...tokenCountMetadata,
+              },
+              type: "message-metadata",
+            });
           }
 
           const rateLimits = findRateLimitsObject(event);
