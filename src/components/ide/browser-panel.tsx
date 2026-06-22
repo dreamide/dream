@@ -285,6 +285,7 @@ const BrowserPanelImpl = ({
   const browserZoomFactor = activeTab?.zoomFactor ?? 1;
   const browserZoomPercent = `${Math.round(browserZoomFactor * 100)}%`;
   const browserVisible = Boolean(activeTab?.url);
+  const shouldMountBrowserWebview = active && browserVisible;
   const canOpenExternalBrowserUrl = Boolean(activeTab?.url);
   const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
@@ -915,25 +916,23 @@ const BrowserPanelImpl = ({
 
       <div className="min-h-0 flex-1">
         <div className="relative h-full">
-          {tabs.map((tab) =>
-            tab.url ? (
-              <BrowserWebview
-                active={tab.id === activeTab?.id}
-                key={tab.id}
-                onError={handleWebviewError}
-                onLoadingChange={handleWebviewLoadingChange}
-                onRef={handleWebviewRef(tab.id)}
-                onStateChange={handleWebviewStateChange}
-                tab={tab}
-              />
-            ) : null,
-          )}
-          {!browserVisible ? (
+          {shouldMountBrowserWebview && activeTab?.url ? (
+            <BrowserWebview
+              active={true}
+              key={activeTab.id}
+              onError={handleWebviewError}
+              onLoadingChange={handleWebviewLoadingChange}
+              onRef={handleWebviewRef(activeTab.id)}
+              onStateChange={handleWebviewStateChange}
+              tab={activeTab}
+            />
+          ) : null}
+          {!shouldMountBrowserWebview ? (
             <div className="flex h-full items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
               Enter a URL to start browsing.
             </div>
           ) : null}
-          {browserVisible && browserError ? (
+          {shouldMountBrowserWebview && browserError ? (
             <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive-border bg-background px-3 py-2 text-destructive text-xs shadow-sm">
               {browserError}
             </div>
