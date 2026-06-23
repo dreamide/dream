@@ -1,6 +1,7 @@
 {
   "name": "dream",
   "productName": "Dream",
+  "description": "Dream is a desktop IDE for working with AI coding agents.",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -139,6 +140,7 @@
         "dmg",
         "zip"
       ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
@@ -166,8 +168,12 @@
     },
     "linux": {
       "target": [
-        "AppImage"
-      ]
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "maintainer": "Dream <support@dreamide.ai>",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
   },
   "type": "module"

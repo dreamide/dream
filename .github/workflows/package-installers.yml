@@ -45,11 +45,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Linux packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
       - name: Build renderer
         run: pnpm vite:build
 
       - name: Package Linux installer
-        run: pnpm exec electron-builder --linux --publish never
+        run: pnpm exec electron-builder --linux --x64 --publish never
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7.0.1
@@ -58,6 +63,8 @@ jobs:
           if-no-files-found: error
           path: |
             release/*.AppImage
+            release/*.deb
+            release/*.rpm
             release/*.blockmap
             release/latest-linux.yml
 
@@ -160,7 +167,7 @@ jobs:
           trap cleanup_heartbeat EXIT
 
           set +e
-          DEBUG=electron-builder,electron-builder:*,electron-osx-sign,electron-osx-sign:* pnpm exec electron-builder --mac dir --universal --publish never -c.mac.notarize=false 2>&1 |
+          DEBUG=electron-builder,electron-builder:*,electron-osx-sign,electron-osx-sign:* pnpm exec electron-builder --mac dir --arm64 --x64 --publish never -c.mac.notarize=false 2>&1 |
             tee -a "$log_path"
           builder_status="${PIPESTATUS[0]}"
           set -e
@@ -200,14 +207,21 @@ jobs:
           mkdir -p "$log_dir"
           echo "MACOS_PACKAGE_LOG_DIR=$log_dir" >> "$GITHUB_ENV"
 
-          app_path="$(find release -maxdepth 2 -type d -name 'Dream.app' -print -quit)"
-          if [[ -z "$app_path" ]]; then
-            echo "Could not find Dream.app under release." >&2
+          app_paths=()
+          while IFS= read -r app_path; do
+            app_paths+=("$app_path")
+          done < <(find release -maxdepth 2 -type d -name 'Dream.app' ! -path '*universal*' -print | sort)
+          if [[ "${#app_paths[@]}" -eq 0 ]]; then
+            echo "Could not find any Dream.app bundles under release." >&2
             find release -maxdepth 3 -print >&2
             exit 1
           fi
 
-          NOTARY_WAIT_TIMEOUT=30m bash scripts/notarize-macos-app.sh "$app_path"
+          for app_path in "${app_paths[@]}"; do
+            echo "::group::Notarize $app_path"
+            NOTARY_WAIT_TIMEOUT=30m bash scripts/notarize-macos-app.sh "$app_path"
+            echo "::endgroup::"
+          done
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -220,14 +234,41 @@ jobs:
         run: |
           set -euo pipefail
 
-          app_path="$(find release -maxdepth 2 -type d -name 'Dream.app' -print -quit)"
-          if [[ -z "$app_path" ]]; then
-            echo "Could not find Dream.app under release." >&2
+          app_paths=()
+          while IFS= read -r app_path; do
+            app_paths+=("$app_path")
+          done < <(find release -maxdepth 2 -type d -name 'Dream.app' ! -path '*universal*' -print | sort)
+          if [[ "${#app_paths[@]}" -eq 0 ]]; then
+            echo "Could not find any Dream.app bundles under release." >&2
             find release -maxdepth 3 -print >&2
             exit 1
           fi
 
-          pnpm exec electron-builder --mac dmg zip --prepackaged "$app_path" --publish never -c.mac.notarize=false
+          for app_path in "${app_paths[@]}"; do
+            app_binary="$app_path/Contents/MacOS/Dream"
+            if [[ ! -f "$app_binary" ]]; then
+              echo "Could not find app executable: $app_binary" >&2
+              exit 1
+            fi
+
+            app_file_output="$(file "$app_binary")"
+            case "$app_file_output" in
+              *"arm64"*)
+                arch="arm64"
+                ;;
+              *"x86_64"*)
+                arch="x64"
+                ;;
+              *)
+                echo "Could not determine macOS app architecture from: $app_file_output" >&2
+                exit 1
+                ;;
+            esac
+
+            echo "::group::Package macOS $arch installers"
+            pnpm exec electron-builder --mac dmg zip "--$arch" --prepackaged "$app_path" --publish never -c.mac.notarize=false
+            echo "::endgroup::"
+          done
 
           echo "::group::macOS installer artifacts"
           find release -maxdepth 2 \( -type d -name '*.app' -o -type f \) -print | sort
@@ -242,16 +283,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          app_path="$(find release -maxdepth 2 -type d -name 'Dream.app' -print -quit)"
-          if [[ -z "$app_path" ]]; then
-            echo "Could not find Dream.app under release." >&2
+          app_paths=()
+          while IFS= read -r app_path; do
+            app_paths+=("$app_path")
+          done < <(find release -maxdepth 2 -type d -name 'Dream.app' ! -path '*universal*' -print | sort)
+          if [[ "${#app_paths[@]}" -eq 0 ]]; then
+            echo "Could not find any Dream.app bundles under release." >&2
             find release -maxdepth 3 -print >&2
             exit 1
           fi
 
-          codesign --verify --deep --strict --verbose=2 "$app_path"
-          spctl --assess --type execute --verbose=4 "$app_path"
-          xcrun stapler validate "$app_path"
+          for app_path in "${app_paths[@]}"; do
+            echo "::group::Verify $app_path"
+            codesign --verify --deep --strict --verbose=2 "$app_path"
+            spctl --assess --type execute --verbose=4 "$app_path"
+            xcrun stapler validate "$app_path"
+            echo "::endgroup::"
+          done
 
       - name: Upload macOS packaging logs
         if: always() && env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
@@ -263,7 +311,7 @@ jobs:
 
       - name: Package unsigned macOS installer
         if: env.ENABLE_SIGNING != 'true' || env.MAC_SIGNING_AVAILABLE != 'true'
-        run: pnpm exec electron-builder --mac --universal --publish never -c.mac.identity=null
+        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never -c.mac.identity=null
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -513,8 +561,10 @@ jobs:
             find release-assets -type f \( \
               -name '*.AppImage' -o \
               -name '*.blockmap' -o \
+              -name '*.deb' -o \
               -name '*.dmg' -o \
               -name '*.exe' -o \
+              -name '*.rpm' -o \
               -name '*.yml' -o \
               -name '*.zip' \
             \) -print | sort
