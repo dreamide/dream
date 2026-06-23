@@ -5,7 +5,7 @@ import {
   stepCountIs,
   streamText,
 } from "ai";
-import { claudeCode } from "ai-sdk-provider-claude-code";
+import { claudeCode, createAiSdkMcpServer } from "ai-sdk-provider-claude-code";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
@@ -122,6 +122,27 @@ const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
   "write",
 ]);
 
+const CLAUDE_PROJECT_MCP_SERVER_NAME = "dreamProject";
+
+const CLAUDE_PROJECT_TOOL_NAMES = [
+  "listFiles",
+  "readFile",
+  "searchInFiles",
+  "writeFile",
+];
+
+const CLAUDE_PROJECT_MCP_ALLOWED_TOOLS = CLAUDE_PROJECT_TOOL_NAMES.map(
+  (toolName) => `mcp__${CLAUDE_PROJECT_MCP_SERVER_NAME}__${toolName}`,
+);
+
+const CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS = new Set(
+  ["listFiles", "readFile", "searchInFiles"].map((toolName) =>
+    normalizeClaudeToolName(
+      `mcp__${CLAUDE_PROJECT_MCP_SERVER_NAME}__${toolName}`,
+    ),
+  ),
+);
+
 const CLAUDE_DIRECT_WEB_TOOLS = new Set(["webfetch", "websearch"]);
 
 const getClaudeToolSearchQuery = (input) => {
@@ -167,7 +188,8 @@ const createClaudePermissionHandler = (writer, { mode }) => {
     if (
       normalizedToolName !== "askuserquestion" &&
       mode === "accept-edits" &&
-      CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS.has(normalizedToolName)
+      (CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS.has(normalizedToolName) ||
+        CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS.has(normalizedToolName))
     ) {
       return {
         behavior: "allow",
@@ -304,10 +326,11 @@ const createClaudePermissionHandler = (writer, { mode }) => {
   };
 };
 
-const normalizeClaudeToolName = (toolName) =>
-  String(toolName ?? "")
+function normalizeClaudeToolName(toolName) {
+  return String(toolName ?? "")
     .replace(/[\s_-]+/g, "")
     .toLowerCase();
+}
 
 const parseAskUserQuestionApproval = (reason) => {
   if (typeof reason !== "string" || reason.trim().length === 0) {
@@ -364,6 +387,14 @@ export const streamClaudeResponse = async ({
           ? "bypass"
           : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
+  const claudeProjectTools = createClaudeProjectTools({
+    claudePermissionMode,
+    projectPath,
+  });
+  const claudeProjectMcpServer = createAiSdkMcpServer(
+    CLAUDE_PROJECT_MCP_SERVER_NAME,
+    claudeProjectTools,
+  );
   const providerFactory = (modelId, writer) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
       ...(claudeExecutablePath
@@ -396,7 +427,11 @@ export const streamClaudeResponse = async ({
         "EnterPlanMode",
         "AskUserQuestion",
         "ExitPlanMode",
+        ...CLAUDE_PROJECT_MCP_ALLOWED_TOOLS,
       ],
+      mcpServers: {
+        [CLAUDE_PROJECT_MCP_SERVER_NAME]: claudeProjectMcpServer,
+      },
       permissionMode:
         agentMode === "plan"
           ? "plan"
@@ -443,7 +478,6 @@ export const streamClaudeResponse = async ({
         ),
         ...(projectReferencesPrompt ? { system: projectReferencesPrompt } : {}),
         ...(usesReasoningModel ? {} : { temperature: 0.2 }),
-        tools: createClaudeProjectTools({ claudePermissionMode, projectPath }),
       });
 
       writer.merge(
