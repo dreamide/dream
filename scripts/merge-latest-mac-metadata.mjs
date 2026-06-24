@@ -23,7 +23,7 @@ function parseLatestMac(path) {
       continue;
     }
 
-    const fileMatch = line.match(/^  - ([^:]+):\s*(.*)$/);
+    const fileMatch = line.match(/^ {2}- ([^:]+):\s*(.*)$/);
     if (fileMatch) {
       currentFile = {
         [fileMatch[1]]: parseScalar(fileMatch[2]),
@@ -32,7 +32,7 @@ function parseLatestMac(path) {
       continue;
     }
 
-    const nestedMatch = line.match(/^    ([^:]+):\s*(.*)$/);
+    const nestedMatch = line.match(/^ {4}([^:]+):\s*(.*)$/);
     if (nestedMatch && currentFile) {
       currentFile[nestedMatch[1]] = parseScalar(nestedMatch[2]);
       continue;

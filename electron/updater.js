@@ -126,7 +126,7 @@ export function initializeAutoUpdater({
   }
 
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.logger = {
     debug: (...args) => console.debug("[updater]", ...args),
     error: (...args) => console.error("[updater]", ...args),
