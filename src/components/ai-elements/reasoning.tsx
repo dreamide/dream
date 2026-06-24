@@ -28,6 +28,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  normalizeCodeFenceLanguageMarkers,
+  StreamdownCodePre,
+} from "@/components/ai-elements/streamdown-code-block";
 import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +66,9 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
 
 const AUTO_CLOSE_DELAY = 1000;
 const MS_IN_S = 1000;
+const reasoningMarkdownComponents = {
+  pre: StreamdownCodePre,
+} as NonNullable<ComponentProps<typeof Streamdown>["components"]>;
 
 export const Reasoning = memo(
   ({
@@ -263,18 +270,29 @@ export const ReasoningContent = memo(
       [],
     );
 
-    const markdownAnimationStartOffset = animationStartOffsetRef.current;
-    const markdownBlockStartOffsets = useMemo(
-      () => getMarkdownBlockStartOffsets(visibleChildren),
+    const markdownText = useMemo(
+      () => normalizeCodeFenceLanguageMarkers(visibleChildren),
       [visibleChildren],
+    );
+    const rawMarkdownAnimationStartOffset = animationStartOffsetRef.current;
+    const markdownAnimationStartOffset = useMemo(
+      () =>
+        normalizeCodeFenceLanguageMarkers(
+          visibleChildren.slice(0, rawMarkdownAnimationStartOffset),
+        ).length,
+      [rawMarkdownAnimationStartOffset, visibleChildren],
+    );
+    const markdownBlockStartOffsets = useMemo(
+      () => getMarkdownBlockStartOffsets(markdownText),
+      [markdownText],
     );
     const markdownBlockAnimationTokenStartIndices = useMemo(
       () =>
         getMarkdownBlockAnimationTokenStartIndices(
-          visibleChildren,
+          markdownText,
           markdownAnimationStartOffset,
         ),
-      [visibleChildren, markdownAnimationStartOffset],
+      [markdownAnimationStartOffset, markdownText],
     );
     const streamingMarkdownBlockContext: StreamingMarkdownBlockContextValue = {
       animateStreamedText,
@@ -402,10 +420,11 @@ export const ReasoningContent = memo(
         >
           <Streamdown
             BlockComponent={StreamingMarkdownBlock}
+            components={reasoningMarkdownComponents}
             isAnimating={animateStreamedText}
             plugins={streamdownPlugins}
           >
-            {visibleChildren}
+            {markdownText}
           </Streamdown>
         </StreamingMarkdownBlockContext.Provider>
       </CollapsibleContent>

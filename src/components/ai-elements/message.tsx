@@ -16,9 +16,7 @@ import type {
   RefObject,
 } from "react";
 import {
-  cloneElement,
   createContext,
-  isValidElement,
   memo,
   useCallback,
   useContext,
@@ -45,7 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   normalizeCodeFenceLanguageMarkers,
-  StreamdownCodeBlock,
+  StreamdownCodePre,
 } from "@/components/ai-elements/streamdown-code-block";
 import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
 import { getDesktopApi } from "@/lib/electron";
@@ -330,51 +328,6 @@ export const MessageBranchPage = ({
 };
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
-
-const codeFenceLanguageRegex = /(?:^|\s)language-([^\s]+)/;
-
-const getTextContent = (value: unknown): string => {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(getTextContent).join("");
-  }
-
-  if (isValidElement<{ children?: unknown }>(value)) {
-    return getTextContent(value.props.children);
-  }
-
-  return "";
-};
-
-const MessageCodePre = ({ children }: ComponentProps<"pre">) => {
-  if (!isValidElement(children)) {
-    return <pre>{children}</pre>;
-  }
-
-  const codeElement = children as ReactElement<{
-    children?: unknown;
-    className?: string;
-  }>;
-  const languageMatch = codeElement.props.className?.match(
-    codeFenceLanguageRegex,
-  );
-
-  if (!languageMatch) {
-    return (
-      <StreamdownCodeBlock
-        code={getTextContent(codeElement.props.children)}
-        language=""
-      />
-    );
-  }
-
-  return cloneElement(codeElement, {
-    "data-block": "true",
-  } as Partial<typeof codeElement.props>);
-};
 
 type TableTextFormat = "csv" | "markdown" | "tsv";
 type TableDownloadFormat = Exclude<TableTextFormat, "tsv">;
@@ -687,7 +640,7 @@ const MarkdownTable = memo(
 MarkdownTable.displayName = "MarkdownTable";
 
 const defaultMessageResponseComponents = {
-  pre: MessageCodePre,
+  pre: StreamdownCodePre,
   table: MarkdownTable,
 } as NonNullable<MessageResponseProps["components"]>;
 
