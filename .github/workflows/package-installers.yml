@@ -19,6 +19,7 @@ env:
   ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/../electron-builder-cache
   ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.sign == true }}
+  DREAM_UPDATE_FEED_URL: ${{ vars.DREAM_UPDATE_FEED_URL || secrets.DREAM_UPDATE_FEED_URL }}
   SSL_COM_ENVIRONMENT_NAME: ${{ secrets.SSL_COM_ENVIRONMENT_NAME || 'PROD' }}
 
 jobs:
@@ -442,6 +443,9 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
       - name: Download Linux artifacts
         uses: actions/download-artifact@v8.0.1
         with:
@@ -459,6 +463,26 @@ jobs:
         with:
           name: dream-windows
           path: release-assets
+
+      - name: Rewrite update metadata for R2
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t metadata_files < <(
+            find release-assets -type f \( \
+              -name 'latest.yml' -o \
+              -name 'latest-linux.yml' -o \
+              -name 'latest-mac.yml' \
+            \) -print | sort
+          )
+
+          if [[ "${#metadata_files[@]}" -eq 0 ]]; then
+            echo "No update metadata files found." >&2
+            exit 1
+          fi
+
+          node scripts/rewrite-update-metadata-urls.mjs "${metadata_files[@]}"
 
       - name: Install AWS CLI
         shell: bash
@@ -498,7 +522,8 @@ jobs:
             AWS_ACCESS_KEY_ID \
             AWS_SECRET_ACCESS_KEY \
             CLOUDFLARE_R2_ACCOUNT_ID \
-            CLOUDFLARE_R2_BUCKET; do
+            CLOUDFLARE_R2_BUCKET \
+            DREAM_UPDATE_FEED_URL; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing required secret-backed environment variable: $name"
               missing=1
@@ -534,11 +559,15 @@ jobs:
       - package-linux
       - package-macos
       - package-windows
+      - upload-r2
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
       - name: Download Linux artifacts
         uses: actions/download-artifact@v8.0.1
         with:
@@ -556,6 +585,26 @@ jobs:
         with:
           name: dream-windows
           path: release-assets
+
+      - name: Rewrite update metadata for R2
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t metadata_files < <(
+            find release-assets -type f \( \
+              -name 'latest.yml' -o \
+              -name 'latest-linux.yml' -o \
+              -name 'latest-mac.yml' \
+            \) -print | sort
+          )
+
+          if [[ "${#metadata_files[@]}" -eq 0 ]]; then
+            echo "No update metadata files found." >&2
+            exit 1
+          fi
+
+          node scripts/rewrite-update-metadata-urls.mjs "${metadata_files[@]}"
 
       - name: Publish release assets
         shell: bash

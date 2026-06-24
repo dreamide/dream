@@ -40,11 +40,24 @@ const PLATFORM_VENDOR_DIRS = {
   },
 };
 
-const APP_UPDATE_YML = `provider: github
-owner: dreamide
-repo: dream
+function getUpdateFeedUrl() {
+  const rawUrl = process.env.DREAM_UPDATE_FEED_URL?.trim();
+
+  if (rawUrl) {
+    return rawUrl.replace(/\/+$/, "");
+  }
+
+  throw new Error(
+    "Missing DREAM_UPDATE_FEED_URL. Set it to the public R2 releases URL, for example https://downloads.example.com/releases.",
+  );
+}
+
+function getAppUpdateYml() {
+  return `provider: generic
+url: ${getUpdateFeedUrl()}
 updaterCacheDirName: dream-updater
 `;
+}
 
 const SHARP_PLATFORM_PACKAGE_PATTERN =
   /^(sharp|sharp-libvips)-(darwin|linux|linuxmusl|win32)-(arm64|x64|ia32|arm)$/;
@@ -140,12 +153,7 @@ async function pruneSharpOptionalDependencies(parentPath, platform, arch) {
 
 async function ensureAppUpdateConfig(resourcesDir) {
   const updateConfigPath = path.join(resourcesDir, "app-update.yml");
-  try {
-    await fs.access(updateConfigPath);
-    return;
-  } catch {
-    await fs.writeFile(updateConfigPath, APP_UPDATE_YML, "utf8");
-  }
+  await fs.writeFile(updateConfigPath, getAppUpdateYml(), "utf8");
 }
 
 function getResourcesDirectory(context) {

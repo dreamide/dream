@@ -37,6 +37,12 @@ function getErrorMessage(error) {
   return "Update check failed.";
 }
 
+function getUpdateFeedUrl() {
+  const url = process.env.DREAM_UPDATE_FEED_URL?.trim();
+
+  return url ? url.replace(/\/+$/, "") : null;
+}
+
 function getDevUpdateCurrentVersion() {
   const version = process.env.DREAM_DEV_UPDATE_CURRENT_VERSION?.trim();
   if (!version) {
@@ -65,8 +71,10 @@ export function initializeAutoUpdater({
   const devCurrentVersion = devUpdatesEnabled
     ? getDevUpdateCurrentVersion()
     : null;
+  const updateFeedUrl = getUpdateFeedUrl();
   const updatesEnabled =
-    (app.isPackaged && !isDevelopment) || devUpdatesEnabled;
+    (app.isPackaged && !isDevelopment) ||
+    (devUpdatesEnabled && Boolean(updateFeedUrl));
   let checkInFlight = null;
   let initialUpdateCheckTimer = null;
   let updateCheckTimer = null;
@@ -152,8 +160,18 @@ export function initializeAutoUpdater({
     };
   }
 
-  if (devUpdatesEnabled) {
+  if (devUpdatesEnabled && !updateFeedUrl) {
+    console.warn(
+      "[updater] Dev update checks need DREAM_UPDATE_FEED_URL to point at the public R2 releases URL.",
+    );
+  }
+
+  if (devUpdatesEnabled && updateFeedUrl) {
     autoUpdater.forceDevUpdateConfig = true;
+    autoUpdater.setFeedURL({
+      provider: "generic",
+      url: updateFeedUrl,
+    });
     if (devCurrentVersion) {
       autoUpdater.currentVersion = devCurrentVersion;
       autoUpdater.allowPrerelease =
