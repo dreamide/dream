@@ -93,6 +93,23 @@ export const ProviderStatusCard = ({
   );
 };
 
+export const SettingsGroup = ({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) => (
+  <div>
+    <div className="space-y-1 pt-2">
+      <h3 className="text-muted-foreground text-xs uppercase">{label}</h3>
+    </div>
+    <div className="mt-2 border-l border-surface-200 pl-4 dark:border-surface-800">
+      {children}
+    </div>
+  </div>
+);
+
 export const SettingsControlRow = ({
   children,
   controlClassName,
