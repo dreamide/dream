@@ -244,6 +244,7 @@ jobs:
             exit 1
           fi
 
+          latest_mac_files=()
           for app_path in "${app_paths[@]}"; do
             app_binary="$app_path/Contents/MacOS/Dream"
             if [[ ! -f "$app_binary" ]]; then
@@ -267,8 +268,13 @@ jobs:
 
             echo "::group::Package macOS $arch installers"
             pnpm exec electron-builder --mac dmg zip "--$arch" --prepackaged "$app_path" --publish never -c.mac.notarize=false
+            arch_latest_mac="$RUNNER_TEMP/latest-mac-$arch.yml"
+            cp release/latest-mac.yml "$arch_latest_mac"
+            latest_mac_files+=("$arch_latest_mac")
             echo "::endgroup::"
           done
+
+          node scripts/merge-latest-mac-metadata.mjs release/latest-mac.yml "${latest_mac_files[@]}"
 
           echo "::group::macOS installer artifacts"
           find release -maxdepth 2 \( -type d -name '*.app' -o -type f \) -print | sort
