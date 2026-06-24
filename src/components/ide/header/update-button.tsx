@@ -58,14 +58,15 @@ export const HeaderUpdateButton = () => {
   return (
     <Button
       aria-label={label}
-      className="mr-1 h-8 bg-[var(--accent-primary)] px-2.5 text-[var(--accent-primary-foreground)] hover:bg-[var(--accent-primary-hover)] [-webkit-app-region:no-drag]"
+      className="mr-1 h-7 gap-1 rounded-md bg-primary px-2 text-[11px] font-medium text-white hover:bg-primary-hover hover:text-white dark:bg-primary dark:text-white dark:hover:bg-primary-hover dark:hover:text-white [-webkit-app-region:no-drag]"
       disabled={installing}
       onClick={installUpdate}
-      size="sm"
+      size="xs"
       title={label}
       type="button"
+      variant="ghost"
     >
-      <DownloadCloud className="size-3.5" />
+      <DownloadCloud className="size-3" />
       Update
     </Button>
   );

@@ -1,0 +1,4 @@
+provider: github
+owner: dreamide
+repo: dream
+updaterCacheDirName: dream-dev-updater
