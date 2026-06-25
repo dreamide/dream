@@ -994,7 +994,7 @@ export const streamCodexAppServerResponse = ({
                 experimentalApi: true,
                 requestAttestation: false,
               },
-              clientInfo: { name: "Dream", version: "0.2.1" },
+              clientInfo: { name: "Dream", version: "0.3.0" },
             });
             const threadResponse = await sendRequest("thread/start", {
               approvalPolicy,
