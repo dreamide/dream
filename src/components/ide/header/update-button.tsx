@@ -58,7 +58,7 @@ export const HeaderUpdateButton = () => {
   return (
     <Button
       aria-label={label}
-      className="mr-1 h-7 gap-1 rounded-md bg-primary px-2 text-[11px] font-medium text-white hover:bg-primary-hover hover:text-white dark:bg-primary dark:text-white dark:hover:bg-primary-hover dark:hover:text-white [-webkit-app-region:no-drag]"
+      className="mr-1 h-7 gap-1 rounded-md bg-[color-mix(in_oklab,var(--accent-primary)_78%,black)] px-2 text-[11px] font-medium text-accent-primary-foreground hover:bg-[color-mix(in_oklab,var(--accent-primary)_70%,black)] hover:text-accent-primary-foreground [-webkit-app-region:no-drag]"
       disabled={installing}
       onClick={installUpdate}
       size="xs"
