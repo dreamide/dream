@@ -123,7 +123,7 @@ const isReferenceMentionBoundary = (character: string | undefined) =>
 const getTextCharacter = (text: string, index: number) =>
   index >= 0 && index < text.length ? text[index] : undefined;
 
-const REFERENCE_ICON_TEXT_SLOT = "    ";
+const REFERENCE_ICON_TEXT_SLOT = "      ";
 
 const getReferenceMentionText = (reference: ProjectReference) =>
   `${REFERENCE_ICON_TEXT_SLOT}${reference.name}`;
