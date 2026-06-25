@@ -614,26 +614,6 @@ jobs:
           name: dream-windows
           path: release-assets
 
-      - name: Rewrite update metadata for R2
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mapfile -t metadata_files < <(
-            find release-assets -type f \( \
-              -name 'latest.yml' -o \
-              -name 'latest-linux.yml' -o \
-              -name 'latest-mac.yml' \
-            \) -print | sort
-          )
-
-          if [[ "${#metadata_files[@]}" -eq 0 ]]; then
-            echo "No update metadata files found." >&2
-            exit 1
-          fi
-
-          node scripts/rewrite-update-metadata-urls.mjs "${metadata_files[@]}"
-
       - name: Publish release assets
         shell: bash
         run: |
