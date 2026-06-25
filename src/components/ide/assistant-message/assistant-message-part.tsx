@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   getToolName,
+  isRedundantDirectWebToolSearchPart,
   isToolLikePart,
   type MessagePart,
   normalizeToolName,
@@ -634,6 +635,10 @@ export const AssistantMessagePart = ({
   showReasoningSummaries?: boolean;
 }) => {
   if (isTodoListPart(part)) {
+    return null;
+  }
+
+  if (isRedundantDirectWebToolSearchPart(part)) {
     return null;
   }
 

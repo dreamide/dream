@@ -13,6 +13,8 @@ export type ToolLikePart = MessagePart & {
 };
 
 const isString = (value: unknown): value is string => typeof value === "string";
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const isToolLikePart = (part: MessagePart): part is ToolLikePart =>
   typeof part.type === "string" &&
@@ -109,3 +111,79 @@ export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
 
 export const isChipToolPart = (part: MessagePart): boolean =>
   getChipToolKind(part) !== null;
+
+const REDUNDANT_DIRECT_WEB_TOOL_NAMES = new Set(["web-fetch", "web-search"]);
+
+const getToolSearchQuery = (input: unknown) => {
+  if (isString(input)) {
+    return input;
+  }
+
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  const value =
+    input.query ??
+    input.pattern ??
+    input.tool ??
+    input.toolName ??
+    input.tool_name ??
+    input.name;
+
+  return isString(value) ? value : null;
+};
+
+const getToolSearchReferences = (output: unknown) => {
+  const rawMatches =
+    isRecord(output) && Array.isArray(output.matches)
+      ? output.matches
+      : isRecord(output) && Array.isArray(output.results)
+        ? output.results
+        : isRecord(output) && Array.isArray(output.files)
+          ? output.files
+          : Array.isArray(output)
+            ? output
+            : [];
+
+  return rawMatches
+    .map((match) => {
+      if (isString(match)) {
+        return match;
+      }
+
+      if (!isRecord(match)) {
+        return null;
+      }
+
+      const value = match.tool_name ?? match.toolName ?? match.name;
+      return isString(value) ? value : null;
+    })
+    .filter((toolName): toolName is string => toolName !== null);
+};
+
+const isDirectWebToolName = (toolName: string) =>
+  REDUNDANT_DIRECT_WEB_TOOL_NAMES.has(normalizeToolName(toolName));
+
+export const isRedundantDirectWebToolSearchPart = (
+  part: MessagePart,
+): part is ToolLikePart => {
+  if (!isToolLikePart(part) || getChipToolKind(part) !== "toolSearch") {
+    return false;
+  }
+
+  if (part.state === "output-error" || part.errorText) {
+    return false;
+  }
+
+  const query = getToolSearchQuery(part.input);
+  if (query && isDirectWebToolName(query)) {
+    return true;
+  }
+
+  const references = getToolSearchReferences(part.output);
+  return (
+    references.length > 0 &&
+    references.every((name) => isDirectWebToolName(name))
+  );
+};

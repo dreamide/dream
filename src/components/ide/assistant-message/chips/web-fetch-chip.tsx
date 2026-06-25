@@ -8,7 +8,6 @@ import type { ToolLikePart } from "../../assistant-message-tools";
 import {
   ActionApproval,
   ApprovalStatusLabel,
-  CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   getExpandedChipClasses,
@@ -26,10 +25,23 @@ const getDisplayUrl = (url: string | null) => {
 
   try {
     const parsed = new URL(url);
-    return parsed.hostname || url;
+    const path = `${parsed.pathname}${parsed.search}`;
+    return `${parsed.hostname}${path === "/" ? "" : path}`;
   } catch {
     return url;
   }
+};
+
+const formatTextLength = (text: string | null) => {
+  if (!text) {
+    return null;
+  }
+
+  if (text.length < 1000) {
+    return `${text.length} chars`;
+  }
+
+  return `${(text.length / 1000).toFixed(1)}k chars`;
 };
 
 const getWebFetchTextOutput = (output: unknown) => {
@@ -68,6 +80,7 @@ export const WebFetchChip = ({
   const prompt = getStringFromPaths(part.input, [["prompt"], ["query"]]);
   const displayUrl = useMemo(() => getDisplayUrl(url), [url]);
   const outputText = getWebFetchTextOutput(part.output);
+  const outputLength = formatTextLength(outputText);
   const hasRawOutput = part.output !== undefined;
   const approvalId = part.approval?.id;
   const canExpand =
@@ -94,20 +107,13 @@ export const WebFetchChip = ({
           type="button"
         >
           <GlobeIcon className="size-3.5 shrink-0" />
-          {!isRunning ? (
-            <>
-              <span className="font-medium">Web Fetch</span>
-              {displayUrl ? (
-                <span className="max-w-56 truncate font-medium">
-                  {displayUrl}
-                </span>
-              ) : null}
-              {hasError ? (
-                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
-              ) : hasRawOutput ? (
-                <span className={CHIP_SUBTEXT_CLASSES}>done</span>
-              ) : null}
-            </>
+          {displayUrl ? (
+            <span className="max-w-64 truncate font-medium" title={url ?? ""}>
+              {displayUrl}
+            </span>
+          ) : null}
+          {outputLength ? (
+            <span className={CHIP_SUBTEXT_CLASSES}>{outputLength}</span>
           ) : null}
         </ChipButton>
         <ApprovalStatusLabel approval={part.approval} state={state} />
