@@ -544,6 +544,34 @@ jobs:
             --endpoint-url "$endpoint" \
             --recursive \
             --only-show-errors
+
+          version="$(node -p "require('./package.json').version")"
+
+          upload_latest_alias() {
+            local source_path="$1"
+            local alias_name="$2"
+
+            if [[ ! -f "$source_path" ]]; then
+              echo "Skipping missing latest alias source: $source_path"
+              return
+            fi
+
+            aws s3 cp "$source_path" "s3://${CLOUDFLARE_R2_BUCKET}/latest/${alias_name}" \
+              --endpoint-url "$endpoint" \
+              --only-show-errors
+          }
+
+          echo "::group::R2 latest aliases"
+          upload_latest_alias "release-assets/Dream-${version}-arm64.dmg" "Dream-mac-arm64.dmg"
+          upload_latest_alias "release-assets/Dream-${version}-x64.dmg" "Dream-mac-x64.dmg"
+          upload_latest_alias "release-assets/Dream-${version}-x64-setup.exe" "Dream-windows-x64.exe"
+          upload_latest_alias "release-assets/Dream-${version}-amd64.deb" "Dream-linux-x64.deb"
+          upload_latest_alias "release-assets/Dream-${version}-x86_64.rpm" "Dream-linux-x64.rpm"
+          upload_latest_alias "release-assets/Dream-${version}-x86_64.AppImage" "Dream-linux-x64.AppImage"
+          upload_latest_alias "release-assets/Dream-${version}-arm64.deb" "Dream-linux-arm64.deb"
+          upload_latest_alias "release-assets/Dream-${version}-aarch64.rpm" "Dream-linux-arm64.rpm"
+          upload_latest_alias "release-assets/Dream-${version}-aarch64.AppImage" "Dream-linux-arm64.AppImage"
+          echo "::endgroup::"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
