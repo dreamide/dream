@@ -562,15 +562,15 @@ jobs:
           }
 
           echo "::group::R2 latest aliases"
-          upload_latest_alias "release-assets/Dream-${version}-arm64.dmg" "Dream-mac-arm64.dmg"
-          upload_latest_alias "release-assets/Dream-${version}-x64.dmg" "Dream-mac-x64.dmg"
-          upload_latest_alias "release-assets/Dream-${version}-x64-setup.exe" "Dream-windows-x64.exe"
-          upload_latest_alias "release-assets/Dream-${version}-amd64.deb" "Dream-linux-x64.deb"
-          upload_latest_alias "release-assets/Dream-${version}-x86_64.rpm" "Dream-linux-x64.rpm"
-          upload_latest_alias "release-assets/Dream-${version}-x86_64.AppImage" "Dream-linux-x64.AppImage"
-          upload_latest_alias "release-assets/Dream-${version}-arm64.deb" "Dream-linux-arm64.deb"
-          upload_latest_alias "release-assets/Dream-${version}-aarch64.rpm" "Dream-linux-arm64.rpm"
-          upload_latest_alias "release-assets/Dream-${version}-aarch64.AppImage" "Dream-linux-arm64.AppImage"
+          upload_latest_alias "release-assets/Dream-${version}-mac-arm64.dmg" "Dream-mac-arm64.dmg"
+          upload_latest_alias "release-assets/Dream-${version}-mac-x64.dmg" "Dream-mac-x64.dmg"
+          upload_latest_alias "release-assets/Dream-${version}-windows-x64-setup.exe" "Dream-windows-x64.exe"
+          upload_latest_alias "release-assets/Dream-${version}-linux-amd64.deb" "Dream-linux-x64.deb"
+          upload_latest_alias "release-assets/Dream-${version}-linux-x86_64.rpm" "Dream-linux-x64.rpm"
+          upload_latest_alias "release-assets/Dream-${version}-linux-x86_64.AppImage" "Dream-linux-x64.AppImage"
+          upload_latest_alias "release-assets/Dream-${version}-linux-arm64.deb" "Dream-linux-arm64.deb"
+          upload_latest_alias "release-assets/Dream-${version}-linux-aarch64.rpm" "Dream-linux-arm64.rpm"
+          upload_latest_alias "release-assets/Dream-${version}-linux-aarch64.AppImage" "Dream-linux-arm64.AppImage"
           echo "::endgroup::"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
