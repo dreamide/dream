@@ -15,7 +15,11 @@ Dream is a desktop IDE for working with multiple AI coding agents.
 - Built-in browser preview panel
 
 ## Requirements
-- At least one supported agent CLI: Codex, Claude Code, OpenCode, or Cursor Agent
+At least one supported agent CLI:
+- Codex
+- Claude Code
+- OpenCode
+- Cursor Agent
 
 ## Download
 
