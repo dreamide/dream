@@ -569,8 +569,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       ) : null}
       <div
         className={cn(
-          "no-scrollbar min-w-0 flex-1 overflow-x-auto overflow-y-hidden pb-px",
-          interactiveClassName,
+          "no-scrollbar min-w-0 max-w-full shrink overflow-x-auto overflow-y-hidden pb-px",
         )}
         onScroll={updateScrollState}
         ref={scrollRef}
@@ -600,6 +599,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
               isActive
                 ? "border-surface-300 dark:border-surface-700 dark:border-surface-800 bg-background dark:bg-muted text-foreground"
                 : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground group-hover:bg-muted group-hover:text-foreground",
+              interactiveClassName,
               tabClassName,
             );
             const tabButton = isEditing ? (
@@ -722,13 +722,18 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                   {renderFrame
                     ? renderFrame(item, tabButton, { isActive, isDragging })
                     : tabButton}
-                  {actions ? actions : null}
+                  {actions ? (
+                    <div className={interactiveClassName}>{actions}</div>
+                  ) : null}
                   {showClose ? (
                     <button
                       aria-label={
                         closeAriaLabel?.(item) ?? `Close ${item.label}`
                       }
-                      className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-accent-foreground group-hover:opacity-100"
+                      className={cn(
+                        "absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-accent-foreground group-hover:opacity-100",
+                        interactiveClassName,
+                      )}
                       onClick={(event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -779,10 +784,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         </button>
       ) : null}
       {after ? (
-        <div
-          className={cn("flex shrink-0 items-center", interactiveClassName)}
-          ref={afterRef}
-        >
+        <div className="flex shrink-0 items-center" ref={afterRef}>
           <div
             aria-hidden="true"
             className="flex h-8 shrink-0 items-center justify-center"
