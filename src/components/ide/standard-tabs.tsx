@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   type CSSProperties,
   type PointerEvent,
@@ -17,6 +17,7 @@ const DEFAULT_TAB_MIN_WIDTH = 144;
 const DEFAULT_TAB_MAX_WIDTH = 220;
 const TAB_DRAG_THRESHOLD = 4;
 const TAB_FLIP_DURATION_MS = 180;
+const SCROLL_EDGE_TOLERANCE = 1;
 
 export type StandardTabItem = {
   id: string;
@@ -57,6 +58,7 @@ type StandardTabsProps<TItem extends StandardTabItem> = {
     tab: ReactNode,
     state: { isActive: boolean; isDragging: boolean },
   ) => ReactNode;
+  reservedEndWidth?: number;
   tabClassName?: string;
 };
 
@@ -112,15 +114,22 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   renameOnDoubleClick = false,
   renderActions,
   renderFrame,
+  reservedEndWidth = 0,
   tabClassName,
 }: StandardTabsProps<TItem>) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const afterRef = useRef<HTMLDivElement | null>(null);
   const dragTabRef = useRef<DragState | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const settlingCleanupTimeoutRef = useRef<number | null>(null);
   const suppressClickRef = useRef<string | null>(null);
   const tabRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [dragTab, setDragTab] = useState<DragState | null>(null);
+  const [scrollState, setScrollState] = useState({
+    canScrollEnd: false,
+    canScrollStart: false,
+    hasOverflow: false,
+  });
   const [tabWidth, setTabWidth] = useState(maxWidth);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
@@ -177,6 +186,36 @@ export const StandardTabs = <TItem extends StandardTabItem>({
     },
     [items],
   );
+  const updateScrollState = useCallback(() => {
+    const scrollElement = scrollRef.current;
+    if (!scrollElement) {
+      setScrollState({
+        canScrollEnd: false,
+        canScrollStart: false,
+        hasOverflow: false,
+      });
+      return;
+    }
+
+    const maxScrollLeft = scrollElement.scrollWidth - scrollElement.clientWidth;
+    const hasOverflow = maxScrollLeft > SCROLL_EDGE_TOLERANCE;
+    const nextScrollState = {
+      canScrollEnd:
+        hasOverflow &&
+        scrollElement.scrollLeft < maxScrollLeft - SCROLL_EDGE_TOLERANCE,
+      canScrollStart:
+        hasOverflow && scrollElement.scrollLeft > SCROLL_EDGE_TOLERANCE,
+      hasOverflow,
+    };
+
+    setScrollState((current) =>
+      current.canScrollEnd === nextScrollState.canScrollEnd &&
+      current.canScrollStart === nextScrollState.canScrollStart &&
+      current.hasOverflow === nextScrollState.hasOverflow
+        ? current
+        : nextScrollState,
+    );
+  }, []);
 
   const measureTabWidth = useCallback(() => {
     const containerWidth = containerRef.current?.clientWidth ?? 0;
@@ -188,11 +227,22 @@ export const StandardTabs = <TItem extends StandardTabItem>({
     }
 
     const availableWidth =
-      containerWidth - afterWidth - gap * Math.max(items.length - 1, 0);
+      containerWidth -
+      afterWidth -
+      reservedEndWidth -
+      gap * Math.max(items.length - 1, 0);
     const nextWidth = clamp(availableWidth / items.length, minWidth, maxWidth);
 
     setTabWidth(nextWidth);
-  }, [gap, items.length, maxWidth, minWidth]);
+    window.requestAnimationFrame(updateScrollState);
+  }, [
+    gap,
+    items.length,
+    maxWidth,
+    minWidth,
+    reservedEndWidth,
+    updateScrollState,
+  ]);
 
   useEffect(() => {
     measureTabWidth();
@@ -204,17 +254,54 @@ export const StandardTabs = <TItem extends StandardTabItem>({
 
     const observer = new ResizeObserver(() => {
       measureTabWidth();
+      updateScrollState();
     });
 
     observer.observe(container);
     if (afterRef.current) {
       observer.observe(afterRef.current);
     }
+    if (scrollRef.current) {
+      observer.observe(scrollRef.current);
+    }
 
     return () => {
       observer.disconnect();
     };
-  }, [measureTabWidth]);
+  }, [measureTabWidth, updateScrollState]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(updateScrollState);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  });
+
+  useEffect(() => {
+    const activeTab = activeId ? tabRefs.current.get(activeId) : null;
+    const scrollElement = scrollRef.current;
+    if (!activeTab || !scrollElement) {
+      return;
+    }
+
+    const tabStart = activeTab.offsetLeft;
+    const tabEnd = tabStart + activeTab.offsetWidth;
+    const visibleStart = scrollElement.scrollLeft;
+    const visibleEnd = visibleStart + scrollElement.clientWidth;
+
+    if (tabStart < visibleStart) {
+      scrollElement.scrollLeft = tabStart;
+    } else if (tabEnd > visibleEnd) {
+      scrollElement.scrollLeft = tabEnd - scrollElement.clientWidth;
+    }
+
+    const frame = window.requestAnimationFrame(updateScrollState);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [activeId, updateScrollState]);
 
   useEffect(() => {
     if (editingTabId && !items.some((item) => item.id === editingTabId)) {
@@ -438,16 +525,55 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       dragTab ? resolveTabOffset(dragTab, tabId, tabIndex) : 0,
     [dragTab, resolveTabOffset],
   );
+  const scrollTabs = useCallback(
+    (direction: -1 | 1) => {
+      const scrollElement = scrollRef.current;
+      if (!scrollElement) {
+        return;
+      }
+
+      scrollElement.scrollBy({
+        behavior: "smooth",
+        left:
+          direction *
+          Math.max(tabWidth + gap, Math.floor(scrollElement.clientWidth * 0.8)),
+      });
+    },
+    [gap, tabWidth],
+  );
 
   return (
     <div
       aria-label={ariaLabel}
-      className={cn("flex min-w-0 max-w-full items-end", className)}
+      className={cn(
+        "flex min-w-0 max-w-full items-end overflow-hidden",
+        className,
+      )}
       ref={containerRef}
       role="tablist"
     >
+      {scrollState.hasOverflow ? (
+        <button
+          aria-label="Scroll tabs left"
+          className={cn(
+            "mb-px flex h-8 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-35",
+            interactiveClassName,
+          )}
+          disabled={!scrollState.canScrollStart}
+          onClick={() => scrollTabs(-1)}
+          title="Scroll tabs left"
+          type="button"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+      ) : null}
       <div
-        className={cn("min-w-0 overflow-hidden pb-px", interactiveClassName)}
+        className={cn(
+          "no-scrollbar min-w-0 flex-1 overflow-x-auto overflow-y-hidden pb-px",
+          interactiveClassName,
+        )}
+        onScroll={updateScrollState}
+        ref={scrollRef}
       >
         <div className="flex min-w-0 items-end">
           {items.map((item, tabIndex) => {
@@ -637,6 +763,21 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           })}
         </div>
       </div>
+      {scrollState.hasOverflow ? (
+        <button
+          aria-label="Scroll tabs right"
+          className={cn(
+            "mb-px flex h-8 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-35",
+            interactiveClassName,
+          )}
+          disabled={!scrollState.canScrollEnd}
+          onClick={() => scrollTabs(1)}
+          title="Scroll tabs right"
+          type="button"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      ) : null}
       {after ? (
         <div
           className={cn("flex shrink-0 items-center", interactiveClassName)}
@@ -656,6 +797,13 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           </div>
           {after}
         </div>
+      ) : null}
+      {reservedEndWidth > 0 ? (
+        <div
+          aria-hidden="true"
+          className="h-8 shrink-0"
+          style={{ width: `${reservedEndWidth}px` }}
+        />
       ) : null}
     </div>
   );

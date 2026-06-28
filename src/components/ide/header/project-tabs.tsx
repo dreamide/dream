@@ -35,6 +35,8 @@ import {
   ProjectTabIcon,
 } from "./project-tab-icon";
 
+const PROJECT_TABS_END_DRAG_SPACE = 48;
+
 export type ProjectTabItem = StandardTabItem & {
   completed: boolean;
   path: string;
@@ -382,6 +384,9 @@ export const ProjectTabs = () => {
                 {tab}
               </ProjectTabFrame>
             )}
+            reservedEndWidth={
+              projectTabItems.length > 0 ? PROJECT_TABS_END_DRAG_SPACE : 0
+            }
           />
         ) : null}
       </div>

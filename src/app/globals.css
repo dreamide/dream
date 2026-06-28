@@ -862,7 +862,7 @@
 
   html,
   body {
-    @apply h-full;
+    @apply h-full overflow-hidden;
   }
 
   body {
@@ -1153,6 +1153,15 @@
 
 .xterm .xterm-viewport {
   overflow-y: auto;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Hide native scrollbar arrow buttons */
