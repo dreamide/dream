@@ -19,6 +19,7 @@ env:
   ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/../electron-builder-cache
   ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.sign == true }}
+  DREAM_UPDATE_FEED_URL: ${{ vars.DREAM_UPDATE_FEED_URL || secrets.DREAM_UPDATE_FEED_URL }}
   SSL_COM_ENVIRONMENT_NAME: ${{ secrets.SSL_COM_ENVIRONMENT_NAME || 'PROD' }}
 
 jobs:
@@ -45,11 +46,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Linux packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+
       - name: Build renderer
         run: pnpm vite:build
 
       - name: Package Linux installer
-        run: pnpm exec electron-builder --linux --publish never
+        run: pnpm exec electron-builder --linux --x64 --publish never
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v7.0.1
@@ -58,6 +64,8 @@ jobs:
           if-no-files-found: error
           path: |
             release/*.AppImage
+            release/*.deb
+            release/*.rpm
             release/*.blockmap
             release/latest-linux.yml
 
@@ -160,7 +168,7 @@ jobs:
           trap cleanup_heartbeat EXIT
 
           set +e
-          DEBUG=electron-builder,electron-builder:*,electron-osx-sign,electron-osx-sign:* pnpm exec electron-builder --mac dir --universal --publish never -c.mac.notarize=false 2>&1 |
+          DEBUG=electron-builder,electron-builder:*,electron-osx-sign,electron-osx-sign:* pnpm exec electron-builder --mac dir --arm64 --x64 --publish never -c.mac.notarize=false 2>&1 |
             tee -a "$log_path"
           builder_status="${PIPESTATUS[0]}"
           set -e
@@ -200,14 +208,21 @@ jobs:
           mkdir -p "$log_dir"
           echo "MACOS_PACKAGE_LOG_DIR=$log_dir" >> "$GITHUB_ENV"
 
-          app_path="$(find release -maxdepth 2 -type d -name 'Dream.app' -print -quit)"
-          if [[ -z "$app_path" ]]; then
-            echo "Could not find Dream.app under release." >&2
+          app_paths=()
+          while IFS= read -r app_path; do
+            app_paths+=("$app_path")
+          done < <(find release -maxdepth 2 -type d -name 'Dream.app' ! -path '*universal*' -print | sort)
+          if [[ "${#app_paths[@]}" -eq 0 ]]; then
+            echo "Could not find any Dream.app bundles under release." >&2
             find release -maxdepth 3 -print >&2
             exit 1
           fi
 
-          NOTARY_WAIT_TIMEOUT=30m bash scripts/notarize-macos-app.sh "$app_path"
+          for app_path in "${app_paths[@]}"; do
+            echo "::group::Notarize $app_path"
+            NOTARY_WAIT_TIMEOUT=30m bash scripts/notarize-macos-app.sh "$app_path"
+            echo "::endgroup::"
+          done
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -220,14 +235,47 @@ jobs:
         run: |
           set -euo pipefail
 
-          app_path="$(find release -maxdepth 2 -type d -name 'Dream.app' -print -quit)"
-          if [[ -z "$app_path" ]]; then
-            echo "Could not find Dream.app under release." >&2
+          app_paths=()
+          while IFS= read -r app_path; do
+            app_paths+=("$app_path")
+          done < <(find release -maxdepth 2 -type d -name 'Dream.app' ! -path '*universal*' -print | sort)
+          if [[ "${#app_paths[@]}" -eq 0 ]]; then
+            echo "Could not find any Dream.app bundles under release." >&2
             find release -maxdepth 3 -print >&2
             exit 1
           fi
 
-          pnpm exec electron-builder --mac dmg zip --prepackaged "$app_path" --publish never -c.mac.notarize=false
+          latest_mac_files=()
+          for app_path in "${app_paths[@]}"; do
+            app_binary="$app_path/Contents/MacOS/Dream"
+            if [[ ! -f "$app_binary" ]]; then
+              echo "Could not find app executable: $app_binary" >&2
+              exit 1
+            fi
+
+            app_file_output="$(file "$app_binary")"
+            case "$app_file_output" in
+              *"arm64"*)
+                arch="arm64"
+                ;;
+              *"x86_64"*)
+                arch="x64"
+                ;;
+              *)
+                echo "Could not determine macOS app architecture from: $app_file_output" >&2
+                exit 1
+                ;;
+            esac
+
+            echo "::group::Package macOS $arch installers"
+            pnpm exec electron-builder --mac dmg zip "--$arch" --prepackaged "$app_path" --publish never -c.mac.notarize=false
+            arch_latest_mac="$RUNNER_TEMP/latest-mac-$arch.yml"
+            cp release/latest-mac.yml "$arch_latest_mac"
+            latest_mac_files+=("$arch_latest_mac")
+            echo "::endgroup::"
+          done
+
+          node scripts/merge-latest-mac-metadata.mjs release/latest-mac.yml "${latest_mac_files[@]}"
 
           echo "::group::macOS installer artifacts"
           find release -maxdepth 2 \( -type d -name '*.app' -o -type f \) -print | sort
@@ -242,16 +290,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          app_path="$(find release -maxdepth 2 -type d -name 'Dream.app' -print -quit)"
-          if [[ -z "$app_path" ]]; then
-            echo "Could not find Dream.app under release." >&2
+          app_paths=()
+          while IFS= read -r app_path; do
+            app_paths+=("$app_path")
+          done < <(find release -maxdepth 2 -type d -name 'Dream.app' ! -path '*universal*' -print | sort)
+          if [[ "${#app_paths[@]}" -eq 0 ]]; then
+            echo "Could not find any Dream.app bundles under release." >&2
             find release -maxdepth 3 -print >&2
             exit 1
           fi
 
-          codesign --verify --deep --strict --verbose=2 "$app_path"
-          spctl --assess --type execute --verbose=4 "$app_path"
-          xcrun stapler validate "$app_path"
+          for app_path in "${app_paths[@]}"; do
+            echo "::group::Verify $app_path"
+            codesign --verify --deep --strict --verbose=2 "$app_path"
+            spctl --assess --type execute --verbose=4 "$app_path"
+            xcrun stapler validate "$app_path"
+            echo "::endgroup::"
+          done
 
       - name: Upload macOS packaging logs
         if: always() && env.ENABLE_SIGNING == 'true' && env.MAC_SIGNING_AVAILABLE == 'true'
@@ -263,7 +318,7 @@ jobs:
 
       - name: Package unsigned macOS installer
         if: env.ENABLE_SIGNING != 'true' || env.MAC_SIGNING_AVAILABLE != 'true'
-        run: pnpm exec electron-builder --mac --universal --publish never -c.mac.identity=null
+        run: pnpm exec electron-builder --mac --arm64 --x64 --publish never -c.mac.identity=null
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
@@ -388,6 +443,9 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
       - name: Download Linux artifacts
         uses: actions/download-artifact@v8.0.1
         with:
@@ -405,6 +463,26 @@ jobs:
         with:
           name: dream-windows
           path: release-assets
+
+      - name: Rewrite update metadata for R2
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t metadata_files < <(
+            find release-assets -type f \( \
+              -name 'latest.yml' -o \
+              -name 'latest-linux.yml' -o \
+              -name 'latest-mac.yml' \
+            \) -print | sort
+          )
+
+          if [[ "${#metadata_files[@]}" -eq 0 ]]; then
+            echo "No update metadata files found." >&2
+            exit 1
+          fi
+
+          node scripts/rewrite-update-metadata-urls.mjs "${metadata_files[@]}"
 
       - name: Install AWS CLI
         shell: bash
@@ -444,7 +522,8 @@ jobs:
             AWS_ACCESS_KEY_ID \
             AWS_SECRET_ACCESS_KEY \
             CLOUDFLARE_R2_ACCOUNT_ID \
-            CLOUDFLARE_R2_BUCKET; do
+            CLOUDFLARE_R2_BUCKET \
+            DREAM_UPDATE_FEED_URL; do
             if [[ -z "${!name:-}" ]]; then
               echo "::error::Missing required secret-backed environment variable: $name"
               missing=1
@@ -465,6 +544,34 @@ jobs:
             --endpoint-url "$endpoint" \
             --recursive \
             --only-show-errors
+
+          version="$(node -p "require('./package.json').version")"
+
+          upload_latest_alias() {
+            local source_path="$1"
+            local alias_name="$2"
+
+            if [[ ! -f "$source_path" ]]; then
+              echo "Skipping missing latest alias source: $source_path"
+              return
+            fi
+
+            aws s3 cp "$source_path" "s3://${CLOUDFLARE_R2_BUCKET}/latest/${alias_name}" \
+              --endpoint-url "$endpoint" \
+              --only-show-errors
+          }
+
+          echo "::group::R2 latest aliases"
+          upload_latest_alias "release-assets/Dream-${version}-mac-arm64.dmg" "Dream-mac-arm64.dmg"
+          upload_latest_alias "release-assets/Dream-${version}-mac-x64.dmg" "Dream-mac-x64.dmg"
+          upload_latest_alias "release-assets/Dream-${version}-windows-x64-setup.exe" "Dream-windows-x64.exe"
+          upload_latest_alias "release-assets/Dream-${version}-linux-amd64.deb" "Dream-linux-x64.deb"
+          upload_latest_alias "release-assets/Dream-${version}-linux-x86_64.rpm" "Dream-linux-x64.rpm"
+          upload_latest_alias "release-assets/Dream-${version}-linux-x86_64.AppImage" "Dream-linux-x64.AppImage"
+          upload_latest_alias "release-assets/Dream-${version}-linux-arm64.deb" "Dream-linux-arm64.deb"
+          upload_latest_alias "release-assets/Dream-${version}-linux-aarch64.rpm" "Dream-linux-arm64.rpm"
+          upload_latest_alias "release-assets/Dream-${version}-linux-aarch64.AppImage" "Dream-linux-arm64.AppImage"
+          echo "::endgroup::"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
@@ -480,11 +587,15 @@ jobs:
       - package-linux
       - package-macos
       - package-windows
+      - upload-r2
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
       - name: Download Linux artifacts
         uses: actions/download-artifact@v8.0.1
         with:
@@ -513,8 +624,10 @@ jobs:
             find release-assets -type f \( \
               -name '*.AppImage' -o \
               -name '*.blockmap' -o \
+              -name '*.deb' -o \
               -name '*.dmg' -o \
               -name '*.exe' -o \
+              -name '*.rpm' -o \
               -name '*.yml' -o \
               -name '*.zip' \
             \) -print | sort
@@ -525,10 +638,10 @@ jobs:
             exit 1
           fi
 
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${assets[@]}" --clobber
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" "${assets[@]}" --title "$tag" --generate-notes
+            gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --title "$tag" --generate-notes
           fi
         env:
           GH_TOKEN: ${{ github.token }}

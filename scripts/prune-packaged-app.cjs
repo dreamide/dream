@@ -40,6 +40,25 @@ const PLATFORM_VENDOR_DIRS = {
   },
 };
 
+function getUpdateFeedUrl() {
+  const rawUrl = process.env.DREAM_UPDATE_FEED_URL?.trim();
+
+  if (rawUrl) {
+    return rawUrl.replace(/\/+$/, "");
+  }
+
+  throw new Error(
+    "Missing DREAM_UPDATE_FEED_URL. Set it to the public R2 releases URL, for example https://downloads.example.com/releases.",
+  );
+}
+
+function getAppUpdateYml() {
+  return `provider: generic
+url: ${getUpdateFeedUrl()}
+updaterCacheDirName: dream-updater
+`;
+}
+
 const SHARP_PLATFORM_PACKAGE_PATTERN =
   /^(sharp|sharp-libvips)-(darwin|linux|linuxmusl|win32)-(arm64|x64|ia32|arm)$/;
 
@@ -132,6 +151,11 @@ async function pruneSharpOptionalDependencies(parentPath, platform, arch) {
   }
 }
 
+async function ensureAppUpdateConfig(resourcesDir) {
+  const updateConfigPath = path.join(resourcesDir, "app-update.yml");
+  await fs.writeFile(updateConfigPath, getAppUpdateYml(), "utf8");
+}
+
 function getResourcesDirectory(context) {
   if (context.electronPlatformName === "darwin") {
     return path.join(
@@ -149,6 +173,8 @@ exports.default = async function prunePackagedApp(context) {
   const platform = context.electronPlatformName;
   const arch = getTargetArch(context);
   const resourcesDir = getResourcesDirectory(context);
+
+  await ensureAppUpdateConfig(resourcesDir);
 
   if (platform === "darwin" && isUniversalTempBuild(context)) {
     console.log(

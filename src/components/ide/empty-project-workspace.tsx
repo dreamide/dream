@@ -253,12 +253,12 @@ export const EmptyProjectWorkspace = () => {
                       )}
                     </span>
                     <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
-                      <span className="block truncate font-medium text-foreground text-sm">
+                      <span className="col-start-1 block truncate font-medium text-foreground text-sm">
                         {project.name}
                       </span>
                       {lastUsedLabel ? (
                         <span
-                          className="row-span-2 self-center whitespace-nowrap text-right text-muted-foreground/80 text-xs"
+                          className="col-start-2 row-span-2 self-center whitespace-nowrap text-right text-muted-foreground/80 text-xs"
                           title={
                             lastUsedAt
                               ? new Date(lastUsedAt).toLocaleString()
@@ -268,7 +268,7 @@ export const EmptyProjectWorkspace = () => {
                           {lastUsedLabel}
                         </span>
                       ) : null}
-                      <span className="block truncate text-muted-foreground text-xs">
+                      <span className="col-start-1 block truncate text-muted-foreground text-xs">
                         {isWorktree ? "worktree" : project.path}
                       </span>
                     </span>

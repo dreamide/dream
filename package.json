@@ -1,6 +1,7 @@
 {
   "name": "dream",
   "productName": "Dream",
+  "description": "Dream is a desktop IDE for working with AI coding agents.",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +10,8 @@
     "vite:dev": "vite --host 127.0.0.1 --port 3210 --strictPort",
     "vite:build": "vite build",
     "electron:dev": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true electron electron/main.js",
+    "electron:dev:update": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true DREAM_ENABLE_DEV_UPDATES=1 DREAM_DEV_UPDATE_CURRENT_VERSION=0.2.0 electron electron/main.js",
+    "dev:update": "pnpm electron:dev:update",
     "db:generate": "drizzle-kit generate",
     "import:codex-chats": "node scripts/import-codex-chats.mjs",
     "postinstall": "node scripts/fix-node-pty-permissions.mjs && node scripts/prepare-electron-dev-app.mjs",
@@ -139,6 +142,7 @@
         "dmg",
         "zip"
       ],
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
@@ -162,12 +166,16 @@
       ]
     },
     "nsis": {
-      "artifactName": "${productName}-${version}-${arch}-setup.${ext}"
+      "artifactName": "${productName}-${version}-windows-${arch}-setup.${ext}"
     },
     "linux": {
       "target": [
-        "AppImage"
-      ]
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "maintainer": "Dream <support@dreamide.ai>",
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
     }
   },
   "type": "module"

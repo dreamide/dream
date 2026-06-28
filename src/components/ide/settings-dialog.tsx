@@ -72,6 +72,7 @@ import {
   formatDeletedDate,
   ProviderStatusCard,
   SettingsControlRow,
+  SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
 
@@ -459,102 +460,104 @@ export const SettingsDialog = () => {
             <div className="space-y-4 p-3">
               {settingsSection === "appearance" ? (
                 <div className="space-y-4">
-                  <SettingsControlRow
-                    description="Controls the interface theme."
-                    label="Theme"
-                  >
-                    <Tabs
-                      className="w-full"
-                      onValueChange={(value) => {
-                        if (value) {
-                          setTheme(value);
-                        }
-                      }}
-                      value={themeMounted ? (theme ?? "dark") : "dark"}
+                  <SettingsGroup label="Appearance">
+                    <SettingsControlRow
+                      description="Controls the interface theme."
+                      label="Theme"
                     >
-                      <TabsList
-                        className="w-full justify-start"
-                        id="theme-tabs"
+                      <Tabs
+                        className="w-full"
+                        onValueChange={(value) => {
+                          if (value) {
+                            setTheme(value);
+                          }
+                        }}
+                        value={themeMounted ? (theme ?? "dark") : "dark"}
                       >
-                        <TabsTrigger value="system">
-                          <Monitor className="size-4" />
-                          System
-                        </TabsTrigger>
-                        <TabsTrigger value="light">
-                          <Sun className="size-4" />
-                          Light
-                        </TabsTrigger>
-                        <TabsTrigger value="dark">
-                          <Moon className="size-4" />
-                          Dark
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </SettingsControlRow>
+                        <TabsList
+                          className="w-full justify-start"
+                          id="theme-tabs"
+                        >
+                          <TabsTrigger value="system">
+                            <Monitor className="size-4" />
+                            System
+                          </TabsTrigger>
+                          <TabsTrigger value="light">
+                            <Sun className="size-4" />
+                            Light
+                          </TabsTrigger>
+                          <TabsTrigger value="dark">
+                            <Moon className="size-4" />
+                            Dark
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </SettingsControlRow>
 
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description="Controls the base gray scale."
-                    label="Base color"
-                  >
-                    <div className="flex justify-end gap-2">
-                      {BASE_COLORS.map((color) => {
-                        const selected = baseColor === color;
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description="Controls the base gray scale."
+                      label="Base color"
+                    >
+                      <div className="flex justify-end gap-2">
+                        {BASE_COLORS.map((color) => {
+                          const selected = baseColor === color;
 
-                        return (
-                          <button
-                            aria-label={getBaseColorLabel(color)}
-                            aria-pressed={selected}
-                            className={cn(
-                              "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                              selected
-                                ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                                : "ring-1 ring-transparent",
-                            )}
-                            key={color}
-                            onClick={() => setBaseColor(color)}
-                            style={{
-                              background: getBaseColorSwatch(color),
-                            }}
-                            title={getBaseColorLabel(color)}
-                            type="button"
-                          />
-                        );
-                      })}
-                    </div>
-                  </SettingsControlRow>
+                          return (
+                            <button
+                              aria-label={getBaseColorLabel(color)}
+                              aria-pressed={selected}
+                              className={cn(
+                                "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                                selected
+                                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                                  : "ring-1 ring-transparent",
+                              )}
+                              key={color}
+                              onClick={() => setBaseColor(color)}
+                              style={{
+                                background: getBaseColorSwatch(color),
+                              }}
+                              title={getBaseColorLabel(color)}
+                              type="button"
+                            />
+                          );
+                        })}
+                      </div>
+                    </SettingsControlRow>
 
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description="Controls primary actions and active states."
-                    label="Accent color"
-                  >
-                    <div className="grid grid-cols-9 gap-2">
-                      {ACCENT_COLORS.map((color) => {
-                        const selected = accentColor === color;
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description="Controls primary actions and active states."
+                      label="Accent color"
+                    >
+                      <div className="grid grid-cols-9 gap-2">
+                        {ACCENT_COLORS.map((color) => {
+                          const selected = accentColor === color;
 
-                        return (
-                          <button
-                            aria-label={getAccentColorLabel(color)}
-                            aria-pressed={selected}
-                            className={cn(
-                              "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                              selected
-                                ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                                : "ring-1 ring-transparent",
-                            )}
-                            key={color}
-                            onClick={() => setAccentColor(color)}
-                            style={{
-                              background: getAccentColorSwatch(color),
-                            }}
-                            title={getAccentColorLabel(color)}
-                            type="button"
-                          />
-                        );
-                      })}
-                    </div>
-                  </SettingsControlRow>
+                          return (
+                            <button
+                              aria-label={getAccentColorLabel(color)}
+                              aria-pressed={selected}
+                              className={cn(
+                                "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                                selected
+                                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                                  : "ring-1 ring-transparent",
+                              )}
+                              key={color}
+                              onClick={() => setAccentColor(color)}
+                              style={{
+                                background: getAccentColorSwatch(color),
+                              }}
+                              title={getAccentColorLabel(color)}
+                              type="button"
+                            />
+                          );
+                        })}
+                      </div>
+                    </SettingsControlRow>
+                  </SettingsGroup>
 
                   <SettingsControlRow
                     description={
@@ -576,78 +579,66 @@ export const SettingsDialog = () => {
                     />
                   </SettingsControlRow>
 
-                  <div>
-                    <div className="space-y-1 pt-2">
-                      <h3 className="font-medium text-sm">Permissions</h3>
-                    </div>
+                  <SettingsGroup label="Permissions">
+                    <SettingsSwitchRow
+                      checked={settings.autoAcceptPermissions}
+                      description="Agents run with the highest permissions when building"
+                      label="Full permissions"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          autoAcceptPermissions: checked,
+                        }))
+                      }
+                    />
+                  </SettingsGroup>
 
-                    <div className="mt-2 border-surface-200 dark:border-surface-800 border-l pl-4">
-                      <SettingsSwitchRow
-                        checked={settings.autoAcceptPermissions}
-                        description="Agents run with the highest permissions when building"
-                        label="Full permissions"
-                        onCheckedChange={(checked) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            autoAcceptPermissions: checked,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="space-y-1 pt-2">
-                      <h3 className="font-medium text-sm">Chat messages</h3>
-                    </div>
-
-                    <div className="mt-2 border-surface-200 dark:border-surface-800 border-l pl-4">
-                      <SettingsSwitchRow
-                        checked={settings.autoCompactContext}
-                        description="Summarize older messages before the chat runs out of context"
-                        label="Auto compact context"
-                        onCheckedChange={(checked) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            autoCompactContext: checked,
-                          }))
-                        }
-                      />
-                      <SettingsSwitchRow
-                        checked={settings.showReasoningSummaries}
-                        description="Display model reasoning summaries"
-                        label="Show reasoning summaries"
-                        onCheckedChange={(checked) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            showReasoningSummaries: checked,
-                          }))
-                        }
-                      />
-                      <SettingsSwitchRow
-                        checked={settings.groupToolCalls}
-                        description="Collapse tool calls into compact count chips"
-                        label="Group tool calls"
-                        onCheckedChange={(checked) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            groupToolCalls: checked,
-                          }))
-                        }
-                      />
-                      <SettingsSwitchRow
-                        checked={settings.expandToolCalls}
-                        description="Show tool calls expanded by default"
-                        label="Expand tool calls"
-                        onCheckedChange={(checked) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            expandToolCalls: checked,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
+                  <SettingsGroup label="Chat messages">
+                    <SettingsSwitchRow
+                      checked={settings.autoCompactContext}
+                      description="Summarize older messages before the chat runs out of context"
+                      label="Auto compact context"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          autoCompactContext: checked,
+                        }))
+                      }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.showReasoningSummaries}
+                      description="Display model reasoning summaries"
+                      label="Show reasoning summaries"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          showReasoningSummaries: checked,
+                        }))
+                      }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.groupToolCalls}
+                      description="Collapse tool calls into compact count chips"
+                      label="Group tool calls"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          groupToolCalls: checked,
+                        }))
+                      }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.expandToolCalls}
+                      description="Show tool calls expanded by default"
+                      label="Expand tool calls"
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          expandToolCalls: checked,
+                        }))
+                      }
+                    />
+                  </SettingsGroup>
                 </div>
               ) : null}
 

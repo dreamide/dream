@@ -1051,6 +1051,51 @@ export const getProjectGitDiff = async (
   };
 };
 
+export const revertProjectGitFile = async (
+  projectPath,
+  filePath,
+  { previousPath = null, status },
+) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const normalizedFilePath = normalizePath(filePath);
+  const absolutePath = resolveProjectPath(projectPath, normalizedFilePath);
+
+  if (status === "untracked") {
+    await fs.rm(absolutePath, { force: true, recursive: false });
+    return { filePath: normalizedFilePath, reverted: true };
+  }
+
+  const repoRelativePaths = [normalizedFilePath, previousPath]
+    .filter((value) => typeof value === "string" && value.trim())
+    .map((value) =>
+      normalizePath(
+        path.relative(
+          repoInfo.repoRoot,
+          resolveProjectPath(projectPath, value),
+        ),
+      ),
+    );
+  const uniqueRepoRelativePaths = [...new Set(repoRelativePaths)];
+  if (uniqueRepoRelativePaths.length === 0) {
+    throw new Error("No file path was provided.");
+  }
+
+  await runGitCommand(repoInfo.repoRoot, [
+    "restore",
+    "--staged",
+    "--worktree",
+    "--source=HEAD",
+    "--",
+    ...uniqueRepoRelativePaths,
+  ]);
+
+  return { filePath: normalizedFilePath, reverted: true };
+};
+
 export const getProjectGitCachedDiff = async (
   projectPath,
   filePath,

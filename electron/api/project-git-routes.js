@@ -28,12 +28,14 @@ import {
   projectGitPushPreviewRequestSchema,
   projectGitPushRequestSchema,
   projectGitRemoveWorktreeRequestSchema,
+  projectGitRevertFileRequestSchema,
   projectGitStatusRequestSchema,
   projectGitWorktreesRequestSchema,
   projectIconRequestSchema,
   pushProjectGitChanges,
   removeProjectGitWorktree,
   resolveProjectPath,
+  revertProjectGitFile,
 } from "./project-git-service.js";
 
 export const registerProjectGitRoutes = (app) => {
@@ -480,6 +482,36 @@ export const registerProjectGitRoutes = (app) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to read Git diff.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-revert-file", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitRevertFileRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { filePath, previousPath, projectPath, status } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(
+        await revertProjectGitFile(projectPath, filePath, {
+          previousPath,
+          status,
+        }),
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to revert file.";
       return c.text(message, 400);
     }
   });

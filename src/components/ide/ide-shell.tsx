@@ -17,7 +17,6 @@ import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
 import { ProjectWorkspace } from "./project-workspace";
 import { SettingsDialog } from "./settings-dialog";
-import { UpdateBanner } from "./update-banner";
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -357,7 +356,6 @@ export const IdeShell = () => {
     <div className="flex h-screen flex-col overflow-hidden bg-surface-50 dark:bg-surface-900 text-foreground">
       {!appReady && <AppLoadingScreen />}
       <IdeHeader />
-      <UpdateBanner />
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {!stateHydrated ? null : (

@@ -7,6 +7,7 @@ import { getMessageText } from "./message-content";
 
 export type ChatMessageMetadata = {
   completedAt?: string;
+  contextWindow?: number;
   createdAt?: string;
   model?: string;
   modelLabel?: string;

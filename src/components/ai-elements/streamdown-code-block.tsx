@@ -1,4 +1,6 @@
 import type { CustomRendererProps } from "streamdown";
+import type { ComponentProps, ReactElement } from "react";
+import { cloneElement, isValidElement } from "react";
 import { bundledLanguages } from "shiki";
 import {
   CodeBlock,
@@ -22,6 +24,24 @@ const codeFenceLanguageMarkers = new Set([
   "log",
   ...Object.keys(bundledLanguages).filter((language) => language !== "mermaid"),
 ]);
+
+const codeFenceLanguageRegex = /(?:^|\s)language-([^\s]+)/;
+
+const getTextContent = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(getTextContent).join("");
+  }
+
+  if (isValidElement<{ children?: unknown }>(value)) {
+    return getTextContent(value.props.children);
+  }
+
+  return "";
+};
 
 export const normalizeCodeFenceLanguageMarkers = (markdown: string) =>
   markdown.replace(
@@ -99,4 +119,31 @@ export const StreamdownCodeBlock = ({
       </CodeBlockHeader>
     </CodeBlock>
   );
+};
+
+export const StreamdownCodePre = ({ children }: ComponentProps<"pre">) => {
+  if (!isValidElement(children)) {
+    return <pre>{children}</pre>;
+  }
+
+  const codeElement = children as ReactElement<{
+    children?: unknown;
+    className?: string;
+  }>;
+  const languageMatch = codeElement.props.className?.match(
+    codeFenceLanguageRegex,
+  );
+
+  if (!languageMatch) {
+    return (
+      <StreamdownCodeBlock
+        code={getTextContent(codeElement.props.children)}
+        language=""
+      />
+    );
+  }
+
+  return cloneElement(codeElement, {
+    "data-block": "true",
+  } as Partial<typeof codeElement.props>);
 };

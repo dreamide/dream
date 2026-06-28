@@ -70,6 +70,9 @@ const ChangesPanelImpl = ({
   const [expandedPathsByProject, setExpandedPathsByProject] = useState<
     Record<string, string[]>
   >({});
+  const [expandAllActiveByProject, setExpandAllActiveByProject] = useState<
+    Record<string, boolean>
+  >({});
   const [diffsByProject, setDiffsByProject] = useState<
     Record<string, Record<string, ProjectGitDiffResponse>>
   >({});
@@ -86,6 +89,11 @@ const ChangesPanelImpl = ({
     Record<string, Record<string, number>>
   >({});
   const [forcedRenderedDiffsByProject, setForcedRenderedDiffsByProject] =
+    useState<Record<string, string[]>>({});
+  const [revertingPathsByProject, setRevertingPathsByProject] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
+  const [hiddenRevertedPathsByProject, setHiddenRevertedPathsByProject] =
     useState<Record<string, string[]>>({});
 
   const projectId = activeProject?.id ?? null;
@@ -108,10 +116,6 @@ const ChangesPanelImpl = ({
   const hasFreshGitStatus = statusRefreshToken === gitRefreshKey;
 
   const expandedPaths = getExpandedPaths(expandedPathsByProject, projectId);
-  const expandedPathSet = useMemo(
-    () => new Set(expandedPaths),
-    [expandedPaths],
-  );
   const changesByPath = useMemo(
     () => new Map(changes.map((change) => [change.path, change])),
     [changes],
@@ -132,13 +136,41 @@ const ChangesPanelImpl = ({
   const forcedRenderedDiffs = projectId
     ? (forcedRenderedDiffsByProject[projectId] ?? [])
     : [];
+  const revertingPaths = projectId
+    ? (revertingPathsByProject[projectId] ?? {})
+    : {};
+  const hiddenRevertedPaths = projectId
+    ? (hiddenRevertedPathsByProject[projectId] ?? [])
+    : [];
+  const hiddenRevertedPathSet = useMemo(
+    () => new Set(hiddenRevertedPaths),
+    [hiddenRevertedPaths],
+  );
+  const visibleChanges = useMemo(
+    () => changes.filter((change) => !hiddenRevertedPathSet.has(change.path)),
+    [changes, hiddenRevertedPathSet],
+  );
+  const visibleChangePaths = useMemo(
+    () => visibleChanges.map((change) => change.path),
+    [visibleChanges],
+  );
+  const expandAllActive = projectId
+    ? (expandAllActiveByProject[projectId] ?? false)
+    : false;
+  const effectiveExpandedPaths = expandAllActive
+    ? visibleChangePaths
+    : expandedPaths;
+  const expandedPathSet = useMemo(
+    () => new Set(effectiveExpandedPaths),
+    [effectiveExpandedPaths],
+  );
   const forcedRenderedDiffPathSet = useMemo(
     () => new Set(forcedRenderedDiffs),
     [forcedRenderedDiffs],
   );
   const allExpanded =
-    changes.length > 0 &&
-    changes.every((change) => expandedPathSet.has(change.path));
+    visibleChangePaths.length > 0 &&
+    visibleChangePaths.every((filePath) => expandedPathSet.has(filePath));
   const expandAllTitle = allExpanded ? "Collapse all" : "Expand all";
   const shouldDeferDiffLoads = useCallback(() => {
     if (!projectId) {
@@ -175,6 +207,24 @@ const ChangesPanelImpl = ({
   useEffect(() => {
     changesByPathRef.current = changesByPath;
   }, [changesByPath]);
+
+  useEffect(() => {
+    if (!projectId || hiddenRevertedPaths.length === 0) {
+      return;
+    }
+
+    const remainingHiddenPaths = hiddenRevertedPaths.filter((path) =>
+      changesByPath.has(path),
+    );
+    if (remainingHiddenPaths.length === hiddenRevertedPaths.length) {
+      return;
+    }
+
+    setHiddenRevertedPathsByProject((current) => ({
+      ...current,
+      [projectId]: remainingHiddenPaths,
+    }));
+  }, [changesByPath, hiddenRevertedPaths, projectId]);
 
   useEffect(() => {
     const shouldRefresh =
@@ -386,7 +436,7 @@ const ChangesPanelImpl = ({
       return;
     }
 
-    for (const filePath of expandedPaths) {
+    for (const filePath of effectiveExpandedPaths) {
       if (changesByPath.has(filePath)) {
         queueDiffLoad(
           filePath,
@@ -397,7 +447,7 @@ const ChangesPanelImpl = ({
     }
   }, [
     changesByPath,
-    expandedPaths,
+    effectiveExpandedPaths,
     gitRefreshKey,
     projectId,
     projectDiffRefreshKeys,
@@ -432,8 +482,14 @@ const ChangesPanelImpl = ({
       }
 
       let nextExpanded = false;
+      setExpandAllActiveByProject((current) => ({
+        ...current,
+        [projectId]: false,
+      }));
       setExpandedPathsByProject((current) => {
-        const currentPaths = current[projectId] ?? [];
+        const currentPaths = expandAllActive
+          ? visibleChangePaths
+          : (current[projectId] ?? []);
         const isExpanded = currentPaths.includes(filePath);
         nextExpanded = !isExpanded;
 
@@ -449,7 +505,13 @@ const ChangesPanelImpl = ({
         queueDiffLoad(filePath, true);
       }
     },
-    [projectId, queueDiffLoad, shouldDeferDiffLoads],
+    [
+      expandAllActive,
+      projectId,
+      queueDiffLoad,
+      shouldDeferDiffLoads,
+      visibleChangePaths,
+    ],
   );
 
   const handleToggleExpandAll = useCallback(() => {
@@ -458,6 +520,10 @@ const ChangesPanelImpl = ({
     }
 
     if (allExpanded) {
+      setExpandAllActiveByProject((current) => ({
+        ...current,
+        [projectId]: false,
+      }));
       setExpandedPathsByProject((current) => ({
         ...current,
         [projectId]: [],
@@ -465,7 +531,11 @@ const ChangesPanelImpl = ({
       return;
     }
 
-    const nextPaths = changes.map((change) => change.path);
+    const nextPaths = visibleChangePaths;
+    setExpandAllActiveByProject((current) => ({
+      ...current,
+      [projectId]: true,
+    }));
     setExpandedPathsByProject((current) => ({
       ...current,
       [projectId]: nextPaths,
@@ -475,7 +545,13 @@ const ChangesPanelImpl = ({
         queueDiffLoad(filePath);
       }
     }
-  }, [allExpanded, changes, projectId, queueDiffLoad, shouldDeferDiffLoads]);
+  }, [
+    allExpanded,
+    projectId,
+    queueDiffLoad,
+    shouldDeferDiffLoads,
+    visibleChangePaths,
+  ]);
 
   const handleSetDiffViewMode = useCallback(
     (nextMode: DiffViewMode) => {
@@ -497,6 +573,116 @@ const ChangesPanelImpl = ({
     }
     bumpProjectGitRefreshKey(projectId);
   }, [bumpProjectGitRefreshKey, projectId]);
+
+  const clearCachedDiffForPath = useCallback(
+    (filePath: string) => {
+      if (!projectId) {
+        return;
+      }
+
+      diffLoadQueueRef.current = diffLoadQueueRef.current.filter(
+        (request) => request.filePath !== filePath,
+      );
+      diffLoadQueuedPathsRef.current.delete(filePath);
+      diffLoadInFlightPathsRef.current.delete(filePath);
+
+      setDiffsByProject((current) => {
+        const nextProjectDiffs = { ...(current[projectId] ?? {}) };
+        delete nextProjectDiffs[filePath];
+        return { ...current, [projectId]: nextProjectDiffs };
+      });
+      setDiffErrorsByProject((current) => {
+        const nextProjectErrors = { ...(current[projectId] ?? {}) };
+        delete nextProjectErrors[filePath];
+        return { ...current, [projectId]: nextProjectErrors };
+      });
+      setDiffLoadingByProject((current) => {
+        const nextProjectLoading = { ...(current[projectId] ?? {}) };
+        delete nextProjectLoading[filePath];
+        return { ...current, [projectId]: nextProjectLoading };
+      });
+      setDiffRefreshKeysByProject((current) => {
+        const nextProjectRefreshKeys = { ...(current[projectId] ?? {}) };
+        delete nextProjectRefreshKeys[filePath];
+        return { ...current, [projectId]: nextProjectRefreshKeys };
+      });
+      setForcedRenderedDiffsByProject((current) => ({
+        ...current,
+        [projectId]: (current[projectId] ?? []).filter(
+          (path) => path !== filePath,
+        ),
+      }));
+      setExpandedPathsByProject((current) => ({
+        ...current,
+        [projectId]: (current[projectId] ?? []).filter(
+          (path) => path !== filePath,
+        ),
+      }));
+    },
+    [projectId],
+  );
+
+  const handleRevertFile = useCallback(
+    async (change: ProjectGitStatusEntry) => {
+      if (
+        !projectId ||
+        !projectPath ||
+        revertingPaths[change.path] ||
+        hiddenRevertedPathSet.has(change.path)
+      ) {
+        return;
+      }
+
+      clearCachedDiffForPath(change.path);
+      setHiddenRevertedPathsByProject((current) => ({
+        ...current,
+        [projectId]: [...new Set([...(current[projectId] ?? []), change.path])],
+      }));
+      setRevertingPathsByProject((current) => ({
+        ...current,
+        [projectId]: {
+          ...(current[projectId] ?? {}),
+          [change.path]: true,
+        },
+      }));
+
+      try {
+        const response = await fetch("/api/project-git-revert-file", {
+          body: JSON.stringify({
+            filePath: change.path,
+            previousPath: change.previousPath,
+            projectPath,
+            status: change.status,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+
+        if (!response.ok) {
+          throw new Error(await readResponseText(response));
+        }
+
+        bumpProjectGitRefreshKey(projectId);
+      } catch (error) {
+        console.error("[changes] Failed to revert file", error);
+        bumpProjectGitRefreshKey(projectId);
+      } finally {
+        setRevertingPathsByProject((current) => {
+          const nextProjectReverting = { ...(current[projectId] ?? {}) };
+          delete nextProjectReverting[change.path];
+          return { ...current, [projectId]: nextProjectReverting };
+        });
+      }
+    },
+    [
+      bumpProjectGitRefreshKey,
+      clearCachedDiffForPath,
+      hiddenRevertedPathSet,
+      projectId,
+      projectPath,
+      revertingPaths,
+    ],
+  );
 
   const handleForceRenderDiff = useCallback(
     (filePath: string) => {
@@ -612,7 +798,7 @@ const ChangesPanelImpl = ({
         {!statusError &&
         statusLoading &&
         !hasStaleGitStatus &&
-        changes.length === 0 ? (
+        visibleChanges.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Spinner className="size-4" />
@@ -623,13 +809,13 @@ const ChangesPanelImpl = ({
         {!statusError &&
         (!statusLoading || hasStaleGitStatus) &&
         isRepo &&
-        changes.length === 0 ? (
+        visibleChanges.length === 0 ? (
           <AppShellPlaceholder message="Working tree is clean." />
         ) : null}
 
-        {!statusError && changes.length > 0 ? (
+        {!statusError && visibleChanges.length > 0 ? (
           <div className="-mx-3 -mb-3">
-            {changes.map((change) => (
+            {visibleChanges.map((change) => (
               <ChangesRow
                 change={change}
                 diff={projectDiffs[change.path] ?? null}
@@ -640,7 +826,9 @@ const ChangesPanelImpl = ({
                 key={change.path}
                 mode={diffViewMode}
                 onForceRenderDiff={() => handleForceRenderDiff(change.path)}
+                onRevert={() => handleRevertFile(change)}
                 onToggle={() => handleTogglePath(change.path)}
+                reverting={revertingPaths[change.path] ?? false}
               />
             ))}
           </div>

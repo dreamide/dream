@@ -307,6 +307,10 @@ const summarizeToolGroup = (group: ToolChipItem[]) => {
   return summaries;
 };
 
+const isWebFetchOnlyGroup = (group: ToolChipItem[]) =>
+  group.length > 0 &&
+  group.every((item) => getChipToolKind(item.part) === "webFetch");
+
 export const ToolCallGroup = ({
   context,
   group,
@@ -317,6 +321,10 @@ export const ToolCallGroup = ({
   const [expanded, setExpanded] = useState(false);
   const animate = useChipAnimate();
   const summaries = summarizeToolGroup(group);
+
+  if (isWebFetchOnlyGroup(group)) {
+    return <ToolChipRow context={context} group={group} />;
+  }
 
   if (summaries.length === 0) {
     return <ToolChipRow context={context} group={group} />;

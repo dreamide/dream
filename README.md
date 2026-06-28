@@ -1,6 +1,9 @@
 # Dream
 
-Dream is a desktop IDE for working with AI coding agents.
+Dream is a desktop IDE for working with multiple AI coding agents.
+
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/8b863bec-76ff-4973-b6c3-a66b1683500f" />
+
 
 ## Features
 
@@ -12,7 +15,25 @@ Dream is a desktop IDE for working with AI coding agents.
 - Built-in browser preview panel
 
 ## Requirements
-- At least one supported agent CLI: Codex, Claude Code, OpenCode, or Cursor Agent
+At least one supported agent CLI:
+- Codex
+- Claude Code
+- OpenCode
+- Cursor Agent
+
+## Download
+
+### macOS
+- [ARM64](https://files.dreamide.app/latest/Dream-mac-arm64.dmg)
+- [x64](https://files.dreamide.app/latest/Dream-mac-x64.dmg)
+
+### Windows
+- [x64](https://files.dreamide.app/latest/Dream-windows-x64.exe)
+
+### Linux
+- [.deb x64](https://files.dreamide.app/latest/Dream-linux-x64.deb)
+- [.rpm x64](https://files.dreamide.app/latest/Dream-linux-x64.rpm)
+- [AppImage x64](https://files.dreamide.app/latest/Dream-linux-x64.AppImage)
 
 ## Installation
 

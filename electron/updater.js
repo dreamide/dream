@@ -1,6 +1,10 @@
+import { createRequire } from "node:module";
 import electronUpdater from "electron-updater";
 
 const { autoUpdater } = electronUpdater;
+const require = createRequire(import.meta.url);
+const updaterRequire = createRequire(require.resolve("electron-updater"));
+const updaterSemver = updaterRequire("semver");
 
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 5000;
@@ -33,18 +37,49 @@ function getErrorMessage(error) {
   return "Update check failed.";
 }
 
+function getUpdateFeedUrl() {
+  const url = process.env.DREAM_UPDATE_FEED_URL?.trim();
+
+  return url ? url.replace(/\/+$/, "") : null;
+}
+
+function getDevUpdateCurrentVersion() {
+  const version = process.env.DREAM_DEV_UPDATE_CURRENT_VERSION?.trim();
+  if (!version) {
+    return null;
+  }
+
+  const parsed = updaterSemver.parse(version);
+  if (!parsed) {
+    console.warn(
+      `[updater] Ignoring invalid DREAM_DEV_UPDATE_CURRENT_VERSION: ${version}`,
+    );
+    return null;
+  }
+
+  return parsed;
+}
+
 export function initializeAutoUpdater({
   app,
   getMainWindow,
   ipcMain,
   isDevelopment,
 }) {
-  const updatesEnabled = app.isPackaged && !isDevelopment;
+  const devUpdatesEnabled =
+    isDevelopment && process.env.DREAM_ENABLE_DEV_UPDATES === "1";
+  const devCurrentVersion = devUpdatesEnabled
+    ? getDevUpdateCurrentVersion()
+    : null;
+  const updateFeedUrl = getUpdateFeedUrl();
+  const updatesEnabled =
+    (app.isPackaged && !isDevelopment) ||
+    (devUpdatesEnabled && Boolean(updateFeedUrl));
   let checkInFlight = null;
   let initialUpdateCheckTimer = null;
   let updateCheckTimer = null;
   let status = {
-    currentVersion: app.getVersion(),
+    currentVersion: devCurrentVersion?.format() ?? app.getVersion(),
     enabled: updatesEnabled,
     error: null,
     manual: false,
@@ -125,8 +160,32 @@ export function initializeAutoUpdater({
     };
   }
 
+  if (devUpdatesEnabled && !updateFeedUrl) {
+    console.warn(
+      "[updater] Dev update checks need DREAM_UPDATE_FEED_URL to point at the public R2 releases URL.",
+    );
+  }
+
+  if (devUpdatesEnabled && updateFeedUrl) {
+    autoUpdater.forceDevUpdateConfig = true;
+    autoUpdater.setFeedURL({
+      provider: "generic",
+      url: updateFeedUrl,
+    });
+    if (devCurrentVersion) {
+      autoUpdater.currentVersion = devCurrentVersion;
+      autoUpdater.allowPrerelease =
+        updaterSemver.prerelease(devCurrentVersion) !== null;
+    }
+    console.info(
+      `[updater] Dev update checks enabled${
+        devCurrentVersion ? ` as version ${devCurrentVersion.format()}` : ""
+      }.`,
+    );
+  }
+
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.logger = {
     debug: (...args) => console.debug("[updater]", ...args),
     error: (...args) => console.error("[updater]", ...args),

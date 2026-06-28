@@ -10,7 +10,10 @@ import {
 import type { AiProvider } from "@/types/ide";
 import { ChipAnimateProvider } from "../assistant-message/shared";
 import { AssistantMessagePart } from "../assistant-message-part";
-import { isChipToolPart } from "../assistant-message-tools";
+import {
+  isChipToolPart,
+  isRedundantDirectWebToolSearchPart,
+} from "../assistant-message-tools";
 import { UserMessageContent } from "./message-content";
 import { MessageHoverFooter } from "./message-footer";
 import { isTodoListPart } from "./todo-list";
@@ -173,6 +176,7 @@ export const ChatMessage = memo(
                 partIndex: number,
               ) => {
                 if (isTodoListPart(part)) return true;
+                if (isRedundantDirectWebToolSearchPart(part)) return true;
                 if (part.type === "step-start") return true;
                 if (
                   part.type === "reasoning" &&
@@ -198,9 +202,9 @@ export const ChatMessage = memo(
 
               for (let i = 0; i < nonSourceParts.length; i++) {
                 const part = nonSourceParts[i];
-                if (isChipToolPart(part)) {
+                if (isInvisiblePart(part, i)) {
+                } else if (isChipToolPart(part)) {
                   chipGroup.push({ part, index: i });
-                } else if (isInvisiblePart(part, i)) {
                 } else {
                   flushChipGroup();
                   const isLastPart = i === nonSourceParts.length - 1;

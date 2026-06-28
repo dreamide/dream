@@ -8,6 +8,8 @@ import {
   ExternalLink,
   Globe,
   HardDrive,
+  Maximize2,
+  Minimize2,
   Minus,
   Plus,
   RotateCcw,
@@ -47,7 +49,9 @@ const MAX_BROWSER_ZOOM = 3;
 
 export interface BrowserPanelProps {
   active?: boolean;
+  expanded?: boolean;
   onClosePanel: () => void;
+  onToggleExpanded?: () => void;
   project: ProjectConfig;
 }
 
@@ -241,7 +245,9 @@ BrowserWebview.displayName = "BrowserWebview";
 
 const BrowserPanelImpl = ({
   active = true,
+  expanded = false,
   onClosePanel,
+  onToggleExpanded,
   project,
 }: BrowserPanelProps) => {
   const webviewRefs = useRef(new Map<string, ElectronWebviewElement>());
@@ -279,6 +285,7 @@ const BrowserPanelImpl = ({
   const browserZoomFactor = activeTab?.zoomFactor ?? 1;
   const browserZoomPercent = `${Math.round(browserZoomFactor * 100)}%`;
   const browserVisible = Boolean(activeTab?.url);
+  const shouldMountBrowserWebview = active && browserVisible;
   const canOpenExternalBrowserUrl = Boolean(activeTab?.url);
   const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
@@ -323,6 +330,12 @@ const BrowserPanelImpl = ({
   useEffect(() => {
     setBrowserUrlDraft(activeTab?.url ?? "");
   }, [activeTab?.url]);
+
+  useEffect(() => {
+    if (!activeTab?.url && browserError) {
+      setBrowserError(null);
+    }
+  }, [activeTab?.url, browserError, setBrowserError]);
 
   const getActiveWebview = useCallback(
     () => (activeTab ? (webviewRefs.current.get(activeTab.id) ?? null) : null),
@@ -718,6 +731,22 @@ const BrowserPanelImpl = ({
           onClose={handleCloseTab}
           onReorder={handleReorderTab}
         />
+        {onToggleExpanded ? (
+          <button
+            aria-label={expanded ? "Collapse browser" : "Expand browser"}
+            aria-pressed={expanded}
+            className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:hover:bg-surface-800 dark:focus-visible:ring-surface-500"
+            onClick={onToggleExpanded}
+            title={expanded ? "Collapse browser" : "Expand browser"}
+            type="button"
+          >
+            {expanded ? (
+              <Minimize2 className="size-4" />
+            ) : (
+              <Maximize2 className="size-4" />
+            )}
+          </button>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-0.5 border-surface-200 border-b bg-surface-50 px-1.5 py-2 dark:border-surface-800 dark:bg-surface-900">
@@ -887,25 +916,23 @@ const BrowserPanelImpl = ({
 
       <div className="min-h-0 flex-1">
         <div className="relative h-full">
-          {tabs.map((tab) =>
-            tab.url ? (
-              <BrowserWebview
-                active={tab.id === activeTab?.id}
-                key={tab.id}
-                onError={handleWebviewError}
-                onLoadingChange={handleWebviewLoadingChange}
-                onRef={handleWebviewRef(tab.id)}
-                onStateChange={handleWebviewStateChange}
-                tab={tab}
-              />
-            ) : null,
-          )}
-          {!browserVisible ? (
+          {shouldMountBrowserWebview && activeTab?.url ? (
+            <BrowserWebview
+              active={true}
+              key={activeTab.id}
+              onError={handleWebviewError}
+              onLoadingChange={handleWebviewLoadingChange}
+              onRef={handleWebviewRef(activeTab.id)}
+              onStateChange={handleWebviewStateChange}
+              tab={activeTab}
+            />
+          ) : null}
+          {!shouldMountBrowserWebview ? (
             <div className="flex h-full items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
               Enter a URL to start browsing.
             </div>
           ) : null}
-          {browserError ? (
+          {shouldMountBrowserWebview && browserError ? (
             <div className="pointer-events-none absolute right-3 bottom-3 left-3 rounded-md border border-destructive-border bg-background px-3 py-2 text-destructive text-xs shadow-sm">
               {browserError}
             </div>

@@ -2,6 +2,7 @@ import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ProjectTabs } from "./header/project-tabs";
+import { HeaderUpdateButton } from "./header/update-button";
 import { WindowControls } from "./header/window-controls";
 import { useIdeStore } from "./ide-store";
 
@@ -31,6 +32,8 @@ export const IdeHeader = () => {
         />
 
         <ProjectTabs />
+
+        <HeaderUpdateButton />
 
         <Button
           aria-label="Settings"
