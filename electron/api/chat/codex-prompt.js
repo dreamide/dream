@@ -82,6 +82,7 @@ const CODEX_IMAGE_MEDIA_TYPES = new Set([
   "image/webp",
 ]);
 const TEXT_ATTACHMENT_CHAR_LIMIT = 60_000;
+const TEXT_INPUT_CHUNK_CHAR_LIMIT = 900_000;
 const TEXT_ATTACHMENT_MEDIA_TYPES = new Set([
   "application/javascript",
   "application/json",
@@ -342,6 +343,21 @@ export const prepareCodexPromptAttachments = async (message) => {
     imagePaths,
     promptText: promptLines.join("\n"),
   };
+};
+
+export const chunkTextInput = (
+  text,
+  chunkSize = TEXT_INPUT_CHUNK_CHAR_LIMIT,
+) => {
+  if (typeof text !== "string" || text.length <= chunkSize) {
+    return [text ?? ""];
+  }
+
+  const chunks = [];
+  for (let index = 0; index < text.length; index += chunkSize) {
+    chunks.push(text.slice(index, index + chunkSize));
+  }
+  return chunks;
 };
 
 export const serializeCodexMessage = (message) => {

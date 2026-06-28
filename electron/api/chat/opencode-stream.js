@@ -4,6 +4,7 @@ import { waitForToolApproval } from "../tool-approvals.js";
 import { writeCodexTextPart, writeCodexTodoListPart } from "./codex-common.js";
 import {
   buildCodexConversationPrompt,
+  chunkTextInput,
   getLatestUserMessage,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
@@ -1006,7 +1007,10 @@ export const streamOpenCodeResponse = ({
                     modelID,
                     providerID,
                   },
-                  parts: [{ text: prompt, type: "text" }],
+                  parts: chunkTextInput(prompt).map((text) => ({
+                    text,
+                    type: "text",
+                  })),
                 },
                 path: { id: activeSessionId },
                 query: { directory: projectPath },

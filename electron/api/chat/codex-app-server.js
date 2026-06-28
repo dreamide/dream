@@ -26,6 +26,7 @@ import {
 } from "./codex-common.js";
 import {
   buildCodexConversationPrompt,
+  chunkTextInput,
   getLatestUserMessage,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
@@ -1008,7 +1009,11 @@ export const streamCodexAppServerResponse = ({
               ...(reasoningEffort
                 ? { effort: getCodexReasoningEffort(reasoningEffort) }
                 : {}),
-              input: [{ text: fullPrompt, text_elements: [], type: "text" }],
+              input: chunkTextInput(fullPrompt).map((text) => ({
+                text,
+                text_elements: [],
+                type: "text",
+              })),
               model,
               sandboxPolicy: getCodexAppTurnSandboxPolicy({
                 codexPermissionMode,

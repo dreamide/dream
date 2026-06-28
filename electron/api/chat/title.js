@@ -20,6 +20,7 @@ import {
 import { getCodexErrorDetail } from "./codex-prompt.js";
 
 const CHAT_TITLE_MAX_LENGTH = 60;
+const CHAT_TITLE_PROMPT_MAX_CHARS = 12_000;
 const OPENCODE_TITLE_SERVER_TIMEOUT_MS = 10000;
 const OPENCODE_TITLE_REQUEST_TIMEOUT_MS = 60000;
 const CHAT_TITLE_SYSTEM_PROMPT =
@@ -341,10 +342,18 @@ export const generateChatTitle = async ({
   if (!normalizedPrompt) {
     return "";
   }
+  const titlePromptText =
+    normalizedPrompt.length > CHAT_TITLE_PROMPT_MAX_CHARS
+      ? `${normalizedPrompt.slice(0, CHAT_TITLE_PROMPT_MAX_CHARS)}\n\n[Message truncated for title generation.]`
+      : normalizedPrompt;
 
   if (provider === "anthropic") {
     const model = (await fetchAnthropicLowCostModel()) || "haiku";
-    return generateClaudeChatTitle({ model, projectPath, promptText });
+    return generateClaudeChatTitle({
+      model,
+      projectPath,
+      promptText: titlePromptText,
+    });
   }
 
   if (provider === "opencode") {
@@ -353,11 +362,15 @@ export const generateChatTitle = async ({
     if (!model) {
       throw new Error("No OpenCode title model is available.");
     }
-    return generateOpenCodeChatTitle({ model, projectPath, promptText });
+    return generateOpenCodeChatTitle({
+      model,
+      projectPath,
+      promptText: titlePromptText,
+    });
   }
 
   if (provider === "cursor") {
-    return generateLocalChatTitle(normalizedPrompt);
+    return generateLocalChatTitle(titlePromptText);
   }
 
   const model = (await fetchOpenAiLowCostModel()) || fallbackModel?.trim();
@@ -365,5 +378,9 @@ export const generateChatTitle = async ({
     throw new Error("No OpenAI title model is available.");
   }
 
-  return generateCodexChatTitle({ model, projectPath, promptText });
+  return generateCodexChatTitle({
+    model,
+    projectPath,
+    promptText: titlePromptText,
+  });
 };
