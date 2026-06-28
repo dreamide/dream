@@ -407,6 +407,23 @@ const getOpenCodeToolOutput = (part) => {
   return null;
 };
 
+const getOpenCodeToolErrorText = (part) => {
+  const error = part?.state?.error;
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  if (error !== undefined && error !== null) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  return "OpenCode tool failed.";
+};
+
 export const streamOpenCodeResponse = ({
   abortSignal,
   agentMode,
@@ -645,15 +662,23 @@ export const streamOpenCodeResponse = ({
 
           const output = getOpenCodeToolOutput(part);
           if (output) {
+            if (part.state?.status === "error") {
+              writer.write({
+                dynamic: true,
+                errorText: getOpenCodeToolErrorText(part),
+                providerExecuted: true,
+                toolCallId,
+                type: "tool-output-error",
+              });
+              return true;
+            }
+
             writer.write({
               dynamic: true,
               output,
               providerExecuted: true,
               toolCallId,
-              type:
-                part.state?.status === "error"
-                  ? "tool-output-error"
-                  : "tool-output-available",
+              type: "tool-output-available",
             });
           }
 
@@ -702,11 +727,7 @@ export const streamOpenCodeResponse = ({
           if (part.state.status === "error") {
             writer.write({
               dynamic: true,
-              errorText:
-                typeof part.state.error === "string"
-                  ? part.state.error
-                  : JSON.stringify(part.state.error ?? ""),
-              output: part.state.metadata ?? null,
+              errorText: getOpenCodeToolErrorText(part),
               providerExecuted: true,
               toolCallId,
               type: "tool-output-error",
