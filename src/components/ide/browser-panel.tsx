@@ -16,6 +16,7 @@ import {
   RotateCw,
   X,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   memo,
   type RefCallback,
@@ -250,6 +251,7 @@ const BrowserPanelImpl = ({
   onToggleExpanded,
   project,
 }: BrowserPanelProps) => {
+  const browserT = useTranslations("browser");
   const webviewRefs = useRef(new Map<string, ElectronWebviewElement>());
   const [browserUrlDraft, setBrowserUrlDraft] = useState("");
 
@@ -713,18 +715,20 @@ const BrowserPanelImpl = ({
           activeId={activeTab?.id ?? null}
           after={
             <button
-              aria-label="New tab"
+              aria-label={browserT("newTab")}
               className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 hover:text-foreground dark:hover:bg-surface-800"
               onClick={handleAddTab}
-              title="New tab"
+              title={browserT("newTab")}
               type="button"
             >
               <Plus className="size-4" />
             </button>
           }
-          ariaLabel="Browser tabs"
+          ariaLabel={browserT("browserTabs")}
           canClose={true}
-          closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
+          closeAriaLabel={(tab) =>
+            browserT("closeTab", { label: tab.label.toLowerCase() })
+          }
           className="flex-1"
           items={browserTabItems}
           onActivate={handleActivateTab}
@@ -733,11 +737,11 @@ const BrowserPanelImpl = ({
         />
         {onToggleExpanded ? (
           <button
-            aria-label={expanded ? "Collapse browser" : "Expand browser"}
+            aria-label={expanded ? browserT("collapse") : browserT("expand")}
             aria-pressed={expanded}
             className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:hover:bg-surface-800 dark:focus-visible:ring-surface-500"
             onClick={onToggleExpanded}
-            title={expanded ? "Collapse browser" : "Expand browser"}
+            title={expanded ? browserT("collapse") : browserT("expand")}
             type="button"
           >
             {expanded ? (
@@ -759,7 +763,7 @@ const BrowserPanelImpl = ({
           )}
           disabled={!activeTab?.canGoBack}
           onClick={handleGoBack}
-          title="Go back"
+          title={browserT("goBack")}
           type="button"
         >
           <ArrowLeft className="size-4" />
@@ -774,7 +778,7 @@ const BrowserPanelImpl = ({
           )}
           disabled={!activeTab?.canGoForward}
           onClick={handleGoForward}
-          title="Go forward"
+          title={browserT("goForward")}
           type="button"
         >
           <ArrowRight className="size-4" />
@@ -789,7 +793,9 @@ const BrowserPanelImpl = ({
           )}
           disabled={!activeTab}
           onClick={handleRefresh}
-          title={isBrowserLoading ? "Stop loading" : "Refresh browser"}
+          title={
+            isBrowserLoading ? browserT("stopLoading") : browserT("refresh")
+          }
           type="button"
         >
           {isBrowserLoading ? (
@@ -814,15 +820,15 @@ const BrowserPanelImpl = ({
               event.preventDefault();
               handleNavigate();
             }}
-            placeholder="Enter URL..."
+            placeholder={browserT("enterUrl")}
             value={browserUrlDraft}
           />
           {canOpenExternalBrowserUrl ? (
             <button
-              aria-label="Open current URL in system browser"
+              aria-label={browserT("openExternal")}
               className="-translate-y-1/2 absolute top-1/2 right-2 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 focus:outline-none group-focus-within:opacity-100 group-hover:opacity-100"
               onClick={handleOpenExternal}
-              title="Open in system browser"
+              title={browserT("openInSystemBrowser")}
               type="button"
             >
               <ExternalLink className="size-3.5" />
@@ -834,7 +840,7 @@ const BrowserPanelImpl = ({
           <DropdownMenuTrigger
             render={
               <button
-                aria-label="Browser actions"
+                aria-label={browserT("actions")}
                 className={cn(
                   "rounded p-1 transition-colors",
                   activeTab?.url
@@ -842,7 +848,7 @@ const BrowserPanelImpl = ({
                     : "text-surface-400 dark:text-surface-600",
                 )}
                 disabled={!activeTab?.url}
-                title="Browser actions"
+                title={browserT("actions")}
                 type="button"
               />
             }
@@ -852,28 +858,28 @@ const BrowserPanelImpl = ({
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuItem onClick={handleForceReload}>
               <RotateCw className="size-4" />
-              Force reload
+              {browserT("forceReload")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleTakeScreenshot}>
               <Camera className="size-4" />
-              Take screenshot
+              {browserT("takeScreenshot")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleOpenDevTools}>
               <Code2 className="size-4" />
-              Open DevTools
+              {browserT("openDevTools")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <div
               className="flex items-center gap-2 px-2 py-1.5 text-sm"
               onPointerDown={(event) => event.stopPropagation()}
             >
-              <span className="min-w-0 flex-1">Zoom</span>
+              <span className="min-w-0 flex-1">{browserT("zoom")}</span>
               <div className="flex items-center overflow-hidden rounded-md border border-surface-200 dark:border-surface-800">
                 <button
-                  aria-label="Zoom out"
+                  aria-label={browserT("zoomOut")}
                   className="flex size-7 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={handleZoomOut}
-                  title="Zoom out"
+                  title={browserT("zoomOut")}
                   type="button"
                 >
                   <Minus className="size-3.5" />
@@ -882,20 +888,20 @@ const BrowserPanelImpl = ({
                   {browserZoomPercent}
                 </div>
                 <button
-                  aria-label="Zoom in"
+                  aria-label={browserT("zoomIn")}
                   className="flex size-7 items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={handleZoomIn}
-                  title="Zoom in"
+                  title={browserT("zoomIn")}
                   type="button"
                 >
                   <Plus className="size-3.5" />
                 </button>
               </div>
               <button
-                aria-label="Reset zoom"
+                aria-label={browserT("resetZoom")}
                 className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                 onClick={handleResetZoom}
-                title="Reset zoom"
+                title={browserT("resetZoom")}
                 type="button"
               >
                 <RotateCcw className="size-3.5" />
@@ -904,11 +910,11 @@ const BrowserPanelImpl = ({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleClearCookies}>
               <Cookie className="size-4" />
-              Clear cookies
+              {browserT("clearCookies")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleClearCache}>
               <HardDrive className="size-4" />
-              Clear cache
+              {browserT("clearCache")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

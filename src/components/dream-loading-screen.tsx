@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import dreamSvg from "@/assets/dream.svg";
 import Sparkles from "@/components/ui/sparkles";
 
@@ -24,9 +25,11 @@ export const AppLoadingScreen = ({
   speed = 0.6,
   syncKey = "dream-loading-sparkles",
 }: AppLoadingScreenProps) => {
+  const t = useTranslations("app");
+
   return (
     <div
-      aria-label="Loading Dream"
+      aria-label={t("loadingDream")}
       className="fixed inset-0 z-50 grid place-items-center bg-background"
       role="status"
     >

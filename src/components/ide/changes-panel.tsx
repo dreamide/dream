@@ -6,6 +6,7 @@ import {
   RotateCw,
   Rows3,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -47,6 +48,8 @@ const ChangesPanelImpl = ({
   onClosePanel,
   projectId: requestedProjectId,
 }: ChangesPanelProps) => {
+  const commonT = useTranslations("common");
+  const panelsT = useTranslations("panels");
   const activeProject = useIdeStore((s) =>
     requestedProjectId
       ? (s.projects.find((project) => project.id === requestedProjectId) ??
@@ -710,10 +713,10 @@ const ChangesPanelImpl = ({
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2 text-sm font-medium">
           <RightPanelHeaderIconButton icon={Code} onClose={onClosePanel} />
-          <span>Changes</span>
+          <span>{commonT("changes")}</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
-          <AppShellPlaceholder message="Add a project to inspect its Git changes." />
+          <AppShellPlaceholder message={panelsT("addProjectForChanges")} />
         </div>
       </div>
     );
@@ -724,12 +727,14 @@ const ChangesPanelImpl = ({
       <div className="flex items-center gap-3 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
         <RightPanelHeaderIconButton icon={Code} onClose={onClosePanel} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">Changes</div>
+          <div className="truncate text-sm font-medium">
+            {commonT("changes")}
+          </div>
         </div>
 
         <div className="flex overflow-hidden rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-0.5">
           <button
-            aria-label="Unified diff"
+            aria-label={panelsT("unifiedDiff")}
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
               diffViewMode === "unified"
@@ -737,13 +742,13 @@ const ChangesPanelImpl = ({
                 : "hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
             )}
             onClick={() => handleSetDiffViewMode("unified")}
-            title="Unified diff"
+            title={panelsT("unifiedDiff")}
             type="button"
           >
             <Rows3 className="size-3.5" />
           </button>
           <button
-            aria-label="Split diff"
+            aria-label={panelsT("splitDiff")}
             className={cn(
               "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
               diffViewMode === "split"
@@ -751,7 +756,7 @@ const ChangesPanelImpl = ({
                 : "hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
             )}
             onClick={() => handleSetDiffViewMode("split")}
-            title="Split diff"
+            title={panelsT("splitDiff")}
             type="button"
           >
             <Columns2 className="size-3.5" />
@@ -774,10 +779,10 @@ const ChangesPanelImpl = ({
         </Button>
 
         <button
-          aria-label="Refresh changes"
+          aria-label={panelsT("refreshChanges")}
           className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           onClick={handleRefreshChanges}
-          title="Refresh changes"
+          title={panelsT("refreshChanges")}
           type="button"
         >
           <RotateCw className="size-3.5" />

@@ -45,6 +45,7 @@
     "hast-util-whitespace": "3.0.0",
     "hono": "^4.12.25",
     "html-void-elements": "3.0.0",
+    "next-intl": "^4.13.0",
     "node-pty": "^1.1.0",
     "property-information": "7.1.0",
     "sirv": "^3.0.2",

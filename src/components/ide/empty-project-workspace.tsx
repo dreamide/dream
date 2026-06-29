@@ -7,6 +7,7 @@ import {
   Plug,
   Settings,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useMemo } from "react";
 import dreamSvg from "@/assets/dream.svg";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
@@ -25,7 +26,16 @@ import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
 
-const formatLastUsedAt = (value: string | null | undefined): string | null => {
+const formatLastUsedAt = (
+  value: string | null | undefined,
+  labels: {
+    daysAgo: (count: number) => string;
+    hoursAgo: (count: number) => string;
+    justNow: string;
+    minutesAgo: (count: number) => string;
+    yesterday: string;
+  },
+): string | null => {
   if (!value) {
     return null;
   }
@@ -40,23 +50,23 @@ const formatLastUsedAt = (value: string | null | undefined): string | null => {
   const pastMs = Math.max(0, diffMs);
   const minutes = Math.floor(pastMs / 60_000);
   if (minutes < 1) {
-    return "Just now";
+    return labels.justNow;
   }
   if (minutes < 60) {
-    return `${minutes}m ago`;
+    return labels.minutesAgo(minutes);
   }
 
   const hours = Math.floor(minutes / 60);
   if (hours < 24) {
-    return `${hours}h ago`;
+    return labels.hoursAgo(hours);
   }
 
   const days = Math.floor(hours / 24);
   if (days === 1) {
-    return "Yesterday";
+    return labels.yesterday;
   }
   if (days < 7) {
-    return `${days}d ago`;
+    return labels.daysAgo(days);
   }
 
   const now = new Date();
@@ -88,6 +98,8 @@ const getTimestampMs = (value: string | null | undefined): number => {
 };
 
 export const EmptyProjectWorkspace = () => {
+  const emptyT = useTranslations("emptyProject");
+  const timeT = useTranslations("time");
   const closedProjects = useIdeStore((s) => s.closedProjects);
   const chats = useIdeStore((s) => s.chats);
   const settings = useIdeStore((s) => s.settings);
@@ -143,7 +155,7 @@ export const EmptyProjectWorkspace = () => {
   const handleOpenFolder = useCallback(async () => {
     const desktopApi = getDesktopApi();
     if (!desktopApi) {
-      window.alert("Open this app inside Electron to add project folders.");
+      window.alert(emptyT("electronRequired"));
       return;
     }
 
@@ -153,7 +165,7 @@ export const EmptyProjectWorkspace = () => {
     }
 
     addProject(selectedPath);
-  }, [addProject]);
+  }, [addProject, emptyT]);
 
   const handleOpenProviders = useCallback(() => {
     setSettingsSection("providers");
@@ -168,16 +180,16 @@ export const EmptyProjectWorkspace = () => {
           <EmptyMedia className="mb-0 size-10 rounded-full" variant="icon">
             <Plug className="size-5" />
           </EmptyMedia>
-          <EmptyTitle>Connect a provider</EmptyTitle>
+          <EmptyTitle>{emptyT("connectProvider")}</EmptyTitle>
           <EmptyDescription className="max-w-md">
-            Select at least one model before opening a project.
+            {emptyT("connectProviderDescription")}
           </EmptyDescription>
         </EmptyHeader>
 
         <EmptyContent className="max-w-xl gap-6">
           <Button onClick={handleOpenProviders} size="lg">
             <Settings className="size-4" />
-            Open Providers
+            {emptyT("openProviders")}
           </Button>
 
           <div className="grid w-full gap-1">
@@ -207,20 +219,20 @@ export const EmptyProjectWorkspace = () => {
     <Empty className="h-full gap-6 rounded-none border-0 p-6">
       <EmptyHeader className="max-w-xl gap-4">
         <img alt="" className="size-16" draggable={false} src={dreamSvg} />
-        <EmptyTitle>Get started</EmptyTitle>
+        <EmptyTitle>{emptyT("getStarted")}</EmptyTitle>
       </EmptyHeader>
 
       <EmptyContent className="max-w-xl gap-10">
         <Button onClick={() => void handleOpenFolder()} size="lg">
           <FolderOpen className="size-4" />
-          Open Folder
+          {emptyT("openFolder")}
         </Button>
 
         {recentProjects.length > 0 ? (
           <div className="flex w-full flex-col items-stretch gap-2">
             <div className="flex items-center gap-2 px-1 font-medium text-muted-foreground text-sm">
               <History className="size-3.5" />
-              Recently closed
+              {emptyT("recentlyClosed")}
             </div>
             <div className="grid w-full gap-1">
               {recentProjects.map((project) => {
@@ -229,7 +241,13 @@ export const EmptyProjectWorkspace = () => {
                   project.lastUsedAt ??
                   chatLastUsedAtByProject.get(project.id) ??
                   null;
-                const lastUsedLabel = formatLastUsedAt(lastUsedAt);
+                const lastUsedLabel = formatLastUsedAt(lastUsedAt, {
+                  daysAgo: (count) => timeT("daysAgo", { count }),
+                  hoursAgo: (count) => timeT("hoursAgo", { count }),
+                  justNow: timeT("justNow"),
+                  minutesAgo: (count) => timeT("minutesAgo", { count }),
+                  yesterday: timeT("yesterday"),
+                });
 
                 return (
                   <button
@@ -269,7 +287,7 @@ export const EmptyProjectWorkspace = () => {
                         </span>
                       ) : null}
                       <span className="col-start-1 block truncate text-muted-foreground text-xs">
-                        {isWorktree ? "worktree" : project.path}
+                        {isWorktree ? emptyT("worktree") : project.path}
                       </span>
                     </span>
                   </button>

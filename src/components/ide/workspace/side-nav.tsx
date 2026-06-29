@@ -1,4 +1,5 @@
 import { History, MessageSquarePlus, MessagesSquare } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { memo, type RefObject } from "react";
 import { WorkspaceNavButton } from "./nav-button";
 
@@ -19,32 +20,37 @@ const WorkspaceSideNavImpl = ({
   onToggleMultiChat,
   onToggleHistory,
 }: WorkspaceSideNavProps) => {
+  const t = useTranslations("workspace");
+  const multiChatLabel = multiChat
+    ? t("disableMultiChat")
+    : t("enableMultiChat");
+
   return (
     <aside className="flex w-12 shrink-0 flex-col items-center py-2">
       <div className="flex flex-col items-center gap-1">
         <WorkspaceNavButton
-          aria-label="Chat history"
+          aria-label={t("chatHistory")}
           active={historyOpen}
           onClick={onToggleHistory}
           ref={historyButtonRef}
-          title="Chat history"
+          title={t("chatHistory")}
         >
           <History className="size-4" />
         </WorkspaceNavButton>
         <WorkspaceNavButton
-          aria-label="New chat"
+          aria-label={t("newChat")}
           onClick={onAddChat}
-          title="New chat"
+          title={t("newChat")}
         >
           <MessageSquarePlus className="size-4" />
         </WorkspaceNavButton>
         <WorkspaceNavButton
-          aria-label={multiChat ? "Disable multi-chat" : "Enable multi-chat"}
+          aria-label={multiChatLabel}
           aria-pressed={multiChat}
           accent={multiChat}
           data-state={multiChat ? "on" : "off"}
           onClick={onToggleMultiChat}
-          title={multiChat ? "Disable multi-chat" : "Enable multi-chat"}
+          title={multiChatLabel}
         >
           <MessagesSquare className="size-4" />
         </WorkspaceNavButton>

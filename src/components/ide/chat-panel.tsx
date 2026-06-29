@@ -4,6 +4,7 @@ import {
   type LanguageModelUsage,
   type UIMessage,
 } from "ai";
+import { useTranslations } from "next-intl";
 import {
   type CSSProperties,
   type FormEvent,
@@ -366,6 +367,8 @@ export const ChatPanel = ({
   project: ProjectConfig;
   chat: ChatConfig;
 }) => {
+  const chatT = useTranslations("chat");
+  const modelT = useTranslations("models");
   const panelDomId = `chat-panel-${chat.id}`;
   const conversationDomId = `chat-conversation-${chat.id}`;
   const conversationContentDomId = `chat-conversation-content-${chat.id}`;
@@ -741,11 +744,7 @@ export const ChatPanel = ({
       : availableModelSpeedTiers.includes(normalizedChatModelSpeed)
         ? normalizedChatModelSpeed
         : "standard";
-  const selectedModelSpeedLabel =
-    speedOptions.find((option) => option.value === selectedModelSpeed)?.label ??
-    MODEL_SPEED_OPTIONS.find((option) => option.value === selectedModelSpeed)
-      ?.label ??
-    "Speed";
+  const selectedModelSpeedLabel = modelT(selectedModelSpeed);
   const selectedModelSpeedLabelForMetadata =
     availableModelSpeedTiers.length > 0 ? selectedModelSpeedLabel : undefined;
   const availableReasoningEfforts = selectedModelOption?.reasoningEfforts
@@ -770,14 +769,8 @@ export const ChatPanel = ({
   const selectedReasoningEffortForControl = selectedReasoningEffort ?? "medium";
   const selectedReasoningLabel =
     selectedReasoningEffort === null
-      ? "Reasoning"
-      : (reasoningEffortOptions.find(
-          (option) => option.value === selectedReasoningEffort,
-        )?.label ??
-        REASONING_EFFORT_OPTIONS.find(
-          (option) => option.value === selectedReasoningEffort,
-        )?.label ??
-        "Reasoning");
+      ? modelT("reasoning")
+      : modelT(selectedReasoningEffort);
   const selectedReasoningLabelForMetadata =
     selectedReasoningEffort !== null ? selectedReasoningLabel : undefined;
 
@@ -1231,7 +1224,7 @@ export const ChatPanel = ({
                   draggable={false}
                   src={dreamSvg}
                 />
-                <p className="font-medium text-lg">Build anything</p>
+                <p className="font-medium text-lg">{chatT("buildAnything")}</p>
               </div>
             ) : (
               messages.map((message, index) => (

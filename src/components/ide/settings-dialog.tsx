@@ -8,6 +8,7 @@ import {
   Sun,
   Trash2,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
@@ -43,6 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { APP_LOCALES, type AppLocale, LOCALE_LABELS } from "@/i18n/config";
 import { getDesktopApi } from "@/lib/electron";
 import {
   getModelOptionsForProvider,
@@ -101,6 +103,12 @@ const getBaseColorSwatch = (color: BaseColor) => BASE_COLOR_SWATCHES[color];
 const appVersion = packageJson.version;
 
 export const SettingsDialog = () => {
+  const commonT = useTranslations("common");
+  const localeT = useTranslations("locale");
+  const modelT = useTranslations("models");
+  const providerT = useTranslations("provider");
+  const settingsT = useTranslations("settings");
+  const themeT = useTranslations("theme");
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -289,14 +297,7 @@ export const SettingsDialog = () => {
     settings.defaultModelSpeed,
     defaultModelCapabilities.speedTiers,
   );
-  const selectedDefaultModelSpeedLabel =
-    defaultModelSpeedOptions.find(
-      (option) => option.value === selectedDefaultModelSpeed,
-    )?.label ??
-    MODEL_SPEED_OPTIONS.find(
-      (option) => option.value === selectedDefaultModelSpeed,
-    )?.label ??
-    "Speed";
+  const selectedDefaultModelSpeedLabel = modelT(selectedDefaultModelSpeed);
   const defaultReasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter(
     (option) =>
       defaultModelCapabilities.reasoningEfforts.includes(option.value),
@@ -309,9 +310,9 @@ export const SettingsDialog = () => {
         ) ?? "medium")
       : null;
   const selectedDefaultReasoningLabel =
-    defaultReasoningEffortOptions.find(
-      (option) => option.value === selectedDefaultReasoningEffort,
-    )?.label ?? "Effort";
+    selectedDefaultReasoningEffort !== null
+      ? modelT(selectedDefaultReasoningEffort)
+      : settingsT("effort");
 
   const installedProviderCount = ALL_PROVIDERS.filter(
     (provider) => providerModels[provider].installed,
@@ -399,7 +400,9 @@ export const SettingsDialog = () => {
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
       <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
         <DialogHeader className="px-6 py-3.5 text-left">
-          <DialogTitle className="text-base leading-6">Settings</DialogTitle>
+          <DialogTitle className="text-base leading-6">
+            {commonT("settings")}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1">
@@ -417,7 +420,7 @@ export const SettingsDialog = () => {
               >
                 <span className="flex items-center gap-2">
                   <Monitor className="size-4" />
-                  General
+                  {commonT("general")}
                 </span>
               </button>
               <button
@@ -432,7 +435,7 @@ export const SettingsDialog = () => {
               >
                 <span className="flex items-center gap-2">
                   <Plug className="size-4" />
-                  Providers
+                  {commonT("providers")}
                 </span>
               </button>
               <button
@@ -447,7 +450,7 @@ export const SettingsDialog = () => {
               >
                 <span className="flex items-center gap-2">
                   <Archive className="size-4" />
-                  Archived Chats
+                  {settingsT("archivedChats")}
                 </span>
               </button>
             </div>
@@ -460,10 +463,10 @@ export const SettingsDialog = () => {
             <div className="space-y-4 p-3">
               {settingsSection === "appearance" ? (
                 <div className="space-y-4">
-                  <SettingsGroup label="Appearance">
+                  <SettingsGroup label={themeT("appearance")}>
                     <SettingsControlRow
-                      description="Controls the interface theme."
-                      label="Theme"
+                      description={themeT("themeDescription")}
+                      label={themeT("theme")}
                     >
                       <Tabs
                         className="w-full"
@@ -480,15 +483,15 @@ export const SettingsDialog = () => {
                         >
                           <TabsTrigger value="system">
                             <Monitor className="size-4" />
-                            System
+                            {themeT("system")}
                           </TabsTrigger>
                           <TabsTrigger value="light">
                             <Sun className="size-4" />
-                            Light
+                            {themeT("light")}
                           </TabsTrigger>
                           <TabsTrigger value="dark">
                             <Moon className="size-4" />
-                            Dark
+                            {themeT("dark")}
                           </TabsTrigger>
                         </TabsList>
                       </Tabs>
@@ -496,8 +499,37 @@ export const SettingsDialog = () => {
 
                     <SettingsControlRow
                       controlClassName="md:w-[34rem]"
-                      description="Controls the base gray scale."
-                      label="Base color"
+                      description={localeT("description")}
+                      label={commonT("language")}
+                    >
+                      <Select
+                        onValueChange={(value) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            locale: value as AppLocale,
+                          }))
+                        }
+                        value={settings.locale}
+                      >
+                        <SelectTrigger className="w-full md:w-72">
+                          <SelectValue>
+                            {LOCALE_LABELS[settings.locale]}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end" alignItemWithTrigger={false}>
+                          {APP_LOCALES.map((locale) => (
+                            <SelectItem key={locale} value={locale}>
+                              {LOCALE_LABELS[locale]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={themeT("baseColorDescription")}
+                      label={themeT("baseColor")}
                     >
                       <div className="flex justify-end gap-2">
                         {BASE_COLORS.map((color) => {
@@ -528,8 +560,8 @@ export const SettingsDialog = () => {
 
                     <SettingsControlRow
                       controlClassName="md:w-[34rem]"
-                      description="Controls primary actions and active states."
-                      label="Accent color"
+                      description={themeT("accentColorDescription")}
+                      label={themeT("accentColor")}
                     >
                       <div className="grid grid-cols-9 gap-2">
                         {ACCENT_COLORS.map((color) => {
@@ -560,13 +592,11 @@ export const SettingsDialog = () => {
                   </SettingsGroup>
 
                   <SettingsControlRow
-                    description={
-                      <p>Sets the shell used for terminal sessions.</p>
-                    }
-                    label="Terminal"
+                    description={<p>{settingsT("terminalDescription")}</p>}
+                    label={commonT("terminal")}
                   >
                     <Input
-                      aria-label="Terminal shell path"
+                      aria-label={settingsT("shellPath")}
                       id="shell-path"
                       onChange={(event) =>
                         setSettings((previous) => ({
@@ -579,11 +609,11 @@ export const SettingsDialog = () => {
                     />
                   </SettingsControlRow>
 
-                  <SettingsGroup label="Permissions">
+                  <SettingsGroup label={settingsT("permissions")}>
                     <SettingsSwitchRow
                       checked={settings.autoAcceptPermissions}
-                      description="Agents run with the highest permissions when building"
-                      label="Full permissions"
+                      description={settingsT("fullPermissionsDescription")}
+                      label={settingsT("fullPermissions")}
                       onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
@@ -593,11 +623,11 @@ export const SettingsDialog = () => {
                     />
                   </SettingsGroup>
 
-                  <SettingsGroup label="Chat messages">
+                  <SettingsGroup label={settingsT("chatMessages")}>
                     <SettingsSwitchRow
                       checked={settings.autoCompactContext}
-                      description="Summarize older messages before the chat runs out of context"
-                      label="Auto compact context"
+                      description={settingsT("autoCompactContextDescription")}
+                      label={settingsT("autoCompactContext")}
                       onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
@@ -607,8 +637,10 @@ export const SettingsDialog = () => {
                     />
                     <SettingsSwitchRow
                       checked={settings.showReasoningSummaries}
-                      description="Display model reasoning summaries"
-                      label="Show reasoning summaries"
+                      description={settingsT(
+                        "showReasoningSummariesDescription",
+                      )}
+                      label={settingsT("showReasoningSummaries")}
                       onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
@@ -618,8 +650,8 @@ export const SettingsDialog = () => {
                     />
                     <SettingsSwitchRow
                       checked={settings.groupToolCalls}
-                      description="Collapse tool calls into compact count chips"
-                      label="Group tool calls"
+                      description={settingsT("groupToolCallsDescription")}
+                      label={settingsT("groupToolCalls")}
                       onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
@@ -629,8 +661,8 @@ export const SettingsDialog = () => {
                     />
                     <SettingsSwitchRow
                       checked={settings.expandToolCalls}
-                      description="Show tool calls expanded by default"
-                      label="Expand tool calls"
+                      description={settingsT("expandToolCallsDescription")}
+                      label={settingsT("expandToolCalls")}
                       onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
@@ -646,11 +678,16 @@ export const SettingsDialog = () => {
                 <div className="space-y-4 rounded-lg p-3">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h3 className="font-medium text-sm">Providers</h3>
+                      <h3 className="font-medium text-sm">
+                        {commonT("providers")}
+                      </h3>
                       {providerModels.fetchedAt ? (
                         <p className="text-muted-foreground text-xs">
-                          Last checked{" "}
-                          {new Date(providerModels.fetchedAt).toLocaleString()}
+                          {settingsT("lastChecked", {
+                            date: new Date(
+                              providerModels.fetchedAt,
+                            ).toLocaleString(),
+                          })}
                         </p>
                       ) : null}
                     </div>
@@ -658,8 +695,7 @@ export const SettingsDialog = () => {
 
                   {installedProviderCount === 0 ? (
                     <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
-                      Install Codex CLI, Claude Code CLI, OpenCode CLI, or
-                      Cursor Agent CLI, then refresh this section.
+                      {settingsT("installProviders")}
                     </p>
                   ) : null}
 
@@ -667,11 +703,15 @@ export const SettingsDialog = () => {
                     <ProviderStatusCard
                       action={
                         <Button
-                          aria-label="Refresh OpenAI provider"
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("openai"),
+                          })}
                           disabled={providerModels.openai.loading}
                           onClick={handleRefreshOpenAiProvider}
                           size="icon-xs"
-                          title="Refresh OpenAI provider"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("openai"),
+                          })}
                           type="button"
                           variant="ghost"
                         >
@@ -683,13 +723,13 @@ export const SettingsDialog = () => {
                       label="OpenAI"
                       logoSrc={openAiLogo}
                       loading={providerModels.openai.loading}
-                      runtimeLabel="Codex CLI"
+                      runtimeLabel={providerT("codexCli")}
                       version={providerModels.openai.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
                         {availableOpenAiModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            No CLI models available yet. Refresh Providers.
+                            {settingsT("noCliModels")}
                           </p>
                         ) : (
                           availableOpenAiModels.map((model) => {
@@ -727,11 +767,15 @@ export const SettingsDialog = () => {
                     <ProviderStatusCard
                       action={
                         <Button
-                          aria-label="Refresh Anthropic provider"
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("anthropic"),
+                          })}
                           disabled={providerModels.anthropic.loading}
                           onClick={handleRefreshAnthropicProvider}
                           size="icon-xs"
-                          title="Refresh Anthropic provider"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("anthropic"),
+                          })}
                           type="button"
                           variant="ghost"
                         >
@@ -743,13 +787,13 @@ export const SettingsDialog = () => {
                       label="Anthropic"
                       logoSrc={anthropicLogo}
                       loading={providerModels.anthropic.loading}
-                      runtimeLabel="Claude Code CLI"
+                      runtimeLabel={providerT("claudeCodeCli")}
                       version={providerModels.anthropic.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
                         {availableAnthropicModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            No CLI models available yet. Refresh Providers.
+                            {settingsT("noCliModels")}
                           </p>
                         ) : (
                           availableAnthropicModels.map((model) => {
@@ -792,11 +836,15 @@ export const SettingsDialog = () => {
                     <ProviderStatusCard
                       action={
                         <Button
-                          aria-label="Refresh OpenCode provider"
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("opencode"),
+                          })}
                           disabled={providerModels.opencode.loading}
                           onClick={handleRefreshOpenCodeProvider}
                           size="icon-xs"
-                          title="Refresh OpenCode provider"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("opencode"),
+                          })}
                           type="button"
                           variant="ghost"
                         >
@@ -808,14 +856,13 @@ export const SettingsDialog = () => {
                       label="OpenCode"
                       logoSrc={openCodeLogo}
                       loading={providerModels.opencode.loading}
-                      runtimeLabel="OpenCode CLI"
+                      runtimeLabel={providerT("opencodeCli")}
                       version={providerModels.opencode.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
                         {availableOpenCodeModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            No CLI models available yet. Run opencode auth login
-                            or configure opencode.json, then refresh Providers.
+                            {settingsT("noOpenCodeModels")}
                           </p>
                         ) : (
                           availableOpenCodeModels.map((model) => {
@@ -855,11 +902,15 @@ export const SettingsDialog = () => {
                     <ProviderStatusCard
                       action={
                         <Button
-                          aria-label="Refresh Cursor provider"
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("cursor"),
+                          })}
                           disabled={providerModels.cursor.loading}
                           onClick={handleRefreshCursorProvider}
                           size="icon-xs"
-                          title="Refresh Cursor provider"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("cursor"),
+                          })}
                           type="button"
                           variant="ghost"
                         >
@@ -877,13 +928,13 @@ export const SettingsDialog = () => {
                       installed={providerModels.cursor.installed}
                       label="Cursor"
                       loading={providerModels.cursor.loading}
-                      runtimeLabel="Cursor Agent CLI"
+                      runtimeLabel={providerT("cursorAgentCli")}
                       version={providerModels.cursor.version}
                     >
                       <div className="space-y-1.5 rounded-md p-1">
                         {availableCursorModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            No CLI models available yet. Refresh Providers.
+                            {settingsT("noCliModels")}
                           </p>
                         ) : (
                           availableCursorModels.map((model) => {
@@ -924,8 +975,10 @@ export const SettingsDialog = () => {
                     <div className="space-y-4">
                       <SettingsControlRow
                         controlClassName="md:w-[34rem]"
-                        description="You can switch models after a chat starts."
-                        label="Default model for new chats"
+                        description={settingsT(
+                          "defaultModelForNewChatsDescription",
+                        )}
+                        label={settingsT("defaultModelForNewChats")}
                       >
                         <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                           <Select
@@ -956,7 +1009,9 @@ export const SettingsDialog = () => {
                               disabled={groupedDefaultModelOptions.length === 0}
                               id="default-model"
                             >
-                              <SelectValue placeholder="Enable a model first">
+                              <SelectValue
+                                placeholder={settingsT("enableModelFirst")}
+                              >
                                 {selectedDefaultModelOption?.label}
                               </SelectValue>
                             </SelectTrigger>
@@ -993,7 +1048,7 @@ export const SettingsDialog = () => {
                               value={selectedDefaultReasoningEffort}
                             >
                               <SelectTrigger
-                                aria-label="Default reasoning effort"
+                                aria-label={settingsT("effort")}
                                 className="w-full sm:w-32"
                               >
                                 <SelectValue>
@@ -1002,14 +1057,16 @@ export const SettingsDialog = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectGroup>
-                                  <SelectLabel>Effort</SelectLabel>
+                                  <SelectLabel>
+                                    {settingsT("effort")}
+                                  </SelectLabel>
                                   {defaultReasoningEffortOptions.map(
                                     (option) => (
                                       <SelectItem
                                         key={option.value}
                                         value={option.value}
                                       >
-                                        {option.label}
+                                        {modelT(option.value)}
                                       </SelectItem>
                                     ),
                                   )}
@@ -1029,7 +1086,7 @@ export const SettingsDialog = () => {
                               value={selectedDefaultModelSpeed}
                             >
                               <SelectTrigger
-                                aria-label="Default model speed"
+                                aria-label={settingsT("speed")}
                                 className="w-full sm:w-32"
                               >
                                 <SelectValue>
@@ -1038,13 +1095,15 @@ export const SettingsDialog = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectGroup>
-                                  <SelectLabel>Speed</SelectLabel>
+                                  <SelectLabel>
+                                    {settingsT("speed")}
+                                  </SelectLabel>
                                   {defaultModelSpeedOptions.map((option) => (
                                     <SelectItem
                                       key={option.value}
                                       value={option.value}
                                     >
-                                      {option.label}
+                                      {modelT(option.value)}
                                     </SelectItem>
                                   ))}
                                 </SelectGroup>
@@ -1056,8 +1115,10 @@ export const SettingsDialog = () => {
 
                       <SettingsControlRow
                         controlClassName="md:w-[34rem] md:justify-end"
-                        description="Used to draft commit messages and PR text."
-                        label="Default model for commits and PRs"
+                        description={settingsT(
+                          "defaultModelForCommitsDescription",
+                        )}
+                        label={settingsT("defaultModelForCommits")}
                       >
                         <Select
                           onValueChange={(value) =>
@@ -1073,7 +1134,9 @@ export const SettingsDialog = () => {
                             disabled={groupedDefaultModelOptions.length === 0}
                             id="default-git-generation-model"
                           >
-                            <SelectValue placeholder="Enable a model first">
+                            <SelectValue
+                              placeholder={settingsT("enableModelFirst")}
+                            >
                               {selectedGitGenerationModelOption?.label}
                             </SelectValue>
                           </SelectTrigger>
@@ -1104,10 +1167,13 @@ export const SettingsDialog = () => {
                 <div className="space-y-4 rounded-lg p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
-                      <h3 className="font-medium text-sm">Archived Chats</h3>
+                      <h3 className="font-medium text-sm">
+                        {settingsT("archivedChats")}
+                      </h3>
                       <p className="text-muted-foreground text-sm">
-                        {deletedChats.length} archived{" "}
-                        {deletedChats.length === 1 ? "chat" : "chats"}
+                        {settingsT("archivedChatCount", {
+                          count: deletedChats.length,
+                        })}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1118,7 +1184,7 @@ export const SettingsDialog = () => {
                         variant="outline"
                       >
                         <RotateCcw className="size-4" />
-                        Restore
+                        {commonT("restore")}
                       </Button>
                       <Button
                         disabled={selectedDeletedChatIds.length === 0}
@@ -1127,7 +1193,7 @@ export const SettingsDialog = () => {
                         variant="destructive"
                       >
                         <Trash2 className="size-4" />
-                        Delete
+                        {commonT("delete")}
                       </Button>
                     </div>
                   </div>
@@ -1135,7 +1201,7 @@ export const SettingsDialog = () => {
                   {deletedChats.length === 0 ? (
                     <div className="flex min-h-[280px] items-center justify-center rounded-md border border-surface-200 dark:border-surface-800">
                       <p className="text-muted-foreground text-sm">
-                        No archived chats.
+                        {settingsT("noArchivedChats")}
                       </p>
                     </div>
                   ) : (
@@ -1145,7 +1211,7 @@ export const SettingsDialog = () => {
                           <TableRow>
                             <TableHead className="w-10">
                               <Checkbox
-                                aria-label="Select all archived chats"
+                                aria-label={settingsT("selectAllArchivedChats")}
                                 checked={allDeletedChatsSelected}
                                 indeterminate={someDeletedChatsSelected}
                                 onCheckedChange={(checked) =>
@@ -1153,10 +1219,10 @@ export const SettingsDialog = () => {
                                 }
                               />
                             </TableHead>
-                            <TableHead>Chat</TableHead>
-                            <TableHead>Project</TableHead>
+                            <TableHead>{commonT("chat")}</TableHead>
+                            <TableHead>{commonT("project")}</TableHead>
                             <TableHead className="text-right">
-                              Archived
+                              {commonT("archived")}
                             </TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1171,7 +1237,12 @@ export const SettingsDialog = () => {
                               <TableRow key={chat.id}>
                                 <TableCell>
                                   <Checkbox
-                                    aria-label={`Select ${chat.title}`}
+                                    aria-label={settingsT(
+                                      "selectArchivedChat",
+                                      {
+                                        title: chat.title,
+                                      },
+                                    )}
                                     checked={checked}
                                     onCheckedChange={(nextChecked) =>
                                       toggleDeletedChatSelection(
@@ -1185,7 +1256,7 @@ export const SettingsDialog = () => {
                                   {chat.title}
                                 </TableCell>
                                 <TableCell className="max-w-[280px] truncate text-muted-foreground">
-                                  {project?.name ?? "Unknown project"}
+                                  {project?.name ?? commonT("unknownProject")}
                                 </TableCell>
                                 <TableCell className="text-right text-muted-foreground">
                                   {formatDeletedDate(chat.deletedAt ?? "")}

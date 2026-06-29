@@ -8,6 +8,7 @@ import type {
   ToolUIPart,
   UIMessage,
 } from "ai";
+import { normalizeLocalePreference } from "@/i18n/config";
 import {
   createChatConfig,
   DEFAULT_PANEL_SIZES,
@@ -610,6 +611,7 @@ export const mergePersistedState = (
         ? rawSettings.openCodeSelectedModels
         : [],
     ),
+    locale: normalizeLocalePreference(rawSettings.locale),
     showReasoningSummaries:
       typeof rawSettings.showReasoningSummaries === "boolean"
         ? rawSettings.showReasoningSummaries

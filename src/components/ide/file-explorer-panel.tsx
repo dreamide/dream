@@ -1,5 +1,6 @@
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import { FileIcon, Files, RotateCw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { CSSProperties } from "react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { BundledLanguage } from "shiki";
@@ -335,6 +336,8 @@ const FileExplorerPanelImpl = ({
   onClosePanel,
   projectId: requestedProjectId,
 }: FileExplorerPanelProps) => {
+  const commonT = useTranslations("common");
+  const panelsT = useTranslations("panels");
   const activeProject = useIdeStore((s) =>
     requestedProjectId
       ? (s.projects.find((project) => project.id === requestedProjectId) ??
@@ -634,10 +637,10 @@ const FileExplorerPanelImpl = ({
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex min-h-[50px] items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2 text-sm font-medium">
           <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
-          <span>Files</span>
+          <span>{commonT("files")}</span>
         </div>
         <div className="min-h-0 flex-1 p-3">
-          <AppShellPlaceholder message="Add a project to browse its files." />
+          <AppShellPlaceholder message={panelsT("addProjectForFiles")} />
         </div>
       </div>
     );
@@ -648,21 +651,21 @@ const FileExplorerPanelImpl = ({
       <div className="grid min-h-[50px] grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
-          <div className="truncate text-sm font-medium">Files</div>
+          <div className="truncate text-sm font-medium">{commonT("files")}</div>
         </div>
         <button
           className="min-w-0 max-w-full justify-self-center truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
           onClick={handleOpenProjectPath}
-          title="Open project folder"
+          title={commonT("open")}
           type="button"
         >
           {activeProject.path}
         </button>
         <button
-          aria-label="Refresh files"
+          aria-label={panelsT("refreshFiles")}
           className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           onClick={handleRefreshFiles}
-          title="Refresh files"
+          title={panelsT("refreshFiles")}
           type="button"
         >
           <RotateCw className="size-3.5" />

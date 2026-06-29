@@ -68,6 +68,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   expandToolCalls: false,
   groupToolCalls: false,
   cursorSelectedModels: [],
+  locale: "en",
   openAiSelectedModels: [],
   openCodeSelectedModels: [],
   showReasoningSummaries: true,

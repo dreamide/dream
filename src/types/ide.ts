@@ -1,5 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { UIMessage } from "ai";
+import type { AppLocale } from "@/i18n/config";
 import type { SparklesPaletteName } from "@/lib/sparkles-palettes";
 
 export type AiProvider = "openai" | "anthropic" | "opencode" | "cursor";
@@ -109,6 +110,7 @@ export interface AppSettings {
   anthropicSelectedModels: string[];
   openCodeSelectedModels: string[];
   cursorSelectedModels: string[];
+  locale: AppLocale;
   showReasoningSummaries: boolean;
   shellPath: string;
 }

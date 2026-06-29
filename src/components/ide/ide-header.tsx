@@ -1,4 +1,5 @@
 import { Settings } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ProjectTabs } from "./header/project-tabs";
@@ -7,6 +8,7 @@ import { WindowControls } from "./header/window-controls";
 import { useIdeStore } from "./ide-store";
 
 export const IdeHeader = () => {
+  const t = useTranslations("common");
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
@@ -36,11 +38,11 @@ export const IdeHeader = () => {
         <HeaderUpdateButton />
 
         <Button
-          aria-label="Settings"
+          aria-label={t("settings")}
           className="mr-2 size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
           onClick={openSettings}
           size="icon"
-          title="Settings"
+          title={t("settings")}
           variant="ghost"
         >
           <Settings className="size-4" />

@@ -1,10 +1,13 @@
 allowBuilds:
+  '@parcel/watcher': false
+  '@swc/core': false
   core-js: false
   electron: true
   electron-winstaller: true
   esbuild: true
   msw: true
   node-pty: true
+  sharp: false
 
 supportedArchitectures:
   os:

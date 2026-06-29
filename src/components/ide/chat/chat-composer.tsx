@@ -1,5 +1,6 @@
 import type { ChatStatus, LanguageModelUsage } from "ai";
 import { Bot, MapIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   type ChangeEventHandler,
   type KeyboardEventHandler,
@@ -596,7 +597,11 @@ export const ChatComposer = ({
   status,
   todoSummary,
 }: ChatComposerProps) => {
+  const chatT = useTranslations("chat");
+  const modelT = useTranslations("models");
+  const settingsT = useTranslations("settings");
   const AgentModeIcon = getAgentModeIcon(agentMode);
+  const selectedAgentModeLabel = chatT(agentMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [projectReferences, setProjectReferences] = useState<
     ProjectReferenceItem[]
@@ -940,7 +945,7 @@ export const ChatComposer = ({
                         event.currentTarget.selectionStart,
                       )
                     }
-                    placeholder="Ask anything..."
+                    placeholder={chatT("askAnything")}
                     ref={textareaRef}
                     rows={1}
                     value={promptText}
@@ -979,20 +984,14 @@ export const ChatComposer = ({
               >
                 <SelectTrigger
                   className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  title="Agent mode"
+                  title={chatT("agentMode")}
                 >
                   <AgentModeIcon className="size-3.5 shrink-0" />
-                  <span className="truncate">
-                    {
-                      AGENT_MODE_OPTIONS.find(
-                        (option) => option.value === agentMode,
-                      )?.label
-                    }
-                  </span>
+                  <span className="truncate">{selectedAgentModeLabel}</span>
                 </SelectTrigger>
                 <SelectContent className="text-xs" side="top">
                   <SelectGroup>
-                    <SelectLabel>Mode</SelectLabel>
+                    <SelectLabel>{chatT("mode")}</SelectLabel>
                     {AGENT_MODE_OPTIONS.map((option) => {
                       const OptionIcon = getAgentModeIcon(option.value);
 
@@ -1004,7 +1003,7 @@ export const ChatComposer = ({
                         >
                           <span className="flex items-center gap-1.5">
                             <OptionIcon className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                            <span>{option.label}</span>
+                            <span>{chatT(option.value)}</span>
                           </span>
                         </SelectItem>
                       );
@@ -1033,7 +1032,7 @@ export const ChatComposer = ({
                   className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
                   disabled={allModelOptions.length === 0}
                 >
-                  <SelectValue placeholder="Model">
+                  <SelectValue placeholder={chatT("model")}>
                     <span className="flex items-center gap-1.5">
                       <ProviderIcon
                         className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
@@ -1049,7 +1048,7 @@ export const ChatComposer = ({
                   side="top"
                 >
                   <SelectGroup>
-                    <SelectLabel>Model</SelectLabel>
+                    <SelectLabel>{chatT("model")}</SelectLabel>
                     {allModelOptions.map((option) => (
                       <SelectItem
                         className="text-xs"
@@ -1077,18 +1076,22 @@ export const ChatComposer = ({
                   value={selectedReasoningEffort}
                 >
                   <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <span className="truncate">{selectedReasoningLabel}</span>
+                    <span className="truncate">
+                      {selectedReasoningEffort
+                        ? modelT(selectedReasoningEffort)
+                        : selectedReasoningLabel}
+                    </span>
                   </SelectTrigger>
                   <SelectContent className="text-xs" side="top">
                     <SelectGroup>
-                      <SelectLabel>Effort</SelectLabel>
+                      <SelectLabel>{settingsT("effort")}</SelectLabel>
                       {reasoningEffortOptions.map((option) => (
                         <SelectItem
                           className="text-xs"
                           key={option.value}
                           value={option.value}
                         >
-                          {option.label}
+                          {modelT(option.value)}
                         </SelectItem>
                       ))}
                     </SelectGroup>
@@ -1104,18 +1107,22 @@ export const ChatComposer = ({
                   value={selectedModelSpeed}
                 >
                   <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <span className="truncate">{selectedModelSpeedLabel}</span>
+                    <span className="truncate">
+                      {selectedModelSpeed
+                        ? modelT(selectedModelSpeed)
+                        : selectedModelSpeedLabel}
+                    </span>
                   </SelectTrigger>
                   <SelectContent className="text-xs" side="top">
                     <SelectGroup>
-                      <SelectLabel>Speed</SelectLabel>
+                      <SelectLabel>{settingsT("speed")}</SelectLabel>
                       {speedOptions.map((option) => (
                         <SelectItem
                           className="text-xs"
                           key={option.value}
                           value={option.value}
                         >
-                          {option.label}
+                          {modelT(option.value)}
                         </SelectItem>
                       ))}
                     </SelectGroup>
@@ -1133,7 +1140,7 @@ export const ChatComposer = ({
                 >
                   <ContextTrigger
                     className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                    title="Context usage"
+                    title={chatT("contextUsage")}
                   />
                   <ContextContent side="top" align="end">
                     <ContextContentHeader />
