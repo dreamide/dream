@@ -15,21 +15,28 @@ export const MIME_TYPES = {
 };
 
 const BLOCKED_DIRECTORIES = new Set([
+  ".angular",
+  ".cache",
   ".git",
   ".claude",
   ".cursor",
   ".expo",
+  ".gradle",
   ".idea",
   ".mypy_cache",
   ".next",
   ".nuxt",
   ".nx",
   ".parcel-cache",
+  ".pnpm-store",
   ".pytest_cache",
   ".ruff_cache",
+  ".serverless",
   ".svelte-kit",
   ".turbo",
   ".vscode",
+  ".wrangler",
+  ".yarn",
   ".zed",
   "__pycache__",
   "build",
@@ -59,7 +66,12 @@ const walkFiles = async (root, current, maxResults, output) => {
   entries.sort((a, b) => a.name.localeCompare(b.name));
   for (const entry of entries) {
     if (output.length >= maxResults) return;
-    if (entry.isDirectory() && BLOCKED_DIRECTORIES.has(entry.name)) continue;
+    if (
+      entry.isDirectory() &&
+      BLOCKED_DIRECTORIES.has(entry.name.toLowerCase())
+    ) {
+      continue;
+    }
     const absolute = path.join(current, entry.name);
     const relative = normalizePath(path.relative(root, absolute));
     if (entry.isDirectory()) {
@@ -76,6 +88,7 @@ export const listProjectFiles = async (projectRoot, directory, maxResults) => {
   if (!stats.isDirectory()) {
     throw new Error(`Not a directory: ${directory}`);
   }
+
   const files = [];
   await walkFiles(projectRoot, targetDirectory, maxResults, files);
   return files;
