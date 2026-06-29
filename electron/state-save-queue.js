@@ -43,7 +43,7 @@ export function createStateSaveQueue({ databasePath }) {
     }
 
     worker = new Worker(WORKER_PATH, {
-      env: { ...process.env, DREAM_DB_PATH: databasePath },
+      workerData: { databasePath },
     });
 
     worker.on("message", (message) => {

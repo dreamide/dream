@@ -7,9 +7,9 @@
 // which delayed input-event delivery to every window — the source of the
 // click-to-action lag. Running it here keeps the main thread free.
 //
-// The parent must launch this worker with DREAM_DB_PATH set in `env` so that
-// persisted-state.js never needs the (unavailable) "electron" module.
-import { parentPort } from "node:worker_threads";
+// The parent passes the resolved database path in workerData so persisted-state.js
+// never needs the (unavailable) "electron" module.
+import { parentPort, workerData } from "node:worker_threads";
 
 import {
   closePersistedStateDatabase,
@@ -20,6 +20,9 @@ if (!parentPort) {
   throw new Error("persisted-state-worker must be run as a worker thread.");
 }
 
+const databasePath =
+  typeof workerData?.databasePath === "string" ? workerData.databasePath : null;
+
 parentPort.on("message", (message) => {
   if (!message || typeof message !== "object") {
     return;
@@ -29,7 +32,7 @@ parentPort.on("message", (message) => {
 
   try {
     if (type === "save") {
-      const result = savePersistedState(message.state);
+      const result = savePersistedState(message.state, { databasePath });
       parentPort.postMessage({ id, ok: true, result });
       return;
     }

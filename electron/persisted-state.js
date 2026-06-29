@@ -38,6 +38,26 @@ const RELATIONAL_SCHEMA_VERSION = 2;
 const STATE_DB_FILENAME = "dream.db";
 const STATE_DB_PATH_ENV_VAR = "DREAM_DB_PATH";
 const DRIZZLE_MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
+const THEME_PREFERENCES_CONFIG_KEY = "themePreferences";
+const PERSISTED_STATE_CONFIG_KEYS = [
+  "activeProjectId",
+  "chatSort",
+  "browserTabsByProject",
+  "activeBrowserTabIdByProject",
+  "settings.defaultModel",
+  "settings.defaultGitGenerationModel",
+  "settings.defaultModelSpeed",
+  "settings.defaultReasoningEffort",
+  "settings.openAiSelectedModels",
+  "settings.anthropicSelectedModels",
+  "settings.openCodeSelectedModels",
+  "settings.cursorSelectedModels",
+  "settings.autoAcceptPermissions",
+  "settings.shellPath",
+  "settings.expandToolCalls",
+  "settings.groupToolCalls",
+  "settings.showReasoningSummaries",
+];
 const DEFAULT_SPARKLES_PALETTE = "dream";
 const SPARKLES_PALETTE_NAMES = new Set([
   "dream",
@@ -51,6 +71,7 @@ const SPARKLES_PALETTE_NAMES = new Set([
   "mono",
 ]);
 let stateDatabase = null;
+let stateDatabasePath = null;
 
 function cloneDefaultPersistedState() {
   return JSON.parse(JSON.stringify(DEFAULT_PERSISTED_STATE));
@@ -86,14 +107,26 @@ function normalizeProjectPathKey(projectPath) {
   return isWindowsPath ? normalized.toLowerCase() : normalized;
 }
 
-export function resolveStateDatabasePath() {
-  const configuredPath = process.env[STATE_DB_PATH_ENV_VAR]?.trim();
-  if (configuredPath) {
-    if (path.isAbsolute(configuredPath)) {
-      return path.resolve(configuredPath);
-    }
+function resolveConfiguredStateDatabasePath(configuredPath) {
+  const normalizedPath =
+    typeof configuredPath === "string" ? configuredPath.trim() : "";
+  if (!normalizedPath) {
+    return null;
+  }
 
-    return path.resolve(appRoot, configuredPath);
+  if (path.isAbsolute(normalizedPath)) {
+    return path.resolve(normalizedPath);
+  }
+
+  return path.resolve(appRoot, normalizedPath);
+}
+
+export function resolveStateDatabasePath() {
+  const configuredPath = resolveConfiguredStateDatabasePath(
+    process.env[STATE_DB_PATH_ENV_VAR],
+  );
+  if (configuredPath) {
+    return configuredPath;
   }
 
   // Lazy-loaded so this module also works inside worker threads, where the
@@ -546,7 +579,10 @@ function saveStateToRelationalDatabase(database, state) {
     database.prepare("DELETE FROM chat_messages").run();
     database.prepare("DELETE FROM chats").run();
     database.prepare("DELETE FROM projects").run();
-    database.prepare("DELETE FROM config").run();
+    const deleteConfig = database.prepare("DELETE FROM config WHERE key = ?");
+    for (const key of PERSISTED_STATE_CONFIG_KEYS) {
+      deleteConfig.run(key);
+    }
 
     const settings = isRecord(state.settings) ? state.settings : {};
     writeConfig(
@@ -1228,14 +1264,19 @@ function runDrizzleMigrations(database) {
   }
 }
 
-function getStateDatabase() {
-  if (stateDatabase) {
+function getStateDatabase(databasePath = resolveStateDatabasePath()) {
+  const resolvedDatabasePath =
+    resolveConfiguredStateDatabasePath(databasePath) ??
+    resolveStateDatabasePath();
+
+  if (stateDatabase && stateDatabasePath === resolvedDatabasePath) {
     return stateDatabase;
   }
 
-  const databasePath = resolveStateDatabasePath();
-  mkdirSync(path.dirname(databasePath), { recursive: true });
-  const database = new DatabaseSync(databasePath);
+  closePersistedStateDatabase();
+
+  mkdirSync(path.dirname(resolvedDatabasePath), { recursive: true });
+  const database = new DatabaseSync(resolvedDatabasePath);
   const legacyState = loadLegacyAppState(database);
   database.exec(`
     PRAGMA foreign_keys = ON;
@@ -1258,17 +1299,45 @@ function getStateDatabase() {
     )
     .run(RELATIONAL_SCHEMA_VERSION, new Date().toISOString());
   stateDatabase = database;
+  stateDatabasePath = resolvedDatabasePath;
   return database;
 }
 
-export function savePersistedState(state) {
-  const database = getStateDatabase();
+export function savePersistedState(state, { databasePath } = {}) {
+  const database = getStateDatabase(databasePath);
   return saveStateToRelationalDatabase(database, state);
 }
 
-export function loadPersistedState() {
-  const database = getStateDatabase();
+export function loadPersistedState({ databasePath } = {}) {
+  const database = getStateDatabase(databasePath);
   return loadStateFromRelationalDatabase(database);
+}
+
+export function loadPersistedThemePreference({ databasePath } = {}) {
+  const database = getStateDatabase(databasePath);
+  const row = database
+    .prepare("SELECT value FROM config WHERE key = ? LIMIT 1")
+    .get(THEME_PREFERENCES_CONFIG_KEY);
+  const preferences = parseJson(row?.value, null);
+  return isRecord(preferences) ? preferences : null;
+}
+
+export function savePersistedThemePreference(
+  preferences,
+  { databasePath } = {},
+) {
+  if (!isRecord(preferences)) {
+    return false;
+  }
+
+  const database = getStateDatabase(databasePath);
+  writeConfig(
+    database,
+    THEME_PREFERENCES_CONFIG_KEY,
+    preferences,
+    new Date().toISOString(),
+  );
+  return true;
 }
 
 export function resolvePersistedProjectPath({ chatId, projectId } = {}) {
@@ -1322,4 +1391,5 @@ export function closePersistedStateDatabase() {
 
   stateDatabase.close();
   stateDatabase = null;
+  stateDatabasePath = null;
 }

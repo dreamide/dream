@@ -107,6 +107,35 @@ export const useUiStore = create<UiState>((set, _get) => ({
   },
 
   hydrateUi: async () => {
+    const desktopApi = getDesktopApi();
+    if (desktopApi) {
+      try {
+        const preferences = await desktopApi.getThemePreferences();
+        const baseColor = isBaseColor(preferences?.baseColor)
+          ? preferences.baseColor
+          : DEFAULT_BASE_COLOR;
+        const accentColor = isAccentColor(preferences?.accentColor)
+          ? preferences.accentColor
+          : DEFAULT_ACCENT_COLOR;
+
+        applyBaseColor(baseColor);
+        applyAccentColor(accentColor);
+        set({ accentColor, baseColor });
+        persistUiPreferences({ accentColor, baseColor });
+
+        if (!isAccentColor(preferences?.accentColor)) {
+          void desktopApi.setAccentColor(accentColor);
+        }
+        if (!isBaseColor(preferences?.baseColor)) {
+          void desktopApi.setBaseColor(baseColor);
+        }
+
+        return;
+      } catch {
+        // fall back to browser storage below
+      }
+    }
+
     let hydratedFromLocalStorage = false;
 
     try {
@@ -128,33 +157,6 @@ export const useUiStore = create<UiState>((set, _get) => ({
         set({ accentColor, baseColor });
         hydratedFromLocalStorage = true;
       }
-    } catch {
-      // ignore
-    }
-
-    try {
-      const preferences = await getDesktopApi()?.getThemePreferences();
-      const baseColor = isBaseColor(preferences?.baseColor)
-        ? preferences.baseColor
-        : hydratedFromLocalStorage
-          ? useUiStore.getState().baseColor
-          : DEFAULT_BASE_COLOR;
-      const accentColor = isAccentColor(preferences?.accentColor)
-        ? preferences.accentColor
-        : hydratedFromLocalStorage
-          ? useUiStore.getState().accentColor
-          : DEFAULT_ACCENT_COLOR;
-
-      applyBaseColor(baseColor);
-      applyAccentColor(accentColor);
-      set({ accentColor, baseColor });
-      persistUiPreferences({ accentColor, baseColor });
-
-      if (!isAccentColor(preferences?.accentColor)) {
-        void getDesktopApi()?.setAccentColor(accentColor);
-      }
-
-      return;
     } catch {
       // ignore
     }

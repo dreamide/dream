@@ -1,5 +1,5 @@
 import "./load-env.js";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +23,9 @@ import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import {
   closePersistedStateDatabase,
   loadPersistedState,
+  loadPersistedThemePreference,
   resolveStateDatabasePath,
+  savePersistedThemePreference,
 } from "./persisted-state.js";
 import { createProcessSessionManager } from "./process-sessions.js";
 import { createRendererServerManager } from "./renderer-server.js";
@@ -65,10 +67,6 @@ const APP_SESSION_DATA_PATH = path.join(
   APP_USER_DATA_DIR_NAME,
   `session-${process.pid}`,
 );
-const THEME_PREFERENCES_PATH = path.join(
-  APP_USER_DATA_PATH,
-  "theme-preferences.json",
-);
 const LIGHT_WINDOW_BACKGROUND = "#ffffff";
 const DARK_WINDOW_BACKGROUNDS = {
   neutral: "#0a0a0a",
@@ -104,11 +102,7 @@ function normalizeThemePreference(value) {
 
 function loadThemePreference() {
   try {
-    if (!existsSync(THEME_PREFERENCES_PATH)) {
-      return DEFAULT_THEME_PREFERENCES;
-    }
-
-    const parsed = JSON.parse(readFileSync(THEME_PREFERENCES_PATH, "utf8"));
+    const parsed = loadPersistedThemePreference();
     return {
       accentColor: parsed?.accentColor ?? DEFAULT_THEME_PREFERENCES.accentColor,
       theme: normalizeThemePreference(parsed?.theme),
@@ -127,8 +121,7 @@ function saveThemePreference(theme, baseColor, accentColor) {
       theme: normalizeThemePreference(theme ?? existing.theme),
       baseColor: baseColor ?? existing.baseColor,
     };
-    mkdirSync(APP_USER_DATA_PATH, { recursive: true });
-    writeFileSync(THEME_PREFERENCES_PATH, JSON.stringify(data));
+    savePersistedThemePreference(data);
   } catch (error) {
     console.error("Failed to save theme preference:", error);
   }
