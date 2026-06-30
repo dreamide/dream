@@ -463,6 +463,65 @@ export const SettingsDialog = () => {
             <div className="space-y-4 p-3">
               {settingsSection === "appearance" ? (
                 <div className="space-y-4">
+                  <SettingsControlRow
+                    controlClassName="md:w-[34rem]"
+                    description={localeT("description")}
+                    label={commonT("language")}
+                  >
+                    <Select
+                      onValueChange={(value) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          locale: value as AppLocale,
+                        }))
+                      }
+                      value={settings.locale}
+                    >
+                      <SelectTrigger className="w-full md:w-72">
+                        <SelectValue>
+                          {LOCALE_LABELS[settings.locale]}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="end" alignItemWithTrigger={false}>
+                        {APP_LOCALES.map((locale) => (
+                          <SelectItem key={locale} value={locale}>
+                            {LOCALE_LABELS[locale]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </SettingsControlRow>
+
+                  <SettingsControlRow
+                    description={<p>{settingsT("terminalDescription")}</p>}
+                    label={commonT("terminal")}
+                  >
+                    <Input
+                      aria-label={settingsT("shellPath")}
+                      id="shell-path"
+                      onChange={(event) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          shellPath: event.currentTarget.value,
+                        }))
+                      }
+                      placeholder={defaultShellPlaceholder}
+                      value={settings.shellPath}
+                    />
+                  </SettingsControlRow>
+
+                  <SettingsSwitchRow
+                    checked={settings.autoAcceptPermissions}
+                    description={settingsT("fullPermissionsDescription")}
+                    label={settingsT("fullPermissions")}
+                    onCheckedChange={(checked) =>
+                      setSettings((previous) => ({
+                        ...previous,
+                        autoAcceptPermissions: checked,
+                      }))
+                    }
+                  />
+
                   <SettingsGroup label={themeT("appearance")}>
                     <SettingsControlRow
                       description={themeT("themeDescription")}
@@ -495,35 +554,6 @@ export const SettingsDialog = () => {
                           </TabsTrigger>
                         </TabsList>
                       </Tabs>
-                    </SettingsControlRow>
-
-                    <SettingsControlRow
-                      controlClassName="md:w-[34rem]"
-                      description={localeT("description")}
-                      label={commonT("language")}
-                    >
-                      <Select
-                        onValueChange={(value) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            locale: value as AppLocale,
-                          }))
-                        }
-                        value={settings.locale}
-                      >
-                        <SelectTrigger className="w-full md:w-72">
-                          <SelectValue>
-                            {LOCALE_LABELS[settings.locale]}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent align="end" alignItemWithTrigger={false}>
-                          {APP_LOCALES.map((locale) => (
-                            <SelectItem key={locale} value={locale}>
-                              {LOCALE_LABELS[locale]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </SettingsControlRow>
 
                     <SettingsControlRow
@@ -589,38 +619,6 @@ export const SettingsDialog = () => {
                         })}
                       </div>
                     </SettingsControlRow>
-                  </SettingsGroup>
-
-                  <SettingsControlRow
-                    description={<p>{settingsT("terminalDescription")}</p>}
-                    label={commonT("terminal")}
-                  >
-                    <Input
-                      aria-label={settingsT("shellPath")}
-                      id="shell-path"
-                      onChange={(event) =>
-                        setSettings((previous) => ({
-                          ...previous,
-                          shellPath: event.currentTarget.value,
-                        }))
-                      }
-                      placeholder={defaultShellPlaceholder}
-                      value={settings.shellPath}
-                    />
-                  </SettingsControlRow>
-
-                  <SettingsGroup label={settingsT("permissions")}>
-                    <SettingsSwitchRow
-                      checked={settings.autoAcceptPermissions}
-                      description={settingsT("fullPermissionsDescription")}
-                      label={settingsT("fullPermissions")}
-                      onCheckedChange={(checked) =>
-                        setSettings((previous) => ({
-                          ...previous,
-                          autoAcceptPermissions: checked,
-                        }))
-                      }
-                    />
                   </SettingsGroup>
 
                   <SettingsGroup label={settingsT("chatMessages")}>
