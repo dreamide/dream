@@ -217,6 +217,63 @@ function Assert-CodeSignature {
   Write-Warning "Could not verify signature because neither Get-AuthenticodeSignature nor signtool.exe is available."
 }
 
+function Get-FileSha512Base64 {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  $stream = [System.IO.File]::OpenRead($Path)
+  try {
+    $sha512 = [System.Security.Cryptography.SHA512]::Create()
+    try {
+      return [Convert]::ToBase64String($sha512.ComputeHash($stream))
+    } finally {
+      $sha512.Dispose()
+    }
+  } finally {
+    $stream.Dispose()
+  }
+}
+
+function Update-WindowsLatestYml {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$LatestYmlPath,
+    [Parameter(Mandatory = $true)]
+    [string]$InstallerPath
+  )
+
+  if (-not (Test-Path -LiteralPath $LatestYmlPath)) {
+    return
+  }
+
+  $installer = Get-Item -LiteralPath $InstallerPath
+  $sha512 = Get-FileSha512Base64 -Path $installer.FullName
+  $content = Get-Content -LiteralPath $LatestYmlPath -Raw
+
+  $content = [regex]::Replace(
+    $content,
+    "(?m)^(\s+sha512:\s+).*$",
+    "`${1}$sha512",
+    1
+  )
+  $content = [regex]::Replace(
+    $content,
+    "(?m)^(\s+size:\s+)\d+$",
+    "`${1}$($installer.Length)",
+    1
+  )
+  $content = [regex]::Replace(
+    $content,
+    "(?m)^(sha512:\s+).*$",
+    "`${1}$sha512",
+    1
+  )
+
+  Set-Content -LiteralPath $LatestYmlPath -Value $content -NoNewline
+}
+
 function Get-RunningPackagedAppProcess {
   if (-not (Test-Path -LiteralPath $unpackedDir)) {
     return @()
@@ -403,6 +460,7 @@ Get-ChildItem -LiteralPath $buildReleaseDir -Filter "*.blockmap" -File |
 
 $latestYml = Join-Path $buildReleaseDir "latest.yml"
 if (Test-Path -LiteralPath $latestYml) {
+  Update-WindowsLatestYml -LatestYmlPath $latestYml -InstallerPath $finalInstaller
   Copy-Item -LiteralPath $latestYml -Destination $releaseDir -Force
 }
 
