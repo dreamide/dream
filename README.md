@@ -31,8 +31,8 @@ At least one supported agent CLI:
 - [x64](https://files.dreamide.app/latest/Dream-windows-x64.exe)
 
 ### Linux
-- [.deb x64](https://files.dreamide.app/latest/Dream-linux-x64.deb)
-- [.rpm x64](https://files.dreamide.app/latest/Dream-linux-x64.rpm)
+- [DEB x64](https://files.dreamide.app/latest/Dream-linux-x64.deb)
+- [RPM x64](https://files.dreamide.app/latest/Dream-linux-x64.rpm)
 - [AppImage x64](https://files.dreamide.app/latest/Dream-linux-x64.AppImage)
 
 ## Installation
