@@ -1,7 +1,8 @@
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 import electronUpdater from "electron-updater";
 
-const { autoUpdater } = electronUpdater;
 const require = createRequire(import.meta.url);
 const updaterRequire = createRequire(require.resolve("electron-updater"));
 const updaterSemver = updaterRequire("semver");
@@ -58,6 +59,30 @@ function getDevUpdateCurrentVersion() {
   }
 
   return parsed;
+}
+
+function applyDevUpdateCurrentVersion(app, devCurrentVersion) {
+  if (!devCurrentVersion || typeof app.setVersion !== "function") {
+    return;
+  }
+
+  app.setVersion(devCurrentVersion.format());
+}
+
+function writeDevUpdateConfig(app, updateFeedUrl) {
+  const configDir = path.join(app.getPath("userData"), "updater-dev");
+  const configPath = path.join(configDir, "dev-app-update.yml");
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(
+    configPath,
+    `provider: generic
+url: ${JSON.stringify(updateFeedUrl)}
+updaterCacheDirName: dream-updater
+`,
+    "utf8",
+  );
+
+  return configPath;
 }
 
 export function initializeAutoUpdater({
@@ -125,6 +150,16 @@ export function initializeAutoUpdater({
 
     checkInFlight = autoUpdater
       .checkForUpdates()
+      .then(async (result) => {
+        await result?.downloadPromise?.catch((error) => {
+          emitStatus({
+            error: getErrorMessage(error),
+            manual,
+            progress: null,
+            state: "error",
+          });
+        });
+      })
       .catch((error) => {
         emitStatus({
           error: getErrorMessage(error),
@@ -167,6 +202,13 @@ export function initializeAutoUpdater({
   }
 
   if (devUpdatesEnabled && updateFeedUrl) {
+    applyDevUpdateCurrentVersion(app, devCurrentVersion);
+  }
+
+  const { autoUpdater } = electronUpdater;
+
+  if (devUpdatesEnabled && updateFeedUrl) {
+    autoUpdater.updateConfigPath = writeDevUpdateConfig(app, updateFeedUrl);
     autoUpdater.forceDevUpdateConfig = true;
     autoUpdater.setFeedURL({
       provider: "generic",
@@ -186,6 +228,8 @@ export function initializeAutoUpdater({
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.disableWebInstaller = true;
+  autoUpdater.disableDifferentialDownload = true;
   autoUpdater.logger = {
     debug: (...args) => console.debug("[updater]", ...args),
     error: (...args) => console.error("[updater]", ...args),
