@@ -40,6 +40,9 @@ type ProjectFileReadResponse = {
   filePath: string;
 };
 
+const isFilePreviewUnavailableStatus = (status: number) =>
+  status === 413 || status === 415;
+
 interface ProjectFileTreeProps {
   files: string[];
   selectedFilePath: string | null;
@@ -293,6 +296,38 @@ const ProjectFileTree = ({
   }, [model, selectedFilePath]);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const selectionSyncFrameRef = useRef<number | null>(null);
+
+  const syncSelectionFromModel = useCallback(() => {
+    const selectedPath = model.getSelectedPaths()[0] ?? null;
+
+    if (!selectedPath || !fileSetRef.current.has(selectedPath)) {
+      onSelectFileRef.current(null);
+      return;
+    }
+
+    onSelectFileRef.current(selectedPath);
+  }, [model]);
+
+  const scheduleSelectionSync = useCallback(() => {
+    if (selectionSyncFrameRef.current !== null) {
+      window.cancelAnimationFrame(selectionSyncFrameRef.current);
+    }
+
+    selectionSyncFrameRef.current = window.requestAnimationFrame(() => {
+      selectionSyncFrameRef.current = null;
+      syncSelectionFromModel();
+    });
+  }, [syncSelectionFromModel]);
+
+  useEffect(
+    () => () => {
+      if (selectionSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(selectionSyncFrameRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -321,7 +356,12 @@ const ProjectFileTree = ({
   }, []);
 
   return (
-    <div ref={wrapperRef} className="h-full">
+    <div
+      ref={wrapperRef}
+      className="h-full"
+      onClickCapture={scheduleSelectionSync}
+      onKeyUpCapture={scheduleSelectionSync}
+    >
       <PierreFileTree
         aria-label="Project files"
         model={model}
@@ -361,6 +401,8 @@ const FileExplorerPanelImpl = ({
   const [fileContentsByProject, setFileContentsByProject] = useState<
     Record<string, Record<string, string>>
   >({});
+  const [filePreviewMessagesByProject, setFilePreviewMessagesByProject] =
+    useState<Record<string, Record<string, string>>>({});
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
@@ -385,6 +427,10 @@ const FileExplorerPanelImpl = ({
   const selectedFileContent =
     projectId && selectedFilePath
       ? (fileContentsByProject[projectId]?.[selectedFilePath] ?? null)
+      : null;
+  const selectedFilePreviewMessage =
+    projectId && selectedFilePath
+      ? (filePreviewMessagesByProject[projectId]?.[selectedFilePath] ?? null)
       : null;
   const isMissingProjectPath = isMissingPathError(filesError);
 
@@ -495,6 +541,15 @@ const FileExplorerPanelImpl = ({
         delete next[projectId];
         return next;
       });
+      setFilePreviewMessagesByProject((current) => {
+        if (!current[projectId]) {
+          return current;
+        }
+
+        const next = { ...current };
+        delete next[projectId];
+        return next;
+      });
     }
 
     void loadProjectFiles();
@@ -520,10 +575,6 @@ const FileExplorerPanelImpl = ({
   }, [active, fileOpenRequestKey, fileOpenRequestPath, projectId]);
 
   useEffect(() => {
-    if (!active) {
-      return;
-    }
-
     if (!projectId || !projectPath || !selectedFilePath) {
       return;
     }
@@ -532,7 +583,13 @@ const FileExplorerPanelImpl = ({
       return;
     }
 
-    if (fileContentsByProject[projectId]?.[selectedFilePath]) {
+    if (fileContentsByProject[projectId]?.[selectedFilePath] !== undefined) {
+      return;
+    }
+
+    if (
+      filePreviewMessagesByProject[projectId]?.[selectedFilePath] !== undefined
+    ) {
       return;
     }
 
@@ -551,6 +608,18 @@ const FileExplorerPanelImpl = ({
           headers: { "Content-Type": "application/json" },
           method: "POST",
         });
+
+        if (isFilePreviewUnavailableStatus(response.status) && !cancelled) {
+          const message = await readResponseText(response);
+          setFilePreviewMessagesByProject((current) => ({
+            ...current,
+            [projectId]: {
+              ...(current[projectId] ?? {}),
+              [selectedFilePath]: message,
+            },
+          }));
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(await readResponseText(response));
@@ -588,7 +657,13 @@ const FileExplorerPanelImpl = ({
     return () => {
       cancelled = true;
     };
-  }, [active, fileContentsByProject, projectId, projectPath, selectedFilePath]);
+  }, [
+    fileContentsByProject,
+    filePreviewMessagesByProject,
+    projectId,
+    projectPath,
+    selectedFilePath,
+  ]);
 
   const handleSelectFile = useCallback(
     (path: string | null) => {
@@ -712,11 +787,7 @@ const FileExplorerPanelImpl = ({
                 ) : null}
 
                 {!filesError && !filesLoading && files.length === 0 ? (
-                  <div className="p-3">
-                    <div className="text-muted-foreground text-sm">
-                      No project files found.
-                    </div>
-                  </div>
+                  <AppShellPlaceholder message="No project files found." />
                 ) : null}
 
                 {!filesError && files.length > 0 ? (
@@ -743,6 +814,10 @@ const FileExplorerPanelImpl = ({
             <div className="h-full p-3">
               <AppShellPlaceholder message="Select a file from the tree to open it here." />
             </div>
+          ) : selectedFilePreviewMessage ? (
+            <div className="h-full p-3">
+              <AppShellPlaceholder message={selectedFilePreviewMessage} />
+            </div>
           ) : fileError ? (
             <div className="p-3">
               <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
@@ -766,7 +841,6 @@ const FileExplorerPanelImpl = ({
               <CodeBlock
                 className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
                 code={selectedFileContent}
-                deferUntilHighlighted
                 language={inferLanguage(selectedFilePath)}
                 showLineNumbers
                 style={{ contentVisibility: "visible" }}

@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { TextDecoder } from "node:util";
 import {
   checkoutProjectGitBranch,
   commitProjectGitChanges,
@@ -37,6 +38,60 @@ import {
   resolveProjectPath,
   revertProjectGitFile,
 } from "./project-git-service.js";
+
+const PROJECT_FILE_PREVIEW_MAX_BYTES = 1024 * 1024;
+const PROJECT_FILE_BINARY_SAMPLE_BYTES = 8192;
+const PROJECT_FILE_BINARY_CONTROL_CHAR_RATIO = 0.1;
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+
+const formatBytes = (bytes) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${Math.ceil(bytes / (1024 * 1024))} MB`;
+};
+
+const isAllowedTextControlByte = (byte) =>
+  byte === 9 || byte === 10 || byte === 12 || byte === 13;
+
+const isLikelyBinaryBuffer = (buffer) => {
+  if (buffer.length === 0) return false;
+
+  let controlByteCount = 0;
+  for (const byte of buffer) {
+    if (byte === 0) return true;
+    if (byte < 32 && !isAllowedTextControlByte(byte)) {
+      controlByteCount += 1;
+    }
+  }
+
+  if (
+    controlByteCount / buffer.length >
+    PROJECT_FILE_BINARY_CONTROL_CHAR_RATIO
+  ) {
+    return true;
+  }
+
+  try {
+    utf8Decoder.decode(buffer);
+    return false;
+  } catch {
+    return true;
+  }
+};
+
+const isLikelyBinaryFile = async (absolutePath, size) => {
+  const sampleLength = Math.min(size, PROJECT_FILE_BINARY_SAMPLE_BYTES);
+  if (sampleLength === 0) return false;
+
+  const file = await fs.open(absolutePath, "r");
+  try {
+    const sample = Buffer.alloc(sampleLength);
+    const { bytesRead } = await file.read(sample, 0, sampleLength, 0);
+    return isLikelyBinaryBuffer(sample.subarray(0, bytesRead));
+  } finally {
+    await file.close();
+  }
+};
 
 export const registerProjectGitRoutes = (app) => {
   app.post("/api/project-files", async (c) => {
@@ -86,6 +141,17 @@ export const registerProjectGitRoutes = (app) => {
       const stats = await fs.stat(absolutePath);
       if (!stats.isFile()) {
         return c.text(`Not a file: ${filePath}`, 400);
+      }
+
+      if (stats.size > PROJECT_FILE_PREVIEW_MAX_BYTES) {
+        return c.text(
+          `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} are not previewed.`,
+          413,
+        );
+      }
+
+      if (await isLikelyBinaryFile(absolutePath, stats.size)) {
+        return c.text("Binary files cannot be previewed.", 415);
       }
 
       const fullText = await fs.readFile(absolutePath, "utf8");
