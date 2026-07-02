@@ -110,6 +110,7 @@ export function initializeAutoUpdater({
     manual: false,
     progress: null,
     releaseDate: null,
+    showDetailedStatus: devUpdatesEnabled,
     state: updatesEnabled ? "idle" : "disabled",
     updatedAt: nowIsoString(),
     updateVersion: null,

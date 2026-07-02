@@ -60,12 +60,11 @@ export const HeaderUpdateButton = () => {
     };
   }, []);
 
-  if (
-    status?.state !== "available" &&
-    status?.state !== "downloading" &&
-    status?.state !== "downloaded" &&
-    status?.state !== "error"
-  ) {
+  const visibleStates = status?.showDetailedStatus
+    ? new Set(["available", "downloading", "downloaded", "error"])
+    : new Set(["downloaded"]);
+
+  if (!status || !visibleStates.has(status.state)) {
     return null;
   }
 

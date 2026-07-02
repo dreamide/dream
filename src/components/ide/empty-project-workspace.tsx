@@ -26,6 +26,11 @@ import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
 
+const RECENT_PROJECT_LIMIT = 20;
+const RECENT_PROJECT_VISIBLE_COUNT = 6;
+const RECENT_PROJECT_ROW_HEIGHT_PX = 48;
+const RECENT_PROJECT_ROW_GAP_PX = 4;
+
 const formatLastUsedAt = (
   value: string | null | undefined,
   labels: {
@@ -147,7 +152,7 @@ export const EmptyProjectWorkspace = () => {
             getTimestampMs(right.lastUsedAt) -
               getTimestampMs(left.lastUsedAt) || right.index - left.index,
         )
-        .slice(0, 6)
+        .slice(0, RECENT_PROJECT_LIMIT)
         .map(({ project }) => project),
     [chatLastUsedAtByProject, closedProjects],
   );
@@ -234,7 +239,15 @@ export const EmptyProjectWorkspace = () => {
               <History className="size-3.5" />
               {emptyT("recentlyClosed")}
             </div>
-            <div className="grid w-full gap-1">
+            <div
+              className="grid w-full gap-1 overflow-y-auto pr-1"
+              style={{
+                maxHeight:
+                  RECENT_PROJECT_VISIBLE_COUNT * RECENT_PROJECT_ROW_HEIGHT_PX +
+                  (RECENT_PROJECT_VISIBLE_COUNT - 1) *
+                    RECENT_PROJECT_ROW_GAP_PX,
+              }}
+            >
               {recentProjects.map((project) => {
                 const isWorktree = project.worktree?.kind === "worktree";
                 const lastUsedAt =

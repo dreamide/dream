@@ -222,6 +222,7 @@ export interface UpdateStatusEvent {
   manual: boolean;
   progress: UpdateProgress | null;
   releaseDate: string | null;
+  showDetailedStatus: boolean;
   state: UpdateState;
   updatedAt: string;
   updateVersion: string | null;

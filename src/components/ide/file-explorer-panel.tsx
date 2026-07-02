@@ -66,6 +66,9 @@ const isImageFile = (filePath: string): boolean => {
   return IMAGE_EXTENSIONS.has(extension);
 };
 
+const getProjectFileRawUrl = (projectPath: string, filePath: string) =>
+  `/api/project-file-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
+
 const inferLanguage = (filePath: string): BundledLanguage => {
   const extension = filePath.split(".").pop()?.toLowerCase() ?? "";
   const languages: Record<string, BundledLanguage> = {
@@ -403,10 +406,24 @@ const FileExplorerPanelImpl = ({
   >({});
   const [filePreviewMessagesByProject, setFilePreviewMessagesByProject] =
     useState<Record<string, Record<string, string>>>({});
+  const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<
+    string | null
+  >(null);
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const selectedImagePreviewUrlRef = useRef<string | null>(null);
+
+  const replaceSelectedImagePreviewUrl = useCallback((url: string | null) => {
+    setSelectedImagePreviewUrl(url);
+
+    const previousUrl = selectedImagePreviewUrlRef.current;
+    if (previousUrl && previousUrl !== url) {
+      URL.revokeObjectURL(previousUrl);
+    }
+    selectedImagePreviewUrlRef.current = url;
+  }, []);
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
@@ -433,6 +450,16 @@ const FileExplorerPanelImpl = ({
       ? (filePreviewMessagesByProject[projectId]?.[selectedFilePath] ?? null)
       : null;
   const isMissingProjectPath = isMissingPathError(filesError);
+
+  useEffect(
+    () => () => {
+      if (selectedImagePreviewUrlRef.current) {
+        URL.revokeObjectURL(selectedImagePreviewUrlRef.current);
+        selectedImagePreviewUrlRef.current = null;
+      }
+    },
+    [],
+  );
 
   const loadProjectFiles = useCallback(async () => {
     if (!projectId || !projectPath) {
@@ -665,6 +692,69 @@ const FileExplorerPanelImpl = ({
     selectedFilePath,
   ]);
 
+  useEffect(() => {
+    if (!projectId || !projectPath || !selectedFilePath) {
+      replaceSelectedImagePreviewUrl(null);
+      return;
+    }
+
+    if (!isImageFile(selectedFilePath)) {
+      replaceSelectedImagePreviewUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSelectedImage = async () => {
+      setFileLoading(true);
+      setFileError(null);
+      replaceSelectedImagePreviewUrl(null);
+
+      try {
+        const response = await fetch(
+          getProjectFileRawUrl(projectPath, selectedFilePath),
+        );
+
+        if (!response.ok) {
+          throw new Error(await readResponseText(response));
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        replaceSelectedImagePreviewUrl(objectUrl);
+      } catch (error) {
+        if (!cancelled) {
+          setFileError(
+            error instanceof Error
+              ? error.message
+              : "Failed to read the selected image.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setFileLoading(false);
+        }
+      }
+    };
+
+    void loadSelectedImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    projectId,
+    projectPath,
+    replaceSelectedImagePreviewUrl,
+    selectedFilePath,
+  ]);
+
   const handleSelectFile = useCallback(
     (path: string | null) => {
       if (!projectId) {
@@ -707,6 +797,8 @@ const FileExplorerPanelImpl = ({
     }
   }, []);
 
+  const hasNoProjectFiles = !filesError && !filesLoading && files.length === 0;
+
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
@@ -747,118 +839,125 @@ const FileExplorerPanelImpl = ({
         </button>
       </div>
 
-      <div ref={splitContainerRef} className="flex min-h-0 flex-1">
-        {/* File tree */}
-        <div
-          ref={treePaneRef}
-          className="shrink-0 overflow-hidden"
-          style={{
-            width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
-            minWidth: FILE_TREE_MIN_WIDTH_PX,
-            maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
-          }}
-        >
-          <div className="h-full border-r border-surface-200 dark:border-surface-800 bg-background">
-            {!filesError && filesLoading && files.length === 0 ? (
-              <div className="flex h-full items-center justify-center">
-                <Spinner className="size-4 text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="h-full">
-                {filesError ? (
-                  <div className="p-3">
-                    {isMissingProjectPath ? (
-                      <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
-                        <div className="font-medium text-foreground text-sm">
-                          Project folder not found.
-                        </div>
-                        {projectPath ? (
-                          <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                            {projectPath}
+      {hasNoProjectFiles ? (
+        <div className="min-h-0 flex-1 p-3">
+          <AppShellPlaceholder message="No project files found." />
+        </div>
+      ) : (
+        <div ref={splitContainerRef} className="flex min-h-0 flex-1">
+          {/* File tree */}
+          <div
+            ref={treePaneRef}
+            className="shrink-0 overflow-hidden"
+            style={{
+              width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
+              minWidth: FILE_TREE_MIN_WIDTH_PX,
+              maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
+            }}
+          >
+            <div className="h-full border-r border-surface-200 dark:border-surface-800 bg-background">
+              {!filesError && filesLoading && files.length === 0 ? (
+                <div className="flex h-full items-center justify-center">
+                  <Spinner className="size-4 text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="h-full">
+                  {filesError ? (
+                    <div className="p-3">
+                      {isMissingProjectPath ? (
+                        <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
+                          <div className="font-medium text-foreground text-sm">
+                            Project folder not found.
                           </div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
-                        {filesError}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
+                          {projectPath ? (
+                            <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
+                              {projectPath}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
+                          {filesError}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
 
-                {!filesError && !filesLoading && files.length === 0 ? (
-                  <AppShellPlaceholder message="No project files found." />
-                ) : null}
+                  {!filesError && files.length > 0 ? (
+                    <ProjectFileTree
+                      files={files}
+                      onSelectFile={handleSelectFile}
+                      selectedFilePath={selectedFilePath}
+                    />
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
 
-                {!filesError && files.length > 0 ? (
-                  <ProjectFileTree
-                    files={files}
-                    onSelectFile={handleSelectFile}
-                    selectedFilePath={selectedFilePath}
-                  />
-                ) : null}
+          <PanelResizeHandle
+            side="right"
+            onResize={handleTreeResize}
+            onResizeStart={handleTreeResizeStart}
+          />
+
+          {/* File content */}
+          <div className="min-w-0 flex-1 overflow-hidden">
+            {!selectedFilePath ? (
+              <div className="h-full p-3">
+                <AppShellPlaceholder message="Select a file from the tree to open it here." />
               </div>
-            )}
+            ) : selectedFilePreviewMessage ? (
+              <div className="h-full p-3">
+                <AppShellPlaceholder message={selectedFilePreviewMessage} />
+              </div>
+            ) : fileError ? (
+              <div className="p-3">
+                <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
+                  {fileError}
+                </div>
+              </div>
+            ) : fileLoading &&
+              (isImageFile(selectedFilePath)
+                ? !selectedImagePreviewUrl
+                : !selectedFileContent) ? (
+              <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+                <Spinner className="size-4" />
+              </div>
+            ) : isImageFile(selectedFilePath) ? (
+              selectedImagePreviewUrl ? (
+                <div className="flex h-full items-center justify-center p-6">
+                  <img
+                    alt={selectedFilePath}
+                    className="max-h-full max-w-full object-contain"
+                    src={selectedImagePreviewUrl}
+                  />
+                </div>
+              ) : null
+            ) : selectedFileContent !== null ? (
+              <div className="h-full">
+                <CodeBlock
+                  className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                  code={selectedFileContent}
+                  language={inferLanguage(selectedFilePath)}
+                  showLineNumbers
+                  style={{ contentVisibility: "visible" }}
+                >
+                  <CodeBlockHeader className="shrink-0 border-0 bg-transparent">
+                    <CodeBlockTitle>
+                      <FileIcon size={14} />
+                      <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
+                    </CodeBlockTitle>
+                    <CodeBlockActions>
+                      <CodeBlockCopyButton />
+                    </CodeBlockActions>
+                  </CodeBlockHeader>
+                </CodeBlock>
+              </div>
+            ) : null}
           </div>
         </div>
-
-        <PanelResizeHandle
-          side="right"
-          onResize={handleTreeResize}
-          onResizeStart={handleTreeResizeStart}
-        />
-
-        {/* File content */}
-        <div className="min-w-0 flex-1 overflow-hidden">
-          {!selectedFilePath ? (
-            <div className="h-full p-3">
-              <AppShellPlaceholder message="Select a file from the tree to open it here." />
-            </div>
-          ) : selectedFilePreviewMessage ? (
-            <div className="h-full p-3">
-              <AppShellPlaceholder message={selectedFilePreviewMessage} />
-            </div>
-          ) : fileError ? (
-            <div className="p-3">
-              <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
-                {fileError}
-              </div>
-            </div>
-          ) : fileLoading && !selectedFileContent ? (
-            <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
-              <Spinner className="size-4" />
-            </div>
-          ) : isImageFile(selectedFilePath) ? (
-            <div className="flex h-full items-center justify-center p-6">
-              <img
-                alt={selectedFilePath}
-                className="max-h-full max-w-full object-contain"
-                src={`/api/project-file-raw?projectPath=${encodeURIComponent(projectPath ?? "")}&filePath=${encodeURIComponent(selectedFilePath)}`}
-              />
-            </div>
-          ) : selectedFileContent !== null ? (
-            <div className="h-full">
-              <CodeBlock
-                className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                code={selectedFileContent}
-                language={inferLanguage(selectedFilePath)}
-                showLineNumbers
-                style={{ contentVisibility: "visible" }}
-              >
-                <CodeBlockHeader className="shrink-0 border-0 bg-transparent">
-                  <CodeBlockTitle>
-                    <FileIcon size={14} />
-                    <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
-                  </CodeBlockTitle>
-                  <CodeBlockActions>
-                    <CodeBlockCopyButton />
-                  </CodeBlockActions>
-                </CodeBlockHeader>
-              </CodeBlock>
-            </div>
-          ) : null}
-        </div>
-      </div>
+      )}
     </div>
   );
 };
