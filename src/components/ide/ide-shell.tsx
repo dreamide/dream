@@ -85,6 +85,11 @@ export const IdeShell = () => {
     setAppReady(true);
   }, [stateHydrated, setAppReady, refreshProviderModels]);
 
+  useEffect(() => {
+    if (!appReady) return;
+    document.querySelector(".boot-loading")?.remove();
+  }, [appReady]);
+
   // Subscribe to persisted state changes for auto-persistence (debounced)
   useEffect(() => {
     let prev = {
