@@ -212,6 +212,11 @@ export const CHIP_TONE_CLASSES = {
       "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400",
     expanded: "text-amber-700 dark:text-amber-400",
   },
+  base: {
+    button:
+      "border-surface-300 bg-surface-50 text-surface-700 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-300",
+    expanded: "text-surface-700 dark:text-surface-300",
+  },
   blue: {
     button:
       "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-400",

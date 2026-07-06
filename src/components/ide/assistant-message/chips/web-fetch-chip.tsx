@@ -1,10 +1,11 @@
-import { GlobeIcon } from "lucide-react";
+import { GlobeIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "@/components/ai-elements/code-block";
 import { MessageResponse } from "@/components/ai-elements/message";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { cn } from "@/lib/utils";
 import type { ToolLikePart } from "../../assistant-message-tools";
+import { getToolName, normalizeToolName } from "../../assistant-message-tools";
 import {
   ActionApproval,
   ApprovalStatusLabel,
@@ -77,8 +78,20 @@ export const WebFetchChip = ({
     ["request", "url"],
     ["input", "url"],
   ]);
+  const query = getStringFromPaths(part.input, [
+    ["query"],
+    ["search_query"],
+    ["searchQuery"],
+    ["input", "query"],
+  ]);
   const prompt = getStringFromPaths(part.input, [["prompt"], ["query"]]);
   const displayUrl = useMemo(() => getDisplayUrl(url), [url]);
+  const normalizedToolName = normalizeToolName(getToolName(part));
+  const isWebSearch =
+    normalizedToolName === "web-search" || normalizedToolName === "websearch";
+  const label = displayUrl ?? (isWebSearch ? query : null);
+  const fallbackLabel = isWebSearch ? "Web search" : "Web fetch";
+  const ToolIcon = isWebSearch ? SearchIcon : GlobeIcon;
   const outputText = getWebFetchTextOutput(part.output);
   const outputLength = formatTextLength(outputText);
   const hasRawOutput = part.output !== undefined;
@@ -96,7 +109,7 @@ export const WebFetchChip = ({
     <div className={expanded || isApprovalRequested ? "w-full" : undefined}>
       <div className="flex items-center gap-2">
         <ChipButton
-          aria-label={displayUrl ? `Web Fetch ${displayUrl}` : "Web Fetch"}
+          aria-label={label ? `${fallbackLabel} ${label}` : fallbackLabel}
           className={cn(
             canExpand && "cursor-pointer",
             (isRunning || isApprovalRequested) && "animate-pulse",
@@ -106,12 +119,17 @@ export const WebFetchChip = ({
           tone="indigo"
           type="button"
         >
-          <GlobeIcon className="size-3.5 shrink-0" />
-          {displayUrl ? (
-            <span className="max-w-64 truncate font-medium" title={url ?? ""}>
-              {displayUrl}
+          <ToolIcon className="size-3.5 shrink-0" />
+          {label ? (
+            <span
+              className="max-w-64 truncate font-medium"
+              title={url ?? query ?? ""}
+            >
+              {label}
             </span>
-          ) : null}
+          ) : (
+            <span className="font-medium">{fallbackLabel}</span>
+          )}
           {outputLength ? (
             <span className={CHIP_SUBTEXT_CLASSES}>{outputLength}</span>
           ) : null}

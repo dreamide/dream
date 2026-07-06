@@ -42,59 +42,36 @@ const seedThemeStorage = (
   }
 };
 
-const ElectronThemeBridge = () => {
-  const { setTheme, theme } = useTheme();
-  const [desktopThemeLoaded, setDesktopThemeLoaded] = useState(false);
-  const applyingDesktopThemeRef = useRef<string | null>(null);
+const ElectronThemeBridge = ({
+  initialTheme,
+  storageKey,
+}: {
+  initialTheme: "light" | "dark" | "system";
+  storageKey: ThemeProviderProps["storageKey"];
+}) => {
+  const { theme } = useTheme();
+  const initialThemeSeenRef = useRef(false);
 
   useEffect(() => {
+    if (!isThemePreference(theme)) {
+      return;
+    }
+
+    if (!initialThemeSeenRef.current) {
+      initialThemeSeenRef.current = true;
+      if (theme === initialTheme) {
+        return;
+      }
+    }
+
     const desktopApi = getDesktopApi();
     if (!desktopApi) {
-      setDesktopThemeLoaded(true);
       return;
     }
 
-    let cancelled = false;
-
-    desktopApi
-      .getThemePreferences()
-      .then((preferences) => {
-        if (cancelled || !isThemePreference(preferences?.theme)) {
-          return;
-        }
-
-        applyingDesktopThemeRef.current = preferences.theme;
-        setTheme(preferences.theme);
-      })
-      .catch(() => {
-        // Keep next-themes' browser fallback if the desktop API is unavailable.
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setDesktopThemeLoaded(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [setTheme]);
-
-  useEffect(() => {
-    if (!desktopThemeLoaded || !isThemePreference(theme)) {
-      return;
-    }
-
-    const applyingDesktopTheme = applyingDesktopThemeRef.current;
-    if (applyingDesktopTheme !== null) {
-      if (applyingDesktopTheme === theme) {
-        applyingDesktopThemeRef.current = null;
-      }
-      return;
-    }
-
-    void getDesktopApi()?.setThemePreference(theme);
-  }, [desktopThemeLoaded, theme]);
+    seedThemeStorage(storageKey, theme);
+    void desktopApi.setThemePreference(theme);
+  }, [initialTheme, storageKey, theme]);
 
   return null;
 };
@@ -143,7 +120,10 @@ export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => {
 
   return (
     <NextThemesProvider {...props} defaultTheme={desktopInitialTheme}>
-      <ElectronThemeBridge />
+      <ElectronThemeBridge
+        initialTheme={desktopInitialTheme}
+        storageKey={props.storageKey}
+      />
       {children}
     </NextThemesProvider>
   );

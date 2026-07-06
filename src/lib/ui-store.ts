@@ -82,11 +82,14 @@ function persistUiPreferences(preferences: {
   }
 }
 
+let uiPreferenceRevision = 0;
+
 export const useUiStore = create<UiState>((set, _get) => ({
   accentColor: DEFAULT_ACCENT_COLOR,
   baseColor: DEFAULT_BASE_COLOR,
 
   setAccentColor: (color) => {
+    uiPreferenceRevision++;
     applyAccentColor(color);
     set({ accentColor: color });
     persistUiPreferences({
@@ -97,6 +100,7 @@ export const useUiStore = create<UiState>((set, _get) => ({
   },
 
   setBaseColor: (color) => {
+    uiPreferenceRevision++;
     applyBaseColor(color);
     set({ baseColor: color });
     persistUiPreferences({
@@ -107,10 +111,15 @@ export const useUiStore = create<UiState>((set, _get) => ({
   },
 
   hydrateUi: async () => {
+    const hydrateRevision = uiPreferenceRevision;
     const desktopApi = getDesktopApi();
     if (desktopApi) {
       try {
         const preferences = await desktopApi.getThemePreferences();
+        if (hydrateRevision !== uiPreferenceRevision) {
+          return;
+        }
+
         const baseColor = isBaseColor(preferences?.baseColor)
           ? preferences.baseColor
           : DEFAULT_BASE_COLOR;

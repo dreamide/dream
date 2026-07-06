@@ -355,7 +355,7 @@ const AskUserQuestionApproval = ({
   };
 
   return (
-    <div className="mt-2 w-full rounded-md border border-success-border bg-success-surface p-3 text-sm">
+    <div className="mt-2 w-full rounded-md border border-surface-300 bg-surface-100 p-3 text-sm text-surface-950 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-50">
       <div className="space-y-3">
         {questions.map((question) => {
           const selected = answers[question.id] ?? [];
@@ -364,7 +364,7 @@ const AskUserQuestionApproval = ({
             <div className="space-y-2" key={question.id}>
               <div>
                 <div className="font-medium">{question.question}</div>
-                <div className="text-emerald-200/80 text-xs">
+                <div className="text-muted-foreground text-xs">
                   {question.header}
                 </div>
               </div>
@@ -375,8 +375,8 @@ const AskUserQuestionApproval = ({
                   return (
                     <button
                       className={cn(
-                        "flex w-full items-start gap-3 rounded-md bg-[#021f12] px-3 py-2 text-left text-emerald-50 transition-colors hover:bg-[#01170d]",
-                        isSelected && "bg-[#01170d]",
+                        "flex w-full items-start gap-3 rounded-md bg-background px-3 py-2 text-left text-foreground transition-colors hover:bg-surface-200 dark:bg-surface-950 dark:hover:bg-surface-800",
+                        isSelected && "bg-surface-200 dark:bg-surface-800",
                       )}
                       key={option.label}
                       onClick={() =>
@@ -386,7 +386,7 @@ const AskUserQuestionApproval = ({
                       }
                       type="button"
                     >
-                      <span className="shrink-0 font-medium text-emerald-200 text-sm">
+                      <span className="shrink-0 font-medium text-muted-foreground text-sm">
                         {optionIndex + 1}.
                       </span>
                       <span className="min-w-0 flex-1">
@@ -394,13 +394,13 @@ const AskUserQuestionApproval = ({
                           {option.label}
                         </span>
                         {option.description ? (
-                          <span className="block text-emerald-200/80 text-xs">
+                          <span className="block text-muted-foreground text-xs">
                             {option.description}
                           </span>
                         ) : null}
                       </span>
                       {isSelected ? (
-                        <CheckIcon className="size-4 shrink-0 self-center text-emerald-300" />
+                        <CheckIcon className="size-4 shrink-0 self-center text-primary" />
                       ) : (
                         <span className="size-4 shrink-0 self-center" />
                       )}
@@ -426,7 +426,7 @@ const AskUserQuestionApproval = ({
           Cancel
         </button>
         <button
-          className="h-8 rounded-md bg-emerald-600 px-3 text-sm text-white disabled:opacity-50"
+          className="h-8 rounded-md border border-surface-300 bg-surface-200 px-3 text-foreground text-sm transition-colors hover:bg-surface-300 disabled:opacity-50 dark:border-surface-700 dark:bg-surface-800 dark:hover:bg-surface-700"
           disabled={!canSubmit}
           onClick={() => submit()}
           type="button"
@@ -457,7 +457,7 @@ const GenericToolChip = ({
     : isPlanModeTool
       ? MapIcon
       : WrenchIcon;
-  const tone = isAskUserQuestion ? "green" : "slate";
+  const tone = isAskUserQuestion ? "base" : "slate";
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const isCompleted = state === "output-available" || state === "output-error";

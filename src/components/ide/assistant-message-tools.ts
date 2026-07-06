@@ -51,7 +51,13 @@ export const CHIP_TOOL_NAME_ALIASES = {
   search: new Set(["glob", "grep", "search", "search-in-files"]),
   taskOutput: new Set(["task-output", "taskoutput", "task-result"]),
   toolSearch: new Set(["tool-search"]),
-  webFetch: new Set(["fetch", "web-fetch", "webfetch"]),
+  webFetch: new Set([
+    "fetch",
+    "web-fetch",
+    "webfetch",
+    "web-search",
+    "websearch",
+  ]),
   write: new Set([
     "apply-patch",
     "applypatch",
