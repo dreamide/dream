@@ -84,9 +84,26 @@ function persistUiPreferences(preferences: {
 
 let uiPreferenceRevision = 0;
 
+function getInitialUiPreferences(): {
+  accentColor: AccentColor;
+  baseColor: BaseColor;
+} {
+  const preferences = getDesktopApi()?.initialThemePreferences;
+  const baseColor = isBaseColor(preferences?.baseColor)
+    ? preferences.baseColor
+    : DEFAULT_BASE_COLOR;
+  const accentColor = isAccentColor(preferences?.accentColor)
+    ? preferences.accentColor
+    : DEFAULT_ACCENT_COLOR;
+
+  return { accentColor, baseColor };
+}
+
+const INITIAL_UI_PREFERENCES = getInitialUiPreferences();
+
 export const useUiStore = create<UiState>((set, _get) => ({
-  accentColor: DEFAULT_ACCENT_COLOR,
-  baseColor: DEFAULT_BASE_COLOR,
+  accentColor: INITIAL_UI_PREFERENCES.accentColor,
+  baseColor: INITIAL_UI_PREFERENCES.baseColor,
 
   setAccentColor: (color) => {
     uiPreferenceRevision++;
@@ -112,6 +129,22 @@ export const useUiStore = create<UiState>((set, _get) => ({
 
   hydrateUi: async () => {
     const hydrateRevision = uiPreferenceRevision;
+    const initialPreferences = getDesktopApi()?.initialThemePreferences;
+    if (initialPreferences) {
+      const baseColor = isBaseColor(initialPreferences.baseColor)
+        ? initialPreferences.baseColor
+        : DEFAULT_BASE_COLOR;
+      const accentColor = isAccentColor(initialPreferences.accentColor)
+        ? initialPreferences.accentColor
+        : DEFAULT_ACCENT_COLOR;
+
+      applyBaseColor(baseColor);
+      applyAccentColor(accentColor);
+      set({ accentColor, baseColor });
+      persistUiPreferences({ accentColor, baseColor });
+      return;
+    }
+
     const desktopApi = getDesktopApi();
     if (desktopApi) {
       try {

@@ -156,6 +156,12 @@ function applyWindowThemeBackground(theme, baseColor) {
   mainWindow.setBackgroundColor(getWindowBackground(theme, baseColor));
 }
 
+function getThemePreferencePreloadArgument() {
+  return `--dream-theme-preferences=${encodeURIComponent(
+    JSON.stringify(loadThemePreference()),
+  )}`;
+}
+
 function sendToRenderer(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -330,6 +336,7 @@ async function createMainWindow() {
       process.platform === "darwin" ? { x: 14, y: 14 } : undefined,
     webPreferences: {
       contextIsolation: true,
+      additionalArguments: [getThemePreferencePreloadArgument()],
       nodeIntegration: false,
       preload: path.join(__dirname, "preload.js"),
       sandbox: false,

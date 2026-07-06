@@ -79,9 +79,23 @@ const ElectronThemeBridge = ({
 export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => {
   const [desktopInitialTheme, setDesktopInitialTheme] = useState<
     "light" | "dark" | "system" | null
-  >(() => (hasDesktopApi() ? null : "dark"));
+  >(() => {
+    const desktopApi = getDesktopApi();
+    const initialTheme = desktopApi?.initialThemePreferences?.theme;
+
+    if (isThemePreference(initialTheme)) {
+      seedThemeStorage(props.storageKey, initialTheme);
+      return initialTheme;
+    }
+
+    return hasDesktopApi() ? null : "dark";
+  });
 
   useEffect(() => {
+    if (desktopInitialTheme !== null) {
+      return;
+    }
+
     const desktopApi = getDesktopApi();
     if (!desktopApi) {
       return;
@@ -112,7 +126,7 @@ export const ThemeProvider = ({ children, ...props }: ThemeProviderProps) => {
     return () => {
       cancelled = true;
     };
-  }, [props.storageKey]);
+  }, [desktopInitialTheme, props.storageKey]);
 
   if (desktopInitialTheme === null) {
     return null;

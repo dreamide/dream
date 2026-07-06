@@ -468,6 +468,11 @@ export interface BrowserUpdatePayload {
 export interface DesktopApi {
   isElectron: true;
   apiSessionToken: string;
+  initialThemePreferences?: {
+    accentColor?: string;
+    baseColor?: string;
+    theme?: "dark" | "light" | "system";
+  };
 
   openExternal: (url: string) => Promise<boolean>;
   writeClipboardText: (text: string) => Promise<boolean>;

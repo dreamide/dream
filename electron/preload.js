@@ -5,6 +5,120 @@ if (!apiSessionToken) {
   throw new Error("Missing API session token from Electron main process.");
 }
 
+const BASE_COLORS = new Set(["neutral", "slate", "gray", "zinc", "stone"]);
+const ACCENT_COLORS = new Set([
+  "black-white",
+  "red",
+  "orange",
+  "amber",
+  "yellow",
+  "lime",
+  "green",
+  "emerald",
+  "teal",
+  "cyan",
+  "sky",
+  "blue",
+  "indigo",
+  "violet",
+  "purple",
+  "fuchsia",
+  "pink",
+  "rose",
+]);
+
+const normalizeTheme = (theme) =>
+  theme === "light" || theme === "dark" || theme === "system" ? theme : "dark";
+
+const normalizeBaseColor = (baseColor) =>
+  BASE_COLORS.has(baseColor) ? baseColor : "zinc";
+
+const normalizeAccentColor = (accentColor) =>
+  ACCENT_COLORS.has(accentColor) ? accentColor : "green";
+
+const getSystemTheme = () =>
+  window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+
+const getPreloadThemePreferences = () => {
+  const prefix = "--dream-theme-preferences=";
+  const argument = process.argv.find((value) => value.startsWith(prefix));
+  if (!argument) {
+    return null;
+  }
+
+  try {
+    const raw = decodeURIComponent(argument.slice(prefix.length));
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+const getBrowserThemePreferences = () => {
+  try {
+    const rawUiPreferences = window.localStorage?.getItem(
+      "dream-ui-preferences",
+    );
+    const uiPreferences = rawUiPreferences ? JSON.parse(rawUiPreferences) : {};
+
+    return {
+      accentColor: uiPreferences?.accentColor,
+      baseColor: uiPreferences?.baseColor,
+      theme: window.localStorage?.getItem("dream-theme"),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const initialThemePreferences = (() => {
+  const preferences =
+    getPreloadThemePreferences() ?? getBrowserThemePreferences();
+  return {
+    accentColor: normalizeAccentColor(preferences?.accentColor),
+    baseColor: normalizeBaseColor(preferences?.baseColor),
+    theme: normalizeTheme(preferences?.theme),
+  };
+})();
+
+const applyInitialThemePreferences = () => {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+
+  const resolvedTheme =
+    initialThemePreferences.theme === "system"
+      ? getSystemTheme()
+      : initialThemePreferences.theme;
+
+  root.classList.toggle("dark", resolvedTheme === "dark");
+  root.classList.toggle("light", resolvedTheme === "light");
+  root.style.colorScheme = resolvedTheme;
+
+  if (initialThemePreferences.baseColor === "neutral") {
+    root.removeAttribute("data-base-color");
+  } else {
+    root.setAttribute("data-base-color", initialThemePreferences.baseColor);
+  }
+
+  root.setAttribute("data-accent-color", initialThemePreferences.accentColor);
+};
+
+if (typeof document !== "undefined" && document.documentElement) {
+  applyInitialThemePreferences();
+} else {
+  window.addEventListener("DOMContentLoaded", applyInitialThemePreferences, {
+    once: true,
+  });
+}
+
 const subscribe = (channel, listener) => {
   const subscription = (_event, payload) => {
     listener(payload);
@@ -20,6 +134,7 @@ const subscribe = (channel, listener) => {
 contextBridge.exposeInMainWorld("dream", {
   isElectron: true,
   apiSessionToken,
+  initialThemePreferences,
 
   openExternal: (url) => ipcRenderer.invoke("shell:open-external", { url }),
   writeClipboardText: (text) =>

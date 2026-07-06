@@ -355,7 +355,7 @@ const AskUserQuestionApproval = ({
   };
 
   return (
-    <div className="mt-2 w-full rounded-md border border-surface-300 bg-surface-100 p-3 text-sm text-surface-950 dark:border-surface-700 dark:bg-surface-900 dark:text-surface-50">
+    <div className="mt-2 w-full rounded-md border border-surface-300 bg-background p-3 text-foreground text-sm dark:border-surface-700">
       <div className="space-y-3">
         {questions.map((question) => {
           const selected = answers[question.id] ?? [];
@@ -375,8 +375,11 @@ const AskUserQuestionApproval = ({
                   return (
                     <button
                       className={cn(
-                        "flex w-full items-start gap-3 rounded-md bg-background px-3 py-2 text-left text-foreground transition-colors hover:bg-surface-200 dark:bg-surface-950 dark:hover:bg-surface-800",
-                        isSelected && "bg-surface-200 dark:bg-surface-800",
+                        "flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-foreground",
+                        isSelected &&
+                          "border-border bg-surface-50 dark:bg-surface-900",
+                        !isSelected &&
+                          "border-transparent hover:bg-surface-50 dark:hover:bg-surface-900",
                       )}
                       key={option.label}
                       onClick={() =>
