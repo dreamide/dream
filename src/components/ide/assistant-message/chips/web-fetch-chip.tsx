@@ -1,4 +1,4 @@
-import { GlobeIcon, SearchIcon } from "lucide-react";
+import { GlobeIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "@/components/ai-elements/code-block";
 import { MessageResponse } from "@/components/ai-elements/message";
@@ -91,7 +91,6 @@ export const WebFetchChip = ({
     normalizedToolName === "web-search" || normalizedToolName === "websearch";
   const label = displayUrl ?? (isWebSearch ? query : null);
   const fallbackLabel = isWebSearch ? "Web search" : "Web fetch";
-  const ToolIcon = isWebSearch ? SearchIcon : GlobeIcon;
   const outputText = getWebFetchTextOutput(part.output);
   const outputLength = formatTextLength(outputText);
   const hasRawOutput = part.output !== undefined;
@@ -119,7 +118,7 @@ export const WebFetchChip = ({
           tone="indigo"
           type="button"
         >
-          <ToolIcon className="size-3.5 shrink-0" />
+          <GlobeIcon className="size-3.5 shrink-0" />
           {label ? (
             <span
               className="max-w-64 truncate font-medium"

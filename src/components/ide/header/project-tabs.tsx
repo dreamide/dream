@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import { FolderTree, Plus } from "lucide-react";
 import {
   type FormEvent,
@@ -17,6 +18,11 @@ import {
 } from "@/lib/sparkles-palettes";
 import { useUiStore } from "@/lib/ui-store";
 import type { DetectedEditor } from "@/types/ide";
+import {
+  getToolName,
+  isToolLikePart,
+  normalizeToolName,
+} from "../assistant-message-tools";
 import { useIdeStore } from "../ide-store";
 import {
   moveTabItem,
@@ -36,14 +42,65 @@ import {
 } from "./project-tab-icon";
 
 const PROJECT_TABS_END_DRAG_SPACE = 48;
+const COMPLETED_ASK_USER_QUESTION_STATES = new Set([
+  "approval-responded",
+  "output-available",
+  "output-denied",
+  "output-error",
+]);
 
 export type ProjectTabItem = StandardTabItem & {
+  awaitingAnswer: boolean;
   completed: boolean;
   path: string;
   sparklesPalette: SparklesPaletteName | string[];
   streaming: boolean;
   worktreeBranch: string | null;
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const hasAskUserQuestionPrompt = (input: unknown) =>
+  isRecord(input) &&
+  Array.isArray(input.questions) &&
+  input.questions.some(
+    (question) =>
+      isRecord(question) &&
+      typeof question.question === "string" &&
+      question.question.trim().length > 0 &&
+      Array.isArray(question.options) &&
+      question.options.some(
+        (option) => isRecord(option) && typeof option.label === "string",
+      ),
+  );
+
+const isAwaitingAskUserQuestionAnswer = (part: UIMessage["parts"][number]) => {
+  if (
+    !isToolLikePart(part) ||
+    normalizeToolName(getToolName(part)) !== "ask-user-question" ||
+    !hasAskUserQuestionPrompt(part.input)
+  ) {
+    return false;
+  }
+
+  const approvalId =
+    part.approval?.id ??
+    (typeof part.toolCallId === "string" ? part.toolCallId : null);
+  if (!approvalId) {
+    return false;
+  }
+
+  const state = typeof part.state === "string" ? part.state : "input-streaming";
+  return !COMPLETED_ASK_USER_QUESTION_STATES.has(state);
+};
+
+const chatIsAwaitingAnswer = (messages: UIMessage[]) =>
+  messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      message.parts.some(isAwaitingAskUserQuestionAnswer),
+  );
 
 const useDetectedEditors = (isMacOs: boolean) => {
   const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
@@ -167,6 +224,7 @@ export const ProjectTabs = () => {
   const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
   const chats = useIdeStore((s) => s.chats);
+  const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const accentColor = useUiStore((s) => s.accentColor);
@@ -193,6 +251,19 @@ export const ProjectTabs = () => {
           .map((chat) => chat.projectId),
       ),
     [chats, completedChatIds],
+  );
+  const awaitingAnswerProjectIds = useMemo(
+    () =>
+      new Set(
+        chats
+          .filter(
+            (chat) =>
+              chat.deletedAt === null &&
+              chatIsAwaitingAnswer(messagesByChatId[chat.id] ?? []),
+          )
+          .map((chat) => chat.projectId),
+      ),
+    [chats, messagesByChatId],
   );
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)
@@ -262,6 +333,7 @@ export const ProjectTabs = () => {
   const projectTabItems = useMemo<ProjectTabItem[]>(
     () =>
       projects.map((project) => {
+        const awaitingAnswer = awaitingAnswerProjectIds.has(project.id);
         const completed =
           project.id !== activeProjectId && completedProjectIds.has(project.id);
         const leading = completed ? (
@@ -306,9 +378,11 @@ export const ProjectTabs = () => {
           )?.sparklesPalette ?? DEFAULT_SPARKLES_PALETTE;
 
         return {
+          awaitingAnswer,
           completed,
           id: project.id,
           label: project.name,
+          labelClassName: awaitingAnswer ? "animate-pulse" : undefined,
           leading,
           path: project.path,
           sparklesPalette:
@@ -322,6 +396,7 @@ export const ProjectTabs = () => {
     [
       activeProjectId,
       accentSparklesPalette,
+      awaitingAnswerProjectIds,
       chats,
       completedProjectIds,
       projects,

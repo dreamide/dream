@@ -22,6 +22,7 @@ const SCROLL_EDGE_TOLERANCE = 1;
 export type StandardTabItem = {
   id: string;
   label: string;
+  labelClassName?: string;
   leading?: ReactNode;
 };
 
@@ -692,7 +693,14 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                 type="button"
               >
                 {item.leading}
-                <span className="min-w-0 truncate leading-5">{item.label}</span>
+                <span
+                  className={cn(
+                    "min-w-0 truncate leading-5",
+                    item.labelClassName,
+                  )}
+                >
+                  {item.label}
+                </span>
               </button>
             );
 
