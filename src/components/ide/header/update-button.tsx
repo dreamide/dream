@@ -116,7 +116,7 @@ export const HeaderUpdateButton = () => {
           ? "text-destructive hover:bg-destructive-surface-muted hover:text-destructive dark:hover:bg-destructive-surface"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
         status.state === "downloaded" &&
-          "bg-muted text-foreground hover:bg-muted/80 dark:bg-surface-800 dark:hover:bg-surface-700",
+          "bg-[color-mix(in_oklab,var(--accent-primary)_78%,black)] text-accent-primary-foreground hover:bg-[color-mix(in_oklab,var(--accent-primary)_70%,black)] hover:text-accent-primary-foreground",
       )}
       disabled={disabled}
       onClick={handleUpdateClick}
