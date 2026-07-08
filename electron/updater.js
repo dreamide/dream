@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import electronUpdater from "electron-updater";
@@ -9,6 +9,7 @@ const updaterSemver = updaterRequire("semver");
 
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 5000;
+const ANONYMOUS_STAGING_USER_ID = "00000000-0000-4000-8000-000000000000";
 
 function nowIsoString() {
   return new Date().toISOString();
@@ -42,6 +43,40 @@ function getUpdateFeedUrl() {
   const url = process.env.DREAM_UPDATE_FEED_URL?.trim();
 
   return url ? url.replace(/\/+$/, "") : null;
+}
+
+function parseScalar(value) {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function getPackagedUpdateFeedUrl() {
+  if (!process.resourcesPath) {
+    return null;
+  }
+
+  try {
+    const config = readFileSync(
+      path.join(process.resourcesPath, "app-update.yml"),
+      "utf8",
+    );
+    const match = config.match(/^\s*url:\s*(.+?)\s*$/m);
+    const url = match ? parseScalar(match[1]).trim() : null;
+
+    return url ? url.replace(/\/+$/, "") : null;
+  } catch {
+    return null;
+  }
+}
+
+function getBaseUpdateFeedUrl() {
+  return getUpdateFeedUrl() ?? getPackagedUpdateFeedUrl();
 }
 
 function getDevUpdateCurrentVersion() {
@@ -85,9 +120,129 @@ updaterCacheDirName: dream-updater
   return configPath;
 }
 
+function getUpdateChannel(version) {
+  const parsed = updaterSemver.parse(version);
+  const prerelease = parsed ? updaterSemver.prerelease(parsed) : null;
+  if (!prerelease?.length) {
+    return "stable";
+  }
+
+  return String(prerelease[0] ?? "prerelease");
+}
+
+function getUpdateTelemetryPayload({ currentVersion, manual }) {
+  const version = String(currentVersion || "unknown");
+
+  return {
+    arch: process.arch,
+    channel: getUpdateChannel(version),
+    check: manual ? "manual" : "automatic",
+    platform: process.platform,
+    version,
+  };
+}
+
+function addInstallIdToPayload(payload, installId) {
+  if (typeof installId !== "string" || !installId.trim()) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    installId: installId.trim(),
+  };
+}
+
+function sanitizeHeaderValue(value) {
+  return String(value)
+    .replace(/[\r\n]/g, "")
+    .replace(/[^\t\x20-\x7e]/g, "");
+}
+
+function getUpdateTelemetryHeaders(payload) {
+  const headers = {
+    "X-Dream-Arch": sanitizeHeaderValue(payload.arch),
+    "X-Dream-Channel": sanitizeHeaderValue(payload.channel),
+    "X-Dream-Platform": sanitizeHeaderValue(payload.platform),
+    "X-Dream-Update-Check": sanitizeHeaderValue(payload.check),
+    "X-Dream-Version": sanitizeHeaderValue(payload.version),
+  };
+
+  if (payload.installId) {
+    headers["X-Dream-Install-Id"] = sanitizeHeaderValue(payload.installId);
+  }
+
+  return headers;
+}
+
+function getTelemetryUpdateFeedUrl(updateFeedUrl, payload) {
+  if (!updateFeedUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(updateFeedUrl);
+    for (const [key, value] of Object.entries(payload)) {
+      url.searchParams.set(key, value);
+    }
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function configureUpdateTelemetry(autoUpdater, updateFeedUrl, payload) {
+  const requestHeaders = getUpdateTelemetryHeaders(payload);
+  const telemetryUpdateFeedUrl = getTelemetryUpdateFeedUrl(
+    updateFeedUrl,
+    payload,
+  );
+
+  if (telemetryUpdateFeedUrl) {
+    autoUpdater.setFeedURL({
+      provider: "generic",
+      requestHeaders,
+      url: telemetryUpdateFeedUrl,
+    });
+    return;
+  }
+
+  autoUpdater.requestHeaders = requestHeaders;
+}
+
+function removeHeader(headers, headerName) {
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === headerName) {
+      delete headers[key];
+    }
+  }
+}
+
+function disableUpdateStagingIdentifier(autoUpdater) {
+  autoUpdater.stagingUserIdPromise = {
+    get value() {
+      return Promise.resolve(ANONYMOUS_STAGING_USER_ID);
+    },
+  };
+  autoUpdater.isUserWithinRollout = () => true;
+
+  const computeFinalHeaders =
+    autoUpdater.computeFinalHeaders?.bind(autoUpdater);
+  if (typeof computeFinalHeaders !== "function") {
+    return;
+  }
+
+  autoUpdater.computeFinalHeaders = (headers = {}) => {
+    const finalHeaders = computeFinalHeaders(headers);
+    removeHeader(finalHeaders, "x-user-staging-id");
+    return finalHeaders;
+  };
+}
+
 export function initializeAutoUpdater({
   app,
   getMainWindow,
+  installId,
   ipcMain,
   isDevelopment,
 }) {
@@ -96,7 +251,7 @@ export function initializeAutoUpdater({
   const devCurrentVersion = devUpdatesEnabled
     ? getDevUpdateCurrentVersion()
     : null;
-  const updateFeedUrl = getUpdateFeedUrl();
+  const updateFeedUrl = getBaseUpdateFeedUrl();
   const updatesEnabled =
     (app.isPackaged && !isDevelopment) ||
     (devUpdatesEnabled && Boolean(updateFeedUrl));
@@ -148,6 +303,17 @@ export function initializeAutoUpdater({
     }
 
     emitStatus({ error: null, manual, state: "checking" });
+    configureUpdateTelemetry(
+      autoUpdater,
+      updateFeedUrl,
+      addInstallIdToPayload(
+        getUpdateTelemetryPayload({
+          currentVersion: status.currentVersion,
+          manual,
+        }),
+        installId,
+      ),
+    );
 
     checkInFlight = autoUpdater
       .checkForUpdates()
@@ -207,6 +373,7 @@ export function initializeAutoUpdater({
   }
 
   const { autoUpdater } = electronUpdater;
+  disableUpdateStagingIdentifier(autoUpdater);
 
   if (devUpdatesEnabled && updateFeedUrl) {
     autoUpdater.updateConfigPath = writeDevUpdateConfig(app, updateFeedUrl);

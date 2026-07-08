@@ -22,6 +22,7 @@ import { createBrowserSessionManager } from "./browser-sessions.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import {
   closePersistedStateDatabase,
+  ensurePersistedInstallId,
   loadPersistedState,
   loadPersistedThemePreference,
   resolveStateDatabasePath,
@@ -93,6 +94,7 @@ app.setPath("sessionData", APP_SESSION_DATA_PATH);
 
 let mainWindow = null;
 let updateManager = null;
+let installId = null;
 
 function normalizeThemePreference(value) {
   return value === "light" || value === "dark" || value === "system"
@@ -608,9 +610,16 @@ app.whenReady().then(async () => {
   await rendererServerManager.start();
   await createMainWindow();
 
+  try {
+    installId = ensurePersistedInstallId();
+  } catch (error) {
+    console.error("Failed to initialize install ID:", error);
+  }
+
   updateManager = initializeAutoUpdater({
     app,
     getMainWindow: () => mainWindow,
+    installId,
     ipcMain,
     isDevelopment,
   });

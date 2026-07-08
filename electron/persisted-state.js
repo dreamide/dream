@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -38,6 +39,7 @@ const RELATIONAL_SCHEMA_VERSION = 2;
 const STATE_DB_FILENAME = "dream.db";
 const STATE_DB_PATH_ENV_VAR = "DREAM_DB_PATH";
 const DRIZZLE_MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
+const INSTALL_ID_CONFIG_KEY = "installId";
 const THEME_PREFERENCES_CONFIG_KEY = "themePreferences";
 const PERSISTED_STATE_CONFIG_KEYS = [
   "activeProjectId",
@@ -95,6 +97,15 @@ function parseJson(value, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function isUuidV4(value) {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  );
 }
 
 function normalizeProjectPathKey(projectPath) {
@@ -1311,6 +1322,26 @@ export function savePersistedState(state, { databasePath } = {}) {
 export function loadPersistedState({ databasePath } = {}) {
   const database = getStateDatabase(databasePath);
   return loadStateFromRelationalDatabase(database);
+}
+
+export function ensurePersistedInstallId({ databasePath } = {}) {
+  const database = getStateDatabase(databasePath);
+  const row = database
+    .prepare("SELECT value FROM config WHERE key = ? LIMIT 1")
+    .get(INSTALL_ID_CONFIG_KEY);
+  const existingInstallId = parseJson(row?.value, null);
+  if (isUuidV4(existingInstallId)) {
+    return existingInstallId.toLowerCase();
+  }
+
+  const installId = randomUUID();
+  writeConfig(
+    database,
+    INSTALL_ID_CONFIG_KEY,
+    installId,
+    new Date().toISOString(),
+  );
+  return installId;
 }
 
 export function loadPersistedThemePreference({ databasePath } = {}) {
