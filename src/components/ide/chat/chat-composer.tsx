@@ -7,6 +7,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -64,7 +65,7 @@ import { PromptAttachments } from "../chat";
 import { AGENT_MODE_OPTIONS } from "../ide-types";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
 import type { ChatTodoSummary } from "./todo-list";
-import { TodoListPopover } from "./todo-list-popover";
+import { TodoListPanel, TodoListPanelTrigger } from "./todo-list-popover";
 import { UsageLimitsPopover } from "./usage-limits-popover";
 
 export interface ChatPanelModelOption {
@@ -603,9 +604,11 @@ export const ChatComposer = ({
   const AgentModeIcon = getAgentModeIcon(agentMode);
   const selectedAgentModeLabel = chatT(agentMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const todoPanelId = useId();
   const [projectReferences, setProjectReferences] = useState<
     ProjectReferenceItem[]
   >([]);
+  const [isTodoPanelOpen, setIsTodoPanelOpen] = useState(false);
   const [activeReferenceToken, setActiveReferenceToken] =
     useState<ActiveReferenceToken | null>(null);
   const [highlightedReferenceIndex, setHighlightedReferenceIndex] = useState(0);
@@ -664,6 +667,12 @@ export const ChatComposer = ({
     setActiveReferenceToken(null);
     setHighlightedReferenceIndex(0);
   }, [promptText]);
+
+  useEffect(() => {
+    if (todoSummary.totalCount === 0) {
+      setIsTodoPanelOpen(false);
+    }
+  }, [todoSummary.totalCount]);
 
   const referenceResults = useMemo(
     () =>
@@ -899,263 +908,277 @@ export const ChatComposer = ({
             </div>
           </div>
         ) : null}
-        <Sparkles
-          cyclePalette={sparklesPalette}
-          cycleOnClick={isProcessing}
-          density={70}
-          disabled={!isProcessing}
-          height={30}
-          onPaletteChange={onSparklesPaletteChange}
-          palette={resolvedSparklesPalette}
-          sway={0}
-          speed={2}
-        >
-          <div className="overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background shadow-md">
-            <PromptInput
-              clearOnSubmit="immediate"
-              id={promptInputDomId}
-              className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
-              onSubmit={handleComposerSubmit}
-            >
-              <PromptInputBody>
-                <PromptAttachments />
-                <div className="relative w-full">
-                  <InlineProjectReferenceMentions
-                    references={selectedReferences}
-                    text={promptText}
-                  />
-                  <PromptInputTextarea
-                    className={cn(
-                      "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0",
-                      selectedReferences.length > 0 &&
-                        "text-transparent placeholder:text-muted-foreground selection:bg-primary-selection",
-                    )}
-                    disabled={!isActive}
-                    onChange={handlePromptChange}
-                    onClick={(event) =>
-                      updateActiveReferenceToken(
-                        event.currentTarget.value,
-                        event.currentTarget.selectionStart,
-                      )
-                    }
-                    onKeyDown={handlePromptKeyDown}
-                    onSelect={(event) =>
-                      updateActiveReferenceToken(
-                        event.currentTarget.value,
-                        event.currentTarget.selectionStart,
-                      )
-                    }
-                    placeholder={chatT("askAnything")}
-                    ref={textareaRef}
-                    rows={1}
-                    value={promptText}
-                  />
-                </div>
-              </PromptInputBody>
-              <PromptInputFooter className="items-center">
-                <PromptInputTools>
-                  <PromptInputActionMenu>
-                    <PromptInputActionMenuTrigger tooltip="Attach file" />
-                    <PromptInputActionMenuContent>
-                      <PromptInputActionAddAttachments />
-                    </PromptInputActionMenuContent>
-                  </PromptInputActionMenu>
-                  <TodoListPopover summary={todoSummary} />
-                </PromptInputTools>
-                <div className="ml-auto flex items-center gap-2">
-                  <ChatComposerSubmitButton
-                    isActive={isActive}
-                    isProcessing={isProcessing}
-                    isProviderInstalled={isProviderInstalled}
-                    onStop={onStop}
-                    promptText={promptText}
-                    selectedModel={selectedModel}
-                    selectedReferenceCount={selectedReferences.length}
-                    status={status}
-                  />
-                </div>
-              </PromptInputFooter>
-            </PromptInput>
-
-            <div className="flex items-center gap-1 border-t border-surface-200 dark:border-surface-800 px-2 py-1.5">
-              <Select
-                onValueChange={(value) => onAgentModeChange(value as AgentMode)}
-                value={agentMode}
+        <TodoListPanel
+          isOpen={isTodoPanelOpen}
+          panelId={todoPanelId}
+          summary={todoSummary}
+        />
+        <div className="relative z-10">
+          <Sparkles
+            cyclePalette={sparklesPalette}
+            cycleOnClick={isProcessing}
+            density={70}
+            disabled={!isProcessing}
+            height={30}
+            onPaletteChange={onSparklesPaletteChange}
+            palette={resolvedSparklesPalette}
+            sway={0}
+            speed={2}
+          >
+            <div className="overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background shadow-md">
+              <PromptInput
+                clearOnSubmit="immediate"
+                id={promptInputDomId}
+                className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
+                onSubmit={handleComposerSubmit}
               >
-                <SelectTrigger
-                  className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  title={chatT("agentMode")}
-                >
-                  <AgentModeIcon className="size-3.5 shrink-0" />
-                  <span className="truncate">{selectedAgentModeLabel}</span>
-                </SelectTrigger>
-                <SelectContent className="text-xs" side="top">
-                  <SelectGroup>
-                    <SelectLabel>{chatT("mode")}</SelectLabel>
-                    {AGENT_MODE_OPTIONS.map((option) => {
-                      const OptionIcon = getAgentModeIcon(option.value);
+                <PromptInputBody>
+                  <PromptAttachments />
+                  <div className="relative w-full">
+                    <InlineProjectReferenceMentions
+                      references={selectedReferences}
+                      text={promptText}
+                    />
+                    <PromptInputTextarea
+                      className={cn(
+                        "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0",
+                        selectedReferences.length > 0 &&
+                          "text-transparent placeholder:text-muted-foreground selection:bg-primary-selection",
+                      )}
+                      disabled={!isActive}
+                      onChange={handlePromptChange}
+                      onClick={(event) =>
+                        updateActiveReferenceToken(
+                          event.currentTarget.value,
+                          event.currentTarget.selectionStart,
+                        )
+                      }
+                      onKeyDown={handlePromptKeyDown}
+                      onSelect={(event) =>
+                        updateActiveReferenceToken(
+                          event.currentTarget.value,
+                          event.currentTarget.selectionStart,
+                        )
+                      }
+                      placeholder={chatT("askAnything")}
+                      ref={textareaRef}
+                      rows={1}
+                      value={promptText}
+                    />
+                  </div>
+                </PromptInputBody>
+                <PromptInputFooter className="items-center">
+                  <PromptInputTools>
+                    <PromptInputActionMenu>
+                      <PromptInputActionMenuTrigger tooltip="Attach file" />
+                      <PromptInputActionMenuContent>
+                        <PromptInputActionAddAttachments />
+                      </PromptInputActionMenuContent>
+                    </PromptInputActionMenu>
+                    <TodoListPanelTrigger
+                      isOpen={isTodoPanelOpen}
+                      onOpenChange={setIsTodoPanelOpen}
+                      panelId={todoPanelId}
+                      summary={todoSummary}
+                    />
+                  </PromptInputTools>
+                  <div className="ml-auto flex items-center gap-2">
+                    <ChatComposerSubmitButton
+                      isActive={isActive}
+                      isProcessing={isProcessing}
+                      isProviderInstalled={isProviderInstalled}
+                      onStop={onStop}
+                      promptText={promptText}
+                      selectedModel={selectedModel}
+                      selectedReferenceCount={selectedReferences.length}
+                      status={status}
+                    />
+                  </div>
+                </PromptInputFooter>
+              </PromptInput>
 
-                      return (
+              <div className="flex items-center gap-1 border-t border-surface-200 dark:border-surface-800 px-2 py-1.5">
+                <Select
+                  onValueChange={(value) =>
+                    onAgentModeChange(value as AgentMode)
+                  }
+                  value={agentMode}
+                >
+                  <SelectTrigger
+                    className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                    title={chatT("agentMode")}
+                  >
+                    <AgentModeIcon className="size-3.5 shrink-0" />
+                    <span className="truncate">{selectedAgentModeLabel}</span>
+                  </SelectTrigger>
+                  <SelectContent className="text-xs" side="top">
+                    <SelectGroup>
+                      <SelectLabel>{chatT("mode")}</SelectLabel>
+                      {AGENT_MODE_OPTIONS.map((option) => {
+                        const OptionIcon = getAgentModeIcon(option.value);
+
+                        return (
+                          <SelectItem
+                            className="text-xs"
+                            key={option.value}
+                            value={option.value}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <OptionIcon className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
+                              <span>{chatT(option.value)}</span>
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  onValueChange={(value) => {
+                    if (typeof value !== "string") return;
+                    const matchingOptions = allModelOptions.filter(
+                      (option) => option.id === value,
+                    );
+                    const nextOption =
+                      matchingOptions.find(
+                        (option) => option.provider === chatProvider,
+                      ) ?? matchingOptions[0];
+                    if (!nextOption) return;
+
+                    onModelChange(nextOption);
+                  }}
+                  value={selectedModelValue}
+                >
+                  <SelectTrigger
+                    className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                    disabled={allModelOptions.length === 0}
+                  >
+                    <SelectValue placeholder={chatT("model")}>
+                      <span className="flex items-center gap-1.5">
+                        <ProviderIcon
+                          className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
+                          provider={selectedProvider}
+                        />
+                        <span className="truncate">{selectedModelLabel}</span>
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent
+                    alignItemWithTrigger={false}
+                    className="text-xs"
+                    side="top"
+                  >
+                    <SelectGroup>
+                      <SelectLabel>{chatT("model")}</SelectLabel>
+                      {allModelOptions.map((option) => (
                         <SelectItem
                           className="text-xs"
-                          key={option.value}
-                          value={option.value}
+                          key={`${option.provider}:${option.id}`}
+                          value={option.id}
                         >
                           <span className="flex items-center gap-1.5">
-                            <OptionIcon className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                            <span>{chatT(option.value)}</span>
+                            <ProviderIcon
+                              className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
+                              provider={option.provider}
+                            />
+                            <span className="truncate">{option.label}</span>
                           </span>
                         </SelectItem>
-                      );
-                    })}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              <Select
-                onValueChange={(value) => {
-                  if (typeof value !== "string") return;
-                  const matchingOptions = allModelOptions.filter(
-                    (option) => option.id === value,
-                  );
-                  const nextOption =
-                    matchingOptions.find(
-                      (option) => option.provider === chatProvider,
-                    ) ?? matchingOptions[0];
-                  if (!nextOption) return;
-
-                  onModelChange(nextOption);
-                }}
-                value={selectedModelValue}
-              >
-                <SelectTrigger
-                  className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  disabled={allModelOptions.length === 0}
-                >
-                  <SelectValue placeholder={chatT("model")}>
-                    <span className="flex items-center gap-1.5">
-                      <ProviderIcon
-                        className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
-                        provider={selectedProvider}
-                      />
-                      <span className="truncate">{selectedModelLabel}</span>
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent
-                  alignItemWithTrigger={false}
-                  className="text-xs"
-                  side="top"
-                >
-                  <SelectGroup>
-                    <SelectLabel>{chatT("model")}</SelectLabel>
-                    {allModelOptions.map((option) => (
-                      <SelectItem
-                        className="text-xs"
-                        key={`${option.provider}:${option.id}`}
-                        value={option.id}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <ProviderIcon
-                            className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
-                            provider={option.provider}
-                          />
-                          <span className="truncate">{option.label}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              {reasoningEffortOptions.length > 0 ? (
-                <Select
-                  onValueChange={(value) =>
-                    onReasoningEffortChange(value as ReasoningEffort)
-                  }
-                  value={selectedReasoningEffort}
-                >
-                  <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <span className="truncate">
-                      {selectedReasoningEffort
-                        ? modelT(selectedReasoningEffort)
-                        : selectedReasoningLabel}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    <SelectGroup>
-                      <SelectLabel>{settingsT("effort")}</SelectLabel>
-                      {reasoningEffortOptions.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {modelT(option.value)}
-                        </SelectItem>
                       ))}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-              ) : null}
 
-              {speedOptions.length > 0 ? (
-                <Select
-                  onValueChange={(value) =>
-                    onModelSpeedChange(value as ModelSpeed)
-                  }
-                  value={selectedModelSpeed}
-                >
-                  <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
-                    <span className="truncate">
-                      {selectedModelSpeed
-                        ? modelT(selectedModelSpeed)
-                        : selectedModelSpeedLabel}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    <SelectGroup>
-                      <SelectLabel>{settingsT("speed")}</SelectLabel>
-                      {speedOptions.map((option) => (
-                        <SelectItem
-                          className="text-xs"
-                          key={option.value}
-                          value={option.value}
-                        >
-                          {modelT(option.value)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              ) : null}
+                {reasoningEffortOptions.length > 0 ? (
+                  <Select
+                    onValueChange={(value) =>
+                      onReasoningEffortChange(value as ReasoningEffort)
+                    }
+                    value={selectedReasoningEffort}
+                  >
+                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                      <span className="truncate">
+                        {selectedReasoningEffort
+                          ? modelT(selectedReasoningEffort)
+                          : selectedReasoningLabel}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent className="text-xs" side="top">
+                      <SelectGroup>
+                        <SelectLabel>{settingsT("effort")}</SelectLabel>
+                        {reasoningEffortOptions.map((option) => (
+                          <SelectItem
+                            className="text-xs"
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {modelT(option.value)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                ) : null}
 
-              <div className="ml-auto flex items-center gap-1">
-                <UsageLimitsPopover provider={selectedProvider} />
-                <Context
-                  maxTokens={contextWindow}
-                  modelId={modelId}
-                  usage={contextUsage}
-                  usedTokens={contextUsedTokens}
-                >
-                  <ContextTrigger
-                    className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                    title={chatT("contextUsage")}
-                  />
-                  <ContextContent side="top" align="end">
-                    <ContextContentHeader />
-                    <ContextContentBody className="space-y-1.5">
-                      <ContextInputUsage />
-                      <ContextOutputUsage />
-                      <ContextReasoningUsage />
-                      <ContextCacheUsage />
-                    </ContextContentBody>
-                  </ContextContent>
-                </Context>
+                {speedOptions.length > 0 ? (
+                  <Select
+                    onValueChange={(value) =>
+                      onModelSpeedChange(value as ModelSpeed)
+                    }
+                    value={selectedModelSpeed}
+                  >
+                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground">
+                      <span className="truncate">
+                        {selectedModelSpeed
+                          ? modelT(selectedModelSpeed)
+                          : selectedModelSpeedLabel}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent className="text-xs" side="top">
+                      <SelectGroup>
+                        <SelectLabel>{settingsT("speed")}</SelectLabel>
+                        {speedOptions.map((option) => (
+                          <SelectItem
+                            className="text-xs"
+                            key={option.value}
+                            value={option.value}
+                          >
+                            {modelT(option.value)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                ) : null}
+
+                <div className="ml-auto flex items-center gap-1">
+                  <UsageLimitsPopover provider={selectedProvider} />
+                  <Context
+                    maxTokens={contextWindow}
+                    modelId={modelId}
+                    usage={contextUsage}
+                    usedTokens={contextUsedTokens}
+                  >
+                    <ContextTrigger
+                      className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                      title={chatT("contextUsage")}
+                    />
+                    <ContextContent side="top" align="end">
+                      <ContextContentHeader />
+                      <ContextContentBody className="space-y-1.5">
+                        <ContextInputUsage />
+                        <ContextOutputUsage />
+                        <ContextReasoningUsage />
+                        <ContextCacheUsage />
+                      </ContextContentBody>
+                    </ContextContent>
+                  </Context>
+                </div>
               </div>
             </div>
-          </div>
-        </Sparkles>
+          </Sparkles>
+        </div>
       </div>
     </div>
   );
