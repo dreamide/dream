@@ -61,7 +61,7 @@ const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
       ) : completed ? (
         <span
           aria-label={`${stateLabel}: ${todo.text}`}
-          className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-primary bg-primary text-primary-foreground"
+          className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-surface-900 bg-surface-900 text-surface-50 dark:border-surface-200 dark:bg-surface-200 dark:text-surface-900"
           role="img"
         >
           <CheckIcon className="size-3.5 stroke-[3]" />
