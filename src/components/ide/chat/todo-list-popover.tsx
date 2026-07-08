@@ -1,4 +1,4 @@
-import { ListChecks } from "lucide-react";
+import { CheckIcon, ListChecks } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { PromptInputButton } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
@@ -13,20 +13,42 @@ import { cn } from "@/lib/utils";
 import type { ChatTodoItem, ChatTodoSummary } from "./todo-list";
 
 const getTodoStateLabel = (todo: ChatTodoItem) => {
-  if (todo.status === "completed") {
+  const normalizedStatus = normalizeTodoStatus(todo.status);
+
+  if (
+    normalizedStatus === "completed" ||
+    normalizedStatus === "complete" ||
+    normalizedStatus === "done"
+  ) {
     return "Completed";
   }
 
-  if (todo.status === "inProgress") {
+  if (
+    normalizedStatus === "inprogress" ||
+    normalizedStatus === "current" ||
+    normalizedStatus === "active" ||
+    normalizedStatus === "running"
+  ) {
     return "Current";
   }
 
   return "Pending";
 };
 
+const normalizeTodoStatus = (status: ChatTodoItem["status"] | string) =>
+  status.replace(/[\s_-]+/g, "").toLowerCase();
+
 const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
-  const completed = todo.status === "completed";
-  const inProgress = todo.status === "inProgress";
+  const normalizedStatus = normalizeTodoStatus(todo.status);
+  const completed =
+    normalizedStatus === "completed" ||
+    normalizedStatus === "complete" ||
+    normalizedStatus === "done";
+  const inProgress =
+    normalizedStatus === "inprogress" ||
+    normalizedStatus === "current" ||
+    normalizedStatus === "active" ||
+    normalizedStatus === "running";
   const stateLabel = getTodoStateLabel(todo);
 
   return (
@@ -36,10 +58,18 @@ const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
           aria-label={`${stateLabel}: ${todo.text}`}
           className="mt-0.5 size-4 shrink-0 text-accent-primary"
         />
+      ) : completed ? (
+        <span
+          aria-label={`${stateLabel}: ${todo.text}`}
+          className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-primary bg-primary text-primary-foreground"
+          role="img"
+        >
+          <CheckIcon className="size-3.5 stroke-[3]" />
+        </span>
       ) : (
         <Checkbox
           aria-label={`${stateLabel}: ${todo.text}`}
-          checked={completed}
+          checked={false}
           className="pointer-events-none mt-0.5 data-checked:border-accent-primary data-checked:bg-accent-primary data-checked:text-white dark:data-checked:bg-accent-primary"
           tabIndex={-1}
         />
