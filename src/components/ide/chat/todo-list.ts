@@ -35,6 +35,7 @@ const TODO_ARRAY_KEYS = [
 const TODO_TEXT_KEYS = [
   "step",
   "content",
+  "subject",
   "title",
   "task",
   "text",
@@ -193,6 +194,15 @@ const normalizeToolName = (name: string) =>
     ?.replace(/[\s_-]+/g, "")
     .toLowerCase() ?? "";
 
+export const isTaskCreateToolPart = (part: UIMessage["parts"][number]) => {
+  if (!isToolLikePart(part)) {
+    return false;
+  }
+
+  const toolName = normalizeToolName(getToolName(part));
+  return toolName === "taskcreate" || toolName === "createtask";
+};
+
 export const isTodoToolPart = (part: UIMessage["parts"][number]) => {
   if (!isToolLikePart(part)) {
     return false;
@@ -204,6 +214,8 @@ export const isTodoToolPart = (part: UIMessage["parts"][number]) => {
     toolName === "todo" ||
     toolName === "todolist" ||
     toolName === "todos" ||
+    toolName === "taskcreate" ||
+    toolName === "createtask" ||
     toolName === "updatetodo" ||
     toolName === "updatetodos" ||
     toolName === "updateplan"
@@ -239,16 +251,96 @@ const getTodosFromPart = (
   return null;
 };
 
+const getTaskCreateNumber = (value: unknown) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const match = value.match(/\bTask\s*#(\d+)\b/i);
+  return match?.[1] ?? null;
+};
+
+const getTaskCreateItemFromPart = (
+  part: UIMessage["parts"][number],
+  fallbackIndex: number,
+): ChatTodoItem | null => {
+  if (!isTaskCreateToolPart(part)) {
+    return null;
+  }
+
+  if (
+    "state" in part &&
+    (part.state === "output-error" || part.state === "output-denied")
+  ) {
+    return null;
+  }
+
+  const input = "input" in part ? part.input : undefined;
+  const output = "output" in part ? part.output : undefined;
+
+  const inputRecord = isRecord(input) ? input : null;
+  const outputRecord = isRecord(output) ? output : null;
+  const subject = inputRecord
+    ? getStringValue(inputRecord, TODO_TEXT_KEYS)
+    : null;
+  const description = inputRecord
+    ? getStringValue(inputRecord, TODO_DESCRIPTION_KEYS)
+    : null;
+  const outputNumber = getTaskCreateNumber(output);
+  const id =
+    (inputRecord
+      ? getStringValue(inputRecord, ["id", "taskId", "task_id"])
+      : null) ??
+    (outputRecord
+      ? getStringValue(outputRecord, ["id", "taskId", "task_id"])
+      : null) ??
+    (outputNumber ? `task-${outputNumber}` : `task-create-${fallbackIndex}`);
+
+  if (!subject) {
+    return null;
+  }
+
+  return {
+    description,
+    id,
+    status: "pending",
+    text: subject,
+  };
+};
+
+const upsertTodo = (todos: ChatTodoItem[], nextTodo: ChatTodoItem) => {
+  const existingIndex = todos.findIndex((todo) => todo.id === nextTodo.id);
+
+  if (existingIndex === -1) {
+    return [...todos, nextTodo];
+  }
+
+  return todos.map((todo, index) =>
+    index === existingIndex ? { ...todo, ...nextTodo } : todo,
+  );
+};
+
 export const getLatestChatTodoSummary = (
   messages: UIMessage[],
 ): ChatTodoSummary => {
   let latestTodos: ChatTodoItem[] = [];
+  let taskCreateTodos: ChatTodoItem[] = [];
+  let taskCreateIndex = 0;
 
   for (const message of messages) {
     for (const part of message.parts) {
+      const taskCreateTodo = getTaskCreateItemFromPart(part, taskCreateIndex);
+      if (taskCreateTodo) {
+        taskCreateTodos = upsertTodo(taskCreateTodos, taskCreateTodo);
+        latestTodos = taskCreateTodos;
+        taskCreateIndex += 1;
+        continue;
+      }
+
       const todos = getTodosFromPart(part);
       if (todos) {
         latestTodos = todos;
+        taskCreateTodos = [];
       }
     }
   }

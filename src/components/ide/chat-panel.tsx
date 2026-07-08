@@ -398,7 +398,7 @@ export const ChatPanel = ({
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  const { status: projectGitStatus } = useProjectGitStatus(
+  const { status: projectGitStatus, statusRefreshToken } = useProjectGitStatus(
     project.path,
     gitRefreshKey,
   );
@@ -654,11 +654,17 @@ export const ChatPanel = ({
       return;
     }
 
-    if (!pendingCommitMessageWarmRefreshTokensRef.current.has(gitRefreshKey)) {
+    if (statusRefreshToken === null) {
       return;
     }
 
-    pendingCommitMessageWarmRefreshTokensRef.current.delete(gitRefreshKey);
+    if (
+      !pendingCommitMessageWarmRefreshTokensRef.current.has(statusRefreshToken)
+    ) {
+      return;
+    }
+
+    pendingCommitMessageWarmRefreshTokensRef.current.delete(statusRefreshToken);
     const changes = getCommitChanges(projectGitStatus, true);
     if (changes.length === 0) {
       return;
@@ -675,7 +681,7 @@ export const ChatPanel = ({
       projectPath: project.path,
       model: gitGenerationModelSelection.model,
       provider: gitGenerationModelSelection.provider,
-      refreshToken: gitRefreshKey,
+      refreshToken: statusRefreshToken,
     });
     if (warmedCommitMessageKeysRef.current.has(warmKey)) {
       return;
@@ -686,15 +692,15 @@ export const ChatPanel = ({
       model: gitGenerationModelSelection.model,
       projectPath: project.path,
       provider: gitGenerationModelSelection.provider,
-      refreshToken: gitRefreshKey,
+      refreshToken: statusRefreshToken,
       status: projectGitStatus,
     });
   }, [
     gitGenerationModelSelection.model,
     gitGenerationModelSelection.provider,
-    gitRefreshKey,
     project.path,
     projectGitStatus,
+    statusRefreshToken,
   ]);
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
