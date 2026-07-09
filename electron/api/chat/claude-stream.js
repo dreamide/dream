@@ -160,6 +160,10 @@ const CLAUDE_ALLOWED_TOOLS = [
   ...CLAUDE_PROJECT_MCP_ALLOWED_TOOLS,
 ];
 
+const CLAUDE_PRELOADED_TOOL_NAMES = new Set(
+  CLAUDE_ALLOWED_TOOLS.map((toolName) => normalizeClaudeToolName(toolName)),
+);
+
 const CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS = new Set(
   ["listFiles", "readFile", "searchInFiles"].map((toolName) =>
     normalizeClaudeToolName(
@@ -168,18 +172,60 @@ const CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS = new Set(
   ),
 );
 
+const getClaudeToolSearchQuery = (input) => {
+  if (typeof input === "string") {
+    return input.trim();
+  }
+
+  if (!input || typeof input !== "object") {
+    return "";
+  }
+
+  const value =
+    input.query ??
+    input.pattern ??
+    input.tool ??
+    input.toolName ??
+    input.tool_name ??
+    input.name;
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const isPreloadedClaudeToolSearch = (input) => {
+  const normalizedQuery = normalizeClaudeToolName(
+    getClaudeToolSearchQuery(input),
+  );
+  if (!normalizedQuery) {
+    return false;
+  }
+
+  for (const preloadedToolName of CLAUDE_PRELOADED_TOOL_NAMES) {
+    if (
+      normalizedQuery === preloadedToolName ||
+      normalizedQuery.includes(preloadedToolName)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 const createClaudePermissionHandler = (writer, { mode }) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const toolUseID =
       typeof options?.toolUseID === "string" ? options.toolUseID : undefined;
 
-    if (normalizedToolName === "toolsearch") {
+    if (
+      normalizedToolName === "toolsearch" &&
+      isPreloadedClaudeToolSearch(input)
+    ) {
       return {
         behavior: "deny",
         interrupt: false,
         message:
-          "All available tools are already preloaded. Use the listed tool directly instead of ToolSearch.",
+          "That tool is already preloaded. Use it directly instead of ToolSearch.",
         ...(toolUseID ? { toolUseID } : {}),
       };
     }
