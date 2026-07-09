@@ -135,6 +135,31 @@ const CLAUDE_PROJECT_MCP_ALLOWED_TOOLS = CLAUDE_PROJECT_TOOL_NAMES.map(
   (toolName) => `mcp__${CLAUDE_PROJECT_MCP_SERVER_NAME}__${toolName}`,
 );
 
+const CLAUDE_BUILT_IN_ALLOWED_TOOLS = [
+  "Read",
+  "Write",
+  "Edit",
+  "MultiEdit",
+  "Glob",
+  "Grep",
+  "Bash",
+  "BashOutput",
+  "KillBash",
+  "Task",
+  "TodoWrite",
+  "WebFetch",
+  "WebSearch",
+  "NotebookEdit",
+  "EnterPlanMode",
+  "AskUserQuestion",
+  "ExitPlanMode",
+];
+
+const CLAUDE_ALLOWED_TOOLS = [
+  ...CLAUDE_BUILT_IN_ALLOWED_TOOLS,
+  ...CLAUDE_PROJECT_MCP_ALLOWED_TOOLS,
+];
+
 const CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS = new Set(
   ["listFiles", "readFile", "searchInFiles"].map((toolName) =>
     normalizeClaudeToolName(
@@ -143,44 +168,18 @@ const CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS = new Set(
   ),
 );
 
-const CLAUDE_DIRECT_WEB_TOOLS = new Set(["webfetch", "websearch"]);
-
-const getClaudeToolSearchQuery = (input) => {
-  if (typeof input === "string") {
-    return input.trim();
-  }
-
-  if (!input || typeof input !== "object") {
-    return "";
-  }
-
-  const value =
-    input.query ??
-    input.pattern ??
-    input.tool ??
-    input.toolName ??
-    input.tool_name ??
-    input.name;
-  return typeof value === "string" ? value.trim() : "";
-};
-
 const createClaudePermissionHandler = (writer, { mode }) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const toolUseID =
       typeof options?.toolUseID === "string" ? options.toolUseID : undefined;
 
-    if (
-      normalizedToolName === "toolsearch" &&
-      CLAUDE_DIRECT_WEB_TOOLS.has(
-        normalizeClaudeToolName(getClaudeToolSearchQuery(input)),
-      )
-    ) {
+    if (normalizedToolName === "toolsearch") {
       return {
         behavior: "deny",
         interrupt: false,
         message:
-          "WebFetch and WebSearch are already available. Use the matching web tool directly instead of ToolSearch.",
+          "All available tools are already preloaded. Use the listed tool directly instead of ToolSearch.",
         ...(toolUseID ? { toolUseID } : {}),
       };
     }
@@ -408,27 +407,9 @@ export const streamClaudeResponse = async ({
       cwd: projectPath,
       persistSession: false,
       // Pin the Claude Code CLI tool catalog so the model sees the full set
-      // up front and has no reason to invoke the ToolSearch discovery meta-tool.
-      allowedTools: [
-        "Read",
-        "Write",
-        "Edit",
-        "MultiEdit",
-        "Glob",
-        "Grep",
-        "Bash",
-        "BashOutput",
-        "KillBash",
-        "Task",
-        "TodoWrite",
-        "WebFetch",
-        "WebSearch",
-        "NotebookEdit",
-        "EnterPlanMode",
-        "AskUserQuestion",
-        "ExitPlanMode",
-        ...CLAUDE_PROJECT_MCP_ALLOWED_TOOLS,
-      ],
+      // up front. The permission handler rejects ToolSearch because these
+      // tools are already preloaded.
+      allowedTools: CLAUDE_ALLOWED_TOOLS,
       mcpServers: {
         [CLAUDE_PROJECT_MCP_SERVER_NAME]: claudeProjectMcpServer,
       },
