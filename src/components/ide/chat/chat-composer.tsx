@@ -30,7 +30,6 @@ import {
   PromptInputActionMenuContent,
   PromptInputActionMenuTrigger,
   PromptInputBody,
-  PromptInputFooter,
   type PromptInputMessage,
   PromptInputSubmit,
   PromptInputTextarea,
@@ -929,12 +928,20 @@ export const ChatComposer = ({
               <PromptInput
                 clearOnSubmit="immediate"
                 id={promptInputDomId}
-                className="w-full [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
+                className="w-full [&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-wrap [&_[data-slot=input-group]]:py-1 [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
                 onSubmit={handleComposerSubmit}
               >
                 <PromptInputBody>
                   <PromptAttachments />
-                  <div className="relative w-full">
+                  <PromptInputTools className="shrink-0 pl-2">
+                    <PromptInputActionMenu>
+                      <PromptInputActionMenuTrigger tooltip="Attach file" />
+                      <PromptInputActionMenuContent>
+                        <PromptInputActionAddAttachments />
+                      </PromptInputActionMenuContent>
+                    </PromptInputActionMenu>
+                  </PromptInputTools>
+                  <div className="relative min-w-0 flex-1">
                     <InlineProjectReferenceMentions
                       references={selectedReferences}
                       text={promptText}
@@ -966,23 +973,13 @@ export const ChatComposer = ({
                       value={promptText}
                     />
                   </div>
-                </PromptInputBody>
-                <PromptInputFooter className="items-center">
-                  <PromptInputTools>
-                    <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger tooltip="Attach file" />
-                      <PromptInputActionMenuContent>
-                        <PromptInputActionAddAttachments />
-                      </PromptInputActionMenuContent>
-                    </PromptInputActionMenu>
+                  <div className="flex shrink-0 items-center gap-1 pr-2">
                     <TodoListPanelTrigger
                       isOpen={isTodoPanelOpen}
                       onOpenChange={setIsTodoPanelOpen}
                       panelId={todoPanelId}
                       summary={todoSummary}
                     />
-                  </PromptInputTools>
-                  <div className="ml-auto flex items-center gap-2">
                     <ChatComposerSubmitButton
                       isActive={isActive}
                       isProcessing={isProcessing}
@@ -994,7 +991,7 @@ export const ChatComposer = ({
                       status={status}
                     />
                   </div>
-                </PromptInputFooter>
+                </PromptInputBody>
               </PromptInput>
 
               <div className="flex items-center gap-1 border-t border-surface-200 dark:border-surface-800 px-2 py-1.5">

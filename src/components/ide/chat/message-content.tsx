@@ -94,7 +94,10 @@ export const PromptAttachments = () => {
   }
 
   return (
-    <Attachments className="w-full px-3 pt-3" variant="inline">
+    <Attachments
+      className="w-full shrink-0 basis-full px-3 pt-3"
+      variant="inline"
+    >
       {attachments.files.map((file) => {
         const isImage =
           file.type === "file" &&

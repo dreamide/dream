@@ -215,28 +215,52 @@ export const TodoListPanel = ({
   panelId: string;
   summary: ChatTodoSummary;
 }) => {
-  if (summary.totalCount === 0) {
+  const [isMounted, setIsMounted] = useState(isOpen);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (summary.totalCount === 0) {
+      setIsVisible(false);
+      setIsMounted(false);
+      return;
+    }
+
+    if (!isOpen) {
+      setIsVisible(false);
+      return;
+    }
+
+    setIsMounted(true);
+  }, [isOpen, summary.totalCount]);
+
+  useEffect(() => {
+    if (!isOpen || !isMounted) {
+      return;
+    }
+
+    const animationFrame = requestAnimationFrame(() => setIsVisible(true));
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [isMounted, isOpen]);
+
+  if (summary.totalCount === 0 || !isMounted) {
     return null;
   }
 
   return (
-    <div
-      aria-hidden={!isOpen}
-      className={cn(
-        "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
-        isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-      )}
-      id={panelId}
-    >
-      <div className="min-h-0 overflow-hidden">
-        <div
-          className={cn(
-            "relative z-0 mx-1 rounded-t-lg border border-b-0 border-surface-300 dark:border-surface-700 bg-popover p-3 text-popover-foreground shadow-md transition-transform duration-200 ease-out",
-            isOpen ? "translate-y-0" : "translate-y-6",
-          )}
-        >
-          <TodoListContent summary={summary} />
-        </div>
+    <div aria-hidden={!isOpen} className="overflow-hidden" id={panelId}>
+      <div
+        className={cn(
+          "mx-1 rounded-t-lg border border-b-0 border-surface-300 bg-popover p-3 text-popover-foreground shadow-md transition-transform duration-200 ease-out dark:border-surface-700",
+          isVisible ? "translate-y-0" : "translate-y-full",
+        )}
+        onTransitionEnd={(event) => {
+          if (event.target === event.currentTarget && !isOpen) {
+            setIsMounted(false);
+          }
+        }}
+      >
+        <TodoListContent summary={summary} />
       </div>
     </div>
   );
