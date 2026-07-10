@@ -65,7 +65,7 @@ export function configureApplicationMenu(app, appName) {
       {
         label: "View",
         submenu: [
-          { role: "reload" },
+          { role: "reload", accelerator: "" },
           { role: "forceReload" },
           {
             accelerator: "Alt+Command+I",
