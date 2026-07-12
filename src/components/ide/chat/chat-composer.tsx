@@ -924,11 +924,11 @@ export const ChatComposer = ({
             sway={0}
             speed={2}
           >
-            <div className="overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background shadow-md">
+            <div className="overflow-hidden rounded-lg border border-surface-300 bg-surface-100 shadow-md dark:border-surface-700 dark:bg-surface-950">
               <PromptInput
                 clearOnSubmit="immediate"
                 id={promptInputDomId}
-                className="w-full [&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-wrap [&_[data-slot=input-group]]:py-1 [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
+                className="relative z-10 -mx-px -mt-px w-[calc(100%+2px)] overflow-hidden rounded-lg border border-surface-300 bg-background dark:border-surface-700 [&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-wrap [&_[data-slot=input-group]]:py-1 [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
                 onSubmit={handleComposerSubmit}
               >
                 <PromptInputBody>
@@ -994,7 +994,7 @@ export const ChatComposer = ({
                 </PromptInputBody>
               </PromptInput>
 
-              <div className="flex items-center gap-1 border-t border-surface-200 dark:border-surface-800 px-2 py-1.5">
+              <div className="flex items-center gap-1 px-2 py-1.5">
                 <Select
                   onValueChange={(value) =>
                     onAgentModeChange(value as AgentMode)
