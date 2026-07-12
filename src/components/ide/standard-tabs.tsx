@@ -724,7 +724,10 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                 style={tabStyle}
               >
                 <div
-                  className="group relative shrink-0 overflow-visible"
+                  className={cn(
+                    "group relative shrink-0 overflow-visible",
+                    isActive && "rounded-sm shadow-sm",
+                  )}
                   style={{ width: `${tabWidth}px` }}
                 >
                   {renderFrame
