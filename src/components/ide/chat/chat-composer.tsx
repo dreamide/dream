@@ -924,7 +924,7 @@ export const ChatComposer = ({
             sway={0}
             speed={2}
           >
-            <div className="overflow-hidden rounded-lg border border-surface-300 bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] shadow-md dark:border-surface-700">
+            <div className="overflow-hidden rounded-lg border border-surface-300 bg-surface-50 shadow-md dark:border-surface-700 dark:bg-surface-900">
               <PromptInput
                 clearOnSubmit="immediate"
                 id={promptInputDomId}
@@ -1002,7 +1002,7 @@ export const ChatComposer = ({
                   value={agentMode}
                 >
                   <SelectTrigger
-                    className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:data-[popup-open]:bg-transparent"
+                    className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
                     title={chatT("agentMode")}
                   >
                     <AgentModeIcon className="size-3.5 shrink-0" />
@@ -1048,7 +1048,7 @@ export const ChatComposer = ({
                   value={selectedModelValue}
                 >
                   <SelectTrigger
-                    className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:data-[popup-open]:bg-transparent"
+                    className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
                     disabled={allModelOptions.length === 0}
                   >
                     <SelectValue placeholder={chatT("model")}>
@@ -1094,7 +1094,7 @@ export const ChatComposer = ({
                     }
                     value={selectedReasoningEffort}
                   >
-                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:data-[popup-open]:bg-transparent">
+                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent">
                       <span className="truncate">
                         {selectedReasoningEffort
                           ? modelT(selectedReasoningEffort)
@@ -1125,7 +1125,7 @@ export const ChatComposer = ({
                     }
                     value={selectedModelSpeed}
                   >
-                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:data-[popup-open]:bg-transparent">
+                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent">
                       <span className="truncate">
                         {selectedModelSpeed
                           ? modelT(selectedModelSpeed)
