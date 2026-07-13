@@ -924,7 +924,7 @@ export const ChatComposer = ({
             sway={0}
             speed={2}
           >
-            <div className="overflow-hidden rounded-lg border border-surface-300 bg-surface-100 shadow-md dark:border-surface-700 dark:bg-[color-mix(in_oklab,var(--surface-900)_50%,var(--surface-950))]">
+            <div className="overflow-hidden rounded-lg border border-surface-300 bg-[color-mix(in_oklab,var(--muted)_50%,var(--background))] shadow-md dark:border-surface-700">
               <PromptInput
                 clearOnSubmit="immediate"
                 id={promptInputDomId}
