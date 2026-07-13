@@ -935,7 +935,10 @@ export const ChatComposer = ({
                   <PromptAttachments />
                   <PromptInputTools className="shrink-0 pl-2">
                     <PromptInputActionMenu>
-                      <PromptInputActionMenuTrigger tooltip="Attach file" />
+                      <PromptInputActionMenuTrigger
+                        className="text-muted-foreground hover:text-foreground"
+                        tooltip="Attach file"
+                      />
                       <PromptInputActionMenuContent>
                         <PromptInputActionAddAttachments />
                       </PromptInputActionMenuContent>
