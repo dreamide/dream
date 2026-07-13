@@ -68,6 +68,24 @@ export const CursorIcon = ({ className, ...props }: IconProps) => (
   </svg>
 );
 
+export const GrokIcon = ({ className, ...props }: IconProps) => (
+  <svg
+    className={cn("size-3.5", className)}
+    fill="none"
+    role="img"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path
+      d="M5 4.5h6.25c4.85 0 7.75 2.73 7.75 7.25S16.1 19.5 11.25 19.5H5v-15Z"
+      stroke="currentColor"
+      strokeWidth="2"
+    />
+    <path d="M10 8h4.5v7H10" stroke="currentColor" strokeWidth="2" />
+  </svg>
+);
+
 export const ProviderIcon = ({
   provider,
   ...props
@@ -75,5 +93,6 @@ export const ProviderIcon = ({
   if (provider === "anthropic") return <AnthropicIcon {...props} />;
   if (provider === "opencode") return <OpenCodeIcon {...props} />;
   if (provider === "cursor") return <CursorIcon {...props} />;
+  if (provider === "grok") return <GrokIcon {...props} />;
   return <OpenAiIcon {...props} />;
 };

@@ -455,6 +455,12 @@ export const getModelReasoningEfforts = (
     return [];
   }
 
+  if (provider === "grok") {
+    return id.startsWith("grok-") && !id.includes("composer")
+      ? ["low", "medium", "high"]
+      : [];
+  }
+
   return [];
 };
 

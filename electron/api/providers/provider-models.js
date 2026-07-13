@@ -11,6 +11,11 @@ import {
   isCursorCliAvailable,
 } from "./cursor-cli.js";
 import {
+  getGrokModelsFromInitializeResult,
+  initializeGrokAcp,
+  spawnGrokAcp,
+} from "./grok-acp.js";
+import {
   createModelOption,
   dedupeModelOptions,
   fetchClaudeCodeModelOptionsFromModelsDev,
@@ -390,6 +395,69 @@ export const fetchCursorModels = async ({ force = false } = {}) => {
     source: "cli",
     version,
   };
+};
+
+export const fetchGrokModels = async ({ force = false } = {}) => {
+  const installed = await isCliCommandAvailable("grok");
+  if (!installed) {
+    return {
+      error: "Grok Build CLI is not installed or not available on PATH.",
+      installed: false,
+      models: [],
+      source: "unavailable",
+      version: null,
+    };
+  }
+
+  const version = await getCliVersion("grok", { force });
+  let connection;
+  try {
+    connection = await spawnGrokAcp();
+    const initializeResult = await initializeGrokAcp(connection);
+    const models = dedupeAndSort(
+      getGrokModelsFromInitializeResult(initializeResult).flatMap((entry) => {
+        const id =
+          typeof entry?.modelId === "string" ? entry.modelId.trim() : "";
+        if (!id) return [];
+
+        return [
+          createModelOption(
+            "grok",
+            id,
+            entry.name ?? id,
+            normalizeReasoningEfforts(entry?._meta?.reasoningEfforts),
+            [],
+            entry?._meta?.totalContextTokens,
+          ),
+        ];
+      }),
+    );
+
+    if (models.length === 0) {
+      return {
+        error: "Grok Build returned no models.",
+        installed: true,
+        models: [],
+        source: "unavailable",
+        version,
+      };
+    }
+
+    return { installed: true, models, source: "cli", version };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch Grok Build models.",
+      installed: true,
+      models: [],
+      source: "unavailable",
+      version,
+    };
+  } finally {
+    connection?.close();
+  }
 };
 
 export const fetchOpenCodeModels = async ({ force = false } = {}) => {

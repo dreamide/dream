@@ -87,6 +87,7 @@ const getCommonCliPathEntries = () => {
     if (process.env.APPDATA) {
       entries.push(path.join(process.env.APPDATA, "npm"));
     }
+    entries.push("~/.grok/bin");
     return entries;
   }
 
@@ -109,6 +110,7 @@ const getCommonCliPathEntries = () => {
     "~/.local/bin",
     "~/.local/share/pnpm",
     "~/.opencode/bin",
+    "~/.grok/bin",
     "~/.npm-global/bin",
     "~/.cargo/bin",
     "~/.bun/bin",

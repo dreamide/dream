@@ -219,10 +219,12 @@ export const IdeShell = () => {
     );
     const openCodeSelectedModels = dedupeModels(prev.openCodeSelectedModels);
     const cursorSelectedModels = dedupeModels(prev.cursorSelectedModels);
+    const grokSelectedModels = dedupeModels(prev.grokSelectedModels);
     const nextSettings = {
       ...prev,
       anthropicSelectedModels,
       cursorSelectedModels,
+      grokSelectedModels,
       openCodeSelectedModels,
       openAiSelectedModels,
     };
@@ -241,6 +243,7 @@ export const IdeShell = () => {
       anthropicSelectedModels.length !== prev.anthropicSelectedModels.length ||
       openCodeSelectedModels.length !== prev.openCodeSelectedModels.length ||
       cursorSelectedModels.length !== prev.cursorSelectedModels.length ||
+      grokSelectedModels.length !== prev.grokSelectedModels.length ||
       !openAiSelectedModels.every(
         (m, i) => prev.openAiSelectedModels[i] === m,
       ) ||
@@ -250,7 +253,10 @@ export const IdeShell = () => {
       !openCodeSelectedModels.every(
         (m, i) => prev.openCodeSelectedModels[i] === m,
       ) ||
-      !cursorSelectedModels.every((m, i) => prev.cursorSelectedModels[i] === m);
+      !cursorSelectedModels.every(
+        (m, i) => prev.cursorSelectedModels[i] === m,
+      ) ||
+      !grokSelectedModels.every((m, i) => prev.grokSelectedModels[i] === m);
 
     if (changed) {
       store.setSettings(normalizedDefaultSettings);

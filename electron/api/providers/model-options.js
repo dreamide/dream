@@ -46,7 +46,11 @@ export const normalizeReasoningEfforts = (value) => {
         ? entry
         : typeof entry?.effort === "string"
           ? entry.effort
-          : null;
+          : typeof entry?.value === "string"
+            ? entry.value
+            : typeof entry?.id === "string"
+              ? entry.id
+              : null;
     if (!effort || !VALID_REASONING_EFFORTS.has(effort)) {
       continue;
     }
@@ -125,6 +129,12 @@ export const getModelReasoningEfforts = (provider, modelId) => {
       if (majorOnly >= 4) return ANTHROPIC_REASONING_EFFORTS;
     }
     return [];
+  }
+
+  if (provider === "grok") {
+    return id.startsWith("grok-") && !id.includes("composer")
+      ? ["low", "medium", "high"]
+      : [];
   }
 
   return [];

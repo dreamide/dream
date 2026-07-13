@@ -3,7 +3,12 @@ import type { UIMessage } from "ai";
 import type { AppLocale } from "@/i18n/config";
 import type { SparklesPaletteName } from "@/lib/sparkles-palettes";
 
-export type AiProvider = "openai" | "anthropic" | "opencode" | "cursor";
+export type AiProvider =
+  | "openai"
+  | "anthropic"
+  | "opencode"
+  | "cursor"
+  | "grok";
 export type AccentColor =
   | "black-white"
   | "red"
@@ -110,6 +115,7 @@ export interface AppSettings {
   anthropicSelectedModels: string[];
   openCodeSelectedModels: string[];
   cursorSelectedModels: string[];
+  grokSelectedModels: string[];
   locale: AppLocale;
   showReasoningSummaries: boolean;
   shellPath: string;

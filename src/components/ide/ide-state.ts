@@ -245,7 +245,10 @@ const normalizeChatColumnWidths = (value: unknown): Record<string, number> => {
 };
 
 const normalizeProvider = (value: unknown): AiProvider => {
-  return value === "anthropic" || value === "opencode" || value === "cursor"
+  return value === "anthropic" ||
+    value === "opencode" ||
+    value === "cursor" ||
+    value === "grok"
     ? value
     : DEFAULT_PROVIDER;
 };
@@ -599,6 +602,11 @@ export const mergePersistedState = (
     cursorSelectedModels: dedupeModels(
       Array.isArray(rawSettings.cursorSelectedModels)
         ? rawSettings.cursorSelectedModels
+        : [],
+    ),
+    grokSelectedModels: dedupeModels(
+      Array.isArray(rawSettings.grokSelectedModels)
+        ? rawSettings.grokSelectedModels
         : [],
     ),
     openAiSelectedModels: dedupeModels(

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createOpencode } from "@opencode-ai/sdk";
 import { generateText } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
+import { runGrokPrompt } from "../providers/grok-acp.js";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
@@ -241,6 +242,20 @@ const generateClaudeChatTitle = async ({ model, projectPath, promptText }) => {
   return sanitizeGeneratedChatTitle(result.text);
 };
 
+const generateGrokChatTitle = async ({ model, projectPath, promptText }) =>
+  sanitizeGeneratedChatTitle(
+    await runGrokPrompt({
+      cwd: projectPath,
+      model,
+      prompt: [
+        CHAT_TITLE_SYSTEM_PROMPT,
+        "",
+        buildChatTitlePrompt(promptText).join("\n"),
+      ].join("\n"),
+      timeoutMs: 60_000,
+    }),
+  );
+
 const parseOpenCodeModel = (model) => {
   const [providerID, ...modelParts] = String(model ?? "").split("/");
   const modelID = modelParts.join("/");
@@ -371,6 +386,18 @@ export const generateChatTitle = async ({
 
   if (provider === "cursor") {
     return generateLocalChatTitle(titlePromptText);
+  }
+
+  if (provider === "grok") {
+    const model = fallbackModel?.trim();
+    if (!model) {
+      return generateLocalChatTitle(titlePromptText);
+    }
+    return generateGrokChatTitle({
+      model,
+      projectPath,
+      promptText: titlePromptText,
+    });
   }
 
   const model = (await fetchOpenAiLowCostModel()) || fallbackModel?.trim();

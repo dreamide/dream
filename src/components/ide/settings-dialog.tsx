@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
 import openCodeLogo from "@/assets/opencode.svg";
-import { CursorIcon } from "@/components/ai-elements/provider-icons";
+import { CursorIcon, GrokIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -178,10 +178,15 @@ export const SettingsDialog = () => {
     () => getModelsForProvider("cursor", settings),
     [settings],
   );
+  const grokModels = useMemo(
+    () => getModelsForProvider("grok", settings),
+    [settings],
+  );
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
   const availableOpenCodeModels = providerModels.opencode.models;
   const availableCursorModels = providerModels.cursor.models;
+  const availableGrokModels = providerModels.grok.models;
 
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
@@ -205,6 +210,10 @@ export const SettingsDialog = () => {
     () => getModelOptionsForProvider("cursor", settings, availableCursorModels),
     [availableCursorModels, settings],
   );
+  const grokModelOptions = useMemo(
+    () => getModelOptionsForProvider("grok", settings, availableGrokModels),
+    [availableGrokModels, settings],
+  );
   const groupedDefaultModelOptions = useMemo(
     () =>
       [
@@ -212,10 +221,12 @@ export const SettingsDialog = () => {
         { models: anthropicModelOptions, provider: "anthropic" as const },
         { models: openCodeModelOptions, provider: "opencode" as const },
         { models: cursorModelOptions, provider: "cursor" as const },
+        { models: grokModelOptions, provider: "grok" as const },
       ].filter((group) => group.models.length > 0),
     [
       anthropicModelOptions,
       cursorModelOptions,
+      grokModelOptions,
       openAiModelOptions,
       openCodeModelOptions,
     ],
@@ -394,6 +405,10 @@ export const SettingsDialog = () => {
 
   const handleRefreshCursorProvider = () => {
     void refreshProviderModels({ force: true, provider: "cursor" });
+  };
+
+  const handleRefreshGrokProvider = () => {
+    void refreshProviderModels({ force: true, provider: "grok" });
   };
 
   return (
@@ -958,6 +973,76 @@ export const SettingsDialog = () => {
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
                                       toggleProviderModel("cursor", model.id);
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: "Grok Build",
+                          })}
+                          disabled={providerModels.grok.loading}
+                          onClick={handleRefreshGrokProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: "Grok Build",
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      error={providerModels.grok.error}
+                      icon={
+                        <GrokIcon
+                          aria-hidden="true"
+                          className="size-4 text-foreground"
+                          role="presentation"
+                        />
+                      }
+                      installed={providerModels.grok.installed}
+                      label="Grok Build"
+                      loading={providerModels.grok.loading}
+                      runtimeLabel="Grok Build CLI"
+                      version={providerModels.grok.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableGrokModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noCliModels")}
+                          </p>
+                        ) : (
+                          availableGrokModels.map((model) => {
+                            const isSelected = grokModels.includes(model.id);
+
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel("grok", model.id);
                                     }
                                   }}
                                 />

@@ -23,6 +23,7 @@ export const ALL_PROVIDERS: AiProvider[] = [
   "anthropic",
   "opencode",
   "cursor",
+  "grok",
 ];
 export const CLAUDE_CODE_MODEL_IDS = {
   haiku: "haiku",
@@ -68,6 +69,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   expandToolCalls: false,
   groupToolCalls: false,
   cursorSelectedModels: [],
+  grokSelectedModels: [],
   locale: "en",
   openAiSelectedModels: [],
   openCodeSelectedModels: [],
@@ -223,6 +225,10 @@ export const getModelsForProvider = (
 
   if (provider === "cursor") {
     return clean(settings.cursorSelectedModels);
+  }
+
+  if (provider === "grok") {
+    return clean(settings.grokSelectedModels);
   }
 
   return clean(settings.openAiSelectedModels);

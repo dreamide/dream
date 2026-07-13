@@ -11,6 +11,7 @@ import {
 import {
   fetchAnthropicModels,
   fetchCursorModels,
+  fetchGrokModels,
   fetchOpenAiModels,
   fetchOpenCodeModels,
 } from "./providers/provider-models.js";
@@ -35,14 +36,16 @@ export {
 };
 
 const providerUsageLimitsRequestSchema = z.object({
-  provider: z.enum(["openai", "anthropic", "opencode", "cursor"]),
+  provider: z.enum(["openai", "anthropic", "opencode", "cursor", "grok"]),
   projectPath: z.string().optional(),
 });
 
 const providerModelsRequestSchema = z
   .object({
     force: z.boolean().optional(),
-    provider: z.enum(["openai", "anthropic", "opencode", "cursor"]).optional(),
+    provider: z
+      .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
+      .optional(),
   })
   .optional();
 
@@ -62,21 +65,24 @@ export const registerProviderRoutes = (app) => {
 
     const force = parsed.data?.force ?? false;
     const provider = parsed.data?.provider;
-    const [openai, anthropic, opencode, cursor] =
+    const [openai, anthropic, opencode, cursor, grok] =
       provider === "openai"
-        ? [await fetchOpenAiModels({ force }), null, null, null]
+        ? [await fetchOpenAiModels({ force }), null, null, null, null]
         : provider === "anthropic"
-          ? [null, await fetchAnthropicModels({ force }), null, null]
+          ? [null, await fetchAnthropicModels({ force }), null, null, null]
           : provider === "opencode"
-            ? [null, null, await fetchOpenCodeModels({ force }), null]
+            ? [null, null, await fetchOpenCodeModels({ force }), null, null]
             : provider === "cursor"
-              ? [null, null, null, await fetchCursorModels({ force })]
-              : await Promise.all([
-                  fetchOpenAiModels({ force }),
-                  fetchAnthropicModels({ force }),
-                  fetchOpenCodeModels({ force }),
-                  fetchCursorModels({ force }),
-                ]);
+              ? [null, null, null, await fetchCursorModels({ force }), null]
+              : provider === "grok"
+                ? [null, null, null, null, await fetchGrokModels({ force })]
+                : await Promise.all([
+                    fetchOpenAiModels({ force }),
+                    fetchAnthropicModels({ force }),
+                    fetchOpenCodeModels({ force }),
+                    fetchCursorModels({ force }),
+                    fetchGrokModels({ force }),
+                  ]);
 
     return c.json({
       ...(anthropic ? { anthropic } : {}),
@@ -84,6 +90,7 @@ export const registerProviderRoutes = (app) => {
       fetchedAt: new Date().toISOString(),
       ...(openai ? { openai } : {}),
       ...(opencode ? { opencode } : {}),
+      ...(grok ? { grok } : {}),
     });
   });
 
@@ -105,6 +112,15 @@ export const registerProviderRoutes = (app) => {
         error: "Cursor CLI usage limits are unavailable.",
         fetchedAt: new Date().toISOString(),
         provider: "cursor",
+        status: "unavailable",
+      });
+    }
+
+    if (parsed.data.provider === "grok") {
+      return c.json({
+        error: "Grok Build usage limits are unavailable.",
+        fetchedAt: new Date().toISOString(),
+        provider: "grok",
         status: "unavailable",
       });
     }

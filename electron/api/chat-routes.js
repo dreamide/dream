@@ -3,6 +3,7 @@ import { resolvePersistedProjectPath } from "../persisted-state.js";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCursorResponse } from "./chat/cursor-stream.js";
+import { streamGrokResponse } from "./chat/grok-stream.js";
 import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
 import {
   chatRequestBodySchema,
@@ -84,6 +85,19 @@ const validateCursorReady = async () => {
   return null;
 };
 
+const validateGrokReady = async () => {
+  const grokInstalled = await isCliCommandAvailable("grok");
+  if (!grokInstalled) {
+    return {
+      message:
+        "Grok Build CLI is not installed or not available on PATH. Install it, then run `grok login`.",
+      status: 400,
+    };
+  }
+
+  return null;
+};
+
 export const registerChatRoutes = (app) => {
   app.post("/api/chat-title", async (c) => {
     let rawBody;
@@ -118,6 +132,11 @@ export const registerChatRoutes = (app) => {
       const cursorError = await validateCursorReady();
       if (cursorError) {
         return c.text(cursorError.message, cursorError.status);
+      }
+    } else if (provider === "grok") {
+      const grokError = await validateGrokReady();
+      if (grokError) {
+        return c.text(grokError.message, grokError.status);
       }
     } else {
       const claudeError = await validateClaudeReady();
@@ -256,6 +275,28 @@ export const registerChatRoutes = (app) => {
         remoteConversationId,
         remoteConversationModel,
         remoteConversationModelSpeed,
+        remoteConversationProjectPath,
+        responseMessageMetadata,
+      });
+    }
+
+    if (provider === "grok") {
+      const grokError = await validateGrokReady();
+      if (grokError) {
+        return c.text(grokError.message, grokError.status);
+      }
+
+      return streamGrokResponse({
+        abortSignal: c.req.raw.signal,
+        agentMode,
+        codexPermissionMode,
+        messages,
+        model,
+        projectReferencesPrompt,
+        projectPath: resolvedProjectPath,
+        reasoningEffort,
+        remoteConversationId,
+        remoteConversationModel,
         remoteConversationProjectPath,
         responseMessageMetadata,
       });

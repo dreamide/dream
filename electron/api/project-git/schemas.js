@@ -81,7 +81,7 @@ export const projectGitCommitMessageRequestSchema = z.object({
   model: nullableTrimmedStringSchema,
   projectPath: z.string().min(1),
   provider: z
-    .enum(["openai", "anthropic", "opencode", "cursor"])
+    .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
     .default("openai"),
 });
 
@@ -122,6 +122,6 @@ export const projectGitPullRequestDetailsRequestSchema = z.object({
     .default("create"),
   projectPath: z.string().min(1),
   provider: z
-    .enum(["openai", "anthropic", "opencode", "cursor"])
+    .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
     .default("openai"),
 });

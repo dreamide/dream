@@ -22,6 +22,7 @@ const DEFAULT_PERSISTED_STATE = {
     anthropicSelectedModels: [],
     autoAcceptPermissions: false,
     cursorSelectedModels: [],
+    grokSelectedModels: [],
     defaultGitGenerationModel: "",
     defaultModel: "",
     defaultModelSpeed: "standard",
@@ -54,6 +55,7 @@ const PERSISTED_STATE_CONFIG_KEYS = [
   "settings.anthropicSelectedModels",
   "settings.openCodeSelectedModels",
   "settings.cursorSelectedModels",
+  "settings.grokSelectedModels",
   "settings.autoAcceptPermissions",
   "settings.shellPath",
   "settings.expandToolCalls",
@@ -675,6 +677,14 @@ function saveStateToRelationalDatabase(database, state) {
     );
     writeConfig(
       database,
+      "settings.grokSelectedModels",
+      Array.isArray(settings.grokSelectedModels)
+        ? settings.grokSelectedModels
+        : [],
+      now,
+    );
+    writeConfig(
+      database,
       "settings.autoAcceptPermissions",
       settings.autoAcceptPermissions === true,
       now,
@@ -1142,6 +1152,9 @@ function loadStateFromRelationalDatabase(database) {
         config["settings.cursorSelectedModels"],
       )
         ? config["settings.cursorSelectedModels"]
+        : [],
+      grokSelectedModels: Array.isArray(config["settings.grokSelectedModels"])
+        ? config["settings.grokSelectedModels"]
         : [],
       showReasoningSummaries:
         typeof config["settings.showReasoningSummaries"] === "boolean"

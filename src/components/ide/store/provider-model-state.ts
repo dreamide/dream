@@ -28,6 +28,14 @@ export const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
     source: "unavailable",
     version: null,
   },
+  grok: {
+    error: null,
+    installed: false,
+    loading: false,
+    models: [],
+    source: "unavailable",
+    version: null,
+  },
   fetchedAt: null,
   openai: {
     error: null,
@@ -86,6 +94,17 @@ export const toggleProviderModelInSettings = (
       cursorSelectedModels,
     };
     return normalizeDefaultModelSettings(nextSettings);
+  }
+
+  if (provider === "grok") {
+    const current = dedupeModels(settings.grokSelectedModels);
+    const grokSelectedModels = current.includes(model)
+      ? current.filter((value) => value !== model)
+      : [...current, model];
+    return normalizeDefaultModelSettings({
+      ...settings,
+      grokSelectedModels,
+    });
   }
 
   const current = dedupeModels(settings.anthropicSelectedModels);
@@ -156,6 +175,19 @@ export const markProviderModelsLoading = (
           ? true
           : providerModels.cursor.loading,
   },
+  grok: {
+    ...providerModels.grok,
+    error:
+      provider === undefined || provider === "grok"
+        ? null
+        : providerModels.grok.error,
+    loading:
+      provider === undefined
+        ? true
+        : provider === "grok"
+          ? true
+          : providerModels.grok.loading,
+  },
 });
 
 export const getProviderModelsFromResponse = (
@@ -206,10 +238,21 @@ export const getProviderModelsFromResponse = (
         version: payload.cursor.version ?? null,
       }
     : previous.cursor;
+  const grok = payload.grok
+    ? {
+        error: payload.grok.error ?? null,
+        installed: payload.grok.installed,
+        loading: false,
+        models: dedupeModelOptions(payload.grok.models),
+        source: payload.grok.source,
+        version: payload.grok.version ?? null,
+      }
+    : previous.grok;
 
   return {
     anthropic,
     cursor,
+    grok,
     fetchedAt: payload.fetchedAt ?? new Date().toISOString(),
     openai,
     opencode,
@@ -252,6 +295,7 @@ export const reconcileSettingsWithProviderModels = (
     (model) => model.id,
   );
   const cursorModelIds = providerModels.cursor.models.map((model) => model.id);
+  const grokModelIds = providerModels.grok.models.map((model) => model.id);
   const openAiSelectedModels = reconcileProviderSelection(
     settings.openAiSelectedModels,
     openAiModelIds,
@@ -272,10 +316,16 @@ export const reconcileSettingsWithProviderModels = (
     cursorModelIds,
     providerModels.cursor,
   );
+  const grokSelectedModels = reconcileProviderSelection(
+    settings.grokSelectedModels,
+    grokModelIds,
+    providerModels.grok,
+  );
   const nextSettings = {
     ...settings,
     anthropicSelectedModels,
     cursorSelectedModels,
+    grokSelectedModels,
     openCodeSelectedModels,
     openAiSelectedModels,
   };
@@ -292,6 +342,7 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   a.anthropicSelectedModels.length === b.anthropicSelectedModels.length &&
   a.openCodeSelectedModels.length === b.openCodeSelectedModels.length &&
   a.cursorSelectedModels.length === b.cursorSelectedModels.length &&
+  a.grokSelectedModels.length === b.grokSelectedModels.length &&
   a.openAiSelectedModels.every(
     (model, index) => b.openAiSelectedModels[index] === model,
   ) &&
@@ -303,6 +354,9 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   ) &&
   a.cursorSelectedModels.every(
     (model, index) => b.cursorSelectedModels[index] === model,
+  ) &&
+  a.grokSelectedModels.every(
+    (model, index) => b.grokSelectedModels[index] === model,
   );
 
 export const getProviderModelsErrorState = (
@@ -346,5 +400,12 @@ export const getProviderModelsErrorState = (
       provider && provider !== "cursor" ? providerModels.cursor.error : message,
     loading:
       provider && provider !== "cursor" ? providerModels.cursor.loading : false,
+  },
+  grok: {
+    ...providerModels.grok,
+    error:
+      provider && provider !== "grok" ? providerModels.grok.error : message,
+    loading:
+      provider && provider !== "grok" ? providerModels.grok.loading : false,
   },
 });

@@ -13,6 +13,7 @@ import {
   normalizeCursorCliModel,
   resolveCursorCliLaunch,
 } from "../providers/cursor-cli.js";
+import { runGrokPrompt } from "../providers/grok-acp.js";
 import { normalizeClaudeCodeModel } from "../providers/model-options.js";
 import {
   fetchAnthropicLowCostModel,
@@ -596,6 +597,24 @@ const generateCursorCommitMessage = async ({
       });
   });
 
+const generateGrokCommitMessage = async ({
+  customInstructions,
+  diffText,
+  changes,
+  model,
+  projectPath,
+}) =>
+  sanitizeGeneratedCommitMessage(
+    await runGrokPrompt({
+      cwd: projectPath,
+      model,
+      prompt: [
+        "You write concise, accurate git commit subjects. Return only the subject line.",
+        buildCommitMessagePrompt({ changes, customInstructions, diffText }),
+      ].join("\n\n"),
+    }),
+  );
+
 const generateAiCommitMessage = async ({
   provider,
   model,
@@ -626,6 +645,16 @@ const generateAiCommitMessage = async ({
 
   if (provider === "cursor") {
     return generateCursorCommitMessage({
+      changes,
+      customInstructions,
+      diffText,
+      model,
+      projectPath,
+    });
+  }
+
+  if (provider === "grok") {
+    return generateGrokCommitMessage({
       changes,
       customInstructions,
       diffText,

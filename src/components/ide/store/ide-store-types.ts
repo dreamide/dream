@@ -62,6 +62,7 @@ export interface IdeState {
     anthropic: ProviderModelState;
     opencode: ProviderModelState;
     cursor: ProviderModelState;
+    grok: ProviderModelState;
     fetchedAt: string | null;
   };
 
