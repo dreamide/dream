@@ -1,5 +1,6 @@
 import { useControllableState } from "@/hooks/use-controllable-state";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import {
   createContext,
@@ -171,24 +172,22 @@ export type ReasoningTriggerProps = ComponentProps<
   getThinkingMessage?: (isStreaming: boolean, duration?: number) => ReactNode;
 };
 
-const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
-  if (isStreaming || duration === 0) {
-    return <Shimmer duration={1}>Thinking...</Shimmer>;
-  }
-  if (duration === undefined) {
-    return <span>Thought for a few seconds</span>;
-  }
-  return <span>Thought for {duration} seconds</span>;
-};
-
 export const ReasoningTrigger = memo(
   ({
     className,
     children,
-    getThinkingMessage = defaultGetThinkingMessage,
+    getThinkingMessage,
     ...props
   }: ReasoningTriggerProps) => {
+    const aiT = useTranslations("aiElements");
     const { isStreaming, isOpen, duration, hasContent } = useReasoning();
+    const thinkingMessage = getThinkingMessage
+      ? getThinkingMessage(isStreaming, duration)
+      : isStreaming || duration === 0
+        ? <Shimmer duration={1}>{aiT("thinking")}</Shimmer>
+        : duration === undefined
+          ? <span>{aiT("thoughtFewSeconds")}</span>
+          : <span>{aiT("thoughtSeconds", { count: duration })}</span>;
 
     return (
       <CollapsibleTrigger
@@ -202,7 +201,7 @@ export const ReasoningTrigger = memo(
         {children ?? (
           <>
             <BrainIcon className="size-3.5 shrink-0" />
-            {getThinkingMessage(isStreaming, duration)}
+            {thinkingMessage}
             {hasContent && (
               <ChevronDownIcon
                 className={cn(

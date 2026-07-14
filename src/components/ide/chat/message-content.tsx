@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import { PaperclipIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Attachment,
   AttachmentInfo,
@@ -87,6 +88,7 @@ const normalizeInlineProjectReferenceMentions = (
 };
 
 export const PromptAttachments = () => {
+  const assistantT = useTranslations("assistant");
   const attachments = usePromptInputAttachments();
 
   if (attachments.files.length === 0) {
@@ -127,10 +129,10 @@ export const PromptAttachments = () => {
             </DialogTrigger>
             <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none sm:max-w-[90vw]">
               <DialogTitle className="sr-only">
-                {file.filename || "Image"}
+                {file.filename || assistantT("image")}
               </DialogTitle>
               <img
-                alt={file.filename || "Image"}
+                alt={file.filename || assistantT("image")}
                 className="mx-auto max-h-[85vh] w-auto rounded-lg object-contain shadow-md"
                 src={file.url}
               />
@@ -184,6 +186,7 @@ export const UserMessageContent = ({
   message: UIMessage;
   projectPath: string;
 }) => {
+  const assistantT = useTranslations("assistant");
   const parts = Array.isArray(message.parts) ? message.parts : [];
   const attachments = parts.flatMap((part) => {
     if (!part || typeof part !== "object" || part.type !== "file") {
@@ -193,7 +196,7 @@ export const UserMessageContent = ({
     const label =
       (typeof part.filename === "string" && part.filename.trim()) ||
       (typeof part.mediaType === "string" && part.mediaType.trim()) ||
-      "attachment";
+      assistantT("attachment");
 
     const url = typeof part.url === "string" ? part.url : undefined;
     const mediaType =
@@ -266,7 +269,7 @@ export const UserMessageContent = ({
               >
                 <PaperclipIcon className="size-3 shrink-0" />
                 <span className="truncate font-mono text-xs">
-                  Attached file: {label}
+                  {assistantT("attachedFileLabel", { name: label })}
                 </span>
               </Badge>
             ),

@@ -1,4 +1,5 @@
 import { CheckIcon, CopyIcon, DownloadIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, CSSProperties, HTMLAttributes } from "react";
 import {
   createContext,
@@ -173,13 +174,17 @@ const copyTextToClipboard = async (value: string) => {
   await navigator.clipboard.writeText(value);
 };
 
-const downloadTextFile = async (filename: string, contents: string) => {
+const downloadTextFile = async (
+  filename: string,
+  contents: string,
+  dialogTitle: string,
+) => {
   const desktopApi = getDesktopApi();
   if (desktopApi) {
     await desktopApi.saveTextFile({
       contents,
       defaultPath: filename,
-      title: "Save code block",
+      title: dialogTitle,
     });
     return;
   }
@@ -602,6 +607,7 @@ export const CodeBlockDownloadButton = ({
   className,
   ...props
 }: CodeBlockDownloadButtonProps) => {
+  const aiT = useTranslations("aiElements");
   const { code } = useContext(CodeBlockContext);
 
   const handleDownload = useCallback(async () => {
@@ -609,12 +615,13 @@ export const CodeBlockDownloadButton = ({
       await downloadTextFile(
         filename || getCodeBlockDownloadFilename(language),
         code,
+        aiT("saveCodeBlock"),
       );
       onDownload?.();
     } catch (error) {
       onError?.(error as Error);
     }
-  }, [code, filename, language, onDownload, onError]);
+  }, [aiT, code, filename, language, onDownload, onError]);
 
   return (
     <Button

@@ -1,5 +1,6 @@
 import { CheckIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
 import {
   type ComponentProps,
   createContext,
@@ -84,11 +85,11 @@ export type ToolApprovalHandler = (response: {
 
 export const ActionApproval = ({
   approval,
-  approveLabel = "Approve",
+  approveLabel,
   children,
   className,
   onToolApproval,
-  rejectLabel = "Reject",
+  rejectLabel,
   state,
 }: {
   approval: NonNullable<ToolLikePart["approval"]>;
@@ -99,6 +100,7 @@ export const ActionApproval = ({
   rejectLabel?: string;
   state: ToolPart["state"];
 }) => {
+  const assistantT = useTranslations("assistant");
   const approvalId = approval.id;
 
   if (state !== "approval-requested") {
@@ -130,7 +132,7 @@ export const ActionApproval = ({
             })
           }
         >
-          {rejectLabel}
+          {rejectLabel ?? assistantT("reject")}
         </ConfirmationAction>
         <ConfirmationAction
           variant="outline"
@@ -143,7 +145,7 @@ export const ActionApproval = ({
             })
           }
         >
-          {approveLabel}
+          {approveLabel ?? assistantT("approve")}
         </ConfirmationAction>
       </ConfirmationActions>
     </Confirmation>
@@ -162,6 +164,7 @@ export const ApprovalStatusLabel = ({
   approval?: ToolLikePart["approval"];
   state: ToolPart["state"];
 }) => {
+  const assistantT = useTranslations("assistant");
   if (!approval) {
     return null;
   }
@@ -181,7 +184,7 @@ export const ApprovalStatusLabel = ({
     return (
       <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-success-border bg-success-surface px-2 py-0.5 font-medium text-emerald-700 text-xs dark:border-success-border dark:bg-success-surface dark:text-emerald-300">
         <CheckIcon className="size-3" />
-        Approved
+        {assistantT("approved")}
       </span>
     );
   }
@@ -189,19 +192,9 @@ export const ApprovalStatusLabel = ({
   return (
     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-destructive-border bg-destructive-surface px-2 py-0.5 font-medium text-destructive text-xs dark:border-destructive-border dark:bg-destructive-surface dark:text-destructive-muted">
       <XIcon className="size-3" />
-      Rejected
+      {assistantT("rejected")}
     </span>
   );
-};
-
-export const TOOL_STATE_LABELS: Record<ToolPart["state"], string> = {
-  "approval-requested": "Awaiting Approval",
-  "approval-responded": "Responded",
-  "input-available": "Running",
-  "input-streaming": "Pending",
-  "output-available": "Completed",
-  "output-denied": "Denied",
-  "output-error": "Error",
 };
 
 export const CHIP_ERROR_CLASSES =

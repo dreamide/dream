@@ -1,5 +1,6 @@
 import type { LanguageModelUsage, UIMessage } from "ai";
 import { CheckIcon, CopyIcon } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { ProjectReference } from "@/types/ide";
@@ -43,18 +44,6 @@ const parseMessageTime = (value: string | undefined) => {
   return date;
 };
 
-const formatMessageTime = (value: string | undefined) => {
-  const date = parseMessageTime(value);
-  if (!date) {
-    return null;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-};
-
 const formatRunningDuration = (startedAt: number, now: number) => {
   const totalSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -95,6 +84,8 @@ export const MessageHoverFooter = ({
   isRunning?: boolean;
   message: UIMessage;
 }) => {
+  const chatT = useTranslations("chat");
+  const format = useFormatter();
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [fallbackStartedAt] = useState(() => Date.now());
@@ -116,16 +107,19 @@ export const MessageHoverFooter = ({
     getMessageTimestamp(metadata?.createdAt) ??
     fallbackStartedAt;
   const completedAt = getMessageTimestamp(metadata?.completedAt);
+  const messageDate = parseMessageTime(
+    message.role === "assistant" ? metadata?.completedAt : metadata?.createdAt,
+  );
   const time = isRunning
-    ? `Running for ${formatRunningDuration(startedAt, now)}`
-    : formatMessageTime(
-        message.role === "assistant"
-          ? metadata?.completedAt
-          : metadata?.createdAt,
-      );
+    ? chatT("runningFor", { duration: formatRunningDuration(startedAt, now) })
+    : messageDate
+      ? format.dateTime(messageDate, { hour: "numeric", minute: "2-digit" })
+      : null;
   const duration =
     !isRunning && durationStartedAt !== null && completedAt !== null
-      ? `Ran for ${formatRunningDuration(durationStartedAt, completedAt)}`
+      ? chatT("ranFor", {
+          duration: formatRunningDuration(durationStartedAt, completedAt),
+        })
       : null;
   const text = getMessageText(message);
   const footerItems = [
@@ -191,7 +185,7 @@ export const MessageHoverFooter = ({
       ) : null}
       {text && !isRunning ? (
         <button
-          aria-label="Copy message"
+          aria-label={chatT("copyMessage")}
           className="pointer-events-auto rounded p-1 transition-colors hover:bg-accent hover:text-foreground"
           onClick={() => void copyMessage()}
           type="button"

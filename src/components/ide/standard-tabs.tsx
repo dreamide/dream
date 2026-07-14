@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   type CSSProperties,
   type PointerEvent,
@@ -118,6 +119,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   reservedEndWidth = 0,
   tabClassName,
 }: StandardTabsProps<TItem>) => {
+  const navigationT = useTranslations("navigation");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const afterRef = useRef<HTMLDivElement | null>(null);
   const dragTabRef = useRef<DragState | null>(null);
@@ -555,14 +557,14 @@ export const StandardTabs = <TItem extends StandardTabItem>({
     >
       {scrollState.hasOverflow ? (
         <button
-          aria-label="Scroll tabs left"
+          aria-label={navigationT("scrollTabsLeft")}
           className={cn(
             "mb-px flex h-8 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-35",
             interactiveClassName,
           )}
           disabled={!scrollState.canScrollStart}
           onClick={() => scrollTabs(-1)}
-          title="Scroll tabs left"
+          title={navigationT("scrollTabsLeft")}
           type="button"
         >
           <ChevronLeft className="size-4" />
@@ -739,7 +741,8 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                   {showClose ? (
                     <button
                       aria-label={
-                        closeAriaLabel?.(item) ?? `Close ${item.label}`
+                        closeAriaLabel?.(item) ??
+                        navigationT("closeNamedTab", { name: item.label })
                       }
                       className={cn(
                         "absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 transition-colors hover:bg-accent hover:text-accent-foreground group-hover:opacity-100",
@@ -781,14 +784,14 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       </div>
       {scrollState.hasOverflow ? (
         <button
-          aria-label="Scroll tabs right"
+          aria-label={navigationT("scrollTabsRight")}
           className={cn(
             "mb-px flex h-8 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-35",
             interactiveClassName,
           )}
           disabled={!scrollState.canScrollEnd}
           onClick={() => scrollTabs(1)}
-          title="Scroll tabs right"
+          title={navigationT("scrollTabsRight")}
           type="button"
         >
           <ChevronRight className="size-4" />

@@ -1,4 +1,5 @@
 import { BookIcon, ChevronDownIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import {
   Collapsible,
@@ -25,19 +26,20 @@ export const SourcesTrigger = ({
   count,
   children,
   ...props
-}: SourcesTriggerProps) => (
-  <CollapsibleTrigger
+}: SourcesTriggerProps) => {
+  const aiT = useTranslations("aiElements");
+  return <CollapsibleTrigger
     className={cn("flex items-center gap-2", className)}
     {...props}
   >
     {children ?? (
       <>
-        <p className="font-medium">Used {count} sources</p>
+        <p className="font-medium">{aiT("usedSources", { count })}</p>
         <ChevronDownIcon className="h-4 w-4" />
       </>
     )}
-  </CollapsibleTrigger>
-);
+  </CollapsibleTrigger>;
+};
 
 export type SourcesContentProps = ComponentProps<typeof CollapsibleContent>;
 

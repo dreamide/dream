@@ -1,4 +1,5 @@
 import { GaugeIcon } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
@@ -74,14 +75,6 @@ const formatResetDuration = (resetAfterMs: number) => {
   return `${hours}h ${minutes}m`;
 };
 
-const formatResetAt = (resetAt: Date) =>
-  new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    month: "short",
-  }).format(resetAt);
-
 const getUsageLimitResetAfterMs = (limit: UsageLimitWindow, now: number) => {
   if (limit.resetAt) {
     const resetAtMs = Date.parse(limit.resetAt);
@@ -107,6 +100,8 @@ const UsageLimitRow = ({
   now: number;
   limit: UsageLimitWindow;
 }) => {
+  const format = useFormatter();
+  const usageT = useTranslations("usage");
   const usedPercent = Math.max(
     0,
     Math.min(USAGE_LIMIT_PERCENT_MAX, limit.usedPercent),
@@ -123,7 +118,7 @@ const UsageLimitRow = ({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-4 text-xs">
         <span>{limit.label}</span>
-        <span>{usedPercent}% used</span>
+        <span>{usageT("percentUsed", { percent: usedPercent })}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div
@@ -133,11 +128,22 @@ const UsageLimitRow = ({
       </div>
       <div className="flex items-center justify-between gap-4 text-[11px] text-muted-foreground">
         {resetAfterMs === null || resetAt === null ? (
-          <span>Reset time unavailable</span>
+          <span>{usageT("resetUnavailable")}</span>
         ) : (
           <>
-            <span>Resets in {formatResetDuration(resetAfterMs)}</span>
-            <span>{formatResetAt(resetAt)}</span>
+            <span>
+              {usageT("resetsIn", {
+                duration: formatResetDuration(resetAfterMs),
+              })}
+            </span>
+            <span>
+              {format.dateTime(resetAt, {
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                month: "short",
+              })}
+            </span>
           </>
         )}
       </div>
@@ -153,6 +159,7 @@ const OpenCodeModelStatsList = ({
 }: {
   modelStats: ModelUsageStat[];
 }) => {
+  const usageT = useTranslations("usage");
   const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
   const [isScrollable, setIsScrollable] = useState(false);
   const handleListRef = useCallback((element: HTMLDivElement | null) => {
@@ -207,7 +214,7 @@ const OpenCodeModelStatsList = ({
                 <span className="min-w-0 truncate">{model.id}</span>
                 {messages ? (
                   <span className="shrink-0 text-muted-foreground">
-                    {messages} msgs
+                    {usageT("messagesShort", { count: messages })}
                   </span>
                 ) : null}
               </div>
@@ -230,34 +237,42 @@ const OpenCodeUsageStats = ({
 }: {
   modelStats: ModelUsageStat[];
   stats: UsageStatRow[];
-}) => (
-  <div className="space-y-3">
-    {stats.length > 0 ? (
-      <div className="grid grid-cols-2 gap-2">
-        {stats.map((stat) => (
-          <div key={stat.label} className="min-w-0 rounded-md bg-muted/50 p-2">
-            <div className="truncate text-[11px] text-muted-foreground">
-              {stat.label}
+}) => {
+  const usageT = useTranslations("usage");
+
+  return (
+    <div className="space-y-3">
+      {stats.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="min-w-0 rounded-md bg-muted/50 p-2"
+            >
+              <div className="truncate text-[11px] text-muted-foreground">
+                {stat.label}
+              </div>
+              <div className="truncate font-medium text-sm">{stat.value}</div>
             </div>
-            <div className="truncate font-medium text-sm">{stat.value}</div>
-          </div>
-        ))}
-      </div>
-    ) : null}
-    {modelStats.length > 0 ? (
-      <div className="space-y-2">
-        <div className="font-medium text-xs">Top models</div>
-        <OpenCodeModelStatsList modelStats={modelStats} />
-      </div>
-    ) : null}
-  </div>
-);
+          ))}
+        </div>
+      ) : null}
+      {modelStats.length > 0 ? (
+        <div className="space-y-2">
+          <div className="font-medium text-xs">{usageT("topModels")}</div>
+          <OpenCodeModelStatsList modelStats={modelStats} />
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 export const UsageLimitsPopover = ({
   provider,
 }: {
   provider: ChatConfig["provider"];
 }) => {
+  const usageT = useTranslations("usage");
   const [open, setOpen] = useState(false);
   const [usageLimits, setUsageLimits] = useState<UsageLimitsState>({
     data: null,
@@ -269,7 +284,8 @@ export const UsageLimitsPopover = ({
   const stats = usageLimits.data?.stats ?? [];
   const modelStats = usageLimits.data?.modelStats ?? [];
   const hasUsageStats = stats.length > 0 || modelStats.length > 0;
-  const usageTitle = provider === "opencode" ? "Usage stats" : "Plan usage";
+  const usageTitle =
+    provider === "opencode" ? usageT("usageStats") : usageT("planUsage");
 
   const fetchUsageLimits = useCallback(async () => {
     setUsageLimits((current) => ({
@@ -299,14 +315,11 @@ export const UsageLimitsPopover = ({
     } catch (error) {
       setUsageLimits((current) => ({
         ...current,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to fetch usage limits.",
+        error: error instanceof Error ? error.message : usageT("unableToFetch"),
         loading: false,
       }));
     }
-  }, [provider]);
+  }, [provider, usageT]);
 
   useEffect(() => {
     if (!open) {
@@ -360,7 +373,7 @@ export const UsageLimitsPopover = ({
             <OpenCodeUsageStats modelStats={modelStats} stats={stats} />
           ) : (
             <p className="text-xs text-muted-foreground">
-              {usageLimits.error ?? "Usage limits are unavailable."}
+              {usageLimits.error ?? usageT("unavailable")}
             </p>
           )}
         </div>

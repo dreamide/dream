@@ -1,34 +1,13 @@
 import { AlertCircle, DownloadCloud } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { UpdateStatusEvent } from "@/types/ide";
 
-const getUpdateLabel = (status: UpdateStatusEvent) => {
-  if (status.state === "downloaded") {
-    return status.updateVersion
-      ? `Install Dream ${status.updateVersion}`
-      : "Install update";
-  }
-
-  if (status.state === "downloading") {
-    const percent = status.progress?.percent;
-    return typeof percent === "number" && Number.isFinite(percent)
-      ? `Downloading ${Math.floor(percent)}%`
-      : "Downloading update";
-  }
-
-  if (status.state === "available") {
-    return status.updateVersion
-      ? `Downloading Dream ${status.updateVersion}`
-      : "Downloading update";
-  }
-
-  return "Update error";
-};
-
 export const HeaderUpdateButton = () => {
+  const updatesT = useTranslations("updates");
   const [status, setStatus] = useState<UpdateStatusEvent | null>(null);
   const [installing, setInstalling] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -95,7 +74,30 @@ export const HeaderUpdateButton = () => {
     }
   };
 
-  const label = checking ? "Checking update" : getUpdateLabel(status);
+  const getUpdateLabel = () => {
+    if (status.state === "downloaded") {
+      return status.updateVersion
+        ? updatesT("installVersion", { version: status.updateVersion })
+        : updatesT("installUpdate");
+    }
+
+    if (status.state === "downloading") {
+      const percent = status.progress?.percent;
+      return typeof percent === "number" && Number.isFinite(percent)
+        ? updatesT("downloadingPercent", { percent: Math.floor(percent) })
+        : updatesT("downloadingUpdate");
+    }
+
+    if (status.state === "available") {
+      return status.updateVersion
+        ? updatesT("downloadingVersion", { version: status.updateVersion })
+        : updatesT("downloadingUpdate");
+    }
+
+    return updatesT("updateError");
+  };
+
+  const label = checking ? updatesT("checkingUpdate") : getUpdateLabel();
   const disabled =
     installing ||
     checking ||
@@ -103,7 +105,7 @@ export const HeaderUpdateButton = () => {
     status.state === "downloading";
   const title =
     status.state === "error" && status.error
-      ? `Update failed: ${status.error}. Click to retry.`
+      ? updatesT("updateFailedRetry", { error: status.error })
       : label;
   const Icon = status.state === "error" ? AlertCircle : DownloadCloud;
 
@@ -127,7 +129,7 @@ export const HeaderUpdateButton = () => {
     >
       <Icon className="size-3" />
       <span className="truncate">
-        {status.state === "downloaded" ? "Update" : label}
+        {status.state === "downloaded" ? updatesT("update") : label}
       </span>
     </Button>
   );

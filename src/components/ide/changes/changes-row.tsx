@@ -1,4 +1,5 @@
 import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -27,12 +28,6 @@ export interface ChangesPanelProps {
   projectId?: string | null;
 }
 
-const CHANGE_STATUS_LABELS: Partial<Record<ProjectGitChangeStatus, string>> = {
-  deleted: "Removed",
-  renamed: "Renamed",
-  untracked: "New",
-};
-
 const CHANGE_STATUS_LABEL_CLASSNAMES: Partial<
   Record<ProjectGitChangeStatus, string>
 > = {
@@ -43,13 +38,14 @@ const CHANGE_STATUS_LABEL_CLASSNAMES: Partial<
 };
 
 const DiffEmptyState = ({ diff }: { diff: string }) => {
+  const panelsT = useTranslations("panels");
   if (diff.trim().length > 0) {
     return null;
   }
 
   return (
     <pre className="p-4 font-mono text-xs leading-5 whitespace-pre-wrap">
-      No diff output available.
+      {panelsT("noDiffOutput")}
     </pre>
   );
 };
@@ -219,7 +215,15 @@ export const ChangesRow = ({
   onToggle: () => void;
   reverting: boolean;
 }) => {
-  const statusLabel = CHANGE_STATUS_LABELS[change.status] ?? null;
+  const panelsT = useTranslations("panels");
+  const statusLabel =
+    change.status === "deleted"
+      ? panelsT("removed")
+      : change.status === "renamed"
+        ? panelsT("renamed")
+        : change.status === "untracked"
+          ? panelsT("newFile")
+          : null;
   const hasAddedLines = typeof change.addedLines === "number";
   const hasRemovedLines = typeof change.removedLines === "number";
 
@@ -260,14 +264,14 @@ export const ChangesRow = ({
 
         <div className="ml-auto flex shrink-0 items-center gap-3 font-mono text-sm tabular-nums">
           <button
-            aria-label={`Revert changes to ${change.path}`}
+            aria-label={panelsT("revertNamedFile", { path: change.path })}
             className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
             disabled={reverting}
             onClick={(event) => {
               event.stopPropagation();
               onRevert();
             }}
-            title="Revert file changes"
+            title={panelsT("revertFileChanges")}
             type="button"
           >
             {reverting ? (
@@ -287,10 +291,14 @@ export const ChangesRow = ({
             </span>
           ) : null}
           <button
-            aria-label={expanded ? "Collapse file diff" : "Expand file diff"}
+            aria-label={
+              expanded ? panelsT("collapseFileDiff") : panelsT("expandFileDiff")
+            }
             className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={onToggle}
-            title={expanded ? "Collapse file diff" : "Expand file diff"}
+            title={
+              expanded ? panelsT("collapseFileDiff") : panelsT("expandFileDiff")
+            }
             type="button"
           >
             {expanded ? (

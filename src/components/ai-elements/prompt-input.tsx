@@ -1,5 +1,6 @@
 import type { FileUIPart, SourceDocumentUIPart } from "ai";
 import { nanoid } from "nanoid";
+import { useTranslations } from "next-intl";
 import type {
   ChangeEventHandler,
   FormEvent,
@@ -70,6 +71,7 @@ export const PromptInput = ({
   children,
   ...props
 }: PromptInputProps) => {
+  const aiT = useTranslations("aiElements");
   const controller = useOptionalPromptInputController();
   const usingProvider = !!controller;
 
@@ -122,7 +124,7 @@ export const PromptInput = ({
       if (incoming.length && accepted.length === 0) {
         onError?.({
           code: "accept",
-          message: "No files match the accepted types.",
+          message: aiT("noAcceptedFiles"),
         });
         return;
       }
@@ -132,7 +134,7 @@ export const PromptInput = ({
       if (accepted.length > 0 && sized.length === 0) {
         onError?.({
           code: "max_file_size",
-          message: "All files exceed the maximum size.",
+          message: aiT("filesExceedMaximumSize"),
         });
         return;
       }
@@ -147,7 +149,7 @@ export const PromptInput = ({
         if (typeof capacity === "number" && sized.length > capacity) {
           onError?.({
             code: "max_files",
-            message: "Too many files. Some were not added.",
+            message: aiT("tooManyFiles"),
           });
         }
         const next: (FileUIPart & { id: string })[] = [];
@@ -163,7 +165,7 @@ export const PromptInput = ({
         return [...prev, ...next];
       });
     },
-    [matchesAccept, maxFiles, maxFileSize, onError],
+    [aiT, matchesAccept, maxFiles, maxFileSize, onError],
   );
 
   const removeLocal = useCallback(
@@ -185,7 +187,7 @@ export const PromptInput = ({
       if (incoming.length && accepted.length === 0) {
         onError?.({
           code: "accept",
-          message: "No files match the accepted types.",
+          message: aiT("noAcceptedFiles"),
         });
         return;
       }
@@ -195,7 +197,7 @@ export const PromptInput = ({
       if (accepted.length > 0 && sized.length === 0) {
         onError?.({
           code: "max_file_size",
-          message: "All files exceed the maximum size.",
+          message: aiT("filesExceedMaximumSize"),
         });
         return;
       }
@@ -210,7 +212,7 @@ export const PromptInput = ({
       if (typeof capacity === "number" && sized.length > capacity) {
         onError?.({
           code: "max_files",
-          message: "Too many files. Some were not added.",
+          message: aiT("tooManyFiles"),
         });
       }
 
@@ -218,7 +220,15 @@ export const PromptInput = ({
         controller?.attachments.add(capped);
       }
     },
-    [matchesAccept, maxFileSize, maxFiles, onError, files.length, controller],
+    [
+      aiT,
+      controller,
+      files.length,
+      matchesAccept,
+      maxFileSize,
+      maxFiles,
+      onError,
+    ],
   );
 
   const clearAttachments = useCallback(
@@ -448,7 +458,7 @@ export const PromptInput = ({
     <>
       <input
         accept={accept}
-        aria-label="Upload files"
+        aria-label={aiT("uploadFiles")}
         className="hidden"
         multiple={multiple}
         onChange={handleChange}

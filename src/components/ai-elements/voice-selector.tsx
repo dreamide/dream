@@ -10,6 +10,7 @@ import {
   VenusAndMarsIcon,
   VenusIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, useCallback, useContext, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -497,6 +498,7 @@ export const VoiceSelectorPreview = ({
   onClick,
   ...props
 }: VoiceSelectorPreviewProps) => {
+  const aiT = useTranslations("aiElements");
   const handleClick = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
@@ -516,7 +518,7 @@ export const VoiceSelectorPreview = ({
 
   return (
     <Button
-      aria-label={playing ? "Pause preview" : "Play preview"}
+      aria-label={playing ? aiT("pausePreview") : aiT("playPreview")}
       className={cn("size-6", className)}
       disabled={loading}
       onClick={handleClick}

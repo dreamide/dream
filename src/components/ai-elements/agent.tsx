@@ -1,5 +1,6 @@
 import type { Tool } from "ai";
 import { BotIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import { memo } from "react";
 import {
@@ -62,26 +63,32 @@ export type AgentInstructionsProps = ComponentProps<"div"> & {
 };
 
 export const AgentInstructions = memo(
-  ({ className, children, ...props }: AgentInstructionsProps) => (
+  ({ className, children, ...props }: AgentInstructionsProps) => {
+    const aiT = useTranslations("aiElements");
+    return (
     <div className={cn("space-y-2", className)} {...props}>
       <span className="font-medium text-muted-foreground text-sm">
-        Instructions
+        {aiT("instructions")}
       </span>
       <div className="rounded-md bg-surface-50 dark:bg-surface-900 p-3 text-muted-foreground text-sm">
         <p>{children}</p>
       </div>
     </div>
-  ),
+    );
+  },
 );
 
 export type AgentToolsProps = ComponentProps<typeof Accordion>;
 
-export const AgentTools = memo(({ className, ...props }: AgentToolsProps) => (
-  <div className={cn("space-y-2", className)}>
-    <span className="font-medium text-muted-foreground text-sm">Tools</span>
+export const AgentTools = memo(({ className, ...props }: AgentToolsProps) => {
+  const aiT = useTranslations("aiElements");
+  return <div className={cn("space-y-2", className)}>
+    <span className="font-medium text-muted-foreground text-sm">
+      {aiT("tools")}
+    </span>
     <Accordion className="rounded-md border" {...props} />
-  </div>
-));
+  </div>;
+});
 
 export type AgentToolProps = ComponentProps<typeof AccordionItem> & {
   tool: Tool;
@@ -89,6 +96,7 @@ export type AgentToolProps = ComponentProps<typeof AccordionItem> & {
 
 export const AgentTool = memo(
   ({ className, tool, value, ...props }: AgentToolProps) => {
+    const aiT = useTranslations("aiElements");
     const schema =
       "jsonSchema" in tool && tool.jsonSchema
         ? tool.jsonSchema
@@ -101,7 +109,7 @@ export const AgentTool = memo(
         {...props}
       >
         <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline">
-          {tool.description ?? "No description"}
+          {tool.description ?? aiT("noDescription")}
         </AccordionTrigger>
         <AccordionContent className="px-3 pb-3">
           <div className="rounded-md bg-surface-50 dark:bg-surface-900">
@@ -118,16 +126,19 @@ export type AgentOutputProps = ComponentProps<"div"> & {
 };
 
 export const AgentOutput = memo(
-  ({ className, schema, ...props }: AgentOutputProps) => (
+  ({ className, schema, ...props }: AgentOutputProps) => {
+    const aiT = useTranslations("aiElements");
+    return (
     <div className={cn("space-y-2", className)} {...props}>
       <span className="font-medium text-muted-foreground text-sm">
-        Output Schema
+        {aiT("outputSchema")}
       </span>
       <div className="rounded-md bg-surface-50 dark:bg-surface-900">
         <CodeBlock code={schema} language="typescript" />
       </div>
     </div>
-  ),
+    );
+  },
 );
 
 Agent.displayName = "Agent";

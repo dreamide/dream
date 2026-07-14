@@ -1,4 +1,5 @@
 import { SearchIcon, WrenchIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ export const SearchInFilesChip = ({
   defaultExpanded?: boolean;
   part: ToolLikePart;
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const rawMatches =
@@ -80,7 +82,7 @@ export const SearchInFilesChip = ({
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const hasRawOutput = output !== undefined;
   const canExpand = hasError || hasRawOutput;
-  const label = query ?? "Search";
+  const label = query ?? assistantT("search");
   const SearchChipIcon = isToolReferenceSearch ? WrenchIcon : SearchIcon;
   const tone = isToolReferenceSearch ? "slate" : "blue";
 
@@ -112,31 +114,35 @@ export const SearchInFilesChip = ({
               </span>
             ) : isToolSearch ? (
               <span className="max-w-48 truncate font-medium">
-                {query ?? "Tools search"}
+                {query ?? assistantT("toolsSearch")}
               </span>
             ) : query ? (
               <span className="max-w-48 truncate font-medium">{label}</span>
             ) : (
-              <span className="font-medium">Search</span>
+              <span className="font-medium">{assistantT("search")}</span>
             )}
             {hasOutput && count > 0 ? (
               <span className={CHIP_SUBTEXT_CLASSES}>
-                {count}{" "}
                 {isToolReferenceSearch
-                  ? count === 1
-                    ? "tool"
-                    : "tools"
+                  ? assistantT(
+                      count === 1 ? "toolCountOne" : "toolCountOther",
+                      { count },
+                    )
                   : textResults.length > 0
-                    ? count === 1
-                      ? "result"
-                      : "results"
-                    : count === 1
-                      ? "match"
-                      : "matches"}
+                    ? assistantT(
+                        count === 1 ? "resultCountOne" : "resultCountOther",
+                        { count },
+                      )
+                    : assistantT(
+                        count === 1 ? "matchCountOne" : "matchCountOther",
+                        { count },
+                      )}
               </span>
             ) : null}
             {hasError ? (
-              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
+                {assistantT("error")}
+              </span>
             ) : null}
           </>
         ) : null}
@@ -178,7 +184,7 @@ export const SearchInFilesChip = ({
                 </div>
               ) : matches.length === 0 ? (
                 <p className="text-muted-foreground text-sm">
-                  No matches found.
+                  {assistantT("noMatches")}
                 </p>
               ) : (
                 matches.map((match) => {
@@ -214,7 +220,7 @@ export const SearchInFilesChip = ({
                             {file}:{line}
                           </p>
                           <p className="font-mono text-xs">
-                            {text || "(empty line)"}
+                            {text || assistantT("emptyLine")}
                           </p>
                         </>
                       ) : toolName ? (

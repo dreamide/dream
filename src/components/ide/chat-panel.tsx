@@ -484,9 +484,7 @@ export const ChatPanel = ({
         return;
       }
 
-      setLocalError(
-        "An unexpected error occurred. Check the developer console for details.",
-      );
+      setLocalError(chatT("unexpectedError"));
     },
     onFinish: ({ message }) => {
       const metadata = message.metadata as ChatMessageMetadata | undefined;
@@ -878,7 +876,7 @@ export const ChatPanel = ({
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       if (isProcessing) {
-        throw new Error("Chat response is already streaming.");
+        throw new Error(chatT("alreadyStreaming"));
       }
 
       handleActivateChat();
@@ -891,8 +889,7 @@ export const ChatPanel = ({
       );
 
       if (!submittedProject || state.activeProjectId !== submittedProject.id) {
-        const message =
-          "This chat is no longer in the active project. Switch back to this project and try again.";
+        const message = chatT("notInActiveProject");
         setLocalError(message);
         throw new Error(message);
       }
@@ -911,13 +908,15 @@ export const ChatPanel = ({
 
       if (!activeProviderInstalled) {
         setLocalError(
-          `${PROVIDER_LABELS[activeProvider]} CLI is not available. Check Settings > Providers.`,
+          chatT("providerCliUnavailable", {
+            provider: PROVIDER_LABELS[activeProvider],
+          }),
         );
         return;
       }
 
       if (!activeModel) {
-        setLocalError("Enable at least one model in Settings first.");
+        setLocalError(chatT("enableModelFirst"));
         return;
       }
 
@@ -1124,6 +1123,7 @@ export const ChatPanel = ({
       bumpProjectFilesRefreshKey,
       bumpProjectGitRefreshKey,
       claudePermissionMode,
+      chatT,
       codexPermissionMode,
       clearError,
       chatMessages,

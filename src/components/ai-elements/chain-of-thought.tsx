@@ -1,6 +1,7 @@
 import { useControllableState } from "@/hooks/use-controllable-state";
 import type { LucideIcon } from "lucide-react";
 import { BrainIcon, ChevronDownIcon, DotIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, memo, useContext, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +73,7 @@ export type ChainOfThoughtHeaderProps = ComponentProps<
 
 export const ChainOfThoughtHeader = memo(
   ({ className, children, ...props }: ChainOfThoughtHeaderProps) => {
+    const aiT = useTranslations("aiElements");
     const { isOpen, setIsOpen } = useChainOfThought();
 
     return (
@@ -85,7 +87,7 @@ export const ChainOfThoughtHeader = memo(
         >
           <BrainIcon className="size-4" />
           <span className="flex-1 text-left">
-            {children ?? "Chain of Thought"}
+            {children ?? aiT("chainOfThought")}
           </span>
           <ChevronDownIcon
             className={cn(

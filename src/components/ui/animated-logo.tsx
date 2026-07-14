@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { CSSProperties, SVGAttributes } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -225,6 +226,7 @@ export function AnimatedLogo({
   style,
   ...rest
 }: AnimatedLogoProps) {
+  const commonT = useTranslations("common");
   const speedMin = speed * 0.6;
   const speedMax = speed * 1.6;
   const lenMin = trail * 0.6;
@@ -263,7 +265,7 @@ export function AnimatedLogo({
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 1024 1024"
       role="img"
-      aria-label="Dream logo — a moon and star with falling stars in the night sky"
+      aria-label={commonT("dreamLogoDescription")}
       className={className}
       style={sizingStyle}
       {...rest}

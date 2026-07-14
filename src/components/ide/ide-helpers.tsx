@@ -1,4 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
+import { useTranslations } from "next-intl";
 import type { CSSProperties, PropsWithChildren } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ export const PanelResizeHandle = ({
   onResizeEnd?: () => void;
   side: "left" | "right" | "top" | "bottom";
 }) => {
+  const navigationT = useTranslations("navigation");
   const draggingRef = useRef(false);
   const lastXRef = useRef(0);
   const lastYRef = useRef(0);
@@ -109,7 +111,7 @@ export const PanelResizeHandle = ({
       onPointerCancel={handlePointerUp}
     >
       <button
-        aria-label="Resize panel"
+        aria-label={navigationT("resizePanel")}
         className={cn(
           "absolute border-0 bg-transparent p-0",
           side === "left" || side === "right"

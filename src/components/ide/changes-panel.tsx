@@ -174,7 +174,9 @@ const ChangesPanelImpl = ({
   const allExpanded =
     visibleChangePaths.length > 0 &&
     visibleChangePaths.every((filePath) => expandedPathSet.has(filePath));
-  const expandAllTitle = allExpanded ? "Collapse all" : "Expand all";
+  const expandAllTitle = allExpanded
+    ? panelsT("collapseAll")
+    : panelsT("expandAll");
   const shouldDeferDiffLoads = useCallback(() => {
     if (!projectId) {
       return true;
@@ -341,7 +343,7 @@ const ChangesPanelImpl = ({
           [nextFilePath]:
             error instanceof Error
               ? error.message
-              : "Failed to load the file diff.",
+              : panelsT("failedToLoadDiff"),
         },
       }));
     } finally {
@@ -377,7 +379,7 @@ const ChangesPanelImpl = ({
         void processQueuedDiffLoads();
       }
     }
-  }, [projectId, projectPath]);
+  }, [panelsT, projectId, projectPath]);
 
   const queueDiffLoad = useCallback(
     (filePath: string, priority = false, force = false) => {
@@ -797,7 +799,7 @@ const ChangesPanelImpl = ({
         ) : null}
 
         {!statusError && (!statusLoading || hasStaleGitStatus) && !isRepo ? (
-          <AppShellPlaceholder message="This project is not inside a Git repository." />
+          <AppShellPlaceholder message={panelsT("notGitRepository")} />
         ) : null}
 
         {!statusError &&
@@ -815,7 +817,7 @@ const ChangesPanelImpl = ({
         (!statusLoading || hasStaleGitStatus) &&
         isRepo &&
         visibleChanges.length === 0 ? (
-          <AppShellPlaceholder message="Working tree is clean." />
+          <AppShellPlaceholder message={panelsT("workingTreeClean")} />
         ) : null}
 
         {!statusError && visibleChanges.length > 0 ? (

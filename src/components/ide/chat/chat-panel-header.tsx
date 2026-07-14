@@ -1,4 +1,5 @@
 import { Archive, Ellipsis, FilePenLine, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
@@ -39,6 +40,8 @@ export const ChatPanelHeader = ({
   onRenameChat,
   title,
 }: ChatPanelHeaderProps) => {
+  const chatT = useTranslations("chat");
+  const commonT = useTranslations("common");
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -87,7 +90,7 @@ export const ChatPanelHeader = ({
                 className="block h-6 min-w-0 flex-1 truncate font-medium text-sm leading-5"
               >
                 <Shimmer as="span" duration={1.5}>
-                  Generating title...
+                  {chatT("generatingTitle")}
                 </Shimmer>
               </span>
             ) : editingTitle ? (
@@ -125,7 +128,7 @@ export const ChatPanelHeader = ({
                   setDraftTitle(title);
                   setEditingTitle(true);
                 }}
-                title="Double-click to rename"
+                title={chatT("doubleClickToRename")}
                 type="button"
               >
                 {titleText}
@@ -147,7 +150,7 @@ export const ChatPanelHeader = ({
                 <DropdownMenuTrigger
                   render={
                     <Button
-                      aria-label={`${title} actions`}
+                      aria-label={chatT("chatActions", { title })}
                       className="h-8 w-8 p-0"
                       size="icon-sm"
                       type="button"
@@ -160,12 +163,12 @@ export const ChatPanelHeader = ({
                 <DropdownMenuContent align="end" className="w-40">
                   <DropdownMenuItem onClick={onEditChat}>
                     <FilePenLine className="size-4" />
-                    Edit
+                    {commonT("edit")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onDeleteChat}>
                     <Archive className="size-4" />
-                    Archive
+                    {commonT("archive")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -173,11 +176,11 @@ export const ChatPanelHeader = ({
 
             {canCloseChat ? (
               <Button
-                aria-label={`Close ${title}`}
+                aria-label={chatT("closeNamedChat", { title })}
                 className="h-8 w-8 p-0"
                 onClick={onCloseChat}
                 size="icon-sm"
-                title="Close chat"
+                title={chatT("closeChat")}
                 type="button"
                 variant="ghost"
               >

@@ -12,29 +12,21 @@ const normalizeBranchComparisonName = (value: string | null | undefined) => {
 export const getPullRequestBranchError = (
   headBranch: string | null,
   baseBranch: string,
+  messages: {
+    detachedHead: string;
+    sameBranch: (values: { base: string; head: string }) => string;
+  },
 ) => {
   const normalizedHead = normalizeBranchComparisonName(headBranch);
   const normalizedBase = normalizeBranchComparisonName(baseBranch);
 
   if (!normalizedHead) {
-    return "Cannot create a pull request from a detached HEAD.";
+    return messages.detachedHead;
   }
 
   if (normalizedBase && normalizedHead === normalizedBase) {
-    return `Cannot create a pull request from ${headBranch} to ${baseBranch}. Push changes instead, or switch to a feature branch.`;
+    return messages.sameBranch({ base: baseBranch, head: headBranch ?? "" });
   }
 
   return null;
-};
-
-export const formatCommitDate = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: "numeric",
-    month: "short",
-  }).format(date);
 };

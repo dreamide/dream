@@ -1,5 +1,6 @@
 import type { ChatStatus } from "ai";
 import { ArrowUpIcon, PlusIcon, SquareIcon, XIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Children, type ComponentProps, type HTMLAttributes, useCallback } from "react";
 import {
   Command,
@@ -186,6 +187,7 @@ export const PromptInputSubmit = ({
   children,
   ...props
 }: PromptInputSubmitProps) => {
+  const commonT = useTranslations("common");
   const isGenerating = status === "submitted" || status === "streaming";
 
   let Icon = <ArrowUpIcon className="size-4" />;
@@ -212,7 +214,7 @@ export const PromptInputSubmit = ({
 
   return (
     <InputGroupButton
-      aria-label={isGenerating ? "Stop" : "Submit"}
+      aria-label={isGenerating ? commonT("stop") : commonT("submit")}
       className={cn(className)}
       onClick={handleClick}
       size={size}

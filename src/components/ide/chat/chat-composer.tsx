@@ -77,13 +77,10 @@ export interface ChatPanelModelOption {
 }
 
 export interface ChatPanelReasoningOption {
-  label: string;
   value: ReasoningEffort;
 }
 
 export interface ChatPanelSpeedOption {
-  description: string;
-  label: string;
   value: ModelSpeed;
 }
 
@@ -937,7 +934,7 @@ export const ChatComposer = ({
                     <PromptInputActionMenu>
                       <PromptInputActionMenuTrigger
                         className="text-muted-foreground hover:text-foreground"
-                        tooltip="Attach file"
+                        tooltip={chatT("attachFile")}
                       />
                       <PromptInputActionMenuContent>
                         <PromptInputActionAddAttachments />

@@ -5,6 +5,7 @@ import {
   CircleIcon,
   XCircleIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { createContext, useContext, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +94,7 @@ export const TestResultsSummary = ({
   children,
   ...props
 }: TestResultsSummaryProps) => {
+  const aiT = useTranslations("aiElements");
   const { summary } = useContext(TestResultsContext);
 
   if (!summary) {
@@ -108,7 +110,7 @@ export const TestResultsSummary = ({
             variant="secondary"
           >
             <CheckCircle2Icon className="size-3" />
-            {summary.passed} passed
+            {aiT("passedCount", { count: summary.passed })}
           </Badge>
           {summary.failed > 0 && (
             <Badge
@@ -116,7 +118,7 @@ export const TestResultsSummary = ({
               variant="secondary"
             >
               <XCircleIcon className="size-3" />
-              {summary.failed} failed
+              {aiT("failedCount", { count: summary.failed })}
             </Badge>
           )}
           {summary.skipped > 0 && (
@@ -125,7 +127,7 @@ export const TestResultsSummary = ({
               variant="secondary"
             >
               <CircleIcon className="size-3" />
-              {summary.skipped} skipped
+              {aiT("skippedCount", { count: summary.skipped })}
             </Badge>
           )}
         </>
@@ -161,6 +163,7 @@ export const TestResultsProgress = ({
   children,
   ...props
 }: TestResultsProgressProps) => {
+  const aiT = useTranslations("aiElements");
   const { summary } = useContext(TestResultsContext);
 
   if (!summary) {
@@ -186,7 +189,10 @@ export const TestResultsProgress = ({
           </div>
           <div className="flex justify-between text-muted-foreground text-xs">
             <span>
-              {summary.passed}/{summary.total} tests passed
+              {aiT("testsPassed", {
+                passed: summary.passed,
+                total: summary.total,
+              })}
             </span>
             <span>{passedPercent.toFixed(0)}%</span>
           </div>
@@ -278,8 +284,9 @@ export const TestSuiteStats = ({
   className,
   children,
   ...props
-}: TestSuiteStatsProps) => (
-  <div
+}: TestSuiteStatsProps) => {
+  const aiT = useTranslations("aiElements");
+  return <div
     className={cn("ml-auto flex items-center gap-2 text-xs", className)}
     {...props}
   >
@@ -287,23 +294,23 @@ export const TestSuiteStats = ({
       <>
         {passed > 0 && (
           <span className="text-success-foreground dark:text-success-foreground">
-            {passed} passed
+            {aiT("passedCount", { count: passed })}
           </span>
         )}
         {failed > 0 && (
           <span className="text-destructive dark:text-destructive-muted">
-            {failed} failed
+            {aiT("failedCount", { count: failed })}
           </span>
         )}
         {skipped > 0 && (
           <span className="text-warning-foreground dark:text-warning-foreground">
-            {skipped} skipped
+            {aiT("skippedCount", { count: skipped })}
           </span>
         )}
       </>
     )}
-  </div>
-);
+  </div>;
+};
 
 export type TestSuiteContentProps = ComponentProps<typeof CollapsibleContent>;
 

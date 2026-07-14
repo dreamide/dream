@@ -64,49 +64,22 @@ export const dedupeModels = (models: string[]): string[] => {
 };
 
 export const REASONING_EFFORT_OPTIONS: Array<{
-  label: string;
   value: ReasoningEffort;
 }> = [
-  { label: "Low", value: "low" },
-  { label: "Medium", value: "medium" },
-  { label: "High", value: "high" },
-  { label: "Extra High", value: "xhigh" },
-  { label: "Max", value: "max" },
+  { value: "low" },
+  { value: "medium" },
+  { value: "high" },
+  { value: "xhigh" },
+  { value: "max" },
 ];
 
 export const MODEL_SPEED_OPTIONS: Array<{
-  description: string;
-  label: string;
   value: ModelSpeed;
-}> = [
-  {
-    description: "Default speed, normal usage.",
-    label: "Standard",
-    value: "standard",
-  },
-  {
-    description: "1.5x speed, increased usage.",
-    label: "Fast",
-    value: "fast",
-  },
-];
+}> = [{ value: "standard" }, { value: "fast" }];
 
 export const AGENT_MODE_OPTIONS: Array<{
-  description: string;
-  label: string;
   value: AgentMode;
-}> = [
-  {
-    description: "Ask before making changes.",
-    label: "Plan",
-    value: "plan",
-  },
-  {
-    description: "Apply edits without asking.",
-    label: "Build",
-    value: "build",
-  },
-];
+}> = [{ value: "plan" }, { value: "build" }];
 
 export const getPermissionModesForAgentMode = (
   value: AgentMode,

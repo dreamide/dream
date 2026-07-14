@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type {
   CSSProperties,
   MouseEvent as ReactMouseEvent,
@@ -180,6 +181,7 @@ const WorkspaceChatStackImpl = ({
   openChatIds,
   project,
 }: WorkspaceChatStackProps) => {
+  const navigationT = useTranslations("navigation");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const dragChatRef = useRef<ChatDragState | null>(null);
@@ -811,7 +813,7 @@ const WorkspaceChatStackImpl = ({
 
               {nextChat && !isClosing && !nextChatIsClosing ? (
                 <hr
-                  aria-label="Resize chat columns"
+                  aria-label={navigationT("resizeChatColumns")}
                   aria-orientation="vertical"
                   className="relative h-full w-2 shrink-0 cursor-col-resize border-0 bg-transparent before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-border before:transition-colors before:content-[''] hover:before:bg-surface-300 dark:hover:before:bg-surface-700"
                   onDoubleClick={handleResizeDoubleClick}

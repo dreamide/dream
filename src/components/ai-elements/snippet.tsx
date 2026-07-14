@@ -1,4 +1,5 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import {
   createContext,
@@ -89,6 +90,7 @@ export const SnippetCopyButton = ({
   className,
   ...props
 }: SnippetCopyButtonProps) => {
+  const commonT = useTranslations("common");
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
   const { code } = useContext(SnippetContext);
@@ -125,11 +127,11 @@ export const SnippetCopyButton = ({
 
   return (
     <InputGroupButton
-      aria-label="Copy"
+      aria-label={commonT("copy")}
       className={className}
       onClick={copyToClipboard}
       size="icon-sm"
-      title="Copy"
+      title={commonT("copy")}
       {...props}
     >
         {children ?? <Icon className="size-3.5" size={14} />}

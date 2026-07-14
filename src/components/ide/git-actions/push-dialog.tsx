@@ -4,6 +4,7 @@ import {
   GitFork,
   UploadCloud,
 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -13,7 +14,6 @@ import type {
   ProjectGitPushResponse,
   ProjectGitStatusResponse,
 } from "@/types/ide";
-import { formatCommitDate } from "./branch-utils";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
 import { hasPushableCommits, postJson, readResponseText } from "./utils";
 
@@ -32,6 +32,9 @@ export const PushDialog = ({
   projectPath: string;
   status: ProjectGitStatusResponse | null;
 }) => {
+  const commonT = useTranslations("common");
+  const format = useFormatter();
+  const gitT = useTranslations("git");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ProjectGitPushPreviewResponse | null>(
@@ -85,7 +88,7 @@ export const PushDialog = ({
           setPreviewError(
             error instanceof Error
               ? error.message
-              : "Unable to preview commits.",
+              : gitT("unableToPreviewCommits"),
           );
         }
       } finally {
@@ -98,7 +101,7 @@ export const PushDialog = ({
     return () => {
       controller.abort();
     };
-  }, [open, projectPath]);
+  }, [gitT, open, projectPath]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -119,33 +122,33 @@ export const PushDialog = ({
         onCompleted();
         onOpenChange(false);
       } catch (error) {
-        setError(
-          error instanceof Error ? error.message : "Unable to push changes.",
-        );
+        setError(error instanceof Error ? error.message : gitT("unableToPush"));
       } finally {
         setSubmitting(false);
       }
     },
-    [canPush, onCompleted, onOpenChange, projectPath, submitting],
+    [canPush, gitT, onCompleted, onOpenChange, projectPath, submitting],
   );
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-5 sm:max-w-2xl">
-        <GitDialogHeader icon={<UploadCloud />} title="Push changes" />
+        <GitDialogHeader icon={<UploadCloud />} title={gitT("pushChanges")} />
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <DialogMetricRow
               icon={<GitBranch className="size-4" />}
-              label="Branch"
+              label={commonT("branch")}
               value={
-                <span className="text-foreground">{branch ?? "Unknown"}</span>
+                <span className="text-foreground">
+                  {branch ?? commonT("unknown")}
+                </span>
               }
             />
             <DialogMetricRow
               icon={<GitFork className="size-4" />}
-              label="Destination"
+              label={gitT("destination")}
               value={
                 previewLoading ? (
                   <Spinner className="size-4" />
@@ -162,7 +165,7 @@ export const PushDialog = ({
             />
             <DialogMetricRow
               icon={<GitCommitHorizontal className="size-4" />}
-              label="Commits"
+              label={gitT("commits")}
               value={
                 previewLoading ? (
                   <Spinner className="size-4" />
@@ -172,7 +175,10 @@ export const PushDialog = ({
                     {preview.behindCount > 0 ? (
                       <span className="text-muted-foreground">
                         {" "}
-                        ahead, {preview.behindCount} behind
+                        {gitT("aheadAndBehind", {
+                          ahead: preview.totalCommits,
+                          behind: preview.behindCount,
+                        })}
                       </span>
                     ) : null}
                   </span>
@@ -195,18 +201,25 @@ export const PushDialog = ({
                       {commit.shortHash}
                     </span>
                     <span className="min-w-0 truncate text-foreground">
-                      {commit.subject || "(no subject)"}
+                      {commit.subject || gitT("noSubject")}
                     </span>
                     <span className="text-muted-foreground text-xs">
-                      {formatCommitDate(commit.authorDate)}
+                      {Number.isNaN(new Date(commit.authorDate).getTime())
+                        ? ""
+                        : format.dateTime(new Date(commit.authorDate), {
+                            day: "numeric",
+                            month: "short",
+                          })}
                     </span>
                   </div>
                 ))}
               </div>
               {preview.truncated ? (
                 <div className="border-surface-200 dark:border-surface-800 border-t px-3 py-2 text-muted-foreground text-xs">
-                  Showing first {preview.commits.length} of{" "}
-                  {preview.totalCommits} commits.
+                  {gitT("showingCommits", {
+                    shown: preview.commits.length,
+                    total: preview.totalCommits,
+                  })}
                 </div>
               ) : null}
             </div>
@@ -224,7 +237,7 @@ export const PushDialog = ({
               type="submit"
             >
               {submitting ? <Spinner className="size-4" /> : null}
-              <span>Push</span>
+              <span>{gitT("push")}</span>
             </Button>
           </div>
         </form>

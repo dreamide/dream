@@ -1,4 +1,5 @@
 import { ArrowRightIcon, MinusIcon, PackageIcon, PlusIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { HTMLAttributes } from "react";
 import { createContext, useContext } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -197,14 +198,15 @@ export const PackageInfoDependencies = ({
   className,
   children,
   ...props
-}: PackageInfoDependenciesProps) => (
-  <div className={cn("space-y-2", className)} {...props}>
+}: PackageInfoDependenciesProps) => {
+  const aiT = useTranslations("aiElements");
+  return <div className={cn("space-y-2", className)} {...props}>
     <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      Dependencies
+      {aiT("dependencies")}
     </span>
     <div className="space-y-1">{children}</div>
-  </div>
-);
+  </div>;
+};
 
 export type PackageInfoDependencyProps = HTMLAttributes<HTMLDivElement> & {
   name: string;

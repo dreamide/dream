@@ -4,6 +4,7 @@ import {
   MapIcon,
   WrenchIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -43,7 +44,6 @@ import {
   isString,
   RUN_COMMAND_HEADER_CLASSES,
   StreamingMessageResponse,
-  TOOL_STATE_LABELS,
   type ToolApprovalHandler,
 } from "./shared";
 
@@ -53,7 +53,7 @@ const getGenericToolOutputCode = (part: ToolLikePart) => {
   if (hasError) {
     return {
       code: part.errorText ?? "",
-      label: "Error",
+      labelKey: "error" as const,
       language: "log" as BundledLanguage,
     };
   }
@@ -64,7 +64,7 @@ const getGenericToolOutputCode = (part: ToolLikePart) => {
 
   return {
     code: isString(part.output) ? part.output : stringifyPart(part.output),
-    label: "Result",
+    labelKey: "result" as const,
     language: isString(part.output)
       ? ("log" as BundledLanguage)
       : ("json" as BundledLanguage),
@@ -309,6 +309,7 @@ const AskUserQuestionApproval = ({
   onToolApproval: ToolApprovalHandler;
   questions: AskUserQuestionItem[];
 }) => {
+  const commonT = useTranslations("common");
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
 
   const buildReason = (nextAnswers: Record<string, string[]>) =>
@@ -426,7 +427,7 @@ const AskUserQuestionApproval = ({
           }
           type="button"
         >
-          Cancel
+          {commonT("cancel")}
         </button>
         <button
           className="h-8 rounded-md border border-surface-300 bg-surface-200 px-3 text-foreground text-sm transition-colors hover:bg-surface-300 disabled:opacity-50 dark:border-surface-700 dark:bg-surface-800 dark:hover:bg-surface-700"
@@ -434,7 +435,7 @@ const AskUserQuestionApproval = ({
           onClick={() => submit()}
           type="button"
         >
-          Submit
+          {commonT("submit")}
         </button>
       </div>
     </div>
@@ -448,6 +449,7 @@ const GenericToolChip = ({
   onToolApproval?: ToolApprovalHandler;
   part: ToolLikePart;
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(false);
   const toolName = getToolName(part);
   const normalizedToolName = normalizeToolName(toolName);
@@ -473,8 +475,8 @@ const GenericToolChip = ({
   const outputCode = isAskUserQuestion ? null : getGenericToolOutputCode(part);
   const toolStateLabel =
     isAskUserQuestion && state === "input-available"
-      ? "Waiting"
-      : TOOL_STATE_LABELS[state];
+      ? assistantT("waiting")
+      : assistantT(`toolState.${state}`);
   const hasOutput =
     !isAskUserQuestion && (part.output !== undefined || hasError);
   const approvalTitle =
@@ -483,7 +485,7 @@ const GenericToolChip = ({
       ["displayName"],
       ["permission", "title"],
       ["permission", "displayName"],
-    ]) ?? `Allow ${formatToolName(toolName)}?`;
+    ]) ?? assistantT("allowTool", { tool: formatToolName(toolName) });
   const approvalDescription = getStringFromPaths(part.input, [
     ["description"],
     ["decisionReason"],
@@ -600,7 +602,7 @@ const GenericToolChip = ({
               {parametersCode !== null ? (
                 <GenericToolCodeSection
                   code={parametersCode}
-                  label="Parameters"
+                  label={assistantT("parameters")}
                   language="json"
                   maxHeightClassName="max-h-64"
                 />
@@ -611,7 +613,7 @@ const GenericToolChip = ({
               {outputCode !== null ? (
                 <GenericToolCodeSection
                   code={outputCode.code}
-                  label={outputCode.label}
+                  label={assistantT(outputCode.labelKey)}
                   language={outputCode.language}
                   maxHeightClassName="max-h-96"
                 />
@@ -637,6 +639,7 @@ export const AssistantMessagePart = ({
   projectPath: string;
   showReasoningSummaries?: boolean;
 }) => {
+  const assistantT = useTranslations("assistant");
   if (isTodoListPart(part)) {
     return null;
   }
@@ -678,9 +681,13 @@ export const AssistantMessagePart = ({
   }
 
   if (part.type === "file") {
-    const label = part.filename ?? part.url ?? "Attached file";
+    const label = part.filename ?? part.url ?? assistantT("attachedFile");
 
-    return <Badge variant="secondary">File: {label}</Badge>;
+    return (
+      <Badge variant="secondary">
+        {assistantT("fileLabel", { name: label })}
+      </Badge>
+    );
   }
 
   if (part.type === "source-url" || part.type === "source-document") {

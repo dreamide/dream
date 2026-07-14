@@ -1,4 +1,5 @@
 import { TerminalIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import {
   CodeBlock,
@@ -36,6 +37,7 @@ export const RunCommandChip = ({
   onToolApproval?: ToolApprovalHandler;
   part: ToolLikePart;
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
@@ -98,7 +100,10 @@ export const RunCommandChip = ({
           )}
           hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
-          aria-label={displayCommand ?? (isRunning ? "Running" : "Command")}
+          aria-label={
+            displayCommand ??
+            (isRunning ? assistantT("running") : assistantT("command"))
+          }
           tone="lime"
           type="button"
         >
@@ -106,13 +111,17 @@ export const RunCommandChip = ({
           {!isRunning ? (
             <>
               <span className="max-w-64 truncate font-medium">
-                {displayCommand ?? "Command"}
+                {displayCommand ?? assistantT("command")}
               </span>
               {status === "running" ? (
-                <span className={CHIP_SUBTEXT_CLASSES}>running</span>
+                <span className={CHIP_SUBTEXT_CLASSES}>
+                  {assistantT("running")}
+                </span>
               ) : null}
               {hasError ? (
-                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
+                  {assistantT("error")}
+                </span>
               ) : null}
             </>
           ) : null}
@@ -127,9 +136,9 @@ export const RunCommandChip = ({
           state={state}
         >
           <span>
-            Allow running{" "}
+            {assistantT("allowRunning")}{" "}
             <code className="rounded bg-surface-50 dark:bg-surface-900 px-1 py-0.5 text-xs">
-              {displayCommand ?? command ?? "command"}
+              {displayCommand ?? command ?? assistantT("commandLowercase")}
             </code>
             ?
           </span>
@@ -156,7 +165,9 @@ export const RunCommandChip = ({
                 >
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <CodeBlockFilename>Command</CodeBlockFilename>
+                      <CodeBlockFilename>
+                        {assistantT("command")}
+                      </CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>
                       <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
@@ -174,7 +185,9 @@ export const RunCommandChip = ({
                 >
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <CodeBlockFilename>Output</CodeBlockFilename>
+                      <CodeBlockFilename>
+                        {assistantT("output")}
+                      </CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>
                       <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />

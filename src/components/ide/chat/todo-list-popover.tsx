@@ -1,4 +1,5 @@
 import { CheckIcon, ListChecks } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { PromptInputButton } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
@@ -7,33 +8,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ChatTodoItem, ChatTodoSummary } from "./todo-list";
 
-const getTodoStateLabel = (todo: ChatTodoItem) => {
-  const normalizedStatus = normalizeTodoStatus(todo.status);
-
-  if (
-    normalizedStatus === "completed" ||
-    normalizedStatus === "complete" ||
-    normalizedStatus === "done"
-  ) {
-    return "Completed";
-  }
-
-  if (
-    normalizedStatus === "inprogress" ||
-    normalizedStatus === "current" ||
-    normalizedStatus === "active" ||
-    normalizedStatus === "running"
-  ) {
-    return "Current";
-  }
-
-  return "Pending";
-};
-
 const normalizeTodoStatus = (status: ChatTodoItem["status"] | string) =>
   status.replace(/[\s_-]+/g, "").toLowerCase();
 
 const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
+  const chatT = useTranslations("chat");
   const normalizedStatus = normalizeTodoStatus(todo.status);
   const completed =
     normalizedStatus === "completed" ||
@@ -44,18 +23,26 @@ const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
     normalizedStatus === "current" ||
     normalizedStatus === "active" ||
     normalizedStatus === "running";
-  const stateLabel = getTodoStateLabel(todo);
+  const stateLabel = completed
+    ? chatT("taskCompleted")
+    : inProgress
+      ? chatT("taskCurrent")
+      : chatT("taskPending");
+  const taskLabel = chatT("taskStateLabel", {
+    state: stateLabel,
+    task: todo.text,
+  });
 
   return (
     <div className="flex gap-2 rounded-md px-1 py-1.5">
       {inProgress ? (
         <Spinner
-          aria-label={`${stateLabel}: ${todo.text}`}
+          aria-label={taskLabel}
           className="mt-0.5 size-4 shrink-0 text-accent-primary"
         />
       ) : completed ? (
         <span
-          aria-label={`${stateLabel}: ${todo.text}`}
+          aria-label={taskLabel}
           className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-surface-900 bg-surface-900 text-surface-50 dark:border-surface-200 dark:bg-surface-200 dark:text-surface-900"
           role="img"
         >
@@ -63,7 +50,7 @@ const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
         </span>
       ) : (
         <Checkbox
-          aria-label={`${stateLabel}: ${todo.text}`}
+          aria-label={taskLabel}
           checked={false}
           className="pointer-events-none mt-0.5 data-checked:border-accent-primary data-checked:bg-accent-primary data-checked:text-white dark:data-checked:bg-accent-primary"
           tabIndex={-1}
@@ -106,6 +93,7 @@ const TodoRow = ({ todo }: { todo: ChatTodoItem }) => {
 };
 
 const TodoListContent = ({ summary }: { summary: ChatTodoSummary }) => {
+  const chatT = useTranslations("chat");
   const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
   const [isListScrollable, setIsListScrollable] = useState(false);
   const progressLabel = `${summary.currentTaskNumber} / ${summary.totalCount}`;
@@ -150,7 +138,7 @@ const TodoListContent = ({ summary }: { summary: ChatTodoSummary }) => {
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 font-medium text-sm">
           <ListChecks className="size-4 shrink-0" />
-          <span className="truncate">Tasks</span>
+          <span className="truncate">{chatT("tasks")}</span>
         </div>
         <span className="shrink-0 font-mono text-muted-foreground text-xs tabular-nums">
           {progressLabel}
@@ -184,6 +172,7 @@ export const TodoListPanelTrigger = ({
   panelId: string;
   summary: ChatTodoSummary;
 }) => {
+  const chatT = useTranslations("chat");
   if (summary.totalCount === 0) {
     return null;
   }
@@ -194,11 +183,11 @@ export const TodoListPanelTrigger = ({
     <PromptInputButton
       aria-controls={panelId}
       aria-expanded={isOpen}
-      aria-label={`Tasks ${progressLabel}`}
+      aria-label={chatT("tasksProgress", { progress: progressLabel })}
       className="h-8 gap-1.5 px-2 font-mono text-xs tabular-nums aria-expanded:bg-accent aria-expanded:text-foreground"
       onClick={() => onOpenChange(!isOpen)}
       size="xs"
-      title={`Tasks ${progressLabel}`}
+      title={chatT("tasksProgress", { progress: progressLabel })}
     >
       <ListChecks className="size-4" />
       <span>{progressLabel}</span>

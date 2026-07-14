@@ -1,4 +1,5 @@
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, HTMLAttributes } from "react";
 import {
   createContext,
@@ -96,11 +97,12 @@ export const EnvironmentVariablesTitle = ({
   className,
   children,
   ...props
-}: EnvironmentVariablesTitleProps) => (
-  <h3 className={cn("font-medium text-sm", className)} {...props}>
-    {children ?? "Environment Variables"}
+}: EnvironmentVariablesTitleProps) => {
+  const aiT = useTranslations("aiElements");
+  return <h3 className={cn("font-medium text-sm", className)} {...props}>
+    {children ?? aiT("environmentVariables")}
   </h3>
-);
+};
 
 export type EnvironmentVariablesToggleProps = ComponentProps<typeof Switch>;
 
@@ -108,6 +110,7 @@ export const EnvironmentVariablesToggle = ({
   className,
   ...props
 }: EnvironmentVariablesToggleProps) => {
+  const aiT = useTranslations("aiElements");
   const { showValues, setShowValues } = useContext(EnvironmentVariablesContext);
 
   return (
@@ -116,7 +119,7 @@ export const EnvironmentVariablesToggle = ({
         {showValues ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
       </span>
       <Switch
-        aria-label="Toggle value visibility"
+        aria-label={aiT("toggleValueVisibility")}
         checked={showValues}
         onCheckedChange={setShowValues}
         {...props}
@@ -315,8 +318,9 @@ export const EnvironmentVariableRequired = ({
   className,
   children,
   ...props
-}: EnvironmentVariableRequiredProps) => (
-  <Badge className={cn("text-xs", className)} variant="secondary" {...props}>
-    {children ?? "Required"}
+}: EnvironmentVariableRequiredProps) => {
+  const aiT = useTranslations("aiElements");
+  return <Badge className={cn("text-xs", className)} variant="secondary" {...props}>
+    {children ?? aiT("required")}
   </Badge>
-);
+};

@@ -14,6 +14,7 @@ import {
   TriangleAlertIcon,
   WrenchIcon,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -80,53 +81,53 @@ const TOOL_GROUP_META: Record<
   ChipToolKind,
   {
     Icon: LucideIcon;
-    label: string;
+    labelKey: string;
     tone: ChipTone;
   }
 > = {
   agent: {
     Icon: BotIcon,
-    label: "Agent",
+    labelKey: "agent",
     tone: "slate",
   },
   command: {
     Icon: TerminalIcon,
-    label: "Command",
+    labelKey: "command",
     tone: "lime",
   },
   list: {
     Icon: FolderIcon,
-    label: "List",
+    labelKey: "list",
     tone: "blue",
   },
   read: {
     Icon: EyeIcon,
-    label: "Read",
+    labelKey: "read",
     tone: "emerald",
   },
   search: {
     Icon: SearchIcon,
-    label: "Search",
+    labelKey: "search",
     tone: "blue",
   },
   taskOutput: {
     Icon: FileTextIcon,
-    label: "Task output",
+    labelKey: "taskOutput",
     tone: "amber",
   },
   toolSearch: {
     Icon: WrenchIcon,
-    label: "Tool search",
+    labelKey: "toolSearch",
     tone: "slate",
   },
   webFetch: {
     Icon: GlobeIcon,
-    label: "Web fetch",
+    labelKey: "webFetch",
     tone: "cyan",
   },
   write: {
     Icon: PenLineIcon,
-    label: "Write",
+    labelKey: "write",
     tone: "violet",
   },
 };
@@ -318,6 +319,7 @@ export const ToolCallGroup = ({
   context: ToolChipRenderContext;
   group: ToolChipItem[];
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(false);
   const animate = useChipAnimate();
   const summaries = summarizeToolGroup(group);
@@ -334,7 +336,10 @@ export const ToolCallGroup = ({
     <div className="my-1.5 space-y-2">
       <button
         aria-expanded={expanded}
-        aria-label={`${expanded ? "Collapse" : "Expand"} ${group.length} tool ${group.length === 1 ? "call" : "calls"}`}
+        aria-label={assistantT("toggleToolCalls", {
+          action: expanded ? assistantT("collapse") : assistantT("expand"),
+          count: group.length,
+        })}
         className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
         onClick={() => setExpanded((current) => !current)}
         type="button"
@@ -342,13 +347,14 @@ export const ToolCallGroup = ({
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           {summaries.map((summary) => {
             const isErrorSummary = summary.type === "error";
-            const { Icon, label, tone } = isErrorSummary
+            const { Icon, labelKey, tone } = isErrorSummary
               ? {
                   Icon: TriangleAlertIcon,
-                  label: "Error",
+                  labelKey: "error",
                   tone: "stone" as const,
                 }
               : TOOL_GROUP_META[summary.kind];
+            const label = assistantT(`toolGroup.${labelKey}`);
 
             return (
               <span
@@ -359,7 +365,10 @@ export const ToolCallGroup = ({
                   "pointer-events-none font-mono tabular-nums",
                 )}
                 key={isErrorSummary ? "error" : summary.kind}
-                title={`${summary.count} ${label} ${summary.count === 1 ? "call" : "calls"}`}
+                title={assistantT("toolCallCount", {
+                  count: summary.count,
+                  label,
+                })}
               >
                 <Icon className="size-3.5 shrink-0" />
                 <span className="font-medium">{summary.count}</span>

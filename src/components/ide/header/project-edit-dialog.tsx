@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,41 +28,46 @@ export const ProjectEditDialog = ({
   onValueChange: (value: string) => void;
   target: ProjectEditTarget | null;
   value: string;
-}) => (
-  <Dialog
-    onOpenChange={(open) => {
-      if (!open) {
-        onClose();
-      }
-    }}
-    open={target !== null}
-  >
-    <DialogContent className="sm:max-w-sm">
-      <form className="space-y-4" onSubmit={onSubmit}>
-        <DialogHeader>
-          <DialogTitle className="text-base leading-6">
-            Edit project
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="edit-project-name">Name</Label>
-          <Input
-            autoFocus
-            id="edit-project-name"
-            onChange={(event) => onValueChange(event.target.value)}
-            placeholder="Enter a name"
-            value={value}
-          />
-        </div>
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button disabled={value.trim().length === 0} type="submit">
-            Save
-          </Button>
-        </DialogFooter>
-      </form>
-    </DialogContent>
-  </Dialog>
-);
+}) => {
+  const commonT = useTranslations("common");
+  const projectsT = useTranslations("projects");
+
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+      open={target !== null}
+    >
+      <DialogContent className="sm:max-w-sm">
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <DialogHeader>
+            <DialogTitle className="text-base leading-6">
+              {projectsT("editProject")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="edit-project-name">{commonT("name")}</Label>
+            <Input
+              autoFocus
+              id="edit-project-name"
+              onChange={(event) => onValueChange(event.target.value)}
+              placeholder={commonT("enterName")}
+              value={value}
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={onClose} type="button" variant="outline">
+              {commonT("cancel")}
+            </Button>
+            <Button disabled={value.trim().length === 0} type="submit">
+              {commonT("save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};

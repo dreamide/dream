@@ -9,7 +9,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-import { getStatusBadge } from "./tool";
+import { ToolStatusBadge } from "./tool";
 
 export type SandboxRootProps = ComponentProps<typeof Collapsible>;
 
@@ -46,7 +46,7 @@ export const SandboxHeader = ({
     <div className="flex items-center gap-2">
       <Code className="size-4 text-muted-foreground" />
       <span className="font-medium text-sm">{title}</span>
-      {getStatusBadge(state)}
+      <ToolStatusBadge status={state} />
     </div>
     <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[open]:rotate-180" />
   </CollapsibleTrigger>

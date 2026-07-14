@@ -2,6 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import { Plus, TerminalSquare, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { type HTMLAttributes, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,8 +21,6 @@ const TERMINAL_SURFACE_CLASSES =
 const TERMINAL_HOST_CLASS = "h-full w-full overflow-hidden";
 const TERMINAL_FONT_FAMILY_FALLBACK =
   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-const getDefaultTerminalName = (index: number) => `Terminal ${index + 1}`;
-
 const DARK_TERMINAL_THEME = {
   background: "#0b0f14",
   foreground: "#d6deeb",
@@ -76,10 +75,13 @@ const isCopyShortcut = (event: KeyboardEvent) =>
   !event.shiftKey &&
   event.key.toLowerCase() === "c";
 
-const formatTerminalShellLabel = (value?: string) => {
+const formatTerminalShellLabel = (
+  value: string | undefined,
+  labels: { commandPrompt: string; systemShell: string },
+) => {
   const trimmed = value?.trim();
   if (!trimmed) {
-    return "system shell";
+    return labels.systemShell;
   }
 
   const executable = trimmed
@@ -97,7 +99,7 @@ const formatTerminalShellLabel = (value?: string) => {
   }
 
   if (executable === "cmd" || executable === "cmd.exe") {
-    return "Command Prompt";
+    return labels.commandPrompt;
   }
 
   if (executable === "bash") {
@@ -202,7 +204,7 @@ export interface TerminalPanelProps {
 
 export const TerminalPanel = ({
   sessionId,
-  title = "Terminal",
+  title,
   subtitle,
   autoStart = false,
   bordered = true,
@@ -213,6 +215,8 @@ export const TerminalPanel = ({
   onStop,
   stopOnClose = true,
 }: TerminalPanelProps) => {
+  const commonT = useTranslations("common");
+  const terminalT = useTranslations("terminal");
   const { resolvedTheme } = useTheme();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const terminalInstanceRef = useRef<Terminal | null>(null);
@@ -407,7 +411,11 @@ export const TerminalPanel = ({
     };
   }, [resolvedTheme]);
 
-  const shellLabel = formatTerminalShellLabel(subtitle ?? terminalShell);
+  const resolvedTitle = title ?? commonT("terminal");
+  const shellLabel = formatTerminalShellLabel(subtitle ?? terminalShell, {
+    commandPrompt: terminalT("commandPrompt"),
+    systemShell: terminalT("systemShell"),
+  });
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", bordered ? "pt-2" : "")}>
@@ -420,13 +428,15 @@ export const TerminalPanel = ({
             <div className="flex items-center justify-between px-3 py-1.5 text-xs">
               <div className="flex min-w-0 items-center gap-2">
                 <TerminalSquare className="size-4 shrink-0 text-muted-foreground" />
-                <span className="truncate font-medium">{title}</span>
+                <span className="truncate font-medium">{resolvedTitle}</span>
                 <span className="truncate text-muted-foreground">
                   {shellLabel}
                 </span>
               </div>
               <Button
-                aria-label={`Close ${title.toLowerCase()}`}
+                aria-label={terminalT("closeNamedTerminal", {
+                  name: resolvedTitle,
+                })}
                 className="h-7 w-7 p-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={() => {
                   onClose();
@@ -467,6 +477,7 @@ export const ProjectTerminalTabsPanel = ({
   onClosePanel?: () => void;
   projectId: string;
 }) => {
+  const terminalT = useTranslations("terminal");
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds,
   );
@@ -490,7 +501,8 @@ export const ProjectTerminalTabsPanel = ({
       : (sessionIds[0] ?? null);
 
   const resolveTerminalName = (sessionId: string, index: number) =>
-    terminalSessionNames[sessionId]?.trim() || getDefaultTerminalName(index);
+    terminalSessionNames[sessionId]?.trim() ||
+    terminalT("terminalNumber", { number: index + 1 });
   const terminalTabItems = sessionIds.map((sessionId, index) => ({
     id: sessionId,
     label: resolveTerminalName(sessionId, index),
@@ -502,9 +514,12 @@ export const ProjectTerminalTabsPanel = ({
         continue;
       }
 
-      setTerminalSessionName(sessionId, getDefaultTerminalName(index));
+      setTerminalSessionName(
+        sessionId,
+        terminalT("terminalNumber", { number: index + 1 }),
+      );
     }
-  }, [sessionIds, setTerminalSessionName, terminalSessionNames]);
+  }, [sessionIds, setTerminalSessionName, terminalSessionNames, terminalT]);
 
   if (!resolvedActiveSessionId) {
     return null;
@@ -526,7 +541,7 @@ export const ProjectTerminalTabsPanel = ({
             activeId={resolvedActiveSessionId}
             after={
               <Button
-                aria-label="Open another terminal"
+                aria-label={terminalT("openAnotherTerminal")}
                 className="h-8 w-8 shrink-0 rounded-lg p-0 text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground"
                 onClick={() => void addProjectTerminal(projectId)}
                 size="sm"
@@ -536,10 +551,12 @@ export const ProjectTerminalTabsPanel = ({
                 <Plus className="size-4" />
               </Button>
             }
-            ariaLabel="Terminal tabs"
+            ariaLabel={terminalT("terminalTabs")}
             canClose={true}
             className="flex-1"
-            closeAriaLabel={(tab) => `Close ${tab.label.toLowerCase()}`}
+            closeAriaLabel={(tab) =>
+              terminalT("closeNamedTerminal", { name: tab.label })
+            }
             items={terminalTabItems}
             onActivate={(sessionId) =>
               setActiveProjectTerminalId(projectId, sessionId)

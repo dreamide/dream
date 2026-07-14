@@ -1,4 +1,5 @@
 import { FolderIcon, SearchIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ToolLikePart } from "../../assistant-message-tools";
@@ -24,6 +25,8 @@ export const ListFilesChip = ({
   part: ToolLikePart;
   projectPath?: string | null;
 }) => {
+  const assistantT = useTranslations("assistant");
+  const commonT = useTranslations("common");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
   const isRunning =
@@ -89,8 +92,10 @@ export const ListFilesChip = ({
       : null;
   const directory =
     rawDirectory === "." && projectPath ? projectPath : rawDirectory;
-  const label = pattern ?? directory ?? "files";
-  const displayLabel = label === "files" && isRunning ? "Listing" : label;
+  const filesLabel = commonT("files");
+  const label = pattern ?? directory ?? filesLabel;
+  const displayLabel =
+    label === filesLabel && isRunning ? assistantT("listing") : label;
   const Icon = pattern ? SearchIcon : FolderIcon;
 
   useEffect(() => {
@@ -128,11 +133,15 @@ export const ListFilesChip = ({
             </span>
             {hasOutput ? (
               <span className={CHIP_SUBTEXT_CLASSES}>
-                {count} {count === 1 ? "file" : "files"}
+                {assistantT(count === 1 ? "fileCountOne" : "fileCountOther", {
+                  count,
+                })}
               </span>
             ) : null}
             {hasError ? (
-              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
+                {assistantT("error")}
+              </span>
             ) : null}
           </>
         ) : null}

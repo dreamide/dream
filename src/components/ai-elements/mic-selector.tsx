@@ -1,5 +1,6 @@
 import { useControllableState } from "@/hooks/use-controllable-state";
 import { ChevronsUpDownIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import {
   createContext,
@@ -172,9 +173,10 @@ export type MicSelectorInputProps = ComponentProps<typeof CommandInput> & {
   onValueChange?: (value: string) => void;
 };
 
-export const MicSelectorInput = ({ ...props }: MicSelectorInputProps) => (
-  <CommandInput placeholder="Search microphones..." {...props} />
-);
+export const MicSelectorInput = ({ ...props }: MicSelectorInputProps) => {
+  const aiT = useTranslations("aiElements");
+  return <CommandInput placeholder={aiT("searchMicrophones")} {...props} />;
+};
 
 export type MicSelectorListProps = Omit<
   ComponentProps<typeof CommandList>,
@@ -195,9 +197,16 @@ export const MicSelectorList = ({
 export type MicSelectorEmptyProps = ComponentProps<typeof CommandEmpty>;
 
 export const MicSelectorEmpty = ({
-  children = "No microphone found.",
+  children,
   ...props
-}: MicSelectorEmptyProps) => <CommandEmpty {...props}>{children}</CommandEmpty>;
+}: MicSelectorEmptyProps) => {
+  const aiT = useTranslations("aiElements");
+  return (
+    <CommandEmpty {...props}>
+      {children ?? aiT("noMicrophoneFound")}
+    </CommandEmpty>
+  );
+};
 
 export type MicSelectorItemProps = ComponentProps<typeof CommandItem>;
 
@@ -251,13 +260,14 @@ export const MicSelectorValue = ({
   className,
   ...props
 }: MicSelectorValueProps) => {
+  const aiT = useTranslations("aiElements");
   const { data, value } = useContext(MicSelectorContext);
   const currentDevice = data.find((d) => d.deviceId === value);
 
   if (!currentDevice) {
     return (
       <span className={cn("flex-1 text-left", className)} {...props}>
-        Select microphone...
+        {aiT("selectMicrophone")}
       </span>
     );
   }

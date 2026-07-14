@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { FormEventHandler } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,39 +25,46 @@ export const EditChatDialog = ({
   onEditValueChange,
   onSubmit,
   open,
-}: EditChatDialogProps) => (
-  <Dialog
-    onOpenChange={(nextOpen) => {
-      if (!nextOpen) {
-        onClose();
-      }
-    }}
-    open={open}
-  >
-    <DialogContent className="sm:max-w-sm">
-      <form className="space-y-4" onSubmit={onSubmit}>
-        <DialogHeader>
-          <DialogTitle className="text-base leading-6">Edit chat</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="edit-chat-name">Name</Label>
-          <Input
-            autoFocus
-            id="edit-chat-name"
-            onChange={(event) => onEditValueChange(event.target.value)}
-            placeholder="Enter a name"
-            value={editValue}
-          />
-        </div>
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button disabled={editValue.trim().length === 0} type="submit">
-            Save
-          </Button>
-        </DialogFooter>
-      </form>
-    </DialogContent>
-  </Dialog>
-);
+}: EditChatDialogProps) => {
+  const chatT = useTranslations("chat");
+  const commonT = useTranslations("common");
+
+  return (
+    <Dialog
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onClose();
+        }
+      }}
+      open={open}
+    >
+      <DialogContent className="sm:max-w-sm">
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <DialogHeader>
+            <DialogTitle className="text-base leading-6">
+              {chatT("editChat")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="edit-chat-name">{commonT("name")}</Label>
+            <Input
+              autoFocus
+              id="edit-chat-name"
+              onChange={(event) => onEditValueChange(event.target.value)}
+              placeholder={commonT("enterName")}
+              value={editValue}
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={onClose} type="button" variant="outline">
+              {commonT("cancel")}
+            </Button>
+            <Button disabled={editValue.trim().length === 0} type="submit">
+              {commonT("save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};

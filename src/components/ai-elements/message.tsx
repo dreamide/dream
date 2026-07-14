@@ -8,6 +8,7 @@ import {
   Maximize2Icon,
   XIcon,
 } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
 import type {
   ComponentProps,
   HTMLAttributes,
@@ -266,11 +267,12 @@ export const MessageBranchPrevious = ({
   children,
   ...props
 }: MessageBranchPreviousProps) => {
+  const aiT = useTranslations("aiElements");
   const { goToPrevious, totalBranches } = useMessageBranch();
 
   return (
     <Button
-      aria-label="Previous branch"
+      aria-label={aiT("previousBranch")}
       disabled={totalBranches <= 1}
       onClick={goToPrevious}
       size="icon-sm"
@@ -289,11 +291,12 @@ export const MessageBranchNext = ({
   children,
   ...props
 }: MessageBranchNextProps) => {
+  const aiT = useTranslations("aiElements");
   const { goToNext, totalBranches } = useMessageBranch();
 
   return (
     <Button
-      aria-label="Next branch"
+      aria-label={aiT("nextBranch")}
       disabled={totalBranches <= 1}
       onClick={goToNext}
       size="icon-sm"
@@ -312,6 +315,7 @@ export const MessageBranchPage = ({
   className,
   ...props
 }: MessageBranchPageProps) => {
+  const aiT = useTranslations("aiElements");
   const { currentBranch, totalBranches } = useMessageBranch();
 
   return (
@@ -322,7 +326,7 @@ export const MessageBranchPage = ({
       )}
       {...props}
     >
-      {currentBranch + 1} of {totalBranches}
+      {aiT("branchPage", { current: currentBranch + 1, total: totalBranches })}
     </ButtonGroupText>
   );
 };
@@ -381,6 +385,7 @@ const copyTextToClipboard = async (value: string) => {
 const saveTableTextFile = async (
   format: TableDownloadFormat,
   contents: string,
+  dialogTitle: string,
 ) => {
   const extension = format === "csv" ? "csv" : "md";
   const filename = `table.${extension}`;
@@ -390,7 +395,7 @@ const saveTableTextFile = async (
     await desktopApi.saveTextFile({
       contents,
       defaultPath: filename,
-      title: "Save table",
+      title: dialogTitle,
     });
     return;
   }
@@ -412,6 +417,7 @@ const MarkdownTableCopyMenu = ({
 }: {
   tableRef: RefObject<HTMLTableElement | null>;
 }) => {
+  const aiT = useTranslations("aiElements");
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
 
@@ -439,10 +445,10 @@ const MarkdownTableCopyMenu = ({
       <DropdownMenuTrigger
         render={
           <Button
-            aria-label="Copy table"
+            aria-label={aiT("copyTable")}
             className={TABLE_ACTION_BUTTON_CLASSES}
             size="icon-xs"
-            title="Copy table"
+            title={aiT("copyTable")}
             type="button"
             variant="ghost"
           />
@@ -470,11 +476,16 @@ const MarkdownTableDownloadMenu = ({
 }: {
   tableRef: RefObject<HTMLTableElement | null>;
 }) => {
+  const aiT = useTranslations("aiElements");
   const handleDownload = useCallback(
     async (format: TableDownloadFormat) => {
-      await saveTableTextFile(format, getTableText(tableRef, format));
+      await saveTableTextFile(
+        format,
+        getTableText(tableRef, format),
+        aiT("saveTable"),
+      );
     },
-    [tableRef],
+    [aiT, tableRef],
   );
 
   return (
@@ -482,10 +493,10 @@ const MarkdownTableDownloadMenu = ({
       <DropdownMenuTrigger
         render={
           <Button
-            aria-label="Download table"
+            aria-label={aiT("downloadTable")}
             className={TABLE_ACTION_BUTTON_CLASSES}
             size="icon-xs"
-            title="Download table"
+            title={aiT("downloadTable")}
             type="button"
             variant="ghost"
           />
@@ -510,6 +521,7 @@ const MarkdownTableFullscreenButton = ({
 }: {
   children: ReactNode;
 }) => {
+  const aiT = useTranslations("aiElements");
   const [fullscreen, setFullscreen] = useState(false);
   const fullscreenTableRef = useRef<HTMLTableElement>(null);
 
@@ -537,11 +549,11 @@ const MarkdownTableFullscreenButton = ({
   return (
     <>
       <Button
-        aria-label="View fullscreen"
+        aria-label={aiT("viewFullscreen")}
         className={TABLE_ACTION_BUTTON_CLASSES}
         onClick={() => setFullscreen(true)}
         size="icon-xs"
-        title="View fullscreen"
+        title={aiT("viewFullscreen")}
         type="button"
         variant="ghost"
       >
@@ -550,7 +562,7 @@ const MarkdownTableFullscreenButton = ({
       {fullscreen && typeof document !== "undefined"
         ? createPortal(
             <div
-              aria-label="View fullscreen"
+              aria-label={aiT("viewFullscreen")}
               aria-modal="true"
               className="fixed inset-0 z-50 flex flex-col bg-background [-webkit-app-region:no-drag]"
               data-streamdown="table-fullscreen"
@@ -572,11 +584,11 @@ const MarkdownTableFullscreenButton = ({
                   <MarkdownTableCopyMenu tableRef={fullscreenTableRef} />
                   <MarkdownTableDownloadMenu tableRef={fullscreenTableRef} />
                   <Button
-                    aria-label="Exit fullscreen"
+                    aria-label={aiT("exitFullscreen")}
                     className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
                     onClick={() => setFullscreen(false)}
                     size="icon-sm"
-                    title="Exit fullscreen"
+                    title={aiT("exitFullscreen")}
                     type="button"
                     variant="ghost"
                   >
@@ -663,6 +675,8 @@ const getLargeMessagePreview = (value: string, percent: number) => {
 
 export const MessageResponse = memo(
   ({ children, className, components, ...props }: MessageResponseProps) => {
+    const aiT = useTranslations("aiElements");
+    const format = useFormatter();
     const [largeMessagePercent, setLargeMessagePercent] = useState(
       LARGE_MESSAGE_INITIAL_PERCENT,
     );
@@ -717,10 +731,11 @@ export const MessageResponse = memo(
         >
           <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-sm text-warning-foreground">
             <div className="min-w-0 flex-1">
-              Large message preview. Showing {largeTextPercentShown}% (
-              {largeTextVisibleChars.toLocaleString()} of{" "}
-              {largeTextTotalChars.toLocaleString()} characters). Markdown
-              rendering was skipped to keep Dream responsive.
+              {aiT("largeMessagePreview", {
+                percent: largeTextPercentShown,
+                shown: format.number(largeTextVisibleChars),
+                total: format.number(largeTextTotalChars),
+              })}
             </div>
             {largeTextPercentShown < 100 ? (
               <div className="flex shrink-0 items-center gap-1">
@@ -731,7 +746,7 @@ export const MessageResponse = memo(
                   type="button"
                   variant="outline"
                 >
-                  Show more
+                  {aiT("showMore")}
                 </Button>
                 <Button
                   className="h-7 px-2 text-xs"
@@ -740,7 +755,7 @@ export const MessageResponse = memo(
                   type="button"
                   variant="ghost"
                 >
-                  Show all
+                  {aiT("showAll")}
                 </Button>
               </div>
             ) : null}

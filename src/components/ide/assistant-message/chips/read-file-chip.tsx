@@ -1,4 +1,5 @@
 import { ExternalLinkIcon, EyeIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CodeBlock,
@@ -38,6 +39,7 @@ export const ReadFileChip = ({
   part: ToolLikePart;
   projectPath?: string | null;
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const projects = useIdeStore((s) => s.projects);
   const openProjectFile = useIdeStore((s) => s.openProjectFile);
@@ -164,7 +166,9 @@ export const ReadFileChip = ({
               <span className={CHIP_SUBTEXT_CLASSES}>{lineRangeLabel}</span>
             ) : null}
             {hasError ? (
-              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
+                {assistantT("error")}
+              </span>
             ) : null}
           </>
         ) : null}
@@ -216,7 +220,7 @@ export const ReadFileChip = ({
                     disabled={!canOpenFile}
                     onClick={handleOpenFile}
                     size="icon-xs"
-                    title="Open in Files"
+                    title={assistantT("openInFiles")}
                     type="button"
                     variant="ghost"
                   >

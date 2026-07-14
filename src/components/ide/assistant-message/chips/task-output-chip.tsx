@@ -1,4 +1,5 @@
 import { WrenchIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
@@ -22,7 +23,6 @@ import {
   isRecord,
   isString,
   RUN_COMMAND_HEADER_CLASSES,
-  TOOL_STATE_LABELS,
 } from "../shared";
 
 export const TaskOutputChip = ({
@@ -32,6 +32,7 @@ export const TaskOutputChip = ({
   defaultExpanded?: boolean;
   part: ToolLikePart;
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
@@ -76,24 +77,26 @@ export const TaskOutputChip = ({
         )}
         hasError={hasError}
         onClick={() => canExpand && setExpanded(!expanded)}
-        aria-label="Task output"
+        aria-label={assistantT("taskOutput")}
         tone="cyan"
         type="button"
       >
         <WrenchIcon className="size-3.5 shrink-0" />
         {!isRunning ? (
           <>
-            <span className="font-medium">Task output</span>
+            <span className="font-medium">{assistantT("taskOutput")}</span>
             {taskId ? (
               <span className={cn("max-w-28 truncate", CHIP_SUBTEXT_CLASSES)}>
                 {taskId}
               </span>
             ) : null}
             <span className={CHIP_SUBTEXT_CLASSES}>
-              {TOOL_STATE_LABELS[state]}
+              {assistantT(`toolState.${state}`)}
             </span>
             {hasError ? (
-              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
+                {assistantT("error")}
+              </span>
             ) : null}
           </>
         ) : null}
@@ -114,7 +117,9 @@ export const TaskOutputChip = ({
                 >
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
-                      <CodeBlockFilename>Parameters</CodeBlockFilename>
+                      <CodeBlockFilename>
+                        {assistantT("parameters")}
+                      </CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>
                       <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
@@ -135,7 +140,7 @@ export const TaskOutputChip = ({
                   <CodeBlockHeader className={RUN_COMMAND_HEADER_CLASSES}>
                     <CodeBlockTitle>
                       <CodeBlockFilename>
-                        {hasError ? "Error" : "Result"}
+                        {hasError ? assistantT("error") : assistantT("result")}
                       </CodeBlockFilename>
                     </CodeBlockTitle>
                     <CodeBlockActions>

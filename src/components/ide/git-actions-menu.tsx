@@ -5,6 +5,7 @@ import {
   GitPullRequest,
   UploadCloud,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { memo, useCallback, useMemo, useState } from "react";
 import {
   DropdownMenu,
@@ -102,6 +103,8 @@ const GitActionsMenuImpl = ({
   projectId,
   projectPath,
 }: GitActionsMenuProps) => {
+  const commonT = useTranslations("common");
+  const gitT = useTranslations("git");
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[projectId] ?? 0,
   );
@@ -186,9 +189,9 @@ const GitActionsMenuImpl = ({
         <DropdownMenuTrigger
           render={
             <WorkspaceNavButton
-              aria-label="Open Git actions"
+              aria-label={gitT("openActions")}
               accent={hasGitActivity}
-              title="Git actions"
+              title={gitT("actions")}
             />
           }
         >
@@ -200,7 +203,7 @@ const GitActionsMenuImpl = ({
         >
           <DropdownMenuItem onClick={handleOpenChanges}>
             <Code className="size-4" />
-            Changes
+            {commonT("changes")}
             <GitMenuDeltaSummary status={status} />
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -208,21 +211,21 @@ const GitActionsMenuImpl = ({
             onClick={() => handleOpenDialog("commit")}
           >
             <GitCommitHorizontal className="size-4" />
-            Commit
+            {gitT("commit")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!canPush}
             onClick={() => handleOpenDialog("push")}
           >
             <UploadCloud className="size-4" />
-            Push
+            {gitT("push")}
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!canCreatePr}
             onClick={() => handleOpenDialog("pr")}
           >
             <GitPullRequest className="size-4" />
-            Create pull request
+            {gitT("createPullRequest")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

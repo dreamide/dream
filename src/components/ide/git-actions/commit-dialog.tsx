@@ -1,4 +1,5 @@
 import { Code, GitBranch, GitCommitHorizontal } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   type FormEvent,
   useCallback,
@@ -50,6 +51,8 @@ export const CommitDialog = ({
   refreshToken: number;
   status: ProjectGitStatusResponse | null;
 }) => {
+  const commonT = useTranslations("common");
+  const gitT = useTranslations("git");
   const [commitMessage, setCommitMessage] = useState("");
   const [autoGenerateMessage, setAutoGenerateMessage] = useState(true);
   const [generatingCommitMessage, setGeneratingCommitMessage] = useState(false);
@@ -132,7 +135,7 @@ export const CommitDialog = ({
         setError(
           error instanceof Error
             ? error.message
-            : "Unable to generate commit message.",
+            : gitT("unableToGenerateCommitMessage"),
         );
       })
       .finally(() => {
@@ -154,6 +157,7 @@ export const CommitDialog = ({
     projectPath,
     provider,
     refreshToken,
+    gitT,
   ]);
 
   const handleAutoGenerateMessageChange = useCallback(
@@ -201,8 +205,8 @@ export const CommitDialog = ({
           error instanceof Error
             ? error.message
             : action === "commit-push"
-              ? "Unable to commit and push changes."
-              : "Unable to commit changes.",
+              ? gitT("unableToCommitAndPush")
+              : gitT("unableToCommit"),
         );
       } finally {
         setSubmittingAction(null);
@@ -213,6 +217,7 @@ export const CommitDialog = ({
       canCommitPush,
       commitMessage,
       includeUnstaged,
+      gitT,
       onCompleted,
       onOpenChange,
       projectPath,
@@ -233,19 +238,21 @@ export const CommitDialog = ({
       <DialogContent className="gap-5 sm:max-w-2xl">
         <GitDialogHeader
           icon={<GitCommitHorizontal />}
-          title="Commit your changes"
+          title={gitT("commitTitle")}
         />
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <DialogMetricRow
               icon={<GitBranch className="size-4" />}
-              label="Branch"
-              value={<span className="truncate">{branch ?? "Unknown"}</span>}
+              label={commonT("branch")}
+              value={
+                <span className="truncate">{branch ?? commonT("unknown")}</span>
+              }
             />
             <DialogMetricRow
               icon={<Code className="size-4" />}
-              label="Changes"
+              label={commonT("changes")}
               value={<GitChangesDeltaSummary changes={commitChanges} />}
             />
           </div>
@@ -259,7 +266,7 @@ export const CommitDialog = ({
               id="commit-include-unstaged"
               onCheckedChange={setIncludeUnstaged}
             />
-            <span>Include unstaged</span>
+            <span>{gitT("includeUnstaged")}</span>
           </label>
 
           <label
@@ -271,12 +278,12 @@ export const CommitDialog = ({
               id="commit-auto-generate-message"
               onCheckedChange={handleAutoGenerateMessageChange}
             />
-            <span>Auto generate message</span>
+            <span>{gitT("autoGenerateMessage")}</span>
           </label>
 
           <div className="space-y-3">
             <label className="font-medium text-sm" htmlFor="commit-message">
-              Commit message
+              {gitT("commitMessage")}
             </label>
             <div className="relative">
               <Textarea
@@ -286,14 +293,14 @@ export const CommitDialog = ({
                 readOnly={autoGenerateMessage}
                 onChange={(event) => setCommitMessage(event.target.value)}
                 placeholder={
-                  generatingCommitMessage ? "" : "Enter a commit message"
+                  generatingCommitMessage ? "" : gitT("enterCommitMessage")
                 }
                 value={commitMessage}
               />
               {generatingCommitMessage ? (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
                   <Shimmer as="span" duration={1.5}>
-                    Generating commit message...
+                    {gitT("generatingCommitMessage")}
                   </Shimmer>
                 </div>
               ) : null}
@@ -312,7 +319,7 @@ export const CommitDialog = ({
               {submittingAction === "commit" ? (
                 <Spinner className="size-4" />
               ) : null}
-              <span>Commit</span>
+              <span>{gitT("commit")}</span>
             </Button>
             <Button
               className="min-w-36"
@@ -325,7 +332,7 @@ export const CommitDialog = ({
               {submittingAction === "commit-push" ? (
                 <Spinner className="size-4" />
               ) : null}
-              <span>Commit & push</span>
+              <span>{gitT("commitAndPush")}</span>
             </Button>
           </div>
         </form>

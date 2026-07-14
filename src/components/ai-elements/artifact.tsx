@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { XIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,8 +40,9 @@ export const ArtifactClose = ({
   size = "sm",
   variant = "ghost",
   ...props
-}: ArtifactCloseProps) => (
-  <Button
+}: ArtifactCloseProps) => {
+  const commonT = useTranslations("common");
+  return <Button
     className={cn(
       "size-8 p-0 text-muted-foreground hover:text-foreground",
       className,
@@ -51,9 +53,9 @@ export const ArtifactClose = ({
     {...props}
   >
     {children ?? <XIcon className="size-4" />}
-    <span className="sr-only">Close</span>
-  </Button>
-);
+    <span className="sr-only">{commonT("close")}</span>
+  </Button>;
+};
 
 export type ArtifactTitleProps = HTMLAttributes<HTMLParagraphElement>;
 

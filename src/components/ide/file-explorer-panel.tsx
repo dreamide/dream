@@ -230,6 +230,7 @@ const ProjectFileTree = ({
   selectedFilePath,
   onSelectFile,
 }: ProjectFileTreeProps) => {
+  const panelsT = useTranslations("panels");
   const fileSetRef = useRef(new Set(files));
   const onSelectFileRef = useRef(onSelectFile);
   const materialFileTreeIcons = useMaterialFileTreeIcons();
@@ -366,7 +367,7 @@ const ProjectFileTree = ({
       onKeyUpCapture={scheduleSelectionSync}
     >
       <PierreFileTree
-        aria-label="Project files"
+        aria-label={panelsT("projectFiles")}
         model={model}
         style={fileTreeStyle}
       />
@@ -507,12 +508,12 @@ const FileExplorerPanelImpl = ({
       setFilesError(
         error instanceof Error
           ? error.message
-          : "Failed to load project files.",
+          : panelsT("failedToLoadProjectFiles"),
       );
     } finally {
       setFilesLoading(false);
     }
-  }, [projectId, projectPath]);
+  }, [panelsT, projectId, projectPath]);
 
   const handleOpenProjectPath = useCallback(async () => {
     if (!projectPath) {
@@ -669,7 +670,7 @@ const FileExplorerPanelImpl = ({
           setFileError(
             error instanceof Error
               ? error.message
-              : "Failed to read the selected file.",
+              : panelsT("failedToReadFile"),
           );
         }
       } finally {
@@ -687,6 +688,7 @@ const FileExplorerPanelImpl = ({
   }, [
     fileContentsByProject,
     filePreviewMessagesByProject,
+    panelsT,
     projectId,
     projectPath,
     selectedFilePath,
@@ -733,7 +735,7 @@ const FileExplorerPanelImpl = ({
           setFileError(
             error instanceof Error
               ? error.message
-              : "Failed to read the selected image.",
+              : panelsT("failedToReadImage"),
           );
         }
       } finally {
@@ -749,6 +751,7 @@ const FileExplorerPanelImpl = ({
       cancelled = true;
     };
   }, [
+    panelsT,
     projectId,
     projectPath,
     replaceSelectedImagePreviewUrl,
@@ -841,7 +844,7 @@ const FileExplorerPanelImpl = ({
 
       {hasNoProjectFiles ? (
         <div className="min-h-0 flex-1 p-3">
-          <AppShellPlaceholder message="No project files found." />
+          <AppShellPlaceholder message={panelsT("noProjectFiles")} />
         </div>
       ) : (
         <div ref={splitContainerRef} className="flex min-h-0 flex-1">
@@ -867,7 +870,7 @@ const FileExplorerPanelImpl = ({
                       {isMissingProjectPath ? (
                         <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
                           <div className="font-medium text-foreground text-sm">
-                            Project folder not found.
+                            {panelsT("projectFolderNotFound")}
                           </div>
                           {projectPath ? (
                             <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
@@ -905,7 +908,7 @@ const FileExplorerPanelImpl = ({
           <div className="min-w-0 flex-1 overflow-hidden">
             {!selectedFilePath ? (
               <div className="h-full p-3">
-                <AppShellPlaceholder message="Select a file from the tree to open it here." />
+                <AppShellPlaceholder message={panelsT("selectFileToOpen")} />
               </div>
             ) : selectedFilePreviewMessage ? (
               <div className="h-full p-3">

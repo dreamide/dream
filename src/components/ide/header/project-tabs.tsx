@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import { FolderTree, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   type FormEvent,
   useCallback,
@@ -215,6 +216,7 @@ const useProjectIconScanner = ({
 };
 
 export const ProjectTabs = () => {
+  const projectsT = useTranslations("projects");
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const projects = useIdeStore((s) => s.projects);
@@ -341,7 +343,10 @@ export const ProjectTabs = () => {
             className="flex size-4 shrink-0 items-center justify-center self-center leading-none"
             key={`${project.id}:completed`}
           >
-            <StatusDot aria-label="Project finished processing" color="green" />
+            <StatusDot
+              aria-label={projectsT("projectFinishedProcessing")}
+              color="green"
+            />
           </span>
         ) : project.worktree ? (
           <span
@@ -399,6 +404,7 @@ export const ProjectTabs = () => {
       awaitingAnswerProjectIds,
       chats,
       completedProjectIds,
+      projectsT,
       projects,
       streamingProjectIds,
     ],
@@ -420,18 +426,18 @@ export const ProjectTabs = () => {
             after={
               projectTabItems.length > 0 ? (
                 <Button
-                  aria-label="Add project"
+                  aria-label={projectsT("addProject")}
                   className="mb-px text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
                   onClick={handleAddProject}
                   size="icon-sm"
-                  title="Add project"
+                  title={projectsT("addProject")}
                   variant="ghost"
                 >
                   <Plus className="size-4 shrink-0" />
                 </Button>
               ) : null
             }
-            ariaLabel="Projects"
+            ariaLabel={projectsT("projects")}
             interactiveClassName="[-webkit-app-region:no-drag]"
             items={projectTabItems}
             onActivate={setActiveProjectId}

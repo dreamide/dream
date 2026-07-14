@@ -1,4 +1,5 @@
 import { ExternalLinkIcon, PenLineIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CodeBlock,
@@ -437,6 +438,7 @@ export const WriteFileChip = ({
   projectPath?: string | null;
   onToolApproval?: ToolApprovalHandler;
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [gitDiff, setGitDiff] = useState<{
     diff: string;
@@ -732,7 +734,7 @@ export const WriteFileChip = ({
           message:
             error instanceof Error
               ? error.message
-              : "Failed to load the file diff.",
+              : assistantT("failedToLoadDiff"),
         });
       } finally {
         if (!abortController.signal.aborted) {
@@ -746,7 +748,13 @@ export const WriteFileChip = ({
     return () => {
       abortController.abort();
     };
-  }, [changeStatus, projectPath, projectRelativeFilePath, shouldLoadGitDiff]);
+  }, [
+    assistantT,
+    changeStatus,
+    projectPath,
+    projectRelativeFilePath,
+    shouldLoadGitDiff,
+  ]);
 
   return (
     <div className={expanded || isApprovalRequested ? "w-full" : undefined}>
@@ -775,18 +783,19 @@ export const WriteFileChip = ({
               </span>
               {writeDiffStats ? (
                 <span className={CHIP_SUBTEXT_CLASSES}>
-                  {writeDiffStats.additions + writeDiffStats.deletions}{" "}
-                  {writeDiffStats.additions + writeDiffStats.deletions === 1
-                    ? "line"
-                    : "lines"}
+                  {assistantT("lineCount", {
+                    count: writeDiffStats.additions + writeDiffStats.deletions,
+                  })}
                 </span>
               ) : writeFileStateLabel ? (
                 <span className={CHIP_SUBTEXT_CLASSES}>
-                  {writeFileStateLabel}
+                  {assistantT(`writeState.${writeFileStateLabel}`)}
                 </span>
               ) : null}
               {hasError ? (
-                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>error</span>
+                <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
+                  {assistantT("error")}
+                </span>
               ) : null}
             </>
           ) : null}
@@ -816,9 +825,9 @@ export const WriteFileChip = ({
           state={state}
         >
           <span>
-            Allow writing to{" "}
+            {assistantT("allowWritingTo")}{" "}
             <code className="rounded bg-surface-50 dark:bg-surface-900 px-1 py-0.5 text-xs">
-              {filePath ?? "file"}
+              {filePath ?? assistantT("file")}
             </code>
             ?
           </span>
@@ -862,12 +871,14 @@ export const WriteFileChip = ({
                     </CodeBlockTitle>
                     <CodeBlockActions className="shrink-0">
                       <Button
-                        aria-label={`Open ${filename} in Files`}
+                        aria-label={assistantT("openNamedInFiles", {
+                          name: filename,
+                        })}
                         className="shrink-0"
                         disabled={!canOpenFile}
                         onClick={handleOpenFile}
                         size="icon-xs"
-                        title="Open in Files"
+                        title={assistantT("openInFiles")}
                         type="button"
                         variant="ghost"
                       >
@@ -894,12 +905,14 @@ export const WriteFileChip = ({
                     </CodeBlockTitle>
                     <CodeBlockActions className="shrink-0">
                       <Button
-                        aria-label={`Open ${filename} in Files`}
+                        aria-label={assistantT("openNamedInFiles", {
+                          name: filename,
+                        })}
                         className="shrink-0"
                         disabled={!canOpenFile}
                         onClick={handleOpenFile}
                         size="icon-xs"
-                        title="Open in Files"
+                        title={assistantT("openInFiles")}
                         type="button"
                         variant="ghost"
                       >
@@ -932,12 +945,14 @@ export const WriteFileChip = ({
                     </CodeBlockTitle>
                     <CodeBlockActions className="shrink-0">
                       <Button
-                        aria-label={`Open ${filename} in Files`}
+                        aria-label={assistantT("openNamedInFiles", {
+                          name: filename,
+                        })}
                         className="shrink-0"
                         disabled={!canOpenFile}
                         onClick={handleOpenFile}
                         size="icon-xs"
-                        title="Open in Files"
+                        title={assistantT("openInFiles")}
                         type="button"
                         variant="ghost"
                       >
@@ -974,12 +989,14 @@ export const WriteFileChip = ({
                   </CodeBlockTitle>
                   <CodeBlockActions className="shrink-0">
                     <Button
-                      aria-label={`Open ${filename} in Files`}
+                      aria-label={assistantT("openNamedInFiles", {
+                        name: filename,
+                      })}
                       className="shrink-0"
                       disabled={!canOpenFile}
                       onClick={handleOpenFile}
                       size="icon-xs"
-                      title="Open in Files"
+                      title={assistantT("openInFiles")}
                       type="button"
                       variant="ghost"
                     >
@@ -992,18 +1009,23 @@ export const WriteFileChip = ({
             </div>
           ) : shouldLoadGitDiff || gitDiffLoading ? (
             <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
-              Loading diff...
+              {assistantT("loadingDiff")}
             </p>
           ) : currentGitDiffError ? (
             <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
-              Diff unavailable: {currentGitDiffError}
+              {assistantT("diffUnavailable", { error: currentGitDiffError })}
             </p>
           ) : projectRelativeFilePath ? (
             <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">
               {writeFileStateLabel
-                ? `${writeFileStateLabel[0]?.toUpperCase()}${writeFileStateLabel.slice(1)} ${projectRelativeFilePath}.`
-                : `Changed ${projectRelativeFilePath}.`}{" "}
-              No diff output is available for this write.
+                ? assistantT("writeStateFile", {
+                    file: projectRelativeFilePath,
+                    state: assistantT(`writeState.${writeFileStateLabel}`),
+                  })
+                : assistantT("changedFile", {
+                    file: projectRelativeFilePath,
+                  })}{" "}
+              {assistantT("noWriteDiff")}
             </p>
           ) : outputMessage ? (
             <p className="rounded-md bg-surface-50 dark:bg-surface-900 px-3 py-2 text-muted-foreground text-xs">

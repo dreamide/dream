@@ -1,4 +1,5 @@
 import { Archive, FolderTree, FolderX, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,6 +134,9 @@ export const ProjectSidebar = ({
   onChatSelect?: () => void;
   project: ProjectConfig;
 }) => {
+  const commonT = useTranslations("common");
+  const projectsT = useTranslations("projects");
+  const worktreeT = useTranslations("worktrees");
   const allChats = useIdeStore((s) => s.chats);
   const projectUi = useIdeStore(
     (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
@@ -289,7 +293,7 @@ export const ProjectSidebar = ({
       setPendingRemoveWorktree(null);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Unable to remove worktree.";
+        error instanceof Error ? error.message : worktreeT("unableToRemove");
       bumpProjectGitRefreshKey(project.id);
       if (isMissingWorktreeError(message)) {
         purgeWorktreeProjectState(pendingRemoveWorktree.path);
@@ -307,11 +311,14 @@ export const ProjectSidebar = ({
     project.id,
     project.path,
     purgeWorktreeProjectState,
+    worktreeT,
   ]);
 
   const activeProjectPathKey = normalizeProjectPathKey(project.path);
   const pendingRemoveWorktreeLabel =
-    pendingRemoveWorktree?.branch ?? pendingRemoveWorktree?.path ?? "worktree";
+    pendingRemoveWorktree?.branch ??
+    pendingRemoveWorktree?.path ??
+    worktreeT("worktree");
   const isRemovingPendingWorktree =
     !!pendingRemoveWorktree &&
     removingWorktreePath === pendingRemoveWorktree.path;
@@ -325,12 +332,12 @@ export const ProjectSidebar = ({
       )}
     >
       <div className="px-3 py-3">
-        <p className="font-medium text-sm">Chat history</p>
+        <p className="font-medium text-sm">{projectsT("chatHistory")}</p>
         <InputGroup className="mt-2">
           <InputGroupInput
             className="text-sm"
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search history..."
+            placeholder={projectsT("searchHistory")}
             value={searchQuery}
           />
           <InputGroupAddon>
@@ -345,7 +352,7 @@ export const ProjectSidebar = ({
             <section className="space-y-1">
               <div className="flex items-center gap-2 px-1 font-medium text-muted-foreground text-xs">
                 <FolderTree className="size-3.5" />
-                Worktrees
+                {worktreeT("worktrees")}
               </div>
               {worktrees.map((worktree) => {
                 const isActiveWorktree =
@@ -377,7 +384,7 @@ export const ProjectSidebar = ({
                         <FolderTree className="size-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm leading-5">
-                            {worktree.branch ?? "Detached worktree"}
+                            {worktree.branch ?? worktreeT("detachedWorktree")}
                           </p>
                           <p className="truncate text-muted-foreground text-xs">
                             {worktree.path}
@@ -387,9 +394,9 @@ export const ProjectSidebar = ({
                     </button>
                     <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                       <Button
-                        aria-label={`Remove ${
-                          worktree.branch ?? worktree.path
-                        }`}
+                        aria-label={worktreeT("removeNamedWorktree", {
+                          name: worktree.branch ?? worktree.path,
+                        })}
                         className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-destructive"
                         disabled={removing}
                         onClick={(event) => {
@@ -398,7 +405,7 @@ export const ProjectSidebar = ({
                           setPendingRemoveWorktree(worktree);
                         }}
                         size="icon-sm"
-                        title="Remove worktree"
+                        title={worktreeT("removeWorktree")}
                         type="button"
                         variant="ghost"
                       >
@@ -423,8 +430,8 @@ export const ProjectSidebar = ({
               <div className="flex min-h-32 items-center justify-center p-4 text-center text-muted-foreground text-sm">
                 <p>
                   {searchQuery.trim()
-                    ? "No matching chats found."
-                    : "No chats yet for this project."}
+                    ? projectsT("noMatchingChats")
+                    : projectsT("noChatsForProject")}
                 </p>
               </div>
             ) : (
@@ -438,9 +445,15 @@ export const ProjectSidebar = ({
                   chat.id !== activeChatId;
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
                 const statusIndicator = isStreaming ? (
-                  <StatusDot aria-label="Chat streaming" color="blue" />
+                  <StatusDot
+                    aria-label={projectsT("chatStreaming")}
+                    color="blue"
+                  />
                 ) : isCompleted ? (
-                  <StatusDot aria-label="Chat finished" color="green" />
+                  <StatusDot
+                    aria-label={projectsT("chatFinished")}
+                    color="green"
+                  />
                 ) : isTitleGenerating ? (
                   <Spinner className="size-3 shrink-0" />
                 ) : null;
@@ -489,14 +502,16 @@ export const ProjectSidebar = ({
                     </button>
                     <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                       <Button
-                        aria-label={`Archive ${chat.title}`}
+                        aria-label={projectsT("archiveNamedChat", {
+                          name: chat.title,
+                        })}
                         className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
                         onClick={(event) => {
                           event.stopPropagation();
                           deleteChat(chat.id);
                         }}
                         size="icon-sm"
-                        title="Archive chat"
+                        title={projectsT("archiveChat")}
                         type="button"
                         variant="ghost"
                       >
@@ -522,14 +537,16 @@ export const ProjectSidebar = ({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Remove Worktree</DialogTitle>
+            <DialogTitle>{worktreeT("removeWorktree")}</DialogTitle>
             <DialogDescription>
-              Remove{" "}
-              <span className="break-all font-medium text-foreground">
-                {pendingRemoveWorktreeLabel}
-              </span>{" "}
-              from disk. Git will refuse if the worktree has uncommitted
-              changes.
+              {worktreeT.rich("removeDescription", {
+                name: pendingRemoveWorktreeLabel,
+                strong: (chunks) => (
+                  <span className="break-all font-medium text-foreground">
+                    {chunks}
+                  </span>
+                ),
+              })}
             </DialogDescription>
           </DialogHeader>
           {worktreeError ? (
@@ -544,7 +561,7 @@ export const ProjectSidebar = ({
               type="button"
               variant="outline"
             >
-              Cancel
+              {commonT("cancel")}
             </Button>
             <Button
               disabled={isRemovingPendingWorktree}
@@ -556,10 +573,10 @@ export const ProjectSidebar = ({
               {isRemovingPendingWorktree ? (
                 <>
                   <Spinner className="size-4" />
-                  Removing
+                  {worktreeT("removing")}
                 </>
               ) : (
-                "Remove Worktree"
+                worktreeT("removeWorktree")
               )}
             </Button>
           </DialogFooter>

@@ -1,4 +1,5 @@
 import { FolderTree } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,8 @@ const CreateWorktreeDialog = ({
   open: boolean;
   project: ProjectConfig;
 }) => {
+  const commonT = useTranslations("common");
+  const worktreeT = useTranslations("worktrees");
   const createWorktreeProject = useIdeStore((s) => s.createWorktreeProject);
   const [branchName, setBranchName] = useState("");
   const [baseRefValue, setBaseRefValue] = useState("");
@@ -70,7 +73,7 @@ const CreateWorktreeDialog = ({
       onOpenChange(false);
     } catch (error) {
       setError(
-        error instanceof Error ? error.message : "Unable to create worktree.",
+        error instanceof Error ? error.message : worktreeT("unableToCreate"),
       );
     } finally {
       setSubmitting(false);
@@ -81,16 +84,16 @@ const CreateWorktreeDialog = ({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New worktree</DialogTitle>
+          <DialogTitle>{worktreeT("newWorktree")}</DialogTitle>
           <DialogDescription>
-            Create a separate project space from this repository.
+            {worktreeT("createDescription")}
           </DialogDescription>
         </DialogHeader>
 
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <div className="grid gap-2">
             <label className="font-medium text-sm" htmlFor="worktree-branch">
-              Branch
+              {commonT("branch")}
             </label>
             <Input
               autoFocus
@@ -103,7 +106,7 @@ const CreateWorktreeDialog = ({
 
           <div className="grid gap-2">
             <label className="font-medium text-sm" htmlFor="worktree-base">
-              Base ref
+              {worktreeT("baseRef")}
             </label>
             <Input
               id="worktree-base"
@@ -122,16 +125,16 @@ const CreateWorktreeDialog = ({
               type="button"
               variant="ghost"
             >
-              Cancel
+              {commonT("cancel")}
             </Button>
             <Button disabled={!canSubmit} type="submit">
               {submitting ? (
                 <>
                   <Spinner className="size-3.5" />
-                  <span>Create worktree</span>
+                  <span>{worktreeT("createWorktree")}</span>
                 </>
               ) : (
-                "Create worktree"
+                worktreeT("createWorktree")
               )}
             </Button>
           </DialogFooter>
@@ -148,6 +151,7 @@ export const ProjectBranchFooter = ({
   className?: string;
   project: ProjectConfig;
 }) => {
+  const worktreeT = useTranslations("worktrees");
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -167,15 +171,19 @@ export const ProjectBranchFooter = ({
         <div className="mx-auto flex w-full max-w-[700px] justify-end">
           {project?.worktree ? (
             <Button
-              aria-label={`Worktree ${project.worktree.branch}`}
+              aria-label={worktreeT("worktreeLabel", {
+                branch: project.worktree.branch,
+              })}
               className="h-7 max-w-[280px] gap-1.5 px-2 text-xs text-muted-foreground"
               disabled
               size="sm"
-              title={`Worktree ${project.worktree.branch}`}
+              title={worktreeT("worktreeLabel", {
+                branch: project.worktree.branch,
+              })}
               variant="ghost"
             >
               <FolderTree className="size-3.5 shrink-0" />
-              <span className="shrink-0">worktree</span>
+              <span className="shrink-0">{worktreeT("worktree")}</span>
               <span className="truncate text-foreground">
                 {project.worktree.branch}
               </span>

@@ -1,4 +1,5 @@
 import { ChevronDownIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import {
   createContext,
@@ -128,6 +129,7 @@ export const WebPreviewUrl = ({
   onKeyDown,
   ...props
 }: WebPreviewUrlProps) => {
+  const aiT = useTranslations("aiElements");
   const { url, setUrl } = useWebPreview();
   const [prevUrl, setPrevUrl] = useState(url);
   const [inputValue, setInputValue] = useState(url);
@@ -159,7 +161,7 @@ export const WebPreviewUrl = ({
       className="h-8 flex-1 text-sm"
       onChange={onChange ?? handleChange}
       onKeyDown={handleKeyDown}
-      placeholder="Enter URL..."
+      placeholder={aiT("enterUrl")}
       value={value ?? inputValue}
       {...props}
     />
@@ -176,6 +178,7 @@ export const WebPreviewBody = ({
   src,
   ...props
 }: WebPreviewBodyProps) => {
+  const aiT = useTranslations("aiElements");
   const { url } = useWebPreview();
 
   return (
@@ -185,7 +188,7 @@ export const WebPreviewBody = ({
         // oxlint-disable-next-line eslint-plugin-react(iframe-missing-sandbox)
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
         src={(src ?? url) || undefined}
-        title="Preview"
+        title={aiT("preview")}
         {...props}
       />
       {loading}
@@ -207,6 +210,7 @@ export const WebPreviewConsole = ({
   children,
   ...props
 }: WebPreviewConsoleProps) => {
+  const aiT = useTranslations("aiElements");
   const { consoleOpen, setConsoleOpen } = useWebPreview();
 
   return (
@@ -224,7 +228,7 @@ export const WebPreviewConsole = ({
           />
         }
       >
-        Console
+        {aiT("console")}
         <ChevronDownIcon
           className={cn(
             "h-4 w-4 transition-transform duration-200",
@@ -240,7 +244,9 @@ export const WebPreviewConsole = ({
       >
         <div className="max-h-48 space-y-1 overflow-y-auto">
           {logs.length === 0 ? (
-            <p className="text-muted-foreground">No console output</p>
+            <p className="text-muted-foreground">
+              {aiT("noConsoleOutput")}
+            </p>
           ) : (
             logs.map((log, index) => (
               <div

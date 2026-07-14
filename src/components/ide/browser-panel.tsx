@@ -72,11 +72,11 @@ type WebviewFailEvent = Event & {
   isMainFrame?: boolean;
 };
 
-const getBrowserTabTitle = (url: string) => {
+const getBrowserTabTitle = (url: string, newTabLabel: string) => {
   try {
-    return new URL(url).hostname || "New Tab";
+    return new URL(url).hostname || newTabLabel;
   } catch {
-    return url.replace(/^https?:\/\//i, "").split("/")[0] || "New Tab";
+    return url.replace(/^https?:\/\//i, "").split("/")[0] || newTabLabel;
   }
 };
 
@@ -297,7 +297,7 @@ const BrowserPanelImpl = ({
 
         return {
           id: tab.id,
-          label: tab.title || "New Tab",
+          label: tab.title || browserT("newTab"),
           leading: tabLoading ? (
             <Spinner className="size-3 shrink-0 text-muted-foreground" />
           ) : faviconUrl ? (
@@ -310,7 +310,7 @@ const BrowserPanelImpl = ({
           ) : null,
         };
       }),
-    [browserLoading, tabs],
+    [browserLoading, browserT, tabs],
   );
 
   useEffect(() => {
@@ -395,13 +395,14 @@ const BrowserPanelImpl = ({
         ...tab,
         canGoBack: getWebviewCanGoBack(webview),
         canGoForward: getWebviewCanGoForward(webview),
-        title: title || getBrowserTabTitle(url) || tab.title,
+        title:
+          title || getBrowserTabTitle(url, browserT("newTab")) || tab.title,
         url: url || tab.url,
         zoomFactor,
       }));
       updateProjectUrlIfActive(tabId, url);
     },
-    [projectId, updateBrowserTab, updateProjectUrlIfActive],
+    [browserT, projectId, updateBrowserTab, updateProjectUrlIfActive],
   );
 
   const handleWebviewLoadingChange = useCallback(
@@ -517,7 +518,7 @@ const BrowserPanelImpl = ({
     setBrowserLoading(activeTab.id, true);
     updateBrowserTab(projectId, activeTab.id, (tab) => ({
       ...tab,
-      title: getBrowserTabTitle(nextUrl),
+      title: getBrowserTabTitle(nextUrl, browserT("newTab")),
       url: nextUrl,
     }));
     updateProject(projectId, (project) => ({
@@ -536,6 +537,7 @@ const BrowserPanelImpl = ({
     browserUrlDraft,
     getActiveWebview,
     projectId,
+    browserT,
     setBrowserError,
     setBrowserLoading,
     updateBrowserTab,
@@ -935,7 +937,7 @@ const BrowserPanelImpl = ({
           ) : null}
           {!shouldMountBrowserWebview ? (
             <div className="flex h-full items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
-              Enter a URL to start browsing.
+              {browserT("enterUrlToStart")}
             </div>
           ) : null}
           {shouldMountBrowserWebview && browserError ? (

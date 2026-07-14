@@ -1,4 +1,5 @@
 import { GlobeIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { CodeBlock } from "@/components/ai-elements/code-block";
 import { MessageResponse } from "@/components/ai-elements/message";
@@ -68,6 +69,7 @@ export const WebFetchChip = ({
   onToolApproval?: ToolApprovalHandler;
   part: ToolLikePart;
 }) => {
+  const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
@@ -90,7 +92,9 @@ export const WebFetchChip = ({
   const isWebSearch =
     normalizedToolName === "web-search" || normalizedToolName === "websearch";
   const label = displayUrl ?? (isWebSearch ? query : null);
-  const fallbackLabel = isWebSearch ? "Web search" : "Web fetch";
+  const fallbackLabel = isWebSearch
+    ? assistantT("webSearch")
+    : assistantT("webFetch");
   const outputText = getWebFetchTextOutput(part.output);
   const outputLength = formatTextLength(outputText);
   const hasRawOutput = part.output !== undefined;
@@ -143,9 +147,9 @@ export const WebFetchChip = ({
           state={state}
         >
           <span>
-            Allow fetching{" "}
+            {assistantT("allowFetching")}{" "}
             <code className="rounded bg-surface-50 dark:bg-surface-900 px-1 py-0.5 text-xs">
-              {displayUrl ?? url ?? "the requested URL"}
+              {displayUrl ?? url ?? assistantT("requestedUrl")}
             </code>
             ?
           </span>
@@ -159,7 +163,7 @@ export const WebFetchChip = ({
           {isRecord(part.input) ? (
             <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                Parameters
+                {assistantT("parameters")}
               </h4>
               <div className="rounded-md bg-surface-50 dark:bg-surface-900">
                 <CodeBlock
@@ -175,7 +179,7 @@ export const WebFetchChip = ({
           {hasError ? (
             <div className="space-y-2 rounded-md bg-destructive-surface-muted p-3">
               <h4 className="font-medium text-destructive text-xs uppercase tracking-wide">
-                Error
+                {assistantT("error")}
               </h4>
               <pre className="max-h-80 overflow-auto whitespace-pre-wrap text-destructive text-xs">
                 {part.errorText}
@@ -184,7 +188,7 @@ export const WebFetchChip = ({
           ) : outputText ? (
             <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-                Result
+                {assistantT("result")}
               </h4>
               <div className="max-h-96 overflow-auto rounded-md border bg-background p-3 text-foreground">
                 <MessageResponse>{outputText}</MessageResponse>

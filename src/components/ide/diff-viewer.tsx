@@ -1,4 +1,5 @@
 import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -50,23 +51,29 @@ export const LargeDiffGuard = ({
   changedLineCount: number;
   limit?: number;
   onRenderAnyway: () => void;
-}) => (
-  <div className="px-4 py-4 text-sm">
-    <div className="font-medium text-foreground">Diff too large to render</div>
-    <div className="mt-2 text-muted-foreground">
-      Limit: {limit} changed lines. Current: {changedLineCount} changed lines.
+}) => {
+  const panelsT = useTranslations("panels");
+
+  return (
+    <div className="px-4 py-4 text-sm">
+      <div className="font-medium text-foreground">
+        {panelsT("diffTooLarge")}
+      </div>
+      <div className="mt-2 text-muted-foreground">
+        {panelsT("diffLineLimit", { current: changedLineCount, limit })}
+      </div>
+      <Button
+        className="mt-3"
+        onClick={onRenderAnyway}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        {panelsT("renderAnyway")}
+      </Button>
     </div>
-    <Button
-      className="mt-3"
-      onClick={onRenderAnyway}
-      size="sm"
-      type="button"
-      variant="outline"
-    >
-      Render anyway
-    </Button>
-  </div>
-);
+  );
+};
 
 export const IdeDiffViewer = ({
   changedLineCount,
