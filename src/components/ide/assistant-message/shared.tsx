@@ -109,14 +109,14 @@ export const ActionApproval = ({
     <Confirmation
       approval={approval as Parameters<typeof Confirmation>[0]["approval"]}
       className={cn(
-        "w-full max-w-full gap-3 border-success-border bg-success-surface shadow-sm text-foreground dark:border-success-border dark:bg-success-surface",
+        "w-full max-w-full gap-3 border-surface-300 bg-background text-foreground dark:border-surface-700 dark:bg-background",
         className,
       )}
       state={state}
     >
       <ConfirmationRequest>
         <div className="flex min-w-0 items-start text-sm">
-          <TriangleAlertIcon className="mt-0.5 mr-3 size-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
+          <TriangleAlertIcon className="mt-0.5 mr-3 size-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">{children}</div>
         </div>
       </ConfirmationRequest>
@@ -133,8 +133,8 @@ export const ActionApproval = ({
           {rejectLabel}
         </ConfirmationAction>
         <ConfirmationAction
-          variant="default"
-          className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400"
+          variant="outline"
+          className="border-surface-300 bg-surface-200 text-foreground hover:bg-surface-300 dark:border-surface-700 dark:bg-surface-800 dark:hover:bg-surface-700"
           onClick={() =>
             onToolApproval({
               approved: true,

@@ -268,7 +268,6 @@ export const streamGrokResponse = ({
             errorText:
               getFirstString(merged.rawOutput?.message, merged.rawOutput) ||
               `${merged.title || "Grok tool"} failed.`,
-            output,
             providerExecuted: true,
             toolCallId: merged.toolCallId,
             type: "tool-output-error",
@@ -320,6 +319,18 @@ export const streamGrokResponse = ({
           return { outcome: { outcome: "cancelled" } };
         }
 
+        const options = Array.isArray(params?.options) ? params.options : [];
+        const autoApprove =
+          codexPermissionMode === "full-access" ||
+          (codexPermissionMode === "auto-accept-edits" &&
+            toolCall.toolName === "writeFile");
+        if (autoApprove) {
+          const optionId = choosePermissionOption(options, true, "once");
+          return optionId
+            ? { outcome: { optionId, outcome: "selected" } }
+            : { outcome: { outcome: "cancelled" } };
+        }
+
         const approvalId = `grok:${sessionId}:${toolCallId}`;
         writer.write({
           approvalId,
@@ -331,7 +342,7 @@ export const streamGrokResponse = ({
           provider: "grok",
           request: {
             input: toolCall.input,
-            options: params?.options ?? [],
+            options,
             toolName: toolCall.toolName,
           },
           signal: abortSignal,
@@ -341,7 +352,7 @@ export const streamGrokResponse = ({
           return { outcome: { outcome: "cancelled" } };
         }
         const optionId = choosePermissionOption(
-          Array.isArray(params?.options) ? params.options : [],
+          options,
           response.approved,
           response.scope,
         );

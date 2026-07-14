@@ -1,9 +1,15 @@
 import type { ComponentProps } from "react";
 
+import grokLogoMarkup from "@/assets/grok.svg?raw";
 import { cn } from "@/lib/utils";
 import type { AiProvider } from "@/types/ide";
 
 type IconProps = ComponentProps<"svg">;
+
+const grokLogoContent = grokLogoMarkup
+  .replace(/^<svg[^>]*>/, "")
+  .replace(/<\/svg>\s*$/, "")
+  .replaceAll('fill="#000"', 'fill="currentColor"');
 
 export const OpenAiIcon = ({ className, ...props }: IconProps) => (
   <svg
@@ -68,21 +74,19 @@ export const CursorIcon = ({ className, ...props }: IconProps) => (
   </svg>
 );
 
-export const GrokIcon = ({ className, ...props }: IconProps) => (
+export const GrokIcon = ({
+  className,
+  role = "img",
+  ...props
+}: IconProps) => (
   <svg
     className={cn("size-3.5", className)}
-    fill="none"
-    role="img"
-    viewBox="0 0 24 24"
+    role={role}
+    viewBox="0.36 0.5 33.33 32"
     xmlns="http://www.w3.org/2000/svg"
     {...props}
   >
-    <path
-      d="M5 4.5h6.25c4.85 0 7.75 2.73 7.75 7.25S16.1 19.5 11.25 19.5H5v-15Z"
-      stroke="currentColor"
-      strokeWidth="2"
-    />
-    <path d="M10 8h4.5v7H10" stroke="currentColor" strokeWidth="2" />
+    <g dangerouslySetInnerHTML={{ __html: grokLogoContent }} />
   </svg>
 );
 
