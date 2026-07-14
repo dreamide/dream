@@ -1,17 +1,27 @@
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
-import { FileIcon, Files, RotateCw } from "lucide-react";
+import { FileIcon, Files, Pencil, RotateCw } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { CSSProperties } from "react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
   CodeBlockActions,
+  CodeBlockContainer,
   CodeBlockCopyButton,
   CodeBlockFilename,
   CodeBlockHeader,
   CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
@@ -23,6 +33,8 @@ const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
 const FILE_TREE_MIN_WIDTH_PX = 250;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
 const FILE_TREE_ITEM_HEIGHT_PX = 24;
+
+const FileCodeEditor = lazy(() => import("./file-code-editor"));
 
 export interface FileExplorerPanelProps {
   active?: boolean;
@@ -39,6 +51,13 @@ type ProjectFileReadResponse = {
   content: string;
   filePath: string;
 };
+
+interface EditingFileState {
+  filePath: string;
+  originalContent: string;
+  projectId: string;
+  value: string;
+}
 
 const isFilePreviewUnavailableStatus = (status: number) =>
   status === 413 || status === 415;
@@ -395,6 +414,7 @@ const FileExplorerPanelImpl = ({
   const previousProjectFilesRefreshKeyByProjectRef = useRef<
     Record<string, number>
   >({});
+  const saveOperationIdRef = useRef(0);
 
   const [fileListsByProject, setFileListsByProject] = useState<
     Record<string, string[]>
@@ -412,8 +432,11 @@ const FileExplorerPanelImpl = ({
   >(null);
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
+  const [fileSaving, setFileSaving] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [fileSaveError, setFileSaveError] = useState<string | null>(null);
+  const [editingFile, setEditingFile] = useState<EditingFileState | null>(null);
   const selectedImagePreviewUrlRef = useRef<string | null>(null);
 
   const replaceSelectedImagePreviewUrl = useCallback((url: string | null) => {
@@ -450,7 +473,32 @@ const FileExplorerPanelImpl = ({
     projectId && selectedFilePath
       ? (filePreviewMessagesByProject[projectId]?.[selectedFilePath] ?? null)
       : null;
+  const isEditing = Boolean(
+    editingFile &&
+      editingFile.projectId === projectId &&
+      editingFile.filePath === selectedFilePath,
+  );
+  const hasEditorChanges = Boolean(
+    editingFile &&
+      isEditing &&
+      editingFile.value !== editingFile.originalContent,
+  );
   const isMissingProjectPath = isMissingPathError(filesError);
+
+  useEffect(() => {
+    if (
+      !editingFile ||
+      (editingFile.projectId === projectId &&
+        editingFile.filePath === selectedFilePath)
+    ) {
+      return;
+    }
+
+    saveOperationIdRef.current += 1;
+    setEditingFile(null);
+    setFileSaveError(null);
+    setFileSaving(false);
+  }, [editingFile, projectId, selectedFilePath]);
 
   useEffect(
     () => () => {
@@ -773,6 +821,103 @@ const FileExplorerPanelImpl = ({
     [projectId],
   );
 
+  const handleStartEditing = useCallback(() => {
+    if (
+      !projectId ||
+      !projectPath ||
+      !selectedFilePath ||
+      selectedFileContent === null
+    ) {
+      return;
+    }
+
+    setFileSaveError(null);
+    setEditingFile({
+      filePath: selectedFilePath,
+      originalContent: selectedFileContent,
+      projectId,
+      value: selectedFileContent,
+    });
+  }, [projectId, projectPath, selectedFileContent, selectedFilePath]);
+
+  const handleCancelEditing = useCallback(() => {
+    setEditingFile(null);
+    setFileSaveError(null);
+  }, []);
+
+  const handleSaveEditing = useCallback(async () => {
+    if (!editingFile || !projectPath || fileSaving) {
+      return;
+    }
+
+    if (editingFile.value === editingFile.originalContent) {
+      return;
+    }
+
+    const operationId = saveOperationIdRef.current + 1;
+    saveOperationIdRef.current = operationId;
+    setFileSaving(true);
+    setFileSaveError(null);
+
+    try {
+      const response = await fetch("/api/project-file", {
+        body: JSON.stringify({
+          content: editingFile.value,
+          expectedContent: editingFile.originalContent,
+          filePath: editingFile.filePath,
+          projectPath,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "PUT",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readResponseText(response));
+      }
+
+      const payload = (await response.json()) as ProjectFileReadResponse;
+      setFileContentsByProject((current) => ({
+        ...current,
+        [editingFile.projectId]: {
+          ...(current[editingFile.projectId] ?? {}),
+          [payload.filePath]: payload.content,
+        },
+      }));
+      useIdeStore.getState().bumpProjectGitRefreshKey(editingFile.projectId);
+
+      if (saveOperationIdRef.current === operationId) {
+        setEditingFile(null);
+        setFileSaveError(null);
+      }
+    } catch (error) {
+      if (saveOperationIdRef.current === operationId) {
+        setFileSaveError(
+          error instanceof Error ? error.message : panelsT("failedToSaveFile"),
+        );
+      }
+    } finally {
+      if (saveOperationIdRef.current === operationId) {
+        setFileSaving(false);
+      }
+    }
+  }, [editingFile, fileSaving, panelsT, projectPath]);
+
+  const handleEditorKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void handleSaveEditing();
+        return;
+      }
+
+      if (event.key === "Escape" && !fileSaving) {
+        event.preventDefault();
+        handleCancelEditing();
+      }
+    },
+    [fileSaving, handleCancelEditing, handleSaveEditing],
+  );
+
   const handleTreeResizeStart = useCallback(() => {
     treeWidthRef.current =
       treePaneRef.current?.getBoundingClientRect().width ??
@@ -938,25 +1083,101 @@ const FileExplorerPanelImpl = ({
                 </div>
               ) : null
             ) : selectedFileContent !== null ? (
-              <div className="h-full">
-                <CodeBlock
-                  className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                  code={selectedFileContent}
+              isEditing && editingFile ? (
+                <CodeBlockContainer
+                  className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none"
                   language={inferLanguage(selectedFilePath)}
-                  showLineNumbers
+                  onKeyDownCapture={handleEditorKeyDown}
                   style={{ contentVisibility: "visible" }}
                 >
                   <CodeBlockHeader className="shrink-0 border-0 bg-transparent">
-                    <CodeBlockTitle>
-                      <FileIcon size={14} />
-                      <CodeBlockFilename>{selectedFilePath}</CodeBlockFilename>
+                    <CodeBlockTitle className="min-w-0">
+                      <FileIcon className="shrink-0" size={14} />
+                      <CodeBlockFilename className="truncate">
+                        {selectedFilePath}
+                      </CodeBlockFilename>
                     </CodeBlockTitle>
-                    <CodeBlockActions>
-                      <CodeBlockCopyButton />
+                    <CodeBlockActions className="shrink-0">
+                      <Button
+                        disabled={fileSaving}
+                        onClick={handleCancelEditing}
+                        size="xs"
+                        type="button"
+                        variant="ghost"
+                      >
+                        {commonT("cancel")}
+                      </Button>
+                      <Button
+                        disabled={fileSaving || !hasEditorChanges}
+                        onClick={() => void handleSaveEditing()}
+                        size="xs"
+                        type="button"
+                      >
+                        {fileSaving ? <Spinner className="size-3" /> : null}
+                        {commonT("save")}
+                      </Button>
                     </CodeBlockActions>
                   </CodeBlockHeader>
-                </CodeBlock>
-              </div>
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    {fileSaveError ? (
+                      <div className="shrink-0 border-destructive-border border-b bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
+                        {fileSaveError}
+                      </div>
+                    ) : null}
+                    <div className="min-h-0 flex-1">
+                      <Suspense
+                        fallback={
+                          <div className="flex h-full items-center justify-center">
+                            <Spinner className="size-4 text-muted-foreground" />
+                          </div>
+                        }
+                      >
+                        <FileCodeEditor
+                          disabled={fileSaving}
+                          filePath={selectedFilePath}
+                          onChange={(value) =>
+                            setEditingFile((current) =>
+                              current ? { ...current, value } : current,
+                            )
+                          }
+                          value={editingFile.value}
+                        />
+                      </Suspense>
+                    </div>
+                  </div>
+                </CodeBlockContainer>
+              ) : (
+                <div className="h-full">
+                  <CodeBlock
+                    className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
+                    code={selectedFileContent}
+                    language={inferLanguage(selectedFilePath)}
+                    showLineNumbers
+                    style={{ contentVisibility: "visible" }}
+                  >
+                    <CodeBlockHeader className="shrink-0 border-0 bg-transparent">
+                      <CodeBlockTitle>
+                        <FileIcon size={14} />
+                        <CodeBlockFilename>
+                          {selectedFilePath}
+                        </CodeBlockFilename>
+                      </CodeBlockTitle>
+                      <CodeBlockActions>
+                        <CodeBlockCopyButton />
+                        <Button
+                          onClick={handleStartEditing}
+                          size="xs"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Pencil />
+                          {commonT("edit")}
+                        </Button>
+                      </CodeBlockActions>
+                    </CodeBlockHeader>
+                  </CodeBlock>
+                </div>
+              )
             ) : null}
           </div>
         </div>

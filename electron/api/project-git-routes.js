@@ -18,6 +18,7 @@ import {
   MIME_TYPES,
   projectFileRequestSchema,
   projectFilesRequestSchema,
+  projectFileWriteRequestSchema,
   projectGitBranchesRequestSchema,
   projectGitCheckoutRequestSchema,
   projectGitCommitMessageRequestSchema,
@@ -176,6 +177,68 @@ export const registerProjectGitRoutes = (app) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to read file.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.put("/api/project-file", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectFileWriteRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { content, expectedContent, filePath, projectPath } = parsed.data;
+    if (Buffer.byteLength(content, "utf8") > PROJECT_FILE_PREVIEW_MAX_BYTES) {
+      return c.text(
+        `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} cannot be edited here.`,
+        413,
+      );
+    }
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      const projectRoot = await fs.realpath(projectPath);
+      const absolutePath = resolveProjectPath(projectPath, filePath);
+      const realAbsolutePath = await fs.realpath(absolutePath);
+      resolveProjectPath(projectRoot, realAbsolutePath);
+
+      const stats = await fs.stat(realAbsolutePath);
+      if (!stats.isFile()) {
+        return c.text(`Not a file: ${filePath}`, 400);
+      }
+
+      if (stats.size > PROJECT_FILE_PREVIEW_MAX_BYTES) {
+        return c.text(
+          "The file changed on disk and is now too large to edit here.",
+          409,
+        );
+      }
+
+      const currentData = await fs.readFile(realAbsolutePath);
+      if (isLikelyBinaryBuffer(currentData)) {
+        return c.text("Binary files cannot be edited.", 415);
+      }
+
+      const currentContent = utf8Decoder.decode(currentData);
+      if (currentContent !== expectedContent) {
+        return c.text(
+          "The file changed on disk after editing began. Reopen it before saving.",
+          409,
+        );
+      }
+
+      await fs.writeFile(realAbsolutePath, content, "utf8");
+      return c.json({ content, filePath });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to save file.";
       return c.text(message, 400);
     }
   });

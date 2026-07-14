@@ -13,6 +13,13 @@ export const projectFileRequestSchema = z.object({
   startLine: z.number().int().min(1).optional(),
 });
 
+export const projectFileWriteRequestSchema = z.object({
+  content: z.string(),
+  expectedContent: z.string(),
+  filePath: z.string().min(1),
+  projectPath: z.string().min(1),
+});
+
 export const projectIconRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
