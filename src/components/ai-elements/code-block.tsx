@@ -47,6 +47,47 @@ interface KeyedLine {
   key: string;
 }
 
+export interface CodeSearchMatch {
+  end: number;
+  index: number;
+  lineIndex: number;
+  start: number;
+}
+
+export const findCodeSearchMatches = (
+  code: string,
+  query: string,
+): CodeSearchMatch[] => {
+  if (!query) {
+    return [];
+  }
+
+  const normalizedQuery = query.toLocaleLowerCase();
+  const matches: CodeSearchMatch[] = [];
+
+  for (const [lineIndex, line] of code.split(/\r?\n/).entries()) {
+    const normalizedLine = line.toLocaleLowerCase();
+    let start = 0;
+
+    while (start <= normalizedLine.length - normalizedQuery.length) {
+      const matchStart = normalizedLine.indexOf(normalizedQuery, start);
+      if (matchStart === -1) {
+        break;
+      }
+
+      matches.push({
+        end: matchStart + query.length,
+        index: matches.length,
+        lineIndex,
+        start: matchStart,
+      });
+      start = matchStart + Math.max(query.length, 1);
+    }
+  }
+
+  return matches;
+};
+
 const addKeysToTokens = (lines: ThemedToken[][]): KeyedLine[] =>
   lines.map((line, lineIdx) => ({
     key: `line-${lineIdx}`,
@@ -56,41 +97,144 @@ const addKeysToTokens = (lines: ThemedToken[][]): KeyedLine[] =>
     })),
   }));
 
-// Token rendering component
-const TokenSpan = ({ token }: { token: ThemedToken }) => (
-  <span
-    className="dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)]"
-    style={
-      {
-        backgroundColor: token.bgColor,
-        color: token.color,
-        fontStyle: isItalic(token.fontStyle) ? "italic" : undefined,
-        fontWeight: isBold(token.fontStyle) ? "bold" : undefined,
-        textDecoration: isUnderline(token.fontStyle) ? "underline" : undefined,
-        ...token.htmlStyle,
-      } as CSSProperties
+interface TokenSearchSegment {
+  key: string;
+  matchIndex: number | null;
+  text: string;
+}
+
+const getTokenSearchSegments = (
+  content: string,
+  tokenOffset: number,
+  lineMatches: CodeSearchMatch[],
+): TokenSearchSegment[] => {
+  const tokenEnd = tokenOffset + content.length;
+  const segments: TokenSearchSegment[] = [];
+  let cursor = 0;
+
+  for (const match of lineMatches) {
+    const overlapStart = Math.max(match.start, tokenOffset);
+    const overlapEnd = Math.min(match.end, tokenEnd);
+    if (overlapStart >= overlapEnd) {
+      continue;
     }
-  >
-    {token.content}
-  </span>
-);
+
+    const localStart = overlapStart - tokenOffset;
+    const localEnd = overlapEnd - tokenOffset;
+    if (localStart > cursor) {
+      segments.push({
+        key: `text-${cursor}`,
+        matchIndex: null,
+        text: content.slice(cursor, localStart),
+      });
+    }
+
+    segments.push({
+      key: `match-${match.index}-${localStart}`,
+      matchIndex: match.index,
+      text: content.slice(localStart, localEnd),
+    });
+    cursor = localEnd;
+  }
+
+  if (cursor < content.length) {
+    segments.push({
+      key: `text-${cursor}`,
+      matchIndex: null,
+      text: content.slice(cursor),
+    });
+  }
+
+  return segments;
+};
+
+// Token rendering component
+const TokenSpan = ({
+  activeSearchMatchIndex,
+  lineMatches,
+  token,
+  tokenOffset,
+}: {
+  activeSearchMatchIndex: number;
+  lineMatches: CodeSearchMatch[];
+  token: ThemedToken;
+  tokenOffset: number;
+}) => {
+  const segments =
+    lineMatches.length > 0
+      ? getTokenSearchSegments(token.content, tokenOffset, lineMatches)
+      : [];
+
+  return (
+    <span
+      className="dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)]"
+      style={
+        {
+          backgroundColor: token.bgColor,
+          color: token.color,
+          fontStyle: isItalic(token.fontStyle) ? "italic" : undefined,
+          fontWeight: isBold(token.fontStyle) ? "bold" : undefined,
+          textDecoration: isUnderline(token.fontStyle)
+            ? "underline"
+            : undefined,
+          ...token.htmlStyle,
+        } as CSSProperties
+      }
+    >
+      {segments.length > 0
+        ? segments.map((segment) =>
+            segment.matchIndex === null ? (
+              <span key={segment.key}>{segment.text}</span>
+            ) : (
+              <mark
+                className={cn(
+                  "rounded-[1px] bg-amber-300/70 text-inherit dark:bg-amber-400/40",
+                  segment.matchIndex === activeSearchMatchIndex &&
+                    "bg-orange-400/80 outline outline-1 outline-orange-500 dark:bg-orange-400/65",
+                )}
+                data-code-search-match={segment.matchIndex}
+                key={segment.key}
+              >
+                {segment.text}
+              </mark>
+            ),
+          )
+        : token.content}
+    </span>
+  );
+};
 
 // Line rendering component
 const LineSpan = ({
+  activeSearchMatchIndex,
   keyedLine,
+  lineMatches,
   lineNumber,
   showLineNumbers,
 }: {
+  activeSearchMatchIndex: number;
   keyedLine: KeyedLine;
+  lineMatches: CodeSearchMatch[];
   lineNumber: number;
   showLineNumbers: boolean;
 }) => {
+  let tokenOffset = 0;
   const lineContent =
     keyedLine.tokens.length === 0
       ? " "
-      : keyedLine.tokens.map(({ token, key }) => (
-          <TokenSpan key={key} token={token} />
-        ));
+      : keyedLine.tokens.map(({ token, key }) => {
+          const currentTokenOffset = tokenOffset;
+          tokenOffset += token.content.length;
+          return (
+            <TokenSpan
+              activeSearchMatchIndex={activeSearchMatchIndex}
+              key={key}
+              lineMatches={lineMatches}
+              token={token}
+              tokenOffset={currentTokenOffset}
+            />
+          );
+        });
 
   if (!showLineNumbers) {
     return <span className="block min-h-[1.5em]">{lineContent}</span>;
@@ -108,9 +252,11 @@ const LineSpan = ({
 
 // Types
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
+  activeSearchMatchIndex?: number;
   code: string;
   deferUntilHighlighted?: boolean;
   language: BundledLanguage;
+  searchQuery?: string;
   showLineNumbers?: boolean;
   startingLineNumber?: number;
 };
@@ -326,11 +472,15 @@ const LINE_NUMBER_CLASSES = cn(
 
 const CodeBlockBody = memo(
   ({
+    activeSearchMatchIndex,
+    searchMatches,
     tokenized,
     showLineNumbers,
     startingLineNumber,
     className,
   }: {
+    activeSearchMatchIndex: number;
+    searchMatches: CodeSearchMatch[];
     tokenized: TokenizedCode;
     showLineNumbers: boolean;
     startingLineNumber: number;
@@ -348,6 +498,15 @@ const CodeBlockBody = memo(
       () => addKeysToTokens(tokenized.tokens),
       [tokenized.tokens],
     );
+    const searchMatchesByLine = useMemo(() => {
+      const grouped = new Map<number, CodeSearchMatch[]>();
+      for (const match of searchMatches) {
+        const lineMatches = grouped.get(match.lineIndex) ?? [];
+        lineMatches.push(match);
+        grouped.set(match.lineIndex, lineMatches);
+      }
+      return grouped;
+    }, [searchMatches]);
 
     return (
         <pre
@@ -360,8 +519,10 @@ const CodeBlockBody = memo(
         <code className={cn("font-mono !text-[12px]")}>
           {keyedLines.map((keyedLine, lineIndex) => (
             <LineSpan
+              activeSearchMatchIndex={activeSearchMatchIndex}
               key={keyedLine.key}
               keyedLine={keyedLine}
+              lineMatches={searchMatchesByLine.get(lineIndex) ?? []}
               lineNumber={startingLineNumber + lineIndex}
               showLineNumbers={showLineNumbers}
             />
@@ -372,6 +533,8 @@ const CodeBlockBody = memo(
   },
   (prevProps, nextProps) =>
     prevProps.tokenized === nextProps.tokenized &&
+    prevProps.activeSearchMatchIndex === nextProps.activeSearchMatchIndex &&
+    prevProps.searchMatches === nextProps.searchMatches &&
     prevProps.showLineNumbers === nextProps.showLineNumbers &&
     prevProps.startingLineNumber === nextProps.startingLineNumber &&
     prevProps.className === nextProps.className,
@@ -450,20 +613,28 @@ export const CodeBlockActions = ({
 );
 
 export const CodeBlockContent = ({
+  activeSearchMatchIndex = -1,
   code,
   deferUntilHighlighted = false,
   language,
+  searchQuery = "",
   showLineNumbers = false,
   startingLineNumber = 1,
 }: {
+  activeSearchMatchIndex?: number;
   code: string;
   deferUntilHighlighted?: boolean;
   language: BundledLanguage;
+  searchQuery?: string;
   showLineNumbers?: boolean;
   startingLineNumber?: number;
 }) => {
   // Memoized raw tokens for immediate display
   const rawTokens = useMemo(() => createRawTokens(code), [code]);
+  const searchMatches = useMemo(
+    () => findCodeSearchMatches(code, searchQuery),
+    [code, searchQuery],
+  );
 
   // Try to get cached result synchronously, otherwise optionally defer display.
   const [tokenized, setTokenized] = useState<TokenizedCode | null>(
@@ -495,6 +666,8 @@ export const CodeBlockContent = ({
     <div className="relative overflow-auto">
       {tokenized ? (
         <CodeBlockBody
+          activeSearchMatchIndex={activeSearchMatchIndex}
+          searchMatches={searchMatches}
           showLineNumbers={showLineNumbers}
           startingLineNumber={startingLineNumber}
           tokenized={tokenized}
@@ -505,9 +678,11 @@ export const CodeBlockContent = ({
 };
 
 export const CodeBlock = ({
+  activeSearchMatchIndex = -1,
   code,
   deferUntilHighlighted = false,
   language,
+  searchQuery = "",
   showLineNumbers = false,
   startingLineNumber = 1,
   className,
@@ -521,9 +696,11 @@ export const CodeBlock = ({
       <CodeBlockContainer className={className} language={language} {...props}>
         {children}
         <CodeBlockContent
+          activeSearchMatchIndex={activeSearchMatchIndex}
           code={code}
           deferUntilHighlighted={deferUntilHighlighted}
           language={language}
+          searchQuery={searchQuery}
           showLineNumbers={showLineNumbers}
           startingLineNumber={startingLineNumber}
         />

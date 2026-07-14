@@ -1,5 +1,13 @@
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
-import { FileIcon, Files, Pencil, RotateCw } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  FileIcon,
+  Files,
+  Pencil,
+  RotateCw,
+  Search,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
@@ -8,6 +16,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -20,6 +29,7 @@ import {
   CodeBlockFilename,
   CodeBlockHeader,
   CodeBlockTitle,
+  findCodeSearchMatches,
 } from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -57,6 +67,13 @@ interface EditingFileState {
   originalContent: string;
   projectId: string;
   value: string;
+}
+
+interface FileSearchState {
+  activeIndex: number;
+  filePath: string;
+  projectId: string;
+  query: string;
 }
 
 const isFilePreviewUnavailableStatus = (status: number) =>
@@ -414,6 +431,8 @@ const FileExplorerPanelImpl = ({
   const previousProjectFilesRefreshKeyByProjectRef = useRef<
     Record<string, number>
   >({});
+  const fileSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const filePreviewRef = useRef<HTMLDivElement | null>(null);
   const saveOperationIdRef = useRef(0);
 
   const [fileListsByProject, setFileListsByProject] = useState<
@@ -436,6 +455,7 @@ const FileExplorerPanelImpl = ({
   const [filesError, setFilesError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileSaveError, setFileSaveError] = useState<string | null>(null);
+  const [fileSearch, setFileSearch] = useState<FileSearchState | null>(null);
   const [editingFile, setEditingFile] = useState<EditingFileState | null>(null);
   const selectedImagePreviewUrlRef = useRef<string | null>(null);
 
@@ -473,6 +493,26 @@ const FileExplorerPanelImpl = ({
     projectId && selectedFilePath
       ? (filePreviewMessagesByProject[projectId]?.[selectedFilePath] ?? null)
       : null;
+  const isFileSearchOpen = Boolean(
+    fileSearch &&
+      fileSearch.projectId === projectId &&
+      fileSearch.filePath === selectedFilePath,
+  );
+  const fileSearchQuery = isFileSearchOpen ? (fileSearch?.query ?? "") : "";
+  const fileSearchMatches = useMemo(
+    () =>
+      selectedFileContent && fileSearchQuery
+        ? findCodeSearchMatches(selectedFileContent, fileSearchQuery)
+        : [],
+    [fileSearchQuery, selectedFileContent],
+  );
+  const activeFileSearchMatchIndex =
+    fileSearchMatches.length > 0
+      ? Math.min(
+          Math.max(fileSearch?.activeIndex ?? 0, 0),
+          fileSearchMatches.length - 1,
+        )
+      : -1;
   const isEditing = Boolean(
     editingFile &&
       editingFile.projectId === projectId &&
@@ -499,6 +539,33 @@ const FileExplorerPanelImpl = ({
     setFileSaveError(null);
     setFileSaving(false);
   }, [editingFile, projectId, selectedFilePath]);
+
+  useEffect(() => {
+    if (!fileSearchQuery || activeFileSearchMatchIndex < 0) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const activeMatch = filePreviewRef.current?.querySelector<HTMLElement>(
+        `[data-code-search-match="${activeFileSearchMatchIndex}"]`,
+      );
+      activeMatch?.scrollIntoView({ block: "center", inline: "nearest" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeFileSearchMatchIndex, fileSearchQuery]);
+
+  useEffect(() => {
+    if (!isFileSearchOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      fileSearchInputRef.current?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isFileSearchOpen]);
 
   useEffect(
     () => () => {
@@ -832,6 +899,7 @@ const FileExplorerPanelImpl = ({
     }
 
     setFileSaveError(null);
+    setFileSearch(null);
     setEditingFile({
       filePath: selectedFilePath,
       originalContent: selectedFileContent,
@@ -844,6 +912,69 @@ const FileExplorerPanelImpl = ({
     setEditingFile(null);
     setFileSaveError(null);
   }, []);
+
+  const handleToggleFileSearch = useCallback(() => {
+    if (!projectId || !selectedFilePath) {
+      return;
+    }
+
+    setFileSearch((current) =>
+      current?.projectId === projectId && current.filePath === selectedFilePath
+        ? null
+        : {
+            activeIndex: 0,
+            filePath: selectedFilePath,
+            projectId,
+            query: "",
+          },
+    );
+  }, [projectId, selectedFilePath]);
+
+  const handleNavigateFileSearch = useCallback(
+    (direction: -1 | 1) => {
+      if (fileSearchMatches.length === 0) {
+        return;
+      }
+
+      setFileSearch((current) => {
+        if (
+          !current ||
+          current.projectId !== projectId ||
+          current.filePath !== selectedFilePath
+        ) {
+          return current;
+        }
+
+        const normalizedIndex =
+          ((current.activeIndex % fileSearchMatches.length) +
+            fileSearchMatches.length) %
+          fileSearchMatches.length;
+        const nextIndex =
+          (normalizedIndex + direction + fileSearchMatches.length) %
+          fileSearchMatches.length;
+        return { ...current, activeIndex: nextIndex };
+      });
+    },
+    [fileSearchMatches.length, projectId, selectedFilePath],
+  );
+
+  const handleFileSearchKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setFileSearch(null);
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        handleNavigateFileSearch(event.shiftKey ? -1 : 1);
+      }
+    },
+    [handleNavigateFileSearch],
+  );
 
   const handleSaveEditing = useCallback(async () => {
     if (!editingFile || !projectPath || fileSaving) {
@@ -1090,7 +1221,7 @@ const FileExplorerPanelImpl = ({
                   onKeyDownCapture={handleEditorKeyDown}
                   style={{ contentVisibility: "visible" }}
                 >
-                  <CodeBlockHeader className="shrink-0 border-0 bg-transparent">
+                <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
                     <CodeBlockTitle className="min-w-0">
                       <FileIcon className="shrink-0" size={14} />
                       <CodeBlockFilename className="truncate">
@@ -1147,32 +1278,97 @@ const FileExplorerPanelImpl = ({
                   </div>
                 </CodeBlockContainer>
               ) : (
-                <div className="h-full">
+                <div ref={filePreviewRef} className="h-full">
                   <CodeBlock
+                    activeSearchMatchIndex={activeFileSearchMatchIndex}
                     className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
                     code={selectedFileContent}
                     language={inferLanguage(selectedFilePath)}
+                    searchQuery={fileSearchQuery}
                     showLineNumbers
                     style={{ contentVisibility: "visible" }}
                   >
-                    <CodeBlockHeader className="shrink-0 border-0 bg-transparent">
-                      <CodeBlockTitle>
-                        <FileIcon size={14} />
-                        <CodeBlockFilename>
+                    <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
+                      <CodeBlockTitle className="min-w-0">
+                        <FileIcon className="shrink-0" size={14} />
+                        <CodeBlockFilename className="truncate">
                           {selectedFilePath}
                         </CodeBlockFilename>
-                      </CodeBlockTitle>
-                      <CodeBlockActions>
-                        <CodeBlockCopyButton />
                         <Button
+                          aria-label={commonT("edit")}
+                          className="shrink-0"
                           onClick={handleStartEditing}
-                          size="xs"
+                          size="icon-xs"
+                          title={commonT("edit")}
                           type="button"
                           variant="ghost"
                         >
                           <Pencil />
-                          {commonT("edit")}
                         </Button>
+                      </CodeBlockTitle>
+                      <CodeBlockActions className="shrink-0">
+                        {isFileSearchOpen ? (
+                          <div className="flex h-7 items-center overflow-hidden rounded-md border border-input bg-background shadow-xs">
+                            <input
+                              aria-label="Search current file"
+                              className="h-full w-36 bg-transparent px-2 font-mono text-foreground text-xs outline-none placeholder:text-muted-foreground"
+                              onChange={(event) =>
+                                setFileSearch((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        activeIndex: 0,
+                                        query: event.target.value,
+                                      }
+                                    : current,
+                                )
+                              }
+                              onKeyDown={handleFileSearchKeyDown}
+                              placeholder="Find"
+                              ref={fileSearchInputRef}
+                              value={fileSearchQuery}
+                            />
+                            <span className="min-w-12 px-1 text-center text-muted-foreground text-xs tabular-nums">
+                              {fileSearchMatches.length > 0
+                                ? `${activeFileSearchMatchIndex + 1}/${fileSearchMatches.length}`
+                                : "0/0"}
+                            </span>
+                            <Button
+                              aria-label="Previous result"
+                              disabled={fileSearchMatches.length === 0}
+                              onClick={() => handleNavigateFileSearch(-1)}
+                              size="icon-xs"
+                              title="Previous result"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <ChevronUp />
+                            </Button>
+                            <Button
+                              aria-label="Next result"
+                              disabled={fileSearchMatches.length === 0}
+                              onClick={() => handleNavigateFileSearch(1)}
+                              size="icon-xs"
+                              title="Next result"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <ChevronDown />
+                            </Button>
+                          </div>
+                        ) : null}
+                        <Button
+                          aria-label="Search current file"
+                          aria-pressed={isFileSearchOpen}
+                          onClick={handleToggleFileSearch}
+                          size="icon-xs"
+                          title="Search current file"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Search />
+                        </Button>
+                        <CodeBlockCopyButton />
                       </CodeBlockActions>
                     </CodeBlockHeader>
                   </CodeBlock>
