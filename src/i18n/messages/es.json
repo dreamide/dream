@@ -25,6 +25,22 @@
     "terminal": "Terminal",
     "unknownProject": "Proyecto desconocido"
   },
+  "branches": {
+    "branchAlreadyExists": "Ya existe una rama con ese nombre.",
+    "branches": "Ramas",
+    "createAndCheckoutBranch": "Crear y cambiar a la rama",
+    "createAndCheckoutNewBranch": "Crear y cambiar a una nueva rama...",
+    "currentBranch": "actual",
+    "newBranch": "Nueva rama",
+    "newBranchDescription": "Crea una nueva rama en este repositorio y cambia a ella.",
+    "newBranchName": "Nombre de la nueva rama",
+    "newWorktree": "Nuevo árbol de trabajo",
+    "noLocalBranches": "No se encontraron ramas locales.",
+    "noMatchingBranches": "No hay ramas coincidentes.",
+    "refreshBranches": "Actualizar ramas",
+    "searchBranches": "Buscar ramas",
+    "switchBranch": "Cambiar de rama de Git"
+  },
   "locale": {
     "description": "Controla el idioma de la interfaz.",
     "english": "Inglés",

@@ -1,4 +1,5 @@
 import { Check, ChevronDown, GitBranch, Plus, RotateCw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +52,8 @@ const BranchSwitcherImpl = ({
   projectId,
   projectPath,
 }: BranchSwitcherProps) => {
+  const branchT = useTranslations("branches");
+  const commonT = useTranslations("common");
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[projectId] ?? 0,
   );
@@ -161,7 +164,7 @@ const BranchSwitcherImpl = ({
         <PopoverTrigger
           render={
             <Button
-              aria-label="Switch Git branch"
+              aria-label={branchT("switchBranch")}
               className="h-8 max-w-[220px] gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
               disabled={loading && !currentBranch}
               size="sm"
@@ -174,7 +177,9 @@ const BranchSwitcherImpl = ({
           ) : (
             <GitBranch className="size-3.5 shrink-0" />
           )}
-          <span className="truncate">{currentBranch ?? "Branches"}</span>
+          <span className="truncate">
+            {currentBranch ?? branchT("branches")}
+          </span>
           <ChevronDown className="size-3.5 shrink-0 opacity-70" />
         </PopoverTrigger>
         <PopoverContent
@@ -189,11 +194,12 @@ const BranchSwitcherImpl = ({
                 <CommandInput
                   className="text-xs"
                   onValueChange={setSearchValue}
-                  placeholder="Search branches"
+                  placeholder={branchT("searchBranches")}
                   value={searchValue}
                 />
               </div>
               <Button
+                aria-label={branchT("refreshBranches")}
                 className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
                 disabled={loading || switching}
                 onClick={() => {
@@ -218,13 +224,15 @@ const BranchSwitcherImpl = ({
               ) : null}
 
               {branches.length > 0 ? (
-                <CommandGroup heading="Branches">
+                <CommandGroup heading={branchT("branches")}>
                   {branches.map((branch) => (
                     <CommandItem
                       className="text-xs data-[selected=true]:bg-transparent data-[selected=true]:hover:bg-muted hover:bg-muted"
                       disabled={switching}
                       key={branch.name}
-                      keywords={[branch.current ? "current" : ""]}
+                      keywords={[
+                        branch.current ? branchT("currentBranch") : "",
+                      ]}
                       onSelect={() => {
                         void handleCheckout(branch.name);
                       }}
@@ -248,8 +256,8 @@ const BranchSwitcherImpl = ({
               {!loading ? (
                 <CommandEmpty>
                   {normalizedSearchValue
-                    ? "No matching branches."
-                    : "No local branches found."}
+                    ? branchT("noMatchingBranches")
+                    : branchT("noLocalBranches")}
                 </CommandEmpty>
               ) : null}
             </CommandList>
@@ -270,7 +278,7 @@ const BranchSwitcherImpl = ({
               >
                 <Plus className="size-3.5 shrink-0" />
                 <span className="truncate">
-                  Create and checkout new branch...
+                  {branchT("createAndCheckoutNewBranch")}
                 </span>
               </button>
 
@@ -286,7 +294,7 @@ const BranchSwitcherImpl = ({
                   type="button"
                 >
                   <Plus className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate">New worktree</span>
+                  <span className="truncate">{branchT("newWorktree")}</span>
                 </button>
               ) : null}
             </div>
@@ -303,9 +311,9 @@ const BranchSwitcherImpl = ({
       <Dialog onOpenChange={setCreateBranchOpen} open={createBranchOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New branch</DialogTitle>
+            <DialogTitle>{branchT("newBranch")}</DialogTitle>
             <DialogDescription>
-              Create and checkout a new branch in this repository.
+              {branchT("newBranchDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -318,7 +326,7 @@ const BranchSwitcherImpl = ({
           >
             <div className="grid gap-2">
               <label className="font-medium text-sm" htmlFor="branch-name">
-                New branch name
+                {branchT("newBranchName")}
               </label>
               <Input
                 autoFocus
@@ -332,7 +340,7 @@ const BranchSwitcherImpl = ({
               />
               {normalizedCreateBranchName && createBranchAlreadyExists ? (
                 <div className="text-destructive text-xs">
-                  A branch with that name already exists.
+                  {branchT("branchAlreadyExists")}
                 </div>
               ) : null}
             </div>
@@ -348,16 +356,16 @@ const BranchSwitcherImpl = ({
                 type="button"
                 variant="ghost"
               >
-                Cancel
+                {commonT("cancel")}
               </Button>
               <Button disabled={!canSubmitCreateBranch} type="submit">
                 {switching ? (
                   <>
                     <Spinner className="size-3.5" />
-                    <span>Create and checkout branch</span>
+                    <span>{branchT("createAndCheckoutBranch")}</span>
                   </>
                 ) : (
-                  "Create and checkout branch"
+                  branchT("createAndCheckoutBranch")
                 )}
               </Button>
             </DialogFooter>

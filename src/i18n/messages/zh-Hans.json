@@ -25,6 +25,22 @@
     "terminal": "终端",
     "unknownProject": "未知项目"
   },
+  "branches": {
+    "branchAlreadyExists": "已存在同名分支。",
+    "branches": "分支",
+    "createAndCheckoutBranch": "创建并检出分支",
+    "createAndCheckoutNewBranch": "创建并检出新分支...",
+    "currentBranch": "当前",
+    "newBranch": "新建分支",
+    "newBranchDescription": "在此仓库中创建并检出新分支。",
+    "newBranchName": "新分支名称",
+    "newWorktree": "新建工作树",
+    "noLocalBranches": "未找到本地分支。",
+    "noMatchingBranches": "没有匹配的分支。",
+    "refreshBranches": "刷新分支",
+    "searchBranches": "搜索分支",
+    "switchBranch": "切换 Git 分支"
+  },
   "locale": {
     "description": "控制界面语言。",
     "english": "英语",

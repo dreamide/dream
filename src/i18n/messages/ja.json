@@ -25,6 +25,22 @@
     "terminal": "ターミナル",
     "unknownProject": "不明なプロジェクト"
   },
+  "branches": {
+    "branchAlreadyExists": "同じ名前のブランチがすでに存在します。",
+    "branches": "ブランチ",
+    "createAndCheckoutBranch": "ブランチを作成してチェックアウト",
+    "createAndCheckoutNewBranch": "新しいブランチを作成してチェックアウト...",
+    "currentBranch": "現在",
+    "newBranch": "新しいブランチ",
+    "newBranchDescription": "このリポジトリに新しいブランチを作成してチェックアウトします。",
+    "newBranchName": "新しいブランチ名",
+    "newWorktree": "新しいワークツリー",
+    "noLocalBranches": "ローカルブランチが見つかりません。",
+    "noMatchingBranches": "一致するブランチがありません。",
+    "refreshBranches": "ブランチを更新",
+    "searchBranches": "ブランチを検索",
+    "switchBranch": "Git ブランチを切り替え"
+  },
   "locale": {
     "description": "インターフェイスの言語を制御します。",
     "english": "英語",

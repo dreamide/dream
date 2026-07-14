@@ -25,6 +25,22 @@
     "terminal": "Terminal",
     "unknownProject": "Dự án không xác định"
   },
+  "branches": {
+    "branchAlreadyExists": "Một nhánh có tên này đã tồn tại.",
+    "branches": "Nhánh",
+    "createAndCheckoutBranch": "Tạo và chuyển sang nhánh",
+    "createAndCheckoutNewBranch": "Tạo và chuyển sang nhánh mới...",
+    "currentBranch": "hiện tại",
+    "newBranch": "Nhánh mới",
+    "newBranchDescription": "Tạo và chuyển sang một nhánh mới trong kho lưu trữ này.",
+    "newBranchName": "Tên nhánh mới",
+    "newWorktree": "Cây làm việc mới",
+    "noLocalBranches": "Không tìm thấy nhánh cục bộ.",
+    "noMatchingBranches": "Không có nhánh phù hợp.",
+    "refreshBranches": "Làm mới nhánh",
+    "searchBranches": "Tìm kiếm nhánh",
+    "switchBranch": "Chuyển nhánh Git"
+  },
   "locale": {
     "description": "Điều khiển ngôn ngữ giao diện.",
     "english": "Tiếng Anh",

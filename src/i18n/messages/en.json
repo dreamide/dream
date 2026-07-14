@@ -25,6 +25,22 @@
     "terminal": "Terminal",
     "unknownProject": "Unknown project"
   },
+  "branches": {
+    "branchAlreadyExists": "A branch with that name already exists.",
+    "branches": "Branches",
+    "createAndCheckoutBranch": "Create and checkout branch",
+    "createAndCheckoutNewBranch": "Create and checkout new branch...",
+    "currentBranch": "current",
+    "newBranch": "New branch",
+    "newBranchDescription": "Create and checkout a new branch in this repository.",
+    "newBranchName": "New branch name",
+    "newWorktree": "New worktree",
+    "noLocalBranches": "No local branches found.",
+    "noMatchingBranches": "No matching branches.",
+    "refreshBranches": "Refresh branches",
+    "searchBranches": "Search branches",
+    "switchBranch": "Switch Git branch"
+  },
   "locale": {
     "description": "Controls the interface language.",
     "english": "English",

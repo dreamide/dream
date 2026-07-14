@@ -25,6 +25,22 @@
     "terminal": "터미널",
     "unknownProject": "알 수 없는 프로젝트"
   },
+  "branches": {
+    "branchAlreadyExists": "같은 이름의 브랜치가 이미 있습니다.",
+    "branches": "브랜치",
+    "createAndCheckoutBranch": "브랜치 생성 및 체크아웃",
+    "createAndCheckoutNewBranch": "새 브랜치 생성 및 체크아웃...",
+    "currentBranch": "현재",
+    "newBranch": "새 브랜치",
+    "newBranchDescription": "이 저장소에 새 브랜치를 만들고 체크아웃합니다.",
+    "newBranchName": "새 브랜치 이름",
+    "newWorktree": "새 워크트리",
+    "noLocalBranches": "로컬 브랜치를 찾을 수 없습니다.",
+    "noMatchingBranches": "일치하는 브랜치가 없습니다.",
+    "refreshBranches": "브랜치 새로 고침",
+    "searchBranches": "브랜치 검색",
+    "switchBranch": "Git 브랜치 전환"
+  },
   "locale": {
     "description": "인터페이스 언어를 제어합니다.",
     "english": "영어",

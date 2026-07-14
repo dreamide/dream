@@ -25,6 +25,22 @@
     "terminal": "終端機",
     "unknownProject": "未知專案"
   },
+  "branches": {
+    "branchAlreadyExists": "已存在同名分支。",
+    "branches": "分支",
+    "createAndCheckoutBranch": "建立並簽出分支",
+    "createAndCheckoutNewBranch": "建立並簽出新分支...",
+    "currentBranch": "目前",
+    "newBranch": "新增分支",
+    "newBranchDescription": "在此儲存庫中建立並簽出新分支。",
+    "newBranchName": "新分支名稱",
+    "newWorktree": "新增工作樹",
+    "noLocalBranches": "找不到本機分支。",
+    "noMatchingBranches": "沒有相符的分支。",
+    "refreshBranches": "重新整理分支",
+    "searchBranches": "搜尋分支",
+    "switchBranch": "切換 Git 分支"
+  },
   "locale": {
     "description": "控制介面顯示語言。",
     "english": "英文",
