@@ -246,7 +246,8 @@ const fileTreeStyle = {
   "--trees-theme-input-border": "var(--border)",
   "--trees-theme-list-active-selection-bg": "var(--accent)",
   "--trees-theme-list-active-selection-fg": "var(--accent-foreground)",
-  "--trees-theme-list-hover-bg": "var(--accent)",
+  "--trees-theme-list-hover-bg":
+    "light-dark(var(--surface-50), var(--surface-900))",
   "--trees-theme-scrollbar-thumb": "var(--border)",
   "--trees-theme-sidebar-bg": "var(--background)",
   "--trees-theme-sidebar-border": "var(--border)",
@@ -1221,7 +1222,7 @@ const FileExplorerPanelImpl = ({
                   onKeyDownCapture={handleEditorKeyDown}
                   style={{ contentVisibility: "visible" }}
                 >
-                <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
+                  <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
                     <CodeBlockTitle className="min-w-0">
                       <FileIcon className="shrink-0" size={14} />
                       <CodeBlockFilename className="truncate">

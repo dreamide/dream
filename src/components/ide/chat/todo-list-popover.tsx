@@ -134,7 +134,7 @@ const TodoListContent = ({ summary }: { summary: ChatTodoSummary }) => {
   }, [listElement]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    <div className="flex min-h-0 flex-col gap-3 pb-5">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 font-medium text-sm">
           <ListChecks className="size-4 shrink-0" />
