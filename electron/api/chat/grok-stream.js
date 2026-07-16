@@ -15,6 +15,7 @@ import {
 } from "./codex-prompt.js";
 
 const MAX_GROK_TEXT_CHARS = 250_000;
+const GROK_TEXT_FLUSH_INTERVAL_MS = 50;
 
 const toFiniteNumber = (value) =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined;
@@ -166,24 +167,16 @@ export const streamGrokResponse = ({
       let loadingSession = false;
       let loadedSession = false;
       let contextWindow;
+      let pendingText = "";
+      let pendingTextType = null;
+      let pendingTextTimer = null;
       const toolCalls = new Map();
       const completedToolCalls = new Set();
 
       const writeMetadata = (metadata) =>
         writer.write({ messageMetadata: metadata, type: "message-metadata" });
 
-      const closeTextParts = () => {
-        if (activeTextId) {
-          writer.write({ id: activeTextId, type: "text-end" });
-          activeTextId = null;
-        }
-        if (activeReasoningId) {
-          writer.write({ id: activeReasoningId, type: "reasoning-end" });
-          activeReasoningId = null;
-        }
-      };
-
-      const writeTextDelta = (text, type) => {
+      const writeTextDeltaNow = (text, type) => {
         if (!text || abortSignal?.aborted) return;
         const remaining = MAX_GROK_TEXT_CHARS - streamedChars;
         if (remaining <= 0) return;
@@ -216,6 +209,47 @@ export const streamGrokResponse = ({
           writer.write({ id: activeTextId, type: "text-start" });
         }
         writer.write({ delta, id: activeTextId, type: "text-delta" });
+      };
+
+      const flushPendingText = () => {
+        if (pendingTextTimer !== null) {
+          clearTimeout(pendingTextTimer);
+          pendingTextTimer = null;
+        }
+        if (!pendingText || !pendingTextType) return;
+
+        const text = pendingText;
+        const type = pendingTextType;
+        pendingText = "";
+        pendingTextType = null;
+        writeTextDeltaNow(text, type);
+      };
+
+      const closeTextParts = () => {
+        flushPendingText();
+        if (activeTextId) {
+          writer.write({ id: activeTextId, type: "text-end" });
+          activeTextId = null;
+        }
+        if (activeReasoningId) {
+          writer.write({ id: activeReasoningId, type: "reasoning-end" });
+          activeReasoningId = null;
+        }
+      };
+
+      const queueTextDelta = (text, type) => {
+        if (!text || abortSignal?.aborted) return;
+        if (pendingTextType && pendingTextType !== type) {
+          flushPendingText();
+        }
+        pendingTextType = type;
+        pendingText += text;
+        if (pendingTextTimer === null) {
+          pendingTextTimer = setTimeout(
+            flushPendingText,
+            GROK_TEXT_FLUSH_INTERVAL_MS,
+          );
+        }
       };
 
       const ensureToolStarted = (toolCall) => {
@@ -290,14 +324,15 @@ export const streamGrokResponse = ({
         if (!isRecord(update)) return;
 
         if (update.sessionUpdate === "agent_message_chunk") {
-          writeTextDelta(update.content?.text, "text");
+          queueTextDelta(update.content?.text, "text");
           return;
         }
         if (update.sessionUpdate === "agent_thought_chunk") {
-          writeTextDelta(update.content?.text, "reasoning");
+          queueTextDelta(update.content?.text, "reasoning");
           return;
         }
         if (update.sessionUpdate === "plan") {
+          flushPendingText();
           writeCodexTodoListPart(
             (event) => writer.write(event),
             update.entries,
@@ -308,6 +343,7 @@ export const streamGrokResponse = ({
           update.sessionUpdate === "tool_call" ||
           update.sessionUpdate === "tool_call_update"
         ) {
+          flushPendingText();
           handleToolUpdate(update);
         }
       };

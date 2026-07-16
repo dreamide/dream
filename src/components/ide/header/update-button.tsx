@@ -3,8 +3,8 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
-import { cn } from "@/lib/utils";
 import type { UpdateStatusEvent } from "@/types/ide";
+import { UPDATE_BUTTON_VARIANT_BY_STATE } from "./update-button-styles";
 
 export const HeaderUpdateButton = () => {
   const updatesT = useTranslations("updates");
@@ -112,20 +112,13 @@ export const HeaderUpdateButton = () => {
   return (
     <Button
       aria-label={label}
-      className={cn(
-        "mr-1 h-7 max-w-[180px] gap-1 rounded-md px-2 text-[11px] font-medium [-webkit-app-region:no-drag]",
-        status.state === "error"
-          ? "text-destructive hover:bg-destructive-surface-muted hover:text-destructive dark:hover:bg-destructive-surface"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        status.state === "downloaded" &&
-          "bg-[color-mix(in_oklab,var(--accent-primary)_78%,black)] text-accent-primary-foreground hover:bg-[color-mix(in_oklab,var(--accent-primary)_70%,black)] hover:text-accent-primary-foreground",
-      )}
+      className="mr-1 h-7 max-w-[180px] gap-1 rounded-md px-2 text-[11px] font-medium [-webkit-app-region:no-drag]"
       disabled={disabled}
       onClick={handleUpdateClick}
       size="xs"
       title={title}
       type="button"
-      variant="ghost"
+      variant={UPDATE_BUTTON_VARIANT_BY_STATE[status.state]}
     >
       <Icon className="size-3" />
       <span className="truncate">
