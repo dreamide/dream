@@ -246,8 +246,7 @@ const fileTreeStyle = {
   "--trees-theme-input-border": "var(--border)",
   "--trees-theme-list-active-selection-bg": "var(--accent)",
   "--trees-theme-list-active-selection-fg": "var(--accent-foreground)",
-  "--trees-theme-list-hover-bg":
-    "light-dark(var(--surface-50), var(--surface-900))",
+  "--trees-theme-list-hover-bg": "var(--accent)",
   "--trees-theme-scrollbar-thumb": "var(--border)",
   "--trees-theme-sidebar-bg": "var(--background)",
   "--trees-theme-sidebar-border": "var(--border)",
