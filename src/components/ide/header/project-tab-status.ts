@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import type { ChatConfig } from "@/types/ide";
 import {
   getToolName,
   isToolLikePart,
@@ -111,3 +112,23 @@ export const chatIsAwaitingAnswer = (messages: UIMessage[]) => {
 
   return awaitingAnswer;
 };
+
+export const getAwaitingAnswerProjectIds = ({
+  chats,
+  messagesByChatId,
+  streamingProjectIds,
+}: {
+  chats: Pick<ChatConfig, "deletedAt" | "id" | "projectId">[];
+  messagesByChatId: Record<string, UIMessage[]>;
+  streamingProjectIds: ReadonlySet<string>;
+}) =>
+  new Set(
+    chats
+      .filter(
+        (chat) =>
+          chat.deletedAt === null &&
+          streamingProjectIds.has(chat.projectId) &&
+          chatIsAwaitingAnswer(messagesByChatId[chat.id] ?? []),
+      )
+      .map((chat) => chat.projectId),
+  );

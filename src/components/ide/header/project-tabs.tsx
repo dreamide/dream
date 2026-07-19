@@ -35,7 +35,7 @@ import {
   normalizeProjectIconResponse,
   ProjectTabIcon,
 } from "./project-tab-icon";
-import { chatIsAwaitingAnswer } from "./project-tab-status";
+import { getAwaitingAnswerProjectIds } from "./project-tab-status";
 
 const PROJECT_TABS_END_DRAG_SPACE = 48;
 
@@ -201,17 +201,12 @@ export const ProjectTabs = () => {
   );
   const awaitingAnswerProjectIds = useMemo(
     () =>
-      new Set(
-        chats
-          .filter(
-            (chat) =>
-              chat.deletedAt === null &&
-              streamingChatIds[chat.id] &&
-              chatIsAwaitingAnswer(messagesByChatId[chat.id] ?? []),
-          )
-          .map((chat) => chat.projectId),
-      ),
-    [chats, messagesByChatId, streamingChatIds],
+      getAwaitingAnswerProjectIds({
+        chats,
+        messagesByChatId,
+        streamingProjectIds,
+      }),
+    [chats, messagesByChatId, streamingProjectIds],
   );
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)
