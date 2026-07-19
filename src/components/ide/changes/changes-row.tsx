@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronRight, Undo } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import type { BundledLanguage } from "shiki";
@@ -406,7 +406,7 @@ export const ChangesRow = ({
             {reverting ? (
               <Spinner className="size-3.5" />
             ) : (
-              <RotateCcw className="size-3.5" />
+              <Undo className="size-3.5" />
             )}
           </button>
           {hasAddedLines ? (
