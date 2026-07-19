@@ -10,6 +10,7 @@ import {
   generateProjectGitCommitMessage,
   generateProjectPullRequestDetails,
   getProjectGitDiff,
+  getProjectGitFileAtHead,
   getProjectGitPushPreview,
   listProjectFiles,
   listProjectGitBranches,
@@ -671,6 +672,35 @@ export const registerProjectGitRoutes = (app) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to read file.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.get("/api/project-git-file-at-head-raw", async (c) => {
+    const projectPath = c.req.query("projectPath");
+    const filePath = c.req.query("filePath");
+
+    if (!projectPath || !filePath) {
+      return c.text("Missing projectPath or filePath query parameter.", 400);
+    }
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      const { data } = await getProjectGitFileAtHead(projectPath, filePath);
+      const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+      const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
+
+      return new Response(data, {
+        headers: {
+          "Cache-Control": "no-store",
+          "Content-Type": contentType,
+        },
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to read the file from Git history.";
       return c.text(message, 400);
     }
   });

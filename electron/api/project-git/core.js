@@ -1051,6 +1051,52 @@ export const getProjectGitDiff = async (
   };
 };
 
+export const getProjectGitFileAtHead = async (projectPath, filePath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const normalizedFilePath = normalizePath(filePath);
+  const repoRelativePath = normalizePath(
+    path.relative(
+      repoInfo.repoRoot,
+      resolveProjectPath(projectPath, normalizedFilePath),
+    ),
+  );
+  const baseRef = await getGitDiffBaseRef(repoInfo.repoRoot);
+  if (baseRef === EMPTY_GIT_TREE_HASH) {
+    throw new Error("The file does not exist in Git history.");
+  }
+
+  try {
+    const result = await execFileAsync(
+      "git",
+      ["cat-file", "blob", `${baseRef}:${repoRelativePath}`],
+      {
+        cwd: repoInfo.repoRoot,
+        encoding: null,
+        maxBuffer: GIT_EXEC_MAX_BUFFER,
+        windowsHide: true,
+      },
+    );
+
+    return {
+      data: Buffer.isBuffer(result.stdout)
+        ? result.stdout
+        : Buffer.from(result.stdout),
+      filePath: normalizedFilePath,
+    };
+  } catch (error) {
+    const stderr = Buffer.isBuffer(error?.stderr)
+      ? error.stderr.toString("utf8").trim()
+      : typeof error?.stderr === "string"
+        ? error.stderr.trim()
+        : "";
+    throw new Error(stderr || "Unable to read the file from Git history.");
+  }
+};
+
 export const revertProjectGitFile = async (
   projectPath,
   filePath,

@@ -2,6 +2,7 @@ import { spawn as spawnProcess } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { app } from "electron";
 import { spawn as spawnPty } from "node-pty";
+import { stopChildProcess, stopProcessTree } from "./process-tree.js";
 
 function parseCommandParts(value) {
   if (!value || typeof value !== "string") {
@@ -145,25 +146,6 @@ function getPipeFallbackShell() {
   };
 }
 
-export function stopChildProcess(child) {
-  if (!child || child.killed) {
-    return;
-  }
-
-  if (process.platform === "win32") {
-    spawnProcess("taskkill", ["/pid", String(child.pid), "/f", "/t"], {
-      stdio: "ignore",
-    });
-    return;
-  }
-
-  try {
-    child.kill("SIGTERM");
-  } catch {
-    // ignore stop failures
-  }
-}
-
 export function createProcessSessionManager({ sendToRenderer }) {
   const runProcesses = new Map();
   const terminalSessions = new Map();
@@ -193,21 +175,21 @@ export function createProcessSessionManager({ sendToRenderer }) {
     return buildTerminalShellCandidates(undefined)[0]?.command ?? "";
   }
 
-  function stopRunProcess(projectId) {
+  async function stopRunProcess(projectId) {
     const child = runProcesses.get(projectId);
     if (!child) {
       return;
     }
 
-    stopChildProcess(child);
     runProcesses.delete(projectId);
+    await stopChildProcess(child);
     sendToRenderer("runner:status", {
       projectId,
       status: "stopped",
     });
   }
 
-  function stopTerminalSession(projectId) {
+  async function stopTerminalSession(projectId) {
     const session = terminalSessions.get(projectId);
     const transport = terminalTransports.get(projectId);
     const shell = terminalShells.get(projectId);
@@ -215,15 +197,17 @@ export function createProcessSessionManager({ sendToRenderer }) {
       return;
     }
 
+    terminalSessions.delete(projectId);
+    terminalTransports.delete(projectId);
+    terminalShells.delete(projectId);
+
+    await stopProcessTree(session.pid);
     try {
-      session.kill();
+      await Promise.resolve(session.kill());
     } catch {
       // ignore stop failures
     }
 
-    terminalSessions.delete(projectId);
-    terminalTransports.delete(projectId);
-    terminalShells.delete(projectId);
     sendToRenderer("terminal:status", {
       projectId,
       shell,
@@ -232,25 +216,25 @@ export function createProcessSessionManager({ sendToRenderer }) {
     });
   }
 
-  function stopAllProcesses() {
-    for (const projectId of runProcesses.keys()) {
-      stopRunProcess(projectId);
-    }
-
-    for (const projectId of terminalSessions.keys()) {
-      stopTerminalSession(projectId);
-    }
+  async function stopAllProcesses() {
+    await Promise.all([
+      ...[...runProcesses.keys()].map((projectId) => stopRunProcess(projectId)),
+      ...[...terminalSessions.keys()].map((projectId) =>
+        stopTerminalSession(projectId),
+      ),
+    ]);
   }
 
-  function startRunner({ command, cwd, projectId, projectName }) {
+  async function startRunner({ command, cwd, projectId, projectName }) {
     if (!projectId || !cwd || !command) {
       throw new Error("Missing runner parameters.");
     }
 
-    stopRunProcess(projectId);
+    await stopRunProcess(projectId);
 
     const child = spawnProcess(command, {
       cwd,
+      detached: process.platform !== "win32",
       env: {
         ...process.env,
         FORCE_COLOR: "1",
@@ -285,7 +269,9 @@ export function createProcessSessionManager({ sendToRenderer }) {
     });
 
     child.on("close", (code, signal) => {
-      runProcesses.delete(projectId);
+      if (runProcesses.get(projectId) === child) {
+        runProcesses.delete(projectId);
+      }
       sendToRenderer("runner:status", {
         code,
         projectId,
@@ -305,12 +291,12 @@ export function createProcessSessionManager({ sendToRenderer }) {
     return { pid: child.pid, status: "running" };
   }
 
-  function startTerminal({ command, cwd, projectId, shellPath }) {
+  async function startTerminal({ command, cwd, projectId, shellPath }) {
     if (!projectId || !cwd) {
       throw new Error("Missing terminal parameters.");
     }
 
-    stopTerminalSession(projectId);
+    await stopTerminalSession(projectId);
 
     const shellCandidates = buildTerminalShellCandidates(shellPath);
     const resolvedCwd = resolveTerminalCwd(cwd);
@@ -352,6 +338,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
           pipeFallbackCandidate.args,
           {
             cwd: resolvedCwd,
+            detached: process.platform !== "win32",
             env: {
               ...process.env,
               BASH_SILENCE_DEPRECATION_WARNING: "1",
@@ -396,7 +383,14 @@ export function createProcessSessionManager({ sendToRenderer }) {
       }
 
       terminalSessions.set(projectId, {
-        kill: () => stopChildProcess(child),
+        kill: () => {
+          try {
+            child.kill("SIGTERM");
+          } catch {
+            // ignore stop failures after the process tree exits
+          }
+        },
+        pid: child.pid,
         write: (data) => {
           if (
             typeof data !== "string" ||

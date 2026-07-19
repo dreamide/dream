@@ -556,12 +556,12 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("runner:stop", (_event, { projectId }) => {
+ipcMain.handle("runner:stop", async (_event, { projectId }) => {
   if (!projectId) {
     return false;
   }
 
-  processSessionManager.stopRunProcess(projectId);
+  await processSessionManager.stopRunProcess(projectId);
   return true;
 });
 
@@ -585,12 +585,12 @@ ipcMain.on("terminal:resize", (_event, payload) => {
   processSessionManager.resizeTerminal(payload);
 });
 
-ipcMain.handle("terminal:stop", (_event, { projectId }) => {
+ipcMain.handle("terminal:stop", async (_event, { projectId }) => {
   if (!projectId) {
     return false;
   }
 
-  processSessionManager.stopTerminalSession(projectId);
+  await processSessionManager.stopTerminalSession(projectId);
   return true;
 });
 
@@ -643,10 +643,10 @@ app.on("before-quit", (event) => {
   event.preventDefault();
 
   updateManager?.stop();
-  processSessionManager.stopAllProcesses();
 
   Promise.resolve()
     .then(async () => {
+      await processSessionManager.stopAllProcesses();
       await rendererServerManager?.stop();
       await stateSaveQueue?.flushAndClose();
       closePersistedStateDatabase();

@@ -2,6 +2,11 @@ import type { ComponentProps, CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 const STATUS_DOT_COLORS = {
+  amber: {
+    className: "bg-amber-500",
+    pulseColor:
+      "color-mix(in oklch, var(--color-amber-500, oklch(0.769 0.188 70.08)) 75%, transparent)",
+  },
   blue: {
     className: "bg-blue-500",
     pulseColor:

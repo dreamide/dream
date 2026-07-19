@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -78,9 +79,113 @@ const inferDiffPreviewLanguage = (filePath: string): BundledLanguage => {
   return languages[extension] ?? "log";
 };
 
+const IMAGE_EXTENSIONS = new Set([
+  "avif",
+  "bmp",
+  "gif",
+  "ico",
+  "jpeg",
+  "jpg",
+  "png",
+  "svg",
+  "webp",
+]);
+
+const isImageFile = (filePath: string) => {
+  const extension = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return IMAGE_EXTENSIONS.has(extension);
+};
+
+const getDeletedFileRawUrl = (projectPath: string, filePath: string) =>
+  `/api/project-git-file-at-head-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
+
 export const readResponseText = async (response: Response): Promise<string> => {
   const text = await response.text();
   return text.trim() || `Request failed (${response.status}).`;
+};
+
+const DeletedImagePreview = ({
+  filePath,
+  projectPath,
+}: {
+  filePath: string;
+  projectPath: string;
+}) => {
+  const panelsT = useTranslations("panels");
+  const [error, setError] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    const loadImage = async () => {
+      setError(null);
+      setImageUrl(null);
+
+      try {
+        const response = await fetch(
+          getDeletedFileRawUrl(projectPath, filePath),
+        );
+        if (!response.ok) {
+          throw new Error(await readResponseText(response));
+        }
+
+        objectUrl = URL.createObjectURL(await response.blob());
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          objectUrl = null;
+          return;
+        }
+        setImageUrl(objectUrl);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : panelsT("failedToReadImage"),
+          );
+        }
+      }
+    };
+
+    void loadImage();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [filePath, panelsT, projectPath]);
+
+  if (error) {
+    return (
+      <div className="p-4">
+        <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!imageUrl) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-4 text-muted-foreground text-sm">
+        <Spinner className="size-4" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex max-h-[560px] min-h-40 items-center justify-center overflow-auto bg-surface-100 p-6 dark:bg-surface-950">
+      <img
+        alt={filePath}
+        className="max-h-[512px] max-w-full object-contain"
+        src={imageUrl}
+      />
+    </div>
+  );
 };
 
 const ExpandedDiffBody = ({
@@ -91,6 +196,7 @@ const ExpandedDiffBody = ({
   forceRenderDiff,
   mode,
   onForceRenderDiff,
+  projectPath,
 }: {
   change: ProjectGitStatusEntry;
   diff: ProjectGitDiffResponse | null;
@@ -99,6 +205,7 @@ const ExpandedDiffBody = ({
   forceRenderDiff: boolean;
   mode: DiffViewMode;
   onForceRenderDiff: () => void;
+  projectPath: string;
 }) => {
   if (diffLoading && !diff) {
     return (
@@ -134,6 +241,16 @@ const ExpandedDiffBody = ({
   const addedFileContents = showAddedFileContents
     ? (diff.parsedDiff?.additionLines.join("") ?? "")
     : null;
+  const showDeletedFileContents =
+    !!diff.parsedDiff &&
+    diff.parsedDiff.type === "deleted" &&
+    diff.parsedDiff.additionLines.length === 0 &&
+    change.status === "deleted";
+  const deletedFileContents = showDeletedFileContents
+    ? (diff.parsedDiff?.deletionLines.join("") ?? "")
+    : null;
+  const showDeletedImage =
+    change.status === "deleted" && isImageFile(change.path);
   const changedLineCount = change.addedLines + change.removedLines;
   const diffTooLarge =
     changedLineCount > DIFF_RENDER_CHANGED_LINE_LIMIT && !forceRenderDiff;
@@ -146,17 +263,25 @@ const ExpandedDiffBody = ({
         </div>
       ) : null}
       <div className="overflow-x-auto text-xs">
-        <DiffEmptyState diff={diff.diff} />
-        {diff.diff.trim().length > 0 && diffTooLarge ? (
+        {showDeletedImage ? (
+          <DeletedImagePreview
+            filePath={change.path}
+            projectPath={projectPath}
+          />
+        ) : (
+          <DiffEmptyState diff={diff.diff} />
+        )}
+        {!showDeletedImage && diff.diff.trim().length > 0 && diffTooLarge ? (
           <LargeDiffGuard
             changedLineCount={changedLineCount}
             onRenderAnyway={onForceRenderDiff}
           />
-        ) : diff.diff.trim().length > 0 ? (
-          showAddedFileContents && addedFileContents !== null ? (
+        ) : !showDeletedImage && diff.diff.trim().length > 0 ? (
+          (showAddedFileContents && addedFileContents !== null) ||
+          (showDeletedFileContents && deletedFileContents !== null) ? (
             <CodeBlock
               className="dream-diff-viewer w-full rounded-none border-0"
-              code={addedFileContents}
+              code={addedFileContents ?? deletedFileContents ?? ""}
               language={inferDiffPreviewLanguage(change.path)}
               showLineNumbers
               startingLineNumber={1}
@@ -201,6 +326,7 @@ export const ChangesRow = ({
   onForceRenderDiff,
   onRevert,
   onToggle,
+  projectPath,
   reverting,
 }: {
   change: ProjectGitStatusEntry;
@@ -213,6 +339,7 @@ export const ChangesRow = ({
   onForceRenderDiff: () => void;
   onRevert: () => void;
   onToggle: () => void;
+  projectPath: string;
   reverting: boolean;
 }) => {
   const panelsT = useTranslations("panels");
@@ -319,6 +446,7 @@ export const ChangesRow = ({
           forceRenderDiff={forceRenderDiff}
           mode={mode}
           onForceRenderDiff={onForceRenderDiff}
+          projectPath={projectPath}
         />
       ) : null}
     </div>

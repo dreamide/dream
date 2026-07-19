@@ -1,4 +1,3 @@
-import type { UIMessage } from "ai";
 import { FolderTree, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
@@ -19,11 +18,6 @@ import {
 } from "@/lib/sparkles-palettes";
 import { useUiStore } from "@/lib/ui-store";
 import type { DetectedEditor } from "@/types/ide";
-import {
-  getToolName,
-  isToolLikePart,
-  normalizeToolName,
-} from "../assistant-message-tools";
 import { useIdeStore } from "../ide-store";
 import {
   moveTabItem,
@@ -41,14 +35,9 @@ import {
   normalizeProjectIconResponse,
   ProjectTabIcon,
 } from "./project-tab-icon";
+import { chatIsAwaitingAnswer } from "./project-tab-status";
 
 const PROJECT_TABS_END_DRAG_SPACE = 48;
-const COMPLETED_ASK_USER_QUESTION_STATES = new Set([
-  "approval-responded",
-  "output-available",
-  "output-denied",
-  "output-error",
-]);
 
 export type ProjectTabItem = StandardTabItem & {
   awaitingAnswer: boolean;
@@ -58,50 +47,6 @@ export type ProjectTabItem = StandardTabItem & {
   streaming: boolean;
   worktreeBranch: string | null;
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const hasAskUserQuestionPrompt = (input: unknown) =>
-  isRecord(input) &&
-  Array.isArray(input.questions) &&
-  input.questions.some(
-    (question) =>
-      isRecord(question) &&
-      typeof question.question === "string" &&
-      question.question.trim().length > 0 &&
-      Array.isArray(question.options) &&
-      question.options.some(
-        (option) => isRecord(option) && typeof option.label === "string",
-      ),
-  );
-
-const isAwaitingAskUserQuestionAnswer = (part: UIMessage["parts"][number]) => {
-  if (
-    !isToolLikePart(part) ||
-    normalizeToolName(getToolName(part)) !== "ask-user-question" ||
-    !hasAskUserQuestionPrompt(part.input)
-  ) {
-    return false;
-  }
-
-  const approvalId =
-    part.approval?.id ??
-    (typeof part.toolCallId === "string" ? part.toolCallId : null);
-  if (!approvalId) {
-    return false;
-  }
-
-  const state = typeof part.state === "string" ? part.state : "input-streaming";
-  return !COMPLETED_ASK_USER_QUESTION_STATES.has(state);
-};
-
-const chatIsAwaitingAnswer = (messages: UIMessage[]) =>
-  messages.some(
-    (message) =>
-      message.role === "assistant" &&
-      message.parts.some(isAwaitingAskUserQuestionAnswer),
-  );
 
 const useDetectedEditors = (isMacOs: boolean) => {
   const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
@@ -261,11 +206,12 @@ export const ProjectTabs = () => {
           .filter(
             (chat) =>
               chat.deletedAt === null &&
+              streamingChatIds[chat.id] &&
               chatIsAwaitingAnswer(messagesByChatId[chat.id] ?? []),
           )
           .map((chat) => chat.projectId),
       ),
-    [chats, messagesByChatId],
+    [chats, messagesByChatId, streamingChatIds],
   );
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)
@@ -338,7 +284,19 @@ export const ProjectTabs = () => {
         const awaitingAnswer = awaitingAnswerProjectIds.has(project.id);
         const completed =
           project.id !== activeProjectId && completedProjectIds.has(project.id);
-        const leading = completed ? (
+        const leading = awaitingAnswer ? (
+          <span
+            className="flex size-4 shrink-0 items-center justify-center self-center leading-none"
+            key={`${project.id}:awaiting-answer`}
+          >
+            <StatusDot
+              aria-label={projectsT("projectAwaitingAnswer")}
+              className="animate-pulse"
+              color="amber"
+              pulse={false}
+            />
+          </span>
+        ) : completed ? (
           <span
             className="flex size-4 shrink-0 items-center justify-center self-center leading-none"
             key={`${project.id}:completed`}
@@ -387,7 +345,6 @@ export const ProjectTabs = () => {
           completed,
           id: project.id,
           label: project.name,
-          labelClassName: awaitingAnswer ? "animate-pulse" : undefined,
           leading,
           path: project.path,
           sparklesPalette:
@@ -460,7 +417,7 @@ export const ProjectTabs = () => {
             renderFrame={(project, tab) => (
               <ProjectTabFrame
                 sparklesPalette={project.sparklesPalette}
-                streaming={project.streaming}
+                streaming={project.streaming && !project.awaitingAnswer}
               >
                 {tab}
               </ProjectTabFrame>

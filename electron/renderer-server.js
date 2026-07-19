@@ -4,7 +4,7 @@ import path from "node:path";
 import sirv from "sirv";
 
 import { createApiSessionToken, startApiServer } from "./api-server.js";
-import { stopChildProcess } from "./process-sessions.js";
+import { stopChildProcess } from "./process-tree.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -180,7 +180,7 @@ export function createRendererServerManager({
 
   async function stop() {
     if (viteDevProcess) {
-      stopChildProcess(viteDevProcess);
+      await stopChildProcess(viteDevProcess);
       viteDevProcess = null;
     }
 

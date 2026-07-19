@@ -835,6 +835,7 @@ const ChangesPanelImpl = ({
                 onForceRenderDiff={() => handleForceRenderDiff(change.path)}
                 onRevert={() => handleRevertFile(change)}
                 onToggle={() => handleTogglePath(change.path)}
+                projectPath={activeProject.path}
                 reverting={revertingPaths[change.path] ?? false}
               />
             ))}
