@@ -200,11 +200,11 @@ const generateClaudeCommitMessage = async ({
       cwd: projectPath,
       persistSession: false,
       permissionMode: "plan",
+      strictMcpConfig: true,
     }),
     prompt: buildCommitMessagePrompt({ changes, customInstructions, diffText }),
     system:
       "You write concise, accurate git commit subjects. Return only the subject line.",
-    temperature: 0.2,
   });
 
   return sanitizeGeneratedCommitMessage(result.text);

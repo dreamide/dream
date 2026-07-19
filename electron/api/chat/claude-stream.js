@@ -459,6 +459,7 @@ export const streamClaudeResponse = async ({
       mcpServers: {
         [CLAUDE_PROJECT_MCP_SERVER_NAME]: claudeProjectMcpServer,
       },
+      strictMcpConfig: true,
       permissionMode:
         agentMode === "plan"
           ? "plan"
@@ -504,7 +505,6 @@ export const streamClaudeResponse = async ({
             : DEFAULT_TOOL_STEP_LIMIT,
         ),
         ...(projectReferencesPrompt ? { system: projectReferencesPrompt } : {}),
-        ...(usesReasoningModel ? {} : { temperature: 0.2 }),
       });
 
       writer.merge(

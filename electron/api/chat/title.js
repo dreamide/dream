@@ -230,13 +230,13 @@ const generateClaudeChatTitle = async ({ model, projectPath, promptText }) => {
       cwd: projectPath,
       persistSession: false,
       permissionMode: "plan",
+      strictMcpConfig: true,
       ...(usesReasoningModel
         ? { effort: CLAUDE_REASONING_EFFORT_MAP.low }
         : {}),
     }),
     prompt: buildChatTitlePrompt(promptText).join("\n"),
     system: CHAT_TITLE_SYSTEM_PROMPT,
-    ...(usesReasoningModel ? {} : { temperature: 0.2 }),
   });
 
   return sanitizeGeneratedChatTitle(result.text);
