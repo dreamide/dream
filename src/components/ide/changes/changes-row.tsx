@@ -287,11 +287,13 @@ const ExpandedDiffBody = ({
               startingLineNumber={1}
               style={{ contentVisibility: "visible" }}
             >
-              <CodeBlockHeader className="flex shrink-0 justify-end border-0 bg-transparent px-3 py-2">
-                <CodeBlockActions>
-                  <CodeBlockCopyButton />
-                </CodeBlockActions>
-              </CodeBlockHeader>
+              {showDeletedFileContents ? (
+                <CodeBlockHeader className="flex shrink-0 justify-end border-0 bg-transparent px-3 py-2">
+                  <CodeBlockActions>
+                    <CodeBlockCopyButton />
+                  </CodeBlockActions>
+                </CodeBlockHeader>
+              ) : null}
             </CodeBlock>
           ) : diff.parsedDiff ? (
             <IdeDiffViewer
