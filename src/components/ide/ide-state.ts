@@ -70,6 +70,39 @@ export const normalizeProjectPathKey = (path: string): string => {
   return isWindowsPath ? normalized.toLowerCase() : normalized;
 };
 
+export const areProjectsEqualExceptLastUsedAt = (
+  previous: ProjectConfig,
+  next: ProjectConfig,
+) => {
+  if (previous === next) {
+    return true;
+  }
+
+  const previousKeys = Object.keys(previous).filter(
+    (key) => key !== "lastUsedAt",
+  ) as Array<keyof ProjectConfig>;
+  const nextKeys = Object.keys(next).filter(
+    (key) => key !== "lastUsedAt",
+  ) as Array<keyof ProjectConfig>;
+
+  return (
+    previousKeys.length === nextKeys.length &&
+    previousKeys.every((key) => previous[key] === next[key])
+  );
+};
+
+export const areProjectListsEqualExceptLastUsedAt = (
+  previous: ProjectConfig[],
+  next: ProjectConfig[],
+) =>
+  previous === next ||
+  (previous.length === next.length &&
+    previous.every(
+      (project, index) =>
+        next[index] !== undefined &&
+        areProjectsEqualExceptLastUsedAt(project, next[index]),
+    ));
+
 const isUiMessageArray = (value: unknown): value is UIMessage[] => {
   return Array.isArray(value);
 };

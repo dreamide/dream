@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useDeferredValue, useEffect } from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -13,10 +13,12 @@ import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
+import { areProjectListsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
 import { ProjectWorkspace } from "./project-workspace";
 import { SettingsDialog } from "./settings-dialog";
+import { savePersistedActiveProject } from "./store/ide-store-persistence";
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -25,6 +27,7 @@ export const IdeShell = () => {
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
+  const renderedActiveProjectId = useDeferredValue(activeProjectId);
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -105,6 +108,7 @@ export const IdeShell = () => {
       settings: useIdeStore.getState().settings,
     };
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    let observedStateHydrated = useIdeStore.getState().stateHydrated;
 
     const unsub = useIdeStore.subscribe((state) => {
       const next = {
@@ -119,6 +123,12 @@ export const IdeShell = () => {
         settings: state.settings,
       };
 
+      if (!observedStateHydrated && state.stateHydrated) {
+        observedStateHydrated = true;
+        prev = next;
+        return;
+      }
+
       if (
         next.activeProjectId !== prev.activeProjectId ||
         next.activeBrowserTabIdByProject !== prev.activeBrowserTabIdByProject ||
@@ -130,8 +140,28 @@ export const IdeShell = () => {
         next.settings !== prev.settings ||
         next.chatSort !== prev.chatSort
       ) {
+        const isActiveProjectSelectionOnly =
+          next.activeProjectId !== prev.activeProjectId &&
+          next.activeBrowserTabIdByProject ===
+            prev.activeBrowserTabIdByProject &&
+          next.browserTabsByProject === prev.browserTabsByProject &&
+          next.chats === prev.chats &&
+          next.closedProjects === prev.closedProjects &&
+          next.messagesByChatId === prev.messagesByChatId &&
+          next.settings === prev.settings &&
+          next.chatSort === prev.chatSort &&
+          areProjectListsEqualExceptLastUsedAt(prev.projects, next.projects);
         prev = next;
         if (state.stateHydrated) {
+          if (isActiveProjectSelectionOnly) {
+            const lastUsedAt =
+              state.projects.find(
+                (project) => project.id === state.activeProjectId,
+              )?.lastUsedAt ?? null;
+            savePersistedActiveProject(state.activeProjectId, lastUsedAt);
+            return;
+          }
+
           if (persistTimer !== null) clearTimeout(persistTimer);
           persistTimer = setTimeout(() => {
             persistTimer = null;
@@ -372,7 +402,7 @@ export const IdeShell = () => {
         {!stateHydrated ? null : (
           <>
             {projects.map((project) => {
-              const active = project.id === activeProjectId;
+              const active = project.id === renderedActiveProjectId;
 
               return (
                 <div
@@ -395,7 +425,7 @@ export const IdeShell = () => {
                 </div>
               );
             })}
-            {!activeProjectId ? (
+            {!renderedActiveProjectId ? (
               <div className="absolute inset-0 p-3">
                 <EmptyProjectWorkspace />
               </div>

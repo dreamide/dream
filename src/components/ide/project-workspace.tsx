@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 import { getStatusFileCount } from "./git-actions/utils";
+import { areProjectsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import type { RightPanelView } from "./ide-types";
 import { moveTabItem } from "./standard-tabs";
@@ -700,5 +701,10 @@ const ProjectWorkspaceComponent = ({
   );
 };
 
-export const ProjectWorkspace = memo(ProjectWorkspaceComponent);
+export const ProjectWorkspace = memo(
+  ProjectWorkspaceComponent,
+  (previous, next) =>
+    previous.active === next.active &&
+    areProjectsEqualExceptLastUsedAt(previous.project, next.project),
+);
 ProjectWorkspace.displayName = "ProjectWorkspace";

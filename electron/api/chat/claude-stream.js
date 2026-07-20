@@ -135,7 +135,7 @@ const CLAUDE_PROJECT_MCP_ALLOWED_TOOLS = CLAUDE_PROJECT_TOOL_NAMES.map(
   (toolName) => `mcp__${CLAUDE_PROJECT_MCP_SERVER_NAME}__${toolName}`,
 );
 
-const CLAUDE_BUILT_IN_ALLOWED_TOOLS = [
+const CLAUDE_BUILT_IN_TOOLS = [
   "Read",
   "Write",
   "Edit",
@@ -156,7 +156,7 @@ const CLAUDE_BUILT_IN_ALLOWED_TOOLS = [
 ];
 
 const CLAUDE_ALLOWED_TOOLS = [
-  ...CLAUDE_BUILT_IN_ALLOWED_TOOLS,
+  ...CLAUDE_BUILT_IN_TOOLS,
   ...CLAUDE_PROJECT_MCP_ALLOWED_TOOLS,
 ];
 
@@ -452,9 +452,10 @@ export const streamClaudeResponse = async ({
       continue: false,
       cwd: projectPath,
       persistSession: false,
-      // Pin the Claude Code CLI tool catalog so the model sees the full set
-      // up front. The permission handler rejects ToolSearch because these
-      // tools are already preloaded.
+      // `tools` controls the catalog shown to the model; `allowedTools` only
+      // controls permission. Declare built-ins explicitly so plan-mode tools
+      // are available directly instead of being discovered via ToolSearch.
+      tools: CLAUDE_BUILT_IN_TOOLS,
       allowedTools: CLAUDE_ALLOWED_TOOLS,
       mcpServers: {
         [CLAUDE_PROJECT_MCP_SERVER_NAME]: claudeProjectMcpServer,

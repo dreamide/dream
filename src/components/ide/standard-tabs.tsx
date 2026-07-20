@@ -136,9 +136,11 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   const [tabWidth, setTabWidth] = useState(maxWidth);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
+  const [pressedTabId, setPressedTabId] = useState<string | null>(null);
   const [settlingTabIds, setSettlingTabIds] = useState<string[]>([]);
   const lastTab = items.at(-1) ?? null;
-  const showAfterSplitter = Boolean(lastTab && lastTab.id !== activeId);
+  const visualActiveId = pressedTabId ?? activeId;
+  const showAfterSplitter = Boolean(lastTab && lastTab.id !== visualActiveId);
 
   const dragStep = tabWidth + gap;
   const resolveDragDistance = useCallback(
@@ -377,6 +379,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           dragTabRef.current = null;
           flushSync(() => {
             setDragTab(null);
+            setPressedTabId(null);
             setSettlingTabIds(settlingIds);
             onReorder?.(
               committedDragTab.initialIndex,
@@ -395,6 +398,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
 
         dragTabRef.current = null;
         setDragTab(null);
+        setPressedTabId(null);
         if (currentTarget.hasPointerCapture(pointerId)) {
           currentTarget.releasePointerCapture(pointerId);
         }
@@ -433,6 +437,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       };
       dragTabRef.current = nextDragTab;
       setDragTab(nextDragTab);
+      setPressedTabId(tabId);
     },
     [editingTabId, onReorder],
   );
@@ -475,6 +480,9 @@ export const StandardTabs = <TItem extends StandardTabItem>({
         };
         dragTabRef.current = nextDragTab;
         setDragTab(nextDragTab);
+        if (moved) {
+          setPressedTabId(null);
+        }
         return;
       }
 
@@ -579,7 +587,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
       >
         <div className="flex min-w-0 items-end">
           {items.map((item, tabIndex) => {
-            const isActive = item.id === activeId;
+            const isActive = item.id === visualActiveId;
             const nextItem = items[tabIndex + 1] ?? null;
             const isDragging = item.id === dragTab?.tabId && dragTab.moved;
             const tabOffset = getTabOffset(item.id, tabIndex);
@@ -589,7 +597,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
             const actions = renderActions?.(item);
             const hasRightAdornment = showClose || Boolean(actions);
             const showTrailingSplitter =
-              !isActive && nextItem !== null && nextItem.id !== activeId;
+              !isActive && nextItem !== null && nextItem.id !== visualActiveId;
             const isEditing = editingTabId === item.id;
             const tabStyle: CSSProperties = {
               transform: `translateX(${tabOffset}px)`,

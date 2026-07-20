@@ -13,6 +13,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 import {
   closePersistedStateDatabase,
+  savePersistedActiveProject,
   savePersistedState,
 } from "./persisted-state.js";
 
@@ -33,6 +34,14 @@ parentPort.on("message", (message) => {
   try {
     if (type === "save") {
       const result = savePersistedState(message.state, { databasePath });
+      parentPort.postMessage({ id, ok: true, result });
+      return;
+    }
+
+    if (type === "save-active-project") {
+      const result = savePersistedActiveProject(message.payload, {
+        databasePath,
+      });
       parentPort.postMessage({ id, ok: true, result });
       return;
     }

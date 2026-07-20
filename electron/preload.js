@@ -149,6 +149,8 @@ contextBridge.exposeInMainWorld("dream", {
 
   loadState: () => ipcRenderer.invoke("state:load"),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
+  saveActiveProject: (payload) =>
+    ipcRenderer.invoke("state:save-active-project", payload),
   getThemePreferences: () => ipcRenderer.invoke("theme:get-preferences"),
   setThemePreference: (theme) => ipcRenderer.invoke("theme:set", { theme }),
   setBaseColor: (baseColor) =>

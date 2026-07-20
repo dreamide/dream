@@ -155,3 +155,22 @@ export const createPersistedIdeState = ({
 export const savePersistedIdeState = (state: PersistedIdeState) => {
   void requireDesktopApi().saveState(state);
 };
+
+export const savePersistedActiveProject = (
+  activeProjectId: string | null,
+  lastUsedAt: string | null,
+) => {
+  const desktopApi = requireDesktopApi();
+  if (typeof desktopApi.saveActiveProject !== "function") {
+    return;
+  }
+
+  void desktopApi
+    .saveActiveProject({
+      activeProjectId,
+      lastUsedAt,
+    })
+    .catch((error: unknown) => {
+      console.warn("Unable to persist the active Dream project.", error);
+    });
+};

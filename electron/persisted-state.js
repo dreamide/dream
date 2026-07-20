@@ -1332,6 +1332,56 @@ export function savePersistedState(state, { databasePath } = {}) {
   return saveStateToRelationalDatabase(database, state);
 }
 
+export function savePersistedActiveProject(
+  { activeProjectId, lastUsedAt } = {},
+  { databasePath } = {},
+) {
+  const database = getStateDatabase(databasePath);
+  const normalizedActiveProjectId =
+    typeof activeProjectId === "string" && activeProjectId.trim()
+      ? activeProjectId.trim()
+      : null;
+  const normalizedLastUsedAt =
+    typeof lastUsedAt === "string" && Number.isFinite(Date.parse(lastUsedAt))
+      ? lastUsedAt
+      : null;
+  const now = new Date().toISOString();
+
+  return runInTransaction(database, () => {
+    writeConfig(database, "activeProjectId", normalizedActiveProjectId, now);
+
+    if (!normalizedActiveProjectId || !normalizedLastUsedAt) {
+      return true;
+    }
+
+    const row = database
+      .prepare("SELECT metadata FROM projects WHERE id = ? LIMIT 1")
+      .get(normalizedActiveProjectId);
+    if (!row) {
+      return true;
+    }
+
+    database
+      .prepare(
+        `
+          UPDATE projects
+          SET metadata = ?, updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        toJson({
+          ...getMetadataObject(row.metadata),
+          lastUsedAt: normalizedLastUsedAt,
+        }),
+        now,
+        normalizedActiveProjectId,
+      );
+
+    return true;
+  });
+}
+
 export function loadPersistedState({ databasePath } = {}) {
   const database = getStateDatabase(databasePath);
   return loadStateFromRelationalDatabase(database);

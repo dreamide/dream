@@ -496,6 +496,10 @@ export interface DesktopApi {
 
   loadState: () => Promise<Partial<PersistedIdeState>>;
   saveState: (state: PersistedIdeState) => Promise<boolean>;
+  saveActiveProject: (payload: {
+    activeProjectId: string | null;
+    lastUsedAt: string | null;
+  }) => Promise<boolean>;
   getThemePreferences: () => Promise<{
     accentColor?: string;
     baseColor?: string;

@@ -450,6 +450,9 @@ const getStateSaveQueue = () =>
 ipcMain.handle("state:save", (_event, state) =>
   getStateSaveQueue().save(state),
 );
+ipcMain.handle("state:save-active-project", (_event, payload) =>
+  getStateSaveQueue().saveActiveProject(payload),
+);
 
 ipcMain.handle("theme:set", (_event, { theme } = {}) => {
   const normalizedTheme = normalizeThemePreference(theme);
