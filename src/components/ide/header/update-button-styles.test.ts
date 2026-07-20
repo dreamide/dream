@@ -3,15 +3,26 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { buttonVariants } from "@/components/ui/button";
 import { ACCENT_COLORS } from "@/lib/ui-store";
-import { UPDATE_BUTTON_VARIANT_BY_STATE } from "./update-button-styles";
+import { cn } from "@/lib/utils";
+import {
+  DOWNLOADED_UPDATE_BUTTON_FOREGROUND,
+  UPDATE_BUTTON_VARIANT_BY_STATE,
+} from "./update-button-styles";
 
 test("downloaded updates keep accent colors in every theme", () => {
   assert.equal(UPDATE_BUTTON_VARIANT_BY_STATE.downloaded, "accent");
 
-  const classes = buttonVariants({ variant: "accent" });
+  const classes = cn(
+    buttonVariants({
+      className: DOWNLOADED_UPDATE_BUTTON_FOREGROUND,
+      variant: "accent",
+    }),
+  );
   assert.match(classes, /(?:^|\s)bg-primary(?:\s|$)/);
   assert.match(classes, /(?:^|\s)hover:bg-primary-hover(?:\s|$)/);
-  assert.match(classes, /(?:^|\s)text-primary-foreground(?:\s|$)/);
+  assert.match(classes, /(?:^|\s)text-white(?:\s|$)/);
+  assert.match(classes, /(?:^|\s)hover:text-white(?:\s|$)/);
+  assert.doesNotMatch(classes, /(?:^|\s)text-primary-foreground(?:\s|$)/);
   assert.doesNotMatch(classes, /dark:hover:bg-surface-/);
 });
 

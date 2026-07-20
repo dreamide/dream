@@ -2,6 +2,9 @@ import type { UpdateState } from "@/types/ide";
 
 type UpdateButtonVariant = "accent" | "destructive" | "ghost";
 
+export const DOWNLOADED_UPDATE_BUTTON_FOREGROUND =
+  "text-white hover:text-white";
+
 export const UPDATE_BUTTON_VARIANT_BY_STATE = {
   idle: "ghost",
   disabled: "ghost",
