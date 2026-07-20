@@ -120,96 +120,6 @@ updaterCacheDirName: dream-updater
   return configPath;
 }
 
-function getUpdateChannel(version) {
-  const parsed = updaterSemver.parse(version);
-  const prerelease = parsed ? updaterSemver.prerelease(parsed) : null;
-  if (!prerelease?.length) {
-    return "stable";
-  }
-
-  return String(prerelease[0] ?? "prerelease");
-}
-
-function getUpdateTelemetryPayload({ currentVersion, manual }) {
-  const version = String(currentVersion || "unknown");
-
-  return {
-    arch: process.arch,
-    channel: getUpdateChannel(version),
-    check: manual ? "manual" : "automatic",
-    platform: process.platform,
-    version,
-  };
-}
-
-function addInstallIdToPayload(payload, installId) {
-  if (typeof installId !== "string" || !installId.trim()) {
-    return payload;
-  }
-
-  return {
-    ...payload,
-    installId: installId.trim(),
-  };
-}
-
-function sanitizeHeaderValue(value) {
-  return String(value)
-    .replace(/[\r\n]/g, "")
-    .replace(/[^\t\x20-\x7e]/g, "");
-}
-
-function getUpdateTelemetryHeaders(payload) {
-  const headers = {
-    "X-Dream-Arch": sanitizeHeaderValue(payload.arch),
-    "X-Dream-Channel": sanitizeHeaderValue(payload.channel),
-    "X-Dream-Platform": sanitizeHeaderValue(payload.platform),
-    "X-Dream-Update-Check": sanitizeHeaderValue(payload.check),
-    "X-Dream-Version": sanitizeHeaderValue(payload.version),
-  };
-
-  if (payload.installId) {
-    headers["X-Dream-Install-Id"] = sanitizeHeaderValue(payload.installId);
-  }
-
-  return headers;
-}
-
-function getTelemetryUpdateFeedUrl(updateFeedUrl, payload) {
-  if (!updateFeedUrl) {
-    return null;
-  }
-
-  try {
-    const url = new URL(updateFeedUrl);
-    for (const [key, value] of Object.entries(payload)) {
-      url.searchParams.set(key, value);
-    }
-    return url.toString().replace(/\/$/, "");
-  } catch {
-    return null;
-  }
-}
-
-function configureUpdateTelemetry(autoUpdater, updateFeedUrl, payload) {
-  const requestHeaders = getUpdateTelemetryHeaders(payload);
-  const telemetryUpdateFeedUrl = getTelemetryUpdateFeedUrl(
-    updateFeedUrl,
-    payload,
-  );
-
-  if (telemetryUpdateFeedUrl) {
-    autoUpdater.setFeedURL({
-      provider: "generic",
-      requestHeaders,
-      url: telemetryUpdateFeedUrl,
-    });
-    return;
-  }
-
-  autoUpdater.requestHeaders = requestHeaders;
-}
-
 function removeHeader(headers, headerName) {
   for (const key of Object.keys(headers)) {
     if (key.toLowerCase() === headerName) {
@@ -242,7 +152,6 @@ function disableUpdateStagingIdentifier(autoUpdater) {
 export function initializeAutoUpdater({
   app,
   getMainWindow,
-  installId,
   ipcMain,
   isDevelopment,
 }) {
@@ -303,17 +212,6 @@ export function initializeAutoUpdater({
     }
 
     emitStatus({ error: null, manual, state: "checking" });
-    configureUpdateTelemetry(
-      autoUpdater,
-      updateFeedUrl,
-      addInstallIdToPayload(
-        getUpdateTelemetryPayload({
-          currentVersion: status.currentVersion,
-          manual,
-        }),
-        installId,
-      ),
-    );
 
     checkInFlight = autoUpdater
       .checkForUpdates()

@@ -11,6 +11,7 @@ import {
   ipcMain,
   nativeTheme,
   shell,
+  WebContentsView,
 } from "electron";
 import getPort from "get-port";
 
@@ -20,6 +21,7 @@ import {
 } from "./app-menu.js";
 import { createBrowserSessionManager } from "./browser-sessions.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
+import { getHelloUrl } from "./hello.js";
 import {
   closePersistedStateDatabase,
   ensurePersistedInstallId,
@@ -95,6 +97,7 @@ app.setPath("sessionData", APP_SESSION_DATA_PATH);
 let mainWindow = null;
 let updateManager = null;
 let installId = null;
+let helloView = null;
 
 function normalizeThemePreference(value) {
   return value === "light" || value === "dark" || value === "system"
@@ -411,11 +414,36 @@ async function createMainWindow() {
   });
 
   mainWindow.on("closed", () => {
+    if (helloView && !helloView.webContents.isDestroyed()) {
+      helloView.webContents.close();
+    }
+    helloView = null;
     browserSessionManager.reset();
     mainWindow = null;
   });
 
   await configureRendererProxy(mainWindow.webContents);
+
+  if (!isDevelopment && process.env.DREAM_DISABLE_HELLO !== "1") {
+    helloView = new WebContentsView({
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    helloView.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    mainWindow.contentView.addChildView(helloView);
+    helloView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    helloView.webContents
+      .loadURL(
+        getHelloUrl({
+          currentVersion: app.getVersion(),
+          installId,
+        }),
+      )
+      .catch(() => {});
+  }
 
   mainWindow.loadURL(rendererServerManager.getUrl()).catch((error) => {
     console.error("Failed to load renderer:", error);
@@ -611,7 +639,6 @@ app.whenReady().then(async () => {
 
   rendererServerManager = await createStartupRendererServerManager();
   await rendererServerManager.start();
-  await createMainWindow();
 
   try {
     installId = ensurePersistedInstallId();
@@ -619,10 +646,11 @@ app.whenReady().then(async () => {
     console.error("Failed to initialize install ID:", error);
   }
 
+  await createMainWindow();
+
   updateManager = initializeAutoUpdater({
     app,
     getMainWindow: () => mainWindow,
-    installId,
     ipcMain,
     isDevelopment,
   });
