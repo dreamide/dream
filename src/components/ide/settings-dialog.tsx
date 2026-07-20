@@ -23,7 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -60,6 +59,7 @@ import type {
   BaseColor,
   ModelSpeed,
   ReasoningEffort,
+  TerminalShellOption,
 } from "@/types/ide";
 import packageJson from "../../../package.json";
 import { useIdeStore } from "./ide-store";
@@ -102,6 +102,44 @@ const BASE_COLOR_SWATCHES: Record<BaseColor, string> = {
 const getBaseColorSwatch = (color: BaseColor) => BASE_COLOR_SWATCHES[color];
 const appVersion = packageJson.version;
 
+const getShellExecutableName = (value: string) => {
+  const match = value.trim().match(/^(?:"([^"]+)"|'([^']+)'|(\S+))/);
+  const command = match?.[1] ?? match?.[2] ?? match?.[3] ?? "";
+  return command.split(/[\\/]/).pop()?.toLowerCase() ?? "";
+};
+
+const findTerminalShellOption = (
+  options: TerminalShellOption[],
+  shellPath: string,
+) => {
+  const exactMatch = options.find((option) => option.shellPath === shellPath);
+  if (exactMatch || !shellPath) {
+    return exactMatch ?? null;
+  }
+
+  const configuredExecutable = getShellExecutableName(shellPath);
+  const executableAliases = [
+    new Set(["powershell", "powershell.exe"]),
+    new Set(["pwsh", "pwsh.exe"]),
+  ];
+
+  return (
+    options.find((option) => {
+      const optionExecutable = getShellExecutableName(option.shellPath);
+      if (
+        executableAliases.some(
+          (aliases) =>
+            aliases.has(configuredExecutable) && aliases.has(optionExecutable),
+        )
+      ) {
+        return true;
+      }
+
+      return configuredExecutable === optionExecutable;
+    }) ?? null
+  );
+};
+
 export const SettingsDialog = () => {
   const commonT = useTranslations("common");
   const localeT = useTranslations("locale");
@@ -131,7 +169,9 @@ export const SettingsDialog = () => {
   const setBaseColor = useUiStore((s) => s.setBaseColor);
   const { setTheme, theme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
-  const [defaultShellPlaceholder, setDefaultShellPlaceholder] = useState("");
+  const [terminalShellOptions, setTerminalShellOptions] = useState<
+    TerminalShellOption[]
+  >([]);
   const [selectedDeletedChatIds, setSelectedDeletedChatIds] = useState<
     string[]
   >([]);
@@ -141,26 +181,55 @@ export const SettingsDialog = () => {
   }, []);
 
   useEffect(() => {
+    if (!settingsOpen) {
+      return;
+    }
+
     let cancelled = false;
 
-    const loadDefaultShell = async () => {
+    const loadTerminalShells = async () => {
       const desktopApi = getDesktopApi();
       if (!desktopApi) {
         return;
       }
 
-      const shell = await desktopApi.getDefaultTerminalShell();
+      const shells = await desktopApi.detectTerminalShells();
       if (!cancelled) {
-        setDefaultShellPlaceholder(shell);
+        setTerminalShellOptions(shells);
+        setSettings((previous) => {
+          const matchedShell = findTerminalShellOption(
+            shells,
+            previous.shellPath,
+          );
+          const normalizedShellPath =
+            matchedShell?.shellPath ?? shells[0]?.shellPath;
+          if (
+            !previous.shellPath ||
+            !normalizedShellPath ||
+            normalizedShellPath === previous.shellPath
+          ) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            shellPath: normalizedShellPath,
+          };
+        });
       }
     };
 
-    void loadDefaultShell();
+    void loadTerminalShells();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setSettings, settingsOpen]);
+
+  const selectedTerminalShell =
+    findTerminalShellOption(terminalShellOptions, settings.shellPath) ??
+    terminalShellOptions[0] ??
+    null;
 
   const openAiModels = useMemo(
     () => getModelsForProvider("openai", settings),
@@ -511,18 +580,37 @@ export const SettingsDialog = () => {
                     description={<p>{settingsT("terminalDescription")}</p>}
                     label={commonT("terminal")}
                   >
-                    <Input
-                      aria-label={settingsT("shellPath")}
-                      id="shell-path"
-                      onChange={(event) =>
+                    <Select
+                      disabled={terminalShellOptions.length === 0}
+                      onValueChange={(value) => {
+                        if (!value) {
+                          return;
+                        }
+
                         setSettings((previous) => ({
                           ...previous,
-                          shellPath: event.currentTarget.value,
-                        }))
-                      }
-                      placeholder={defaultShellPlaceholder}
-                      value={settings.shellPath}
-                    />
+                          shellPath: value,
+                        }));
+                      }}
+                      value={selectedTerminalShell?.shellPath}
+                    >
+                      <SelectTrigger
+                        aria-label={settingsT("shellPath")}
+                        className="w-full md:w-72"
+                      >
+                        <SelectValue>
+                          {selectedTerminalShell?.label ??
+                            settingsT("shellPath")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="end" alignItemWithTrigger={false}>
+                        {terminalShellOptions.map((shell) => (
+                          <SelectItem key={shell.id} value={shell.shellPath}>
+                            {shell.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </SettingsControlRow>
 
                   <SettingsSwitchRow

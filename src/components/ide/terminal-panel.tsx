@@ -84,11 +84,10 @@ const formatTerminalShellLabel = (
     return labels.systemShell;
   }
 
-  const executable = trimmed
-    .split(/\s+/)[0]
-    ?.split(/[\\/]/)
-    .pop()
-    ?.toLowerCase();
+  const commandMatch = trimmed.match(/^(?:"([^"]+)"|'([^']+)'|(\S+))/);
+  const command =
+    commandMatch?.[1] ?? commandMatch?.[2] ?? commandMatch?.[3] ?? trimmed;
+  const executable = command?.split(/[\\/]/).pop()?.toLowerCase();
 
   if (executable === "pwsh" || executable === "pwsh.exe") {
     return "PowerShell";
@@ -102,8 +101,8 @@ const formatTerminalShellLabel = (
     return labels.commandPrompt;
   }
 
-  if (executable === "bash") {
-    return "bash";
+  if (executable === "bash" || executable === "bash.exe") {
+    return /[\\/]git[\\/]/i.test(command) ? "Git Bash" : "bash";
   }
 
   if (executable === "zsh") {
@@ -112,6 +111,10 @@ const formatTerminalShellLabel = (
 
   if (executable === "sh") {
     return "sh";
+  }
+
+  if (executable === "wsl" || executable === "wsl.exe") {
+    return "WSL";
   }
 
   return executable || trimmed;

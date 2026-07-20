@@ -3,6 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { app } from "electron";
 import { spawn as spawnPty } from "node-pty";
 import { stopChildProcess, stopProcessTree } from "./process-tree.js";
+import { getDefaultTerminalShellPath } from "./terminal-shells.js";
 
 function parseCommandParts(value) {
   if (!value || typeof value !== "string") {
@@ -45,7 +46,10 @@ function formatShellCommand(command, args = []) {
         .filter(Boolean)
     : [];
 
-  return [trimmedCommand, ...normalizedArgs].join(" ");
+  const formattedCommand = /\s/.test(trimmedCommand)
+    ? `"${trimmedCommand.replaceAll('"', '\\"')}"`
+    : trimmedCommand;
+  return [formattedCommand, ...normalizedArgs].join(" ");
 }
 
 function createTerminalStartupCommands(command) {
@@ -105,16 +109,17 @@ function buildTerminalShellCandidates(preferredShellPath) {
   };
 
   addCandidate(preferredShellPath, "configured shell");
-  addCandidate(process.env.SHELL, "SHELL environment");
-
   if (process.platform === "win32") {
-    addCandidate("powershell.exe", "PowerShell fallback");
+    addCandidate(getDefaultTerminalShellPath(), "PowerShell fallback");
+    addCandidate(process.env.SHELL, "SHELL environment");
     addCandidate("cmd.exe", "CMD fallback");
   } else if (process.platform === "darwin") {
+    addCandidate(process.env.SHELL, "SHELL environment");
     addCandidate("/bin/zsh", "macOS zsh fallback");
     addCandidate("/bin/bash", "bash fallback");
     addCandidate("/bin/sh", "sh fallback");
   } else {
+    addCandidate(process.env.SHELL, "SHELL environment");
     addCandidate("/bin/bash", "bash fallback");
     addCandidate("/bin/sh", "sh fallback");
   }
@@ -169,10 +174,6 @@ export function createProcessSessionManager({ sendToRenderer }) {
         // ignore write failures after session exits
       }
     }, delayMs);
-  }
-
-  function getDefaultTerminalShellCommand() {
-    return buildTerminalShellCandidates(undefined)[0]?.command ?? "";
   }
 
   async function stopRunProcess(projectId) {
@@ -579,7 +580,6 @@ export function createProcessSessionManager({ sendToRenderer }) {
   }
 
   return {
-    getDefaultTerminalShellCommand,
     resizeTerminal,
     startRunner,
     startTerminal,

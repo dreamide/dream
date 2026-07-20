@@ -33,6 +33,7 @@ import {
 import { createProcessSessionManager } from "./process-sessions.js";
 import { createRendererServerManager } from "./renderer-server.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
+import { detectAvailableTerminalShells } from "./terminal-shells.js";
 import { initializeAutoUpdater } from "./updater.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -530,9 +531,7 @@ ipcMain.handle("shell:open-external", (_event, { url }) => {
   return true;
 });
 
-ipcMain.handle("terminal:get-default-shell", () => {
-  return processSessionManager.getDefaultTerminalShellCommand();
-});
+ipcMain.handle("terminal:detect-shells", detectAvailableTerminalShells);
 
 ipcMain.handle("clipboard:write-text", (_event, { text }) => {
   if (typeof text !== "string") {

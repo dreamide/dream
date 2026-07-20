@@ -450,6 +450,12 @@ export interface StartTerminalPayload {
   shellPath?: string;
 }
 
+export interface TerminalShellOption {
+  id: string;
+  label: string;
+  shellPath: string;
+}
+
 export interface TerminalInputPayload {
   projectId: string;
   data: string;
@@ -509,7 +515,7 @@ export interface DesktopApi {
   setBaseColor: (baseColor: string) => Promise<boolean>;
   setAccentColor: (accentColor: string) => Promise<boolean>;
 
-  getDefaultTerminalShell: () => Promise<string>;
+  detectTerminalShells: () => Promise<TerminalShellOption[]>;
   startTerminal: (payload: StartTerminalPayload) => Promise<{
     status: string;
     pid?: number;

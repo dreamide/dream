@@ -158,8 +158,7 @@ contextBridge.exposeInMainWorld("dream", {
   setAccentColor: (accentColor) =>
     ipcRenderer.invoke("theme:set-accent-color", { accentColor }),
 
-  getDefaultTerminalShell: () =>
-    ipcRenderer.invoke("terminal:get-default-shell"),
+  detectTerminalShells: () => ipcRenderer.invoke("terminal:detect-shells"),
   startTerminal: (payload) => ipcRenderer.invoke("terminal:start", payload),
   sendTerminalInput: (payload) => ipcRenderer.send("terminal:input", payload),
   resizeTerminal: (payload) => ipcRenderer.send("terminal:resize", payload),
