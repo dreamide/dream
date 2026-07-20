@@ -211,11 +211,6 @@ export const createTerminalActions = (
   },
 
   closeProjectTerminal: async (projectId, sessionId) => {
-    const desktopApi = getDesktopApi();
-    if (desktopApi) {
-      await desktopApi.stopTerminal(sessionId);
-    }
-
     set((state) => {
       const currentSessionIds =
         state.projectTerminalSessionIds[projectId] ?? [];
@@ -290,5 +285,10 @@ export const createTerminalActions = (
 
       return nextState;
     });
+
+    const desktopApi = getDesktopApi();
+    if (desktopApi) {
+      await desktopApi.stopTerminal(sessionId);
+    }
   },
 });

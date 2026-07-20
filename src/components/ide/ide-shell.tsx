@@ -196,10 +196,20 @@ export const IdeShell = () => {
     if (!desktopApi) return;
 
     const removeTerminalData = desktopApi.onTerminalData((event) => {
+      if (
+        !Object.hasOwn(useIdeStore.getState().terminalOutput, event.projectId)
+      ) {
+        return;
+      }
       appendTerminalOutput(event.projectId, event.chunk);
     });
 
     const removeTerminalStatus = desktopApi.onTerminalStatus((event) => {
+      if (
+        !Object.hasOwn(useIdeStore.getState().terminalOutput, event.projectId)
+      ) {
+        return;
+      }
       setTerminalStatus(event.projectId, event.status);
       if (event.transport) {
         setTerminalTransport(event.projectId, event.transport);
