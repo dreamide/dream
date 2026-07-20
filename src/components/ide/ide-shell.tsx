@@ -248,6 +248,14 @@ export const IdeShell = () => {
     void refreshProviderModels();
   }, [refreshProviderModels, settingsOpen, settingsSection]);
 
+  // Check for updates whenever the settings panel opens
+  useEffect(() => {
+    if (!settingsOpen) {
+      return;
+    }
+    void getDesktopApi()?.checkForUpdates();
+  }, [settingsOpen]);
+
   // Sync settings integrity (dedupe models, fix connected providers)
   useEffect(() => {
     const store = useIdeStore.getState();
