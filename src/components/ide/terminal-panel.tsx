@@ -69,6 +69,41 @@ const LIGHT_TERMINAL_THEME = {
   brightWhite: "#1f2328",
 };
 
+const stylePowerShellUpdateNotification = (value: string) => {
+  const releaseUrlIndex = value.indexOf(
+    "https://aka.ms/PowerShell-Release?tag=",
+  );
+  if (releaseUrlIndex < 0) {
+    return value;
+  }
+
+  let bannerStart = value.lastIndexOf("\u001b[7m", releaseUrlIndex);
+  if (bannerStart < 0) {
+    return value;
+  }
+
+  for (let index = 0; index < 2; index += 1) {
+    const previousReverse = value.lastIndexOf("\u001b[7m", bannerStart - 1);
+    if (previousReverse < 0 || bannerStart - previousReverse > 300) {
+      break;
+    }
+    bannerStart = previousReverse;
+  }
+
+  const afterReleaseUrl = value.slice(releaseUrlIndex);
+  const nextAnsiSequenceIndex = afterReleaseUrl.indexOf("\u001b[");
+  const bannerEnd =
+    nextAnsiSequenceIndex < 0
+      ? value.length
+      : releaseUrlIndex + nextAnsiSequenceIndex;
+  const styledBanner = value
+    .slice(bannerStart, bannerEnd)
+    .replaceAll("\u001b[7m", "\u001b[90m")
+    .replaceAll("\u001b[27m", "\u001b[39m");
+
+  return `${value.slice(0, bannerStart)}${styledBanner}\u001b[39m${value.slice(bannerEnd)}`;
+};
+
 const isCopyShortcut = (event: KeyboardEvent) =>
   (event.ctrlKey || event.metaKey) &&
   !event.altKey &&
@@ -330,7 +365,7 @@ export const TerminalPanel = ({
     const initialOutput =
       useIdeStore.getState().terminalOutput[sessionId] ?? "";
     if (initialOutput) {
-      terminal.write(initialOutput);
+      terminal.write(stylePowerShellUpdateNotification(initialOutput));
     }
 
     if (autoStart && statusRef.current !== "running") {
@@ -343,7 +378,7 @@ export const TerminalPanel = ({
         return;
       }
 
-      terminal.write(event.chunk);
+      terminal.write(stylePowerShellUpdateNotification(event.chunk));
     });
 
     const inputSubscription = terminal.onData((data) => {
