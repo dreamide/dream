@@ -402,14 +402,18 @@ export const IdeShell = () => {
         {!stateHydrated ? null : (
           <>
             {projects.map((project) => {
-              const active = project.id === renderedActiveProjectId;
+              // Swap the already-mounted surface immediately, then let active
+              // effects and expensive child renders follow on the deferred
+              // lifecycle value.
+              const visible = project.id === activeProjectId;
+              const lifecycleActive = project.id === renderedActiveProjectId;
 
               return (
                 <div
-                  aria-hidden={!active}
+                  aria-hidden={!visible}
                   className={cn(
                     "absolute inset-0 min-h-0",
-                    active
+                    visible
                       ? "visible translate-x-0 pointer-events-auto opacity-100"
                       : // `invisible` (visibility: hidden) drops inactive
                         // workspaces out of paint/hit-testing entirely while
@@ -418,14 +422,17 @@ export const IdeShell = () => {
                         // webview surfaces and forces an expensive re-show).
                         "invisible translate-x-full pointer-events-none opacity-0",
                   )}
-                  inert={!active}
+                  inert={!visible}
                   key={project.id}
                 >
-                  <ProjectWorkspace active={active} project={project} />
+                  <ProjectWorkspace
+                    active={lifecycleActive}
+                    project={project}
+                  />
                 </div>
               );
             })}
-            {!renderedActiveProjectId ? (
+            {!activeProjectId ? (
               <div className="absolute inset-0 p-3">
                 <EmptyProjectWorkspace />
               </div>
