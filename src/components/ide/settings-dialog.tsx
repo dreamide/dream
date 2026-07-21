@@ -592,7 +592,7 @@ export const SettingsDialog = () => {
                           shellPath: value,
                         }));
                       }}
-                      value={selectedTerminalShell?.shellPath}
+                      value={selectedTerminalShell?.shellPath ?? null}
                     >
                       <SelectTrigger
                         aria-label={settingsT("shellPath")}
@@ -855,7 +855,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("openai", model.id);
+                                      toggleProviderModel(
+                                        "openai",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />
@@ -924,6 +928,7 @@ export const SettingsDialog = () => {
                                       toggleProviderModel(
                                         "anthropic",
                                         model.id,
+                                        checked,
                                       );
                                     }
                                   }}
@@ -990,7 +995,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("opencode", model.id);
+                                      toggleProviderModel(
+                                        "opencode",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />
@@ -1060,7 +1069,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("cursor", model.id);
+                                      toggleProviderModel(
+                                        "cursor",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />
@@ -1130,7 +1143,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("grok", model.id);
+                                      toggleProviderModel(
+                                        "grok",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />

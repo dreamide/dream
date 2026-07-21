@@ -56,13 +56,14 @@ export const createSettingsActions = (
   setSettingsSection: (section) => set({ settingsSection: section }),
   setModelSearchQuery: (query) => set({ modelSearchQuery: query }),
 
-  toggleProviderModel: (provider, model) => {
+  toggleProviderModel: (provider, model, enabled) => {
     set((state) => {
       return {
         settings: toggleProviderModelInSettings(
           state.settings,
           provider,
           model,
+          enabled,
         ),
       };
     });

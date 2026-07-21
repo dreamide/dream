@@ -127,7 +127,11 @@ export interface IdeState {
   setModelSearchQuery: (query: string) => void;
 
   // Actions - provider management
-  toggleProviderModel: (provider: AiProvider, model: string) => void;
+  toggleProviderModel: (
+    provider: AiProvider,
+    model: string,
+    enabled?: boolean,
+  ) => void;
   refreshProviderModels: (options?: {
     force?: boolean;
     provider?: AiProvider;
