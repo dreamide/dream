@@ -5,7 +5,8 @@ import {
   stepCountIs,
   streamText,
 } from "ai";
-import { claudeCode, createAiSdkMcpServer } from "ai-sdk-provider-claude-code";
+import { claudeCode } from "ai-sdk-provider-claude-code";
+import { resolveProjectPath } from "../project-git/files.js";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
@@ -18,7 +19,6 @@ import {
   getLatestUserMessage,
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
-import { createClaudeProjectTools } from "./project-tools.js";
 import {
   DEFAULT_TOOL_STEP_LIMIT,
   REASONING_TOOL_STEP_LIMIT,
@@ -122,19 +122,6 @@ const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
   "write",
 ]);
 
-const CLAUDE_PROJECT_MCP_SERVER_NAME = "dreamProject";
-
-const CLAUDE_PROJECT_TOOL_NAMES = [
-  "listFiles",
-  "readFile",
-  "searchInFiles",
-  "writeFile",
-];
-
-const CLAUDE_PROJECT_MCP_ALLOWED_TOOLS = CLAUDE_PROJECT_TOOL_NAMES.map(
-  (toolName) => `mcp__${CLAUDE_PROJECT_MCP_SERVER_NAME}__${toolName}`,
-);
-
 const CLAUDE_BUILT_IN_TOOLS = [
   "Read",
   "Write",
@@ -155,22 +142,60 @@ const CLAUDE_BUILT_IN_TOOLS = [
   "ExitPlanMode",
 ];
 
-const CLAUDE_ALLOWED_TOOLS = [
-  ...CLAUDE_BUILT_IN_TOOLS,
-  ...CLAUDE_PROJECT_MCP_ALLOWED_TOOLS,
-];
+const CLAUDE_ALLOWED_TOOLS = [...CLAUDE_BUILT_IN_TOOLS];
 
 const CLAUDE_PRELOADED_TOOL_NAMES = new Set(
   CLAUDE_ALLOWED_TOOLS.map((toolName) => normalizeClaudeToolName(toolName)),
 );
 
-const CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS = new Set(
-  ["listFiles", "readFile", "searchInFiles"].map((toolName) =>
-    normalizeClaudeToolName(
-      `mcp__${CLAUDE_PROJECT_MCP_SERVER_NAME}__${toolName}`,
-    ),
-  ),
-);
+// Native file tools whose target paths must stay inside the project root.
+const CLAUDE_PATH_GUARDED_TOOLS = new Set([
+  "edit",
+  "glob",
+  "grep",
+  "ls",
+  "multiedit",
+  "notebookedit",
+  "read",
+  "write",
+]);
+
+const CLAUDE_PATH_INPUT_KEYS = [
+  "file_path",
+  "filePath",
+  "notebook_path",
+  "notebookPath",
+  "path",
+];
+
+const getClaudeToolInputPaths = (input) => {
+  if (!input || typeof input !== "object") {
+    return [];
+  }
+
+  return CLAUDE_PATH_INPUT_KEYS.map((key) => input[key]).filter(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+};
+
+const findClaudeBlockedPath = (projectPath, toolName, input) => {
+  if (
+    !projectPath ||
+    !CLAUDE_PATH_GUARDED_TOOLS.has(normalizeClaudeToolName(toolName))
+  ) {
+    return null;
+  }
+
+  for (const candidate of getClaudeToolInputPaths(input)) {
+    try {
+      resolveProjectPath(projectPath, candidate);
+    } catch {
+      return candidate;
+    }
+  }
+
+  return null;
+};
 
 const getClaudeToolSearchQuery = (input) => {
   if (typeof input === "string") {
@@ -211,7 +236,7 @@ const isPreloadedClaudeToolSearch = (input) => {
   return false;
 };
 
-const createClaudePermissionHandler = (writer, { mode }) => {
+const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const toolUseID =
@@ -230,11 +255,24 @@ const createClaudePermissionHandler = (writer, { mode }) => {
       };
     }
 
+    const blockedProjectPath = findClaudeBlockedPath(
+      projectPath,
+      toolName,
+      input,
+    );
+    if (blockedProjectPath) {
+      return {
+        behavior: "deny",
+        interrupt: false,
+        message: `Path "${blockedProjectPath}" is outside the project root and cannot be accessed.`,
+        ...(toolUseID ? { toolUseID } : {}),
+      };
+    }
+
     if (
       normalizedToolName !== "askuserquestion" &&
       mode === "accept-edits" &&
-      (CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS.has(normalizedToolName) ||
-        CLAUDE_ACCEPT_EDITS_ALLOWED_MCP_TOOLS.has(normalizedToolName))
+      CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS.has(normalizedToolName)
     ) {
       return {
         behavior: "allow",
@@ -432,14 +470,6 @@ export const streamClaudeResponse = async ({
           ? "bypass"
           : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
-  const claudeProjectTools = createClaudeProjectTools({
-    claudePermissionMode,
-    projectPath,
-  });
-  const claudeProjectMcpServer = createAiSdkMcpServer(
-    CLAUDE_PROJECT_MCP_SERVER_NAME,
-    claudeProjectTools,
-  );
   const providerFactory = (modelId, writer) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
       ...(claudeExecutablePath
@@ -447,6 +477,7 @@ export const streamClaudeResponse = async ({
         : {}),
       canUseTool: createClaudePermissionHandler(writer, {
         mode: claudePermissionHandlerMode,
+        projectPath,
       }),
       streamingInput: usesClaudeImageInput ? "always" : "auto",
       continue: false,
@@ -457,9 +488,8 @@ export const streamClaudeResponse = async ({
       // are available directly instead of being discovered via ToolSearch.
       tools: CLAUDE_BUILT_IN_TOOLS,
       allowedTools: CLAUDE_ALLOWED_TOOLS,
-      mcpServers: {
-        [CLAUDE_PROJECT_MCP_SERVER_NAME]: claudeProjectMcpServer,
-      },
+      // Keep strict with no servers so user/global MCP config is not loaded.
+      mcpServers: {},
       strictMcpConfig: true,
       permissionMode:
         agentMode === "plan"
