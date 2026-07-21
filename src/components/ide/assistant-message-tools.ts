@@ -34,6 +34,26 @@ export const normalizeToolName = (name: string): string =>
     .replace(/[\s_]+/g, "-")
     .toLowerCase();
 
+const MCP_TOOL_NAME_PATTERN = /^mcp__(.+?)__(.+)$/;
+
+export type McpToolInfo = {
+  command: string;
+  server: string;
+};
+
+export const parseMcpToolName = (name: string): McpToolInfo | null => {
+  const match = MCP_TOOL_NAME_PATTERN.exec(name);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    command: match[2],
+    server: match[1],
+  };
+};
+
 export const CHIP_TOOL_NAME_ALIASES = {
   agent: new Set(["agent"]),
   command: new Set([
@@ -75,11 +95,15 @@ export const CHIP_TOOL_NAME_ALIASES = {
   ]),
 } as const;
 
-export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES;
+export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES | "mcp";
 
 export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
   if (!isToolLikePart(part)) {
     return null;
+  }
+
+  if (parseMcpToolName(getToolName(part))) {
+    return "mcp";
   }
 
   const toolName = normalizeToolName(getToolName(part));

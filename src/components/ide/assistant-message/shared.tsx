@@ -255,6 +255,11 @@ export const CHIP_TONE_CLASSES = {
       "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-300",
     expanded: "text-violet-700 dark:text-violet-300",
   },
+  sky: {
+    button:
+      "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-950 dark:text-sky-300",
+    expanded: "text-sky-700 dark:text-sky-300",
+  },
   slate: {
     button:
       "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300",
