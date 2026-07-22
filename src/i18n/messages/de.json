@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "Tool-Aufrufe zu kompakten Zähl-Chips zusammenfassen",
     "installProviders": "Installieren Sie Codex CLI, Claude Code CLI, OpenCode CLI oder Cursor Agent CLI und aktualisieren Sie dann diesen Abschnitt.",
     "lastChecked": "Zuletzt geprüft {date}",
+    "models": "Modelle",
     "noArchivedChats": "Keine archivierten Chats.",
     "noCliModels": "Noch keine CLI-Modelle verfügbar. Aktualisieren Sie Anbieter.",
     "noOpenCodeModels": "Noch keine CLI-Modelle verfügbar. Führen Sie opencode auth login aus oder konfigurieren Sie opencode.json, und aktualisieren Sie dann Anbieter.",

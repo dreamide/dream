@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "Comprimi le chiamate agli strumenti in chip compatti con conteggio",
     "installProviders": "Installa Codex CLI, Claude Code CLI, OpenCode CLI o Cursor Agent CLI, quindi aggiorna questa sezione.",
     "lastChecked": "Ultimo controllo {date}",
+    "models": "Modelli",
     "noArchivedChats": "Nessuna chat archiviata.",
     "noCliModels": "Nessun modello CLI ancora disponibile. Aggiorna Provider.",
     "noOpenCodeModels": "Nessun modello CLI ancora disponibile. Esegui opencode auth login o configura opencode.json, quindi aggiorna Provider.",

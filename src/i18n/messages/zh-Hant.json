@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "將工具呼叫收合成精簡數量標籤",
     "installProviders": "請安裝 Codex CLI、Claude Code CLI、OpenCode CLI 或 Cursor Agent CLI，然後重新整理此區段。",
     "lastChecked": "上次檢查：{date}",
+    "models": "模型",
     "noArchivedChats": "沒有已封存的聊天。",
     "noCliModels": "尚無可用的 CLI 模型。請重新整理提供者。",
     "noOpenCodeModels": "尚無可用的 CLI 模型。請執行 opencode auth login 或設定 opencode.json，然後重新整理提供者。",

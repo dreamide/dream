@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "Thu gọn lệnh gọi công cụ thành chip đếm nhỏ gọn",
     "installProviders": "Cài đặt Codex CLI, Claude Code CLI, OpenCode CLI hoặc Cursor Agent CLI, rồi làm mới phần này.",
     "lastChecked": "Kiểm tra lần cuối {date}",
+    "models": "Mô hình",
     "noArchivedChats": "Không có chat đã lưu trữ.",
     "noCliModels": "Chưa có mô hình CLI nào. Làm mới Nhà cung cấp.",
     "noOpenCodeModels": "Chưa có mô hình CLI nào. Chạy opencode auth login hoặc cấu hình opencode.json, rồi làm mới Nhà cung cấp.",

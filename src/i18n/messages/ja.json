@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "ツール呼び出しをコンパクトな件数チップに折りたたみます",
     "installProviders": "Codex CLI、Claude Code CLI、OpenCode CLI、または Cursor Agent CLI をインストールしてから、このセクションを更新してください。",
     "lastChecked": "最終確認 {date}",
+    "models": "モデル",
     "noArchivedChats": "アーカイブ済みチャットはありません。",
     "noCliModels": "利用可能な CLI モデルはまだありません。プロバイダーを更新してください。",
     "noOpenCodeModels": "利用可能な CLI モデルはまだありません。opencode auth login を実行するか opencode.json を設定してから、プロバイダーを更新してください。",

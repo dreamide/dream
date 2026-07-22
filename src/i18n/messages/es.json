@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "Contrae las llamadas de herramientas en indicadores compactos",
     "installProviders": "Instala Codex CLI, Claude Code CLI, OpenCode CLI o Cursor Agent CLI y luego actualiza esta sección.",
     "lastChecked": "Última comprobación {date}",
+    "models": "Modelos",
     "noArchivedChats": "No hay chats archivados.",
     "noCliModels": "Aún no hay modelos CLI disponibles. Actualiza Proveedores.",
     "noOpenCodeModels": "Aún no hay modelos CLI disponibles. Ejecuta opencode auth login o configura opencode.json y luego actualiza Proveedores.",

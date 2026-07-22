@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "将工具调用折叠为紧凑的数量标签",
     "installProviders": "请安装 Codex CLI、Claude Code CLI、OpenCode CLI 或 Cursor Agent CLI，然后刷新此部分。",
     "lastChecked": "上次检查 {date}",
+    "models": "模型",
     "noArchivedChats": "没有已归档聊天。",
     "noCliModels": "尚无可用的 CLI 模型。请刷新提供商。",
     "noOpenCodeModels": "尚无可用的 CLI 模型。请运行 opencode auth login 或配置 opencode.json，然后刷新提供商。",

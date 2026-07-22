@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "Collapse tool calls into compact count chips",
     "installProviders": "Install Codex CLI, Claude Code CLI, OpenCode CLI, or Cursor Agent CLI, then refresh this section.",
     "lastChecked": "Last checked {date}",
+    "models": "Models",
     "noArchivedChats": "No archived chats.",
     "noCliModels": "No CLI models available yet. Refresh Providers.",
     "noOpenCodeModels": "No CLI models available yet. Run opencode auth login or configure opencode.json, then refresh Providers.",

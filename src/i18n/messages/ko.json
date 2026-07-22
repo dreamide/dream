@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "도구 호출을 컴팩트한 개수 칩으로 접습니다",
     "installProviders": "Codex CLI, Claude Code CLI, OpenCode CLI 또는 Cursor Agent CLI를 설치한 다음 이 섹션을 새로 고치세요.",
     "lastChecked": "마지막 확인 {date}",
+    "models": "모델",
     "noArchivedChats": "보관된 채팅이 없습니다.",
     "noCliModels": "아직 사용 가능한 CLI 모델이 없습니다. 제공자를 새로 고치세요.",
     "noOpenCodeModels": "아직 사용 가능한 CLI 모델이 없습니다. opencode auth login을 실행하거나 opencode.json을 구성한 다음 제공자를 새로 고치세요.",

@@ -144,6 +144,7 @@
     "groupToolCallsDescription": "Réduit les appels d’outils en pastilles de comptage compactes",
     "installProviders": "Installez Codex CLI, Claude Code CLI, OpenCode CLI ou Cursor Agent CLI, puis actualisez cette section.",
     "lastChecked": "Dernière vérification {date}",
+    "models": "Modèles",
     "noArchivedChats": "Aucun chat archivé.",
     "noCliModels": "Aucun modèle CLI disponible pour le moment. Actualisez Fournisseurs.",
     "noOpenCodeModels": "Aucun modèle CLI disponible pour le moment. Exécutez opencode auth login ou configurez opencode.json, puis actualisez Fournisseurs.",
