@@ -119,20 +119,26 @@ export type VoiceSelectorContentProps = ComponentProps<typeof DialogContent> & {
 export const VoiceSelectorContent = ({
   className,
   children,
-  title = "Voice Selector",
+  title,
   ...props
-}: VoiceSelectorContentProps) => (
-  <DialogContent
-    aria-describedby={undefined}
-    className={cn("p-0", className)}
-    {...props}
-  >
-    <DialogTitle className="sr-only">{title}</DialogTitle>
-    <Command className="**:data-[slot=command-input-wrapper]:h-auto">
-      {children}
-    </Command>
-  </DialogContent>
-);
+}: VoiceSelectorContentProps) => {
+  const uiT = useTranslations("ui");
+
+  return (
+    <DialogContent
+      aria-describedby={undefined}
+      className={cn("p-0", className)}
+      {...props}
+    >
+      <DialogTitle className="sr-only">
+        {title ?? uiT("voiceSelector")}
+      </DialogTitle>
+      <Command className="**:data-[slot=command-input-wrapper]:h-auto">
+        {children}
+      </Command>
+    </DialogContent>
+  );
+};
 
 export type VoiceSelectorDialogProps = ComponentProps<typeof CommandDialog>;
 

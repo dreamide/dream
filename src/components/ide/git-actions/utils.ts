@@ -3,12 +3,19 @@ import type {
   ProjectGitStatusResponse,
 } from "@/types/ide";
 
-export const readResponseText = async (response: Response): Promise<string> => {
+export const readResponseText = async (
+  response: Response,
+  fallback: string,
+): Promise<string> => {
   const text = await response.text();
-  return text.trim() || `Request failed (${response.status}).`;
+  return text.trim() || fallback;
 };
 
-export const postJson = async <T>(url: string, body: unknown): Promise<T> => {
+export const postJson = async <T>(
+  url: string,
+  body: unknown,
+  fallback: string,
+): Promise<T> => {
   const response = await fetch(url, {
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
@@ -16,14 +23,11 @@ export const postJson = async <T>(url: string, body: unknown): Promise<T> => {
   });
 
   if (!response.ok) {
-    throw new Error(await readResponseText(response));
+    throw new Error(await readResponseText(response, fallback));
   }
 
   return (await response.json()) as T;
 };
-
-export const formatFileCount = (count: number) =>
-  `${count} ${count === 1 ? "file" : "files"}`;
 
 export const formatDelta = (value: number, prefix: "+" | "-") =>
   `${prefix}${value}`;

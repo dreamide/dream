@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
@@ -44,9 +45,10 @@ export const ProviderStatusCard = ({
   runtimeLabel: string;
   version: string | null;
 }) => {
+  const uiT = useTranslations("ui");
   const displayVersion = formatCliVersion(version);
   const statusMessage =
-    error || (!loading && !installed ? "CLI not detected." : null);
+    error || (!loading && !installed ? uiT("cliNotDetected") : null);
 
   return (
     <div className="rounded-lg border border-surface-200 dark:border-surface-800 p-4">

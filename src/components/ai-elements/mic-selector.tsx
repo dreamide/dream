@@ -282,6 +282,7 @@ export const MicSelectorValue = ({
 };
 
 export const useAudioDevices = () => {
+  const uiT = useTranslations("ui");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -300,14 +301,14 @@ export const useAudioDevices = () => {
       setDevices(audioInputs);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to get audio devices";
+        error instanceof Error ? error.message : uiT("failedToGetAudioDevices");
 
       setError(message);
       console.error("Error getting audio devices:", message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [uiT]);
 
   const loadDevicesWithPermission = useCallback(async () => {
     if (loading) {
@@ -335,14 +336,14 @@ export const useAudioDevices = () => {
       setHasPermission(true);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to get audio devices";
+        error instanceof Error ? error.message : uiT("failedToGetAudioDevices");
 
       setError(message);
       console.error("Error getting audio devices:", message);
     } finally {
       setLoading(false);
     }
-  }, [loading]);
+  }, [loading, uiT]);
 
   useEffect(() => {
     loadDevicesWithoutPermission();

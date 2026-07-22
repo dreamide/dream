@@ -1,4 +1,5 @@
 import { ArrowDownIcon, DownloadIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import { useCallback } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
@@ -39,32 +40,41 @@ export type ConversationEmptyStateProps = ComponentProps<"div"> & {
 
 export const ConversationEmptyState = ({
   className,
-  title = "No messages yet",
-  description = "Start a conversation to see messages here",
+  title,
+  description,
   icon,
   children,
   ...props
-}: ConversationEmptyStateProps) => (
-  <div
-    className={cn(
-      "flex size-full flex-col items-center justify-center gap-3 p-8 text-center",
-      className,
-    )}
-    {...props}
-  >
-    {children ?? (
-      <>
-        {icon && <div className="text-muted-foreground">{icon}</div>}
-        <div className="space-y-1">
-          <h3 className="font-medium text-sm">{title}</h3>
-          {description && (
-            <p className="text-muted-foreground text-sm">{description}</p>
-          )}
-        </div>
-      </>
-    )}
-  </div>
-);
+}: ConversationEmptyStateProps) => {
+  const uiT = useTranslations("ui");
+  const resolvedDescription = description ?? uiT("startConversation");
+
+  return (
+    <div
+      className={cn(
+        "flex size-full flex-col items-center justify-center gap-3 p-8 text-center",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? (
+        <>
+          {icon && <div className="text-muted-foreground">{icon}</div>}
+          <div className="space-y-1">
+            <h3 className="font-medium text-sm">
+              {title ?? uiT("noMessagesYet")}
+            </h3>
+            {resolvedDescription && (
+              <p className="text-muted-foreground text-sm">
+                {resolvedDescription}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 export type ConversationScrollButtonProps = ComponentProps<typeof Button>;
 
@@ -102,6 +112,17 @@ export interface ConversationMessage {
   content: string;
 }
 
+const CONVERSATION_ROLE_KEYS: Record<
+  ConversationMessage["role"],
+  "roleAssistant" | "roleData" | "roleSystem" | "roleTool" | "roleUser"
+> = {
+  assistant: "roleAssistant",
+  data: "roleData",
+  system: "roleSystem",
+  tool: "roleTool",
+  user: "roleUser",
+};
+
 export type ConversationDownloadProps = Omit<
   ComponentProps<typeof Button>,
   "onClick"
@@ -128,13 +149,20 @@ export const messagesToMarkdown = (
 export const ConversationDownload = ({
   messages,
   filename = "conversation.md",
-  formatMessage = defaultFormatMessage,
+  formatMessage,
   className,
   children,
   ...props
 }: ConversationDownloadProps) => {
+  const uiT = useTranslations("ui");
+  const resolvedFormatMessage = useCallback(
+    (message: ConversationMessage, index: number) =>
+      formatMessage?.(message, index) ??
+      `**${uiT(CONVERSATION_ROLE_KEYS[message.role])}:** ${message.content}`,
+    [formatMessage, uiT],
+  );
   const handleDownload = useCallback(() => {
-    const markdown = messagesToMarkdown(messages, formatMessage);
+    const markdown = messagesToMarkdown(messages, resolvedFormatMessage);
     const blob = new Blob([markdown], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -144,7 +172,7 @@ export const ConversationDownload = ({
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-  }, [messages, filename, formatMessage]);
+  }, [filename, messages, resolvedFormatMessage]);
 
   return (
     <Button

@@ -268,7 +268,7 @@ export const createProjectLifecycleActions = (
       (project) => project.id === parentProjectId,
     );
     if (!parentProject) {
-      throw new Error("Parent project is no longer open.");
+      throw new Error();
     }
 
     const response = await fetch("/api/project-git-worktree-create", {
@@ -283,7 +283,9 @@ export const createProjectLifecycleActions = (
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text.trim() || "Unable to create worktree.");
+      throw new Error(
+        text.trim() || response.statusText || String(response.status),
+      );
     }
 
     const payload = (await response.json()) as ProjectGitCreateWorktreeResponse;

@@ -1,5 +1,6 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { CheckIcon, SearchIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type * as React from "react";
 import {
   Dialog,
@@ -28,8 +29,8 @@ function Command({
 }
 
 function CommandDialog({
-  title = "Command Palette",
-  description = "Search for a command to run...",
+  title,
+  description,
   children,
   className,
   ...props
@@ -39,11 +40,15 @@ function CommandDialog({
   className?: string;
   children: React.ReactNode;
 }) {
+  const uiT = useTranslations("ui");
+
   return (
     <Dialog {...props}>
       <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
+        <DialogTitle>{title ?? uiT("commandPalette")}</DialogTitle>
+        <DialogDescription>
+          {description ?? uiT("searchCommands")}
+        </DialogDescription>
       </DialogHeader>
       <DialogContent
         className={cn(

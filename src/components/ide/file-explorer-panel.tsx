@@ -133,9 +133,12 @@ const inferLanguage = (filePath: string): BundledLanguage => {
   return languages[extension] ?? "log";
 };
 
-const readResponseText = async (response: Response): Promise<string> => {
+const readResponseText = async (
+  response: Response,
+  fallback: string,
+): Promise<string> => {
   const text = await response.text();
-  return text.trim() || `Request failed (${response.status}).`;
+  return text.trim() || fallback;
 };
 
 const isMissingPathError = (message: string | null) =>
@@ -418,6 +421,7 @@ const FileExplorerPanelImpl = ({
 }: FileExplorerPanelProps) => {
   const commonT = useTranslations("common");
   const panelsT = useTranslations("panels");
+  const uiT = useTranslations("ui");
   const activeProject = useIdeStore((s) =>
     requestedProjectId
       ? (s.projects.find((project) => project.id === requestedProjectId) ??
@@ -597,7 +601,12 @@ const FileExplorerPanelImpl = ({
       });
 
       if (!response.ok) {
-        throw new Error(await readResponseText(response));
+        throw new Error(
+          await readResponseText(
+            response,
+            uiT("requestFailedStatus", { status: response.status }),
+          ),
+        );
       }
 
       const payload = (await response.json()) as ProjectFilesListResponse;
@@ -628,7 +637,7 @@ const FileExplorerPanelImpl = ({
     } finally {
       setFilesLoading(false);
     }
-  }, [panelsT, projectId, projectPath]);
+  }, [panelsT, projectId, projectPath, uiT]);
 
   const handleOpenProjectPath = useCallback(async () => {
     if (!projectPath) {
@@ -753,7 +762,10 @@ const FileExplorerPanelImpl = ({
         });
 
         if (isFilePreviewUnavailableStatus(response.status) && !cancelled) {
-          const message = await readResponseText(response);
+          const message = await readResponseText(
+            response,
+            uiT("requestFailedStatus", { status: response.status }),
+          );
           setFilePreviewMessagesByProject((current) => ({
             ...current,
             [projectId]: {
@@ -765,7 +777,12 @@ const FileExplorerPanelImpl = ({
         }
 
         if (!response.ok) {
-          throw new Error(await readResponseText(response));
+          throw new Error(
+            await readResponseText(
+              response,
+              uiT("requestFailedStatus", { status: response.status }),
+            ),
+          );
         }
 
         const payload = (await response.json()) as ProjectFileReadResponse;
@@ -807,6 +824,7 @@ const FileExplorerPanelImpl = ({
     projectId,
     projectPath,
     selectedFilePath,
+    uiT,
   ]);
 
   useEffect(() => {
@@ -833,7 +851,12 @@ const FileExplorerPanelImpl = ({
         );
 
         if (!response.ok) {
-          throw new Error(await readResponseText(response));
+          throw new Error(
+            await readResponseText(
+              response,
+              uiT("requestFailedStatus", { status: response.status }),
+            ),
+          );
         }
 
         const blob = await response.blob();
@@ -871,6 +894,7 @@ const FileExplorerPanelImpl = ({
     projectPath,
     replaceSelectedImagePreviewUrl,
     selectedFilePath,
+    uiT,
   ]);
 
   const handleSelectFile = useCallback(
@@ -1003,7 +1027,12 @@ const FileExplorerPanelImpl = ({
       });
 
       if (!response.ok) {
-        throw new Error(await readResponseText(response));
+        throw new Error(
+          await readResponseText(
+            response,
+            uiT("requestFailedStatus", { status: response.status }),
+          ),
+        );
       }
 
       const payload = (await response.json()) as ProjectFileReadResponse;
@@ -1031,7 +1060,7 @@ const FileExplorerPanelImpl = ({
         setFileSaving(false);
       }
     }
-  }, [editingFile, fileSaving, panelsT, projectPath]);
+  }, [editingFile, fileSaving, panelsT, projectPath, uiT]);
 
   const handleEditorKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1310,7 +1339,7 @@ const FileExplorerPanelImpl = ({
                         {isFileSearchOpen ? (
                           <div className="flex h-7 items-center overflow-hidden rounded-md border border-input bg-background shadow-xs">
                             <input
-                              aria-label="Search current file"
+                              aria-label={uiT("searchCurrentFile")}
                               className="h-full w-36 bg-transparent px-2 font-mono text-foreground text-xs outline-none placeholder:text-muted-foreground"
                               onChange={(event) =>
                                 setFileSearch((current) =>
@@ -1324,7 +1353,7 @@ const FileExplorerPanelImpl = ({
                                 )
                               }
                               onKeyDown={handleFileSearchKeyDown}
-                              placeholder="Find"
+                              placeholder={uiT("find")}
                               ref={fileSearchInputRef}
                               value={fileSearchQuery}
                             />
@@ -1334,22 +1363,22 @@ const FileExplorerPanelImpl = ({
                                 : "0/0"}
                             </span>
                             <Button
-                              aria-label="Previous result"
+                              aria-label={uiT("previousResult")}
                               disabled={fileSearchMatches.length === 0}
                               onClick={() => handleNavigateFileSearch(-1)}
                               size="icon-xs"
-                              title="Previous result"
+                              title={uiT("previousResult")}
                               type="button"
                               variant="ghost"
                             >
                               <ChevronUp />
                             </Button>
                             <Button
-                              aria-label="Next result"
+                              aria-label={uiT("nextResult")}
                               disabled={fileSearchMatches.length === 0}
                               onClick={() => handleNavigateFileSearch(1)}
                               size="icon-xs"
-                              title="Next result"
+                              title={uiT("nextResult")}
                               type="button"
                               variant="ghost"
                             >
@@ -1358,11 +1387,11 @@ const FileExplorerPanelImpl = ({
                           </div>
                         ) : null}
                         <Button
-                          aria-label="Search current file"
+                          aria-label={uiT("searchCurrentFile")}
                           aria-pressed={isFileSearchOpen}
                           onClick={handleToggleFileSearch}
                           size="icon-xs"
-                          title="Search current file"
+                          title={uiT("searchCurrentFile")}
                           type="button"
                           variant="ghost"
                         >

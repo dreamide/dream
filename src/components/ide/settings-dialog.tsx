@@ -78,18 +78,10 @@ import {
   SettingsSwitchRow,
 } from "./settings";
 
-const getAccentColorLabel = (color: AccentColor) =>
-  color === "black-white"
-    ? "Black / white"
-    : color.charAt(0).toUpperCase() + color.slice(1);
-
 const getAccentColorSwatch = (color: AccentColor) =>
   color === "black-white"
     ? "linear-gradient(135deg, var(--foreground) 0 50%, var(--background) 50% 100%)"
     : `var(--color-${color}-500)`;
-
-const getBaseColorLabel = (color: BaseColor) =>
-  color.charAt(0).toUpperCase() + color.slice(1);
 
 const BASE_COLOR_SWATCHES: Record<BaseColor, string> = {
   gray: "oklch(0.551 0.027 264.364)",
@@ -147,6 +139,9 @@ export const SettingsDialog = () => {
   const providerT = useTranslations("provider");
   const settingsT = useTranslations("settings");
   const themeT = useTranslations("theme");
+  const uiT = useTranslations("ui");
+  const getColorLabel = (color: AccentColor | BaseColor) =>
+    uiT(`colors.${color === "black-white" ? "blackWhite" : color}`);
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -479,6 +474,8 @@ export const SettingsDialog = () => {
   const handleRefreshGrokProvider = () => {
     void refreshProviderModels({ force: true, provider: "grok" });
   };
+  const getProviderError = (error: string | null) =>
+    error ? uiT("unableToFetchModels") : null;
 
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
@@ -670,7 +667,7 @@ export const SettingsDialog = () => {
 
                           return (
                             <button
-                              aria-label={getBaseColorLabel(color)}
+                              aria-label={getColorLabel(color)}
                               aria-pressed={selected}
                               className={cn(
                                 "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -683,7 +680,7 @@ export const SettingsDialog = () => {
                               style={{
                                 background: getBaseColorSwatch(color),
                               }}
-                              title={getBaseColorLabel(color)}
+                              title={getColorLabel(color)}
                               type="button"
                             />
                           );
@@ -702,7 +699,7 @@ export const SettingsDialog = () => {
 
                           return (
                             <button
-                              aria-label={getAccentColorLabel(color)}
+                              aria-label={getColorLabel(color)}
                               aria-pressed={selected}
                               className={cn(
                                 "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -715,7 +712,7 @@ export const SettingsDialog = () => {
                               style={{
                                 background: getAccentColorSwatch(color),
                               }}
-                              title={getAccentColorLabel(color)}
+                              title={getColorLabel(color)}
                               type="button"
                             />
                           );
@@ -1001,7 +998,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.openai.error}
+                      error={getProviderError(providerModels.openai.error)}
                       installed={providerModels.openai.installed}
                       label="OpenAI"
                       logoSrc={openAiLogo}
@@ -1069,7 +1066,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.anthropic.error}
+                      error={getProviderError(providerModels.anthropic.error)}
                       installed={providerModels.anthropic.installed}
                       label="Anthropic"
                       logoSrc={anthropicLogo}
@@ -1139,7 +1136,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.opencode.error}
+                      error={getProviderError(providerModels.opencode.error)}
                       installed={providerModels.opencode.installed}
                       label="OpenCode"
                       logoSrc={openCodeLogo}
@@ -1209,7 +1206,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.cursor.error}
+                      error={getProviderError(providerModels.cursor.error)}
                       icon={
                         <CursorIcon
                           aria-hidden="true"
@@ -1283,7 +1280,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.grok.error}
+                      error={getProviderError(providerModels.grok.error)}
                       icon={
                         <GrokIcon
                           aria-hidden="true"

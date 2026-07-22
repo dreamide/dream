@@ -412,9 +412,9 @@ const getChangeStateLabel = (status: string | null): string | null => {
   return null;
 };
 
-const readResponseText = async (response: Response) => {
+const readResponseText = async (response: Response, fallback: string) => {
   const text = await response.text();
-  return text.trim() || response.statusText || "Request failed.";
+  return text.trim() || response.statusText || fallback;
 };
 
 const WRITE_CHIP_PREVIEW_CLASSES = "max-h-96 overflow-auto";
@@ -439,6 +439,7 @@ export const WriteFileChip = ({
   onToolApproval?: ToolApprovalHandler;
 }) => {
   const assistantT = useTranslations("assistant");
+  const uiT = useTranslations("ui");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [gitDiff, setGitDiff] = useState<{
     diff: string;
@@ -609,7 +610,7 @@ export const WriteFileChip = ({
     !isApprovalRequested &&
     (hasError || displayDiffCode !== null || content !== null || hasOutput);
   const displayFilename =
-    filename === "file" && isRunning ? "Writing" : filename;
+    filename === "file" && isRunning ? uiT("writing") : filename;
   const projectId = useMemo(() => {
     if (!projectPath) {
       return null;
@@ -684,7 +685,9 @@ export const WriteFileChip = ({
         });
 
         if (!statusResponse.ok) {
-          throw new Error(await readResponseText(statusResponse));
+          throw new Error(
+            await readResponseText(statusResponse, uiT("requestFailed")),
+          );
         }
 
         const status =
@@ -714,7 +717,9 @@ export const WriteFileChip = ({
         });
 
         if (!diffResponse.ok) {
-          throw new Error(await readResponseText(diffResponse));
+          throw new Error(
+            await readResponseText(diffResponse, uiT("requestFailed")),
+          );
         }
 
         const payload = (await diffResponse.json()) as ProjectGitDiffResponse;
@@ -754,6 +759,7 @@ export const WriteFileChip = ({
     projectPath,
     projectRelativeFilePath,
     shouldLoadGitDiff,
+    uiT,
   ]);
 
   return (

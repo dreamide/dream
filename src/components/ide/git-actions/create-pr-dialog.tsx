@@ -208,6 +208,7 @@ export const CreatePrDialog = ({
             projectPath,
             title,
           },
+          gitT("unableToCreatePr"),
         );
         onCompleted(response.url, openPrPage);
         onOpenChange(false);

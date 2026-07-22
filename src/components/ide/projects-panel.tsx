@@ -1,5 +1,5 @@
 import { Archive, FolderTree, FolderX, Search } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +28,10 @@ import type {
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 
-const formatLastActiveTime = (value: string) => {
+const formatLastActiveTime = (
+  value: string,
+  formatter: Intl.RelativeTimeFormat,
+) => {
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) {
     return "";
@@ -36,35 +39,35 @@ const formatLastActiveTime = (value: string) => {
 
   const deltaSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   if (deltaSeconds < 60) {
-    return "now";
+    return formatter.format(0, "second");
   }
 
   const deltaMinutes = Math.floor(deltaSeconds / 60);
   if (deltaMinutes < 60) {
-    return `${deltaMinutes}m`;
+    return formatter.format(-deltaMinutes, "minute");
   }
 
   const deltaHours = Math.floor(deltaMinutes / 60);
   if (deltaHours < 24) {
-    return `${deltaHours}h`;
+    return formatter.format(-deltaHours, "hour");
   }
 
   const deltaDays = Math.floor(deltaHours / 24);
   if (deltaDays < 30) {
-    return `${deltaDays}d`;
+    return formatter.format(-deltaDays, "day");
   }
 
   const deltaMonths = Math.floor(deltaDays / 30);
   if (deltaMonths < 12) {
-    return `${deltaMonths}mo`;
+    return formatter.format(-deltaMonths, "month");
   }
 
-  return `${Math.floor(deltaMonths / 12)}y`;
+  return formatter.format(-Math.floor(deltaMonths / 12), "year");
 };
 
-const readResponseText = async (response: Response) => {
+const readResponseText = async (response: Response, fallback: string) => {
   const text = await response.text();
-  return text.trim() || `Request failed (${response.status}).`;
+  return text.trim() || fallback;
 };
 
 const isMissingWorktreeError = (message: string) =>
@@ -134,9 +137,15 @@ export const ProjectSidebar = ({
   onChatSelect?: () => void;
   project: ProjectConfig;
 }) => {
+  const locale = useLocale();
   const commonT = useTranslations("common");
   const projectsT = useTranslations("projects");
   const worktreeT = useTranslations("worktrees");
+  const relativeTimeFormatter = useMemo(
+    () =>
+      new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "narrow" }),
+    [locale],
+  );
   const allChats = useIdeStore((s) => s.chats);
   const projectUi = useIdeStore(
     (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
@@ -285,7 +294,9 @@ export const ProjectSidebar = ({
         method: "POST",
       });
       if (!response.ok) {
-        throw new Error(await readResponseText(response));
+        throw new Error(
+          await readResponseText(response, worktreeT("unableToRemove")),
+        );
       }
 
       purgeWorktreeProjectState(pendingRemoveWorktree.path);
@@ -497,7 +508,10 @@ export const ProjectSidebar = ({
                         </div>
                       </div>
                       <span className="-translate-y-1/2 absolute top-1/2 right-3 text-right text-muted-foreground text-xs group-hover:opacity-0 group-focus-within:opacity-0">
-                        {formatLastActiveTime(lastActiveAt)}
+                        {formatLastActiveTime(
+                          lastActiveAt,
+                          relativeTimeFormatter,
+                        )}
                       </span>
                     </button>
                     <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">

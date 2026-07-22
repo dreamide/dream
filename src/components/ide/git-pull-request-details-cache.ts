@@ -38,7 +38,7 @@ const pullRequestDetailsRequests = new Map<
 
 const readResponseText = async (response: Response): Promise<string> => {
   const text = await response.text();
-  return text.trim() || `Request failed (${response.status}).`;
+  return text.trim() || response.statusText || String(response.status);
 };
 
 const setPullRequestDetailsCacheEntry = (

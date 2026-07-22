@@ -71,10 +71,8 @@ const CreateWorktreeDialog = ({
         branchName: branchName.trim(),
       });
       onOpenChange(false);
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : worktreeT("unableToCreate"),
-      );
+    } catch {
+      setError(worktreeT("unableToCreate"));
     } finally {
       setSubmitting(false);
     }

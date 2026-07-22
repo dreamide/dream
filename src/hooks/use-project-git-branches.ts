@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import type {
   ProjectGitBranchesResponse,
@@ -16,9 +17,12 @@ const gitBranchesInflightRequests = new Map<
   Promise<ProjectGitBranchesCacheEntry>
 >();
 
-const readResponseText = async (response: Response): Promise<string> => {
+const readResponseText = async (
+  response: Response,
+  fallback: string,
+): Promise<string> => {
   const text = await response.text();
-  return text.trim() || `Request failed (${response.status}).`;
+  return text.trim() || fallback;
 };
 
 const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
@@ -28,6 +32,7 @@ export const useProjectGitBranches = (
   projectPath: string | null | undefined,
   refreshKey?: number,
 ) => {
+  const uiT = useTranslations("ui");
   const refreshToken = refreshKey ?? 0;
   const cacheKey = getProjectPathCacheKey(projectPath);
   const cachedEntry = cacheKey ? gitBranchesCache.get(cacheKey) : null;
@@ -78,7 +83,12 @@ export const useProjectGitBranches = (
               });
 
               if (!response.ok) {
-                throw new Error(await readResponseText(response));
+                throw new Error(
+                  await readResponseText(
+                    response,
+                    uiT("requestFailedStatus", { status: response.status }),
+                  ),
+                );
               }
 
               const entry: ProjectGitBranchesCacheEntry = {
@@ -93,7 +103,7 @@ export const useProjectGitBranches = (
                 error:
                   error instanceof Error
                     ? error.message
-                    : "Failed to read Git branches.",
+                    : uiT("failedToReadGitBranches"),
                 refreshToken,
                 status: null,
               };
@@ -122,7 +132,7 @@ export const useProjectGitBranches = (
         }
       }
     },
-    [cacheKey, projectPath, refreshToken],
+    [cacheKey, projectPath, refreshToken, uiT],
   );
 
   useEffect(() => {
@@ -137,7 +147,7 @@ export const useProjectGitBranches = (
   const checkoutBranch = useCallback(
     async (branchName: string, create = false) => {
       if (!projectPath) {
-        throw new Error("No active project is selected.");
+        throw new Error(uiT("noActiveProjectSelected"));
       }
 
       setSwitching(true);
@@ -155,7 +165,12 @@ export const useProjectGitBranches = (
         });
 
         if (!response.ok) {
-          throw new Error(await readResponseText(response));
+          throw new Error(
+            await readResponseText(
+              response,
+              uiT("requestFailedStatus", { status: response.status }),
+            ),
+          );
         }
 
         const payload = (await response.json()) as ProjectGitCheckoutResponse;
@@ -172,14 +187,14 @@ export const useProjectGitBranches = (
         const message =
           error instanceof Error
             ? error.message
-            : "Failed to switch Git branches.";
+            : uiT("failedToSwitchGitBranches");
         setError(message);
         throw new Error(message);
       } finally {
         setSwitching(false);
       }
     },
-    [cacheKey, projectPath, refreshToken],
+    [cacheKey, projectPath, refreshToken, uiT],
   );
 
   const clearError = useCallback(() => {

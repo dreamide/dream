@@ -50,6 +50,7 @@ const ChangesPanelImpl = ({
 }: ChangesPanelProps) => {
   const commonT = useTranslations("common");
   const panelsT = useTranslations("panels");
+  const uiT = useTranslations("ui");
   const activeProject = useIdeStore((s) =>
     requestedProjectId
       ? (s.projects.find((project) => project.id === requestedProjectId) ??
@@ -272,7 +273,7 @@ const ChangesPanelImpl = ({
     try {
       const change = changesByPathRef.current.get(nextFilePath);
       if (!change) {
-        throw new Error("File does not have Git changes.");
+        throw new Error(panelsT("noDiffOutput"));
       }
 
       const response = await fetch("/api/project-git-diff", {
@@ -287,7 +288,12 @@ const ChangesPanelImpl = ({
       });
 
       if (!response.ok) {
-        throw new Error(await readResponseText(response));
+        throw new Error(
+          await readResponseText(
+            response,
+            uiT("requestFailedStatus", { status: response.status }),
+          ),
+        );
       }
 
       const payload = (await response.json()) as ProjectGitDiffResponse;
@@ -379,7 +385,7 @@ const ChangesPanelImpl = ({
         void processQueuedDiffLoads();
       }
     }
-  }, [panelsT, projectId, projectPath]);
+  }, [panelsT, projectId, projectPath, uiT]);
 
   const queueDiffLoad = useCallback(
     (filePath: string, priority = false, force = false) => {
@@ -664,7 +670,12 @@ const ChangesPanelImpl = ({
         });
 
         if (!response.ok) {
-          throw new Error(await readResponseText(response));
+          throw new Error(
+            await readResponseText(
+              response,
+              uiT("requestFailedStatus", { status: response.status }),
+            ),
+          );
         }
 
         bumpProjectGitRefreshKey(projectId);
@@ -686,6 +697,7 @@ const ChangesPanelImpl = ({
       projectId,
       projectPath,
       revertingPaths,
+      uiT,
     ],
   );
 
