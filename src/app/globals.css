@@ -6,17 +6,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@keyframes status-dot-pulse {
-  0% {
-    transform: scale(1);
-    opacity: 0.65;
-  }
-  100% {
-    transform: scale(3);
-    opacity: 0;
-  }
-}
-
 @keyframes sd-searIn {
   0% {
     color: var(--streaming-sear-start-color);
@@ -47,20 +36,6 @@
 [data-chat-stack-repositioning="true"]
   [data-sd-animate][style*="--sd-animation"] {
   animation: none;
-}
-
-.animate-status-dot-pulse {
-  position: relative;
-}
-
-.animate-status-dot-pulse::after {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  border: 1px solid var(--status-dot-pulse-color, currentColor);
-  content: "";
-  transform-origin: center;
-  animation: status-dot-pulse 1.8s ease-out infinite;
 }
 
 @theme inline {
