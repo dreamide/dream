@@ -182,6 +182,11 @@
     "themeDescription": "Điều khiển chủ đề giao diện."
   },
   "settings": {
+    "archiveNow": "Lưu trữ ngay",
+    "archiveChatsAfterDays": "Lưu trữ chat sau",
+    "archiveDays": "Số ngày trước khi lưu trữ",
+    "archiveInactiveChats": "Lưu trữ chat không hoạt động",
+    "archiveInactiveChatsDescription": "Lưu trữ các chat không được cập nhật trong số ngày này.",
     "archivedChatCount": "{count} chat đã lưu trữ",
     "archivedChats": "Chat đã lưu trữ",
     "autoCompactContext": "Tự động nén ngữ cảnh",

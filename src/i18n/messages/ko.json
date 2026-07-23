@@ -182,6 +182,11 @@
     "themeDescription": "인터페이스 테마를 제어합니다."
   },
   "settings": {
+    "archiveNow": "지금 보관",
+    "archiveChatsAfterDays": "다음 일수 후 채팅 보관",
+    "archiveDays": "보관 전 일수",
+    "archiveInactiveChats": "비활성 채팅 보관",
+    "archiveInactiveChatsDescription": "이 일수 동안 업데이트되지 않은 채팅을 보관합니다.",
     "archivedChatCount": "보관된 채팅 {count}개",
     "archivedChats": "보관된 채팅",
     "autoCompactContext": "컨텍스트 자동 압축",

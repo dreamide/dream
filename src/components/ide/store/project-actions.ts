@@ -18,6 +18,7 @@ export const createProjectActions = (
   | "toggleProjectMultiChatMode"
   | "setActiveChatId"
   | "updateChat"
+  | "archiveInactiveChats"
   | "deleteChat"
   | "permanentlyDeleteChats"
   | "restoreChats"

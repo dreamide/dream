@@ -595,6 +595,16 @@ export const mergePersistedState = (
 
   const mergedSettings: AppSettings = {
     ...DEFAULT_SETTINGS,
+    archiveChatsAfterDays:
+      typeof rawSettings.archiveChatsAfterDays === "number" &&
+      Number.isInteger(rawSettings.archiveChatsAfterDays) &&
+      rawSettings.archiveChatsAfterDays > 0
+        ? rawSettings.archiveChatsAfterDays
+        : typeof rawSettings.autoArchiveChatsAfterDays === "number" &&
+            Number.isInteger(rawSettings.autoArchiveChatsAfterDays) &&
+            rawSettings.autoArchiveChatsAfterDays > 0
+          ? rawSettings.autoArchiveChatsAfterDays
+          : DEFAULT_SETTINGS.archiveChatsAfterDays,
     autoCompactContext:
       typeof rawSettings.autoCompactContext === "boolean"
         ? rawSettings.autoCompactContext

@@ -182,6 +182,11 @@
     "themeDescription": "Steuert das Oberflächen-Theme."
   },
   "settings": {
+    "archiveNow": "Jetzt archivieren",
+    "archiveChatsAfterDays": "Chats archivieren nach",
+    "archiveDays": "Tage bis zur Archivierung",
+    "archiveInactiveChats": "Inaktive Chats archivieren",
+    "archiveInactiveChatsDescription": "Archiviert Chats, die seit dieser Anzahl von Tagen nicht aktualisiert wurden.",
     "archivedChatCount": "{count, plural, one {# archivierter Chat} other {# archivierte Chats}}",
     "archivedChats": "Archivierte Chats",
     "autoCompactContext": "Kontext automatisch kompaktieren",

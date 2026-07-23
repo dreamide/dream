@@ -182,6 +182,11 @@
     "themeDescription": "Controls the interface theme."
   },
   "settings": {
+    "archiveNow": "Archive now",
+    "archiveChatsAfterDays": "Archive chats after",
+    "archiveDays": "Days before archiving",
+    "archiveInactiveChats": "Archive inactive chats",
+    "archiveInactiveChatsDescription": "Archive chats that have not been updated for this many days.",
     "archivedChatCount": "{count, plural, one {# archived chat} other {# archived chats}}",
     "archivedChats": "Archived Chats",
     "autoCompactContext": "Auto compact context",

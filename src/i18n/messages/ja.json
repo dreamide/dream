@@ -182,6 +182,11 @@
     "themeDescription": "インターフェイスのテーマを制御します。"
   },
   "settings": {
+    "archiveNow": "今すぐアーカイブ",
+    "archiveChatsAfterDays": "指定日数後にチャットをアーカイブ",
+    "archiveDays": "アーカイブまでの日数",
+    "archiveInactiveChats": "非アクティブなチャットをアーカイブ",
+    "archiveInactiveChatsDescription": "この日数の間更新されていないチャットをアーカイブします。",
     "archivedChatCount": "{count} 件のアーカイブ済みチャット",
     "archivedChats": "アーカイブ済みチャット",
     "autoCompactContext": "コンテキストを自動圧縮",

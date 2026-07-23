@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -155,6 +156,7 @@ export const SettingsDialog = () => {
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
+  const archiveInactiveChats = useIdeStore((s) => s.archiveInactiveChats);
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
 
@@ -455,6 +457,9 @@ export const SettingsDialog = () => {
   const handlePermanentlyDeleteSelectedChats = () => {
     permanentlyDeleteChats(selectedDeletedChatIds);
     setSelectedDeletedChatIds([]);
+  };
+  const handleArchiveInactiveChats = () => {
+    archiveInactiveChats();
   };
   const handleRefreshOpenAiProvider = () => {
     void refreshProviderModels({ force: true, provider: "openai" });
@@ -1445,6 +1450,55 @@ export const SettingsDialog = () => {
                       </Table>
                     </div>
                   )}
+
+                  <SettingsControlRow
+                    controlClassName="md:w-[34rem]"
+                    description={settingsT("archiveInactiveChatsDescription")}
+                    label={settingsT("archiveChatsAfterDays")}
+                  >
+                    <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:justify-end">
+                      <Input
+                        aria-label={settingsT("archiveDays")}
+                        className="w-full sm:w-32"
+                        min={1}
+                        onBlur={(event) => {
+                          if (event.currentTarget.value !== "") {
+                            return;
+                          }
+
+                          setSettings((previous) => ({
+                            ...previous,
+                            archiveChatsAfterDays: 30,
+                          }));
+                        }}
+                        onChange={(event) => {
+                          const nextValue = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(nextValue)) {
+                            return;
+                          }
+
+                          setSettings((previous) => ({
+                            ...previous,
+                            archiveChatsAfterDays: Math.max(
+                              1,
+                              Math.floor(nextValue),
+                            ),
+                          }));
+                        }}
+                        step={1}
+                        type="number"
+                        value={settings.archiveChatsAfterDays}
+                      />
+                      <Button
+                        onClick={handleArchiveInactiveChats}
+                        type="button"
+                        variant="outline"
+                      >
+                        <Archive className="size-4" />
+                        {settingsT("archiveNow")}
+                      </Button>
+                    </div>
+                  </SettingsControlRow>
                 </div>
               ) : null}
             </div>

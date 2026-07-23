@@ -182,6 +182,11 @@
     "themeDescription": "控制介面主題。"
   },
   "settings": {
+    "archiveNow": "立即封存",
+    "archiveChatsAfterDays": "在以下天數後封存聊天",
+    "archiveDays": "封存前的天數",
+    "archiveInactiveChats": "封存非活躍聊天",
+    "archiveInactiveChatsDescription": "封存在此天數內未更新的聊天。",
     "archivedChatCount": "{count, plural, one {# 個已封存聊天} other {# 個已封存聊天}}",
     "archivedChats": "已封存聊天",
     "autoCompactContext": "自動壓縮上下文",

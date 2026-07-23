@@ -97,6 +97,7 @@ export interface IdeState {
     chatId: string,
     updater: (chat: ChatConfig) => ChatConfig,
   ) => void;
+  archiveInactiveChats: () => number;
   deleteChat: (chatId: string) => void;
   permanentlyDeleteChats: (chatIds: string[]) => void;
   restoreChats: (chatIds: string[]) => void;

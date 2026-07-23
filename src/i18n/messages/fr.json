@@ -182,6 +182,11 @@
     "themeDescription": "Contrôle le thème de l’interface."
   },
   "settings": {
+    "archiveNow": "Archiver maintenant",
+    "archiveChatsAfterDays": "Archiver les chats après",
+    "archiveDays": "Jours avant archivage",
+    "archiveInactiveChats": "Archiver les chats inactifs",
+    "archiveInactiveChatsDescription": "Archive les chats qui n’ont pas été mis à jour depuis ce nombre de jours.",
     "archivedChatCount": "{count, plural, one {# chat archivé} other {# chats archivés}}",
     "archivedChats": "Chats archivés",
     "autoCompactContext": "Compacter automatiquement le contexte",

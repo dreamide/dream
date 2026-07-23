@@ -103,6 +103,7 @@ export interface ProjectWorktreeInfo {
 }
 
 export interface AppSettings {
+  archiveChatsAfterDays: number;
   autoCompactContext: boolean;
   autoAcceptPermissions: boolean;
   defaultModel: string;

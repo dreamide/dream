@@ -182,6 +182,11 @@
     "themeDescription": "Controla o tema da interface."
   },
   "settings": {
+    "archiveNow": "Arquivar agora",
+    "archiveChatsAfterDays": "Arquivar chats após",
+    "archiveDays": "Dias antes de arquivar",
+    "archiveInactiveChats": "Arquivar chats inativos",
+    "archiveInactiveChatsDescription": "Arquiva chats que não foram atualizados por esta quantidade de dias.",
     "archivedChatCount": "{count, plural, one {# chat arquivado} other {# chats arquivados}}",
     "archivedChats": "Chats arquivados",
     "autoCompactContext": "Compactar contexto automaticamente",
