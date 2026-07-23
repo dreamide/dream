@@ -1,8 +1,8 @@
 import {
+  ChevronsDownUp,
+  ChevronsUpDown,
   Code,
   Columns2,
-  ListChevronsUpDown,
-  ListCollapse,
   RotateCw,
   Rows3,
 } from "lucide-react";
@@ -786,9 +786,9 @@ const ChangesPanelImpl = ({
           variant="outline"
         >
           {allExpanded ? (
-            <ListCollapse className="size-3.5" />
+            <ChevronsDownUp className="size-3.5" />
           ) : (
-            <ListChevronsUpDown className="size-3.5" />
+            <ChevronsUpDown className="size-3.5" />
           )}
         </Button>
 

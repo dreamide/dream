@@ -81,6 +81,9 @@ const CODEX_IMAGE_MEDIA_TYPES = new Set([
   "image/png",
   "image/webp",
 ]);
+const CODEX_APP_SERVER_MESSAGE_CHAR_LIMIT = 200_000;
+const CODEX_APP_SERVER_PROMPT_CHAR_BUDGET = 700_000;
+const CODEX_APP_SERVER_TOOL_VALUE_CHAR_LIMIT = 12_000;
 const TEXT_ATTACHMENT_CHAR_LIMIT = 60_000;
 const TEXT_INPUT_CHUNK_CHAR_LIMIT = 900_000;
 const TEXT_ATTACHMENT_MEDIA_TYPES = new Set([
@@ -95,6 +98,67 @@ const TEXT_ATTACHMENT_MEDIA_TYPES = new Set([
   "application/xml",
   "application/yaml",
 ]);
+
+const getCodexCharLimit = (value) =>
+  typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.floor(value))
+    : null;
+
+const truncateCodexText = (value, maxChars, label) => {
+  const limit = getCodexCharLimit(maxChars);
+  if (limit === null || value.length <= limit) {
+    return value;
+  }
+
+  const marker = `\n...[${label} truncated to fit Codex input limits]...\n`;
+  if (limit <= marker.length) {
+    return value.slice(0, limit);
+  }
+
+  const availableChars = limit - marker.length;
+  const headChars = Math.ceil(availableChars * 0.65);
+  const tailChars = availableChars - headChars;
+  return `${value.slice(0, headChars)}${marker}${value.slice(-tailChars)}`;
+};
+
+const buildBoundedCodexTranscript = (serializedMessages, maxChars) => {
+  const limit = getCodexCharLimit(maxChars);
+  const transcript = serializedMessages.join("\n\n");
+  if (limit === null || transcript.length <= limit) {
+    return transcript;
+  }
+
+  const notice =
+    "[Conversation transcript truncated to fit Codex input limits.]";
+  if (limit <= notice.length) {
+    return notice.slice(0, limit);
+  }
+
+  let remainingChars = limit - notice.length - 2;
+  const selectedMessages = [];
+
+  for (let index = serializedMessages.length - 1; index >= 0; index -= 1) {
+    const serialized = serializedMessages[index];
+    const separatorChars = selectedMessages.length > 0 ? 2 : 0;
+    const availableChars = remainingChars - separatorChars;
+    if (availableChars <= 0) {
+      break;
+    }
+
+    if (serialized.length <= availableChars) {
+      selectedMessages.unshift(serialized);
+      remainingChars -= serialized.length + separatorChars;
+      continue;
+    }
+
+    selectedMessages.unshift(
+      truncateCodexText(serialized, availableChars, "message"),
+    );
+    break;
+  }
+
+  return [notice, ...selectedMessages].join("\n\n");
+};
 
 const getCodexAttachmentLabel = (part) => {
   return (
@@ -360,11 +424,19 @@ export const chunkTextInput = (
   return chunks;
 };
 
-export const serializeCodexMessage = (message) => {
+export const serializeCodexMessage = (message, options) => {
   if (!message || typeof message !== "object") {
     return "";
   }
 
+  const serializationOptions =
+    options && typeof options === "object" ? options : {};
+  const maxMessageChars = getCodexCharLimit(
+    serializationOptions.maxMessageChars,
+  );
+  const maxToolValueChars = getCodexCharLimit(
+    serializationOptions.maxToolValueChars,
+  );
   const role =
     typeof message.role === "string" && message.role.trim()
       ? message.role.trim()
@@ -400,16 +472,24 @@ export const serializeCodexMessage = (message) => {
             ? part.toolName.trim()
             : "tool"
           : part.type.slice(5);
+      const formatToolValue = (value, label) => {
+        const serialized = stringifyCodexValue(value);
+        return truncateCodexText(
+          serialized,
+          maxToolValueChars,
+          `${toolName} ${label}`,
+        );
+      };
       const toolSummary = [
         `[Tool ${toolName}]`,
         part.input !== undefined
-          ? `input:\n${stringifyCodexValue(part.input)}`
+          ? `input:\n${formatToolValue(part.input, "input")}`
           : null,
         part.output !== undefined
-          ? `output:\n${stringifyCodexValue(part.output)}`
+          ? `output:\n${formatToolValue(part.output, "output")}`
           : null,
         typeof part.errorText === "string" && part.errorText.trim()
-          ? `error:\n${part.errorText.trim()}`
+          ? `error:\n${formatToolValue(part.errorText.trim(), "error")}`
           : null,
       ]
         .filter(Boolean)
@@ -425,34 +505,75 @@ export const serializeCodexMessage = (message) => {
     return "";
   }
 
-  return `${role.toUpperCase()}:\n${sections.join("\n\n")}`;
+  return truncateCodexText(
+    `${role.toUpperCase()}:\n${sections.join("\n\n")}`,
+    role.toLowerCase() === "user" ? null : maxMessageChars,
+    `${role} message`,
+  );
 };
 
 export const buildCodexConversationPrompt = ({
   currentTurnAttachments,
   currentTurnProjectReferences,
+  maxChars,
+  maxMessageChars,
+  maxToolValueChars,
   messages,
   projectPath,
   runtimeDescription = "You are running through the real Codex CLI with native shell and git access.",
   systemPrompt,
 }) => {
-  const transcript = messages
-    .map(serializeCodexMessage)
-    .filter(Boolean)
-    .join("\n\n");
+  const serializedMessages = messages
+    .map((message) =>
+      serializeCodexMessage(message, {
+        maxMessageChars,
+        maxToolValueChars,
+      }),
+    )
+    .filter(Boolean);
+  const composePrompt = (transcript) =>
+    [
+      systemPrompt,
+      `Active project: ${projectPath}`,
+      runtimeDescription,
+      transcript ? `Conversation transcript:\n\n${transcript}` : null,
+      currentTurnProjectReferences,
+      currentTurnAttachments,
+      "Continue the conversation naturally and complete the user's latest request.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  const promptLimit = getCodexCharLimit(maxChars);
 
-  return [
-    systemPrompt,
-    `Active project: ${projectPath}`,
-    runtimeDescription,
-    transcript ? `Conversation transcript:\n\n${transcript}` : null,
-    currentTurnProjectReferences,
-    currentTurnAttachments,
-    "Continue the conversation naturally and complete the user's latest request.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  if (promptLimit === null || serializedMessages.length === 0) {
+    return truncateCodexText(
+      composePrompt(serializedMessages.join("\n\n")),
+      promptLimit,
+      "prompt",
+    );
+  }
+
+  const promptWithoutTranscript = composePrompt(null);
+  const transcriptPrefix = "Conversation transcript:\n\n";
+  const transcriptBudget = Math.max(
+    0,
+    promptLimit - promptWithoutTranscript.length - transcriptPrefix.length - 2,
+  );
+  const transcript = buildBoundedCodexTranscript(
+    serializedMessages,
+    transcriptBudget,
+  );
+
+  return truncateCodexText(composePrompt(transcript), promptLimit, "prompt");
 };
+
+export const buildCodexAppServerConversationPrompt = (options) =>
+  buildCodexConversationPrompt({
+    ...options,
+    maxChars: CODEX_APP_SERVER_PROMPT_CHAR_BUDGET,
+    maxMessageChars: CODEX_APP_SERVER_MESSAGE_CHAR_LIMIT,
+    maxToolValueChars: CODEX_APP_SERVER_TOOL_VALUE_CHAR_LIMIT,
+  });
 
 export const getLatestUserPrompt = (
   messages,

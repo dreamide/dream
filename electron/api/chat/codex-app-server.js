@@ -26,8 +26,7 @@ import {
   writeCodexTodoListPartFromResponseItem,
 } from "./codex-common.js";
 import {
-  buildCodexConversationPrompt,
-  chunkTextInput,
+  buildCodexAppServerConversationPrompt,
   getLatestUserMessage,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
@@ -979,7 +978,7 @@ export const streamCodexAppServerResponse = ({
             preparedAttachments = await prepareCodexPromptAttachments(
               getLatestUserMessage(messages),
             );
-            const fullPrompt = buildCodexConversationPrompt({
+            const fullPrompt = buildCodexAppServerConversationPrompt({
               currentTurnAttachments: preparedAttachments?.promptText ?? null,
               currentTurnProjectReferences: projectReferencesPrompt,
               messages,
@@ -1021,11 +1020,13 @@ export const streamCodexAppServerResponse = ({
               ...(reasoningEffort
                 ? { effort: getCodexReasoningEffort(reasoningEffort) }
                 : {}),
-              input: chunkTextInput(fullPrompt).map((text) => ({
-                text,
-                text_elements: [],
-                type: "text",
-              })),
+              input: [
+                {
+                  text: fullPrompt,
+                  text_elements: [],
+                  type: "text",
+                },
+              ],
               model,
               sandboxPolicy: getCodexAppTurnSandboxPolicy({
                 codexPermissionMode,
