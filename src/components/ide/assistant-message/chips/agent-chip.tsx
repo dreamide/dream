@@ -33,14 +33,18 @@ export const AgentChip = ({
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const outputText = getAgentOutputText(part.output);
   const hasRawOutput = part.output !== undefined;
-  const canExpand = hasError || hasRawOutput;
+  const hasInput = isRecord(part.input);
+  const canExpand = hasError || hasRawOutput || hasInput;
   const description =
     getStringFromPaths(part.input, [["description"]]) ?? assistantT("agent");
+  const isGenericAgent = description === assistantT("agent");
   const displayDescription =
-    description === assistantT("agent") && isRunning
-      ? assistantT("runningAgent")
-      : description;
+    isGenericAgent && isRunning ? assistantT("runningAgent") : description;
   const subagentType = getStringFromPaths(part.input, [
+    ["nickname"],
+    ["agentNickname"],
+    ["role"],
+    ["agentRole"],
     ["subagent_type"],
     ["subagentType"],
     ["type"],
@@ -66,23 +70,21 @@ export const AgentChip = ({
         type="button"
       >
         <BotIcon className="size-3.5 shrink-0" />
-        {!isRunning ? (
-          <>
-            <span className="max-w-56 truncate font-medium">
-              {displayDescription}
-            </span>
-            {subagentType ? (
-              <span className={CHIP_SUBTEXT_CLASSES}>{subagentType}</span>
-            ) : null}
-            <span className={CHIP_SUBTEXT_CLASSES}>
-              {formatToolName(state)}
-            </span>
-            {hasError ? (
-              <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
-                {assistantT("error")}
-              </span>
-            ) : null}
-          </>
+        <span className="max-w-56 truncate font-medium">
+          {displayDescription}
+        </span>
+        {subagentType ? (
+          <span className={CHIP_SUBTEXT_CLASSES}>{subagentType}</span>
+        ) : null}
+        {!isGenericAgent || !isRunning ? (
+          <span className={CHIP_SUBTEXT_CLASSES}>
+            {isRunning ? assistantT("running") : formatToolName(state)}
+          </span>
+        ) : null}
+        {hasError ? (
+          <span className={CHIP_ERROR_SUBTEXT_CLASSES}>
+            {assistantT("error")}
+          </span>
         ) : null}
       </ChipButton>
       {expanded ? (
@@ -90,7 +92,7 @@ export const AgentChip = ({
           className={getExpandedChipClasses("slate", hasError)}
           style={{ borderColor: "currentColor" }}
         >
-          {isRecord(part.input) ? (
+          {hasInput ? (
             <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
                 {assistantT("parameters")}

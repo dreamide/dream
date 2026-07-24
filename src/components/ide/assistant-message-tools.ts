@@ -55,7 +55,14 @@ export const parseMcpToolName = (name: string): McpToolInfo | null => {
 };
 
 export const CHIP_TOOL_NAME_ALIASES = {
-  agent: new Set(["agent"]),
+  agent: new Set([
+    "agent",
+    "collab-agent-tool-call",
+    "collaboration-spawn-agent",
+    "spawn-agent",
+    "spawnagent",
+    "task",
+  ]),
   command: new Set([
     "run-command",
     "runcommand",

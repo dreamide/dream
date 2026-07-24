@@ -333,6 +333,99 @@ const buildFileChangeOutput = async ({ item, projectPath }) => {
   }
 };
 
+const normalizeCollabAgentToolName = (tool) =>
+  String(tool ?? "")
+    .replace(/[\s_-]+/g, "")
+    .toLowerCase();
+
+const isSpawnAgentToolItem = (item) =>
+  (item?.type === "collabAgentToolCall" || item?.type === "dynamicToolCall") &&
+  normalizeCollabAgentToolName(item.tool) === "spawnagent";
+
+const getCollabAgentArguments = (item) => {
+  if (isRecord(item?.arguments)) {
+    return item.arguments;
+  }
+
+  return parseJsonObject(item?.arguments) ?? {};
+};
+
+const getCollabAgentStateEntries = (item) => {
+  const args = getCollabAgentArguments(item);
+  const states = isRecord(item?.agentsStates) ? item.agentsStates : {};
+  const receiverThreadIds = Array.isArray(item?.receiverThreadIds)
+    ? item.receiverThreadIds.filter((value) => typeof value === "string")
+    : Array.isArray(args.receiverThreadIds)
+      ? args.receiverThreadIds.filter((value) => typeof value === "string")
+      : [];
+  const threadIds = new Set([...receiverThreadIds, ...Object.keys(states)]);
+
+  return [...threadIds].map((threadId) => {
+    const state = isRecord(states[threadId]) ? states[threadId] : null;
+    return {
+      message: getString(state?.message),
+      status:
+        getString(state?.status) ??
+        (item?.status === "failed" ? "errored" : "pendingInit"),
+      threadId,
+    };
+  });
+};
+
+const formatAgentTaskName = (value) => {
+  const name = getNonEmptyString(value);
+  if (!name) {
+    return null;
+  }
+
+  const formatted = name.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  return formatted
+    ? `${formatted.charAt(0).toUpperCase()}${formatted.slice(1)}`
+    : null;
+};
+
+const buildCollabAgentInput = (item) => {
+  const args = getCollabAgentArguments(item);
+  const taskName = getFirstString(args.task_name, args.taskName);
+  return {
+    description:
+      getFirstString(
+        args.description,
+        formatAgentTaskName(taskName),
+        item.description,
+      ) ?? "Agent task",
+    prompt:
+      getString(item.prompt) ??
+      getString(args.prompt) ??
+      getString(args.message),
+    subagent_type:
+      getFirstString(
+        args.subagent_type,
+        args.subagentType,
+        item.agentRole,
+        item.role,
+      ) ?? "general-purpose",
+  };
+};
+
+const buildCollabAgentOutput = (item) => {
+  const entries = getCollabAgentStateEntries(item);
+  if (entries.length === 0) {
+    return `Agent task ${
+      item.status === "failed" || item.success === false
+        ? "failed"
+        : "completed"
+    }.`;
+  }
+
+  return entries
+    .map(({ message, status, threadId }) => {
+      const detail = message ? `: ${message}` : "";
+      return `- ${threadId.slice(0, 8)} — ${status}${detail}`;
+    })
+    .join("\n");
+};
+
 export const streamCodexAppServerResponse = ({
   abortSignal,
   codexPermissionMode,
@@ -507,6 +600,31 @@ export const streamCodexAppServerResponse = ({
           });
         };
 
+        const ensureSpawnAgentToolStarted = (item) => {
+          if (!item?.id || startedToolCalls.has(item.id)) {
+            return;
+          }
+
+          startedToolCalls.add(item.id);
+          writeEvent({
+            dynamic: true,
+            providerExecuted: true,
+            title: "Agent task",
+            toolCallId: item.id,
+            toolName: "agent",
+            type: "tool-input-start",
+          });
+          writeEvent({
+            dynamic: true,
+            input: buildCollabAgentInput(item),
+            providerExecuted: true,
+            title: "Agent task",
+            toolCallId: item.id,
+            toolName: "agent",
+            type: "tool-input-available",
+          });
+        };
+
         const completeToolCall = async (item) => {
           if (!item?.id) {
             return;
@@ -531,6 +649,29 @@ export const streamCodexAppServerResponse = ({
               toolCallId: item.id,
               type: "tool-output-available",
             });
+            return;
+          }
+
+          if (isSpawnAgentToolItem(item)) {
+            ensureSpawnAgentToolStarted(item);
+            const output = buildCollabAgentOutput(item);
+            if (item.status === "failed" || item.success === false) {
+              writeEvent({
+                dynamic: true,
+                errorText: output,
+                providerExecuted: true,
+                toolCallId: item.id,
+                type: "tool-output-error",
+              });
+            } else {
+              writeEvent({
+                dynamic: true,
+                output,
+                providerExecuted: true,
+                toolCallId: item.id,
+                type: "tool-output-available",
+              });
+            }
             return;
           }
 
@@ -779,6 +920,8 @@ export const streamCodexAppServerResponse = ({
               ensureCommandToolStarted(item);
             } else if (item.type === "fileChange") {
               ensureFileToolStarted(item);
+            } else if (isSpawnAgentToolItem(item)) {
+              ensureSpawnAgentToolStarted(item);
             } else if (item.type === "agentMessage") {
               ensureTextStarted(item.id, "text");
             } else if (item.type === "reasoning") {
