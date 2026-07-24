@@ -480,6 +480,7 @@ export const streamCodexAppServerResponse = ({
         let stderrBuffer = "";
         let finished = false;
         let preparedAttachments = null;
+        let rootThreadId = null;
         let child;
 
         const finish = (callback) => {
@@ -1132,6 +1133,10 @@ export const streamCodexAppServerResponse = ({
           }
 
           if (method === "turn/completed" && params?.turn) {
+            if (!rootThreadId || params.threadId !== rootThreadId) {
+              return;
+            }
+
             const turn = params.turn;
             if (turn.status === "failed") {
               finish(() =>
@@ -1306,6 +1311,7 @@ export const streamCodexAppServerResponse = ({
             if (!threadId) {
               throw new Error("Codex app-server did not return a thread id.");
             }
+            rootThreadId = threadId;
 
             await sendRequest("turn/start", {
               approvalPolicy,
