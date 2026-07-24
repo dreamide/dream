@@ -384,6 +384,14 @@ const formatAgentTaskName = (value) => {
     : null;
 };
 
+const getAgentPathTaskName = (agentPath) => {
+  const normalizedPath = getNonEmptyString(agentPath)?.replace(/\\/g, "/");
+  const pathName = normalizedPath?.split("/").filter(Boolean).at(-1);
+  return pathName && pathName.toLowerCase() !== "root"
+    ? formatAgentTaskName(pathName)
+    : null;
+};
+
 const buildCollabAgentInput = (item) => {
   const args = getCollabAgentArguments(item);
   const taskName = getFirstString(args.task_name, args.taskName);
@@ -407,6 +415,18 @@ const buildCollabAgentInput = (item) => {
       ) ?? "general-purpose",
   };
 };
+
+const buildSubagentActivityInput = (item, thread = null) => ({
+  description:
+    getFirstString(
+      getAgentPathTaskName(item?.agentPath),
+      formatAgentTaskName(thread?.agentNickname),
+      formatAgentTaskName(thread?.agentRole),
+    ) ?? "Agent task",
+  prompt: getString(thread?.preview),
+  subagent_type:
+    getFirstString(thread?.agentRole, item?.agentRole) ?? "general-purpose",
+});
 
 const buildCollabAgentOutput = (item) => {
   const entries = getCollabAgentStateEntries(item);
@@ -451,6 +471,9 @@ export const streamCodexAppServerResponse = ({
         const commandOutputs = new Map();
         const startedTextParts = new Set();
         const startedToolCalls = new Set();
+        const activeSubagentToolCalls = new Set();
+        const subagentThreadsById = new Map();
+        const subagentToolCallIdsByThreadId = new Map();
         const pendingToolCompletions = new Set();
         let nextRequestId = 1;
         let stdoutBuffer = "";
@@ -600,29 +623,110 @@ export const streamCodexAppServerResponse = ({
           });
         };
 
-        const ensureSpawnAgentToolStarted = (item) => {
-          if (!item?.id || startedToolCalls.has(item.id)) {
-            return;
+        const getSubagentToolCallId = (threadId, fallbackId) => {
+          const existingToolCallId = threadId
+            ? subagentToolCallIdsByThreadId.get(threadId)
+            : null;
+          const toolCallId =
+            existingToolCallId ??
+            fallbackId ??
+            (threadId ? `subagent-${threadId}` : null);
+          if (threadId && toolCallId) {
+            subagentToolCallIdsByThreadId.set(threadId, toolCallId);
           }
 
-          startedToolCalls.add(item.id);
+          return toolCallId;
+        };
+
+        const ensureAgentToolStarted = (toolCallId, input) => {
+          if (!toolCallId || startedToolCalls.has(toolCallId)) {
+            return toolCallId;
+          }
+
+          startedToolCalls.add(toolCallId);
+          activeSubagentToolCalls.add(toolCallId);
           writeEvent({
             dynamic: true,
             providerExecuted: true,
             title: "Agent task",
-            toolCallId: item.id,
+            toolCallId,
             toolName: "agent",
             type: "tool-input-start",
           });
           writeEvent({
             dynamic: true,
-            input: buildCollabAgentInput(item),
+            input,
             providerExecuted: true,
             title: "Agent task",
-            toolCallId: item.id,
+            toolCallId,
             toolName: "agent",
             type: "tool-input-available",
           });
+
+          return toolCallId;
+        };
+
+        const ensureSpawnAgentToolStarted = (item, allowUnresolved = false) => {
+          const threadId = getCollabAgentStateEntries(item).at(0)?.threadId;
+          if (!threadId && !allowUnresolved) {
+            return null;
+          }
+
+          const toolCallId = getSubagentToolCallId(
+            threadId,
+            allowUnresolved || threadId ? item?.id : null,
+          );
+          return ensureAgentToolStarted(
+            toolCallId,
+            buildCollabAgentInput(item),
+          );
+        };
+
+        const ensureSubagentActivityToolStarted = (item, thread = null) => {
+          const threadId = getFirstString(item?.agentThreadId, thread?.id);
+          const threadDetails =
+            thread ?? (threadId ? subagentThreadsById.get(threadId) : null);
+          const toolCallId = getSubagentToolCallId(
+            threadId,
+            threadId ? `subagent-${threadId}` : item?.id,
+          );
+          return ensureAgentToolStarted(
+            toolCallId,
+            buildSubagentActivityInput(item, threadDetails),
+          );
+        };
+
+        const completeSubagentTool = ({
+          errorText = null,
+          output = "Agent task completed.",
+          threadId,
+          toolCallId: explicitToolCallId = null,
+        }) => {
+          const toolCallId =
+            explicitToolCallId ??
+            (threadId ? subagentToolCallIdsByThreadId.get(threadId) : null);
+          if (!toolCallId || !activeSubagentToolCalls.has(toolCallId)) {
+            return;
+          }
+
+          activeSubagentToolCalls.delete(toolCallId);
+          writeEvent(
+            errorText
+              ? {
+                  dynamic: true,
+                  errorText,
+                  providerExecuted: true,
+                  toolCallId,
+                  type: "tool-output-error",
+                }
+              : {
+                  dynamic: true,
+                  output,
+                  providerExecuted: true,
+                  toolCallId,
+                  type: "tool-output-available",
+                },
+          );
         };
 
         const completeToolCall = async (item) => {
@@ -653,25 +757,16 @@ export const streamCodexAppServerResponse = ({
           }
 
           if (isSpawnAgentToolItem(item)) {
-            ensureSpawnAgentToolStarted(item);
+            const toolCallId = ensureSpawnAgentToolStarted(item, true);
             const output = buildCollabAgentOutput(item);
-            if (item.status === "failed" || item.success === false) {
-              writeEvent({
-                dynamic: true,
-                errorText: output,
-                providerExecuted: true,
-                toolCallId: item.id,
-                type: "tool-output-error",
-              });
-            } else {
-              writeEvent({
-                dynamic: true,
-                output,
-                providerExecuted: true,
-                toolCallId: item.id,
-                type: "tool-output-available",
-              });
-            }
+            completeSubagentTool({
+              errorText:
+                item.status === "failed" || item.success === false
+                  ? output
+                  : null,
+              output,
+              toolCallId,
+            });
             return;
           }
 
@@ -890,6 +985,45 @@ export const streamCodexAppServerResponse = ({
             return;
           }
 
+          if (
+            method === "thread/started" &&
+            params?.thread?.id &&
+            params.thread.parentThreadId
+          ) {
+            subagentThreadsById.set(params.thread.id, params.thread);
+            return;
+          }
+
+          if (method === "thread/status/changed" && params?.threadId) {
+            const thread = subagentThreadsById.get(params.threadId);
+            if (
+              !subagentToolCallIdsByThreadId.has(params.threadId) &&
+              !thread
+            ) {
+              return;
+            }
+
+            if (params.status?.type === "idle") {
+              ensureSubagentActivityToolStarted(null, thread);
+              completeSubagentTool({ threadId: params.threadId });
+            } else if (params.status?.type === "systemError") {
+              ensureSubagentActivityToolStarted(null, thread);
+              completeSubagentTool({
+                errorText: "Agent task failed.",
+                threadId: params.threadId,
+              });
+            }
+            return;
+          }
+
+          if (method === "thread/closed" && params?.threadId) {
+            completeSubagentTool({
+              output: "Agent task closed.",
+              threadId: params.threadId,
+            });
+            return;
+          }
+
           if (method === "thread/started" && params?.thread?.id && chatId) {
             codexSessionsByChatId.set(chatId, {
               model,
@@ -922,6 +1056,8 @@ export const streamCodexAppServerResponse = ({
               ensureFileToolStarted(item);
             } else if (isSpawnAgentToolItem(item)) {
               ensureSpawnAgentToolStarted(item);
+            } else if (item.type === "subAgentActivity") {
+              ensureSubagentActivityToolStarted(item);
             } else if (item.type === "agentMessage") {
               ensureTextStarted(item.id, "text");
             } else if (item.type === "reasoning") {
@@ -978,8 +1114,19 @@ export const streamCodexAppServerResponse = ({
                 });
               }
               endTextPart(item.id, "reasoning");
-            } else {
+            } else if (
+              item.type === "subAgentActivity" &&
+              item.kind === "interrupted"
+            ) {
+              ensureSubagentActivityToolStarted(item);
+              completeSubagentTool({
+                errorText: "Agent task was interrupted.",
+                threadId: item.agentThreadId,
+              });
+            } else if (item.type !== "subAgentActivity") {
               trackToolCompletion(completeToolCall(item));
+            } else {
+              ensureSubagentActivityToolStarted(item);
             }
             return;
           }
@@ -1001,6 +1148,9 @@ export const streamCodexAppServerResponse = ({
 
             void (async () => {
               await waitForPendingToolCompletions();
+              for (const toolCallId of activeSubagentToolCalls) {
+                completeSubagentTool({ toolCallId });
+              }
               finish(resolve);
             })();
           }
