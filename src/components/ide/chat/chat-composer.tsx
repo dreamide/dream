@@ -64,7 +64,7 @@ import { PromptAttachments } from "../chat";
 import { AGENT_MODE_OPTIONS } from "../ide-types";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
 import type { ChatTodoSummary } from "./todo-list";
-import { TodoListPanel, TodoListPanelTrigger } from "./todo-list-popover";
+import { TodoListPopover } from "./todo-list-popover";
 import { UsageLimitsPopover } from "./usage-limits-popover";
 
 export interface ChatPanelModelOption {
@@ -904,11 +904,6 @@ export const ChatComposer = ({
             </div>
           </div>
         ) : null}
-        <TodoListPanel
-          isOpen={isTodoPanelOpen}
-          panelId={todoPanelId}
-          summary={todoSummary}
-        />
         <div className="relative z-10">
           <Sparkles
             cyclePalette={sparklesPalette}
@@ -974,7 +969,7 @@ export const ChatComposer = ({
                     />
                   </div>
                   <div className="flex shrink-0 items-center gap-1 pr-2">
-                    <TodoListPanelTrigger
+                    <TodoListPopover
                       isOpen={isTodoPanelOpen}
                       onOpenChange={setIsTodoPanelOpen}
                       panelId={todoPanelId}

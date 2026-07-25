@@ -4,6 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { PromptInputButton } from "@/components/ai-elements/prompt-input";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import type { ChatTodoItem, ChatTodoSummary } from "./todo-list";
@@ -96,7 +101,6 @@ const TodoListContent = ({ summary }: { summary: ChatTodoSummary }) => {
   const chatT = useTranslations("chat");
   const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
   const [isListScrollable, setIsListScrollable] = useState(false);
-  const progressLabel = `${summary.currentTaskNumber} / ${summary.totalCount}`;
   const handleListRef = useCallback((element: HTMLDivElement | null) => {
     setListElement(element);
   }, []);
@@ -134,15 +138,10 @@ const TodoListContent = ({ summary }: { summary: ChatTodoSummary }) => {
   }, [listElement]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 pb-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2 font-medium text-sm">
-          <ListChecks className="size-4 shrink-0" />
-          <span className="truncate">{chatT("tasks")}</span>
-        </div>
-        <span className="shrink-0 font-mono text-muted-foreground text-xs tabular-nums">
-          {progressLabel}
-        </span>
+    <div className="flex min-h-0 flex-col gap-3">
+      <div className="flex min-w-0 items-center gap-2 font-medium text-sm">
+        <ListChecks className="size-4 shrink-0" />
+        <span className="truncate">{chatT("tasks")}</span>
       </div>
       <div
         className={cn(
@@ -161,7 +160,7 @@ const TodoListContent = ({ summary }: { summary: ChatTodoSummary }) => {
   );
 };
 
-export const TodoListPanelTrigger = ({
+export const TodoListPopover = ({
   isOpen,
   onOpenChange,
   panelId,
@@ -180,77 +179,29 @@ export const TodoListPanelTrigger = ({
   const progressLabel = `${summary.currentTaskNumber} / ${summary.totalCount}`;
 
   return (
-    <PromptInputButton
-      aria-controls={panelId}
-      aria-expanded={isOpen}
-      aria-label={chatT("tasksProgress", { progress: progressLabel })}
-      className="h-8 gap-1.5 px-2 font-mono text-xs tabular-nums aria-expanded:bg-accent aria-expanded:text-foreground"
-      onClick={() => onOpenChange(!isOpen)}
-      size="xs"
-      title={chatT("tasksProgress", { progress: progressLabel })}
-    >
-      <ListChecks className="size-4" />
-      <span>{progressLabel}</span>
-    </PromptInputButton>
-  );
-};
-
-export const TodoListPanel = ({
-  isOpen,
-  panelId,
-  summary,
-}: {
-  isOpen: boolean;
-  panelId: string;
-  summary: ChatTodoSummary;
-}) => {
-  const [isMounted, setIsMounted] = useState(isOpen);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (summary.totalCount === 0) {
-      setIsVisible(false);
-      setIsMounted(false);
-      return;
-    }
-
-    if (!isOpen) {
-      setIsVisible(false);
-      return;
-    }
-
-    setIsMounted(true);
-  }, [isOpen, summary.totalCount]);
-
-  useEffect(() => {
-    if (!isOpen || !isMounted) {
-      return;
-    }
-
-    const animationFrame = requestAnimationFrame(() => setIsVisible(true));
-
-    return () => cancelAnimationFrame(animationFrame);
-  }, [isMounted, isOpen]);
-
-  if (summary.totalCount === 0 || !isMounted) {
-    return null;
-  }
-
-  return (
-    <div aria-hidden={!isOpen} className="overflow-hidden" id={panelId}>
-      <div
-        className={cn(
-          "mx-1 rounded-t-lg border border-b-0 border-surface-300 bg-popover p-3 text-popover-foreground shadow-md transition-transform duration-200 ease-out dark:border-surface-700",
-          isVisible ? "translate-y-0" : "translate-y-full",
-        )}
-        onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && !isOpen) {
-            setIsMounted(false);
-          }
-        }}
+    <Popover onOpenChange={onOpenChange} open={isOpen}>
+      <PopoverTrigger
+        render={
+          <PromptInputButton
+            aria-controls={panelId}
+            aria-label={chatT("tasksProgress", { progress: progressLabel })}
+            className="h-8 gap-1.5 px-2 font-mono text-xs tabular-nums aria-expanded:bg-accent aria-expanded:text-foreground"
+            size="xs"
+            title={chatT("tasksProgress", { progress: progressLabel })}
+          />
+        }
+      >
+        <ListChecks className="size-4" />
+        <span>{progressLabel}</span>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="z-[60] w-80 gap-0 rounded-lg bg-popover p-3"
+        id={panelId}
+        side="top"
       >
         <TodoListContent summary={summary} />
-      </div>
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 };

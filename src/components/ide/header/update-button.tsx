@@ -2,6 +2,7 @@ import { AlertCircle, DownloadCloud } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { UpdateStatusEvent } from "@/types/ide";
@@ -101,12 +102,10 @@ export const HeaderUpdateButton = () => {
     return updatesT("updateError");
   };
 
+  const busy = installing || checking;
   const label = checking ? updatesT("checkingUpdate") : getUpdateLabel();
   const disabled =
-    installing ||
-    checking ||
-    status.state === "available" ||
-    status.state === "downloading";
+    busy || status.state === "available" || status.state === "downloading";
   const title =
     status.state === "error" && status.error
       ? updatesT("updateFailedRetry", { error: status.error })
@@ -127,10 +126,16 @@ export const HeaderUpdateButton = () => {
       type="button"
       variant={UPDATE_BUTTON_VARIANT_BY_STATE[status.state]}
     >
-      <Icon className="size-3" />
-      <span className="truncate">
-        {status.state === "downloaded" ? updatesT("update") : label}
-      </span>
+      {busy ? (
+        <Spinner className="size-3 text-current" />
+      ) : (
+        <>
+          <Icon className="size-3" />
+          <span className="truncate">
+            {status.state === "downloaded" ? updatesT("update") : label}
+          </span>
+        </>
+      )}
     </Button>
   );
 };
