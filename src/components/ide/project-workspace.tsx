@@ -28,6 +28,7 @@ import { useMountedProjectChats } from "./workspace/use-mounted-chats";
 export interface ProjectWorkspaceProps {
   active: boolean;
   project: ProjectConfig;
+  visible: boolean;
 }
 
 const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
@@ -35,6 +36,7 @@ const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 const ProjectWorkspaceComponent = ({
   active,
   project,
+  visible,
 }: ProjectWorkspaceProps) => {
   const projectId = project.id;
 
@@ -648,7 +650,7 @@ const ProjectWorkspaceComponent = ({
       >
         <div className="flex h-full w-full flex-col rounded-lg">
           <WorkspaceChatStack
-            active={active}
+            active={visible}
             activeChatId={activeChatId}
             chatColumnWidths={chatColumnWidths}
             mountedChats={mountedChats}
@@ -705,6 +707,7 @@ export const ProjectWorkspace = memo(
   ProjectWorkspaceComponent,
   (previous, next) =>
     previous.active === next.active &&
+    previous.visible === next.visible &&
     areProjectsEqualExceptLastUsedAt(previous.project, next.project),
 );
 ProjectWorkspace.displayName = "ProjectWorkspace";

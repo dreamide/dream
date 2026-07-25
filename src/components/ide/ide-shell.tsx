@@ -446,6 +446,7 @@ export const IdeShell = () => {
                   <ProjectWorkspace
                     active={lifecycleActive}
                     project={project}
+                    visible={visible}
                   />
                 </div>
               );
