@@ -14,6 +14,7 @@ const NEXT_ICON_CANDIDATES = [
 ];
 const PUBLIC_ICON_CANDIDATES = [
   "public/favicon.ico",
+  "public/favicon.png",
   "public/favicon.svg",
   "public/icon.png",
   "public/icon.svg",
