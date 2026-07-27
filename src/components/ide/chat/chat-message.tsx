@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { useTranslations } from "next-intl";
 import { memo, type ReactNode } from "react";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
@@ -88,6 +89,8 @@ export const ChatMessage = memo(
     projectPath,
     showReasoningSummaries,
   }: ChatMessageProps) => {
+    const uiT = useTranslations("ui");
+
     if (message.role === "user") {
       return (
         <Message className="relative" from="user">
@@ -126,7 +129,8 @@ export const ChatMessage = memo(
                     );
                   }
                   if (part.type === "source-document") {
-                    const title = part.title ?? part.filename ?? "Document";
+                    const title =
+                      part.title ?? part.filename ?? uiT("document");
                     return (
                       <Source
                         key={`${message.id}-source-document-${title}`}

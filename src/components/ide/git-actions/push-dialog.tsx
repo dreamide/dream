@@ -72,7 +72,9 @@ export const PushDialog = ({
         });
 
         if (!response.ok) {
-          throw new Error(await readResponseText(response));
+          throw new Error(
+            await readResponseText(response, gitT("unableToPreviewCommits")),
+          );
         }
 
         const payload =
@@ -113,12 +115,16 @@ export const PushDialog = ({
       setSubmitting(true);
       setError(null);
       try {
-        await postJson<ProjectGitPushResponse>("/api/project-git-push", {
-          commitMessage: null,
-          includeUnstaged: true,
-          nextStep: "push",
-          projectPath,
-        });
+        await postJson<ProjectGitPushResponse>(
+          "/api/project-git-push",
+          {
+            commitMessage: null,
+            includeUnstaged: true,
+            nextStep: "push",
+            projectPath,
+          },
+          gitT("unableToPush"),
+        );
         onCompleted();
         onOpenChange(false);
       } catch (error) {

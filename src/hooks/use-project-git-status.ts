@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import type { ProjectGitStatusResponse } from "@/types/ide";
 
@@ -42,9 +43,12 @@ const subscribeToGitStatusCache = (cacheKey: string, listener: () => void) => {
   };
 };
 
-const readResponseText = async (response: Response): Promise<string> => {
+const readResponseText = async (
+  response: Response,
+  fallback: string,
+): Promise<string> => {
   const text = await response.text();
-  return text.trim() || `Request failed (${response.status}).`;
+  return text.trim() || fallback;
 };
 
 const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
@@ -54,6 +58,7 @@ export const useProjectGitStatus = (
   projectPath: string | null | undefined,
   refreshKey?: number,
 ) => {
+  const uiT = useTranslations("ui");
   const refreshToken = refreshKey ?? 0;
   const cacheKey = getProjectPathCacheKey(projectPath);
   const cachedEntry = cacheKey ? gitStatusCache.get(cacheKey) : null;
@@ -108,7 +113,12 @@ export const useProjectGitStatus = (
               });
 
               if (!response.ok) {
-                throw new Error(await readResponseText(response));
+                throw new Error(
+                  await readResponseText(
+                    response,
+                    uiT("requestFailedStatus", { status: response.status }),
+                  ),
+                );
               }
 
               const entry: ProjectGitStatusCacheEntry = {
@@ -124,7 +134,7 @@ export const useProjectGitStatus = (
                 error:
                   error instanceof Error
                     ? error.message
-                    : "Failed to read Git status.",
+                    : uiT("failedToReadGitStatus"),
                 refreshToken,
                 status: null,
               };
@@ -155,7 +165,7 @@ export const useProjectGitStatus = (
         }
       }
     },
-    [cacheKey, projectPath, refreshToken],
+    [cacheKey, projectPath, refreshToken, uiT],
   );
 
   useEffect(() => {

@@ -50,7 +50,15 @@ type UsageLimitsState = {
   loading: boolean;
 };
 
-const formatResetDuration = (resetAfterMs: number) => {
+type FormatDurationUnit = (
+  value: number,
+  unit: "day" | "hour" | "minute",
+) => string;
+
+const formatResetDuration = (
+  resetAfterMs: number,
+  formatUnit: FormatDurationUnit,
+) => {
   const totalMinutes = Math.max(0, Math.ceil(resetAfterMs / 60_000));
   const days = Math.floor(totalMinutes / (24 * 60));
   const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
@@ -58,21 +66,21 @@ const formatResetDuration = (resetAfterMs: number) => {
 
   if (days > 0) {
     if (hours === 0) {
-      return `${days}d`;
+      return formatUnit(days, "day");
     }
 
-    return `${days}d ${hours}h`;
+    return [formatUnit(days, "day"), formatUnit(hours, "hour")].join(" ");
   }
 
   if (hours === 0) {
-    return `${minutes}m`;
+    return formatUnit(minutes, "minute");
   }
 
   if (minutes === 0) {
-    return `${hours}h`;
+    return formatUnit(hours, "hour");
   }
 
-  return `${hours}h ${minutes}m`;
+  return [formatUnit(hours, "hour"), formatUnit(minutes, "minute")].join(" ");
 };
 
 const getUsageLimitResetAfterMs = (limit: UsageLimitWindow, now: number) => {
@@ -102,6 +110,8 @@ const UsageLimitRow = ({
 }) => {
   const format = useFormatter();
   const usageT = useTranslations("usage");
+  const formatDurationUnit: FormatDurationUnit = (value, unit) =>
+    format.number(value, { style: "unit", unit, unitDisplay: "narrow" });
   const usedPercent = Math.max(
     0,
     Math.min(USAGE_LIMIT_PERCENT_MAX, limit.usedPercent),
@@ -133,7 +143,7 @@ const UsageLimitRow = ({
           <>
             <span>
               {usageT("resetsIn", {
-                duration: formatResetDuration(resetAfterMs),
+                duration: formatResetDuration(resetAfterMs, formatDurationUnit),
               })}
             </span>
             <span>

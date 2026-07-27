@@ -23,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -78,18 +79,10 @@ import {
   SettingsSwitchRow,
 } from "./settings";
 
-const getAccentColorLabel = (color: AccentColor) =>
-  color === "black-white"
-    ? "Black / white"
-    : color.charAt(0).toUpperCase() + color.slice(1);
-
 const getAccentColorSwatch = (color: AccentColor) =>
   color === "black-white"
     ? "linear-gradient(135deg, var(--foreground) 0 50%, var(--background) 50% 100%)"
     : `var(--color-${color}-500)`;
-
-const getBaseColorLabel = (color: BaseColor) =>
-  color.charAt(0).toUpperCase() + color.slice(1);
 
 const BASE_COLOR_SWATCHES: Record<BaseColor, string> = {
   gray: "oklch(0.551 0.027 264.364)",
@@ -147,6 +140,9 @@ export const SettingsDialog = () => {
   const providerT = useTranslations("provider");
   const settingsT = useTranslations("settings");
   const themeT = useTranslations("theme");
+  const uiT = useTranslations("ui");
+  const getColorLabel = (color: AccentColor | BaseColor) =>
+    uiT(`colors.${color === "black-white" ? "blackWhite" : color}`);
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -160,6 +156,7 @@ export const SettingsDialog = () => {
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
+  const archiveInactiveChats = useIdeStore((s) => s.archiveInactiveChats);
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
 
@@ -461,6 +458,9 @@ export const SettingsDialog = () => {
     permanentlyDeleteChats(selectedDeletedChatIds);
     setSelectedDeletedChatIds([]);
   };
+  const handleArchiveInactiveChats = () => {
+    archiveInactiveChats();
+  };
   const handleRefreshOpenAiProvider = () => {
     void refreshProviderModels({ force: true, provider: "openai" });
   };
@@ -479,6 +479,8 @@ export const SettingsDialog = () => {
   const handleRefreshGrokProvider = () => {
     void refreshProviderModels({ force: true, provider: "grok" });
   };
+  const getProviderError = (error: string | null) =>
+    error ? uiT("unableToFetchModels") : null;
 
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
@@ -592,7 +594,7 @@ export const SettingsDialog = () => {
                           shellPath: value,
                         }));
                       }}
-                      value={selectedTerminalShell?.shellPath}
+                      value={selectedTerminalShell?.shellPath ?? null}
                     >
                       <SelectTrigger
                         aria-label={settingsT("shellPath")}
@@ -670,7 +672,7 @@ export const SettingsDialog = () => {
 
                           return (
                             <button
-                              aria-label={getBaseColorLabel(color)}
+                              aria-label={getColorLabel(color)}
                               aria-pressed={selected}
                               className={cn(
                                 "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -683,7 +685,7 @@ export const SettingsDialog = () => {
                               style={{
                                 background: getBaseColorSwatch(color),
                               }}
-                              title={getBaseColorLabel(color)}
+                              title={getColorLabel(color)}
                               type="button"
                             />
                           );
@@ -702,7 +704,7 @@ export const SettingsDialog = () => {
 
                           return (
                             <button
-                              aria-label={getAccentColorLabel(color)}
+                              aria-label={getColorLabel(color)}
                               aria-pressed={selected}
                               className={cn(
                                 "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
@@ -715,7 +717,7 @@ export const SettingsDialog = () => {
                               style={{
                                 background: getAccentColorSwatch(color),
                               }}
-                              title={getAccentColorLabel(color)}
+                              title={getColorLabel(color)}
                               type="button"
                             />
                           );
@@ -772,6 +774,188 @@ export const SettingsDialog = () => {
                       }
                     />
                   </SettingsGroup>
+
+                  <SettingsGroup label={settingsT("models")}>
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={settingsT(
+                        "defaultModelForNewChatsDescription",
+                      )}
+                      label={settingsT("defaultModelForNewChats")}
+                    >
+                      <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                        <Select
+                          onValueChange={(value) => {
+                            const defaultModel = value ?? "";
+                            const capabilities = getDefaultModelCapabilities(
+                              getDefaultModelEntry(defaultModel),
+                            );
+
+                            setSettings((previous) => ({
+                              ...previous,
+                              defaultModel,
+                              defaultModelSpeed: resolveModelSpeedForModel(
+                                previous.defaultModelSpeed,
+                                capabilities.speedTiers,
+                              ),
+                              defaultReasoningEffort:
+                                resolveReasoningEffortForModel(
+                                  previous.defaultReasoningEffort,
+                                  capabilities.reasoningEfforts,
+                                ),
+                            }));
+                          }}
+                          value={selectedDefaultModel}
+                        >
+                          <SelectTrigger
+                            className="w-full"
+                            disabled={groupedDefaultModelOptions.length === 0}
+                            id="default-model"
+                          >
+                            <SelectValue
+                              placeholder={settingsT("enableModelFirst")}
+                            >
+                              {selectedDefaultModelOption?.label}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="min-w-72">
+                            {groupedDefaultModelOptions.map((group) => (
+                              <SelectGroup key={group.provider}>
+                                {groupedDefaultModelOptions.length > 1 ? (
+                                  <SelectLabel>
+                                    {getProviderLabel(group.provider)}
+                                  </SelectLabel>
+                                ) : null}
+                                {group.models.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {defaultReasoningEffortOptions.length > 0 &&
+                        selectedDefaultReasoningEffort ? (
+                          <Select
+                            onValueChange={(value) =>
+                              setSettings((previous) => ({
+                                ...previous,
+                                defaultReasoningEffort:
+                                  value === "medium"
+                                    ? null
+                                    : (value as ReasoningEffort),
+                              }))
+                            }
+                            value={selectedDefaultReasoningEffort}
+                          >
+                            <SelectTrigger
+                              aria-label={settingsT("effort")}
+                              className="w-full sm:w-32"
+                            >
+                              <SelectValue>
+                                {selectedDefaultReasoningLabel}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>{settingsT("effort")}</SelectLabel>
+                                {defaultReasoningEffortOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {modelT(option.value)}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+
+                        {defaultModelSpeedOptions.length > 0 ? (
+                          <Select
+                            onValueChange={(value) =>
+                              setSettings((previous) => ({
+                                ...previous,
+                                defaultModelSpeed: value as ModelSpeed,
+                              }))
+                            }
+                            value={selectedDefaultModelSpeed}
+                          >
+                            <SelectTrigger
+                              aria-label={settingsT("speed")}
+                              className="w-full sm:w-32"
+                            >
+                              <SelectValue>
+                                {selectedDefaultModelSpeedLabel}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>{settingsT("speed")}</SelectLabel>
+                                {defaultModelSpeedOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {modelT(option.value)}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+                      </div>
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem] md:justify-end"
+                      description={settingsT(
+                        "defaultModelForCommitsDescription",
+                      )}
+                      label={settingsT("defaultModelForCommits")}
+                    >
+                      <Select
+                        onValueChange={(value) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            defaultGitGenerationModel: value ?? "",
+                          }))
+                        }
+                        value={selectedGitGenerationModel}
+                      >
+                        <SelectTrigger
+                          className="w-full md:w-72"
+                          disabled={groupedDefaultModelOptions.length === 0}
+                          id="default-git-generation-model"
+                        >
+                          <SelectValue
+                            placeholder={settingsT("enableModelFirst")}
+                          >
+                            {selectedGitGenerationModelOption?.label}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="min-w-72">
+                          {groupedDefaultModelOptions.map((group) => (
+                            <SelectGroup key={group.provider}>
+                              {groupedDefaultModelOptions.length > 1 ? (
+                                <SelectLabel>
+                                  {getProviderLabel(group.provider)}
+                                </SelectLabel>
+                              ) : null}
+                              {group.models.map((model) => (
+                                <SelectItem key={model.id} value={model.id}>
+                                  {model.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsControlRow>
+                  </SettingsGroup>
                 </div>
               ) : null}
 
@@ -819,7 +1003,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.openai.error}
+                      error={getProviderError(providerModels.openai.error)}
                       installed={providerModels.openai.installed}
                       label="OpenAI"
                       logoSrc={openAiLogo}
@@ -855,7 +1039,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("openai", model.id);
+                                      toggleProviderModel(
+                                        "openai",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />
@@ -883,7 +1071,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.anthropic.error}
+                      error={getProviderError(providerModels.anthropic.error)}
                       installed={providerModels.anthropic.installed}
                       label="Anthropic"
                       logoSrc={anthropicLogo}
@@ -924,6 +1112,7 @@ export const SettingsDialog = () => {
                                       toggleProviderModel(
                                         "anthropic",
                                         model.id,
+                                        checked,
                                       );
                                     }
                                   }}
@@ -952,7 +1141,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.opencode.error}
+                      error={getProviderError(providerModels.opencode.error)}
                       installed={providerModels.opencode.installed}
                       label="OpenCode"
                       logoSrc={openCodeLogo}
@@ -990,7 +1179,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("opencode", model.id);
+                                      toggleProviderModel(
+                                        "opencode",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />
@@ -1018,7 +1211,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.cursor.error}
+                      error={getProviderError(providerModels.cursor.error)}
                       icon={
                         <CursorIcon
                           aria-hidden="true"
@@ -1060,7 +1253,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("cursor", model.id);
+                                      toggleProviderModel(
+                                        "cursor",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />
@@ -1088,7 +1285,7 @@ export const SettingsDialog = () => {
                           <RotateCw className="size-3.5" />
                         </Button>
                       }
-                      error={providerModels.grok.error}
+                      error={getProviderError(providerModels.grok.error)}
                       icon={
                         <GrokIcon
                           aria-hidden="true"
@@ -1130,7 +1327,11 @@ export const SettingsDialog = () => {
                                   checked={isSelected}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
-                                      toggleProviderModel("grok", model.id);
+                                      toggleProviderModel(
+                                        "grok",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
                                   }}
                                 />
@@ -1140,196 +1341,6 @@ export const SettingsDialog = () => {
                         )}
                       </div>
                     </ProviderStatusCard>
-                  </div>
-
-                  <div className="rounded-lg p-4">
-                    <div className="space-y-4">
-                      <SettingsControlRow
-                        controlClassName="md:w-[34rem]"
-                        description={settingsT(
-                          "defaultModelForNewChatsDescription",
-                        )}
-                        label={settingsT("defaultModelForNewChats")}
-                      >
-                        <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                          <Select
-                            onValueChange={(value) => {
-                              const defaultModel = value ?? "";
-                              const capabilities = getDefaultModelCapabilities(
-                                getDefaultModelEntry(defaultModel),
-                              );
-
-                              setSettings((previous) => ({
-                                ...previous,
-                                defaultModel,
-                                defaultModelSpeed: resolveModelSpeedForModel(
-                                  previous.defaultModelSpeed,
-                                  capabilities.speedTiers,
-                                ),
-                                defaultReasoningEffort:
-                                  resolveReasoningEffortForModel(
-                                    previous.defaultReasoningEffort,
-                                    capabilities.reasoningEfforts,
-                                  ),
-                              }));
-                            }}
-                            value={selectedDefaultModel}
-                          >
-                            <SelectTrigger
-                              className="w-full"
-                              disabled={groupedDefaultModelOptions.length === 0}
-                              id="default-model"
-                            >
-                              <SelectValue
-                                placeholder={settingsT("enableModelFirst")}
-                              >
-                                {selectedDefaultModelOption?.label}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="min-w-72">
-                              {groupedDefaultModelOptions.map((group) => (
-                                <SelectGroup key={group.provider}>
-                                  {groupedDefaultModelOptions.length > 1 ? (
-                                    <SelectLabel>
-                                      {getProviderLabel(group.provider)}
-                                    </SelectLabel>
-                                  ) : null}
-                                  {group.models.map((model) => (
-                                    <SelectItem key={model.id} value={model.id}>
-                                      {model.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              ))}
-                            </SelectContent>
-                          </Select>
-
-                          {defaultReasoningEffortOptions.length > 0 &&
-                          selectedDefaultReasoningEffort ? (
-                            <Select
-                              onValueChange={(value) =>
-                                setSettings((previous) => ({
-                                  ...previous,
-                                  defaultReasoningEffort:
-                                    value === "medium"
-                                      ? null
-                                      : (value as ReasoningEffort),
-                                }))
-                              }
-                              value={selectedDefaultReasoningEffort}
-                            >
-                              <SelectTrigger
-                                aria-label={settingsT("effort")}
-                                className="w-full sm:w-32"
-                              >
-                                <SelectValue>
-                                  {selectedDefaultReasoningLabel}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    {settingsT("effort")}
-                                  </SelectLabel>
-                                  {defaultReasoningEffortOptions.map(
-                                    (option) => (
-                                      <SelectItem
-                                        key={option.value}
-                                        value={option.value}
-                                      >
-                                        {modelT(option.value)}
-                                      </SelectItem>
-                                    ),
-                                  )}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                          ) : null}
-
-                          {defaultModelSpeedOptions.length > 0 ? (
-                            <Select
-                              onValueChange={(value) =>
-                                setSettings((previous) => ({
-                                  ...previous,
-                                  defaultModelSpeed: value as ModelSpeed,
-                                }))
-                              }
-                              value={selectedDefaultModelSpeed}
-                            >
-                              <SelectTrigger
-                                aria-label={settingsT("speed")}
-                                className="w-full sm:w-32"
-                              >
-                                <SelectValue>
-                                  {selectedDefaultModelSpeedLabel}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectGroup>
-                                  <SelectLabel>
-                                    {settingsT("speed")}
-                                  </SelectLabel>
-                                  {defaultModelSpeedOptions.map((option) => (
-                                    <SelectItem
-                                      key={option.value}
-                                      value={option.value}
-                                    >
-                                      {modelT(option.value)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              </SelectContent>
-                            </Select>
-                          ) : null}
-                        </div>
-                      </SettingsControlRow>
-
-                      <SettingsControlRow
-                        controlClassName="md:w-[34rem] md:justify-end"
-                        description={settingsT(
-                          "defaultModelForCommitsDescription",
-                        )}
-                        label={settingsT("defaultModelForCommits")}
-                      >
-                        <Select
-                          onValueChange={(value) =>
-                            setSettings((previous) => ({
-                              ...previous,
-                              defaultGitGenerationModel: value ?? "",
-                            }))
-                          }
-                          value={selectedGitGenerationModel}
-                        >
-                          <SelectTrigger
-                            className="w-full md:w-72"
-                            disabled={groupedDefaultModelOptions.length === 0}
-                            id="default-git-generation-model"
-                          >
-                            <SelectValue
-                              placeholder={settingsT("enableModelFirst")}
-                            >
-                              {selectedGitGenerationModelOption?.label}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="min-w-72">
-                            {groupedDefaultModelOptions.map((group) => (
-                              <SelectGroup key={group.provider}>
-                                {groupedDefaultModelOptions.length > 1 ? (
-                                  <SelectLabel>
-                                    {getProviderLabel(group.provider)}
-                                  </SelectLabel>
-                                ) : null}
-                                {group.models.map((model) => (
-                                  <SelectItem key={model.id} value={model.id}>
-                                    {model.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </SettingsControlRow>
-                    </div>
                   </div>
                 </div>
               ) : null}
@@ -1439,6 +1450,55 @@ export const SettingsDialog = () => {
                       </Table>
                     </div>
                   )}
+
+                  <SettingsControlRow
+                    controlClassName="md:w-[34rem]"
+                    description={settingsT("archiveInactiveChatsDescription")}
+                    label={settingsT("archiveChatsAfterDays")}
+                  >
+                    <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:justify-end">
+                      <Input
+                        aria-label={settingsT("archiveDays")}
+                        className="w-full sm:w-32"
+                        min={1}
+                        onBlur={(event) => {
+                          if (event.currentTarget.value !== "") {
+                            return;
+                          }
+
+                          setSettings((previous) => ({
+                            ...previous,
+                            archiveChatsAfterDays: 30,
+                          }));
+                        }}
+                        onChange={(event) => {
+                          const nextValue = event.currentTarget.valueAsNumber;
+                          if (!Number.isFinite(nextValue)) {
+                            return;
+                          }
+
+                          setSettings((previous) => ({
+                            ...previous,
+                            archiveChatsAfterDays: Math.max(
+                              1,
+                              Math.floor(nextValue),
+                            ),
+                          }));
+                        }}
+                        step={1}
+                        type="number"
+                        value={settings.archiveChatsAfterDays}
+                      />
+                      <Button
+                        onClick={handleArchiveInactiveChats}
+                        type="button"
+                        variant="outline"
+                      >
+                        <Archive className="size-4" />
+                        {settingsT("archiveNow")}
+                      </Button>
+                    </div>
+                  </SettingsControlRow>
                 </div>
               ) : null}
             </div>

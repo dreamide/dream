@@ -1,10 +1,10 @@
+import { useTranslations } from "next-intl";
 import type {
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
 } from "@/types/ide";
 import {
   formatDelta,
-  formatFileCount,
   getChangesAddedLines,
   getChangesRemovedLines,
   getStatusAddedLines,
@@ -18,21 +18,25 @@ export const GitDeltaSummary = ({
 }: {
   showFileCount?: boolean;
   status: ProjectGitStatusResponse | null;
-}) => (
-  <div className="flex shrink-0 items-center gap-2 font-mono text-xs tabular-nums">
-    {showFileCount ? (
-      <span className="text-muted-foreground">
-        {formatFileCount(getStatusFileCount(status))}
+}) => {
+  const uiT = useTranslations("ui");
+
+  return (
+    <div className="flex shrink-0 items-center gap-2 font-mono text-xs tabular-nums">
+      {showFileCount ? (
+        <span className="text-muted-foreground">
+          {uiT("fileCount", { count: getStatusFileCount(status) })}
+        </span>
+      ) : null}
+      <span className="font-medium text-emerald-500">
+        {formatDelta(getStatusAddedLines(status), "+")}
       </span>
-    ) : null}
-    <span className="font-medium text-emerald-500">
-      {formatDelta(getStatusAddedLines(status), "+")}
-    </span>
-    <span className="font-medium text-rose-500">
-      {formatDelta(getStatusRemovedLines(status), "-")}
-    </span>
-  </div>
-);
+      <span className="font-medium text-rose-500">
+        {formatDelta(getStatusRemovedLines(status), "-")}
+      </span>
+    </div>
+  );
+};
 
 export const GitChangesDeltaSummary = ({
   changes,
@@ -40,21 +44,25 @@ export const GitChangesDeltaSummary = ({
 }: {
   changes: ProjectGitStatusEntry[];
   showFileCount?: boolean;
-}) => (
-  <div className="flex shrink-0 items-center gap-2 font-mono text-xs tabular-nums">
-    {showFileCount ? (
-      <span className="text-muted-foreground">
-        {formatFileCount(changes.length)}
+}) => {
+  const uiT = useTranslations("ui");
+
+  return (
+    <div className="flex shrink-0 items-center gap-2 font-mono text-xs tabular-nums">
+      {showFileCount ? (
+        <span className="text-muted-foreground">
+          {uiT("fileCount", { count: changes.length })}
+        </span>
+      ) : null}
+      <span className="font-medium text-emerald-500">
+        {formatDelta(getChangesAddedLines(changes), "+")}
       </span>
-    ) : null}
-    <span className="font-medium text-emerald-500">
-      {formatDelta(getChangesAddedLines(changes), "+")}
-    </span>
-    <span className="font-medium text-rose-500">
-      {formatDelta(getChangesRemovedLines(changes), "-")}
-    </span>
-  </div>
-);
+      <span className="font-medium text-rose-500">
+        {formatDelta(getChangesRemovedLines(changes), "-")}
+      </span>
+    </div>
+  );
+};
 
 export const GitMenuDeltaSummary = ({
   status,

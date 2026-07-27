@@ -128,15 +128,11 @@ export const CommitDialog = ({
         }
         setCommitMessage(nextMessage);
       })
-      .catch((error) => {
+      .catch(() => {
         if (ignore) {
           return;
         }
-        setError(
-          error instanceof Error
-            ? error.message
-            : gitT("unableToGenerateCommitMessage"),
-        );
+        setError(gitT("unableToGenerateCommitMessage"));
       })
       .finally(() => {
         if (!ignore) {
@@ -185,18 +181,26 @@ export const CommitDialog = ({
       setError(null);
       try {
         if (action === "commit-push") {
-          await postJson<ProjectGitPushResponse>("/api/project-git-push", {
-            commitMessage,
-            includeUnstaged,
-            nextStep: "commit-push",
-            projectPath,
-          });
+          await postJson<ProjectGitPushResponse>(
+            "/api/project-git-push",
+            {
+              commitMessage,
+              includeUnstaged,
+              nextStep: "commit-push",
+              projectPath,
+            },
+            gitT("unableToCommitAndPush"),
+          );
         } else {
-          await postJson<ProjectGitCommitResponse>("/api/project-git-commit", {
-            includeUnstaged,
-            message: commitMessage,
-            projectPath,
-          });
+          await postJson<ProjectGitCommitResponse>(
+            "/api/project-git-commit",
+            {
+              includeUnstaged,
+              message: commitMessage,
+              projectPath,
+            },
+            gitT("unableToCommit"),
+          );
         }
         onCompleted();
         onOpenChange(false);

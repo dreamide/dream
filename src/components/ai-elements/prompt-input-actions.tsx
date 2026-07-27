@@ -1,4 +1,5 @@
 import { ImageIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentProps } from "react";
 import { useCallback } from "react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -12,10 +13,11 @@ export type PromptInputActionAddAttachmentsProps = ComponentProps<
 };
 
 export const PromptInputActionAddAttachments = ({
-  label = "Add photos or files",
+  label,
   className,
   ...props
 }: PromptInputActionAddAttachmentsProps) => {
+  const uiT = useTranslations("ui");
   const attachments = usePromptInputAttachments();
 
   const handleClick = useCallback(() => {
@@ -29,7 +31,7 @@ export const PromptInputActionAddAttachments = ({
       onClick={handleClick}
     >
       <ImageIcon className="mr-2 size-3.5 shrink-0" />
-      <span className="truncate">{label}</span>
+      <span className="truncate">{label ?? uiT("addPhotosOrFiles")}</span>
     </DropdownMenuItem>
   );
 };

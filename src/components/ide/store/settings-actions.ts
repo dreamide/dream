@@ -56,13 +56,14 @@ export const createSettingsActions = (
   setSettingsSection: (section) => set({ settingsSection: section }),
   setModelSearchQuery: (query) => set({ modelSearchQuery: query }),
 
-  toggleProviderModel: (provider, model) => {
+  toggleProviderModel: (provider, model, enabled) => {
     set((state) => {
       return {
         settings: toggleProviderModelInSettings(
           state.settings,
           provider,
           model,
+          enabled,
         ),
       };
     });
@@ -97,8 +98,12 @@ export const createSettingsActions = (
           method: "POST",
         });
 
-        if (!response.ok)
-          throw new Error(`Model fetch failed (${response.status}).`);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(
+            text.trim() || response.statusText || String(response.status),
+          );
+        }
 
         const payload = (await response.json()) as ProviderModelsResponse;
         const providerModels = getProviderModelsFromResponse(
@@ -122,8 +127,7 @@ export const createSettingsActions = (
           return { settings: nextSettings };
         });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unable to fetch models.";
+        const message = error instanceof Error ? error.message : String(error);
         set((state) => ({
           providerModels: getProviderModelsErrorState(
             state.providerModels,

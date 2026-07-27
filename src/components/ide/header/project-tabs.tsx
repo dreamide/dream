@@ -286,9 +286,7 @@ export const ProjectTabs = () => {
           >
             <StatusDot
               aria-label={projectsT("projectAwaitingAnswer")}
-              className="animate-pulse"
               color="amber"
-              pulse={false}
             />
           </span>
         ) : completed ? (

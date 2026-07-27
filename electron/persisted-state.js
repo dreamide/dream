@@ -21,6 +21,7 @@ const DEFAULT_PERSISTED_STATE = {
   settings: {
     anthropicSelectedModels: [],
     autoAcceptPermissions: false,
+    archiveChatsAfterDays: 30,
     cursorSelectedModels: [],
     grokSelectedModels: [],
     defaultGitGenerationModel: "",
@@ -57,6 +58,8 @@ const PERSISTED_STATE_CONFIG_KEYS = [
   "settings.cursorSelectedModels",
   "settings.grokSelectedModels",
   "settings.autoAcceptPermissions",
+  "settings.archiveChatsAfterDays",
+  "settings.autoArchiveChatsAfterDays",
   "settings.shellPath",
   "settings.expandToolCalls",
   "settings.groupToolCalls",
@@ -689,6 +692,15 @@ function saveStateToRelationalDatabase(database, state) {
       settings.autoAcceptPermissions === true,
       now,
     );
+    writeConfig(
+      database,
+      "settings.archiveChatsAfterDays",
+      Number.isInteger(settings.archiveChatsAfterDays) &&
+        settings.archiveChatsAfterDays > 0
+        ? settings.archiveChatsAfterDays
+        : 30,
+      now,
+    );
     writeConfig(database, "settings.shellPath", settings.shellPath ?? "", now);
     writeConfig(
       database,
@@ -1129,6 +1141,14 @@ function loadStateFromRelationalDatabase(database) {
         typeof config["settings.autoAcceptPermissions"] === "boolean"
           ? config["settings.autoAcceptPermissions"]
           : false,
+      archiveChatsAfterDays:
+        Number.isInteger(config["settings.archiveChatsAfterDays"]) &&
+        config["settings.archiveChatsAfterDays"] > 0
+          ? config["settings.archiveChatsAfterDays"]
+          : Number.isInteger(config["settings.autoArchiveChatsAfterDays"]) &&
+              config["settings.autoArchiveChatsAfterDays"] > 0
+            ? config["settings.autoArchiveChatsAfterDays"]
+            : 30,
       expandToolCalls:
         typeof config["settings.expandToolCalls"] === "boolean"
           ? config["settings.expandToolCalls"]

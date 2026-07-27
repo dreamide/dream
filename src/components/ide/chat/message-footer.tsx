@@ -44,21 +44,36 @@ const parseMessageTime = (value: string | undefined) => {
   return date;
 };
 
-const formatRunningDuration = (startedAt: number, now: number) => {
+type FormatDurationUnit = (
+  value: number,
+  unit: "day" | "hour" | "minute" | "second",
+) => string;
+
+const formatRunningDuration = (
+  startedAt: number,
+  now: number,
+  formatUnit: FormatDurationUnit,
+) => {
   const totalSeconds = Math.max(0, Math.floor((now - startedAt) / 1000));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
   if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
+    return [
+      formatUnit(hours, "hour"),
+      formatUnit(minutes, "minute"),
+      formatUnit(seconds, "second"),
+    ].join(" ");
   }
 
   if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
+    return [formatUnit(minutes, "minute"), formatUnit(seconds, "second")].join(
+      " ",
+    );
   }
 
-  return `${seconds}s`;
+  return formatUnit(seconds, "second");
 };
 
 const getMessageTimestamp = (value: string | undefined) =>
@@ -86,6 +101,8 @@ export const MessageHoverFooter = ({
 }) => {
   const chatT = useTranslations("chat");
   const format = useFormatter();
+  const formatDurationUnit: FormatDurationUnit = (value, unit) =>
+    format.number(value, { style: "unit", unit, unitDisplay: "narrow" });
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [fallbackStartedAt] = useState(() => Date.now());
@@ -111,14 +128,20 @@ export const MessageHoverFooter = ({
     message.role === "assistant" ? metadata?.completedAt : metadata?.createdAt,
   );
   const time = isRunning
-    ? chatT("runningFor", { duration: formatRunningDuration(startedAt, now) })
+    ? chatT("runningFor", {
+        duration: formatRunningDuration(startedAt, now, formatDurationUnit),
+      })
     : messageDate
       ? format.dateTime(messageDate, { hour: "numeric", minute: "2-digit" })
       : null;
   const duration =
     !isRunning && durationStartedAt !== null && completedAt !== null
       ? chatT("ranFor", {
-          duration: formatRunningDuration(durationStartedAt, completedAt),
+          duration: formatRunningDuration(
+            durationStartedAt,
+            completedAt,
+            formatDurationUnit,
+          ),
         })
       : null;
   const text = getMessageText(message);

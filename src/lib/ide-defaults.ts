@@ -59,6 +59,7 @@ export const normalizeClaudeCodeModelId = (modelId: string): string => {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  archiveChatsAfterDays: 30,
   autoCompactContext: true,
   anthropicSelectedModels: [],
   autoAcceptPermissions: false,

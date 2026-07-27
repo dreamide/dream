@@ -59,12 +59,21 @@ export const toggleProviderModelInSettings = (
   settings: AppSettings,
   provider: AiProvider,
   model: string,
+  enabled?: boolean,
 ): AppSettings => {
+  const updateModels = (models: string[]) => {
+    const current = dedupeModels(models);
+    const shouldEnable = enabled ?? !current.includes(model);
+
+    if (shouldEnable) {
+      return current.includes(model) ? current : [...current, model];
+    }
+
+    return current.filter((value) => value !== model);
+  };
+
   if (provider === "openai") {
-    const current = dedupeModels(settings.openAiSelectedModels);
-    const openAiSelectedModels = current.includes(model)
-      ? current.filter((value) => value !== model)
-      : [...current, model];
+    const openAiSelectedModels = updateModels(settings.openAiSelectedModels);
     const nextSettings = {
       ...settings,
       openAiSelectedModels,
@@ -73,10 +82,9 @@ export const toggleProviderModelInSettings = (
   }
 
   if (provider === "opencode") {
-    const current = dedupeModels(settings.openCodeSelectedModels);
-    const openCodeSelectedModels = current.includes(model)
-      ? current.filter((value) => value !== model)
-      : [...current, model];
+    const openCodeSelectedModels = updateModels(
+      settings.openCodeSelectedModels,
+    );
     const nextSettings = {
       ...settings,
       openCodeSelectedModels,
@@ -85,10 +93,7 @@ export const toggleProviderModelInSettings = (
   }
 
   if (provider === "cursor") {
-    const current = dedupeModels(settings.cursorSelectedModels);
-    const cursorSelectedModels = current.includes(model)
-      ? current.filter((value) => value !== model)
-      : [...current, model];
+    const cursorSelectedModels = updateModels(settings.cursorSelectedModels);
     const nextSettings = {
       ...settings,
       cursorSelectedModels,
@@ -97,20 +102,16 @@ export const toggleProviderModelInSettings = (
   }
 
   if (provider === "grok") {
-    const current = dedupeModels(settings.grokSelectedModels);
-    const grokSelectedModels = current.includes(model)
-      ? current.filter((value) => value !== model)
-      : [...current, model];
+    const grokSelectedModels = updateModels(settings.grokSelectedModels);
     return normalizeDefaultModelSettings({
       ...settings,
       grokSelectedModels,
     });
   }
 
-  const current = dedupeModels(settings.anthropicSelectedModels);
-  const anthropicSelectedModels = current.includes(model)
-    ? current.filter((value) => value !== model)
-    : [...current, model];
+  const anthropicSelectedModels = updateModels(
+    settings.anthropicSelectedModels,
+  );
   const nextSettings = {
     ...settings,
     anthropicSelectedModels,

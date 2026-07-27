@@ -23,6 +23,7 @@ export const createChatActions = (
   | "toggleProjectMultiChatMode"
   | "setActiveChatId"
   | "updateChat"
+  | "archiveInactiveChats"
   | "deleteChat"
   | "permanentlyDeleteChats"
   | "restoreChats"
@@ -207,6 +208,36 @@ export const createChatActions = (
         chat.id === chatId ? updater(chat) : chat,
       ),
     }));
+  },
+
+  archiveInactiveChats: () => {
+    const state = get();
+    const days = state.settings.archiveChatsAfterDays;
+    if (!Number.isInteger(days) || days < 1) {
+      return 0;
+    }
+
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const chatIds = state.chats
+      .filter((chat) => {
+        if (
+          chat.deletedAt !== null ||
+          state.streamingChatIds[chat.id] ||
+          state.titleGeneratingChatIds[chat.id]
+        ) {
+          return false;
+        }
+
+        const lastActivityAt = Date.parse(chat.updatedAt || chat.createdAt);
+        return Number.isFinite(lastActivityAt) && lastActivityAt <= cutoff;
+      })
+      .map((chat) => chat.id);
+
+    for (const chatId of chatIds) {
+      get().deleteChat(chatId);
+    }
+
+    return chatIds.length;
   },
 
   deleteChat: (chatId: string) => {

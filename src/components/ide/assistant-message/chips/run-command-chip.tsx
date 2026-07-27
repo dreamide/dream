@@ -50,6 +50,12 @@ export const RunCommandChip = ({
       : isRecord(output) && isString(output.command)
         ? output.command
         : null;
+  const commandType =
+    isRecord(part.input) && isString(part.input.type)
+      ? part.input.type
+      : isRecord(output) && isString(output.type)
+        ? output.type
+        : null;
   const commandOutput = useMemo(() => {
     if (isString(output)) {
       return stripAnsiSequences(output);
@@ -89,6 +95,7 @@ export const RunCommandChip = ({
 
     return getCommandWithoutShellPrefix(command);
   }, [command]);
+  const displayLabel = displayCommand ?? commandType;
 
   return (
     <div className={expanded || isApprovalRequested ? "w-full" : undefined}>
@@ -101,7 +108,7 @@ export const RunCommandChip = ({
           hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
           aria-label={
-            displayCommand ??
+            displayLabel ??
             (isRunning ? assistantT("running") : assistantT("command"))
           }
           tone="lime"
@@ -111,7 +118,7 @@ export const RunCommandChip = ({
           {!isRunning ? (
             <>
               <span className="max-w-64 truncate font-medium">
-                {displayCommand ?? assistantT("command")}
+                {displayLabel ?? assistantT("command")}
               </span>
               {status === "running" ? (
                 <span className={CHIP_SUBTEXT_CLASSES}>
@@ -138,7 +145,7 @@ export const RunCommandChip = ({
           <span>
             {assistantT("allowRunning")}{" "}
             <code className="rounded bg-surface-50 dark:bg-surface-900 px-1 py-0.5 text-xs">
-              {displayCommand ?? command ?? assistantT("commandLowercase")}
+              {displayLabel ?? command ?? assistantT("commandLowercase")}
             </code>
             ?
           </span>

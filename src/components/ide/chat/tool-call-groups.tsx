@@ -8,6 +8,7 @@ import {
   FolderIcon,
   GlobeIcon,
   type LucideIcon,
+  NetworkIcon,
   PenLineIcon,
   SearchIcon,
   TerminalIcon,
@@ -27,6 +28,7 @@ import {
 import {
   AgentChip,
   ListFilesChip,
+  McpToolChip,
   ReadFileChip,
   RunCommandChip,
   SearchInFilesChip,
@@ -99,6 +101,11 @@ const TOOL_GROUP_META: Record<
     Icon: FolderIcon,
     labelKey: "list",
     tone: "blue",
+  },
+  mcp: {
+    Icon: NetworkIcon,
+    labelKey: "mcp",
+    tone: "sky",
   },
   read: {
     Icon: EyeIcon,
@@ -195,6 +202,16 @@ const renderToolChip = (
         part={chipPart}
         partIndex={index}
         projectPath={projectPath}
+      />
+    );
+  }
+  if (chipToolKind === "mcp") {
+    return (
+      <McpToolChip
+        defaultExpanded={expandToolCalls}
+        key={key}
+        onToolApproval={addToolApprovalResponse}
+        part={chipPart}
       />
     );
   }

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type {
   ChangeEvent,
   ClipboardEventHandler,
@@ -25,11 +26,12 @@ export const PromptInputTextarea = forwardRef<
       onChange,
       onKeyDown,
       className,
-      placeholder = "What would you like to know?",
+      placeholder,
       ...props
     },
     ref,
   ) => {
+    const uiT = useTranslations("ui");
     const controller = useOptionalPromptInputController();
     const attachments = usePromptInputAttachments();
     const [isComposing, setIsComposing] = useState(false);
@@ -129,7 +131,7 @@ export const PromptInputTextarea = forwardRef<
         onCompositionStart={handleCompositionStart}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
-        placeholder={placeholder}
+        placeholder={placeholder ?? uiT("promptPlaceholder")}
         ref={ref}
         {...props}
         {...controlledProps}

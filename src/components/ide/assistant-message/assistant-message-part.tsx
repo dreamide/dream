@@ -124,7 +124,10 @@ type AskUserQuestionSummaryItem = {
 
 const askUserQuestionAnswerCache = new Map<string, Record<string, string>>();
 
-const getAskUserQuestions = (input: unknown): AskUserQuestionItem[] => {
+const getAskUserQuestions = (
+  input: unknown,
+  fallbackHeader: string,
+): AskUserQuestionItem[] => {
   if (!isRecord(input) || !Array.isArray(input.questions)) {
     return [];
   }
@@ -135,7 +138,7 @@ const getAskUserQuestions = (input: unknown): AskUserQuestionItem[] => {
     }
 
     const questionText = isString(question.question) ? question.question : "";
-    const header = isString(question.header) ? question.header : "Question";
+    const header = isString(question.header) ? question.header : fallbackHeader;
     if (!questionText) {
       return [];
     }
@@ -450,6 +453,7 @@ const GenericToolChip = ({
   part: ToolLikePart;
 }) => {
   const assistantT = useTranslations("assistant");
+  const uiT = useTranslations("ui");
   const [expanded, setExpanded] = useState(false);
   const toolName = getToolName(part);
   const normalizedToolName = normalizeToolName(toolName);
@@ -493,7 +497,7 @@ const GenericToolChip = ({
     ["permission", "description"],
   ]);
   const askUserQuestions = isAskUserQuestion
-    ? getAskUserQuestions(part.input)
+    ? getAskUserQuestions(part.input, uiT("question"))
     : [];
   const askUserQuestionApprovalId =
     isAskUserQuestion && typeof part.toolCallId === "string"

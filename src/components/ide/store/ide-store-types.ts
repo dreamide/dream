@@ -97,6 +97,7 @@ export interface IdeState {
     chatId: string,
     updater: (chat: ChatConfig) => ChatConfig,
   ) => void;
+  archiveInactiveChats: () => number;
   deleteChat: (chatId: string) => void;
   permanentlyDeleteChats: (chatIds: string[]) => void;
   restoreChats: (chatIds: string[]) => void;
@@ -127,7 +128,11 @@ export interface IdeState {
   setModelSearchQuery: (query: string) => void;
 
   // Actions - provider management
-  toggleProviderModel: (provider: AiProvider, model: string) => void;
+  toggleProviderModel: (
+    provider: AiProvider,
+    model: string,
+    enabled?: boolean,
+  ) => void;
   refreshProviderModels: (options?: {
     force?: boolean;
     provider?: AiProvider;

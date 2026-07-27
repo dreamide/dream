@@ -99,9 +99,12 @@ const isImageFile = (filePath: string) => {
 const getDeletedFileRawUrl = (projectPath: string, filePath: string) =>
   `/api/project-git-file-at-head-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
 
-export const readResponseText = async (response: Response): Promise<string> => {
+export const readResponseText = async (
+  response: Response,
+  fallback: string,
+): Promise<string> => {
   const text = await response.text();
-  return text.trim() || `Request failed (${response.status}).`;
+  return text.trim() || fallback;
 };
 
 const DeletedImagePreview = ({
@@ -112,6 +115,7 @@ const DeletedImagePreview = ({
   projectPath: string;
 }) => {
   const panelsT = useTranslations("panels");
+  const uiT = useTranslations("ui");
   const [error, setError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -128,7 +132,12 @@ const DeletedImagePreview = ({
           getDeletedFileRawUrl(projectPath, filePath),
         );
         if (!response.ok) {
-          throw new Error(await readResponseText(response));
+          throw new Error(
+            await readResponseText(
+              response,
+              uiT("requestFailedStatus", { status: response.status }),
+            ),
+          );
         }
 
         objectUrl = URL.createObjectURL(await response.blob());
@@ -157,7 +166,7 @@ const DeletedImagePreview = ({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [filePath, panelsT, projectPath]);
+  }, [filePath, panelsT, projectPath, uiT]);
 
   if (error) {
     return (
