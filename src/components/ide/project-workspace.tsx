@@ -52,6 +52,7 @@ const ProjectWorkspaceComponent = ({
   const multiChat = projectUi.multiChat;
   const chats = useIdeStore((s) => s.chats);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
+  const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds[projectId] ?? EMPTY_TERMINAL_SESSION_IDS,
   );
@@ -115,6 +116,12 @@ const ProjectWorkspaceComponent = ({
     projectId,
     streamingChatIds,
   });
+  const historyHasUnseenChats = chats.some(
+    (chat) =>
+      chat.projectId === projectId &&
+      chat.deletedAt === null &&
+      Boolean(completedChatIds[chat.id]),
+  );
   const hasProjectTerminalSessions = projectTerminalSessionIds.length > 0;
   const terminalPanelVisible =
     rightVisible && rightPanelView === "terminal" && hasProjectTerminalSessions;
@@ -623,6 +630,7 @@ const ProjectWorkspaceComponent = ({
     >
       <WorkspaceSideNav
         historyButtonRef={historyButtonRef}
+        historyHasUnseenChats={historyHasUnseenChats}
         historyOpen={historyOpen}
         multiChat={multiChat}
         onAddChat={handleAddChat}

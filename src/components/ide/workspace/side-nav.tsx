@@ -5,6 +5,7 @@ import { WorkspaceNavButton } from "./nav-button";
 
 export interface WorkspaceSideNavProps {
   historyButtonRef: RefObject<HTMLButtonElement | null>;
+  historyHasUnseenChats: boolean;
   historyOpen: boolean;
   multiChat: boolean;
   onAddChat: () => void;
@@ -14,6 +15,7 @@ export interface WorkspaceSideNavProps {
 
 const WorkspaceSideNavImpl = ({
   historyButtonRef,
+  historyHasUnseenChats,
   historyOpen,
   multiChat,
   onAddChat,
@@ -31,6 +33,7 @@ const WorkspaceSideNavImpl = ({
         <WorkspaceNavButton
           aria-label={t("chatHistory")}
           active={historyOpen}
+          accent={historyHasUnseenChats}
           onClick={onToggleHistory}
           ref={historyButtonRef}
           title={t("chatHistory")}
