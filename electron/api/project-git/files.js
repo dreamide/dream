@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import ignore from "ignore";
 
 export const MIME_TYPES = {
   avif: "image/avif",
@@ -22,18 +23,27 @@ const BLOCKED_DIRECTORIES = new Set([
   ".cursor",
   ".expo",
   ".gradle",
+  ".hypothesis",
   ".idea",
   ".mypy_cache",
+  ".netlify",
   ".next",
+  ".nox",
   ".nuxt",
   ".nx",
+  ".output",
   ".parcel-cache",
   ".pnpm-store",
   ".pytest_cache",
   ".ruff_cache",
   ".serverless",
   ".svelte-kit",
+  ".terraform",
+  ".tox",
   ".turbo",
+  ".venv",
+  ".vercel",
+  ".vite",
   ".vscode",
   ".wrangler",
   ".yarn",
@@ -43,6 +53,9 @@ const BLOCKED_DIRECTORIES = new Set([
   "coverage",
   "dist",
   "node_modules",
+  "out",
+  "release",
+  "venv",
 ]);
 
 export const normalizePath = (value) => value.replace(/\\/g, "/");
@@ -60,7 +73,21 @@ export const resolveProjectPath = (projectRoot, filePath) => {
 export const hashContent = (content) =>
   createHash("sha256").update(content, "utf8").digest("hex");
 
-const walkFiles = async (root, current, maxResults, output) => {
+const loadProjectIgnore = async (root) => {
+  const projectIgnore = ignore();
+
+  try {
+    projectIgnore.add(await fs.readFile(path.join(root, ".gitignore"), "utf8"));
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  return projectIgnore;
+};
+
+const walkFiles = async (root, current, maxResults, output, projectIgnore) => {
   if (output.length >= maxResults) return;
   const entries = await fs.readdir(current, { withFileTypes: true });
   entries.sort((a, b) => a.name.localeCompare(b.name));
@@ -75,7 +102,13 @@ const walkFiles = async (root, current, maxResults, output) => {
     const absolute = path.join(current, entry.name);
     const relative = normalizePath(path.relative(root, absolute));
     if (entry.isDirectory()) {
-      await walkFiles(root, absolute, maxResults, output);
+      if (projectIgnore.ignores(`${relative}/`)) {
+        continue;
+      }
+      await walkFiles(root, absolute, maxResults, output, projectIgnore);
+      continue;
+    }
+    if (projectIgnore.ignores(relative)) {
       continue;
     }
     output.push(relative);
@@ -89,8 +122,15 @@ export const listProjectFiles = async (projectRoot, directory, maxResults) => {
     throw new Error(`Not a directory: ${directory}`);
   }
 
+  const projectIgnore = await loadProjectIgnore(path.resolve(projectRoot));
   const files = [];
-  await walkFiles(projectRoot, targetDirectory, maxResults, files);
+  await walkFiles(
+    path.resolve(projectRoot),
+    targetDirectory,
+    maxResults,
+    files,
+    projectIgnore,
+  );
   return files;
 };
 
