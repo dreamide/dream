@@ -81,7 +81,7 @@ const unwrapMarkdownLinkDestination = (value: string) => {
 };
 
 const escapeMarkdownLinkDestination = (value: string) =>
-  value.replace(/>/g, "%3E");
+  value.replace(/</g, "%3C").replace(/>/g, "%3E");
 
 const MARKDOWN_LINK_CLASS_NAME =
   "font-medium text-current underline decoration-current/45 underline-offset-3 transition-colors hover:decoration-current";
@@ -90,24 +90,27 @@ export const normalizeProjectFileLinksInMarkdown = (
   value: string,
   projectPath: string,
 ) =>
-  value.replace(/\[([^\]\n]+)\]\(([^)\n]+)\)/g, (match, label, href) => {
-    const unwrappedHref = unwrapMarkdownLinkDestination(href);
-    const projectFilePath = getProjectFilePathFromHref(
-      unwrappedHref,
-      projectPath,
-    );
+  value.replace(
+    /\[([^\]\n]+)\]\((<[^>\n]*>|[^)\n]+)\)/g,
+    (match, label, href) => {
+      const unwrappedHref = unwrapMarkdownLinkDestination(href);
+      const projectFilePath = getProjectFilePathFromHref(
+        unwrappedHref,
+        projectPath,
+      );
 
-    if (!projectFilePath) {
-      return match;
-    }
+      if (!projectFilePath) {
+        return match;
+      }
 
-    const lineSuffix = getLineSuffix(
-      normalizeFilePathCandidate(unwrappedHref.split("#", 1)[0] ?? ""),
-    );
-    return `[${label}](<${escapeMarkdownLinkDestination(
-      `${PROJECT_FILE_LINK_PREFIX}${projectFilePath}`,
-    )}${lineSuffix}>)`;
-  });
+      const lineSuffix = getLineSuffix(
+        normalizeFilePathCandidate(unwrappedHref.split("#", 1)[0] ?? ""),
+      );
+      return `[${label}](<${escapeMarkdownLinkDestination(
+        `${PROJECT_FILE_LINK_PREFIX}${projectFilePath}`,
+      )}${lineSuffix}>)`;
+    },
+  );
 
 export const MarkdownFileLink = ({
   className,
