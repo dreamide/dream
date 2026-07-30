@@ -5,10 +5,11 @@ import {
   FolderTree,
   History,
   Plug,
+  Search,
   Settings,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import dreamSvg from "@/assets/dream.svg";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { getDesktopApi } from "@/lib/electron";
 import { getConnectedProviders } from "@/lib/ide-defaults";
 import { ProjectTabIcon } from "./header/project-tab-icon";
@@ -111,6 +117,7 @@ export const EmptyProjectWorkspace = () => {
   const addProject = useIdeStore((s) => s.addProject);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+  const [recentProjectQuery, setRecentProjectQuery] = useState("");
 
   const connectedProviders = useMemo(
     () => getConnectedProviders(settings),
@@ -156,6 +163,18 @@ export const EmptyProjectWorkspace = () => {
         .map(({ project }) => project),
     [chatLastUsedAtByProject, closedProjects],
   );
+  const filteredRecentProjects = useMemo(() => {
+    const query = recentProjectQuery.trim().toLocaleLowerCase();
+    if (!query) {
+      return recentProjects;
+    }
+
+    return recentProjects.filter(
+      (project) =>
+        project.name.toLocaleLowerCase().includes(query) ||
+        project.path.toLocaleLowerCase().includes(query),
+    );
+  }, [recentProjectQuery, recentProjects]);
 
   const handleOpenFolder = useCallback(async () => {
     const desktopApi = getDesktopApi();
@@ -235,78 +254,104 @@ export const EmptyProjectWorkspace = () => {
 
         {recentProjects.length > 0 ? (
           <div className="flex w-full flex-col items-stretch gap-2">
-            <div className="flex items-center gap-2 px-1 font-medium text-muted-foreground text-sm">
-              <History className="size-3.5" />
-              {emptyT("recentlyClosed")}
+            <div className="flex items-center justify-between gap-4 px-1">
+              <div className="flex shrink-0 items-center gap-2 font-medium text-muted-foreground text-sm">
+                <History className="size-3.5" />
+                {emptyT("recentlyClosed")}
+              </div>
+              <InputGroup className="h-8 max-w-64">
+                <InputGroupInput
+                  aria-label={emptyT("searchRecentlyClosed")}
+                  autoComplete="off"
+                  className="text-sm"
+                  onChange={(event) =>
+                    setRecentProjectQuery(event.target.value)
+                  }
+                  placeholder={emptyT("searchRecentlyClosed")}
+                  spellCheck={false}
+                  type="search"
+                  value={recentProjectQuery}
+                />
+                <InputGroupAddon>
+                  <Search className="size-4 shrink-0 opacity-50" />
+                </InputGroupAddon>
+              </InputGroup>
             </div>
-            <div
-              className="grid w-full gap-1 overflow-y-auto pr-1"
-              style={{
-                maxHeight:
-                  RECENT_PROJECT_VISIBLE_COUNT * RECENT_PROJECT_ROW_HEIGHT_PX +
-                  (RECENT_PROJECT_VISIBLE_COUNT - 1) *
-                    RECENT_PROJECT_ROW_GAP_PX,
-              }}
-            >
-              {recentProjects.map((project) => {
-                const isWorktree = project.worktree?.kind === "worktree";
-                const lastUsedAt =
-                  project.lastUsedAt ??
-                  chatLastUsedAtByProject.get(project.id) ??
-                  null;
-                const lastUsedLabel = formatLastUsedAt(lastUsedAt, {
-                  daysAgo: (count) => timeT("daysAgo", { count }),
-                  hoursAgo: (count) => timeT("hoursAgo", { count }),
-                  justNow: timeT("justNow"),
-                  minutesAgo: (count) => timeT("minutesAgo", { count }),
-                  yesterday: timeT("yesterday"),
-                });
+            {filteredRecentProjects.length > 0 ? (
+              <div
+                className="grid w-full gap-1 overflow-y-auto pr-1"
+                style={{
+                  maxHeight:
+                    RECENT_PROJECT_VISIBLE_COUNT *
+                      RECENT_PROJECT_ROW_HEIGHT_PX +
+                    (RECENT_PROJECT_VISIBLE_COUNT - 1) *
+                      RECENT_PROJECT_ROW_GAP_PX,
+                }}
+              >
+                {filteredRecentProjects.map((project) => {
+                  const isWorktree = project.worktree?.kind === "worktree";
+                  const lastUsedAt =
+                    project.lastUsedAt ??
+                    chatLastUsedAtByProject.get(project.id) ??
+                    null;
+                  const lastUsedLabel = formatLastUsedAt(lastUsedAt, {
+                    daysAgo: (count) => timeT("daysAgo", { count }),
+                    hoursAgo: (count) => timeT("hoursAgo", { count }),
+                    justNow: timeT("justNow"),
+                    minutesAgo: (count) => timeT("minutesAgo", { count }),
+                    yesterday: timeT("yesterday"),
+                  });
 
-                return (
-                  <button
-                    className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-sm border border-transparent px-3 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:border-surface-300 dark:hover:bg-[color-mix(in_oklab,var(--muted)_70%,var(--background))] dark:focus-visible:border-surface-700 focus-visible:outline-none"
-                    key={project.id}
-                    onClick={() => addProject(project.path)}
-                    type="button"
-                  >
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                      {isWorktree ? (
-                        <FolderTree className="size-4" />
-                      ) : project.icon ? (
-                        <ProjectTabIcon
-                          fallback={<Folder className="size-4" />}
-                          icon={project.icon}
-                          projectName={project.name}
-                          projectPath={project.path}
-                        />
-                      ) : (
-                        <Folder className="size-4" />
-                      )}
-                    </span>
-                    <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
-                      <span className="col-start-1 block truncate font-medium text-foreground text-sm">
-                        {project.name}
+                  return (
+                    <button
+                      className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-sm border border-transparent px-3 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:border-surface-300 dark:hover:bg-[color-mix(in_oklab,var(--muted)_70%,var(--background))] dark:focus-visible:border-surface-700 focus-visible:outline-none"
+                      key={project.id}
+                      onClick={() => addProject(project.path)}
+                      type="button"
+                    >
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        {isWorktree ? (
+                          <FolderTree className="size-4" />
+                        ) : project.icon ? (
+                          <ProjectTabIcon
+                            fallback={<Folder className="size-4" />}
+                            icon={project.icon}
+                            projectName={project.name}
+                            projectPath={project.path}
+                          />
+                        ) : (
+                          <Folder className="size-4" />
+                        )}
                       </span>
-                      {lastUsedLabel ? (
-                        <span
-                          className="col-start-2 row-span-2 self-center whitespace-nowrap text-right text-muted-foreground/80 text-xs"
-                          title={
-                            lastUsedAt
-                              ? new Date(lastUsedAt).toLocaleString()
-                              : undefined
-                          }
-                        >
-                          {lastUsedLabel}
+                      <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
+                        <span className="col-start-1 block truncate font-medium text-foreground text-sm">
+                          {project.name}
                         </span>
-                      ) : null}
-                      <span className="col-start-1 block truncate text-muted-foreground text-xs">
-                        {isWorktree ? emptyT("worktree") : project.path}
+                        {lastUsedLabel ? (
+                          <span
+                            className="col-start-2 row-span-2 self-center whitespace-nowrap text-right text-muted-foreground/80 text-xs"
+                            title={
+                              lastUsedAt
+                                ? new Date(lastUsedAt).toLocaleString()
+                                : undefined
+                            }
+                          >
+                            {lastUsedLabel}
+                          </span>
+                        ) : null}
+                        <span className="col-start-1 block truncate text-muted-foreground text-xs">
+                          {isWorktree ? emptyT("worktree") : project.path}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="px-3 py-6 text-center text-muted-foreground text-sm">
+                {emptyT("noMatchingProjects")}
+              </p>
+            )}
           </div>
         ) : null}
       </EmptyContent>

@@ -118,7 +118,9 @@
     "getStarted": "Get started",
     "openFolder": "Open Folder",
     "openProviders": "Open Providers",
+    "noMatchingProjects": "No matching projects.",
     "recentlyClosed": "Recently closed",
+    "searchRecentlyClosed": "Search recently closed...",
     "worktree": "worktree"
   },
   "workspace": {

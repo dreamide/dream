@@ -118,7 +118,9 @@
     "getStarted": "开始使用",
     "openFolder": "打开文件夹",
     "openProviders": "打开提供商",
+    "noMatchingProjects": "没有匹配的项目。",
     "recentlyClosed": "最近关闭",
+    "searchRecentlyClosed": "搜索最近关闭的项目...",
     "worktree": "工作树"
   },
   "workspace": {

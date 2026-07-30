@@ -118,7 +118,9 @@
     "getStarted": "Loslegen",
     "openFolder": "Ordner öffnen",
     "openProviders": "Anbieter öffnen",
+    "noMatchingProjects": "Keine passenden Projekte.",
     "recentlyClosed": "Zuletzt geschlossen",
+    "searchRecentlyClosed": "Zuletzt geschlossene durchsuchen...",
     "worktree": "Worktree"
   },
   "workspace": {

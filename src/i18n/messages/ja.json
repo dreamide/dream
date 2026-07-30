@@ -118,7 +118,9 @@
     "getStarted": "開始",
     "openFolder": "フォルダを開く",
     "openProviders": "プロバイダーを開く",
+    "noMatchingProjects": "一致するプロジェクトがありません。",
     "recentlyClosed": "最近閉じた項目",
+    "searchRecentlyClosed": "最近閉じた項目を検索...",
     "worktree": "ワークツリー"
   },
   "workspace": {

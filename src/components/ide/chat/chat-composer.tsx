@@ -1034,7 +1034,6 @@ export const ChatComposer = ({
                 </Select>
 
                 <Select
-                  disabled={isProcessing}
                   onValueChange={(value) => {
                     if (value === "standard" || value === "full-access") {
                       onPermissionModeChange(value);

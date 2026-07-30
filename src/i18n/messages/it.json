@@ -118,7 +118,9 @@
     "getStarted": "Inizia",
     "openFolder": "Apri cartella",
     "openProviders": "Apri provider",
+    "noMatchingProjects": "Nessun progetto corrispondente.",
     "recentlyClosed": "Chiusi di recente",
+    "searchRecentlyClosed": "Cerca tra i progetti chiusi di recente...",
     "worktree": "worktree"
   },
   "workspace": {

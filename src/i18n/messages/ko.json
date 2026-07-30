@@ -118,7 +118,9 @@
     "getStarted": "시작하기",
     "openFolder": "폴더 열기",
     "openProviders": "제공자 열기",
+    "noMatchingProjects": "일치하는 프로젝트가 없습니다.",
     "recentlyClosed": "최근 닫힘",
+    "searchRecentlyClosed": "최근 닫은 프로젝트 검색...",
     "worktree": "워크트리"
   },
   "workspace": {

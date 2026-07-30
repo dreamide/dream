@@ -118,7 +118,9 @@
     "getStarted": "Bắt đầu",
     "openFolder": "Mở thư mục",
     "openProviders": "Mở nhà cung cấp",
+    "noMatchingProjects": "Không có dự án phù hợp.",
     "recentlyClosed": "Đã đóng gần đây",
+    "searchRecentlyClosed": "Tìm trong các dự án đã đóng gần đây...",
     "worktree": "worktree"
   },
   "workspace": {

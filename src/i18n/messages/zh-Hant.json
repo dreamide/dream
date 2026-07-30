@@ -118,7 +118,9 @@
     "getStarted": "開始使用",
     "openFolder": "開啟資料夾",
     "openProviders": "開啟提供者",
+    "noMatchingProjects": "沒有相符的專案。",
     "recentlyClosed": "最近關閉",
+    "searchRecentlyClosed": "搜尋最近關閉的專案...",
     "worktree": "工作樹"
   },
   "workspace": {
