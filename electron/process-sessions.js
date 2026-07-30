@@ -217,6 +217,10 @@ export function createProcessSessionManager({ sendToRenderer }) {
     });
   }
 
+  function hasActiveSessions() {
+    return runProcesses.size > 0 || terminalSessions.size > 0;
+  }
+
   async function stopAllProcesses() {
     await Promise.all([
       ...[...runProcesses.keys()].map((projectId) => stopRunProcess(projectId)),
@@ -580,6 +584,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
   }
 
   return {
+    hasActiveSessions,
     resizeTerminal,
     startRunner,
     startTerminal,

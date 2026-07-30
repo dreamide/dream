@@ -526,6 +526,7 @@ export interface DesktopApi {
   sendTerminalInput: (payload: TerminalInputPayload) => void;
   resizeTerminal: (payload: TerminalResizePayload) => void;
   stopTerminal: (projectId: string) => Promise<boolean>;
+  stopAllTerminals: () => Promise<boolean>;
   onTerminalData: (listener: (event: TerminalDataEvent) => void) => () => void;
   onTerminalStatus: (
     listener: (event: TerminalStatusEvent) => void,

@@ -190,6 +190,47 @@ export const IdeShell = () => {
     };
   }, []);
 
+  // Best-effort: ask main to stop PTYs on page hide/unload. Keyboard reload and
+  // in-app navigations are intercepted in the main process so sessions are
+  // closed before the renderer is torn down; this covers remaining unload paths.
+  useEffect(() => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi || typeof desktopApi.stopAllTerminals !== "function") {
+      return;
+    }
+
+    const hasActiveTerminalSessions = () => {
+      const state = useIdeStore.getState();
+      if (
+        Object.values(state.terminalStatus).some(
+          (status) => status === "running",
+        )
+      ) {
+        return true;
+      }
+
+      return Object.values(state.projectTerminalSessionIds).some(
+        (sessionIds) => sessionIds.length > 0,
+      );
+    };
+
+    const stopActiveSessions = () => {
+      if (!hasActiveTerminalSessions()) {
+        return;
+      }
+
+      void desktopApi.stopAllTerminals();
+    };
+
+    window.addEventListener("pagehide", stopActiveSessions);
+    window.addEventListener("beforeunload", stopActiveSessions);
+
+    return () => {
+      window.removeEventListener("pagehide", stopActiveSessions);
+      window.removeEventListener("beforeunload", stopActiveSessions);
+    };
+  }, []);
+
   // Desktop event listeners
   useEffect(() => {
     const desktopApi = getDesktopApi();

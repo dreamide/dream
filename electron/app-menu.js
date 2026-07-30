@@ -22,10 +22,12 @@ function toggleFocusedDevToolsDetached(browserWindow) {
   toggleWebContentsDevToolsDetached(targetWindow.webContents);
 }
 
-export function configureApplicationMenu(app, appName) {
+export function configureApplicationMenu(app, appName, options = {}) {
   if (process.platform !== "darwin") {
     return;
   }
+
+  const { onForceReload, onReload } = options;
 
   app.setAboutPanelOptions({
     applicationName: appName,
@@ -65,8 +67,28 @@ export function configureApplicationMenu(app, appName) {
       {
         label: "View",
         submenu: [
-          { role: "reload", accelerator: "" },
-          { role: "forceReload" },
+          {
+            accelerator: "CmdOrCtrl+R",
+            click: (_menuItem, browserWindow) => {
+              if (typeof onReload === "function") {
+                onReload(browserWindow);
+                return;
+              }
+              browserWindow?.webContents?.reload();
+            },
+            label: "Reload",
+          },
+          {
+            accelerator: "Shift+CmdOrCtrl+R",
+            click: (_menuItem, browserWindow) => {
+              if (typeof onForceReload === "function") {
+                onForceReload(browserWindow);
+                return;
+              }
+              browserWindow?.webContents?.reloadIgnoringCache();
+            },
+            label: "Force Reload",
+          },
           {
             accelerator: "Alt+Command+I",
             click: (_menuItem, browserWindow) => {
