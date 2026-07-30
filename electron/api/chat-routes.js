@@ -5,6 +5,7 @@ import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCursorResponse } from "./chat/cursor-stream.js";
 import { streamGrokResponse } from "./chat/grok-stream.js";
 import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
+import { resolveChatPermissionModes } from "./chat/permissions.js";
 import {
   chatRequestBodySchema,
   chatTitleRequestBodySchema,
@@ -178,8 +179,6 @@ export const registerChatRoutes = (app) => {
     const {
       chatId,
       agentMode,
-      claudePermissionMode,
-      codexPermissionMode,
       messages,
       model,
       modelLabel,
@@ -188,6 +187,7 @@ export const registerChatRoutes = (app) => {
       projectReferences,
       projectPath,
       projectId,
+      permissionMode,
       provider,
       reasoningEffort,
       reasoningLabel,
@@ -197,6 +197,8 @@ export const registerChatRoutes = (app) => {
       remoteConversationProjectPath,
       threadId,
     } = parsed.data;
+    const { claudePermissionMode, codexPermissionMode } =
+      resolveChatPermissionModes({ agentMode, permissionMode });
     const resolvedChatId = chatId ?? threadId;
     const resolvedProjectPath =
       resolvePersistedProjectPath({

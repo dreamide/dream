@@ -133,9 +133,12 @@
     "build": "Construire",
     "buildAnything": "Construisez n’importe quoi",
     "contextUsage": "Utilisation du contexte",
+    "fullAccess": "Accès complet",
     "mode": "Mode",
     "model": "Modèle",
-    "plan": "Planifier"
+    "permissions": "Autorisations",
+    "plan": "Planifier",
+    "standardPermissions": "Standard"
   },
   "browser": {
     "actions": "Actions du navigateur",
@@ -200,8 +203,6 @@
     "enableModelFirst": "Activez d’abord un modèle",
     "expandToolCalls": "Développer les appels d’outils",
     "expandToolCallsDescription": "Affiche les appels d’outils développés par défaut",
-    "fullPermissions": "Permissions complètes",
-    "fullPermissionsDescription": "Les agents s’exécutent avec les permissions les plus élevées lors de la construction",
     "groupToolCalls": "Grouper les appels d’outils",
     "groupToolCallsDescription": "Réduit les appels d’outils en pastilles de comptage compactes",
     "installProviders": "Installez Codex CLI, Claude Code CLI, OpenCode CLI ou Cursor Agent CLI, puis actualisez cette section.",

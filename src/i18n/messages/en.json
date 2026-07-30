@@ -133,9 +133,12 @@
     "build": "Build",
     "buildAnything": "Build anything",
     "contextUsage": "Context usage",
+    "fullAccess": "Full access",
     "mode": "Mode",
     "model": "Model",
-    "plan": "Plan"
+    "permissions": "Permissions",
+    "plan": "Plan",
+    "standardPermissions": "Standard"
   },
   "browser": {
     "actions": "Browser actions",
@@ -200,8 +203,6 @@
     "enableModelFirst": "Enable a model first",
     "expandToolCalls": "Expand tool calls",
     "expandToolCallsDescription": "Show tool calls expanded by default",
-    "fullPermissions": "Full permissions",
-    "fullPermissionsDescription": "Agents run with the highest permissions when building",
     "groupToolCalls": "Group tool calls",
     "groupToolCallsDescription": "Collapse tool calls into compact count chips",
     "installProviders": "Install Codex CLI, Claude Code CLI, OpenCode CLI, or Cursor Agent CLI, then refresh this section.",

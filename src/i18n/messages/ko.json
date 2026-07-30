@@ -133,9 +133,12 @@
     "build": "빌드",
     "buildAnything": "무엇이든 빌드",
     "contextUsage": "컨텍스트 사용량",
+    "fullAccess": "전체 액세스",
     "mode": "모드",
     "model": "모델",
-    "plan": "계획"
+    "permissions": "권한",
+    "plan": "계획",
+    "standardPermissions": "표준"
   },
   "browser": {
     "actions": "브라우저 동작",
@@ -200,8 +203,6 @@
     "enableModelFirst": "먼저 모델을 활성화하세요",
     "expandToolCalls": "도구 호출 펼치기",
     "expandToolCallsDescription": "도구 호출을 기본적으로 펼쳐 표시합니다",
-    "fullPermissions": "전체 권한",
-    "fullPermissionsDescription": "빌드할 때 에이전트가 가장 높은 권한으로 실행됩니다",
     "groupToolCalls": "도구 호출 그룹화",
     "groupToolCallsDescription": "도구 호출을 컴팩트한 개수 칩으로 접습니다",
     "installProviders": "Codex CLI, Claude Code CLI, OpenCode CLI 또는 Cursor Agent CLI를 설치한 다음 이 섹션을 새로 고치세요.",

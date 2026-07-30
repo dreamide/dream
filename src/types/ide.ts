@@ -32,6 +32,7 @@ export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ModelSpeed = "standard" | "fast";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type AgentMode = "plan" | "build";
+export type ChatPermissionMode = "standard" | "full-access";
 export type ChatSortOrder =
   | "recent"
   | "createdDesc"
@@ -41,6 +42,7 @@ export type ChatSortOrder =
 export interface ChatConfig {
   agentMode: AgentMode;
   id: string;
+  permissionMode: ChatPermissionMode;
   projectId: string;
   title: string;
   provider: AiProvider;
@@ -105,7 +107,6 @@ export interface ProjectWorktreeInfo {
 export interface AppSettings {
   archiveChatsAfterDays: number;
   autoCompactContext: boolean;
-  autoAcceptPermissions: boolean;
   defaultModel: string;
   defaultGitGenerationModel: string;
   defaultModelSpeed: ModelSpeed;

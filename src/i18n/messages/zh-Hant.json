@@ -133,9 +133,12 @@
     "build": "建置",
     "buildAnything": "建置任何東西",
     "contextUsage": "上下文用量",
+    "fullAccess": "完整存取",
     "mode": "模式",
     "model": "模型",
-    "plan": "規劃"
+    "permissions": "權限",
+    "plan": "規劃",
+    "standardPermissions": "標準"
   },
   "browser": {
     "actions": "瀏覽器動作",
@@ -200,8 +203,6 @@
     "enableModelFirst": "請先啟用模型",
     "expandToolCalls": "展開工具呼叫",
     "expandToolCallsDescription": "預設展開顯示工具呼叫",
-    "fullPermissions": "完整權限",
-    "fullPermissionsDescription": "建置時代理會以最高權限執行",
     "groupToolCalls": "群組工具呼叫",
     "groupToolCallsDescription": "將工具呼叫收合成精簡數量標籤",
     "installProviders": "請安裝 Codex CLI、Claude Code CLI、OpenCode CLI 或 Cursor Agent CLI，然後重新整理此區段。",
