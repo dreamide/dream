@@ -751,7 +751,7 @@ const WorkspaceChatStackImpl = ({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-x-auto"
+      className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden"
       data-chat-stack-repositioning={
         dragChat?.moved || settlingChatIds.length > 0 ? "true" : undefined
       }
