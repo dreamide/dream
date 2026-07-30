@@ -204,15 +204,109 @@ function isDevToolsShortcut(input) {
   );
 }
 
+// Returns reload options when the keystroke is a page-reload shortcut, else null.
+// F5 / Ctrl+F5 and Ctrl/Cmd(+Shift)+R must be handled in the main process so we
+// can stop terminal/run sessions before the renderer tears down.
+function getReloadShortcutOptions(input) {
+  if (input?.type !== "keyDown") {
+    return null;
+  }
+
+  const key = typeof input.key === "string" ? input.key.toLowerCase() : "";
+
+  if (key === "f5" && !input.alt && !input.meta) {
+    return { ignoreCache: Boolean(input.control) };
+  }
+
+  if (
+    key === "r" &&
+    (input.control || input.meta) &&
+    !input.alt &&
+    !input.isAutoRepeat
+  ) {
+    return { ignoreCache: Boolean(input.shift) };
+  }
+
+  return null;
+}
+
+let rendererUnloadStopPromise = null;
+
+function stopProcessesForRendererUnload() {
+  if (!rendererUnloadStopPromise) {
+    rendererUnloadStopPromise = processSessionManager
+      .stopAllProcesses()
+      .catch((error) => {
+        console.error(
+          "Failed to stop managed processes before renderer unload:",
+          error,
+        );
+      })
+      .finally(() => {
+        rendererUnloadStopPromise = null;
+      });
+  }
+
+  return rendererUnloadStopPromise;
+}
+
+let reloadMainWindowPromise = null;
+
+async function reloadMainWindow(browserWindow, { ignoreCache = false } = {}) {
+  if (reloadMainWindowPromise) {
+    return reloadMainWindowPromise;
+  }
+
+  reloadMainWindowPromise = (async () => {
+    const targetWindow =
+      browserWindow && !browserWindow.isDestroyed() ? browserWindow : mainWindow;
+    const webContents = targetWindow?.webContents;
+    if (!webContents || webContents.isDestroyed()) {
+      return;
+    }
+
+    await stopProcessesForRendererUnload();
+
+    if (webContents.isDestroyed()) {
+      return;
+    }
+
+    if (ignoreCache) {
+      webContents.reloadIgnoringCache();
+    } else {
+      webContents.reload();
+    }
+  })().finally(() => {
+    reloadMainWindowPromise = null;
+  });
+
+  return reloadMainWindowPromise;
+}
+
 function configureDetachedDevToolsShortcuts() {
   app.on("web-contents-created", (_event, contents) => {
     contents.on("before-input-event", (event, input) => {
-      if (!isDevToolsShortcut(input)) {
+      if (isDevToolsShortcut(input)) {
+        event.preventDefault();
+        toggleWebContentsDevToolsDetached(contents);
+        return;
+      }
+
+      const reloadOptions = getReloadShortcutOptions(input);
+      if (!reloadOptions) {
+        return;
+      }
+
+      // Only gate reload for the main renderer — not embedded webviews.
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+      if (contents.id !== mainWindow.webContents.id) {
         return;
       }
 
       event.preventDefault();
-      toggleWebContentsDevToolsDetached(contents);
+      void reloadMainWindow(mainWindow, reloadOptions);
     });
   });
 }
@@ -366,6 +460,24 @@ async function createMainWindow() {
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (isRendererNavigation(url)) {
       browserSessionManager.hideForRendererNavigation();
+
+      // Interrupt in-app navigations/reloads long enough to tear down PTYs
+      // first; otherwise shell processes keep running after the renderer dies.
+      if (processSessionManager.hasActiveSessions()) {
+        event.preventDefault();
+        void stopProcessesForRendererUnload().then(() => {
+          if (!mainWindow || mainWindow.isDestroyed()) {
+            return;
+          }
+
+          mainWindow.loadURL(url).catch((error) => {
+            console.error(
+              "Failed to load renderer after stopping processes:",
+              error,
+            );
+          });
+        });
+      }
       return;
     }
 
@@ -384,11 +496,15 @@ async function createMainWindow() {
       }
 
       browserSessionManager.hideForRendererNavigation();
+      // Safety net for reload paths that skip will-navigate (e.g. DevTools
+      // reload, webContents.reload after cleanup, some Chromium reload paths).
+      void stopProcessesForRendererUnload();
     },
   );
 
   mainWindow.webContents.on("render-process-gone", () => {
     browserSessionManager.hideForRendererNavigation();
+    void stopProcessesForRendererUnload();
   });
 
   // Throttle embedded-view layout during interactive resize. Windows fires
@@ -624,13 +740,25 @@ ipcMain.handle("terminal:stop", async (_event, { projectId }) => {
   return true;
 });
 
+ipcMain.handle("terminal:stop-all", async () => {
+  await processSessionManager.stopAllProcesses();
+  return true;
+});
+
 ipcMain.on("browser:update", (_event, payload) => {
   browserSessionManager.update(payload);
 });
 
 app.whenReady().then(async () => {
   configureDetachedDevToolsShortcuts();
-  configureApplicationMenu(app, APP_NAME);
+  configureApplicationMenu(app, APP_NAME, {
+    onForceReload: (browserWindow) => {
+      void reloadMainWindow(browserWindow, { ignoreCache: true });
+    },
+    onReload: (browserWindow) => {
+      void reloadMainWindow(browserWindow);
+    },
+  });
 
   if (process.platform === "darwin" && existsSync(appIconPath)) {
     app.dock?.setIcon(appIconPath);
