@@ -920,7 +920,7 @@ export const ChatComposer = ({
               <PromptInput
                 clearOnSubmit="immediate"
                 id={promptInputDomId}
-                className="relative z-10 -mx-px -mt-px w-[calc(100%+2px)] overflow-hidden rounded-lg border border-surface-300 bg-background dark:border-surface-700 [&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-wrap [&_[data-slot=input-group]]:py-1 [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
+                className="relative z-10 -mx-px -mt-px w-[calc(100%+2px)] overflow-hidden rounded-lg border border-surface-300 bg-background dark:border-surface-700 [&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-wrap [&_[data-slot=input-group]]:py-1.5 [&_[data-slot=input-group]]:rounded-none [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-none [&_[data-slot=input-group]]:ring-0 [&_[data-slot=input-group]]:focus-within:ring-0 [&_[data-slot=input-group]]:focus-within:border-0"
                 onSubmit={handleComposerSubmit}
               >
                 <PromptInputBody>
@@ -931,7 +931,7 @@ export const ChatComposer = ({
                         className="text-muted-foreground hover:text-foreground"
                         tooltip={chatT("attachFile")}
                       />
-                      <PromptInputActionMenuContent>
+                      <PromptInputActionMenuContent side="top">
                         <PromptInputActionAddAttachments />
                       </PromptInputActionMenuContent>
                     </PromptInputActionMenu>

@@ -50,7 +50,7 @@ const CreateWorktreeDialog = ({
       return;
     }
 
-    setBranchName(`codex/${slugifyBranchSegment(project.name)}`);
+    setBranchName(slugifyBranchSegment(project.name));
     setBaseRefValue(baseRef ?? "");
     setError(null);
   }, [baseRef, open, project.name]);
@@ -97,7 +97,7 @@ const CreateWorktreeDialog = ({
               autoFocus
               id="worktree-branch"
               onChange={(event) => setBranchName(event.target.value)}
-              placeholder="codex/my-feature"
+              placeholder="my-feature"
               value={branchName}
             />
           </div>
