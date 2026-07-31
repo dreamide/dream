@@ -996,6 +996,44 @@ export const ChatComposer = ({
 
               <div className="flex items-center gap-1 px-2 py-1.5">
                 <Select
+                  onValueChange={(value) => {
+                    if (value === "standard" || value === "full-access") {
+                      onPermissionModeChange(value);
+                    }
+                  }}
+                  value={permissionMode}
+                >
+                  <SelectTrigger
+                    className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
+                    showChevron={false}
+                    title={chatT("permissions")}
+                  >
+                    {permissionMode === "full-access" ? (
+                      <ShieldAlert className="size-3.5 shrink-0" />
+                    ) : (
+                      <Shield className="size-3.5 shrink-0" />
+                    )}
+                  </SelectTrigger>
+                  <SelectContent className="text-xs" side="top">
+                    <SelectGroup>
+                      <SelectLabel>{chatT("permissions")}</SelectLabel>
+                      <SelectItem className="text-xs" value="standard">
+                        <span className="flex items-center gap-1.5">
+                          <Shield className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
+                          <span>{chatT("standardPermissions")}</span>
+                        </span>
+                      </SelectItem>
+                      <SelectItem className="text-xs" value="full-access">
+                        <span className="flex items-center gap-1.5">
+                          <ShieldAlert className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
+                          <span>{chatT("fullAccess")}</span>
+                        </span>
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+
+                <Select
                   onValueChange={(value) =>
                     onAgentModeChange(value as AgentMode)
                   }
@@ -1003,6 +1041,7 @@ export const ChatComposer = ({
                 >
                   <SelectTrigger
                     className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
+                    showChevron={false}
                     title={chatT("agentMode")}
                   >
                     <AgentModeIcon className="size-3.5 shrink-0" />
@@ -1035,48 +1074,6 @@ export const ChatComposer = ({
 
                 <Select
                   onValueChange={(value) => {
-                    if (value === "standard" || value === "full-access") {
-                      onPermissionModeChange(value);
-                    }
-                  }}
-                  value={permissionMode}
-                >
-                  <SelectTrigger
-                    className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
-                    title={chatT("permissions")}
-                  >
-                    {permissionMode === "full-access" ? (
-                      <ShieldAlert className="size-3.5 shrink-0" />
-                    ) : (
-                      <Shield className="size-3.5 shrink-0" />
-                    )}
-                    <span className="hidden truncate @[560px]/chat-composer:inline">
-                      {permissionMode === "full-access"
-                        ? chatT("fullAccess")
-                        : chatT("standardPermissions")}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    <SelectGroup>
-                      <SelectLabel>{chatT("permissions")}</SelectLabel>
-                      <SelectItem className="text-xs" value="standard">
-                        <span className="flex items-center gap-1.5">
-                          <Shield className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                          <span>{chatT("standardPermissions")}</span>
-                        </span>
-                      </SelectItem>
-                      <SelectItem className="text-xs" value="full-access">
-                        <span className="flex items-center gap-1.5">
-                          <ShieldAlert className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                          <span>{chatT("fullAccess")}</span>
-                        </span>
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  onValueChange={(value) => {
                     if (typeof value !== "string") return;
                     const matchingOptions = allModelOptions.filter(
                       (option) => option.id === value,
@@ -1094,6 +1091,7 @@ export const ChatComposer = ({
                   <SelectTrigger
                     className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
                     disabled={allModelOptions.length === 0}
+                    showChevron={false}
                   >
                     <SelectValue placeholder={chatT("model")}>
                       <span className="flex items-center gap-1.5">
@@ -1138,7 +1136,10 @@ export const ChatComposer = ({
                     }
                     value={selectedReasoningEffort}
                   >
-                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent">
+                    <SelectTrigger
+                      className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
+                      showChevron={false}
+                    >
                       <span className="truncate">
                         {selectedReasoningEffort
                           ? modelT(selectedReasoningEffort)
@@ -1169,7 +1170,10 @@ export const ChatComposer = ({
                     }
                     value={selectedModelSpeed}
                   >
-                    <SelectTrigger className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent">
+                    <SelectTrigger
+                      className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
+                      showChevron={false}
+                    >
                       <span className="truncate">
                         {selectedModelSpeed
                           ? modelT(selectedModelSpeed)
