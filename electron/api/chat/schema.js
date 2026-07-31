@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const chatRequestBodySchema = z.object({
-  permissionMode: z.enum(["standard", "full-access"]).default("standard"),
+  permissionMode: z.enum(["standard", "full-access"]).default("full-access"),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
   modelLabel: z.string().min(1).optional(),

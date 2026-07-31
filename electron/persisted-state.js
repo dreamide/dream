@@ -528,7 +528,7 @@ function buildChatMetadata(chat) {
   const metadata = getMetadataObject(chat.metadata);
   const permissions = {
     ...getNestedRecord(metadata, "permissions"),
-    mode: chat.permissionMode === "full-access" ? "full-access" : "standard",
+    mode: chat.permissionMode === "standard" ? "standard" : "full-access",
   };
   const remoteConversation = {
     ...getNestedRecord(metadata, "remoteConversation"),

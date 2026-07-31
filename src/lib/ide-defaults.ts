@@ -165,7 +165,7 @@ export const createChatConfig = (
     id: crypto.randomUUID(),
     model: overrides?.model ?? project.model,
     modelSpeed: overrides?.modelSpeed ?? project.modelSpeed,
-    permissionMode: overrides?.permissionMode ?? "standard",
+    permissionMode: overrides?.permissionMode ?? "full-access",
     projectId: project.id,
     provider: overrides?.provider ?? project.provider,
     reasoningEffort:

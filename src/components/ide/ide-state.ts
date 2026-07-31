@@ -607,7 +607,7 @@ export const mergePersistedState = (
   const rawSettings = (state.settings ?? {}) as Partial<AppSettings> &
     Record<string, unknown>;
   const legacyPermissionMode: ChatPermissionMode =
-    rawSettings.autoAcceptPermissions === true ? "full-access" : "standard";
+    rawSettings.autoAcceptPermissions === false ? "standard" : "full-access";
 
   const mergedSettings: AppSettings = {
     ...DEFAULT_SETTINGS,
