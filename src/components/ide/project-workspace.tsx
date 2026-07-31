@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 import { getStatusFileCount } from "./git-actions/utils";
@@ -50,7 +51,11 @@ const ProjectWorkspaceComponent = ({
   const openChatIds = projectUi.openChatIds;
   const chatColumnWidths = projectUi.chatColumnWidths;
   const multiChat = projectUi.multiChat;
-  const chats = useIdeStore((s) => s.chats);
+  const chats = useIdeStore(
+    useShallow((s) =>
+      s.chats.filter((chat) => chat.projectId === projectId),
+    ),
+  );
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const projectTerminalSessionIds = useIdeStore(
