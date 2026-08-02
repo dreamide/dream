@@ -13,15 +13,6 @@ export type SettingsSection = "appearance" | "providers" | "chats";
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
 export type { RightPanelView };
-export type CodexPermissionMode =
-  | "default"
-  | "auto-accept-edits"
-  | "full-access";
-export type ClaudePermissionMode =
-  | "ask-permissions"
-  | "accept-edits"
-  | "bypass-permissions";
-
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>
   `${PROJECT_TERMINAL_SESSION_PREFIX}${projectId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -80,25 +71,6 @@ export const MODEL_SPEED_OPTIONS: Array<{
 export const AGENT_MODE_OPTIONS: Array<{
   value: AgentMode;
 }> = [{ value: "plan" }, { value: "build" }];
-
-export const getPermissionModesForAgentMode = (
-  value: AgentMode,
-): {
-  claudePermissionMode: ClaudePermissionMode;
-  codexPermissionMode: CodexPermissionMode;
-} => {
-  if (value === "plan") {
-    return {
-      claudePermissionMode: "ask-permissions",
-      codexPermissionMode: "default",
-    };
-  }
-
-  return {
-    claudePermissionMode: "accept-edits",
-    codexPermissionMode: "auto-accept-edits",
-  };
-};
 
 export const normalizeReasoningEffort = (
   value: unknown,

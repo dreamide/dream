@@ -27,6 +27,7 @@ import type {
   AppSettings,
   BrowserTabState,
   ChatConfig,
+  ChatPermissionMode,
   PersistedIdeState,
   ProjectConfig,
   ProjectUiState,
@@ -457,6 +458,7 @@ const normalizeProject = (
 const normalizeChat = (
   chat: ChatConfig,
   projectsById: Map<string, ProjectConfig>,
+  legacyPermissionMode: ChatPermissionMode,
 ): ChatConfig | null => {
   const project = projectsById.get(chat.projectId);
   if (!project) {
@@ -482,11 +484,15 @@ const normalizeChat = (
   const rawChat = chat as ChatConfig & {
     deletedAt?: unknown;
     metadata?: unknown;
+    permissionMode?: unknown;
     sparklesPalette?: unknown;
   };
   const rawMetadata =
     rawChat.metadata && typeof rawChat.metadata === "object"
-      ? (rawChat.metadata as { sparklesPalette?: unknown })
+      ? (rawChat.metadata as {
+          permissions?: { mode?: unknown };
+          sparklesPalette?: unknown;
+        })
       : {};
   const deletedAt =
     typeof rawChat.deletedAt === "string" && rawChat.deletedAt.trim().length > 0
@@ -504,6 +510,14 @@ const normalizeChat = (
     id: chat.id,
     model: model || project.model,
     modelSpeed: normalizeModelSpeed(chat.modelSpeed),
+    permissionMode:
+      rawChat.permissionMode === "full-access" ||
+      rawChat.permissionMode === "standard"
+        ? rawChat.permissionMode
+        : rawMetadata.permissions?.mode === "full-access" ||
+            rawMetadata.permissions?.mode === "standard"
+          ? rawMetadata.permissions.mode
+          : legacyPermissionMode,
     projectId: chat.projectId,
     provider,
     reasoningEffort: normalizeReasoningEffort(chat.reasoningEffort),
@@ -592,6 +606,8 @@ export const mergePersistedState = (
 
   const rawSettings = (state.settings ?? {}) as Partial<AppSettings> &
     Record<string, unknown>;
+  const legacyPermissionMode: ChatPermissionMode =
+    rawSettings.autoAcceptPermissions === false ? "standard" : "full-access";
 
   const mergedSettings: AppSettings = {
     ...DEFAULT_SETTINGS,
@@ -614,10 +630,6 @@ export const mergePersistedState = (
         ? rawSettings.anthropicSelectedModels.map(normalizeClaudeCodeModelId)
         : [],
     ),
-    autoAcceptPermissions:
-      typeof rawSettings.autoAcceptPermissions === "boolean"
-        ? rawSettings.autoAcceptPermissions
-        : DEFAULT_SETTINGS.autoAcceptPermissions,
     defaultModel:
       typeof rawSettings.defaultModel === "string"
         ? rawSettings.defaultModel
@@ -745,7 +757,7 @@ export const mergePersistedState = (
       ? ((state as { threads: ChatConfig[] }).threads ?? [])
       : [];
   const normalizedChats = rawChats
-    .map((chat) => normalizeChat(chat, projectsById))
+    .map((chat) => normalizeChat(chat, projectsById, legacyPermissionMode))
     .filter((chat): chat is ChatConfig => chat !== null);
 
   const legacyMessagesByChatId =
@@ -760,11 +772,15 @@ export const mergePersistedState = (
   const chats =
     normalizedChats.length > 0
       ? [...normalizedChats]
-      : projects.map((project) => createChatConfig(project));
+      : projects.map((project) =>
+          createChatConfig(project, { permissionMode: legacyPermissionMode }),
+        );
   const projectIdsWithChats = new Set(chats.map((chat) => chat.projectId));
   for (const project of projects) {
     if (!projectIdsWithChats.has(project.id)) {
-      const chat = createChatConfig(project);
+      const chat = createChatConfig(project, {
+        permissionMode: legacyPermissionMode,
+      });
       chats.push(chat);
       projectIdsWithChats.add(project.id);
     }

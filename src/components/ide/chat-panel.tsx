@@ -76,7 +76,6 @@ import {
 } from "./git-commit-message-cache";
 import { useIdeStore } from "./ide-store";
 import {
-  getPermissionModesForAgentMode,
   MODEL_SPEED_OPTIONS,
   normalizeModelSpeed,
   normalizeReasoningEffort,
@@ -402,13 +401,8 @@ export const ChatPanel = ({
     project.path,
     gitRefreshKey,
   );
-  const permissionModes = settings.autoAcceptPermissions
-    ? {
-        claudePermissionMode: "bypass-permissions" as const,
-        codexPermissionMode: "full-access" as const,
-      }
-    : getPermissionModesForAgentMode(chat.agentMode);
-  const { claudePermissionMode, codexPermissionMode } = permissionModes;
+  const autoApproveClaudeWrites =
+    chat.permissionMode === "full-access" || chat.agentMode === "build";
   const connectedProviders = getConnectedProviders(settings);
   const gitGenerationModelSelection = useMemo(
     () => getDefaultGitGenerationModelSelection(settings),
@@ -703,10 +697,7 @@ export const ChatPanel = ({
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
   useEffect(() => {
-    if (
-      claudePermissionMode !== "accept-edits" &&
-      claudePermissionMode !== "bypass-permissions"
-    ) {
+    if (!autoApproveClaudeWrites) {
       return;
     }
     for (const message of messages) {
@@ -730,7 +721,7 @@ export const ChatPanel = ({
         }
       }
     }
-  }, [messages, claudePermissionMode, addToolApprovalResponse]);
+  }, [messages, autoApproveClaudeWrites, addToolApprovalResponse]);
 
   const selectedModel = selectedModelOption?.id ?? "";
   const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
@@ -1082,13 +1073,12 @@ export const ChatPanel = ({
           },
           {
             body: {
-              claudePermissionMode,
-              codexPermissionMode,
               model: activeModel,
               modelLabel: activeOption?.label ?? activeModel,
               projectReferences,
               projectId: submittedProject.id,
               projectPath: submittedProjectPath,
+              permissionMode: chat.permissionMode,
               provider: activeProvider,
               agentMode: chat.agentMode,
               modelSpeed: selectedModelSpeed,
@@ -1122,9 +1112,7 @@ export const ChatPanel = ({
       allModelOptions,
       bumpProjectFilesRefreshKey,
       bumpProjectGitRefreshKey,
-      claudePermissionMode,
       chatT,
-      codexPermissionMode,
       clearError,
       chatMessages,
       contextUsedTokens,
@@ -1314,6 +1302,12 @@ export const ChatPanel = ({
               remoteConversationProjectPath: null,
             }));
           }}
+          onPermissionModeChange={(permissionMode) => {
+            updateChat(chat.id, (current) => ({
+              ...current,
+              permissionMode,
+            }));
+          }}
           onPromptKeyDown={handlePromptKeyDown}
           onPromptTextChange={setPromptText}
           onReasoningEffortChange={(reasoningEffort) => {
@@ -1334,6 +1328,7 @@ export const ChatPanel = ({
           promptDomId={promptDomId}
           promptInputDomId={promptInputDomId}
           promptText={promptText}
+          permissionMode={chat.permissionMode}
           projectPath={project.path}
           reasoningEffortOptions={reasoningEffortOptions}
           speedOptions={speedOptions}

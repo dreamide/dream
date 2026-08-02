@@ -118,7 +118,9 @@
     "getStarted": "開始",
     "openFolder": "フォルダを開く",
     "openProviders": "プロバイダーを開く",
+    "noMatchingProjects": "一致するプロジェクトがありません。",
     "recentlyClosed": "最近閉じた項目",
+    "searchRecentlyClosed": "最近閉じた項目を検索...",
     "worktree": "ワークツリー"
   },
   "workspace": {
@@ -133,9 +135,12 @@
     "build": "ビルド",
     "buildAnything": "何でもビルド",
     "contextUsage": "コンテキスト使用量",
+    "fullAccess": "フルアクセス",
     "mode": "モード",
     "model": "モデル",
-    "plan": "計画"
+    "permissions": "権限",
+    "plan": "計画",
+    "standardPermissions": "標準"
   },
   "browser": {
     "actions": "ブラウザ操作",
@@ -200,8 +205,6 @@
     "enableModelFirst": "先にモデルを有効化してください",
     "expandToolCalls": "ツール呼び出しを展開",
     "expandToolCallsDescription": "ツール呼び出しを既定で展開表示します",
-    "fullPermissions": "完全な権限",
-    "fullPermissionsDescription": "ビルド時にエージェントを最高権限で実行します",
     "groupToolCalls": "ツール呼び出しをグループ化",
     "groupToolCallsDescription": "ツール呼び出しをコンパクトな件数チップに折りたたみます",
     "installProviders": "Codex CLI、Claude Code CLI、OpenCode CLI、または Cursor Agent CLI をインストールしてから、このセクションを更新してください。",

@@ -118,7 +118,9 @@
     "getStarted": "Inizia",
     "openFolder": "Apri cartella",
     "openProviders": "Apri provider",
+    "noMatchingProjects": "Nessun progetto corrispondente.",
     "recentlyClosed": "Chiusi di recente",
+    "searchRecentlyClosed": "Cerca tra i progetti chiusi di recente...",
     "worktree": "worktree"
   },
   "workspace": {
@@ -133,9 +135,12 @@
     "build": "Costruisci",
     "buildAnything": "Costruisci qualsiasi cosa",
     "contextUsage": "Utilizzo del contesto",
+    "fullAccess": "Accesso completo",
     "mode": "Modalità",
     "model": "Modello",
-    "plan": "Pianifica"
+    "permissions": "Permessi",
+    "plan": "Pianifica",
+    "standardPermissions": "Standard"
   },
   "browser": {
     "actions": "Azioni browser",
@@ -200,8 +205,6 @@
     "enableModelFirst": "Abilita prima un modello",
     "expandToolCalls": "Espandi chiamate agli strumenti",
     "expandToolCallsDescription": "Mostra le chiamate agli strumenti espanse per impostazione predefinita",
-    "fullPermissions": "Permessi completi",
-    "fullPermissionsDescription": "Gli agenti vengono eseguiti con i permessi più alti durante la costruzione",
     "groupToolCalls": "Raggruppa chiamate agli strumenti",
     "groupToolCallsDescription": "Comprimi le chiamate agli strumenti in chip compatti con conteggio",
     "installProviders": "Installa Codex CLI, Claude Code CLI, OpenCode CLI o Cursor Agent CLI, quindi aggiorna questa sezione.",

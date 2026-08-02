@@ -62,7 +62,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   archiveChatsAfterDays: 30,
   autoCompactContext: true,
   anthropicSelectedModels: [],
-  autoAcceptPermissions: false,
   defaultGitGenerationModel: "",
   defaultModel: "",
   defaultModelSpeed: "standard",
@@ -150,6 +149,7 @@ export const createChatConfig = (
       | "agentMode"
       | "model"
       | "modelSpeed"
+      | "permissionMode"
       | "provider"
       | "reasoningEffort"
       | "title"
@@ -165,6 +165,7 @@ export const createChatConfig = (
     id: crypto.randomUUID(),
     model: overrides?.model ?? project.model,
     modelSpeed: overrides?.modelSpeed ?? project.modelSpeed,
+    permissionMode: overrides?.permissionMode ?? "full-access",
     projectId: project.id,
     provider: overrides?.provider ?? project.provider,
     reasoningEffort:

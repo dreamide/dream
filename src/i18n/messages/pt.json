@@ -118,7 +118,9 @@
     "getStarted": "Começar",
     "openFolder": "Abrir pasta",
     "openProviders": "Abrir provedores",
+    "noMatchingProjects": "Nenhum projeto correspondente.",
     "recentlyClosed": "Fechados recentemente",
+    "searchRecentlyClosed": "Pesquisar nos fechados recentemente...",
     "worktree": "árvore de trabalho"
   },
   "workspace": {
@@ -133,9 +135,12 @@
     "build": "Construir",
     "buildAnything": "Construa qualquer coisa",
     "contextUsage": "Uso de contexto",
+    "fullAccess": "Acesso total",
     "mode": "Modo",
     "model": "Modelo",
-    "plan": "Planejar"
+    "permissions": "Permissões",
+    "plan": "Planejar",
+    "standardPermissions": "Padrão"
   },
   "browser": {
     "actions": "Ações do navegador",
@@ -200,8 +205,6 @@
     "enableModelFirst": "Ative um modelo primeiro",
     "expandToolCalls": "Expandir chamadas de ferramentas",
     "expandToolCallsDescription": "Mostra chamadas de ferramentas expandidas por padrão",
-    "fullPermissions": "Permissões completas",
-    "fullPermissionsDescription": "Agentes executam com as permissões mais altas ao construir",
     "groupToolCalls": "Agrupar chamadas de ferramentas",
     "groupToolCallsDescription": "Recolhe chamadas de ferramentas em chips compactos de contagem",
     "installProviders": "Instale Codex CLI, Claude Code CLI, OpenCode CLI ou Cursor Agent CLI e atualize esta seção.",

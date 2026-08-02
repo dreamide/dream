@@ -118,7 +118,9 @@
     "getStarted": "开始使用",
     "openFolder": "打开文件夹",
     "openProviders": "打开提供商",
+    "noMatchingProjects": "没有匹配的项目。",
     "recentlyClosed": "最近关闭",
+    "searchRecentlyClosed": "搜索最近关闭的项目...",
     "worktree": "工作树"
   },
   "workspace": {
@@ -133,9 +135,12 @@
     "build": "构建",
     "buildAnything": "构建任何东西",
     "contextUsage": "上下文用量",
+    "fullAccess": "完全访问",
     "mode": "模式",
     "model": "模型",
-    "plan": "规划"
+    "permissions": "权限",
+    "plan": "规划",
+    "standardPermissions": "标准"
   },
   "browser": {
     "actions": "浏览器操作",
@@ -200,8 +205,6 @@
     "enableModelFirst": "请先启用模型",
     "expandToolCalls": "展开工具调用",
     "expandToolCallsDescription": "默认展开显示工具调用",
-    "fullPermissions": "完整权限",
-    "fullPermissionsDescription": "构建时代理会以最高权限运行",
     "groupToolCalls": "分组工具调用",
     "groupToolCallsDescription": "将工具调用折叠为紧凑的数量标签",
     "installProviders": "请安装 Codex CLI、Claude Code CLI、OpenCode CLI 或 Cursor Agent CLI，然后刷新此部分。",

@@ -118,7 +118,9 @@
     "getStarted": "Bắt đầu",
     "openFolder": "Mở thư mục",
     "openProviders": "Mở nhà cung cấp",
+    "noMatchingProjects": "Không có dự án phù hợp.",
     "recentlyClosed": "Đã đóng gần đây",
+    "searchRecentlyClosed": "Tìm trong các dự án đã đóng gần đây...",
     "worktree": "worktree"
   },
   "workspace": {
@@ -133,9 +135,12 @@
     "build": "Build",
     "buildAnything": "Build bất cứ thứ gì",
     "contextUsage": "Mức dùng ngữ cảnh",
+    "fullAccess": "Toàn quyền truy cập",
     "mode": "Chế độ",
     "model": "Mô hình",
-    "plan": "Lập kế hoạch"
+    "permissions": "Quyền",
+    "plan": "Lập kế hoạch",
+    "standardPermissions": "Tiêu chuẩn"
   },
   "browser": {
     "actions": "Tác vụ trình duyệt",
@@ -200,8 +205,6 @@
     "enableModelFirst": "Bật một mô hình trước",
     "expandToolCalls": "Mở rộng lệnh gọi công cụ",
     "expandToolCallsDescription": "Hiển thị lệnh gọi công cụ ở trạng thái mở rộng theo mặc định",
-    "fullPermissions": "Toàn quyền",
-    "fullPermissionsDescription": "Agent chạy với quyền cao nhất khi build",
     "groupToolCalls": "Nhóm lệnh gọi công cụ",
     "groupToolCallsDescription": "Thu gọn lệnh gọi công cụ thành chip đếm nhỏ gọn",
     "installProviders": "Cài đặt Codex CLI, Claude Code CLI, OpenCode CLI hoặc Cursor Agent CLI, rồi làm mới phần này.",

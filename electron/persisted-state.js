@@ -20,7 +20,6 @@ const DEFAULT_PERSISTED_STATE = {
   projects: [],
   settings: {
     anthropicSelectedModels: [],
-    autoAcceptPermissions: false,
     archiveChatsAfterDays: 30,
     cursorSelectedModels: [],
     grokSelectedModels: [],
@@ -527,6 +526,10 @@ function buildProjectMetadata(project) {
 
 function buildChatMetadata(chat) {
   const metadata = getMetadataObject(chat.metadata);
+  const permissions = {
+    ...getNestedRecord(metadata, "permissions"),
+    mode: chat.permissionMode === "standard" ? "standard" : "full-access",
+  };
   const remoteConversation = {
     ...getNestedRecord(metadata, "remoteConversation"),
     id:
@@ -564,6 +567,7 @@ function buildChatMetadata(chat) {
   return {
     ...metadata,
     modelSelection,
+    permissions,
     remoteConversation,
     sparklesPalette: normalizeSparklesPaletteName(
       chat.sparklesPalette ?? metadata.sparklesPalette,
@@ -684,12 +688,6 @@ function saveStateToRelationalDatabase(database, state) {
       Array.isArray(settings.grokSelectedModels)
         ? settings.grokSelectedModels
         : [],
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.autoAcceptPermissions",
-      settings.autoAcceptPermissions === true,
       now,
     );
     writeConfig(
@@ -1010,6 +1008,7 @@ function loadStateFromRelationalDatabase(database) {
   for (const row of chatRows) {
     const metadata = getMetadataObject(row.metadata);
     const modelSelection = getNestedRecord(metadata, "modelSelection");
+    const permissions = getNestedRecord(metadata, "permissions");
     const remoteConversation = getNestedRecord(metadata, "remoteConversation");
 
     chats.push({
@@ -1023,6 +1022,7 @@ function loadStateFromRelationalDatabase(database) {
       agentMode: getNestedString(modelSelection, "agentMode", "build"),
       model: getNestedString(modelSelection, "model", ""),
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
+      permissionMode: getNestedString(permissions, "mode", null),
       projectId: row.project_id,
       provider: getNestedString(modelSelection, "provider", "openai"),
       reasoningEffort: getNestedString(modelSelection, "reasoningEffort", null),
