@@ -780,6 +780,7 @@ const ChangesPanelImpl = ({
         <Button
           aria-label={expandAllTitle}
           className="size-7 p-0"
+          disabled={visibleChanges.length === 0}
           onClick={handleToggleExpandAll}
           title={expandAllTitle}
           type="button"

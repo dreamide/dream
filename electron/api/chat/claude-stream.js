@@ -148,6 +148,30 @@ const CLAUDE_PRELOADED_TOOL_NAMES = new Set(
   CLAUDE_ALLOWED_TOOLS.map((toolName) => normalizeClaudeToolName(toolName)),
 );
 
+// Dream's chat transport is scoped to one request. Claude background agents can
+// outlive that request, which closes the UI stream before their completion
+// notifications arrive. Keep local subagents attached to the parent turn so
+// the request remains open and their results continue streaming to the chat.
+export const keepClaudeAgentAttachedToTurn = (toolName, input) => {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return input;
+  }
+
+  const normalizedToolName = normalizeClaudeToolName(toolName);
+  if (normalizedToolName !== "agent" && normalizedToolName !== "task") {
+    return input;
+  }
+
+  if (input.run_in_background === false) {
+    return input;
+  }
+
+  return {
+    ...input,
+    run_in_background: false,
+  };
+};
+
 // Native file tools whose target paths must stay inside the project root.
 const CLAUDE_PATH_GUARDED_TOOLS = new Set([
   "edit",
@@ -239,12 +263,13 @@ const isPreloadedClaudeToolSearch = (input) => {
 const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
+    const attachedInput = keepClaudeAgentAttachedToTurn(toolName, input);
     const toolUseID =
       typeof options?.toolUseID === "string" ? options.toolUseID : undefined;
 
     if (
       normalizedToolName === "toolsearch" &&
-      isPreloadedClaudeToolSearch(input)
+      isPreloadedClaudeToolSearch(attachedInput)
     ) {
       return {
         behavior: "deny",
@@ -258,7 +283,7 @@ const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
     const blockedProjectPath = findClaudeBlockedPath(
       projectPath,
       toolName,
-      input,
+      attachedInput,
     );
     if (blockedProjectPath) {
       return {
@@ -280,7 +305,7 @@ const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
           ? { updatedPermissions: options.suggestions }
           : {}),
         ...(toolUseID ? { toolUseID } : {}),
-        updatedInput: input,
+        updatedInput: attachedInput,
       };
     }
 
@@ -291,7 +316,7 @@ const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
           ? { updatedPermissions: options.suggestions }
           : {}),
         ...(toolUseID ? { toolUseID } : {}),
-        updatedInput: input,
+        updatedInput: attachedInput,
       };
     }
 
@@ -315,7 +340,7 @@ const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
         ? options.displayName
         : toolName;
     const approvalInput = {
-      ...input,
+      ...attachedInput,
       ...(typeof options?.title === "string" ? { title: options.title } : {}),
       ...(typeof options?.displayName === "string"
         ? { displayName: options.displayName }
@@ -358,7 +383,7 @@ const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
       id: approvalId,
       provider: "anthropic",
       request: {
-        input,
+        input: attachedInput,
         options: {
           blockedPath: options?.blockedPath ?? null,
           decisionReason: options?.decisionReason ?? null,
@@ -395,8 +420,8 @@ const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
           : {}),
         toolUseID: options?.toolUseID,
         updatedInput: questionApproval
-          ? { ...input, ...questionApproval }
-          : input,
+          ? { ...attachedInput, ...questionApproval }
+          : attachedInput,
       };
     }
 
