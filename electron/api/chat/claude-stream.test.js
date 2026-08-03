@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { keepClaudeAgentAttachedToTurn } from "./claude-stream.js";
 
 test("keeps Claude Agent tool calls attached to the active turn", () => {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { test } from "node:test";
+import { test } from "vitest";
 import { buttonVariants } from "@/components/ui/button";
 import { ACCENT_COLORS } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";

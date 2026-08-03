@@ -23,9 +23,11 @@
     "package:win:signed": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-win-signed.ps1",
     "package:linux": "pnpm vite:build && cross-env HOME=.electron-home electron-builder --linux",
     "dist": "pnpm package",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "biome check .",
     "typecheck": "tsc --noEmit",
-    "test:update-button-styles": "tsx --test src/components/ide/header/update-button-styles.test.ts",
+    "test:update-button-styles": "vitest run src/components/ide/header/update-button-styles.test.ts",
     "format": "biome format --write ."
   },
   "dependencies": {
@@ -111,6 +113,7 @@
     "typescript": "^6.0.3",
     "use-stick-to-bottom": "^1.1.6",
     "vite": "^8.0.16",
+    "vitest": "^4.1.10",
     "zustand": "^5.0.14"
   },
   "main": "electron/main.js",

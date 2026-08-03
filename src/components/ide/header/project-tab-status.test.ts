@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import type { UIMessage } from "ai";
+import { test } from "vitest";
 import {
   chatIsAwaitingAnswer,
   getAwaitingAnswerProjectIds,

@@ -259,7 +259,9 @@ async function reloadMainWindow(browserWindow, { ignoreCache = false } = {}) {
 
   reloadMainWindowPromise = (async () => {
     const targetWindow =
-      browserWindow && !browserWindow.isDestroyed() ? browserWindow : mainWindow;
+      browserWindow && !browserWindow.isDestroyed()
+        ? browserWindow
+        : mainWindow;
     const webContents = targetWindow?.webContents;
     if (!webContents || webContents.isDestroyed()) {
       return;

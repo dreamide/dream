@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { test } from "node:test";
+import { test } from "vitest";
 import { mergeCliPathEntries } from "./cli.js";
 
 const asPath = (...entries) => entries.join(path.delimiter);

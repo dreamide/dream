@@ -52,9 +52,7 @@ const ProjectWorkspaceComponent = ({
   const chatColumnWidths = projectUi.chatColumnWidths;
   const multiChat = projectUi.multiChat;
   const chats = useIdeStore(
-    useShallow((s) =>
-      s.chats.filter((chat) => chat.projectId === projectId),
-    ),
+    useShallow((s) => s.chats.filter((chat) => chat.projectId === projectId)),
   );
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
