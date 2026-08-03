@@ -120,6 +120,17 @@ const getCommonCliPathEntries = () => {
   return entries;
 };
 
+export const mergeCliPathEntries = (
+  shellPath,
+  currentPath,
+  commonPathEntries = getCommonCliPathEntries(),
+) =>
+  dedupePathEntries([
+    ...splitPathEntries(shellPath),
+    ...splitPathEntries(currentPath),
+    ...commonPathEntries,
+  ]);
+
 const getShellPathCommand = (shellPath) => {
   const shellName = path.basename(shellPath).toLowerCase();
   if (shellName.includes("fish")) {
@@ -161,11 +172,7 @@ const ensureCliEnvironment = async () => {
       const pathKey = getPathKey();
       const currentPath = getPathValue();
       const shellPath = await readLoginShellPath();
-      const pathEntries = dedupePathEntries([
-        ...splitPathEntries(currentPath),
-        ...splitPathEntries(shellPath),
-        ...getCommonCliPathEntries(),
-      ]);
+      const pathEntries = mergeCliPathEntries(shellPath, currentPath);
       const augmentedPath = pathEntries.join(path.delimiter);
 
       // Packaged GUI apps, especially on macOS, often start without the user's

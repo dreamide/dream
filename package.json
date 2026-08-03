@@ -184,7 +184,7 @@
         "deb",
         "rpm"
       ],
-      "maintainer": "Dream <support@dreamide.ai>",
+      "maintainer": "Dream <support@dreamide.dev>",
       "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
     }
   },
