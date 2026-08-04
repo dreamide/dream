@@ -803,8 +803,11 @@ const WorkspaceChatStackImpl = ({
                   isProjectActive={active}
                   onActivateChat={() => onActivateChat(chat.id)}
                   onCloseChat={() => handleCloseChat(chat.id)}
-                  onHeaderPointerDown={(event) =>
-                    handleChatHeaderPointerDown(event, chat.id, index)
+                  onHeaderPointerDown={
+                    visibleChats.length > 1
+                      ? (event) =>
+                          handleChatHeaderPointerDown(event, chat.id, index)
+                      : undefined
                   }
                   project={project}
                   chat={chat}
