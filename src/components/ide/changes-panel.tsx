@@ -492,7 +492,7 @@ const ChangesPanelImpl = ({
         return;
       }
 
-      let nextExpanded = false;
+      const nextExpanded = !expandedPathSet.has(filePath);
       setExpandAllActiveByProject((current) => ({
         ...current,
         [projectId]: false,
@@ -502,7 +502,6 @@ const ChangesPanelImpl = ({
           ? visibleChangePaths
           : (current[projectId] ?? []);
         const isExpanded = currentPaths.includes(filePath);
-        nextExpanded = !isExpanded;
 
         return {
           ...current,
@@ -518,6 +517,7 @@ const ChangesPanelImpl = ({
     },
     [
       expandAllActive,
+      expandedPathSet,
       projectId,
       queueDiffLoad,
       shouldDeferDiffLoads,

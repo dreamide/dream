@@ -1447,8 +1447,8 @@ export const SettingsDialog = () => {
                     <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:justify-end">
                       <Input
                         aria-label={settingsT("archiveDays")}
-                        className="w-full sm:w-32"
-                        min={1}
+                        className="w-20"
+                        inputMode="numeric"
                         onBlur={(event) => {
                           if (event.currentTarget.value !== "") {
                             return;
@@ -1460,8 +1460,8 @@ export const SettingsDialog = () => {
                           }));
                         }}
                         onChange={(event) => {
-                          const nextValue = event.currentTarget.valueAsNumber;
-                          if (!Number.isFinite(nextValue)) {
+                          const nextValue = event.currentTarget.value;
+                          if (!/^\d+$/.test(nextValue)) {
                             return;
                           }
 
@@ -1469,12 +1469,12 @@ export const SettingsDialog = () => {
                             ...previous,
                             archiveChatsAfterDays: Math.max(
                               1,
-                              Math.floor(nextValue),
+                              Number.parseInt(nextValue, 10),
                             ),
                           }));
                         }}
-                        step={1}
-                        type="number"
+                        pattern="[0-9]*"
+                        type="text"
                         value={settings.archiveChatsAfterDays}
                       />
                       <Button
