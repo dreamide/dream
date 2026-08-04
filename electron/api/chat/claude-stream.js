@@ -516,6 +516,11 @@ export const streamClaudeResponse = async ({
       // Keep strict with no servers so user/global MCP config is not loaded.
       mcpServers: {},
       strictMcpConfig: true,
+      // The provider defaults to `settingSources: []`, which isolates the SDK
+      // from all filesystem config. Opt in so the user's ~/.claude/settings.json
+      // (e.g. attribution overrides), project .claude/ settings, and CLAUDE.md
+      // are honored, matching Claude Code CLI behavior.
+      settingSources: ["user", "project", "local"],
       permissionMode:
         agentMode === "plan"
           ? "plan"
