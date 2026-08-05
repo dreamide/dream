@@ -4,26 +4,17 @@ import { test } from "vitest";
 import { buttonVariants } from "@/components/ui/button";
 import { ACCENT_COLORS } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
-import {
-  DOWNLOADED_UPDATE_BUTTON_FOREGROUND,
-  UPDATE_BUTTON_VARIANT_BY_STATE,
-} from "./update-button-styles";
+import { UPDATE_BUTTON_VARIANT_BY_STATE } from "./update-button-styles";
 
-test("downloaded updates keep accent colors in every theme", () => {
-  assert.equal(UPDATE_BUTTON_VARIANT_BY_STATE.downloaded, "accent");
+test("downloaded updates use the black/white treatment in every theme", () => {
+  assert.equal(UPDATE_BUTTON_VARIANT_BY_STATE.downloaded, "default");
 
-  const classes = cn(
-    buttonVariants({
-      className: DOWNLOADED_UPDATE_BUTTON_FOREGROUND,
-      variant: "accent",
-    }),
-  );
-  assert.match(classes, /(?:^|\s)bg-primary(?:\s|$)/);
-  assert.match(classes, /(?:^|\s)hover:bg-primary-hover(?:\s|$)/);
-  assert.match(classes, /(?:^|\s)text-white(?:\s|$)/);
-  assert.match(classes, /(?:^|\s)hover:text-white(?:\s|$)/);
-  assert.doesNotMatch(classes, /(?:^|\s)text-primary-foreground(?:\s|$)/);
-  assert.doesNotMatch(classes, /dark:hover:bg-surface-/);
+  const classes = cn(buttonVariants({ variant: "default" }));
+  assert.match(classes, /(?:^|\s)bg-surface-900(?:\s|$)/);
+  assert.match(classes, /(?:^|\s)text-surface-50(?:\s|$)/);
+  assert.match(classes, /(?:^|\s)dark:bg-surface-200(?:\s|$)/);
+  assert.match(classes, /(?:^|\s)dark:text-surface-900(?:\s|$)/);
+  assert.doesNotMatch(classes, /(?:^|\s)bg-primary(?:\s|$)/);
 });
 
 test("update failures use the destructive button treatment", () => {

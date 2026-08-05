@@ -4,12 +4,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
-import { cn } from "@/lib/utils";
 import type { UpdateStatusEvent } from "@/types/ide";
-import {
-  DOWNLOADED_UPDATE_BUTTON_FOREGROUND,
-  UPDATE_BUTTON_VARIANT_BY_STATE,
-} from "./update-button-styles";
+import { UPDATE_BUTTON_VARIANT_BY_STATE } from "./update-button-styles";
 
 export const HeaderUpdateButton = () => {
   const updatesT = useTranslations("updates");
@@ -115,10 +111,7 @@ export const HeaderUpdateButton = () => {
   return (
     <Button
       aria-label={label}
-      className={cn(
-        "mr-1 h-7 max-w-[180px] gap-1 rounded-md px-2 text-[11px] font-medium [-webkit-app-region:no-drag]",
-        status.state === "downloaded" && DOWNLOADED_UPDATE_BUTTON_FOREGROUND,
-      )}
+      className="mr-1 h-7 max-w-[180px] gap-1 rounded-md px-2 text-[11px] font-medium [-webkit-app-region:no-drag]"
       disabled={disabled}
       onClick={handleUpdateClick}
       size="xs"
