@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
 
 interface FileCodeSearchPanelContentProps {
+  matchPosition: { current: number; total: number } | null;
   onCaseSensitiveChange: (pressed: boolean) => void;
   onFindNext: () => void;
   onFindPrevious: () => void;
@@ -42,6 +43,7 @@ interface FileCodeSearchPanelContentProps {
 }
 
 const FileCodeSearchPanelContent = ({
+  matchPosition,
   onCaseSensitiveChange,
   onFindNext,
   onFindPrevious,
@@ -81,18 +83,28 @@ const FileCodeSearchPanelContent = ({
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="flex min-w-0 items-center gap-1.5">
-        <Input
-          aria-invalid={query.search.length > 0 && !query.valid}
-          aria-label="Find"
-          autoComplete="off"
-          className="h-8 min-w-32 flex-1 font-mono text-xs text-foreground md:text-xs dark:bg-surface-950"
-          onChange={(event) => onSearchChange(event.target.value)}
-          onKeyDown={handleSearchKeyDown}
-          placeholder="Find"
-          ref={(element) => element?.setAttribute("main-field", "true")}
-          spellCheck={false}
-          value={query.search}
-        />
+        <div className="relative min-w-32 flex-1">
+          <Input
+            aria-invalid={query.search.length > 0 && !query.valid}
+            aria-label="Find"
+            autoComplete="off"
+            className="h-8 pr-14 font-mono text-xs text-foreground md:text-xs dark:bg-surface-950"
+            onChange={(event) => onSearchChange(event.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Find"
+            ref={(element) => element?.setAttribute("main-field", "true")}
+            spellCheck={false}
+            value={query.search}
+          />
+          {matchPosition ? (
+            <span
+              className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center font-mono text-[11px] text-muted-foreground tabular-nums"
+              title={`${matchPosition.current} of ${matchPosition.total} matches`}
+            >
+              {matchPosition.current}/{matchPosition.total}
+            </span>
+          ) : null}
+        </div>
         <Button
           aria-label="Previous match"
           disabled={!query.valid}
@@ -226,7 +238,12 @@ class FileCodeSearchPanel implements Panel {
     this.view = update.view;
     const query = getSearchQuery(update.state);
     const readOnly = update.state.readOnly;
-    if (query.eq(this.query) && readOnly === this.readOnly) {
+    if (
+      query.eq(this.query) &&
+      readOnly === this.readOnly &&
+      !update.docChanged &&
+      !update.selectionSet
+    ) {
       return;
     }
 
@@ -259,8 +276,11 @@ class FileCodeSearchPanel implements Panel {
   }
 
   private render() {
+    const matchPosition = this.getMatchPosition();
+
     this.root.render(
       <FileCodeSearchPanelContent
+        matchPosition={matchPosition}
         onCaseSensitiveChange={(caseSensitive) =>
           this.updateQuery({ caseSensitive })
         }
@@ -279,6 +299,36 @@ class FileCodeSearchPanel implements Panel {
         readOnly={this.readOnly}
       />,
     );
+  }
+
+  private getMatchPosition() {
+    if (!this.query.valid) {
+      return null;
+    }
+
+    const selection = this.view.state.selection.main;
+    const cursor = this.query.getCursor(this.view.state);
+    let current = 0;
+    let next = 0;
+    let total = 0;
+
+    for (let result = cursor.next(); !result.done; result = cursor.next()) {
+      total += 1;
+      const match = result.value;
+
+      if (match.from === selection.from && match.to === selection.to) {
+        current = total;
+      }
+
+      if (next === 0 && match.from >= selection.to) {
+        next = total;
+      }
+    }
+
+    return {
+      current: current || next || (total > 0 ? 1 : 0),
+      total,
+    };
   }
 }
 
