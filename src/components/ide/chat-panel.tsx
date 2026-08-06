@@ -55,10 +55,6 @@ import {
   PROVIDER_LABELS,
   type ToolApprovalResponder,
 } from "./chat";
-import {
-  estimateMessages,
-  maybeAutoCompactMessages,
-} from "./chat/auto-compact";
 import { ChatComposer, type ChatPanelModelOption } from "./chat/chat-composer";
 import { ChatErrorBanner } from "./chat/chat-error-banner";
 import { ChatPanelHeader } from "./chat/chat-panel-header";
@@ -68,6 +64,8 @@ import {
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
+import { estimateMessages } from "./chat/message-token-estimate";
+import { projectMessagesForRequest } from "./chat/request-context";
 import { getLatestChatTodoSummary } from "./chat/todo-list";
 import { mergeChatMessageHistories } from "./chat-message-history";
 import {
@@ -441,10 +439,27 @@ export const ChatPanel = ({
   const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
   const warmedCommitMessageKeysRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
-  const autoCompactionFingerprintRef = useRef<string | null>(null);
 
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: "/api/chat" }),
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        prepareSendMessagesRequest: ({
+          body,
+          id,
+          messageId,
+          messages: requestMessages,
+          trigger,
+        }) => ({
+          body: {
+            ...body,
+            id,
+            messageId,
+            messages: projectMessagesForRequest(requestMessages),
+            trigger,
+          },
+        }),
+      }),
     [],
   );
 
@@ -806,46 +821,6 @@ export const ChatPanel = ({
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
 
-  useEffect(() => {
-    if (!settings.autoCompactContext || isProcessing || contextWindow <= 0) {
-      return;
-    }
-
-    const firstMessageId = messages[0]?.id ?? "";
-    const lastMessageId = messages.at(-1)?.id ?? "";
-    const usageBucket = Math.floor((contextUsedTokens / contextWindow) * 100);
-    const fingerprint = `${chat.id}:${messages.length}:${firstMessageId}:${lastMessageId}:${usageBucket}`;
-
-    if (autoCompactionFingerprintRef.current === fingerprint) {
-      return;
-    }
-
-    const result = maybeAutoCompactMessages({
-      contextWindow,
-      messages,
-      usedTokens: contextUsedTokens,
-    });
-
-    if (!result.compacted) {
-      autoCompactionFingerprintRef.current = fingerprint;
-      return;
-    }
-
-    autoCompactionFingerprintRef.current = `${chat.id}:${result.messages.length}:${result.messages[0]?.id ?? ""}:${result.messages.at(-1)?.id ?? ""}`;
-    latestMessagesRef.current = result.messages;
-    setMessages(result.messages);
-    setMessagesForChat(chat.id, result.messages);
-  }, [
-    chat.id,
-    contextUsedTokens,
-    contextWindow,
-    isProcessing,
-    messages,
-    setMessages,
-    setMessagesForChat,
-    settings.autoCompactContext,
-  ]);
-
   const { conversationContextRef, scrollConversationToBottom } =
     useChatAutoScroll({
       isActive,
@@ -928,55 +903,12 @@ export const ChatPanel = ({
         projectReferences.length > 0
           ? formatProjectReferencesForPrompt(projectReferences)
           : "";
-      const pendingUserMessage: UIMessage = {
-        id: "pending-submit",
-        metadata: { projectReferences },
-        parts: [
-          ...prompt.files,
-          ...(prompt.text
-            ? [{ text: prompt.text, type: "text" as const }]
-            : []),
-          ...(projectReferencesPrompt
-            ? [{ text: projectReferencesPrompt, type: "text" as const }]
-            : []),
-        ],
-        role: "user",
-      } as UIMessage;
-      const projectedContextUsedTokens =
-        contextUsedTokens + estimateMessages([pendingUserMessage]);
-      let remoteConversationIdForRequest = chat.remoteConversationId;
-      let remoteConversationModelForRequest = chat.remoteConversationModel;
-      let remoteConversationModelSpeedForRequest =
+      const remoteConversationIdForRequest = chat.remoteConversationId;
+      const remoteConversationModelForRequest = chat.remoteConversationModel;
+      const remoteConversationModelSpeedForRequest =
         chat.remoteConversationModelSpeed;
-      let remoteConversationProjectPathForRequest =
+      const remoteConversationProjectPathForRequest =
         chat.remoteConversationProjectPath;
-
-      if (settings.autoCompactContext) {
-        const compactionResult = maybeAutoCompactMessages({
-          contextWindow,
-          messages: latestMessagesRef.current,
-          usedTokens: projectedContextUsedTokens,
-        });
-
-        if (compactionResult.compacted) {
-          latestMessagesRef.current = compactionResult.messages;
-          setMessages(compactionResult.messages);
-          setMessagesForChat(chat.id, compactionResult.messages);
-
-          autoCompactionFingerprintRef.current = `${chat.id}:${compactionResult.messages.length}:${compactionResult.messages[0]?.id ?? ""}:${compactionResult.messages.at(-1)?.id ?? ""}`;
-          remoteConversationIdForRequest = null;
-          remoteConversationModelForRequest = null;
-          remoteConversationModelSpeedForRequest = null;
-          remoteConversationProjectPathForRequest = null;
-          updateChat(chat.id, (current) => ({
-            ...current,
-            remoteConversationId: null,
-            remoteConversationModel: null,
-            remoteConversationModelSpeed: null,
-            remoteConversationProjectPath: null,
-          }));
-        }
-      }
 
       const submittedAt = new Date().toISOString();
       pendingAssistantMetadataRef.current = {
@@ -1115,8 +1047,6 @@ export const ChatPanel = ({
       chatT,
       clearError,
       chatMessages,
-      contextUsedTokens,
-      contextWindow,
       isProcessing,
       handleActivateChat,
       providerModels,
@@ -1129,9 +1059,6 @@ export const ChatPanel = ({
       selectedReasoningLabelForMetadata,
       sendMessage,
       setChatTitleGenerating,
-      setMessages,
-      setMessagesForChat,
-      settings.autoCompactContext,
       scrollConversationToBottom,
       chat,
       updateChat,

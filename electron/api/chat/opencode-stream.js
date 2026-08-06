@@ -1,14 +1,23 @@
 import { createOpencode } from "@opencode-ai/sdk";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { waitForToolApproval } from "../tool-approvals.js";
-import { writeCodexTextPart, writeCodexTodoListPart } from "./codex-common.js";
+import {
+  writeCodexContextCompactionPart,
+  writeCodexTextPart,
+  writeCodexTodoListPart,
+} from "./codex-common.js";
 import {
   buildCodexConversationPrompt,
   chunkTextInput,
   getLatestUserMessage,
+  getLatestUserPrompt,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
+import {
+  getProviderSessionMetadata,
+  shouldResumeProviderSession,
+} from "./provider-session.js";
 
 const OPENCODE_SERVER_TIMEOUT_MS = 10000;
 const MAX_OPENCODE_TEXT_CHARS = 250_000;
@@ -430,8 +439,13 @@ export const streamOpenCodeResponse = ({
   codexPermissionMode,
   messages,
   model,
+  modelSpeed,
   projectReferencesPrompt,
   projectPath,
+  remoteConversationId,
+  remoteConversationModel,
+  remoteConversationModelSpeed,
+  remoteConversationProjectPath,
   responseMessageMetadata,
   systemPrompt,
 }) => {
@@ -445,6 +459,7 @@ export const streamOpenCodeResponse = ({
         let preparedAttachments = null;
         let textPartIndex = 0;
         let activeSessionId = null;
+        let activeCompactionId = null;
         let submittedPrompt = "";
         const permissionIds = new Set();
         const startedToolCalls = new Set();
@@ -850,6 +865,16 @@ export const streamOpenCodeResponse = ({
             return;
           }
 
+          if (part.type === "compaction") {
+            activeCompactionId = part.id;
+            writeCodexContextCompactionPart(
+              (streamEvent) => writer.write(streamEvent),
+              { id: part.id, type: "contextCompaction" },
+              "compacting",
+            );
+            return;
+          }
+
           const messageId = getOpenCodeMessageId(part);
           if (messageId) {
             const role = messageRoleById.get(messageId);
@@ -942,6 +967,20 @@ export const streamOpenCodeResponse = ({
             return;
           }
 
+          if (
+            event.type === "session.compacted" &&
+            event.properties?.sessionID === activeSessionId &&
+            activeCompactionId
+          ) {
+            writeCodexContextCompactionPart(
+              (streamEvent) => writer.write(streamEvent),
+              { id: activeCompactionId, type: "contextCompaction" },
+              "compacted",
+            );
+            activeCompactionId = null;
+            return;
+          }
+
           if (event.type === "message.part.updated") {
             await handleMessagePartUpdated(event);
           }
@@ -960,7 +999,7 @@ export const streamOpenCodeResponse = ({
         void prepareCodexPromptAttachments(getLatestUserMessage(messages))
           .then(async (attachments) => {
             preparedAttachments = attachments;
-            const prompt = buildCodexConversationPrompt({
+            const fullPrompt = buildCodexConversationPrompt({
               currentTurnAttachments: attachments?.promptText ?? null,
               currentTurnProjectReferences: projectReferencesPrompt,
               messages,
@@ -969,7 +1008,11 @@ export const streamOpenCodeResponse = ({
                 "You are running through the real OpenCode server with native project tools. Respect the active project root and complete the latest user request.",
               systemPrompt,
             });
-            submittedPrompt = prompt;
+            const currentTurnPrompt = getLatestUserPrompt(
+              messages,
+              attachments?.promptText ?? null,
+              projectReferencesPrompt,
+            );
 
             const { modelID, providerID } = parseOpenCodeModel(model);
             opencode = await createOpencode({
@@ -980,21 +1023,58 @@ export const streamOpenCodeResponse = ({
               timeout: OPENCODE_SERVER_TIMEOUT_MS,
             });
 
-            const sessionResult = await opencode.client.session.create({
-              body: {
-                agent: agentMode === "plan" ? "plan" : "build",
-                model: {
-                  id: modelID,
-                  providerID,
+            let resumed = false;
+            if (
+              shouldResumeProviderSession({
+                model,
+                modelSpeed,
+                projectPath,
+                remoteConversationId,
+                remoteConversationModel,
+                remoteConversationModelSpeed,
+                remoteConversationProjectPath,
+              })
+            ) {
+              const existingSession = await opencode.client.session.get({
+                path: { id: remoteConversationId },
+                query: { directory: projectPath },
+              });
+              if (existingSession.data?.id === remoteConversationId) {
+                activeSessionId = existingSession.data.id;
+                resumed = true;
+              }
+            }
+
+            if (!activeSessionId) {
+              const sessionResult = await opencode.client.session.create({
+                body: {
+                  agent: agentMode === "plan" ? "plan" : "build",
+                  model: {
+                    id: modelID,
+                    providerID,
+                  },
                 },
-              },
-              query: { directory: projectPath },
-            });
-            activeSessionId = sessionResult.data?.id;
+                query: { directory: projectPath },
+              });
+              activeSessionId = sessionResult.data?.id;
+            }
 
             if (!activeSessionId) {
               throw new Error("OpenCode did not return a session id.");
             }
+
+            writer.write({
+              messageMetadata: getProviderSessionMetadata({
+                model,
+                modelSpeed,
+                projectPath,
+                responseMessageMetadata,
+                sessionId: activeSessionId,
+              }),
+              type: "message-metadata",
+            });
+            const prompt = resumed ? currentTurnPrompt : fullPrompt;
+            submittedPrompt = prompt;
 
             const events = await opencode.client.event.subscribe({
               query: { directory: projectPath },

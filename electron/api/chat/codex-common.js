@@ -172,6 +172,24 @@ export const writeCodexTodoListPartFromResponseItem = (writeEvent, item) => {
   );
 };
 
+export const writeCodexContextCompactionPart = (writeEvent, item, state) => {
+  if (
+    item?.type !== "contextCompaction" ||
+    typeof item.id !== "string" ||
+    !item.id.trim()
+  ) {
+    return false;
+  }
+
+  writeEvent({
+    data: { state },
+    id: item.id,
+    type: "data-context-compaction",
+  });
+
+  return true;
+};
+
 export const buildCodexExecArgs = ({
   addDirs = [],
   codexPermissionMode,

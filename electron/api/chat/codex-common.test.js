@@ -9,6 +9,7 @@ import {
   getCodexReasoningEffort,
   getCodexTokenCountInfo,
   getCodexTokenCountMetadata,
+  writeCodexContextCompactionPart,
 } from "./codex-common.js";
 
 test("builds exec args for a new session with default permissions", () => {
@@ -228,4 +229,54 @@ test("falls back to total tokens when detailed usage numbers are missing", () =>
     null,
   );
   assert.equal(getCodexTokenCountMetadata({ type: "other" }), null);
+});
+
+test("streams Codex context compaction lifecycle updates as one data part", () => {
+  const events = [];
+  const writeEvent = (event) => events.push(event);
+  const item = { id: "compact-1", type: "contextCompaction" };
+
+  assert.equal(
+    writeCodexContextCompactionPart(writeEvent, item, "compacting"),
+    true,
+  );
+  assert.equal(
+    writeCodexContextCompactionPart(writeEvent, item, "compacted"),
+    true,
+  );
+  assert.deepEqual(events, [
+    {
+      data: { state: "compacting" },
+      id: "compact-1",
+      type: "data-context-compaction",
+    },
+    {
+      data: { state: "compacted" },
+      id: "compact-1",
+      type: "data-context-compaction",
+    },
+  ]);
+});
+
+test("ignores malformed or unrelated context compaction items", () => {
+  const events = [];
+  const writeEvent = (event) => events.push(event);
+
+  assert.equal(
+    writeCodexContextCompactionPart(
+      writeEvent,
+      { id: "reason-1", type: "reasoning" },
+      "compacting",
+    ),
+    false,
+  );
+  assert.equal(
+    writeCodexContextCompactionPart(
+      writeEvent,
+      { type: "contextCompaction" },
+      "compacting",
+    ),
+    false,
+  );
+  assert.deepEqual(events, []);
 });

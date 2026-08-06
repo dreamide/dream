@@ -716,17 +716,6 @@ export const SettingsDialog = () => {
 
                   <SettingsGroup label={settingsT("chatMessages")}>
                     <SettingsSwitchRow
-                      checked={settings.autoCompactContext}
-                      description={settingsT("autoCompactContextDescription")}
-                      label={settingsT("autoCompactContext")}
-                      onCheckedChange={(checked) =>
-                        setSettings((previous) => ({
-                          ...previous,
-                          autoCompactContext: checked,
-                        }))
-                      }
-                    />
-                    <SettingsSwitchRow
                       checked={settings.showReasoningSummaries}
                       description={settingsT(
                         "showReasoningSummariesDescription",

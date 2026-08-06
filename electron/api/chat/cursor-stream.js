@@ -7,9 +7,11 @@ import {
 } from "../providers/cursor-cli.js";
 import {
   getLatestUserMessage,
+  getLatestUserPrompt,
   prepareCodexPromptAttachments,
   serializeCodexMessage,
 } from "./codex-prompt.js";
+import { shouldResumeProviderSession } from "./provider-session.js";
 
 const MAX_CURSOR_TEXT_CHARS = 250_000;
 
@@ -289,22 +291,6 @@ const getDreamToolTitle = (dreamToolName) => {
   return "Tool";
 };
 
-const shouldResumeCursorSession = ({
-  model,
-  modelSpeed,
-  projectPath,
-  remoteConversationId,
-  remoteConversationModel,
-  remoteConversationModelSpeed,
-  remoteConversationProjectPath,
-}) =>
-  Boolean(
-    remoteConversationId &&
-      remoteConversationModel === model &&
-      (remoteConversationModelSpeed ?? "standard") === modelSpeed &&
-      remoteConversationProjectPath === projectPath,
-  );
-
 const buildCursorArgs = ({
   codexPermissionMode,
   model,
@@ -319,7 +305,7 @@ const buildCursorArgs = ({
   const args = ["-p", "--trust", "--output-format", "stream-json"];
 
   if (
-    shouldResumeCursorSession({
+    shouldResumeProviderSession({
       model,
       modelSpeed,
       projectPath,
@@ -356,6 +342,15 @@ export const streamCursorResponse = ({
   remoteConversationModelSpeed,
   remoteConversationProjectPath,
 }) => {
+  const shouldResume = shouldResumeProviderSession({
+    model,
+    modelSpeed,
+    projectPath,
+    remoteConversationId,
+    remoteConversationModel,
+    remoteConversationModelSpeed,
+    remoteConversationProjectPath,
+  });
   const stream = createUIMessageStream({
     originalMessages: messages,
     onError: (error) =>
@@ -371,6 +366,7 @@ export const streamCursorResponse = ({
         let streamedText = "";
         let streamedTextChars = 0;
         let child = null;
+        let resumeRetryAttempted = false;
         const startedToolCalls = new Set();
 
         const finishText = () => {
@@ -595,7 +591,12 @@ export const streamCursorResponse = ({
         void prepareCodexPromptAttachments(getLatestUserMessage(messages))
           .then((attachments) => {
             preparedAttachments = attachments;
-            const prompt = buildCursorConversationPrompt({
+            const currentTurnPrompt = getLatestUserPrompt(
+              messages,
+              attachments?.promptText ?? null,
+              projectReferencesPrompt,
+            );
+            const fullPrompt = buildCursorConversationPrompt({
               currentTurnAttachments: attachments?.promptText ?? null,
               currentTurnProjectReferences: projectReferencesPrompt,
               messages,
@@ -604,63 +605,86 @@ export const streamCursorResponse = ({
 
             return Promise.all([
               resolveCursorCliLaunch(),
-              Promise.resolve(prompt),
+              Promise.resolve({ currentTurnPrompt, fullPrompt }),
             ]);
           })
-          .then(([launch, prompt]) => {
-            const args = buildCursorArgs({
-              codexPermissionMode,
-              model,
-              modelSpeed,
-              prompt,
-              projectPath,
-              remoteConversationId,
-              remoteConversationModel,
-              remoteConversationModelSpeed,
-              remoteConversationProjectPath,
-            });
+          .then(([launch, prompts]) => {
+            const spawnCursor = (resume) => {
+              const args = buildCursorArgs({
+                codexPermissionMode,
+                model,
+                modelSpeed,
+                prompt: resume ? prompts.currentTurnPrompt : prompts.fullPrompt,
+                projectPath,
+                remoteConversationId: resume ? remoteConversationId : null,
+                remoteConversationModel: resume
+                  ? remoteConversationModel
+                  : null,
+                remoteConversationModelSpeed: resume
+                  ? remoteConversationModelSpeed
+                  : null,
+                remoteConversationProjectPath: resume
+                  ? remoteConversationProjectPath
+                  : null,
+              });
 
-            child = spawn(launch.command, [...launch.argsPrefix, ...args], {
-              cwd: projectPath,
-              env: process.env,
-              shell: launch.shell ?? false,
-              stdio: ["ignore", "pipe", "pipe"],
-              windowsHide: true,
-            });
+              child = spawn(launch.command, [...launch.argsPrefix, ...args], {
+                cwd: projectPath,
+                env: process.env,
+                shell: launch.shell ?? false,
+                stdio: ["ignore", "pipe", "pipe"],
+                windowsHide: true,
+              });
 
-            child.stdout.on("data", handleStdoutChunk);
-            child.stderr.on("data", (chunk) => {
-              stderrBuffer += chunk.toString();
-            });
-            child.on("error", (error) => {
-              finish(() =>
-                reject(new Error(getCursorCliSpawnErrorMessage(error))),
-              );
-            });
-            child.on("close", (code) => {
-              const trimmed = stdoutBuffer.trim();
-              if (trimmed) {
-                try {
-                  handleEvent(JSON.parse(trimmed));
-                } catch {
-                  stderrBuffer += `${trimmed}\n`;
+              child.stdout.on("data", handleStdoutChunk);
+              child.stderr.on("data", (chunk) => {
+                stderrBuffer += chunk.toString();
+              });
+              child.on("error", (error) => {
+                finish(() =>
+                  reject(new Error(getCursorCliSpawnErrorMessage(error))),
+                );
+              });
+              child.on("close", (code) => {
+                const trimmed = stdoutBuffer.trim();
+                if (trimmed) {
+                  try {
+                    handleEvent(JSON.parse(trimmed));
+                  } catch {
+                    stderrBuffer += `${trimmed}\n`;
+                  }
                 }
-              }
 
-              if (code === 0 || abortSignal?.aborted) {
-                finish(resolve);
-                return;
-              }
+                if (code === 0 || abortSignal?.aborted) {
+                  finish(resolve);
+                  return;
+                }
 
-              finish(() =>
-                reject(
-                  new Error(
-                    stderrBuffer.trim() ||
-                      `Cursor CLI exited with code ${code}.`,
+                if (
+                  resume &&
+                  !resumeRetryAttempted &&
+                  streamedTextChars === 0 &&
+                  startedToolCalls.size === 0
+                ) {
+                  resumeRetryAttempted = true;
+                  stdoutBuffer = "";
+                  stderrBuffer = "";
+                  spawnCursor(false);
+                  return;
+                }
+
+                finish(() =>
+                  reject(
+                    new Error(
+                      stderrBuffer.trim() ||
+                        `Cursor CLI exited with code ${code}.`,
+                    ),
                   ),
-                ),
-              );
-            });
+                );
+              });
+            };
+
+            spawnCursor(shouldResume);
           })
           .catch((error) => {
             finish(() =>

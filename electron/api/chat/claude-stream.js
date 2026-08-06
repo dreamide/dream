@@ -5,7 +5,7 @@ import {
   stepCountIs,
   streamText,
 } from "ai";
-import { claudeCode } from "ai-sdk-provider-claude-code";
+import { claudeCode, getSessionInfo } from "ai-sdk-provider-claude-code";
 import { resolveProjectPath } from "../project-git/files.js";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
@@ -19,6 +19,10 @@ import {
   getLatestUserMessage,
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
+import {
+  getProviderSessionMetadata,
+  shouldResumeProviderSession,
+} from "./provider-session.js";
 import {
   DEFAULT_TOOL_STEP_LIMIT,
   REASONING_TOOL_STEP_LIMIT,
@@ -478,9 +482,14 @@ export const streamClaudeResponse = async ({
   claudePermissionMode,
   messages,
   model,
+  modelSpeed,
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
+  remoteConversationId,
+  remoteConversationModel,
+  remoteConversationModelSpeed,
+  remoteConversationProjectPath,
   responseMessageMetadata,
 }) => {
   const usesReasoningModel =
@@ -495,6 +504,33 @@ export const streamClaudeResponse = async ({
           ? "bypass"
           : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
+  let claudeCompactionId = null;
+  let resumeSessionId = null;
+  if (
+    shouldResumeProviderSession({
+      model,
+      modelSpeed,
+      projectPath,
+      remoteConversationId,
+      remoteConversationModel,
+      remoteConversationModelSpeed,
+      remoteConversationProjectPath,
+    })
+  ) {
+    try {
+      const sessionInfo = await getSessionInfo(remoteConversationId, {
+        dir: projectPath,
+      });
+      if (sessionInfo?.sessionId === remoteConversationId) {
+        resumeSessionId = remoteConversationId;
+      }
+    } catch (error) {
+      console.warn(
+        "[claude] Stored session could not be inspected; starting a new session.",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
   const providerFactory = (modelId, writer) =>
     claudeCode(normalizeClaudeCodeModel(modelId), {
       ...(claudeExecutablePath
@@ -507,7 +543,43 @@ export const streamClaudeResponse = async ({
       streamingInput: usesClaudeImageInput ? "always" : "auto",
       continue: false,
       cwd: projectPath,
-      persistSession: false,
+      persistSession: true,
+      ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+      hooks: {
+        PostCompact: [
+          {
+            hooks: [
+              async () => {
+                const id =
+                  claudeCompactionId ??
+                  `claude-context-compaction-${Date.now()}`;
+                writer.write({
+                  data: { state: "compacted" },
+                  id,
+                  type: "data-context-compaction",
+                });
+                claudeCompactionId = null;
+                return { continue: true };
+              },
+            ],
+          },
+        ],
+        PreCompact: [
+          {
+            hooks: [
+              async () => {
+                claudeCompactionId = `claude-context-compaction-${Date.now()}`;
+                writer.write({
+                  data: { state: "compacting" },
+                  id: claudeCompactionId,
+                  type: "data-context-compaction",
+                });
+                return { continue: true };
+              },
+            ],
+          },
+        ],
+      },
       // `tools` controls the catalog shown to the model; `allowedTools` only
       // controls permission. Declare built-ins explicitly so plan-mode tools
       // are available directly instead of being discovered via ToolSearch.
@@ -535,8 +607,11 @@ export const streamClaudeResponse = async ({
 
   let modelMessages;
   try {
+    const messagesForModel = resumeSessionId
+      ? [getLatestUserMessage(messages)].filter(Boolean)
+      : messages;
     modelMessages = await convertToModelMessages(
-      appendClaudeAttachmentTextToLatestUserMessage(messages),
+      appendClaudeAttachmentTextToLatestUserMessage(messagesForModel),
     );
     const normalized = normalizeClaudeImageInputs(modelMessages);
     modelMessages = normalized.messages;
@@ -557,6 +632,17 @@ export const streamClaudeResponse = async ({
       return formatStreamError(error);
     },
     execute: ({ writer }) => {
+      let claudeSessionId = resumeSessionId;
+      const getClaudeResponseMetadata = () =>
+        claudeSessionId
+          ? getProviderSessionMetadata({
+              model,
+              modelSpeed,
+              projectPath,
+              responseMessageMetadata,
+              sessionId: claudeSessionId,
+            })
+          : responseMessageMetadata;
       const textResult = streamText({
         messages: modelMessages,
         model: providerFactory(model, writer),
@@ -571,15 +657,24 @@ export const streamClaudeResponse = async ({
       writer.merge(
         textResult.toUIMessageStream({
           messageMetadata: ({ part }) => {
+            if (part.type === "finish-step") {
+              const sessionId =
+                part.providerMetadata?.["claude-code"]?.sessionId;
+              if (typeof sessionId === "string" && sessionId.trim()) {
+                claudeSessionId = sessionId.trim();
+                return getClaudeResponseMetadata();
+              }
+            }
+
             if (part.type === "finish") {
               return {
-                ...responseMessageMetadata,
+                ...getClaudeResponseMetadata(),
                 usage: part.totalUsage,
               };
             }
 
             if (part.type === "start") {
-              return responseMessageMetadata;
+              return getClaudeResponseMetadata();
             }
 
             return undefined;

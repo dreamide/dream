@@ -84,7 +84,7 @@ test("merges a grown message from a shorter next history by id", () => {
   assert.equal(merged[1], next[0]);
 });
 
-test("adopts a next history containing a new auto-compaction summary", () => {
+test("keeps the full visible history when a shorter projection arrives", () => {
   const previous = [
     createMessage("u1", "user", "Hi"),
     createMessage("a1", "assistant", "One"),
@@ -98,21 +98,10 @@ test("adopts a next history containing a new auto-compaction summary", () => {
     createMessage("a3", "assistant", "Three"),
   ];
 
-  assert.equal(mergeChatMessageHistories(previous, next), next);
-});
-
-test("adopts a shorter next history that already holds the compaction summary", () => {
-  const summary = createMessage("summary", "assistant", "Compacted summary", {
-    autoCompacted: true,
-  });
-  const previous = [
-    summary,
-    createMessage("a1", "assistant", "One"),
-    createMessage("a2", "assistant", "Two"),
-  ];
-  const next = [summary, createMessage("a2", "assistant", "Two")];
-
-  assert.equal(mergeChatMessageHistories(previous, next), next);
+  assert.deepEqual(
+    mergeChatMessageHistories(previous, next).map((message) => message.id),
+    previous.map((message) => message.id),
+  );
 });
 
 test("skips appending a duplicate trailing user message", () => {

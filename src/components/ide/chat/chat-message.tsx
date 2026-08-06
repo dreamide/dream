@@ -15,6 +15,10 @@ import {
   isChipToolPart,
   isRedundantDirectWebToolSearchPart,
 } from "../assistant-message-tools";
+import {
+  ContextCompactionMessage,
+  getContextCompactionState,
+} from "./context-compaction";
 import { UserMessageContent } from "./message-content";
 import { MessageHoverFooter } from "./message-footer";
 import { isTodoListPart } from "./todo-list";
@@ -212,22 +216,35 @@ export const ChatMessage = memo(
                   chipGroup.push({ part, index: i });
                 } else {
                   flushChipGroup();
+                  const contextCompactionState =
+                    getContextCompactionState(part);
                   const isLastPart = i === nonSourceParts.length - 1;
                   const isPartStreaming =
                     isStreaming && isLastMessage && isLastPart;
                   elements.push(
-                    <AssistantMessagePart
-                      key={getMessagePartKey(
-                        message.id,
-                        part as Record<string, unknown>,
-                        i,
-                      )}
-                      isStreaming={isPartStreaming}
-                      onToolApproval={addToolApprovalResponse}
-                      part={part}
-                      projectPath={projectPath}
-                      showReasoningSummaries={showReasoningSummaries}
-                    />,
+                    contextCompactionState ? (
+                      <ContextCompactionMessage
+                        key={getMessagePartKey(
+                          message.id,
+                          part as Record<string, unknown>,
+                          i,
+                        )}
+                        state={contextCompactionState}
+                      />
+                    ) : (
+                      <AssistantMessagePart
+                        key={getMessagePartKey(
+                          message.id,
+                          part as Record<string, unknown>,
+                          i,
+                        )}
+                        isStreaming={isPartStreaming}
+                        onToolApproval={addToolApprovalResponse}
+                        part={part}
+                        projectPath={projectPath}
+                        showReasoningSummaries={showReasoningSummaries}
+                      />
+                    ),
                   );
                 }
               }

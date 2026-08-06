@@ -22,14 +22,20 @@ import {
   getCodexReasoningEffort,
   getCodexTokenCountMetadata,
   writeCodexApprovalRequest,
+  writeCodexContextCompactionPart,
   writeCodexTodoListPart,
   writeCodexTodoListPartFromResponseItem,
 } from "./codex-common.js";
 import {
   buildCodexAppServerConversationPrompt,
   getLatestUserMessage,
+  getLatestUserPrompt,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
+import {
+  getProviderSessionMetadata,
+  shouldResumeProviderSession,
+} from "./provider-session.js";
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -455,6 +461,10 @@ export const streamCodexAppServerResponse = ({
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
+  remoteConversationId,
+  remoteConversationModel,
+  remoteConversationModelSpeed,
+  remoteConversationProjectPath,
   responseMessageMetadata,
   systemPrompt,
   chatId,
@@ -481,6 +491,7 @@ export const streamCodexAppServerResponse = ({
         let finished = false;
         let preparedAttachments = null;
         let rootThreadId = null;
+        let persistedThreadId = null;
         let child;
 
         const finish = (callback) => {
@@ -502,6 +513,32 @@ export const streamCodexAppServerResponse = ({
 
         const writeEvent = (event) => {
           writer.write(event);
+        };
+
+        const writeSessionMetadata = (threadId) => {
+          if (!threadId || persistedThreadId === threadId) {
+            return;
+          }
+
+          persistedThreadId = threadId;
+          if (chatId) {
+            codexSessionsByChatId.set(chatId, {
+              model,
+              modelSpeed,
+              projectPath,
+              sessionId: threadId,
+            });
+          }
+          writer.write({
+            messageMetadata: getProviderSessionMetadata({
+              model,
+              modelSpeed,
+              projectPath,
+              responseMessageMetadata,
+              sessionId: threadId,
+            }),
+            type: "message-metadata",
+          });
         };
 
         const trackToolCompletion = (completion) => {
@@ -1025,28 +1062,18 @@ export const streamCodexAppServerResponse = ({
             return;
           }
 
-          if (method === "thread/started" && params?.thread?.id && chatId) {
-            codexSessionsByChatId.set(chatId, {
-              model,
-              modelSpeed,
-              projectPath,
-              sessionId: params.thread.id,
-            });
-            writer.write({
-              messageMetadata: {
-                ...responseMessageMetadata,
-                remoteConversationId: params.thread.id,
-                remoteConversationModel: model,
-                remoteConversationModelSpeed: modelSpeed,
-                remoteConversationProjectPath: projectPath,
-              },
-              type: "message-metadata",
-            });
+          if (method === "thread/started" && params?.thread?.id) {
+            writeSessionMetadata(params.thread.id);
             return;
           }
 
           if (method === "item/started" && params?.item) {
             const item = params.item;
+            if (
+              writeCodexContextCompactionPart(writeEvent, item, "compacting")
+            ) {
+              return;
+            }
             if (writeCodexTodoListPartFromResponseItem(writeEvent, item)) {
               return;
             }
@@ -1099,6 +1126,11 @@ export const streamCodexAppServerResponse = ({
 
           if (method === "item/completed" && params?.item) {
             const item = params.item;
+            if (
+              writeCodexContextCompactionPart(writeEvent, item, "compacted")
+            ) {
+              return;
+            }
             if (writeCodexTodoListPartFromResponseItem(writeEvent, item)) {
               return;
             }
@@ -1283,6 +1315,11 @@ export const streamCodexAppServerResponse = ({
               projectPath,
               systemPrompt,
             });
+            const currentTurnPrompt = getLatestUserPrompt(
+              messages,
+              preparedAttachments?.promptText ?? null,
+              projectReferencesPrompt,
+            );
             const sandbox = getCodexAppSandboxMode(codexPermissionMode);
             const approvalPolicy =
               getCodexAppApprovalPolicy(codexPermissionMode);
@@ -1294,24 +1331,61 @@ export const streamCodexAppServerResponse = ({
               },
               clientInfo: { name: "Dream", version: "0.1.0" },
             });
-            const threadResponse = await sendRequest("thread/start", {
-              approvalPolicy,
-              approvalsReviewer: "user",
-              baseInstructions: systemPrompt,
-              config: null,
-              cwd: projectPath,
-              ephemeral: true,
-              experimentalRawEvents: false,
+            const shouldResume = shouldResumeProviderSession({
               model,
-              modelProvider: "openai",
-              persistExtendedHistory: false,
-              sandbox,
+              modelSpeed,
+              projectPath,
+              remoteConversationId,
+              remoteConversationModel,
+              remoteConversationModelSpeed,
+              remoteConversationProjectPath,
             });
+            let resumed = false;
+            let threadResponse = null;
+
+            if (shouldResume) {
+              try {
+                threadResponse = await sendRequest("thread/resume", {
+                  approvalPolicy,
+                  approvalsReviewer: "user",
+                  baseInstructions: systemPrompt,
+                  config: null,
+                  cwd: projectPath,
+                  excludeTurns: true,
+                  model,
+                  modelProvider: "openai",
+                  sandbox,
+                  threadId: remoteConversationId,
+                });
+                resumed = true;
+              } catch (error) {
+                console.warn(
+                  "[codex app-server] Stored thread could not be resumed; starting a new thread.",
+                  error instanceof Error ? error.message : error,
+                );
+              }
+            }
+
+            if (!threadResponse) {
+              threadResponse = await sendRequest("thread/start", {
+                approvalPolicy,
+                approvalsReviewer: "user",
+                baseInstructions: systemPrompt,
+                config: null,
+                cwd: projectPath,
+                ephemeral: false,
+                experimentalRawEvents: false,
+                model,
+                modelProvider: "openai",
+                sandbox,
+              });
+            }
             const threadId = threadResponse?.thread?.id;
             if (!threadId) {
               throw new Error("Codex app-server did not return a thread id.");
             }
             rootThreadId = threadId;
+            writeSessionMetadata(threadId);
 
             await sendRequest("turn/start", {
               approvalPolicy,
@@ -1321,7 +1395,7 @@ export const streamCodexAppServerResponse = ({
                 : {}),
               input: [
                 {
-                  text: fullPrompt,
+                  text: resumed ? currentTurnPrompt : fullPrompt,
                   text_elements: [],
                   type: "text",
                 },

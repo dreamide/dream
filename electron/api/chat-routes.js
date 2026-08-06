@@ -238,6 +238,10 @@ export const registerChatRoutes = (app) => {
         projectPath: resolvedProjectPath,
         modelSpeed,
         reasoningEffort,
+        remoteConversationId,
+        remoteConversationModel,
+        remoteConversationModelSpeed,
+        remoteConversationProjectPath,
         responseMessageMetadata,
       });
     }
@@ -254,8 +258,13 @@ export const registerChatRoutes = (app) => {
         codexPermissionMode,
         messages,
         model,
+        modelSpeed,
         projectReferencesPrompt,
         projectPath: resolvedProjectPath,
+        remoteConversationId,
+        remoteConversationModel,
+        remoteConversationModelSpeed,
+        remoteConversationProjectPath,
         responseMessageMetadata,
       });
     }
@@ -314,9 +323,14 @@ export const registerChatRoutes = (app) => {
       claudePermissionMode,
       messages,
       model,
+      modelSpeed,
       projectReferencesPrompt,
       projectPath: resolvedProjectPath,
       reasoningEffort,
+      remoteConversationId,
+      remoteConversationModel,
+      remoteConversationModelSpeed,
+      remoteConversationProjectPath,
       responseMessageMetadata,
     });
   });
