@@ -123,6 +123,9 @@ importers:
       '@codemirror/lang-python':
         specifier: ^6.2.1
         version: 6.2.1
+      '@codemirror/search':
+        specifier: ^6.7.1
+        version: 6.7.1
       '@opentelemetry/api':
         specifier: 1.9.0
         version: 1.9.0

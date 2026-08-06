@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, constants as fsConstants } from "node:fs";
 import { TextDecoder } from "node:util";
 import {
   checkoutProjectGitBranch,
@@ -42,9 +42,14 @@ import {
 } from "./project-git-service.js";
 
 const PROJECT_FILE_PREVIEW_MAX_BYTES = 1024 * 1024;
-const PROJECT_FILE_BINARY_SAMPLE_BYTES = 8192;
 const PROJECT_FILE_BINARY_CONTROL_CHAR_RATIO = 0.1;
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+
+export const detectProjectFileLineEnding = (content) =>
+  content.includes("\r\n") ? "crlf" : "lf";
+
+export const serializeProjectFileContent = (content, lineEnding) =>
+  lineEnding === "crlf" ? content.replace(/\r?\n/g, "\r\n") : content;
 
 const formatBytes = (bytes) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -81,17 +86,24 @@ const isLikelyBinaryBuffer = (buffer) => {
   }
 };
 
-const isLikelyBinaryFile = async (absolutePath, size) => {
-  const sampleLength = Math.min(size, PROJECT_FILE_BINARY_SAMPLE_BYTES);
-  if (sampleLength === 0) return false;
+const resolveRealProjectFilePath = async (projectPath, filePath) => {
+  const projectRoot = await fs.realpath(projectPath);
+  const absolutePath = resolveProjectPath(projectPath, filePath);
+  const realAbsolutePath = await fs.realpath(absolutePath);
+  resolveProjectPath(projectRoot, realAbsolutePath);
+  return realAbsolutePath;
+};
 
-  const file = await fs.open(absolutePath, "r");
+const getProjectFileWritability = async (absolutePath) => {
   try {
-    const sample = Buffer.alloc(sampleLength);
-    const { bytesRead } = await file.read(sample, 0, sampleLength, 0);
-    return isLikelyBinaryBuffer(sample.subarray(0, bytesRead));
-  } finally {
-    await file.close();
+    await fs.access(absolutePath, fsConstants.W_OK);
+    return { readOnlyReason: null, writable: true };
+  } catch {
+    return {
+      readOnlyReason:
+        "This file is read-only because Dream does not have permission to write it.",
+      writable: false,
+    };
   }
 };
 
@@ -139,7 +151,10 @@ export const registerProjectGitRoutes = (app) => {
 
     try {
       await ensureProjectDirectory(projectPath);
-      const absolutePath = resolveProjectPath(projectPath, filePath);
+      const absolutePath = await resolveRealProjectFilePath(
+        projectPath,
+        filePath,
+      );
       const stats = await fs.stat(absolutePath);
       if (!stats.isFile()) {
         return c.text(`Not a file: ${filePath}`, 400);
@@ -152,14 +167,22 @@ export const registerProjectGitRoutes = (app) => {
         );
       }
 
-      if (await isLikelyBinaryFile(absolutePath, stats.size)) {
+      const fullData = await fs.readFile(absolutePath);
+      if (isLikelyBinaryBuffer(fullData)) {
         return c.text("Binary files cannot be previewed.", 415);
       }
 
-      const fullText = await fs.readFile(absolutePath, "utf8");
+      const fullText = utf8Decoder.decode(fullData);
+      const lineEnding = detectProjectFileLineEnding(fullText);
+      const writability = await getProjectFileWritability(absolutePath);
 
       if (!startLine && !endLine) {
-        return c.json({ content: fullText, filePath });
+        return c.json({
+          content: fullText,
+          filePath,
+          lineEnding,
+          ...writability,
+        });
       }
 
       const lines = fullText.split(/\r?\n/);
@@ -173,7 +196,9 @@ export const registerProjectGitRoutes = (app) => {
         content: lines.slice(safeStart - 1, safeEnd).join("\n"),
         endLine: safeEnd,
         filePath,
+        lineEnding,
         startLine: safeStart,
+        ...writability,
       });
     } catch (error) {
       const message =
@@ -205,10 +230,10 @@ export const registerProjectGitRoutes = (app) => {
 
     try {
       await ensureProjectDirectory(projectPath);
-      const projectRoot = await fs.realpath(projectPath);
-      const absolutePath = resolveProjectPath(projectPath, filePath);
-      const realAbsolutePath = await fs.realpath(absolutePath);
-      resolveProjectPath(projectRoot, realAbsolutePath);
+      const realAbsolutePath = await resolveRealProjectFilePath(
+        projectPath,
+        filePath,
+      );
 
       const stats = await fs.stat(realAbsolutePath);
       if (!stats.isFile()) {
@@ -220,6 +245,11 @@ export const registerProjectGitRoutes = (app) => {
           "The file changed on disk and is now too large to edit here.",
           409,
         );
+      }
+
+      const writability = await getProjectFileWritability(realAbsolutePath);
+      if (!writability.writable) {
+        return c.text(writability.readOnlyReason, 403);
       }
 
       const currentData = await fs.readFile(realAbsolutePath);
@@ -235,8 +265,23 @@ export const registerProjectGitRoutes = (app) => {
         );
       }
 
-      await fs.writeFile(realAbsolutePath, content, "utf8");
-      return c.json({ content, filePath });
+      const lineEnding = detectProjectFileLineEnding(currentContent);
+      const serializedContent = serializeProjectFileContent(
+        content,
+        lineEnding,
+      );
+      if (
+        Buffer.byteLength(serializedContent, "utf8") >
+        PROJECT_FILE_PREVIEW_MAX_BYTES
+      ) {
+        return c.text(
+          `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} cannot be edited here.`,
+          413,
+        );
+      }
+
+      await fs.writeFile(realAbsolutePath, serializedContent, "utf8");
+      return c.json({ content: serializedContent, filePath, lineEnding });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to save file.";
@@ -656,7 +701,10 @@ export const registerProjectGitRoutes = (app) => {
 
     try {
       await ensureProjectDirectory(projectPath);
-      const absolutePath = resolveProjectPath(projectPath, filePath);
+      const absolutePath = await resolveRealProjectFilePath(
+        projectPath,
+        filePath,
+      );
       const stats = await fs.stat(absolutePath);
       if (!stats.isFile()) {
         return c.text(`Not a file: ${filePath}`, 400);

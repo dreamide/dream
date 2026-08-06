@@ -1,13 +1,5 @@
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
-import {
-  ChevronDown,
-  ChevronUp,
-  FileIcon,
-  Files,
-  Pencil,
-  RotateCw,
-  Search,
-} from "lucide-react";
+import { FileIcon, Files, RotateCw, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
@@ -17,23 +9,27 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
 import type { BundledLanguage } from "shiki";
 import {
-  CodeBlock,
   CodeBlockActions,
   CodeBlockContainer,
   CodeBlockCopyButton,
   CodeBlockFilename,
   CodeBlockHeader,
   CodeBlockTitle,
-  findCodeSearchMatches,
 } from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
+import {
+  type FileBuffersState,
+  fileBuffersReducer,
+  getFileBufferKey,
+} from "./file-buffers";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { useMaterialFileTreeIcons } from "./material-file-icon";
@@ -60,20 +56,20 @@ type ProjectFilesListResponse = {
 type ProjectFileReadResponse = {
   content: string;
   filePath: string;
+  lineEnding: "crlf" | "lf";
+  readOnlyReason: string | null;
+  writable: boolean;
 };
 
-interface EditingFileState {
-  filePath: string;
-  originalContent: string;
-  projectId: string;
-  value: string;
-}
+type ProjectFileWriteResponse = Pick<
+  ProjectFileReadResponse,
+  "content" | "filePath" | "lineEnding"
+>;
 
-interface FileSearchState {
-  activeIndex: number;
-  filePath: string;
-  projectId: string;
-  query: string;
+interface ProjectFileMetadata {
+  lineEnding: "crlf" | "lf";
+  readOnlyReason: string | null;
+  writable: boolean;
 }
 
 const isFilePreviewUnavailableStatus = (status: number) =>
@@ -335,7 +331,6 @@ const ProjectFileTree = ({
 
     const item = model.getItem(selectedFilePath);
     item?.select();
-    model.focusNearestPath(selectedFilePath);
   }, [model, selectedFilePath]);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -435,9 +430,6 @@ const FileExplorerPanelImpl = ({
   const previousProjectFilesRefreshKeyByProjectRef = useRef<
     Record<string, number>
   >({});
-  const fileSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const filePreviewRef = useRef<HTMLDivElement | null>(null);
-  const saveOperationIdRef = useRef(0);
 
   const [fileListsByProject, setFileListsByProject] = useState<
     Record<string, string[]>
@@ -445,8 +437,12 @@ const FileExplorerPanelImpl = ({
   const [selectedFileByProject, setSelectedFileByProject] = useState<
     Record<string, string | null>
   >({});
-  const [fileContentsByProject, setFileContentsByProject] = useState<
-    Record<string, Record<string, string>>
+  const [fileBuffers, dispatchFileBuffer] = useReducer(
+    fileBuffersReducer,
+    {} as FileBuffersState,
+  );
+  const [fileMetadata, setFileMetadata] = useState<
+    Record<string, ProjectFileMetadata>
   >({});
   const [filePreviewMessagesByProject, setFilePreviewMessagesByProject] =
     useState<Record<string, Record<string, string>>>({});
@@ -455,12 +451,9 @@ const FileExplorerPanelImpl = ({
   >(null);
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
-  const [fileSaving, setFileSaving] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [fileSaveError, setFileSaveError] = useState<string | null>(null);
-  const [fileSearch, setFileSearch] = useState<FileSearchState | null>(null);
-  const [editingFile, setEditingFile] = useState<EditingFileState | null>(null);
+  const [editorSearchRequest, setEditorSearchRequest] = useState(0);
   const selectedImagePreviewUrlRef = useRef<string | null>(null);
 
   const replaceSelectedImagePreviewUrl = useCallback((url: string | null) => {
@@ -489,87 +482,32 @@ const FileExplorerPanelImpl = ({
   const selectedFilePath = projectId
     ? (selectedFileByProject[projectId] ?? null)
     : null;
-  const selectedFileContent =
+  const selectedFileBufferKey =
     projectId && selectedFilePath
-      ? (fileContentsByProject[projectId]?.[selectedFilePath] ?? null)
+      ? getFileBufferKey(projectId, selectedFilePath)
       : null;
+  const selectedFileBuffer = selectedFileBufferKey
+    ? (fileBuffers[selectedFileBufferKey] ?? null)
+    : null;
+  const selectedFileMetadata = selectedFileBufferKey
+    ? (fileMetadata[selectedFileBufferKey] ?? null)
+    : null;
   const selectedFilePreviewMessage =
     projectId && selectedFilePath
       ? (filePreviewMessagesByProject[projectId]?.[selectedFilePath] ?? null)
       : null;
-  const isFileSearchOpen = Boolean(
-    fileSearch &&
-      fileSearch.projectId === projectId &&
-      fileSearch.filePath === selectedFilePath,
-  );
-  const fileSearchQuery = isFileSearchOpen ? (fileSearch?.query ?? "") : "";
-  const fileSearchMatches = useMemo(
+  const dirtyBufferCount = useMemo(
     () =>
-      selectedFileContent && fileSearchQuery
-        ? findCodeSearchMatches(selectedFileContent, fileSearchQuery)
-        : [],
-    [fileSearchQuery, selectedFileContent],
-  );
-  const activeFileSearchMatchIndex =
-    fileSearchMatches.length > 0
-      ? Math.min(
-          Math.max(fileSearch?.activeIndex ?? 0, 0),
-          fileSearchMatches.length - 1,
-        )
-      : -1;
-  const isEditing = Boolean(
-    editingFile &&
-      editingFile.projectId === projectId &&
-      editingFile.filePath === selectedFilePath,
-  );
-  const hasEditorChanges = Boolean(
-    editingFile &&
-      isEditing &&
-      editingFile.value !== editingFile.originalContent,
+      projectId
+        ? Object.entries(fileBuffers).filter(
+            ([key, buffer]) =>
+              key.startsWith(`${projectId}\0`) &&
+              buffer.draftContent !== buffer.diskContent,
+          ).length
+        : 0,
+    [fileBuffers, projectId],
   );
   const isMissingProjectPath = isMissingPathError(filesError);
-
-  useEffect(() => {
-    if (
-      !editingFile ||
-      (editingFile.projectId === projectId &&
-        editingFile.filePath === selectedFilePath)
-    ) {
-      return;
-    }
-
-    saveOperationIdRef.current += 1;
-    setEditingFile(null);
-    setFileSaveError(null);
-    setFileSaving(false);
-  }, [editingFile, projectId, selectedFilePath]);
-
-  useEffect(() => {
-    if (!fileSearchQuery || activeFileSearchMatchIndex < 0) {
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      const activeMatch = filePreviewRef.current?.querySelector<HTMLElement>(
-        `[data-code-search-match="${activeFileSearchMatchIndex}"]`,
-      );
-      activeMatch?.scrollIntoView({ block: "center", inline: "nearest" });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeFileSearchMatchIndex, fileSearchQuery]);
-
-  useEffect(() => {
-    if (!isFileSearchOpen) {
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      fileSearchInputRef.current?.focus();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [isFileSearchOpen]);
 
   useEffect(
     () => () => {
@@ -684,15 +622,7 @@ const FileExplorerPanelImpl = ({
     loadedFileListKeysRef.current.add(fileListKey);
 
     if (refreshChanged) {
-      setFileContentsByProject((current) => {
-        if (!current[projectId]) {
-          return current;
-        }
-
-        const next = { ...current };
-        delete next[projectId];
-        return next;
-      });
+      dispatchFileBuffer({ type: "refresh-project", projectId });
       setFilePreviewMessagesByProject((current) => {
         if (!current[projectId]) {
           return current;
@@ -727,6 +657,7 @@ const FileExplorerPanelImpl = ({
   }, [active, fileOpenRequestKey, fileOpenRequestPath, projectId]);
 
   useEffect(() => {
+    void projectFilesRefreshKey;
     if (!projectId || !projectPath || !selectedFilePath) {
       return;
     }
@@ -735,7 +666,8 @@ const FileExplorerPanelImpl = ({
       return;
     }
 
-    if (fileContentsByProject[projectId]?.[selectedFilePath] !== undefined) {
+    const bufferKey = getFileBufferKey(projectId, selectedFilePath);
+    if (fileBuffers[bufferKey]) {
       return;
     }
 
@@ -790,11 +722,18 @@ const FileExplorerPanelImpl = ({
           return;
         }
 
-        setFileContentsByProject((current) => ({
+        const loadedBufferKey = getFileBufferKey(projectId, payload.filePath);
+        dispatchFileBuffer({
+          type: "load",
+          key: loadedBufferKey,
+          content: payload.content,
+        });
+        setFileMetadata((current) => ({
           ...current,
-          [projectId]: {
-            ...(current[projectId] ?? {}),
-            [payload.filePath]: payload.content,
+          [loadedBufferKey]: {
+            lineEnding: payload.lineEnding,
+            readOnlyReason: payload.readOnlyReason,
+            writable: payload.writable,
           },
         }));
       } catch (error) {
@@ -818,11 +757,12 @@ const FileExplorerPanelImpl = ({
       cancelled = true;
     };
   }, [
-    fileContentsByProject,
+    fileBuffers,
     filePreviewMessagesByProject,
     panelsT,
     projectId,
     projectPath,
+    projectFilesRefreshKey,
     selectedFilePath,
     uiT,
   ]);
@@ -908,118 +848,59 @@ const FileExplorerPanelImpl = ({
         [projectId]: path,
       }));
       setFileError(null);
+      setEditorSearchRequest(0);
     },
     [projectId],
   );
 
-  const handleStartEditing = useCallback(() => {
+  const handleDiscardChanges = useCallback(() => {
+    if (selectedFileBufferKey) {
+      dispatchFileBuffer({ type: "discard", key: selectedFileBufferKey });
+    }
+  }, [selectedFileBufferKey]);
+
+  const handleReloadFromDisk = useCallback(() => {
+    if (!selectedFileBufferKey) {
+      return;
+    }
+
+    dispatchFileBuffer({ type: "invalidate", key: selectedFileBufferKey });
+    setFileMetadata((current) => {
+      if (!current[selectedFileBufferKey]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[selectedFileBufferKey];
+      return next;
+    });
+    setFileError(null);
+  }, [selectedFileBufferKey]);
+
+  const handleSaveEditing = useCallback(async () => {
     if (
       !projectId ||
       !projectPath ||
       !selectedFilePath ||
-      selectedFileContent === null
+      !selectedFileBufferKey ||
+      !selectedFileBuffer ||
+      selectedFileBuffer.status !== "dirty" ||
+      !selectedFileMetadata?.writable
     ) {
       return;
     }
 
-    setFileSaveError(null);
-    setFileSearch(null);
-    setEditingFile({
-      filePath: selectedFilePath,
-      originalContent: selectedFileContent,
-      projectId,
-      value: selectedFileContent,
-    });
-  }, [projectId, projectPath, selectedFileContent, selectedFilePath]);
-
-  const handleCancelEditing = useCallback(() => {
-    setEditingFile(null);
-    setFileSaveError(null);
-  }, []);
-
-  const handleToggleFileSearch = useCallback(() => {
-    if (!projectId || !selectedFilePath) {
-      return;
-    }
-
-    setFileSearch((current) =>
-      current?.projectId === projectId && current.filePath === selectedFilePath
-        ? null
-        : {
-            activeIndex: 0,
-            filePath: selectedFilePath,
-            projectId,
-            query: "",
-          },
-    );
-  }, [projectId, selectedFilePath]);
-
-  const handleNavigateFileSearch = useCallback(
-    (direction: -1 | 1) => {
-      if (fileSearchMatches.length === 0) {
-        return;
-      }
-
-      setFileSearch((current) => {
-        if (
-          !current ||
-          current.projectId !== projectId ||
-          current.filePath !== selectedFilePath
-        ) {
-          return current;
-        }
-
-        const normalizedIndex =
-          ((current.activeIndex % fileSearchMatches.length) +
-            fileSearchMatches.length) %
-          fileSearchMatches.length;
-        const nextIndex =
-          (normalizedIndex + direction + fileSearchMatches.length) %
-          fileSearchMatches.length;
-        return { ...current, activeIndex: nextIndex };
-      });
-    },
-    [fileSearchMatches.length, projectId, selectedFilePath],
-  );
-
-  const handleFileSearchKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        setFileSearch(null);
-        return;
-      }
-
-      if (event.key === "Enter") {
-        event.preventDefault();
-        event.stopPropagation();
-        handleNavigateFileSearch(event.shiftKey ? -1 : 1);
-      }
-    },
-    [handleNavigateFileSearch],
-  );
-
-  const handleSaveEditing = useCallback(async () => {
-    if (!editingFile || !projectPath || fileSaving) {
-      return;
-    }
-
-    if (editingFile.value === editingFile.originalContent) {
-      return;
-    }
-
-    const operationId = saveOperationIdRef.current + 1;
-    saveOperationIdRef.current = operationId;
-    setFileSaving(true);
-    setFileSaveError(null);
+    const targetBuffer = selectedFileBuffer;
+    const targetBufferKey = selectedFileBufferKey;
+    const targetFilePath = selectedFilePath;
+    const targetProjectId = projectId;
+    dispatchFileBuffer({ type: "save-start", key: targetBufferKey });
 
     try {
       const response = await fetch("/api/project-file", {
         body: JSON.stringify({
-          content: editingFile.value,
-          expectedContent: editingFile.originalContent,
-          filePath: editingFile.filePath,
+          content: targetBuffer.draftContent,
+          expectedContent: targetBuffer.diskContent,
+          filePath: targetFilePath,
           projectPath,
         }),
         headers: { "Content-Type": "application/json" },
@@ -1027,55 +908,52 @@ const FileExplorerPanelImpl = ({
       });
 
       if (!response.ok) {
-        throw new Error(
-          await readResponseText(
-            response,
-            uiT("requestFailedStatus", { status: response.status }),
-          ),
+        const error = await readResponseText(
+          response,
+          uiT("requestFailedStatus", { status: response.status }),
         );
+        dispatchFileBuffer({
+          type: response.status === 409 ? "save-conflict" : "save-failure",
+          key: targetBufferKey,
+          error,
+        });
+        return;
       }
 
-      const payload = (await response.json()) as ProjectFileReadResponse;
-      setFileContentsByProject((current) => ({
-        ...current,
-        [editingFile.projectId]: {
-          ...(current[editingFile.projectId] ?? {}),
-          [payload.filePath]: payload.content,
-        },
-      }));
-      useIdeStore.getState().bumpProjectGitRefreshKey(editingFile.projectId);
-
-      if (saveOperationIdRef.current === operationId) {
-        setEditingFile(null);
-        setFileSaveError(null);
-      }
+      const payload = (await response.json()) as ProjectFileWriteResponse;
+      dispatchFileBuffer({
+        type: "save-success",
+        key: targetBufferKey,
+        content: payload.content,
+      });
+      useIdeStore.getState().bumpProjectGitRefreshKey(targetProjectId);
     } catch (error) {
-      if (saveOperationIdRef.current === operationId) {
-        setFileSaveError(
+      dispatchFileBuffer({
+        type: "save-failure",
+        key: targetBufferKey,
+        error:
           error instanceof Error ? error.message : panelsT("failedToSaveFile"),
-        );
-      }
-    } finally {
-      if (saveOperationIdRef.current === operationId) {
-        setFileSaving(false);
-      }
+      });
     }
-  }, [editingFile, fileSaving, panelsT, projectPath, uiT]);
+  }, [
+    panelsT,
+    projectId,
+    projectPath,
+    selectedFileBuffer,
+    selectedFileBufferKey,
+    selectedFileMetadata?.writable,
+    selectedFilePath,
+    uiT,
+  ]);
 
   const handleEditorKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
         void handleSaveEditing();
-        return;
-      }
-
-      if (event.key === "Escape" && !fileSaving) {
-        event.preventDefault();
-        handleCancelEditing();
       }
     },
-    [fileSaving, handleCancelEditing, handleSaveEditing],
+    [handleSaveEditing],
   );
 
   const handleTreeResizeStart = useCallback(() => {
@@ -1127,6 +1005,14 @@ const FileExplorerPanelImpl = ({
         <div className="flex min-w-0 items-center gap-2">
           <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
           <div className="truncate text-sm font-medium">{commonT("files")}</div>
+          {dirtyBufferCount > 0 ? (
+            <span
+              className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-700 text-[10px] dark:text-amber-300"
+              title={`${dirtyBufferCount} file${dirtyBufferCount === 1 ? "" : "s"} with unsaved changes`}
+            >
+              {dirtyBufferCount} unsaved
+            </span>
+          ) : null}
         </div>
         <button
           className="min-w-0 max-w-full justify-self-center truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
@@ -1228,7 +1114,7 @@ const FileExplorerPanelImpl = ({
             ) : fileLoading &&
               (isImageFile(selectedFilePath)
                 ? !selectedImagePreviewUrl
-                : !selectedFileContent) ? (
+                : !selectedFileBuffer) ? (
               <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
                 <Spinner className="size-4" />
               </div>
@@ -1242,167 +1128,134 @@ const FileExplorerPanelImpl = ({
                   />
                 </div>
               ) : null
-            ) : selectedFileContent !== null ? (
-              isEditing && editingFile ? (
-                <CodeBlockContainer
-                  className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none"
-                  language={inferLanguage(selectedFilePath)}
-                  onKeyDownCapture={handleEditorKeyDown}
-                  style={{ contentVisibility: "visible" }}
-                >
-                  <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
-                    <CodeBlockTitle className="min-w-0">
-                      <FileIcon className="shrink-0" size={14} />
-                      <CodeBlockFilename className="truncate">
-                        {selectedFilePath}
-                      </CodeBlockFilename>
-                    </CodeBlockTitle>
-                    <CodeBlockActions className="shrink-0">
+            ) : selectedFileBuffer && selectedFileBufferKey ? (
+              <CodeBlockContainer
+                className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none"
+                language={inferLanguage(selectedFilePath)}
+                onKeyDownCapture={handleEditorKeyDown}
+                style={{ contentVisibility: "visible" }}
+              >
+                <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
+                  <CodeBlockTitle className="min-w-0">
+                    <FileIcon className="shrink-0" size={14} />
+                    <CodeBlockFilename className="truncate">
+                      {selectedFilePath}
+                    </CodeBlockFilename>
+                    {selectedFileBuffer.draftContent !==
+                    selectedFileBuffer.diskContent ? (
+                      <span
+                        className="size-2 shrink-0 rounded-full bg-amber-500"
+                        title="Unsaved changes"
+                      />
+                    ) : null}
+                  </CodeBlockTitle>
+                  <CodeBlockActions className="shrink-0">
+                    {selectedFileBuffer.status === "dirty" ||
+                    selectedFileBuffer.status === "conflict" ? (
                       <Button
-                        disabled={fileSaving}
-                        onClick={handleCancelEditing}
+                        onClick={handleDiscardChanges}
                         size="xs"
                         type="button"
                         variant="ghost"
                       >
-                        {commonT("cancel")}
+                        Discard changes
                       </Button>
-                      <Button
-                        disabled={fileSaving || !hasEditorChanges}
-                        onClick={() => void handleSaveEditing()}
-                        size="xs"
-                        type="button"
-                      >
-                        {fileSaving ? <Spinner className="size-3" /> : null}
-                        {commonT("save")}
-                      </Button>
-                    </CodeBlockActions>
-                  </CodeBlockHeader>
-                  <div className="flex min-h-0 flex-1 flex-col">
-                    {fileSaveError ? (
-                      <div className="shrink-0 border-destructive-border border-b bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
-                        {fileSaveError}
-                      </div>
                     ) : null}
-                    <div className="min-h-0 flex-1">
-                      <Suspense
-                        fallback={
-                          <div className="flex h-full items-center justify-center">
-                            <Spinner className="size-4 text-muted-foreground" />
-                          </div>
-                        }
-                      >
-                        <FileCodeEditor
-                          disabled={fileSaving}
-                          filePath={selectedFilePath}
-                          onChange={(value) =>
-                            setEditingFile((current) =>
-                              current ? { ...current, value } : current,
-                            )
-                          }
-                          value={editingFile.value}
-                        />
-                      </Suspense>
+                    <Button
+                      aria-label={uiT("searchCurrentFile")}
+                      onClick={() =>
+                        setEditorSearchRequest((current) => current + 1)
+                      }
+                      size="icon-xs"
+                      title={uiT("searchCurrentFile")}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Search />
+                    </Button>
+                    <CodeBlockCopyButton
+                      text={selectedFileBuffer.draftContent}
+                    />
+                    <Button
+                      disabled={
+                        selectedFileBuffer.status !== "dirty" ||
+                        !selectedFileMetadata?.writable
+                      }
+                      onClick={() => void handleSaveEditing()}
+                      size="xs"
+                      type="button"
+                    >
+                      {selectedFileBuffer.status === "saving" ? (
+                        <Spinner className="size-3" />
+                      ) : null}
+                      {commonT("save")}
+                    </Button>
+                  </CodeBlockActions>
+                </CodeBlockHeader>
+                <div className="flex min-h-0 flex-1 flex-col">
+                  {selectedFileMetadata?.readOnlyReason ? (
+                    <div className="shrink-0 border-amber-500/30 border-b bg-amber-500/10 px-3 py-2 text-amber-800 text-xs dark:text-amber-200">
+                      {selectedFileMetadata.readOnlyReason}
                     </div>
-                  </div>
-                </CodeBlockContainer>
-              ) : (
-                <div ref={filePreviewRef} className="h-full">
-                  <CodeBlock
-                    activeSearchMatchIndex={activeFileSearchMatchIndex}
-                    className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none [&>div:last-child]:min-h-0 [&>div:last-child]:flex-1"
-                    code={selectedFileContent}
-                    language={inferLanguage(selectedFilePath)}
-                    searchQuery={fileSearchQuery}
-                    showLineNumbers
-                    style={{ contentVisibility: "visible" }}
-                  >
-                    <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
-                      <CodeBlockTitle className="min-w-0">
-                        <FileIcon className="shrink-0" size={14} />
-                        <CodeBlockFilename className="truncate">
-                          {selectedFilePath}
-                        </CodeBlockFilename>
-                        <Button
-                          aria-label={commonT("edit")}
-                          className="shrink-0"
-                          onClick={handleStartEditing}
-                          size="icon-xs"
-                          title={commonT("edit")}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <Pencil />
-                        </Button>
-                      </CodeBlockTitle>
-                      <CodeBlockActions className="shrink-0">
-                        {isFileSearchOpen ? (
-                          <div className="flex h-7 items-center overflow-hidden rounded-md border border-input bg-background shadow-xs">
-                            <input
-                              aria-label={uiT("searchCurrentFile")}
-                              className="h-full w-36 bg-transparent px-2 font-mono text-foreground text-xs outline-none placeholder:text-muted-foreground"
-                              onChange={(event) =>
-                                setFileSearch((current) =>
-                                  current
-                                    ? {
-                                        ...current,
-                                        activeIndex: 0,
-                                        query: event.target.value,
-                                      }
-                                    : current,
-                                )
-                              }
-                              onKeyDown={handleFileSearchKeyDown}
-                              placeholder={uiT("find")}
-                              ref={fileSearchInputRef}
-                              value={fileSearchQuery}
-                            />
-                            <span className="min-w-12 px-1 text-center text-muted-foreground text-xs tabular-nums">
-                              {fileSearchMatches.length > 0
-                                ? `${activeFileSearchMatchIndex + 1}/${fileSearchMatches.length}`
-                                : "0/0"}
-                            </span>
-                            <Button
-                              aria-label={uiT("previousResult")}
-                              disabled={fileSearchMatches.length === 0}
-                              onClick={() => handleNavigateFileSearch(-1)}
-                              size="icon-xs"
-                              title={uiT("previousResult")}
-                              type="button"
-                              variant="ghost"
-                            >
-                              <ChevronUp />
-                            </Button>
-                            <Button
-                              aria-label={uiT("nextResult")}
-                              disabled={fileSearchMatches.length === 0}
-                              onClick={() => handleNavigateFileSearch(1)}
-                              size="icon-xs"
-                              title={uiT("nextResult")}
-                              type="button"
-                              variant="ghost"
-                            >
-                              <ChevronDown />
-                            </Button>
+                  ) : null}
+                  {selectedFileBuffer.error ? (
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-destructive-border border-b bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
+                      <div>
+                        <div>{selectedFileBuffer.error}</div>
+                        {selectedFileBuffer.status === "conflict" ? (
+                          <div className="mt-1 font-medium">
+                            Reloading from disk will replace your local draft.
                           </div>
                         ) : null}
+                      </div>
+                      {selectedFileBuffer.status === "conflict" ? (
                         <Button
-                          aria-label={uiT("searchCurrentFile")}
-                          aria-pressed={isFileSearchOpen}
-                          onClick={handleToggleFileSearch}
-                          size="icon-xs"
-                          title={uiT("searchCurrentFile")}
+                          className="shrink-0"
+                          onClick={handleReloadFromDisk}
+                          size="xs"
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                         >
-                          <Search />
+                          Reload from disk
                         </Button>
-                        <CodeBlockCopyButton />
-                      </CodeBlockActions>
-                    </CodeBlockHeader>
-                  </CodeBlock>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="min-h-0 flex-1">
+                    <Suspense
+                      fallback={
+                        <div className="flex h-full items-center justify-center">
+                          <Spinner className="size-4 text-muted-foreground" />
+                        </div>
+                      }
+                    >
+                      <FileCodeEditor
+                        disabled={
+                          selectedFileBuffer.status === "saving" ||
+                          !selectedFileMetadata?.writable
+                        }
+                        filePath={selectedFilePath}
+                        key={selectedFileBufferKey}
+                        lineEnding={
+                          selectedFileMetadata?.lineEnding ??
+                          (selectedFileBuffer.diskContent.includes("\r\n")
+                            ? "crlf"
+                            : "lf")
+                        }
+                        onChange={(content) =>
+                          dispatchFileBuffer({
+                            type: "edit",
+                            key: selectedFileBufferKey,
+                            content,
+                          })
+                        }
+                        searchRequest={editorSearchRequest}
+                        value={selectedFileBuffer.draftContent}
+                      />
+                    </Suspense>
+                  </div>
                 </div>
-              )
+              </CodeBlockContainer>
             ) : null}
           </div>
         </div>

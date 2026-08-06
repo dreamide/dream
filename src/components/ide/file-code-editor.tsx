@@ -4,14 +4,26 @@ import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
-import CodeMirror, { EditorView, type Extension } from "@uiw/react-codemirror";
+import { openSearchPanel } from "@codemirror/search";
+import CodeMirror, {
+  EditorView,
+  type Extension,
+  type ReactCodeMirrorRef,
+} from "@uiw/react-codemirror";
 import { useTheme } from "next-themes";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  type FileLineEnding,
+  normalizeFileContentForEditor,
+  serializeEditorContent,
+} from "./file-buffers";
 
 interface FileCodeEditorProps {
   disabled?: boolean;
   filePath: string;
+  lineEnding: FileLineEnding;
   onChange: (value: string) => void;
+  searchRequest: number;
   value: string;
 }
 
@@ -87,10 +99,21 @@ const getLanguageExtension = (filePath: string): Extension | null => {
 const FileCodeEditor = ({
   disabled = false,
   filePath,
+  lineEnding,
   onChange,
+  searchRequest,
   value,
 }: FileCodeEditorProps) => {
   const { resolvedTheme } = useTheme();
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const editorValue = useMemo(
+    () => normalizeFileContentForEditor(value, lineEnding),
+    [lineEnding, value],
+  );
+  const handleChange = useCallback(
+    (content: string) => onChange(serializeEditorContent(content, lineEnding)),
+    [lineEnding, onChange],
+  );
   const extensions = useMemo(() => {
     const language = getLanguageExtension(filePath);
     return [
@@ -100,9 +123,15 @@ const FileCodeEditor = ({
     ];
   }, [filePath]);
 
+  useEffect(() => {
+    if (searchRequest > 0 && editorRef.current?.view) {
+      openSearchPanel(editorRef.current.view);
+      editorRef.current.view.focus();
+    }
+  }, [searchRequest]);
+
   return (
     <CodeMirror
-      autoFocus
       basicSetup={{
         autocompletion: false,
         bracketMatching: true,
@@ -118,10 +147,11 @@ const FileCodeEditor = ({
       extensions={extensions}
       height="100%"
       indentWithTab
-      onChange={onChange}
+      onChange={handleChange}
       readOnly={disabled}
+      ref={editorRef}
       theme={resolvedTheme === "dark" ? "dark" : "light"}
-      value={value}
+      value={editorValue}
     />
   );
 };
