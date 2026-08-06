@@ -28,6 +28,7 @@ import type {
   ProjectGitStatusEntry,
 } from "@/types/ide";
 import { ChangesRow, type DiffViewMode, readResponseText } from "./changes";
+import { toggleExpandedPathForProject } from "./changes/expansion-state";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
@@ -84,9 +85,6 @@ const ChangesPanelImpl = ({
 
   const [expandedPathsByProject, setExpandedPathsByProject] = useState<
     Record<string, string[]>
-  >({});
-  const [expandAllActiveByProject, setExpandAllActiveByProject] = useState<
-    Record<string, boolean>
   >({});
   const [diffsByProject, setDiffsByProject] = useState<
     Record<string, Record<string, ProjectGitDiffResponse>>
@@ -170,15 +168,9 @@ const ChangesPanelImpl = ({
     () => visibleChanges.map((change) => change.path),
     [visibleChanges],
   );
-  const expandAllActive = projectId
-    ? (expandAllActiveByProject[projectId] ?? false)
-    : false;
-  const effectiveExpandedPaths = expandAllActive
-    ? visibleChangePaths
-    : expandedPaths;
   const expandedPathSet = useMemo(
-    () => new Set(effectiveExpandedPaths),
-    [effectiveExpandedPaths],
+    () => new Set(expandedPaths),
+    [expandedPaths],
   );
   const forcedRenderedDiffPathSet = useMemo(
     () => new Set(forcedRenderedDiffs),
@@ -459,7 +451,7 @@ const ChangesPanelImpl = ({
       return;
     }
 
-    for (const filePath of effectiveExpandedPaths) {
+    for (const filePath of expandedPaths) {
       if (changesByPath.has(filePath)) {
         queueDiffLoad(
           filePath,
@@ -470,7 +462,7 @@ const ChangesPanelImpl = ({
     }
   }, [
     changesByPath,
-    effectiveExpandedPaths,
+    expandedPaths,
     gitRefreshKey,
     projectId,
     projectDiffRefreshKeys,
@@ -504,37 +496,11 @@ const ChangesPanelImpl = ({
         return;
       }
 
-      const nextExpanded = !expandedPathSet.has(filePath);
-      setExpandAllActiveByProject((current) => ({
-        ...current,
-        [projectId]: false,
-      }));
-      setExpandedPathsByProject((current) => {
-        const currentPaths = expandAllActive
-          ? visibleChangePaths
-          : (current[projectId] ?? []);
-        const isExpanded = currentPaths.includes(filePath);
-
-        return {
-          ...current,
-          [projectId]: isExpanded
-            ? currentPaths.filter((path) => path !== filePath)
-            : [...currentPaths, filePath],
-        };
-      });
-
-      if (nextExpanded && !shouldDeferDiffLoads()) {
-        queueDiffLoad(filePath, true);
-      }
+      setExpandedPathsByProject((current) =>
+        toggleExpandedPathForProject(current, projectId, filePath),
+      );
     },
-    [
-      expandAllActive,
-      expandedPathSet,
-      projectId,
-      queueDiffLoad,
-      shouldDeferDiffLoads,
-      visibleChangePaths,
-    ],
+    [projectId],
   );
 
   const handleToggleExpandAll = useCallback(() => {
@@ -543,10 +509,6 @@ const ChangesPanelImpl = ({
     }
 
     if (allExpanded) {
-      setExpandAllActiveByProject((current) => ({
-        ...current,
-        [projectId]: false,
-      }));
       setExpandedPathsByProject((current) => ({
         ...current,
         [projectId]: [],
@@ -555,26 +517,11 @@ const ChangesPanelImpl = ({
     }
 
     const nextPaths = visibleChangePaths;
-    setExpandAllActiveByProject((current) => ({
-      ...current,
-      [projectId]: true,
-    }));
     setExpandedPathsByProject((current) => ({
       ...current,
       [projectId]: nextPaths,
     }));
-    if (!shouldDeferDiffLoads()) {
-      for (const filePath of nextPaths) {
-        queueDiffLoad(filePath);
-      }
-    }
-  }, [
-    allExpanded,
-    projectId,
-    queueDiffLoad,
-    shouldDeferDiffLoads,
-    visibleChangePaths,
-  ]);
+  }, [allExpanded, projectId, visibleChangePaths]);
 
   const handleSetDiffViewMode = useCallback(
     (nextMode: DiffViewMode) => {
@@ -731,7 +678,9 @@ const ChangesPanelImpl = ({
   );
 
   const handleRevertAllChanges = useCallback(async () => {
-    await Promise.all(visibleChanges.map(handleRevertFile));
+    for (const change of visibleChanges) {
+      await handleRevertFile(change);
+    }
   }, [handleRevertFile, visibleChanges]);
 
   const handleForceRenderDiff = useCallback(

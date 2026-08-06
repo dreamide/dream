@@ -387,46 +387,49 @@ export const ChangesRow = ({
     <div className="border-b border-surface-200 dark:border-surface-700 bg-background">
       <div
         className={cn(
-          "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors",
+          "relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors",
           expanded
-            ? "sticky top-0 z-30 border-b border-surface-200 dark:border-surface-700 bg-background shadow-sm"
+            ? "sticky top-0 z-30 border-b border-surface-200 dark:border-surface-700 bg-background"
             : "hover:bg-surface-100 dark:hover:bg-surface-900",
         )}
       >
         <button
+          aria-label={
+            expanded ? panelsT("collapseFileDiff") : panelsT("expandFileDiff")
+          }
           aria-expanded={expanded}
-          className="min-w-0 flex-1 text-left"
+          className="absolute inset-0 z-0 rounded-none focus-visible:outline-2 focus-visible:outline-surface-400 focus-visible:-outline-offset-2 dark:focus-visible:outline-surface-500"
           onClick={onToggle}
+          title={
+            expanded ? panelsT("collapseFileDiff") : panelsT("expandFileDiff")
+          }
           type="button"
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <MaterialFileIcon className="size-4 shrink-0" path={change.path} />
-            <span className="min-w-0 truncate font-mono text-xs">
-              {change.path}
-            </span>
-            {statusLabel ? (
-              <span
-                className={cn(
-                  "shrink-0 font-medium font-sans",
-                  CHANGE_STATUS_LABEL_CLASSNAMES[change.status] ??
-                    "text-muted-foreground",
-                )}
-              >
-                {statusLabel}
-              </span>
-            ) : null}
-          </div>
-        </button>
+        />
 
-        <div className="ml-auto flex shrink-0 items-center gap-3 font-mono text-sm tabular-nums">
+        <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2">
+          <MaterialFileIcon className="size-4 shrink-0" path={change.path} />
+          <span className="min-w-0 truncate font-mono text-xs">
+            {change.path}
+          </span>
+          {statusLabel ? (
+            <span
+              className={cn(
+                "shrink-0 font-medium font-sans",
+                CHANGE_STATUS_LABEL_CLASSNAMES[change.status] ??
+                  "text-muted-foreground",
+              )}
+            >
+              {statusLabel}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="pointer-events-none relative z-10 ml-auto flex shrink-0 items-center gap-2 font-mono text-sm tabular-nums">
           <button
             aria-label={panelsT("revertNamedFile", { path: change.path })}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            className="pointer-events-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
             disabled={reverting}
-            onClick={(event) => {
-              event.stopPropagation();
-              onRevert();
-            }}
+            onClick={onRevert}
             title={panelsT("revertFileChanges")}
             type="button"
           >
@@ -446,23 +449,13 @@ export const ChangesRow = ({
               {formatChangeCount(change.removedLines, "-")}
             </span>
           ) : null}
-          <button
-            aria-label={
-              expanded ? panelsT("collapseFileDiff") : panelsT("expandFileDiff")
-            }
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={onToggle}
-            title={
-              expanded ? panelsT("collapseFileDiff") : panelsT("expandFileDiff")
-            }
-            type="button"
-          >
+          <span className="flex size-7 items-center justify-center text-muted-foreground">
             {expanded ? (
               <ChevronDown className="size-4 shrink-0" />
             ) : (
               <ChevronRight className="size-4 shrink-0" />
             )}
-          </button>
+          </span>
         </div>
       </div>
 
