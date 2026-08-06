@@ -149,9 +149,9 @@
     "continueInWorktree": "Continue in worktree",
     "unableToCreateBranch": "Unable to create branch.",
     "uncommittedChangesWarning": "I understand that uncommitted changes will not be copied to the new worktree.",
-    "useNewWorktree": "Use a new worktree",
+    "useNewWorktree": "New worktree",
     "useNewWorktreeDescription": "Continue in a separate Git worktree created from a base ref.",
-    "useThisWorkspace": "Use this workspace",
+    "useThisWorkspace": "This workspace",
     "useThisWorkspaceDescription": "Continue in a new chat without changing project files.",
     "worktreeRequiresGit": "Worktrees require a Git repository.",
     "worktreeSnapshotLimitation": "The new worktree represents a Git ref, not the exact filesystem state at this message."
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "Add a project to inspect its Git changes.",
     "addProjectForFiles": "Add a project to browse its files.",
+    "enableWordWrap": "Enable word wrap",
+    "fileActions": "File actions",
     "refreshChanges": "Refresh changes",
     "refreshFiles": "Refresh files",
     "splitDiff": "Split diff",

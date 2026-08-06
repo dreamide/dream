@@ -149,9 +149,9 @@
     "continueInWorktree": "Tiếp tục trong worktree",
     "unableToCreateBranch": "Không thể tạo nhánh.",
     "uncommittedChangesWarning": "Tôi hiểu rằng các thay đổi chưa commit sẽ không được sao chép sang worktree mới.",
-    "useNewWorktree": "Dùng worktree mới",
+    "useNewWorktree": "Worktree mới",
     "useNewWorktreeDescription": "Tiếp tục trong một Git worktree riêng được tạo từ tham chiếu cơ sở.",
-    "useThisWorkspace": "Dùng không gian làm việc này",
+    "useThisWorkspace": "Không gian làm việc này",
     "useThisWorkspaceDescription": "Tiếp tục trong cuộc trò chuyện mới mà không thay đổi tệp dự án.",
     "worktreeRequiresGit": "Worktree yêu cầu kho Git.",
     "worktreeSnapshotLimitation": "Worktree mới đại diện cho một tham chiếu Git, không phải trạng thái hệ thống tệp chính xác tại tin nhắn này."
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "Thêm dự án để xem các thay đổi Git.",
     "addProjectForFiles": "Thêm dự án để duyệt tệp.",
+    "enableWordWrap": "Bật ngắt dòng",
+    "fileActions": "Thao tác tệp",
     "refreshChanges": "Làm mới thay đổi",
     "refreshFiles": "Làm mới tệp",
     "splitDiff": "Diff chia đôi",

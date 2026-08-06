@@ -1,4 +1,4 @@
-import { FolderIcon, FolderTreeIcon, GitForkIcon } from "lucide-react";
+import { FolderIcon, FolderTreeIcon, Split } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -97,7 +97,7 @@ export const ContinueChatPopover = ({
           />
         }
       >
-        <GitForkIcon className="size-3.5" />
+        <Split className="size-3.5" />
       </PopoverTrigger>
       <PopoverContent
         align="end"

@@ -149,9 +149,9 @@
     "continueInWorktree": "ワークツリーで続ける",
     "unableToCreateBranch": "ブランチを作成できませんでした。",
     "uncommittedChangesWarning": "コミットされていない変更が新しいワークツリーにコピーされないことを理解しました。",
-    "useNewWorktree": "新しいワークツリーを使用",
+    "useNewWorktree": "新しいワークツリー",
     "useNewWorktreeDescription": "ベース参照から作成した別の Git ワークツリーで続けます。",
-    "useThisWorkspace": "このワークスペースを使用",
+    "useThisWorkspace": "このワークスペース",
     "useThisWorkspaceDescription": "プロジェクトファイルを変更せず、新しいチャットで続けます。",
     "worktreeRequiresGit": "ワークツリーには Git リポジトリが必要です。",
     "worktreeSnapshotLimitation": "新しいワークツリーは Git 参照を表し、このメッセージ時点の正確なファイルシステム状態ではありません。"
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "Git の変更を確認するにはプロジェクトを追加してください。",
     "addProjectForFiles": "ファイルを参照するにはプロジェクトを追加してください。",
+    "enableWordWrap": "折り返しを有効にする",
+    "fileActions": "ファイル操作",
     "refreshChanges": "変更を更新",
     "refreshFiles": "ファイルを更新",
     "splitDiff": "分割 diff",

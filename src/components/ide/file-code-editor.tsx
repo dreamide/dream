@@ -32,6 +32,7 @@ interface FileCodeEditorProps {
   onSearchOpenChange: (open: boolean) => void;
   searchRequest: number;
   value: string;
+  wordWrap?: boolean;
 }
 
 const fileEditorTheme = EditorView.theme({
@@ -160,6 +161,7 @@ const FileCodeEditor = ({
   onSearchOpenChange,
   searchRequest,
   value,
+  wordWrap = false,
 }: FileCodeEditorProps) => {
   const { resolvedTheme } = useTheme();
   const editorRef = useRef<ReactCodeMirrorRef>(null);
@@ -182,9 +184,10 @@ const FileCodeEditor = ({
         top: true,
       }),
       EditorView.contentAttributes.of({ "aria-label": `Editing ${filePath}` }),
+      ...(wordWrap ? [EditorView.lineWrapping] : []),
       ...(language ? [language] : []),
     ];
-  }, [filePath, onSearchOpenChange]);
+  }, [filePath, onSearchOpenChange, wordWrap]);
 
   useEffect(() => {
     if (previousSearchRequestRef.current === searchRequest) {

@@ -149,9 +149,9 @@
     "continueInWorktree": "작업 트리에서 계속",
     "unableToCreateBranch": "분기를 만들 수 없습니다.",
     "uncommittedChangesWarning": "커밋되지 않은 변경 사항이 새 작업 트리에 복사되지 않음을 이해합니다.",
-    "useNewWorktree": "새 작업 트리 사용",
+    "useNewWorktree": "새 작업 트리",
     "useNewWorktreeDescription": "기준 참조에서 만든 별도의 Git 작업 트리에서 계속합니다.",
-    "useThisWorkspace": "이 작업 공간 사용",
+    "useThisWorkspace": "이 작업 공간",
     "useThisWorkspaceDescription": "프로젝트 파일을 변경하지 않고 새 채팅에서 계속합니다.",
     "worktreeRequiresGit": "작업 트리에는 Git 저장소가 필요합니다.",
     "worktreeSnapshotLimitation": "새 작업 트리는 Git 참조를 나타내며 이 메시지 시점의 정확한 파일 시스템 상태는 아닙니다."
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "Git 변경 사항을 검사하려면 프로젝트를 추가하세요.",
     "addProjectForFiles": "파일을 탐색하려면 프로젝트를 추가하세요.",
+    "enableWordWrap": "자동 줄 바꿈 사용",
+    "fileActions": "파일 작업",
     "refreshChanges": "변경 사항 새로 고침",
     "refreshFiles": "파일 새로 고침",
     "splitDiff": "분할 diff",

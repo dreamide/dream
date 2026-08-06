@@ -149,9 +149,9 @@
     "continueInWorktree": "Im Arbeitsbaum fortfahren",
     "unableToCreateBranch": "Verzweigung konnte nicht erstellt werden.",
     "uncommittedChangesWarning": "Ich verstehe, dass nicht festgeschriebene Änderungen nicht in den neuen Arbeitsbaum kopiert werden.",
-    "useNewWorktree": "Neuen Arbeitsbaum verwenden",
+    "useNewWorktree": "Neuer Arbeitsbaum",
     "useNewWorktreeDescription": "In einem separaten Git-Arbeitsbaum von einer Basisreferenz fortfahren.",
-    "useThisWorkspace": "Diesen Arbeitsbereich verwenden",
+    "useThisWorkspace": "Dieser Arbeitsbereich",
     "useThisWorkspaceDescription": "In einem neuen Chat fortfahren, ohne Projektdateien zu ändern.",
     "worktreeRequiresGit": "Arbeitsbäume erfordern ein Git-Repository.",
     "worktreeSnapshotLimitation": "Der neue Arbeitsbaum stellt eine Git-Referenz dar, nicht den exakten Dateisystemzustand bei dieser Nachricht."
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "Fügen Sie ein Projekt hinzu, um seine Git-Änderungen zu prüfen.",
     "addProjectForFiles": "Fügen Sie ein Projekt hinzu, um seine Dateien zu durchsuchen.",
+    "enableWordWrap": "Zeilenumbruch aktivieren",
+    "fileActions": "Dateiaktionen",
     "refreshChanges": "Änderungen aktualisieren",
     "refreshFiles": "Dateien aktualisieren",
     "splitDiff": "Geteiltes Diff",

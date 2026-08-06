@@ -149,9 +149,9 @@
     "continueInWorktree": "Continua nell’albero di lavoro",
     "unableToCreateBranch": "Impossibile creare il ramo.",
     "uncommittedChangesWarning": "Comprendo che le modifiche non confermate non verranno copiate nel nuovo albero di lavoro.",
-    "useNewWorktree": "Usa un nuovo albero di lavoro",
+    "useNewWorktree": "Nuovo albero di lavoro",
     "useNewWorktreeDescription": "Continua in un albero di lavoro Git separato creato da un riferimento di base.",
-    "useThisWorkspace": "Usa questo spazio di lavoro",
+    "useThisWorkspace": "Questo spazio di lavoro",
     "useThisWorkspaceDescription": "Continua in una nuova chat senza modificare i file del progetto.",
     "worktreeRequiresGit": "Gli alberi di lavoro richiedono un repository Git.",
     "worktreeSnapshotLimitation": "Il nuovo albero di lavoro rappresenta un riferimento Git, non lo stato esatto del file system al momento di questo messaggio."
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "Aggiungi un progetto per ispezionare le modifiche Git.",
     "addProjectForFiles": "Aggiungi un progetto per esplorare i file.",
+    "enableWordWrap": "Abilita ritorno a capo",
+    "fileActions": "Azioni file",
     "refreshChanges": "Aggiorna modifiche",
     "refreshFiles": "Aggiorna file",
     "splitDiff": "Diff diviso",

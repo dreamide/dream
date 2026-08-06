@@ -149,9 +149,9 @@
     "continueInWorktree": "在工作树中继续",
     "unableToCreateBranch": "无法创建分支。",
     "uncommittedChangesWarning": "我了解未提交的更改不会复制到新工作树。",
-    "useNewWorktree": "使用新工作树",
+    "useNewWorktree": "新工作树",
     "useNewWorktreeDescription": "在从基础引用创建的独立 Git 工作树中继续。",
-    "useThisWorkspace": "使用此工作区",
+    "useThisWorkspace": "此工作区",
     "useThisWorkspaceDescription": "在不更改项目文件的情况下，在新聊天中继续。",
     "worktreeRequiresGit": "工作树需要 Git 仓库。",
     "worktreeSnapshotLimitation": "新工作树表示一个 Git 引用，而不是此消息时的确切文件系统状态。"
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "添加项目以检查其 Git 更改。",
     "addProjectForFiles": "添加项目以浏览其文件。",
+    "enableWordWrap": "启用自动换行",
+    "fileActions": "文件操作",
     "refreshChanges": "刷新更改",
     "refreshFiles": "刷新文件",
     "splitDiff": "分栏差异",

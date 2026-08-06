@@ -149,9 +149,9 @@
     "continueInWorktree": "Continuer dans l’arbre de travail",
     "unableToCreateBranch": "Impossible de créer la branche.",
     "uncommittedChangesWarning": "Je comprends que les modifications non validées ne seront pas copiées dans le nouvel arbre de travail.",
-    "useNewWorktree": "Utiliser un nouvel arbre de travail",
+    "useNewWorktree": "Nouvel arbre de travail",
     "useNewWorktreeDescription": "Continuer dans un arbre de travail Git distinct créé depuis une référence de base.",
-    "useThisWorkspace": "Utiliser cet espace de travail",
+    "useThisWorkspace": "Cet espace de travail",
     "useThisWorkspaceDescription": "Continuer dans un nouveau chat sans modifier les fichiers du projet.",
     "worktreeRequiresGit": "Les arbres de travail nécessitent un dépôt Git.",
     "worktreeSnapshotLimitation": "Le nouvel arbre de travail représente une référence Git, pas l’état exact du système de fichiers à ce message."
@@ -183,6 +183,8 @@
   "panels": {
     "addProjectForChanges": "Ajoutez un projet pour inspecter ses modifications Git.",
     "addProjectForFiles": "Ajoutez un projet pour parcourir ses fichiers.",
+    "enableWordWrap": "Activer le retour à la ligne",
+    "fileActions": "Actions sur les fichiers",
     "refreshChanges": "Actualiser les modifications",
     "refreshFiles": "Actualiser les fichiers",
     "splitDiff": "Diff côte à côte",

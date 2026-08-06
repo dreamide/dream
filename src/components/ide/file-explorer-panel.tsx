@@ -1,5 +1,12 @@
 import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
-import { FileIcon, Files, RotateCw, Search } from "lucide-react";
+import {
+  Ellipsis,
+  FileIcon,
+  Files,
+  RotateCw,
+  Search,
+  TextWrap,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
@@ -23,6 +30,13 @@ import {
   CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -665,6 +679,7 @@ const FileExplorerPanelImpl = ({
   const [fileError, setFileError] = useState<string | null>(null);
   const [editorSearchRequest, setEditorSearchRequest] = useState(0);
   const [isEditorSearchOpen, setIsEditorSearchOpen] = useState(false);
+  const [wordWrapEnabled, setWordWrapEnabled] = useState(false);
   const selectedImagePreviewUrlRef = useRef<string | null>(null);
 
   const replaceSelectedImagePreviewUrl = useCallback((url: string | null) => {
@@ -1169,15 +1184,33 @@ const FileExplorerPanelImpl = ({
         >
           {activeProject.path}
         </button>
-        <button
-          aria-label={panelsT("refreshFiles")}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          onClick={handleRefreshFiles}
-          title={panelsT("refreshFiles")}
-          type="button"
-        >
-          <RotateCw className="size-3.5" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                aria-label={panelsT("fileActions")}
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted data-[popup-open]:text-foreground"
+                title={panelsT("fileActions")}
+                type="button"
+              />
+            }
+          >
+            <Ellipsis className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={handleRefreshFiles}>
+              <RotateCw className="size-4" />
+              {commonT("refresh")}
+            </DropdownMenuItem>
+            <DropdownMenuCheckboxItem
+              checked={wordWrapEnabled}
+              onCheckedChange={setWordWrapEnabled}
+            >
+              <TextWrap className="size-4" />
+              {panelsT("enableWordWrap")}
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div ref={splitContainerRef} className="flex min-h-0 flex-1">
@@ -1370,6 +1403,7 @@ const FileExplorerPanelImpl = ({
                       onSearchOpenChange={setIsEditorSearchOpen}
                       searchRequest={editorSearchRequest}
                       value={selectedFileBuffer.draftContent}
+                      wordWrap={wordWrapEnabled}
                     />
                   </Suspense>
                 </div>
