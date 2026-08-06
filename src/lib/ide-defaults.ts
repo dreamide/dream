@@ -95,6 +95,8 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
   openChatIds: [],
   chatColumnWidths: {},
   chatHistoryPanelOpen: false,
+  changesDiffWordWrap: false,
+  fileEditorWordWrap: false,
   multiChat: false,
   panelSizes: DEFAULT_PANEL_SIZES,
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,

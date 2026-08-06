@@ -434,6 +434,14 @@ const normalizeProject = (
         typeof rawUi.chatHistoryPanelOpen === "boolean"
           ? rawUi.chatHistoryPanelOpen
           : DEFAULT_PROJECT_UI.chatHistoryPanelOpen,
+      changesDiffWordWrap:
+        typeof rawUi.changesDiffWordWrap === "boolean"
+          ? rawUi.changesDiffWordWrap
+          : DEFAULT_PROJECT_UI.changesDiffWordWrap,
+      fileEditorWordWrap:
+        typeof rawUi.fileEditorWordWrap === "boolean"
+          ? rawUi.fileEditorWordWrap
+          : DEFAULT_PROJECT_UI.fileEditorWordWrap,
       multiChat:
         typeof rawUi.multiChat === "boolean"
           ? rawUi.multiChat

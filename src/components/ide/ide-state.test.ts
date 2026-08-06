@@ -95,9 +95,35 @@ test("mergePersistedState merges persisted projects and chats into defaults", ()
   assert.deepEqual(merged.messagesByChatId["chat-one"], [message]);
   assert.equal(merged.projects[0].ui.activeChatId, "chat-one");
   assert.deepEqual(merged.projects[0].ui.openChatIds, ["chat-one"]);
+  assert.equal(merged.projects[0].ui.changesDiffWordWrap, false);
+  assert.equal(merged.projects[0].ui.fileEditorWordWrap, false);
   assert.equal(merged.settings.archiveChatsAfterDays, 14);
   assert.equal(merged.settings.locale, "en");
   assert.equal(merged.chatSort, "recent");
+});
+
+test("mergePersistedState preserves the project file editor word-wrap preference", () => {
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        ui: { fileEditorWordWrap: true } as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  assert.equal(merged.projects[0].ui.fileEditorWordWrap, true);
+});
+
+test("mergePersistedState preserves the project changes diff word-wrap preference", () => {
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        ui: { changesDiffWordWrap: true } as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  assert.equal(merged.projects[0].ui.changesDiffWordWrap, true);
 });
 
 test("mergePersistedState creates a default chat for projects without chats", () => {

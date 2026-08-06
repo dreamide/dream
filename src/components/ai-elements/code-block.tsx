@@ -259,6 +259,7 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   searchQuery?: string;
   showLineNumbers?: boolean;
   startingLineNumber?: number;
+  wordWrap?: boolean;
 };
 
 interface TokenizedCode {
@@ -477,6 +478,7 @@ const CodeBlockBody = memo(
     tokenized,
     showLineNumbers,
     startingLineNumber,
+    wordWrap = false,
     className,
   }: {
     activeSearchMatchIndex: number;
@@ -484,6 +486,7 @@ const CodeBlockBody = memo(
     tokenized: TokenizedCode;
     showLineNumbers: boolean;
     startingLineNumber: number;
+    wordWrap?: boolean;
     className?: string;
   }) => {
     const preStyle = useMemo(
@@ -512,6 +515,7 @@ const CodeBlockBody = memo(
         <pre
           className={cn(
             "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 !text-[12px]",
+            wordWrap && "whitespace-pre-wrap break-words",
             className,
           )}
         style={preStyle}
@@ -537,6 +541,7 @@ const CodeBlockBody = memo(
     prevProps.searchMatches === nextProps.searchMatches &&
     prevProps.showLineNumbers === nextProps.showLineNumbers &&
     prevProps.startingLineNumber === nextProps.startingLineNumber &&
+    prevProps.wordWrap === nextProps.wordWrap &&
     prevProps.className === nextProps.className,
 );
 
@@ -620,6 +625,7 @@ export const CodeBlockContent = ({
   searchQuery = "",
   showLineNumbers = false,
   startingLineNumber = 1,
+  wordWrap = false,
 }: {
   activeSearchMatchIndex?: number;
   code: string;
@@ -628,6 +634,7 @@ export const CodeBlockContent = ({
   searchQuery?: string;
   showLineNumbers?: boolean;
   startingLineNumber?: number;
+  wordWrap?: boolean;
 }) => {
   // Memoized raw tokens for immediate display
   const rawTokens = useMemo(() => createRawTokens(code), [code]);
@@ -663,7 +670,7 @@ export const CodeBlockContent = ({
   }, [code, deferUntilHighlighted, language, rawTokens]);
 
   return (
-    <div className="relative overflow-auto">
+    <div className={cn("relative", wordWrap ? "overflow-x-hidden" : "overflow-auto")}>
       {tokenized ? (
         <CodeBlockBody
           activeSearchMatchIndex={activeSearchMatchIndex}
@@ -671,6 +678,7 @@ export const CodeBlockContent = ({
           showLineNumbers={showLineNumbers}
           startingLineNumber={startingLineNumber}
           tokenized={tokenized}
+          wordWrap={wordWrap}
         />
       ) : null}
     </div>
@@ -685,6 +693,7 @@ export const CodeBlock = ({
   searchQuery = "",
   showLineNumbers = false,
   startingLineNumber = 1,
+  wordWrap = false,
   className,
   children,
   ...props
@@ -703,6 +712,7 @@ export const CodeBlock = ({
           searchQuery={searchQuery}
           showLineNumbers={showLineNumbers}
           startingLineNumber={startingLineNumber}
+          wordWrap={wordWrap}
         />
       </CodeBlockContainer>
     </CodeBlockContext.Provider>

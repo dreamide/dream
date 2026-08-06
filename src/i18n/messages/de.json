@@ -183,10 +183,12 @@
   "panels": {
     "addProjectForChanges": "Fügen Sie ein Projekt hinzu, um seine Git-Änderungen zu prüfen.",
     "addProjectForFiles": "Fügen Sie ein Projekt hinzu, um seine Dateien zu durchsuchen.",
+    "changesActions": "Änderungsaktionen",
     "enableWordWrap": "Zeilenumbruch aktivieren",
     "fileActions": "Dateiaktionen",
     "refreshChanges": "Änderungen aktualisieren",
     "refreshFiles": "Dateien aktualisieren",
+    "revertAllChanges": "Alle Änderungen verwerfen",
     "splitDiff": "Geteiltes Diff",
     "unifiedDiff": "Vereinheitlichtes Diff"
   },

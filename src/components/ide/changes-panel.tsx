@@ -3,12 +3,23 @@ import {
   ChevronsUpDown,
   Code,
   Columns2,
+  Ellipsis,
   RotateCw,
   Rows3,
+  TextWrap,
+  Undo2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
@@ -102,6 +113,7 @@ const ChangesPanelImpl = ({
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
+  const wordWrapEnabled = activeProject?.ui.changesDiffWordWrap ?? false;
   const gitRefreshKey = useIdeStore((s) =>
     projectId ? (s.projectGitRefreshKeys[projectId] ?? 0) : 0,
   );
@@ -585,6 +597,23 @@ const ChangesPanelImpl = ({
     bumpProjectGitRefreshKey(projectId);
   }, [bumpProjectGitRefreshKey, projectId]);
 
+  const handleWordWrapChange = useCallback(
+    (enabled: boolean) => {
+      if (!projectId) {
+        return;
+      }
+
+      useIdeStore.getState().updateProject(projectId, (project) => ({
+        ...project,
+        ui: {
+          ...project.ui,
+          changesDiffWordWrap: enabled,
+        },
+      }));
+    },
+    [projectId],
+  );
+
   const clearCachedDiffForPath = useCallback(
     (filePath: string) => {
       if (!projectId) {
@@ -701,6 +730,10 @@ const ChangesPanelImpl = ({
     ],
   );
 
+  const handleRevertAllChanges = useCallback(async () => {
+    await Promise.all(visibleChanges.map(handleRevertFile));
+  }, [handleRevertFile, visibleChanges]);
+
   const handleForceRenderDiff = useCallback(
     (filePath: string) => {
       if (!projectId) {
@@ -793,15 +826,45 @@ const ChangesPanelImpl = ({
           )}
         </Button>
 
-        <button
-          aria-label={panelsT("refreshChanges")}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          onClick={handleRefreshChanges}
-          title={panelsT("refreshChanges")}
-          type="button"
-        >
-          <RotateCw className="size-3.5" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                aria-label={panelsT("changesActions")}
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted data-[popup-open]:text-foreground"
+                title={panelsT("changesActions")}
+                type="button"
+              />
+            }
+          >
+            <Ellipsis className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={handleRefreshChanges}>
+              <RotateCw className="size-4" />
+              {commonT("refresh")}
+            </DropdownMenuItem>
+            <DropdownMenuCheckboxItem
+              checked={wordWrapEnabled}
+              onCheckedChange={handleWordWrapChange}
+            >
+              <TextWrap className="size-4" />
+              {panelsT("enableWordWrap")}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={
+                visibleChanges.length === 0 ||
+                Object.keys(revertingPaths).length > 0
+              }
+              onClick={handleRevertAllChanges}
+              variant="destructive"
+            >
+              <Undo2 className="size-4" />
+              {panelsT("revertAllChanges")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
@@ -850,6 +913,7 @@ const ChangesPanelImpl = ({
                 onToggle={() => handleTogglePath(change.path)}
                 projectPath={activeProject.path}
                 reverting={revertingPaths[change.path] ?? false}
+                wordWrap={wordWrapEnabled}
               />
             ))}
           </div>

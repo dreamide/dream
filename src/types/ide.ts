@@ -149,6 +149,8 @@ export interface ProjectUiState {
   openChatIds: string[];
   chatColumnWidths: Record<string, number>;
   chatHistoryPanelOpen: boolean;
+  changesDiffWordWrap: boolean;
+  fileEditorWordWrap: boolean;
   multiChat: boolean;
   panelSizes: PanelSizes;
   rightPanelOpen: boolean;

@@ -183,10 +183,12 @@
   "panels": {
     "addProjectForChanges": "Adicione um projeto para inspecionar suas alterações do Git.",
     "addProjectForFiles": "Adicione um projeto para navegar pelos arquivos.",
+    "changesActions": "Ações de alterações",
     "enableWordWrap": "Ativar quebra de linha",
     "fileActions": "Ações de arquivo",
     "refreshChanges": "Atualizar alterações",
     "refreshFiles": "Atualizar arquivos",
+    "revertAllChanges": "Reverter todas as alterações",
     "splitDiff": "Diff dividido",
     "unifiedDiff": "Diff unificado"
   },

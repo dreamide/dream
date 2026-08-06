@@ -183,10 +183,12 @@
   "panels": {
     "addProjectForChanges": "Git の変更を確認するにはプロジェクトを追加してください。",
     "addProjectForFiles": "ファイルを参照するにはプロジェクトを追加してください。",
+    "changesActions": "変更操作",
     "enableWordWrap": "折り返しを有効にする",
     "fileActions": "ファイル操作",
     "refreshChanges": "変更を更新",
     "refreshFiles": "ファイルを更新",
+    "revertAllChanges": "すべての変更を元に戻す",
     "splitDiff": "分割 diff",
     "unifiedDiff": "統一 diff"
   },

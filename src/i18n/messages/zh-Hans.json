@@ -183,10 +183,12 @@
   "panels": {
     "addProjectForChanges": "添加项目以检查其 Git 更改。",
     "addProjectForFiles": "添加项目以浏览其文件。",
+    "changesActions": "更改操作",
     "enableWordWrap": "启用自动换行",
     "fileActions": "文件操作",
     "refreshChanges": "刷新更改",
     "refreshFiles": "刷新文件",
+    "revertAllChanges": "还原所有更改",
     "splitDiff": "分栏差异",
     "unifiedDiff": "统一差异"
   },

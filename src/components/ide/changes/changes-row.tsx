@@ -206,6 +206,7 @@ const ExpandedDiffBody = ({
   mode,
   onForceRenderDiff,
   projectPath,
+  wordWrap,
 }: {
   change: ProjectGitStatusEntry;
   diff: ProjectGitDiffResponse | null;
@@ -215,6 +216,7 @@ const ExpandedDiffBody = ({
   mode: DiffViewMode;
   onForceRenderDiff: () => void;
   projectPath: string;
+  wordWrap: boolean;
 }) => {
   if (diffLoading && !diff) {
     return (
@@ -271,7 +273,12 @@ const ExpandedDiffBody = ({
           {`${change.previousPath} -> ${change.path}`}
         </div>
       ) : null}
-      <div className="overflow-x-auto text-xs">
+      <div
+        className={cn(
+          "text-xs",
+          wordWrap ? "overflow-x-hidden" : "overflow-x-auto",
+        )}
+      >
         {showDeletedImage ? (
           <DeletedImagePreview
             filePath={change.path}
@@ -295,6 +302,7 @@ const ExpandedDiffBody = ({
               showLineNumbers
               startingLineNumber={1}
               style={{ contentVisibility: "visible" }}
+              wordWrap={wordWrap}
             >
               {showDeletedFileContents ? (
                 <CodeBlockHeader className="flex shrink-0 justify-end border-0 bg-transparent px-3 py-2">
@@ -307,13 +315,21 @@ const ExpandedDiffBody = ({
           ) : diff.parsedDiff ? (
             <IdeDiffViewer
               changedLineCount={changedLineCount}
-              className="min-w-[720px]"
+              className={wordWrap ? "min-w-0" : "min-w-[720px]"}
               diffStyle={mode}
               fileDiff={diff.parsedDiff}
               largeDiffGuardEnabled={false}
+              wordWrap={wordWrap}
             />
           ) : (
-            <pre className="dream-diff-viewer w-full overflow-x-auto whitespace-pre-wrap bg-surface-100 dark:bg-surface-900 p-4 font-mono text-xs">
+            <pre
+              className={cn(
+                "dream-diff-viewer w-full bg-surface-100 dark:bg-surface-900 p-4 font-mono text-xs",
+                wordWrap
+                  ? "overflow-x-hidden whitespace-pre-wrap break-words"
+                  : "overflow-x-auto whitespace-pre",
+              )}
+            >
               {diff.diff}
             </pre>
           )
@@ -339,6 +355,7 @@ export const ChangesRow = ({
   onToggle,
   projectPath,
   reverting,
+  wordWrap,
 }: {
   change: ProjectGitStatusEntry;
   diff: ProjectGitDiffResponse | null;
@@ -352,6 +369,7 @@ export const ChangesRow = ({
   onToggle: () => void;
   projectPath: string;
   reverting: boolean;
+  wordWrap: boolean;
 }) => {
   const panelsT = useTranslations("panels");
   const statusLabel =
@@ -458,6 +476,7 @@ export const ChangesRow = ({
           mode={mode}
           onForceRenderDiff={onForceRenderDiff}
           projectPath={projectPath}
+          wordWrap={wordWrap}
         />
       ) : null}
     </div>

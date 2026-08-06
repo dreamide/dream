@@ -679,7 +679,6 @@ const FileExplorerPanelImpl = ({
   const [fileError, setFileError] = useState<string | null>(null);
   const [editorSearchRequest, setEditorSearchRequest] = useState(0);
   const [isEditorSearchOpen, setIsEditorSearchOpen] = useState(false);
-  const [wordWrapEnabled, setWordWrapEnabled] = useState(false);
   const selectedImagePreviewUrlRef = useRef<string | null>(null);
 
   const replaceSelectedImagePreviewUrl = useCallback((url: string | null) => {
@@ -694,6 +693,7 @@ const FileExplorerPanelImpl = ({
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
+  const wordWrapEnabled = activeProject?.ui.fileEditorWordWrap ?? false;
   const projectFilesRefreshKey = useIdeStore((s) =>
     projectId ? (s.projectFilesRefreshKeys[projectId] ?? 0) : 0,
   );
@@ -759,6 +759,23 @@ const FileExplorerPanelImpl = ({
     }
     useIdeStore.getState().bumpProjectFilesRefreshKey(projectId);
   }, [projectId]);
+
+  const handleWordWrapChange = useCallback(
+    (enabled: boolean) => {
+      if (!projectId) {
+        return;
+      }
+
+      useIdeStore.getState().updateProject(projectId, (project) => ({
+        ...project,
+        ui: {
+          ...project.ui,
+          fileEditorWordWrap: enabled,
+        },
+      }));
+    },
+    [projectId],
+  );
 
   useEffect(() => {
     if (!active) {
@@ -1204,7 +1221,7 @@ const FileExplorerPanelImpl = ({
             </DropdownMenuItem>
             <DropdownMenuCheckboxItem
               checked={wordWrapEnabled}
-              onCheckedChange={setWordWrapEnabled}
+              onCheckedChange={handleWordWrapChange}
             >
               <TextWrap className="size-4" />
               {panelsT("enableWordWrap")}

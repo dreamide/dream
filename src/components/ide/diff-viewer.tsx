@@ -82,6 +82,7 @@ export const IdeDiffViewer = ({
   fileDiff,
   largeDiffGuardEnabled = true,
   renderChangedLineLimit = DIFF_RENDER_CHANGED_LINE_LIMIT,
+  wordWrap = false,
 }: {
   changedLineCount?: number;
   className?: string;
@@ -89,6 +90,7 @@ export const IdeDiffViewer = ({
   fileDiff: ParsedFileDiff;
   largeDiffGuardEnabled?: boolean;
   renderChangedLineLimit?: number;
+  wordWrap?: boolean;
 }) => {
   const { resolvedTheme } = useTheme();
   const [renderAnyway, setRenderAnyway] = useState(false);
@@ -101,6 +103,7 @@ export const IdeDiffViewer = ({
       disableFileHeader: true,
       hunkSeparators: "line-info",
       lineDiffType: "none",
+      overflow: wordWrap ? "wrap" : "scroll",
       theme: {
         dark: "github-dark",
         light: "github-light",
@@ -108,7 +111,7 @@ export const IdeDiffViewer = ({
       themeType: resolvedTheme === "dark" ? "dark" : "light",
       unsafeCSS: DIFF_UNMODIFIED_LINES_CSS,
     }),
-    [diffStyle, resolvedTheme],
+    [diffStyle, resolvedTheme, wordWrap],
   );
 
   if (

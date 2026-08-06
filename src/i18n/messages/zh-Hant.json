@@ -183,10 +183,12 @@
   "panels": {
     "addProjectForChanges": "新增專案以檢查 Git 變更。",
     "addProjectForFiles": "新增專案以瀏覽檔案。",
+    "changesActions": "變更操作",
     "enableWordWrap": "啟用自動換行",
     "fileActions": "檔案操作",
     "refreshChanges": "重新整理變更",
     "refreshFiles": "重新整理檔案",
+    "revertAllChanges": "還原所有變更",
     "splitDiff": "並排差異",
     "unifiedDiff": "統一差異"
   },
