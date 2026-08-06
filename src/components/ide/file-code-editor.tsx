@@ -44,7 +44,6 @@ const fileEditorTheme = EditorView.theme({
     outline: "none",
   },
   ".cm-content": {
-    backgroundColor: "var(--background)",
     caretColor: "var(--foreground)",
     padding: "12px 0",
   },
@@ -69,6 +68,13 @@ const fileEditorTheme = EditorView.theme({
   ".cm-lineNumbers .cm-gutterElement": {
     minWidth: "32px",
     padding: "0",
+  },
+  "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground":
+    {
+      backgroundColor: "var(--primary-selection) !important",
+    },
+  ".cm-content ::selection": {
+    backgroundColor: "var(--primary-selection)",
   },
   ".cm-panels": {
     backgroundColor: "var(--background) !important",
