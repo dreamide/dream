@@ -196,8 +196,8 @@ const FILE_TREE_UNSAFE_CSS = `
     padding: 4px 10px;
     color: var(--foreground);
     font-family: inherit;
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 12px;
+    line-height: 18px;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     transition-property: color, box-shadow;
     outline: none;
@@ -454,6 +454,7 @@ const FileExplorerPanelImpl = ({
   const [filesError, setFilesError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [editorSearchRequest, setEditorSearchRequest] = useState(0);
+  const [isEditorSearchOpen, setIsEditorSearchOpen] = useState(false);
   const selectedImagePreviewUrlRef = useRef<string | null>(null);
 
   const replaceSelectedImagePreviewUrl = useCallback((url: string | null) => {
@@ -849,6 +850,7 @@ const FileExplorerPanelImpl = ({
       }));
       setFileError(null);
       setEditorSearchRequest(0);
+      setIsEditorSearchOpen(false);
     },
     [projectId],
   );
@@ -1163,6 +1165,12 @@ const FileExplorerPanelImpl = ({
                     ) : null}
                     <Button
                       aria-label={uiT("searchCurrentFile")}
+                      aria-pressed={isEditorSearchOpen}
+                      className={
+                        isEditorSearchOpen
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground"
+                      }
                       onClick={() =>
                         setEditorSearchRequest((current) => current + 1)
                       }
@@ -1249,6 +1257,7 @@ const FileExplorerPanelImpl = ({
                             content,
                           })
                         }
+                        onSearchOpenChange={setIsEditorSearchOpen}
                         searchRequest={editorSearchRequest}
                         value={selectedFileBuffer.draftContent}
                       />

@@ -4,7 +4,12 @@ import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
-import { openSearchPanel } from "@codemirror/search";
+import {
+  closeSearchPanel,
+  openSearchPanel,
+  search,
+  searchPanelOpen,
+} from "@codemirror/search";
 import CodeMirror, {
   EditorView,
   type Extension,
@@ -17,19 +22,21 @@ import {
   normalizeFileContentForEditor,
   serializeEditorContent,
 } from "./file-buffers";
+import { createFileCodeSearchPanel } from "./file-code-search-panel";
 
 interface FileCodeEditorProps {
   disabled?: boolean;
   filePath: string;
   lineEnding: FileLineEnding;
   onChange: (value: string) => void;
+  onSearchOpenChange: (open: boolean) => void;
   searchRequest: number;
   value: string;
 }
 
 const fileEditorTheme = EditorView.theme({
   "&": {
-    backgroundColor: "var(--background)",
+    backgroundColor: "var(--background) !important",
     color: "var(--foreground)",
     fontSize: "12px",
   },
@@ -37,11 +44,20 @@ const fileEditorTheme = EditorView.theme({
     outline: "none",
   },
   ".cm-content": {
+    backgroundColor: "var(--background)",
     caretColor: "var(--foreground)",
     padding: "12px 0",
   },
+  ".cm-activeLine": {
+    backgroundColor:
+      "color-mix(in oklab, var(--accent) 45%, transparent) !important",
+  },
+  ".cm-activeLineGutter": {
+    backgroundColor:
+      "color-mix(in oklab, var(--accent) 45%, transparent) !important",
+  },
   ".cm-gutters": {
-    backgroundColor: "var(--background)",
+    backgroundColor: "var(--background) !important",
     borderRight: "0",
     color: "var(--muted-foreground)",
     minWidth: "48px",
@@ -54,11 +70,45 @@ const fileEditorTheme = EditorView.theme({
     minWidth: "32px",
     padding: "0",
   },
+  ".cm-panels": {
+    backgroundColor: "var(--background) !important",
+    color: "var(--foreground)",
+  },
+  ".cm-panels-top": {
+    borderBottom: "1px solid var(--border) !important",
+    boxShadow: "0 1px 2px rgb(0 0 0 / 0.05)",
+  },
+  ".cm-panel.cm-search": {
+    display: "block",
+    padding: "0",
+  },
+  ".cm-panel.cm-search input, .cm-panel.cm-search button, .cm-panel.cm-search label":
+    {
+      margin: "0",
+    },
+  ".cm-searchMatch": {
+    backgroundColor: "color-mix(in oklab, var(--primary) 22%, transparent)",
+    outline: "1px solid color-mix(in oklab, var(--primary) 45%, transparent)",
+  },
+  ".cm-searchMatch-selected": {
+    backgroundColor: "color-mix(in oklab, var(--primary) 40%, transparent)",
+    outline: "1px solid var(--primary)",
+  },
   ".cm-scroller": {
+    backgroundColor: "var(--background)",
     fontFamily:
       'var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     lineHeight: "1.5",
     overflow: "auto",
+  },
+  ".cm-tooltip": {
+    backgroundColor: "var(--popover) !important",
+    border: "1px solid var(--border) !important",
+    color: "var(--popover-foreground)",
+  },
+  ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+    backgroundColor: "var(--accent) !important",
+    color: "var(--accent-foreground) !important",
   },
 });
 
@@ -101,11 +151,13 @@ const FileCodeEditor = ({
   filePath,
   lineEnding,
   onChange,
+  onSearchOpenChange,
   searchRequest,
   value,
 }: FileCodeEditorProps) => {
   const { resolvedTheme } = useTheme();
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const previousSearchRequestRef = useRef(searchRequest);
   const editorValue = useMemo(
     () => normalizeFileContentForEditor(value, lineEnding),
     [lineEnding, value],
@@ -118,15 +170,32 @@ const FileCodeEditor = ({
     const language = getLanguageExtension(filePath);
     return [
       fileEditorTheme,
+      search({
+        createPanel: (view) =>
+          createFileCodeSearchPanel(view, onSearchOpenChange),
+        top: true,
+      }),
       EditorView.contentAttributes.of({ "aria-label": `Editing ${filePath}` }),
       ...(language ? [language] : []),
     ];
-  }, [filePath]);
+  }, [filePath, onSearchOpenChange]);
 
   useEffect(() => {
-    if (searchRequest > 0 && editorRef.current?.view) {
-      openSearchPanel(editorRef.current.view);
-      editorRef.current.view.focus();
+    if (previousSearchRequestRef.current === searchRequest) {
+      return;
+    }
+    previousSearchRequestRef.current = searchRequest;
+
+    const view = editorRef.current?.view;
+    if (!view) {
+      return;
+    }
+
+    if (searchPanelOpen(view.state)) {
+      closeSearchPanel(view);
+      view.focus();
+    } else {
+      openSearchPanel(view);
     }
   }, [searchRequest]);
 
