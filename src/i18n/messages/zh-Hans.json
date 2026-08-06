@@ -140,7 +140,21 @@
     "model": "模型",
     "permissions": "权限",
     "plan": "规划",
-    "standardPermissions": "标准"
+    "standardPermissions": "标准",
+    "back": "返回",
+    "branchingUnavailableWhileProcessing": "请等待当前回复完成后再创建分支。",
+    "continueFromMessage": "从此消息继续…",
+    "continueInNewChat": "在新聊天中继续",
+    "continueInNewChatDescription": "复制到所选消息为止的对话，然后独立继续。",
+    "continueInWorktree": "在工作树中继续",
+    "unableToCreateBranch": "无法创建分支。",
+    "uncommittedChangesWarning": "我了解未提交的更改不会复制到新工作树。",
+    "useNewWorktree": "使用新工作树",
+    "useNewWorktreeDescription": "在从基础引用创建的独立 Git 工作树中继续。",
+    "useThisWorkspace": "使用此工作区",
+    "useThisWorkspaceDescription": "在不更改项目文件的情况下，在新聊天中继续。",
+    "worktreeRequiresGit": "工作树需要 Git 仓库。",
+    "worktreeSnapshotLimitation": "新工作树表示一个 Git 引用，而不是此消息时的确切文件系统状态。"
   },
   "browser": {
     "actions": "浏览器操作",

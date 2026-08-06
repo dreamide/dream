@@ -95,3 +95,70 @@ test("active-project persistence updates only selection metadata", async () => {
     await rm(directory, { force: true, recursive: true });
   }
 });
+
+test("chat branch lineage survives a relational persistence round trip", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-05T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  project.ui.activeChatId = "branch-chat";
+  project.ui.openChatIds = ["branch-chat"];
+
+  try {
+    savePersistedState(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: project.id,
+        browserTabsByProject: {},
+        chats: [
+          {
+            agentMode: "build",
+            branchedFrom: {
+              chatId: "deleted-parent",
+              messageId: "parent-message",
+            },
+            createdAt: timestamp,
+            deletedAt: null,
+            id: "branch-chat",
+            model: "gpt-5.6",
+            modelSpeed: "standard",
+            permissionMode: "full-access",
+            projectId: project.id,
+            provider: "openai",
+            reasoningEffort: null,
+            remoteConversationId: null,
+            remoteConversationModel: null,
+            remoteConversationModelSpeed: null,
+            remoteConversationProjectPath: null,
+            sparklesPalette: "default",
+            title: "Branch",
+            updatedAt: timestamp,
+          },
+        ],
+        chatSort: "recent",
+        closedProjects: [],
+        messagesByChatId: {
+          "branch-chat": [
+            {
+              id: "branch-message",
+              parts: [{ text: "hello", type: "text" }],
+              role: "user",
+            },
+          ],
+        },
+        projects: [project],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.deepEqual(loaded.chats[0]?.branchedFrom, {
+      chatId: "deleted-parent",
+      messageId: "parent-message",
+    });
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});

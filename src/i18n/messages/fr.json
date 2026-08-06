@@ -140,7 +140,21 @@
     "model": "Modèle",
     "permissions": "Autorisations",
     "plan": "Planifier",
-    "standardPermissions": "Standard"
+    "standardPermissions": "Standard",
+    "back": "Retour",
+    "branchingUnavailableWhileProcessing": "Attendez la fin de la réponse actuelle avant de créer une branche.",
+    "continueFromMessage": "Continuer à partir de ce message…",
+    "continueInNewChat": "Continuer dans un nouveau chat",
+    "continueInNewChatDescription": "Copie la conversation jusqu’au message sélectionné pour continuer indépendamment.",
+    "continueInWorktree": "Continuer dans l’arbre de travail",
+    "unableToCreateBranch": "Impossible de créer la branche.",
+    "uncommittedChangesWarning": "Je comprends que les modifications non validées ne seront pas copiées dans le nouvel arbre de travail.",
+    "useNewWorktree": "Utiliser un nouvel arbre de travail",
+    "useNewWorktreeDescription": "Continuer dans un arbre de travail Git distinct créé depuis une référence de base.",
+    "useThisWorkspace": "Utiliser cet espace de travail",
+    "useThisWorkspaceDescription": "Continuer dans un nouveau chat sans modifier les fichiers du projet.",
+    "worktreeRequiresGit": "Les arbres de travail nécessitent un dépôt Git.",
+    "worktreeSnapshotLimitation": "Le nouvel arbre de travail représente une référence Git, pas l’état exact du système de fichiers à ce message."
   },
   "browser": {
     "actions": "Actions du navigateur",

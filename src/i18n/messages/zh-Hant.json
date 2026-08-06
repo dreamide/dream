@@ -140,7 +140,21 @@
     "model": "模型",
     "permissions": "權限",
     "plan": "規劃",
-    "standardPermissions": "標準"
+    "standardPermissions": "標準",
+    "back": "返回",
+    "branchingUnavailableWhileProcessing": "請等待目前回覆完成後再建立分支。",
+    "continueFromMessage": "從此訊息繼續…",
+    "continueInNewChat": "在新聊天中繼續",
+    "continueInNewChatDescription": "複製到所選訊息為止的對話，然後獨立繼續。",
+    "continueInWorktree": "在工作樹中繼續",
+    "unableToCreateBranch": "無法建立分支。",
+    "uncommittedChangesWarning": "我瞭解未提交的變更不會複製到新工作樹。",
+    "useNewWorktree": "使用新工作樹",
+    "useNewWorktreeDescription": "在從基礎參照建立的獨立 Git 工作樹中繼續。",
+    "useThisWorkspace": "使用此工作區",
+    "useThisWorkspaceDescription": "在不變更專案檔案的情況下，在新聊天中繼續。",
+    "worktreeRequiresGit": "工作樹需要 Git 儲存庫。",
+    "worktreeSnapshotLimitation": "新工作樹表示一個 Git 參照，而不是此訊息時的確切檔案系統狀態。"
   },
   "browser": {
     "actions": "瀏覽器動作",

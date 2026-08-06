@@ -4,6 +4,10 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { ProjectReference } from "@/types/ide";
+import {
+  ContinueChatPopover,
+  type ContinueChatPopoverContext,
+} from "./continue-chat-popover";
 import { getMessageText } from "./message-content";
 
 export type ChatMessageMetadata = {
@@ -93,9 +97,11 @@ const isClaudeMessageMetadata = (metadata: ChatMessageMetadata | undefined) => {
 };
 
 export const MessageHoverFooter = ({
+  continueChat,
   isRunning = false,
   message,
 }: {
+  continueChat?: ContinueChatPopoverContext;
   isRunning?: boolean;
   message: UIMessage;
 }) => {
@@ -182,7 +188,7 @@ export const MessageHoverFooter = ({
     window.setTimeout(() => setCopied(false), 1200);
   }, [text]);
 
-  if (footerItems.length === 0 && !text) {
+  if (footerItems.length === 0 && !text && !continueChat) {
     return null;
   }
 
@@ -219,6 +225,9 @@ export const MessageHoverFooter = ({
             <CopyIcon className="size-3.5" />
           )}
         </button>
+      ) : null}
+      {!isRunning && continueChat ? (
+        <ContinueChatPopover {...continueChat} messageId={message.id} />
       ) : null}
     </div>
   );

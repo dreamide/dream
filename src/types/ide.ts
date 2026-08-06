@@ -39,8 +39,14 @@ export type ChatSortOrder =
   | "createdAsc"
   | "titleAsc";
 
+export interface ChatBranchPoint {
+  chatId: string;
+  messageId: string;
+}
+
 export interface ChatConfig {
   agentMode: AgentMode;
+  branchedFrom: ChatBranchPoint | null;
   id: string;
   permissionMode: ChatPermissionMode;
   projectId: string;

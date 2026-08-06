@@ -15,6 +15,8 @@ export const createProjectActions = (
   | "updateProject"
   | "addChat"
   | "addChatBeside"
+  | "branchChatInWorkspace"
+  | "branchChatInNewWorktree"
   | "toggleProjectMultiChatMode"
   | "setActiveChatId"
   | "updateChat"

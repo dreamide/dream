@@ -63,6 +63,7 @@ import {
   useChatMessageSync,
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
+import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { estimateMessages } from "./chat/message-token-estimate";
 import { projectMessagesForRequest } from "./chat/request-context";
@@ -395,10 +396,12 @@ export const ChatPanel = ({
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  const { status: projectGitStatus, statusRefreshToken } = useProjectGitStatus(
-    project.path,
-    gitRefreshKey,
-  );
+  const {
+    branch: currentGitBranch,
+    isRepo,
+    status: projectGitStatus,
+    statusRefreshToken,
+  } = useProjectGitStatus(project.path, gitRefreshKey);
   const autoApproveClaudeWrites =
     chat.permissionMode === "full-access" || chat.agentMode === "build";
   const connectedProviders = getConnectedProviders(settings);
@@ -820,6 +823,19 @@ export const ChatPanel = ({
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
+  const handleBranchError = useCallback((message: string) => {
+    setLocalError(message);
+  }, []);
+  const continueChat = useMemo<ContinueChatPopoverContext>(
+    () => ({
+      chat,
+      currentBranch: currentGitBranch,
+      isProcessing,
+      isRepo,
+      onError: handleBranchError,
+    }),
+    [chat, currentGitBranch, handleBranchError, isProcessing, isRepo],
+  );
 
   const { conversationContextRef, scrollConversationToBottom } =
     useChatAutoScroll({
@@ -1152,6 +1168,7 @@ export const ChatPanel = ({
                 <div className="w-full pb-4" key={message.id}>
                   <ChatMessage
                     addToolApprovalResponse={addToolApprovalResponse}
+                    continueChat={continueChat}
                     expandToolCalls={settings.expandToolCalls}
                     groupToolCalls={settings.groupToolCalls}
                     isLastMessage={index === messages.length - 1}

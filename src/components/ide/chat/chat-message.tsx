@@ -19,6 +19,7 @@ import {
   ContextCompactionMessage,
   getContextCompactionState,
 } from "./context-compaction";
+import type { ContinueChatPopoverContext } from "./continue-chat-popover";
 import { UserMessageContent } from "./message-content";
 import { MessageHoverFooter } from "./message-footer";
 import { isTodoListPart } from "./todo-list";
@@ -73,6 +74,7 @@ type ToolChipRenderContext = {
 
 type ChatMessageProps = {
   addToolApprovalResponse: ToolApprovalResponder;
+  continueChat: ContinueChatPopoverContext;
   expandToolCalls: boolean;
   groupToolCalls: boolean;
   isLastMessage: boolean;
@@ -85,6 +87,7 @@ type ChatMessageProps = {
 export const ChatMessage = memo(
   ({
     addToolApprovalResponse,
+    continueChat,
     expandToolCalls,
     groupToolCalls,
     isLastMessage,
@@ -101,7 +104,7 @@ export const ChatMessage = memo(
           <MessageContent>
             <UserMessageContent message={message} projectPath={projectPath} />
           </MessageContent>
-          <MessageHoverFooter message={message} />
+          <MessageHoverFooter continueChat={continueChat} message={message} />
         </Message>
       );
     }
@@ -254,6 +257,7 @@ export const ChatMessage = memo(
             })()}
           </MessageContent>
           <MessageHoverFooter
+            continueChat={continueChat}
             isRunning={isActivelyStreaming}
             message={message}
           />
@@ -263,6 +267,7 @@ export const ChatMessage = memo(
   },
   (prev: ChatMessageProps, next: ChatMessageProps) =>
     prev.message === next.message &&
+    prev.continueChat === next.continueChat &&
     prev.expandToolCalls === next.expandToolCalls &&
     prev.groupToolCalls === next.groupToolCalls &&
     prev.isLastMessage === next.isLastMessage &&

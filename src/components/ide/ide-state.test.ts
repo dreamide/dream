@@ -115,6 +115,28 @@ test("mergePersistedState creates a default chat for projects without chats", ()
   assert.equal(merged.projects[0].ui.activeChatId, merged.chats[0].id);
 });
 
+test("mergePersistedState preserves branch lineage without requiring the parent chat", () => {
+  const merged = mergePersistedState({
+    chats: [
+      createPersistedChat({
+        branchedFrom: {
+          chatId: "deleted-parent",
+          messageId: "message-parent",
+        },
+      }),
+    ],
+    messagesByChatId: {
+      "chat-one": [createUserMessage([{ text: "branch", type: "text" }])],
+    },
+    projects: [createPersistedProject()],
+  });
+
+  assert.deepEqual(merged.chats[0].branchedFrom, {
+    chatId: "deleted-parent",
+    messageId: "message-parent",
+  });
+});
+
 test("mergePersistedState migrates legacy thread-based state", () => {
   const message = createUserMessage([{ text: "legacy", type: "text" }]);
   const merged = mergePersistedState({

@@ -10,21 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
 import { BranchSwitcher } from "./branch-switcher";
 import { useIdeStore } from "./ide-store";
-
-const slugifyBranchSegment = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "worktree";
+import { slugifyWorktreeBranchName, WorktreeFields } from "./worktree-fields";
 
 const CreateWorktreeDialog = ({
   baseRef,
@@ -50,7 +42,7 @@ const CreateWorktreeDialog = ({
       return;
     }
 
-    setBranchName(slugifyBranchSegment(project.name));
+    setBranchName(slugifyWorktreeBranchName(project.name));
     setBaseRefValue(baseRef ?? "");
     setError(null);
   }, [baseRef, open, project.name]);
@@ -89,30 +81,14 @@ const CreateWorktreeDialog = ({
         </DialogHeader>
 
         <form className="grid gap-4" onSubmit={handleSubmit}>
-          <div className="grid gap-2">
-            <label className="font-medium text-sm" htmlFor="worktree-branch">
-              {commonT("branch")}
-            </label>
-            <Input
-              autoFocus
-              id="worktree-branch"
-              onChange={(event) => setBranchName(event.target.value)}
-              placeholder="my-feature"
-              value={branchName}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <label className="font-medium text-sm" htmlFor="worktree-base">
-              {worktreeT("baseRef")}
-            </label>
-            <Input
-              id="worktree-base"
-              onChange={(event) => setBaseRefValue(event.target.value)}
-              placeholder="main"
-              value={baseRefValue}
-            />
-          </div>
+          <WorktreeFields
+            autoFocus
+            baseRef={baseRefValue}
+            branchName={branchName}
+            idPrefix="worktree"
+            onBaseRefChange={setBaseRefValue}
+            onBranchNameChange={setBranchName}
+          />
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 

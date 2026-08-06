@@ -8,6 +8,7 @@ import type {
   ProjectConfig,
   ProjectGitCreateWorktreeResponse,
 } from "@/types/ide";
+import { createBranchedChatConfig } from "../chat-branching";
 import {
   ensureActiveChatForProject,
   ensureActiveProject,
@@ -262,6 +263,7 @@ export const createProjectLifecycleActions = (
     options: {
       baseRef?: string | null;
       branchName: string;
+      initialChatSeed?: import("./ide-store-types").WorktreeInitialChatSeed;
     },
   ) => {
     const parentProject = get().projects.find(
@@ -290,6 +292,7 @@ export const createProjectLifecycleActions = (
 
     const payload = (await response.json()) as ProjectGitCreateWorktreeResponse;
     let createdProjectId: string | null = null;
+    let createdChatId: string | null = null;
 
     set((state) => {
       const pathKey = normalizeProjectPathKey(payload.path);
@@ -299,10 +302,36 @@ export const createProjectLifecycleActions = (
       if (existingProject) {
         createdProjectId = existingProject.id;
         const lastUsedAt = new Date().toISOString();
+        const nextChat = options.initialChatSeed
+          ? createBranchedChatConfig(
+              options.initialChatSeed.sourceChat,
+              existingProject,
+              options.initialChatSeed.messageId,
+            )
+          : null;
+        createdChatId = nextChat?.id ?? existingProject.ui.activeChatId;
         return {
           activeProjectId: existingProject.id,
+          chats: nextChat ? [...state.chats, nextChat] : state.chats,
+          messagesByChatId: nextChat
+            ? {
+                ...state.messagesByChatId,
+                [nextChat.id]: options.initialChatSeed?.messages ?? [],
+              }
+            : state.messagesByChatId,
           projects: touchProjectInList(
-            state.projects,
+            nextChat
+              ? updateProjectUiInList(
+                  state.projects,
+                  existingProject.id,
+                  (project) => ({
+                    ...project.ui,
+                    activeChatId: nextChat.id,
+                    openChatIds: [nextChat.id],
+                    chatColumnWidths: {},
+                  }),
+                )
+              : state.projects,
             existingProject.id,
             lastUsedAt,
           ),
@@ -315,27 +344,53 @@ export const createProjectLifecycleActions = (
       if (closedProject) {
         createdProjectId = closedProject.id;
         const lastUsedAt = new Date().toISOString();
+        const reopenedProject = {
+          ...closedProject,
+          lastUsedAt,
+          path: payload.path,
+          worktree: {
+            baseRef: payload.baseRef,
+            branch: payload.branch,
+            createdAt: new Date().toISOString(),
+            kind: "worktree" as const,
+            mainWorktreePath: payload.mainWorktreePath,
+            managed: true,
+            parentProjectId,
+            repoRoot: payload.repoRoot,
+          },
+        };
+        const nextChat = options.initialChatSeed
+          ? createBranchedChatConfig(
+              options.initialChatSeed.sourceChat,
+              reopenedProject,
+              options.initialChatSeed.messageId,
+            )
+          : null;
+        createdChatId = nextChat?.id ?? reopenedProject.ui.activeChatId;
         return {
           activeProjectId: closedProject.id,
+          chats: nextChat ? [...state.chats, nextChat] : state.chats,
           closedProjects: state.closedProjects.filter(
             (project) => project.id !== closedProject.id,
           ),
+          messagesByChatId: nextChat
+            ? {
+                ...state.messagesByChatId,
+                [nextChat.id]: options.initialChatSeed?.messages ?? [],
+              }
+            : state.messagesByChatId,
           projects: [
             ...state.projects,
             {
-              ...closedProject,
-              lastUsedAt,
-              path: payload.path,
-              worktree: {
-                baseRef: payload.baseRef,
-                branch: payload.branch,
-                createdAt: new Date().toISOString(),
-                kind: "worktree",
-                mainWorktreePath: payload.mainWorktreePath,
-                managed: true,
-                parentProjectId,
-                repoRoot: payload.repoRoot,
-              },
+              ...reopenedProject,
+              ui: nextChat
+                ? {
+                    ...reopenedProject.ui,
+                    activeChatId: nextChat.id,
+                    openChatIds: [nextChat.id],
+                    chatColumnWidths: {},
+                  }
+                : reopenedProject.ui,
             },
           ],
         };
@@ -361,18 +416,25 @@ export const createProjectLifecycleActions = (
           repoRoot: payload.repoRoot,
         },
       };
-      const nextChat = createChatConfig(nextProject);
+      const nextChat = options.initialChatSeed
+        ? createBranchedChatConfig(
+            options.initialChatSeed.sourceChat,
+            nextProject,
+            options.initialChatSeed.messageId,
+          )
+        : createChatConfig(nextProject);
       createdProjectId = nextProject.id;
+      createdChatId = nextChat.id;
 
       return {
         activeProjectId: nextProject.id,
         draftChatIdByProject: {
           ...state.draftChatIdByProject,
-          [nextProject.id]: nextChat.id,
+          [nextProject.id]: options.initialChatSeed ? null : nextChat.id,
         },
         messagesByChatId: {
           ...state.messagesByChatId,
-          [nextChat.id]: [],
+          [nextChat.id]: options.initialChatSeed?.messages ?? [],
         },
         chats: [...state.chats, nextChat],
         projects: [
@@ -391,7 +453,9 @@ export const createProjectLifecycleActions = (
       };
     });
 
-    return createdProjectId;
+    return createdProjectId
+      ? { chatId: createdChatId, projectId: createdProjectId }
+      : null;
   },
 
   closeProject: (projectId: string) => {

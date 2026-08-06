@@ -140,7 +140,21 @@
     "model": "Modell",
     "permissions": "Berechtigungen",
     "plan": "Planen",
-    "standardPermissions": "Standard"
+    "standardPermissions": "Standard",
+    "back": "Zurück",
+    "branchingUnavailableWhileProcessing": "Warten Sie, bis die aktuelle Antwort abgeschlossen ist.",
+    "continueFromMessage": "Ab dieser Nachricht fortfahren…",
+    "continueInNewChat": "In einem neuen Chat fortfahren",
+    "continueInNewChatDescription": "Kopiert die Unterhaltung bis zur ausgewählten Nachricht, um unabhängig fortzufahren.",
+    "continueInWorktree": "Im Arbeitsbaum fortfahren",
+    "unableToCreateBranch": "Verzweigung konnte nicht erstellt werden.",
+    "uncommittedChangesWarning": "Ich verstehe, dass nicht festgeschriebene Änderungen nicht in den neuen Arbeitsbaum kopiert werden.",
+    "useNewWorktree": "Neuen Arbeitsbaum verwenden",
+    "useNewWorktreeDescription": "In einem separaten Git-Arbeitsbaum von einer Basisreferenz fortfahren.",
+    "useThisWorkspace": "Diesen Arbeitsbereich verwenden",
+    "useThisWorkspaceDescription": "In einem neuen Chat fortfahren, ohne Projektdateien zu ändern.",
+    "worktreeRequiresGit": "Arbeitsbäume erfordern ein Git-Repository.",
+    "worktreeSnapshotLimitation": "Der neue Arbeitsbaum stellt eine Git-Referenz dar, nicht den exakten Dateisystemzustand bei dieser Nachricht."
   },
   "browser": {
     "actions": "Browseraktionen",

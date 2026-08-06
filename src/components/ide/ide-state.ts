@@ -482,6 +482,7 @@ const normalizeChat = (
         : chat.model.trim()
       : project.model;
   const rawChat = chat as ChatConfig & {
+    branchedFrom?: unknown;
     deletedAt?: unknown;
     metadata?: unknown;
     permissionMode?: unknown;
@@ -490,10 +491,26 @@ const normalizeChat = (
   const rawMetadata =
     rawChat.metadata && typeof rawChat.metadata === "object"
       ? (rawChat.metadata as {
+          branchedFrom?: unknown;
           permissions?: { mode?: unknown };
           sparklesPalette?: unknown;
         })
       : {};
+  const rawBranchedFrom =
+    rawChat.branchedFrom ?? rawMetadata.branchedFrom ?? null;
+  const branchedFrom =
+    rawBranchedFrom &&
+    typeof rawBranchedFrom === "object" &&
+    typeof (rawBranchedFrom as { chatId?: unknown }).chatId === "string" &&
+    (rawBranchedFrom as { chatId: string }).chatId.trim() &&
+    typeof (rawBranchedFrom as { messageId?: unknown }).messageId ===
+      "string" &&
+    (rawBranchedFrom as { messageId: string }).messageId.trim()
+      ? {
+          chatId: (rawBranchedFrom as { chatId: string }).chatId,
+          messageId: (rawBranchedFrom as { messageId: string }).messageId,
+        }
+      : null;
   const deletedAt =
     typeof rawChat.deletedAt === "string" && rawChat.deletedAt.trim().length > 0
       ? rawChat.deletedAt
@@ -502,6 +519,7 @@ const normalizeChat = (
 
   return {
     agentMode,
+    branchedFrom,
     createdAt,
     deletedAt,
     ...(rawChat.metadata && typeof rawChat.metadata === "object"

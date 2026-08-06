@@ -13,6 +13,17 @@ import type {
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
 
+export interface WorktreeInitialChatSeed {
+  messageId: string;
+  messages: UIMessage[];
+  sourceChat: ChatConfig;
+}
+
+export interface WorktreeProjectCreationResult {
+  chatId: string | null;
+  projectId: string;
+}
+
 export interface IdeState {
   // Persisted state
   projects: ProjectConfig[];
@@ -82,8 +93,9 @@ export interface IdeState {
     options: {
       baseRef?: string | null;
       branchName: string;
+      initialChatSeed?: WorktreeInitialChatSeed;
     },
-  ) => Promise<string | null>;
+  ) => Promise<WorktreeProjectCreationResult | null>;
   closeProject: (projectId: string) => void;
   updateProject: (
     projectId: string,
@@ -91,6 +103,16 @@ export interface IdeState {
   ) => void;
   addChat: (projectId: string, title?: string) => void;
   addChatBeside: (projectId: string) => void;
+  branchChatInWorkspace: (options: {
+    chatId: string;
+    messageId: string;
+  }) => string;
+  branchChatInNewWorktree: (options: {
+    baseRef?: string | null;
+    branchName: string;
+    chatId: string;
+    messageId: string;
+  }) => Promise<{ chatId: string; projectId: string }>;
   toggleProjectMultiChatMode: (projectId: string) => void;
   setActiveChatId: (projectId: string, chatId: string | null) => void;
   updateChat: (

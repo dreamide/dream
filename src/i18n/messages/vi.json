@@ -140,7 +140,21 @@
     "model": "Mô hình",
     "permissions": "Quyền",
     "plan": "Lập kế hoạch",
-    "standardPermissions": "Tiêu chuẩn"
+    "standardPermissions": "Tiêu chuẩn",
+    "back": "Quay lại",
+    "branchingUnavailableWhileProcessing": "Hãy đợi phản hồi hiện tại hoàn tất trước khi phân nhánh.",
+    "continueFromMessage": "Tiếp tục từ tin nhắn này…",
+    "continueInNewChat": "Tiếp tục trong cuộc trò chuyện mới",
+    "continueInNewChatDescription": "Sao chép cuộc trò chuyện đến tin nhắn đã chọn để tiếp tục độc lập.",
+    "continueInWorktree": "Tiếp tục trong worktree",
+    "unableToCreateBranch": "Không thể tạo nhánh.",
+    "uncommittedChangesWarning": "Tôi hiểu rằng các thay đổi chưa commit sẽ không được sao chép sang worktree mới.",
+    "useNewWorktree": "Dùng worktree mới",
+    "useNewWorktreeDescription": "Tiếp tục trong một Git worktree riêng được tạo từ tham chiếu cơ sở.",
+    "useThisWorkspace": "Dùng không gian làm việc này",
+    "useThisWorkspaceDescription": "Tiếp tục trong cuộc trò chuyện mới mà không thay đổi tệp dự án.",
+    "worktreeRequiresGit": "Worktree yêu cầu kho Git.",
+    "worktreeSnapshotLimitation": "Worktree mới đại diện cho một tham chiếu Git, không phải trạng thái hệ thống tệp chính xác tại tin nhắn này."
   },
   "browser": {
     "actions": "Tác vụ trình duyệt",

@@ -1,6 +1,10 @@
 import type { UIMessage } from "ai";
 import { createChatConfig, getDefaultModelSelection } from "@/lib/ide-defaults";
 import type { ChatConfig, ChatSortOrder, ProjectUiState } from "@/types/ide";
+import {
+  createBranchedChatConfig,
+  getMessagesThroughBranchPoint,
+} from "../chat-branching";
 import { mergeChatMessageHistories } from "../chat-message-history";
 import {
   ensureActiveChatForProject,
@@ -20,6 +24,8 @@ export const createChatActions = (
   IdeState,
   | "addChat"
   | "addChatBeside"
+  | "branchChatInWorkspace"
+  | "branchChatInNewWorktree"
   | "toggleProjectMultiChatMode"
   | "setActiveChatId"
   | "updateChat"
@@ -140,6 +146,110 @@ export const createChatActions = (
         chats: nextChats,
       };
     });
+  },
+
+  branchChatInWorkspace: ({ chatId, messageId }) => {
+    const state = get();
+    const sourceChat = state.chats.find((chat) => chat.id === chatId);
+    if (!sourceChat || sourceChat.deletedAt !== null) {
+      throw new Error("Unable to find the source chat.");
+    }
+    if (state.streamingChatIds[chatId]) {
+      throw new Error("Unable to branch a chat while it is streaming.");
+    }
+
+    const project = state.projects.find(
+      (item) => item.id === sourceChat.projectId,
+    );
+    if (!project) {
+      throw new Error("Unable to find the source project.");
+    }
+
+    const messages = getMessagesThroughBranchPoint(
+      state.messagesByChatId[chatId] ?? [],
+      messageId,
+    );
+    const branchedChat = createBranchedChatConfig(
+      sourceChat,
+      project,
+      messageId,
+    );
+
+    set((current) => ({
+      activeProjectId: project.id,
+      chats: [...current.chats, branchedChat],
+      messagesByChatId: {
+        ...current.messagesByChatId,
+        [branchedChat.id]: messages,
+      },
+      projects: updateProjectUiInList(current.projects, project.id, (item) => {
+        const sourceIndex = item.ui.openChatIds.indexOf(sourceChat.id);
+        const insertionIndex =
+          sourceIndex >= 0 ? sourceIndex + 1 : item.ui.openChatIds.length;
+        const openChatIds = item.ui.multiChat
+          ? [
+              ...item.ui.openChatIds.slice(0, insertionIndex),
+              branchedChat.id,
+              ...item.ui.openChatIds.slice(insertionIndex),
+            ]
+          : [branchedChat.id];
+
+        return sanitizeProjectUiForChats(
+          [...current.chats, branchedChat],
+          project.id,
+          {
+            ...item.ui,
+            activeChatId: branchedChat.id,
+            chatColumnWidths: item.ui.multiChat ? item.ui.chatColumnWidths : {},
+            openChatIds,
+          },
+          branchedChat.id,
+        );
+      }),
+    }));
+
+    return branchedChat.id;
+  },
+
+  branchChatInNewWorktree: async ({
+    baseRef,
+    branchName,
+    chatId,
+    messageId,
+  }) => {
+    const state = get();
+    const sourceChat = state.chats.find((chat) => chat.id === chatId);
+    if (!sourceChat || sourceChat.deletedAt !== null) {
+      throw new Error("Unable to find the source chat.");
+    }
+    if (state.streamingChatIds[chatId]) {
+      throw new Error("Unable to branch a chat while it is streaming.");
+    }
+    if (
+      !state.projects.some((project) => project.id === sourceChat.projectId)
+    ) {
+      throw new Error("Unable to find the source project.");
+    }
+
+    const messages = getMessagesThroughBranchPoint(
+      state.messagesByChatId[chatId] ?? [],
+      messageId,
+    );
+    const result = await get().createWorktreeProject(sourceChat.projectId, {
+      baseRef,
+      branchName,
+      initialChatSeed: {
+        messageId,
+        messages,
+        sourceChat: structuredClone(sourceChat),
+      },
+    });
+
+    if (!result?.chatId) {
+      throw new Error("Unable to create the branched chat.");
+    }
+
+    return { chatId: result.chatId, projectId: result.projectId };
   },
 
   toggleProjectMultiChatMode: (projectId: string) => {

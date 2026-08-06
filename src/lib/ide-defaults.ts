@@ -160,6 +160,7 @@ export const createChatConfig = (
 
   return {
     agentMode: overrides?.agentMode ?? "build",
+    branchedFrom: null,
     createdAt: timestamp,
     deletedAt: null,
     id: crypto.randomUUID(),

@@ -140,7 +140,21 @@
     "model": "Model",
     "permissions": "Permissions",
     "plan": "Plan",
-    "standardPermissions": "Standard"
+    "standardPermissions": "Standard",
+    "back": "Back",
+    "branchingUnavailableWhileProcessing": "Wait for the current response to finish before branching.",
+    "continueFromMessage": "Continue from this message…",
+    "continueInNewChat": "Continue in a new chat",
+    "continueInNewChatDescription": "Copy this conversation through the selected message and continue independently.",
+    "continueInWorktree": "Continue in worktree",
+    "unableToCreateBranch": "Unable to create branch.",
+    "uncommittedChangesWarning": "I understand that uncommitted changes will not be copied to the new worktree.",
+    "useNewWorktree": "Use a new worktree",
+    "useNewWorktreeDescription": "Continue in a separate Git worktree created from a base ref.",
+    "useThisWorkspace": "Use this workspace",
+    "useThisWorkspaceDescription": "Continue in a new chat without changing project files.",
+    "worktreeRequiresGit": "Worktrees require a Git repository.",
+    "worktreeSnapshotLimitation": "The new worktree represents a Git ref, not the exact filesystem state at this message."
   },
   "browser": {
     "actions": "Browser actions",

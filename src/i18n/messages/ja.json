@@ -140,7 +140,21 @@
     "model": "モデル",
     "permissions": "権限",
     "plan": "計画",
-    "standardPermissions": "標準"
+    "standardPermissions": "標準",
+    "back": "戻る",
+    "branchingUnavailableWhileProcessing": "現在の応答が完了してから分岐してください。",
+    "continueFromMessage": "このメッセージから続ける…",
+    "continueInNewChat": "新しいチャットで続ける",
+    "continueInNewChatDescription": "選択したメッセージまでの会話をコピーし、独立して続けます。",
+    "continueInWorktree": "ワークツリーで続ける",
+    "unableToCreateBranch": "ブランチを作成できませんでした。",
+    "uncommittedChangesWarning": "コミットされていない変更が新しいワークツリーにコピーされないことを理解しました。",
+    "useNewWorktree": "新しいワークツリーを使用",
+    "useNewWorktreeDescription": "ベース参照から作成した別の Git ワークツリーで続けます。",
+    "useThisWorkspace": "このワークスペースを使用",
+    "useThisWorkspaceDescription": "プロジェクトファイルを変更せず、新しいチャットで続けます。",
+    "worktreeRequiresGit": "ワークツリーには Git リポジトリが必要です。",
+    "worktreeSnapshotLimitation": "新しいワークツリーは Git 参照を表し、このメッセージ時点の正確なファイルシステム状態ではありません。"
   },
   "browser": {
     "actions": "ブラウザ操作",

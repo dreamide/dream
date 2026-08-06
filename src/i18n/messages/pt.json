@@ -140,7 +140,21 @@
     "model": "Modelo",
     "permissions": "Permissões",
     "plan": "Planejar",
-    "standardPermissions": "Padrão"
+    "standardPermissions": "Padrão",
+    "back": "Voltar",
+    "branchingUnavailableWhileProcessing": "Aguarde a conclusão da resposta atual antes de criar uma ramificação.",
+    "continueFromMessage": "Continuar a partir desta mensagem…",
+    "continueInNewChat": "Continuar em um novo chat",
+    "continueInNewChatDescription": "Copia a conversa até a mensagem selecionada para continuar de forma independente.",
+    "continueInWorktree": "Continuar na árvore de trabalho",
+    "unableToCreateBranch": "Não foi possível criar a ramificação.",
+    "uncommittedChangesWarning": "Entendo que as alterações não confirmadas não serão copiadas para a nova árvore de trabalho.",
+    "useNewWorktree": "Usar uma nova árvore de trabalho",
+    "useNewWorktreeDescription": "Continue em uma árvore de trabalho Git separada criada a partir de uma referência base.",
+    "useThisWorkspace": "Usar este espaço de trabalho",
+    "useThisWorkspaceDescription": "Continue em um novo chat sem alterar os arquivos do projeto.",
+    "worktreeRequiresGit": "As árvores de trabalho exigem um repositório Git.",
+    "worktreeSnapshotLimitation": "A nova árvore de trabalho representa uma referência Git, não o estado exato do sistema de arquivos nesta mensagem."
   },
   "browser": {
     "actions": "Ações do navegador",

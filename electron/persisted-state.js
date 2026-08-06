@@ -526,6 +526,18 @@ function buildProjectMetadata(project) {
 
 function buildChatMetadata(chat) {
   const metadata = getMetadataObject(chat.metadata);
+  const branchedFrom =
+    chat.branchedFrom &&
+    typeof chat.branchedFrom === "object" &&
+    typeof chat.branchedFrom.chatId === "string" &&
+    chat.branchedFrom.chatId.trim() &&
+    typeof chat.branchedFrom.messageId === "string" &&
+    chat.branchedFrom.messageId.trim()
+      ? {
+          chatId: chat.branchedFrom.chatId,
+          messageId: chat.branchedFrom.messageId,
+        }
+      : null;
   const permissions = {
     ...getNestedRecord(metadata, "permissions"),
     mode: chat.permissionMode === "standard" ? "standard" : "full-access",
@@ -566,6 +578,7 @@ function buildChatMetadata(chat) {
 
   return {
     ...metadata,
+    branchedFrom,
     modelSelection,
     permissions,
     remoteConversation,
@@ -1010,8 +1023,17 @@ function loadStateFromRelationalDatabase(database) {
     const modelSelection = getNestedRecord(metadata, "modelSelection");
     const permissions = getNestedRecord(metadata, "permissions");
     const remoteConversation = getNestedRecord(metadata, "remoteConversation");
+    const branchedFrom = getNestedRecord(metadata, "branchedFrom");
 
     chats.push({
+      branchedFrom:
+        getNestedString(branchedFrom, "chatId", "").trim() &&
+        getNestedString(branchedFrom, "messageId", "").trim()
+          ? {
+              chatId: getNestedString(branchedFrom, "chatId", ""),
+              messageId: getNestedString(branchedFrom, "messageId", ""),
+            }
+          : null,
       createdAt: row.created_at,
       deletedAt:
         typeof row.deleted_at === "string" && row.deleted_at.trim()

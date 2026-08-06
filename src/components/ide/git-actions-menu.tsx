@@ -1,7 +1,6 @@
 import {
   Code,
   GitCommitHorizontal,
-  GitFork,
   GitPullRequest,
   UploadCloud,
 } from "lucide-react";
@@ -22,6 +21,7 @@ import { PushDialog } from "./git-actions/push-dialog";
 import { GitMenuDeltaSummary } from "./git-actions/summary";
 import { getStatusFileCount, hasPushableCommits } from "./git-actions/utils";
 import { useIdeStore } from "./ide-store";
+import { SourceControlIcon } from "./source-control-icon";
 import { WorkspaceNavButton } from "./workspace/nav-button";
 
 type GitActionDialog = "commit" | "push" | "pr" | null;
@@ -195,7 +195,7 @@ const GitActionsMenuImpl = ({
             />
           }
         >
-          <GitFork className="size-4" />
+          <SourceControlIcon className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"

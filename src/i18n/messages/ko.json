@@ -140,7 +140,21 @@
     "model": "모델",
     "permissions": "권한",
     "plan": "계획",
-    "standardPermissions": "표준"
+    "standardPermissions": "표준",
+    "back": "뒤로",
+    "branchingUnavailableWhileProcessing": "현재 응답이 완료된 후 분기하세요.",
+    "continueFromMessage": "이 메시지에서 계속…",
+    "continueInNewChat": "새 채팅에서 계속",
+    "continueInNewChatDescription": "선택한 메시지까지 대화를 복사하여 독립적으로 계속합니다.",
+    "continueInWorktree": "작업 트리에서 계속",
+    "unableToCreateBranch": "분기를 만들 수 없습니다.",
+    "uncommittedChangesWarning": "커밋되지 않은 변경 사항이 새 작업 트리에 복사되지 않음을 이해합니다.",
+    "useNewWorktree": "새 작업 트리 사용",
+    "useNewWorktreeDescription": "기준 참조에서 만든 별도의 Git 작업 트리에서 계속합니다.",
+    "useThisWorkspace": "이 작업 공간 사용",
+    "useThisWorkspaceDescription": "프로젝트 파일을 변경하지 않고 새 채팅에서 계속합니다.",
+    "worktreeRequiresGit": "작업 트리에는 Git 저장소가 필요합니다.",
+    "worktreeSnapshotLimitation": "새 작업 트리는 Git 참조를 나타내며 이 메시지 시점의 정확한 파일 시스템 상태는 아닙니다."
   },
   "browser": {
     "actions": "브라우저 동작",
