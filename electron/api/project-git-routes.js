@@ -12,11 +12,13 @@ import {
   getProjectGitDiff,
   getProjectGitFileAtHead,
   getProjectGitPushPreview,
+  listProjectDirectory,
   listProjectFiles,
   listProjectGitBranches,
   listProjectGitChanges,
   listProjectGitWorktrees,
   MIME_TYPES,
+  projectDirectoryRequestSchema,
   projectFileRequestSchema,
   projectFilesRequestSchema,
   projectFileWriteRequestSchema,
@@ -108,6 +110,31 @@ const getProjectFileWritability = async (absolutePath) => {
 };
 
 export const registerProjectGitRoutes = (app) => {
+  app.post("/api/project-directory", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectDirectoryRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { directory, projectPath } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(await listProjectDirectory(projectPath, directory));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to list directory.";
+      return c.text(message, 400);
+    }
+  });
+
   app.post("/api/project-files", async (c) => {
     let rawBody;
     try {

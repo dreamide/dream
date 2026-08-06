@@ -33,9 +33,14 @@ import {
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { useMaterialFileTreeIcons } from "./material-file-icon";
+import {
+  ProjectDirectoryLoader,
+  type ProjectDirectoryResponse,
+  resolveSelectedProjectFile,
+  toProjectTreePath,
+} from "./project-directory-loader";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 
-const PROJECT_FILE_LIST_MAX_RESULTS = 2000;
 const FILE_TREE_MIN_WIDTH_PX = 250;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
 const FILE_TREE_ITEM_HEIGHT_PX = 24;
@@ -47,11 +52,6 @@ export interface FileExplorerPanelProps {
   onClosePanel: () => void;
   projectId?: string | null;
 }
-
-type ProjectFilesListResponse = {
-  count: number;
-  files: string[];
-};
 
 type ProjectFileReadResponse = {
   content: string;
@@ -76,7 +76,10 @@ const isFilePreviewUnavailableStatus = (status: number) =>
   status === 413 || status === 415;
 
 interface ProjectFileTreeProps {
-  files: string[];
+  active: boolean;
+  onSelectedFileMissing: (path: string) => void;
+  projectPath: string;
+  refreshVersion: number;
   selectedFilePath: string | null;
   onSelectFile: (path: string | null) => void;
 }
@@ -139,19 +142,6 @@ const readResponseText = async (
 
 const isMissingPathError = (message: string | null) =>
   Boolean(message && /ENOENT|no such file or directory/i.test(message));
-
-const getInitialExpandedFileTreePaths = (files: string[]) => {
-  const expanded = new Set<string>();
-
-  for (const filePath of files) {
-    const parts = filePath.split(/[\\/]/).filter(Boolean);
-    if (parts.length > 1) {
-      expanded.add(`${parts[0]}/`);
-    }
-  }
-
-  return [...expanded];
-};
 
 const FILE_TREE_UNSAFE_CSS = `
   :host {
@@ -261,33 +251,49 @@ const fileTreeStyle = {
 } as CSSProperties;
 
 const ProjectFileTree = ({
-  files,
-  selectedFilePath,
+  active,
+  onSelectedFileMissing,
   onSelectFile,
+  projectPath,
+  refreshVersion,
+  selectedFilePath,
 }: ProjectFileTreeProps) => {
   const panelsT = useTranslations("panels");
-  const fileSetRef = useRef(new Set(files));
+  const knownFilesRef = useRef<ReadonlySet<string>>(new Set());
   const onSelectFileRef = useRef(onSelectFile);
+  const onSelectedFileMissingRef = useRef(onSelectedFileMissing);
+  const selectedFilePathRef = useRef(selectedFilePath);
   const materialFileTreeIcons = useMaterialFileTreeIcons();
+  const [rootStatus, setRootStatus] = useState<
+    "idle" | "loading" | "ready" | "empty" | "error"
+  >("idle");
+  const [directoryErrors, setDirectoryErrors] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
-    fileSetRef.current = new Set(files);
-  }, [files]);
+    selectedFilePathRef.current = selectedFilePath;
+  }, [selectedFilePath]);
 
   useEffect(() => {
     onSelectFileRef.current = onSelectFile;
   }, [onSelectFile]);
 
+  useEffect(() => {
+    onSelectedFileMissingRef.current = onSelectedFileMissing;
+  }, [onSelectedFileMissing]);
+
   const handleSelectionChange = useCallback(
     (selectedPaths: readonly string[]) => {
       const selectedPath = selectedPaths[0] ?? null;
-
-      if (!selectedPath || !fileSetRef.current.has(selectedPath)) {
-        onSelectFileRef.current(null);
-        return;
+      const nextFile = resolveSelectedProjectFile(
+        selectedFilePathRef.current,
+        selectedPath,
+        knownFilesRef.current,
+      );
+      if (nextFile !== selectedFilePathRef.current) {
+        onSelectFileRef.current(nextFile);
       }
-
-      onSelectFileRef.current(selectedPath);
     },
     [],
   );
@@ -295,56 +301,197 @@ const ProjectFileTree = ({
   const { model } = useFileTree({
     density: "compact",
     fileTreeSearchMode: "hide-non-matches",
-    flattenEmptyDirectories: true,
+    flattenEmptyDirectories: false,
     icons: materialFileTreeIcons,
-    initialExpandedPaths: getInitialExpandedFileTreePaths(files),
-    initialSelectedPaths: selectedFilePath ? [selectedFilePath] : [],
+    initialExpansion: "closed",
     itemHeight: FILE_TREE_ITEM_HEIGHT_PX,
     onSelectionChange: handleSelectionChange,
-    paths: files,
+    paths: [],
+    // Search intentionally filters only the paths already loaded into the
+    // model. Focusing or typing here must never trigger filesystem traversal.
     search: true,
     searchBlurBehavior: "retain",
     stickyFolders: false,
     unsafeCSS: FILE_TREE_UNSAFE_CSS,
   });
 
+  const loader = useMemo(
+    () =>
+      new ProjectDirectoryLoader({
+        fetchDirectory: async (directory) => {
+          const response = await fetch("/api/project-directory", {
+            body: JSON.stringify({ directory, projectPath }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              await readResponseText(
+                response,
+                `Request failed (${response.status}).`,
+              ),
+            );
+          }
+
+          return (await response.json()) as ProjectDirectoryResponse;
+        },
+        onDirectoryError: (directory, error) => {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to load project files.";
+          setDirectoryErrors((current) => ({
+            ...current,
+            [directory]: message,
+          }));
+          if (directory === ".") {
+            setRootStatus("error");
+          }
+        },
+        onDirectoryLoaded: (response) => {
+          const operations = response.entries.map((entry) => ({
+            path: toProjectTreePath(entry),
+            type: "add" as const,
+          }));
+          if (operations.length > 0) {
+            model.batch(operations);
+          }
+          const nextKnownFiles = new Set(knownFilesRef.current);
+          for (const entry of response.entries) {
+            if (entry.kind !== "directory") {
+              nextKnownFiles.add(entry.path);
+            }
+          }
+          knownFilesRef.current = nextKnownFiles;
+          setDirectoryErrors((current) => {
+            if (!current[response.directory]) {
+              return current;
+            }
+            const next = { ...current };
+            delete next[response.directory];
+            return next;
+          });
+          if (response.directory === ".") {
+            setRootStatus(response.entries.length === 0 ? "empty" : "ready");
+          }
+        },
+      }),
+    [model, projectPath],
+  );
+
   useEffect(() => {
     model.setIcons(materialFileTreeIcons);
   }, [materialFileTreeIcons, model]);
 
   useEffect(() => {
-    model.resetPaths(files, {
-      initialExpandedPaths: getInitialExpandedFileTreePaths(files),
-    });
-  }, [files, model]);
+    const syncExpandedDirectories = () => {
+      // Search maintains its own projected expansion state. Never interpret
+      // those changes as user requests to traverse the filesystem.
+      if (model.isSearchOpen()) {
+        return;
+      }
+      const expandedDirectories: string[] = [];
+      for (const directory of loader.knownDirectories) {
+        if (directory === ".") {
+          continue;
+        }
+        const item = model.getItem(`${directory}/`);
+        if (item?.isDirectory() && "isExpanded" in item && item.isExpanded()) {
+          expandedDirectories.push(directory);
+        }
+      }
+      void loader.syncExpandedDirectories(expandedDirectories);
+    };
+
+    syncExpandedDirectories();
+    return model.subscribe(syncExpandedDirectories);
+  }, [loader, model]);
+
+  const loadedDirectoryVersionRef = useRef<string | null>(null);
+  useEffect(() => {
+    const directoryVersion = `${projectPath}\0${refreshVersion}`;
+    if (!active || loadedDirectoryVersionRef.current === directoryVersion) {
+      return;
+    }
+    loadedDirectoryVersionRef.current = directoryVersion;
+    loader.invalidate();
+    knownFilesRef.current = new Set();
+    model.resetPaths([]);
+    setDirectoryErrors({});
+    setRootStatus("loading");
+    void loader.load(".").catch(() => undefined);
+  }, [active, loader, model, projectPath, refreshVersion]);
+
+  useEffect(
+    () => () => {
+      loader.invalidate();
+    },
+    [loader],
+  );
 
   useEffect(() => {
+    void refreshVersion;
     for (const path of model.getSelectedPaths()) {
       if (path !== selectedFilePath) {
         model.getItem(path)?.deselect();
       }
     }
 
-    if (!selectedFilePath || !fileSetRef.current.has(selectedFilePath)) {
+    if (!active || !selectedFilePath) {
       return;
     }
 
-    const item = model.getItem(selectedFilePath);
-    item?.select();
-  }, [model, selectedFilePath]);
+    const generation = loader.generation;
+    let cancelled = false;
+    void loader
+      .revealFile(selectedFilePath, {
+        expandDirectory: (directory) => {
+          const item = model.getItem(`${directory}/`);
+          if (item?.isDirectory() && "expand" in item) {
+            item.expand();
+          }
+        },
+        revealFile: (filePath) => {
+          for (const selectedPath of model.getSelectedPaths()) {
+            if (selectedPath !== filePath) {
+              model.getItem(selectedPath)?.deselect();
+            }
+          }
+          model.getItem(filePath)?.select();
+          model.focusPath(filePath);
+        },
+      })
+      .then((revealed) => {
+        if (
+          !revealed &&
+          !cancelled &&
+          generation === loader.generation &&
+          loader.isLoaded(".")
+        ) {
+          onSelectedFileMissingRef.current(selectedFilePath);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active, loader, model, refreshVersion, selectedFilePath]);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const selectionSyncFrameRef = useRef<number | null>(null);
 
   const syncSelectionFromModel = useCallback(() => {
     const selectedPath = model.getSelectedPaths()[0] ?? null;
-
-    if (!selectedPath || !fileSetRef.current.has(selectedPath)) {
-      onSelectFileRef.current(null);
-      return;
+    const nextFile = resolveSelectedProjectFile(
+      selectedFilePathRef.current,
+      selectedPath,
+      knownFilesRef.current,
+    );
+    if (nextFile !== selectedFilePathRef.current) {
+      onSelectFileRef.current(nextFile);
     }
-
-    onSelectFileRef.current(selectedPath);
   }, [model]);
 
   const scheduleSelectionSync = useCallback(() => {
@@ -393,18 +540,87 @@ const ProjectFileTree = ({
     };
   }, []);
 
+  const nestedErrors = Object.entries(directoryErrors).filter(
+    ([directory]) => directory !== ".",
+  );
+
+  if (rootStatus === "idle" || rootStatus === "loading") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner className="size-4 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (rootStatus === "error") {
+    const rootError =
+      directoryErrors["."] ?? panelsT("failedToLoadProjectFiles");
+    return (
+      <div className="p-3">
+        {isMissingPathError(rootError) ? (
+          <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
+            <div className="font-medium text-foreground text-sm">
+              {panelsT("projectFolderNotFound")}
+            </div>
+            <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
+              {projectPath}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
+            {rootError}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (rootStatus === "empty") {
+    return (
+      <div className="h-full p-3">
+        <AppShellPlaceholder message={panelsT("noProjectFiles")} />
+      </div>
+    );
+  }
+
   return (
     <div
       ref={wrapperRef}
-      className="h-full"
+      className="flex h-full flex-col"
       onClickCapture={scheduleSelectionSync}
       onKeyUpCapture={scheduleSelectionSync}
     >
-      <PierreFileTree
-        aria-label={panelsT("projectFiles")}
-        model={model}
-        style={fileTreeStyle}
-      />
+      {nestedErrors.length > 0 ? (
+        <div className="shrink-0 space-y-1 p-2 pb-0">
+          {nestedErrors.map(([directory, message]) => (
+            <div
+              className="flex items-center gap-2 rounded-md border border-destructive-border bg-destructive-surface-muted px-2 py-1.5 text-destructive text-xs"
+              key={directory}
+            >
+              <span className="min-w-0 flex-1 truncate" title={message}>
+                {directory}: {message}
+              </span>
+              <button
+                aria-label={`Retry loading ${directory}`}
+                className="shrink-0 rounded p-0.5 hover:bg-destructive/10"
+                onClick={() =>
+                  void loader.load(directory).catch(() => undefined)
+                }
+                type="button"
+              >
+                <RotateCw className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1">
+        <PierreFileTree
+          aria-label={panelsT("projectFiles")}
+          model={model}
+          style={fileTreeStyle}
+        />
+      </div>
     </div>
   );
 };
@@ -426,14 +642,10 @@ const FileExplorerPanelImpl = ({
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const treePaneRef = useRef<HTMLDivElement | null>(null);
   const treeWidthRef = useRef<number | null>(null);
-  const loadedFileListKeysRef = useRef(new Set<string>());
   const previousProjectFilesRefreshKeyByProjectRef = useRef<
     Record<string, number>
   >({});
 
-  const [fileListsByProject, setFileListsByProject] = useState<
-    Record<string, string[]>
-  >({});
   const [selectedFileByProject, setSelectedFileByProject] = useState<
     Record<string, string | null>
   >({});
@@ -449,9 +661,7 @@ const FileExplorerPanelImpl = ({
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<
     string | null
   >(null);
-  const [filesLoading, setFilesLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
-  const [filesError, setFilesError] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [editorSearchRequest, setEditorSearchRequest] = useState(0);
   const [isEditorSearchOpen, setIsEditorSearchOpen] = useState(false);
@@ -479,7 +689,6 @@ const FileExplorerPanelImpl = ({
   const fileOpenRequestKey = fileOpenRequest
     ? `${fileOpenRequest.requestId}:${fileOpenRequest.filePath}`
     : "";
-  const files = projectId ? (fileListsByProject[projectId] ?? []) : [];
   const selectedFilePath = projectId
     ? (selectedFileByProject[projectId] ?? null)
     : null;
@@ -508,8 +717,6 @@ const FileExplorerPanelImpl = ({
         : 0,
     [fileBuffers, projectId],
   );
-  const isMissingProjectPath = isMissingPathError(filesError);
-
   useEffect(
     () => () => {
       if (selectedImagePreviewUrlRef.current) {
@@ -519,64 +726,6 @@ const FileExplorerPanelImpl = ({
     },
     [],
   );
-
-  const loadProjectFiles = useCallback(async () => {
-    if (!projectId || !projectPath) {
-      return;
-    }
-
-    setFilesLoading(true);
-    setFilesError(null);
-
-    try {
-      const response = await fetch("/api/project-files", {
-        body: JSON.stringify({
-          directory: ".",
-          maxResults: PROJECT_FILE_LIST_MAX_RESULTS,
-          projectPath,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          await readResponseText(
-            response,
-            uiT("requestFailedStatus", { status: response.status }),
-          ),
-        );
-      }
-
-      const payload = (await response.json()) as ProjectFilesListResponse;
-      const nextFiles = payload.files;
-
-      setFileListsByProject((current) => ({
-        ...current,
-        [projectId]: nextFiles,
-      }));
-
-      setSelectedFileByProject((current) => {
-        const existingSelection = current[projectId] ?? null;
-        if (existingSelection && nextFiles.includes(existingSelection)) {
-          return current;
-        }
-
-        return {
-          ...current,
-          [projectId]: null,
-        };
-      });
-    } catch (error) {
-      setFilesError(
-        error instanceof Error
-          ? error.message
-          : panelsT("failedToLoadProjectFiles"),
-      );
-    } finally {
-      setFilesLoading(false);
-    }
-  }, [panelsT, projectId, projectPath, uiT]);
 
   const handleOpenProjectPath = useCallback(async () => {
     if (!projectPath) {
@@ -597,7 +746,6 @@ const FileExplorerPanelImpl = ({
   }, [projectId]);
 
   useEffect(() => {
-    void projectFilesRefreshKey;
     if (!active) {
       return;
     }
@@ -611,16 +759,8 @@ const FileExplorerPanelImpl = ({
     const refreshChanged =
       previousRefreshKey !== undefined &&
       previousRefreshKey !== projectFilesRefreshKey;
-    const fileListKey = `${projectId}:${projectPath}`;
-
     previousProjectFilesRefreshKeyByProjectRef.current[projectId] =
       projectFilesRefreshKey;
-
-    if (loadedFileListKeysRef.current.has(fileListKey) && !refreshChanged) {
-      return;
-    }
-
-    loadedFileListKeysRef.current.add(fileListKey);
 
     if (refreshChanged) {
       dispatchFileBuffer({ type: "refresh-project", projectId });
@@ -634,15 +774,7 @@ const FileExplorerPanelImpl = ({
         return next;
       });
     }
-
-    void loadProjectFiles();
-  }, [
-    active,
-    loadProjectFiles,
-    projectFilesRefreshKey,
-    projectId,
-    projectPath,
-  ]);
+  }, [active, projectFilesRefreshKey, projectId, projectPath]);
 
   useEffect(() => {
     void fileOpenRequestKey;
@@ -855,6 +987,21 @@ const FileExplorerPanelImpl = ({
     [projectId],
   );
 
+  const handleSelectedFileMissing = useCallback(
+    (path: string) => {
+      if (!projectId) {
+        return;
+      }
+      setSelectedFileByProject((current) => {
+        if (current[projectId] !== path) {
+          return current;
+        }
+        return { ...current, [projectId]: null };
+      });
+    },
+    [projectId],
+  );
+
   const handleDiscardChanges = useCallback(() => {
     if (selectedFileBufferKey) {
       dispatchFileBuffer({ type: "discard", key: selectedFileBufferKey });
@@ -985,8 +1132,6 @@ const FileExplorerPanelImpl = ({
     }
   }, []);
 
-  const hasNoProjectFiles = !filesError && !filesLoading && files.length === 0;
-
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
@@ -1035,240 +1180,204 @@ const FileExplorerPanelImpl = ({
         </button>
       </div>
 
-      {hasNoProjectFiles ? (
-        <div className="min-h-0 flex-1 p-3">
-          <AppShellPlaceholder message={panelsT("noProjectFiles")} />
+      <div ref={splitContainerRef} className="flex min-h-0 flex-1">
+        {/* File tree */}
+        <div
+          ref={treePaneRef}
+          className="shrink-0 overflow-hidden"
+          style={{
+            width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
+            minWidth: FILE_TREE_MIN_WIDTH_PX,
+            maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
+          }}
+        >
+          <div className="h-full border-r border-surface-200 dark:border-surface-800 bg-background">
+            <ProjectFileTree
+              active={active}
+              onSelectedFileMissing={handleSelectedFileMissing}
+              onSelectFile={handleSelectFile}
+              projectPath={activeProject.path}
+              refreshVersion={projectFilesRefreshKey}
+              selectedFilePath={selectedFilePath}
+            />
+          </div>
         </div>
-      ) : (
-        <div ref={splitContainerRef} className="flex min-h-0 flex-1">
-          {/* File tree */}
-          <div
-            ref={treePaneRef}
-            className="shrink-0 overflow-hidden"
-            style={{
-              width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
-              minWidth: FILE_TREE_MIN_WIDTH_PX,
-              maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
-            }}
-          >
-            <div className="h-full border-r border-surface-200 dark:border-surface-800 bg-background">
-              {!filesError && filesLoading && files.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <Spinner className="size-4 text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="h-full">
-                  {filesError ? (
-                    <div className="p-3">
-                      {isMissingProjectPath ? (
-                        <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
-                          <div className="font-medium text-foreground text-sm">
-                            {panelsT("projectFolderNotFound")}
-                          </div>
-                          {projectPath ? (
-                            <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
-                              {projectPath}
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
-                          {filesError}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
 
-                  {!filesError && files.length > 0 ? (
-                    <ProjectFileTree
-                      files={files}
-                      onSelectFile={handleSelectFile}
-                      selectedFilePath={selectedFilePath}
+        <PanelResizeHandle
+          side="right"
+          onResize={handleTreeResize}
+          onResizeStart={handleTreeResizeStart}
+        />
+
+        {/* File content */}
+        <div className="min-w-0 flex-1 overflow-hidden">
+          {!selectedFilePath ? (
+            <div className="h-full p-3">
+              <AppShellPlaceholder message={panelsT("selectFileToOpen")} />
+            </div>
+          ) : selectedFilePreviewMessage ? (
+            <div className="h-full p-3">
+              <AppShellPlaceholder message={selectedFilePreviewMessage} />
+            </div>
+          ) : fileError ? (
+            <div className="p-3">
+              <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
+                {fileError}
+              </div>
+            </div>
+          ) : fileLoading &&
+            (isImageFile(selectedFilePath)
+              ? !selectedImagePreviewUrl
+              : !selectedFileBuffer) ? (
+            <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+              <Spinner className="size-4" />
+            </div>
+          ) : isImageFile(selectedFilePath) ? (
+            selectedImagePreviewUrl ? (
+              <div className="flex h-full items-center justify-center p-6">
+                <img
+                  alt={selectedFilePath}
+                  className="max-h-full max-w-full object-contain"
+                  src={selectedImagePreviewUrl}
+                />
+              </div>
+            ) : null
+          ) : selectedFileBuffer && selectedFileBufferKey ? (
+            <CodeBlockContainer
+              className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none"
+              language={inferLanguage(selectedFilePath)}
+              onKeyDownCapture={handleEditorKeyDown}
+              style={{ contentVisibility: "visible" }}
+            >
+              <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
+                <CodeBlockTitle className="min-w-0">
+                  <FileIcon className="shrink-0" size={14} />
+                  <CodeBlockFilename className="truncate">
+                    {selectedFilePath}
+                  </CodeBlockFilename>
+                  {selectedFileBuffer.draftContent !==
+                  selectedFileBuffer.diskContent ? (
+                    <span
+                      className="size-2 shrink-0 rounded-full bg-amber-500"
+                      title="Unsaved changes"
                     />
                   ) : null}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <PanelResizeHandle
-            side="right"
-            onResize={handleTreeResize}
-            onResizeStart={handleTreeResizeStart}
-          />
-
-          {/* File content */}
-          <div className="min-w-0 flex-1 overflow-hidden">
-            {!selectedFilePath ? (
-              <div className="h-full p-3">
-                <AppShellPlaceholder message={panelsT("selectFileToOpen")} />
-              </div>
-            ) : selectedFilePreviewMessage ? (
-              <div className="h-full p-3">
-                <AppShellPlaceholder message={selectedFilePreviewMessage} />
-              </div>
-            ) : fileError ? (
-              <div className="p-3">
-                <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
-                  {fileError}
-                </div>
-              </div>
-            ) : fileLoading &&
-              (isImageFile(selectedFilePath)
-                ? !selectedImagePreviewUrl
-                : !selectedFileBuffer) ? (
-              <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
-                <Spinner className="size-4" />
-              </div>
-            ) : isImageFile(selectedFilePath) ? (
-              selectedImagePreviewUrl ? (
-                <div className="flex h-full items-center justify-center p-6">
-                  <img
-                    alt={selectedFilePath}
-                    className="max-h-full max-w-full object-contain"
-                    src={selectedImagePreviewUrl}
-                  />
-                </div>
-              ) : null
-            ) : selectedFileBuffer && selectedFileBufferKey ? (
-              <CodeBlockContainer
-                className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none"
-                language={inferLanguage(selectedFilePath)}
-                onKeyDownCapture={handleEditorKeyDown}
-                style={{ contentVisibility: "visible" }}
-              >
-                <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
-                  <CodeBlockTitle className="min-w-0">
-                    <FileIcon className="shrink-0" size={14} />
-                    <CodeBlockFilename className="truncate">
-                      {selectedFilePath}
-                    </CodeBlockFilename>
-                    {selectedFileBuffer.draftContent !==
-                    selectedFileBuffer.diskContent ? (
-                      <span
-                        className="size-2 shrink-0 rounded-full bg-amber-500"
-                        title="Unsaved changes"
-                      />
-                    ) : null}
-                  </CodeBlockTitle>
-                  <CodeBlockActions className="shrink-0">
-                    {selectedFileBuffer.status === "dirty" ||
-                    selectedFileBuffer.status === "conflict" ? (
-                      <Button
-                        onClick={handleDiscardChanges}
-                        size="xs"
-                        type="button"
-                        variant="ghost"
-                      >
-                        Discard changes
-                      </Button>
-                    ) : null}
+                </CodeBlockTitle>
+                <CodeBlockActions className="shrink-0">
+                  {selectedFileBuffer.status === "dirty" ||
+                  selectedFileBuffer.status === "conflict" ? (
                     <Button
-                      aria-label={uiT("searchCurrentFile")}
-                      aria-pressed={isEditorSearchOpen}
-                      className={
-                        isEditorSearchOpen
-                          ? "bg-muted text-foreground"
-                          : "text-muted-foreground"
-                      }
-                      onClick={() =>
-                        setEditorSearchRequest((current) => current + 1)
-                      }
-                      size="icon-xs"
-                      title={uiT("searchCurrentFile")}
+                      onClick={handleDiscardChanges}
+                      size="xs"
                       type="button"
                       variant="ghost"
                     >
-                      <Search />
+                      Discard changes
                     </Button>
-                    <CodeBlockCopyButton
-                      text={selectedFileBuffer.draftContent}
-                    />
-                    <Button
+                  ) : null}
+                  <Button
+                    aria-label={uiT("searchCurrentFile")}
+                    aria-pressed={isEditorSearchOpen}
+                    className={
+                      isEditorSearchOpen
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground"
+                    }
+                    onClick={() =>
+                      setEditorSearchRequest((current) => current + 1)
+                    }
+                    size="icon-xs"
+                    title={uiT("searchCurrentFile")}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Search />
+                  </Button>
+                  <CodeBlockCopyButton text={selectedFileBuffer.draftContent} />
+                  <Button
+                    disabled={
+                      selectedFileBuffer.status !== "dirty" ||
+                      !selectedFileMetadata?.writable
+                    }
+                    onClick={() => void handleSaveEditing()}
+                    size="xs"
+                    type="button"
+                  >
+                    {selectedFileBuffer.status === "saving" ? (
+                      <Spinner className="size-3" />
+                    ) : null}
+                    {commonT("save")}
+                  </Button>
+                </CodeBlockActions>
+              </CodeBlockHeader>
+              <div className="flex min-h-0 flex-1 flex-col">
+                {selectedFileMetadata?.readOnlyReason ? (
+                  <div className="shrink-0 border-amber-500/30 border-b bg-amber-500/10 px-3 py-2 text-amber-800 text-xs dark:text-amber-200">
+                    {selectedFileMetadata.readOnlyReason}
+                  </div>
+                ) : null}
+                {selectedFileBuffer.error ? (
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-destructive-border border-b bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
+                    <div>
+                      <div>{selectedFileBuffer.error}</div>
+                      {selectedFileBuffer.status === "conflict" ? (
+                        <div className="mt-1 font-medium">
+                          Reloading from disk will replace your local draft.
+                        </div>
+                      ) : null}
+                    </div>
+                    {selectedFileBuffer.status === "conflict" ? (
+                      <Button
+                        className="shrink-0"
+                        onClick={handleReloadFromDisk}
+                        size="xs"
+                        type="button"
+                        variant="outline"
+                      >
+                        Reload from disk
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="min-h-0 flex-1">
+                  <Suspense
+                    fallback={
+                      <div className="flex h-full items-center justify-center">
+                        <Spinner className="size-4 text-muted-foreground" />
+                      </div>
+                    }
+                  >
+                    <FileCodeEditor
                       disabled={
-                        selectedFileBuffer.status !== "dirty" ||
+                        selectedFileBuffer.status === "saving" ||
                         !selectedFileMetadata?.writable
                       }
-                      onClick={() => void handleSaveEditing()}
-                      size="xs"
-                      type="button"
-                    >
-                      {selectedFileBuffer.status === "saving" ? (
-                        <Spinner className="size-3" />
-                      ) : null}
-                      {commonT("save")}
-                    </Button>
-                  </CodeBlockActions>
-                </CodeBlockHeader>
-                <div className="flex min-h-0 flex-1 flex-col">
-                  {selectedFileMetadata?.readOnlyReason ? (
-                    <div className="shrink-0 border-amber-500/30 border-b bg-amber-500/10 px-3 py-2 text-amber-800 text-xs dark:text-amber-200">
-                      {selectedFileMetadata.readOnlyReason}
-                    </div>
-                  ) : null}
-                  {selectedFileBuffer.error ? (
-                    <div className="flex shrink-0 items-center justify-between gap-3 border-destructive-border border-b bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
-                      <div>
-                        <div>{selectedFileBuffer.error}</div>
-                        {selectedFileBuffer.status === "conflict" ? (
-                          <div className="mt-1 font-medium">
-                            Reloading from disk will replace your local draft.
-                          </div>
-                        ) : null}
-                      </div>
-                      {selectedFileBuffer.status === "conflict" ? (
-                        <Button
-                          className="shrink-0"
-                          onClick={handleReloadFromDisk}
-                          size="xs"
-                          type="button"
-                          variant="outline"
-                        >
-                          Reload from disk
-                        </Button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="min-h-0 flex-1">
-                    <Suspense
-                      fallback={
-                        <div className="flex h-full items-center justify-center">
-                          <Spinner className="size-4 text-muted-foreground" />
-                        </div>
+                      filePath={selectedFilePath}
+                      key={selectedFileBufferKey}
+                      lineEnding={
+                        selectedFileMetadata?.lineEnding ??
+                        (selectedFileBuffer.diskContent.includes("\r\n")
+                          ? "crlf"
+                          : "lf")
                       }
-                    >
-                      <FileCodeEditor
-                        disabled={
-                          selectedFileBuffer.status === "saving" ||
-                          !selectedFileMetadata?.writable
-                        }
-                        filePath={selectedFilePath}
-                        key={selectedFileBufferKey}
-                        lineEnding={
-                          selectedFileMetadata?.lineEnding ??
-                          (selectedFileBuffer.diskContent.includes("\r\n")
-                            ? "crlf"
-                            : "lf")
-                        }
-                        onChange={(content) =>
-                          dispatchFileBuffer({
-                            type: "edit",
-                            key: selectedFileBufferKey,
-                            content,
-                          })
-                        }
-                        onSearchOpenChange={setIsEditorSearchOpen}
-                        searchRequest={editorSearchRequest}
-                        value={selectedFileBuffer.draftContent}
-                      />
-                    </Suspense>
-                  </div>
+                      onChange={(content) =>
+                        dispatchFileBuffer({
+                          type: "edit",
+                          key: selectedFileBufferKey,
+                          content,
+                        })
+                      }
+                      onSearchOpenChange={setIsEditorSearchOpen}
+                      searchRequest={editorSearchRequest}
+                      value={selectedFileBuffer.draftContent}
+                    />
+                  </Suspense>
                 </div>
-              </CodeBlockContainer>
-            ) : null}
-          </div>
+              </div>
+            </CodeBlockContainer>
+          ) : null}
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -44,6 +44,134 @@ const requestProjectFile = (app, projectPath, filePath) =>
     method: "POST",
   });
 
+const requestProjectDirectory = (app, projectPath, directory = ".") =>
+  app.request("/api/project-directory", {
+    body: JSON.stringify({ directory, projectPath }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+
+test("project directory lists every immediate root entry", async () => {
+  const projectPath = await createProject();
+  await Promise.all([
+    fs.mkdir(path.join(projectPath, ".git")),
+    fs.mkdir(path.join(projectPath, "node_modules")),
+    fs.mkdir(path.join(projectPath, "src")),
+    fs.writeFile(path.join(projectPath, ".env"), "hidden\n"),
+    fs.writeFile(path.join(projectPath, ".gitignore"), "ignored.txt\n"),
+    fs.writeFile(path.join(projectPath, "ignored.txt"), "visible\n"),
+  ]);
+  await fs.writeFile(path.join(projectPath, "src", "grandchild.ts"), "");
+
+  const response = await requestProjectDirectory(createApp(), projectPath);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    directory: ".",
+    entries: [
+      { kind: "directory", path: ".git" },
+      { kind: "directory", path: "node_modules" },
+      { kind: "directory", path: "src" },
+      { kind: "file", path: ".env" },
+      { kind: "file", path: ".gitignore" },
+      { kind: "file", path: "ignored.txt" },
+    ],
+  });
+});
+
+test("project directory lists only immediate children and handles empty directories", async () => {
+  const projectPath = await createProject();
+  await fs.mkdir(path.join(projectPath, "parent", "child"), {
+    recursive: true,
+  });
+  await fs.writeFile(path.join(projectPath, "parent", "child", "file.txt"), "");
+  await fs.mkdir(path.join(projectPath, "empty"));
+  const app = createApp();
+
+  const parentResponse = await requestProjectDirectory(
+    app,
+    projectPath,
+    "parent",
+  );
+  assert.deepEqual(await parentResponse.json(), {
+    directory: "parent",
+    entries: [{ kind: "directory", path: "parent/child" }],
+  });
+
+  const emptyResponse = await requestProjectDirectory(
+    app,
+    projectPath,
+    "empty",
+  );
+  assert.equal(emptyResponse.status, 200);
+  assert.deepEqual(await emptyResponse.json(), {
+    directory: "empty",
+    entries: [],
+  });
+});
+
+test("project directory sorts directories before files and each group alphabetically", async () => {
+  const projectPath = await createProject();
+  await Promise.all([
+    fs.mkdir(path.join(projectPath, "z-directory")),
+    fs.mkdir(path.join(projectPath, "a-directory")),
+    fs.writeFile(path.join(projectPath, "z-file.txt"), ""),
+    fs.writeFile(path.join(projectPath, "a-file.txt"), ""),
+  ]);
+
+  const response = await requestProjectDirectory(createApp(), projectPath);
+  const payload = await response.json();
+  assert.deepEqual(
+    payload.entries.map((entry) => entry.path),
+    ["a-directory", "z-directory", "a-file.txt", "z-file.txt"],
+  );
+});
+
+test("project directory rejects traversal and absolute paths outside the project", async () => {
+  const projectPath = await createProject();
+  const outsidePath = await fs.mkdtemp(
+    path.join(os.tmpdir(), "dream-outside-"),
+  );
+  temporaryDirectories.push(outsidePath);
+  const app = createApp();
+
+  for (const directory of ["..", outsidePath]) {
+    const response = await requestProjectDirectory(app, projectPath, directory);
+    assert.equal(response.status, 400);
+    assert.match(await response.text(), /outside of the project root/i);
+  }
+});
+
+test.runIf(process.platform !== "win32")(
+  "project directory exposes symlinks but never traverses escapes or cycles",
+  async () => {
+    const projectPath = await createProject();
+    const outsidePath = await fs.mkdtemp(
+      path.join(os.tmpdir(), "dream-outside-"),
+    );
+    temporaryDirectories.push(outsidePath);
+    await fs.symlink(outsidePath, path.join(projectPath, "outside-link"));
+    await fs.symlink(projectPath, path.join(projectPath, "cycle"));
+    const app = createApp();
+
+    const rootResponse = await requestProjectDirectory(app, projectPath);
+    assert.equal(rootResponse.status, 200);
+    assert.deepEqual((await rootResponse.json()).entries, [
+      { kind: "symlink", path: "cycle" },
+      { kind: "symlink", path: "outside-link" },
+    ]);
+
+    for (const directory of ["outside-link", "cycle", "cycle/cycle"]) {
+      const response = await requestProjectDirectory(
+        app,
+        projectPath,
+        directory,
+      );
+      assert.equal(response.status, 400);
+      assert.match(await response.text(), /symlink/i);
+    }
+  },
+);
+
 test("detects and serializes CRLF content", () => {
   assert.equal(detectProjectFileLineEnding("one\r\ntwo\r\n"), "crlf");
   assert.equal(detectProjectFileLineEnding("one\ntwo\n"), "lf");

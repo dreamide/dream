@@ -6,6 +6,11 @@ export const projectFilesRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
 
+export const projectDirectoryRequestSchema = z.object({
+  directory: z.string().min(1).default("."),
+  projectPath: z.string().min(1),
+});
+
 export const projectFileRequestSchema = z.object({
   endLine: z.number().int().min(1).optional(),
   filePath: z.string().min(1),

@@ -134,6 +134,68 @@ export const listProjectFiles = async (projectRoot, directory, maxResults) => {
   return files;
 };
 
+const resolveRealProjectDirectory = async (projectRoot, directory) => {
+  const realProjectRoot = await fs.realpath(projectRoot);
+  const targetDirectory = resolveProjectPath(realProjectRoot, directory);
+  const relativeDirectory = path.relative(realProjectRoot, targetDirectory);
+  let currentPath = realProjectRoot;
+
+  for (const segment of relativeDirectory.split(path.sep).filter(Boolean)) {
+    currentPath = path.join(currentPath, segment);
+    const stats = await fs.lstat(currentPath);
+    if (stats.isSymbolicLink()) {
+      throw new Error("Directory symlinks cannot be traversed.");
+    }
+  }
+
+  const stats = await fs.lstat(currentPath);
+  if (!stats.isDirectory()) {
+    throw new Error(`Not a directory: ${directory}`);
+  }
+
+  const realDirectory = await fs.realpath(currentPath);
+  resolveProjectPath(realProjectRoot, realDirectory);
+
+  return {
+    directory:
+      normalizePath(path.relative(realProjectRoot, realDirectory)) || ".",
+    realDirectory,
+    realProjectRoot,
+  };
+};
+
+export const listProjectDirectory = async (projectRoot, directory) => {
+  const {
+    directory: relativeDirectory,
+    realDirectory,
+    realProjectRoot,
+  } = await resolveRealProjectDirectory(projectRoot, directory);
+  const directoryEntries = await fs.readdir(realDirectory, {
+    withFileTypes: true,
+  });
+  const entries = directoryEntries.map((entry) => {
+    const absolutePath = path.join(realDirectory, entry.name);
+    const relativePath = normalizePath(
+      path.relative(realProjectRoot, absolutePath),
+    );
+    const kind = entry.isDirectory()
+      ? "directory"
+      : entry.isSymbolicLink()
+        ? "symlink"
+        : "file";
+
+    return { kind, path: relativePath };
+  });
+
+  entries.sort((left, right) => {
+    const leftRank = left.kind === "directory" ? 0 : 1;
+    const rightRank = right.kind === "directory" ? 0 : 1;
+    return leftRank - rightRank || left.path.localeCompare(right.path);
+  });
+
+  return { directory: relativeDirectory, entries };
+};
+
 export const ensureProjectDirectory = async (projectPath) => {
   const stats = await fs.stat(projectPath);
   if (!stats.isDirectory()) {
