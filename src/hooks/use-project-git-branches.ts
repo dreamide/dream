@@ -197,6 +197,8 @@ export const useProjectGitBranches = (
     [cacheKey, projectPath, refreshToken, uiT],
   );
 
+  const forceRefresh = useCallback(() => refresh(undefined, true), [refresh]);
+
   const clearError = useCallback(() => {
     setError(null);
     if (cacheKey) {
@@ -218,7 +220,7 @@ export const useProjectGitBranches = (
     error,
     isRepo: status?.isRepo ?? false,
     loading,
-    refresh: () => refresh(undefined, true),
+    refresh: forceRefresh,
     repoRoot: status?.repoRoot ?? null,
     status,
     switching,

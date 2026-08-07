@@ -1,4 +1,4 @@
-import { Check, ChevronDown, GitBranch, Plus, RotateCw } from "lucide-react";
+import { Check, ChevronDown, FolderTree, GitBranch, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,7 @@ const BranchSwitcherImpl = ({
 
   const [open, setOpen] = useState(false);
   const [createBranchOpen, setCreateBranchOpen] = useState(false);
+  const [listScrolled, setListScrolled] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [createBranchName, setCreateBranchName] = useState("");
   const normalizedSearchValue = normalizeBranchName(searchValue);
@@ -95,12 +96,14 @@ const BranchSwitcherImpl = ({
 
   useEffect(() => {
     if (open) {
+      void refresh();
       return;
     }
 
     clearError();
+    setListScrolled(false);
     setSearchValue("");
-  }, [clearError, open]);
+  }, [clearError, open, refresh]);
 
   useEffect(() => {
     if (createBranchOpen) {
@@ -189,85 +192,82 @@ const BranchSwitcherImpl = ({
           sideOffset={8}
         >
           <Command shouldFilter>
-            <div className="flex items-center gap-1 px-1 pt-1">
-              <div className="min-w-0 flex-1">
-                <CommandInput
-                  className="text-xs"
-                  onValueChange={setSearchValue}
-                  placeholder={branchT("searchBranches")}
-                  value={searchValue}
-                />
+            <CommandInput
+              className="text-xs"
+              onValueChange={setSearchValue}
+              placeholder={branchT("searchBranches")}
+              value={searchValue}
+            />
+            {branches.length > 0 ? (
+              <div className="px-3 py-1.5 font-medium text-muted-foreground text-xs">
+                {branchT("branches")}
               </div>
-              <Button
-                aria-label={branchT("refreshBranches")}
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
-                disabled={loading || switching}
-                onClick={() => {
-                  void refresh();
+            ) : null}
+            <div className="relative">
+              {listScrolled ? (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute top-0 right-0 left-0 z-10 h-6 bg-linear-to-b from-popover to-transparent"
+                />
+              ) : null}
+              <CommandList
+                className="max-h-[280px]"
+                onScroll={(event) => {
+                  setListScrolled(event.currentTarget.scrollTop > 0);
                 }}
-                size="icon-sm"
-                type="button"
-                variant="ghost"
               >
-                {loading ? (
-                  <Spinner className="size-3.5" />
-                ) : (
-                  <RotateCw className="size-4" />
-                )}
-              </Button>
+                {loading && branches.length === 0 ? (
+                  <div className="flex items-center gap-2 px-3 py-4 text-muted-foreground text-sm">
+                    <Spinner className="size-4" />
+                  </div>
+                ) : null}
+
+                {branches.length > 0 ? (
+                  <CommandGroup className="pb-2">
+                    {branches.map((branch) => (
+                      <CommandItem
+                        className="text-xs data-[selected=true]:bg-transparent data-[selected=true]:hover:bg-muted hover:bg-muted"
+                        disabled={switching}
+                        key={branch.name}
+                        keywords={[
+                          branch.current ? branchT("currentBranch") : "",
+                        ]}
+                        onSelect={() => {
+                          void handleCheckout(branch.name);
+                        }}
+                        value={branch.name}
+                      >
+                        <GitBranch className="size-3.5 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">
+                          {branch.name}
+                        </span>
+                        <Check
+                          className={cn(
+                            "absolute right-2 size-3.5 text-foreground transition-opacity",
+                            branch.current ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ) : null}
+
+                {!loading ? (
+                  <CommandEmpty>
+                    {normalizedSearchValue
+                      ? branchT("noMatchingBranches")
+                      : branchT("noLocalBranches")}
+                  </CommandEmpty>
+                ) : null}
+              </CommandList>
             </div>
-            <CommandList className="max-h-[280px]">
-              {loading && branches.length === 0 ? (
-                <div className="flex items-center gap-2 px-3 py-4 text-muted-foreground text-sm">
-                  <Spinner className="size-4" />
-                </div>
-              ) : null}
-
-              {branches.length > 0 ? (
-                <CommandGroup heading={branchT("branches")}>
-                  {branches.map((branch) => (
-                    <CommandItem
-                      className="text-xs data-[selected=true]:bg-transparent data-[selected=true]:hover:bg-muted hover:bg-muted"
-                      disabled={switching}
-                      key={branch.name}
-                      keywords={[
-                        branch.current ? branchT("currentBranch") : "",
-                      ]}
-                      onSelect={() => {
-                        void handleCheckout(branch.name);
-                      }}
-                      value={branch.name}
-                    >
-                      <GitBranch className="size-3.5 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate">
-                        {branch.name}
-                      </span>
-                      <Check
-                        className={cn(
-                          "absolute right-2 size-3.5 text-foreground transition-opacity",
-                          branch.current ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              ) : null}
-
-              {!loading ? (
-                <CommandEmpty>
-                  {normalizedSearchValue
-                    ? branchT("noMatchingBranches")
-                    : branchT("noLocalBranches")}
-                </CommandEmpty>
-              ) : null}
-            </CommandList>
 
             <CommandSeparator />
 
-            <div className="flex flex-col gap-1 p-1">
+            <div className="flex flex-col p-1 pt-2">
               <button
                 className={cn(
-                  "flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs",
+                  "flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs",
                   loading || switching
                     ? "cursor-not-allowed text-surface-400 dark:text-surface-500"
                     : "text-foreground hover:bg-muted",
@@ -276,7 +276,7 @@ const BranchSwitcherImpl = ({
                 onClick={handleOpenCreateDialog}
                 type="button"
               >
-                <Plus className="size-3.5 shrink-0" />
+                <Plus className="size-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate">
                   {branchT("createAndCheckoutNewBranch")}
                 </span>
@@ -284,7 +284,12 @@ const BranchSwitcherImpl = ({
 
               {onCreateWorktree ? (
                 <button
-                  className="flex min-h-8 w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted"
+                  className={cn(
+                    "flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs",
+                    loading || switching
+                      ? "cursor-not-allowed text-surface-400 dark:text-surface-500"
+                      : "text-foreground hover:bg-muted",
+                  )}
                   disabled={loading || switching}
                   onClick={() => {
                     clearError();
@@ -293,7 +298,7 @@ const BranchSwitcherImpl = ({
                   }}
                   type="button"
                 >
-                  <Plus className="size-3.5 shrink-0 text-muted-foreground" />
+                  <FolderTree className="size-3.5 shrink-0 text-muted-foreground" />
                   <span className="truncate">{branchT("newWorktree")}</span>
                 </button>
               ) : null}
@@ -325,10 +330,8 @@ const BranchSwitcherImpl = ({
             }}
           >
             <div className="grid gap-2">
-              <label className="font-medium text-sm" htmlFor="branch-name">
-                {branchT("newBranchName")}
-              </label>
               <Input
+                aria-label={branchT("newBranchName")}
                 autoFocus
                 disabled={switching}
                 id="branch-name"
