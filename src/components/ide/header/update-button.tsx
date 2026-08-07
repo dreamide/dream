@@ -100,8 +100,8 @@ export const HeaderUpdateButton = () => {
 
   const busy = installing || checking;
   const label = checking ? updatesT("checkingUpdate") : getUpdateLabel();
-  const disabled =
-    busy || status.state === "available" || status.state === "downloading";
+  const unavailable =
+    status.state === "available" || status.state === "downloading";
   const title =
     status.state === "error" && status.error
       ? updatesT("updateFailedRetry", { error: status.error })
@@ -110,9 +110,10 @@ export const HeaderUpdateButton = () => {
 
   return (
     <Button
+      aria-disabled={busy || unavailable}
       aria-label={label}
       className="mr-1 h-7 max-w-[180px] gap-1 rounded-md px-2 text-[11px] font-medium [-webkit-app-region:no-drag]"
-      disabled={disabled}
+      disabled={unavailable}
       onClick={handleUpdateClick}
       size="xs"
       title={title}

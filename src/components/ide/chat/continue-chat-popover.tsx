@@ -1,13 +1,14 @@
-import { FolderIcon, FolderTreeIcon, Split } from "lucide-react";
+import { FolderIcon, FolderTreeIcon, Forward } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import type { ChatConfig } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
@@ -86,8 +87,8 @@ export const ContinueChatPopover = ({
   };
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger
+    <DropdownMenu onOpenChange={setOpen} open={open}>
+      <DropdownMenuTrigger
         render={
           <button
             aria-label={chatT("continueFromMessage")}
@@ -97,45 +98,42 @@ export const ContinueChatPopover = ({
           />
         }
       >
-        <Split className="size-3.5" />
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-56 gap-1 p-1.5"
+        <Forward className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="center"
+        className="w-max text-xs"
         side="top"
         sideOffset={6}
       >
-        <PopoverTitle className="px-2 py-1.5 text-xs">
-          {chatT("continueInNewChat")}
-        </PopoverTitle>
-        <Button
-          className="w-full justify-start"
-          disabled={isProcessing || submitting}
-          onClick={continueInWorkspace}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          <FolderIcon className="size-4" />
-          {chatT("useThisWorkspace")}
-        </Button>
-        <Button
-          className="w-full justify-start"
-          disabled={isProcessing || submitting || !isRepo}
-          onClick={() => void continueInWorktree()}
-          size="sm"
-          title={!isRepo ? chatT("worktreeRequiresGit") : undefined}
-          type="button"
-          variant="ghost"
-        >
-          {submitting ? (
-            <Spinner className="size-4" />
-          ) : (
-            <FolderTreeIcon className="size-4" />
-          )}
-          {chatT("useNewWorktree")}
-        </Button>
-      </PopoverContent>
-    </Popover>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="whitespace-nowrap font-normal">
+            {chatT("continueInNewChat")}
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            className="gap-1.5 whitespace-nowrap text-xs"
+            disabled={isProcessing || submitting}
+            onClick={continueInWorkspace}
+          >
+            <FolderIcon className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
+            {chatT("useThisWorkspace")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="gap-1.5 whitespace-nowrap text-xs"
+            closeOnClick={false}
+            disabled={isProcessing || submitting || !isRepo}
+            onClick={() => void continueInWorktree()}
+            title={!isRepo ? chatT("worktreeRequiresGit") : undefined}
+          >
+            {submitting ? (
+              <Spinner className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
+            ) : (
+              <FolderTreeIcon className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
+            )}
+            {chatT("useNewWorktree")}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
