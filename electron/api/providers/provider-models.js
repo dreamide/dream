@@ -33,7 +33,7 @@ import {
 const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
-const OPENCODE_LOW_COST_MODEL = "opencode-go/deepseek-v4-flash";
+const OPENCODE_LOW_COST_MODEL = "opencode-go/kimi-k2.6";
 const CURSOR_AUTO_MODEL = "auto";
 
 const dedupeAndSort = (models) => {

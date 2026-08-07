@@ -49,20 +49,31 @@ const OPENCODE_TODO_TOOL_NAMES = new Set([
 
 const getOpenCodeErrorDetail = (event) => {
   if (!event || typeof event !== "object") {
-    return null;
+    return typeof event === "string" && event.trim() ? event.trim() : null;
   }
 
   const values = [
-    event.error?.message,
     event.error,
-    event.message,
-    event.properties?.error?.message,
     event.properties?.error,
+    event.properties?.info?.error,
+    event.message,
+    event,
   ];
 
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
       return value.trim();
+    }
+
+    if (value && typeof value === "object") {
+      const detail = formatStreamError(value);
+      if (
+        detail !== "An unknown error occurred." &&
+        detail !==
+          "An unexpected error occurred. Check the server console for details."
+      ) {
+        return detail;
+      }
     }
   }
 
@@ -474,6 +485,7 @@ export const streamOpenCodeResponse = ({
         let textLimitReached = false;
         let opencode = null;
         let eventsError = null;
+        let openCodeError = null;
         const serverAbortController = new AbortController();
 
         const getTextPartKey = (id, type) => `${type}:${id}`;
@@ -594,6 +606,10 @@ export const streamOpenCodeResponse = ({
           }
 
           messageRoleById.set(message.id, message.role);
+
+          if (message.role === "assistant" && message.error) {
+            openCodeError ??= getOpenCodeErrorDetail(message.error);
+          }
 
           const pendingEvents = pendingPartEventsByMessageId.get(message.id);
           if (!pendingEvents) {
@@ -953,6 +969,7 @@ export const streamOpenCodeResponse = ({
               .toLowerCase()
               .includes("error")
           ) {
+            openCodeError ??= detail;
             stderrBuffer += `${detail}\n`;
             return;
           }
@@ -1119,6 +1136,13 @@ export const streamOpenCodeResponse = ({
               { signal: serverAbortController.signal },
             );
 
+            const promptError = getOpenCodeErrorDetail(
+              promptResult.error ?? promptResult.data?.info?.error,
+            );
+            if (promptError) {
+              throw new Error(promptError);
+            }
+
             if (finished || abortSignal?.aborted) {
               return;
             }
@@ -1138,6 +1162,10 @@ export const streamOpenCodeResponse = ({
               if (!wroteFallbackText) {
                 if (eventsError) {
                   throw eventsError;
+                }
+
+                if (openCodeError) {
+                  throw new Error(openCodeError);
                 }
 
                 throw new Error(
