@@ -175,17 +175,10 @@ const setCommitMessageCacheEntry = (key, value) => {
   }
 };
 
-const generateClaudeCommitMessage = async ({
-  customInstructions,
-  diffText,
-  changes,
-  model: requestedModel,
-  projectPath,
-}) => {
-  const model = requestedModel || "haiku";
+const runClaudePrompt = async ({ model, prompt, projectPath, system }) => {
   const claudeExecutablePath = await resolveCliCommandPath("claude");
   const result = await generateText({
-    model: claudeCode(normalizeClaudeCodeModel(model), {
+    model: claudeCode(normalizeClaudeCodeModel(model || "haiku"), {
       ...(claudeExecutablePath
         ? { pathToClaudeCodeExecutable: claudeExecutablePath }
         : {}),
@@ -195,35 +188,18 @@ const generateClaudeCommitMessage = async ({
       permissionMode: "plan",
       strictMcpConfig: true,
     }),
-    prompt: buildCommitMessagePrompt({ changes, customInstructions, diffText }),
-    system:
-      "You write concise, accurate git commit subjects. Return only the subject line.",
+    prompt,
+    system,
   });
 
-  return sanitizeGeneratedCommitMessage(result.text);
+  return result.text;
 };
 
-const generateCodexCommitMessage = async ({
-  customInstructions,
-  diffText,
-  changes,
-  model: requestedModel,
-  projectPath,
-}) =>
+const runCodexPrompt = async ({ model, prompt, projectPath }) =>
   new Promise((resolve, reject) => {
     let stdoutBuffer = "";
     let stderrBuffer = "";
     let latestText = "";
-
-    const prompt = [
-      "You write concise, accurate git commit subjects.",
-      buildCommitMessagePrompt({ changes, customInstructions, diffText }),
-    ].join("\n\n");
-
-    const finishWithText = () => {
-      const sanitized = sanitizeGeneratedCommitMessage(latestText);
-      resolve(sanitized);
-    };
 
     const handleEvent = (event) => {
       if (!event || typeof event !== "object") {
@@ -267,8 +243,8 @@ const generateCodexCommitMessage = async ({
       }
     };
 
-    void Promise.all([resolveCodexCliLaunch(), Promise.resolve(requestedModel)])
-      .then(([launch, model]) => {
+    void Promise.all([resolveCodexCliLaunch(), Promise.resolve(model)])
+      .then(([launch, resolvedModel]) => {
         const child = spawn(
           launch.command,
           [
@@ -278,7 +254,7 @@ const generateCodexCommitMessage = async ({
             "--cd",
             projectPath,
             "--skip-git-repo-check",
-            ...(model ? ["--model", model] : []),
+            ...(resolvedModel ? ["--model", resolvedModel] : []),
             "-c",
             'sandbox_mode="read-only"',
             "-c",
@@ -314,7 +290,7 @@ const generateCodexCommitMessage = async ({
           }
 
           if (code === 0) {
-            finishWithText();
+            resolve(latestText);
             return;
           }
 
@@ -354,19 +330,13 @@ const parseOpenCodeModel = (model) => {
 const getOpenCodePartText = (part) =>
   part?.type === "text" && typeof part.text === "string" ? part.text : "";
 
-const generateOpenCodeCommitMessage = async ({
-  customInstructions,
-  diffText,
-  changes,
-  model: requestedModel,
-  projectPath,
-}) => {
-  const model = requestedModel;
-  if (!model) {
-    throw new Error("No OpenCode commit message model is available.");
+const runOpenCodePrompt = async ({ model, prompt, projectPath }) => {
+  const requestedModel = typeof model === "string" ? model.trim() : "";
+  if (!requestedModel) {
+    throw new Error("No OpenCode model is available.");
   }
 
-  const { modelID, providerID } = parseOpenCodeModel(model);
+  const { modelID, providerID } = parseOpenCodeModel(requestedModel);
   const requestAbortController = new AbortController();
   const requestTimeout = setTimeout(() => {
     requestAbortController.abort();
@@ -400,10 +370,6 @@ const generateOpenCodeCommitMessage = async ({
       throw new Error("OpenCode did not return a session id.");
     }
 
-    const prompt = [
-      "You write concise, accurate git commit subjects. Return only the subject line.",
-      buildCommitMessagePrompt({ changes, customInstructions, diffText }),
-    ].join("\n\n");
     const promptResult = await opencode.client.session.prompt(
       {
         body: {
@@ -420,12 +386,10 @@ const generateOpenCodeCommitMessage = async ({
       { signal: requestAbortController.signal },
     );
 
-    return sanitizeGeneratedCommitMessage(
-      (promptResult.data?.parts ?? []).map(getOpenCodePartText).join(" "),
-    );
+    return (promptResult.data?.parts ?? []).map(getOpenCodePartText).join(" ");
   } catch (error) {
     if (requestAbortController.signal.aborted) {
-      throw new Error("OpenCode commit message request timed out.");
+      throw new Error("OpenCode request timed out.");
     }
     throw error;
   } finally {
@@ -459,21 +423,11 @@ const getCursorEventText = (event) => {
   return typeof event.message.text === "string" ? event.message.text : "";
 };
 
-const generateCursorCommitMessage = async ({
-  customInstructions,
-  diffText,
-  changes,
-  model: requestedModel,
-  projectPath,
-}) =>
+const runCursorPrompt = async ({ model, prompt, projectPath }) =>
   new Promise((resolve, reject) => {
     let stdoutBuffer = "";
     let stderrBuffer = "";
     let latestText = "";
-    const prompt = [
-      "You write concise, accurate git commit subjects. Return only the subject line.",
-      buildCommitMessagePrompt({ changes, customInstructions, diffText }),
-    ].join("\n\n");
 
     const handleEvent = (event) => {
       const text = getCursorEventText(event);
@@ -516,11 +470,8 @@ const generateCursorCommitMessage = async ({
       }
     };
 
-    void Promise.all([
-      resolveCursorCliLaunch(),
-      Promise.resolve(requestedModel),
-    ])
-      .then(([launch, model]) => {
+    void Promise.all([resolveCursorCliLaunch(), Promise.resolve(model)])
+      .then(([launch, resolvedModel]) => {
         const child = spawn(
           launch.command,
           [
@@ -532,7 +483,7 @@ const generateCursorCommitMessage = async ({
             "--mode",
             "ask",
             "--model",
-            normalizeCursorCliModel(model),
+            normalizeCursorCliModel(resolvedModel),
             prompt,
           ],
           {
@@ -561,7 +512,7 @@ const generateCursorCommitMessage = async ({
           }
 
           if (code === 0) {
-            resolve(sanitizeGeneratedCommitMessage(latestText));
+            resolve(latestText);
             return;
           }
 
@@ -583,79 +534,34 @@ const generateCursorCommitMessage = async ({
       });
   });
 
-const generateGrokCommitMessage = async ({
-  customInstructions,
-  diffText,
-  changes,
-  model,
-  projectPath,
-}) =>
-  sanitizeGeneratedCommitMessage(
-    await runGrokPrompt({
-      cwd: projectPath,
-      model,
-      prompt: [
-        "You write concise, accurate git commit subjects. Return only the subject line.",
-        buildCommitMessagePrompt({ changes, customInstructions, diffText }),
-      ].join("\n\n"),
-    }),
-  );
-
-const generateAiCommitMessage = async ({
+const generateAiText = async ({
   provider,
   model,
-  customInstructions,
-  diffText,
-  changes,
+  prompt,
   projectPath,
+  system,
 }) => {
   if (provider === "anthropic") {
-    return generateClaudeCommitMessage({
-      changes,
-      customInstructions,
-      diffText,
-      model,
-      projectPath,
-    });
+    return runClaudePrompt({ model, prompt, projectPath, system });
   }
 
   if (provider === "opencode") {
-    return generateOpenCodeCommitMessage({
-      changes,
-      customInstructions,
-      diffText,
-      model,
-      projectPath,
-    });
+    return runOpenCodePrompt({ model, prompt, projectPath });
   }
 
   if (provider === "cursor") {
-    return generateCursorCommitMessage({
-      changes,
-      customInstructions,
-      diffText,
-      model,
-      projectPath,
-    });
+    return runCursorPrompt({ model, prompt, projectPath });
   }
 
   if (provider === "grok") {
-    return generateGrokCommitMessage({
-      changes,
-      customInstructions,
-      diffText,
+    return runGrokPrompt({
+      cwd: projectPath,
       model,
-      projectPath,
+      prompt,
     });
   }
 
-  return generateCodexCommitMessage({
-    changes,
-    customInstructions,
-    diffText,
-    model,
-    projectPath,
-  });
+  return runCodexPrompt({ model, prompt, projectPath });
 };
 
 export const generateProjectGitCommitMessage = async (
@@ -717,14 +623,24 @@ export const generateProjectGitCommitMessage = async (
       return "";
     }
 
-    const aiMessage = await generateAiCommitMessage({
-      changes,
-      customInstructions,
-      diffText,
-      model,
-      projectPath,
-      provider,
-    });
+    const commitInstruction =
+      "You write concise, accurate git commit subjects. Return only the subject line.";
+    const commitPrompt =
+      provider === "anthropic"
+        ? buildCommitMessagePrompt({ changes, customInstructions, diffText })
+        : [
+            commitInstruction,
+            buildCommitMessagePrompt({ changes, customInstructions, diffText }),
+          ].join("\n\n");
+    const aiMessage = sanitizeGeneratedCommitMessage(
+      await generateAiText({
+        model,
+        projectPath,
+        prompt: commitPrompt,
+        provider,
+        system: provider === "anthropic" ? commitInstruction : undefined,
+      }),
+    );
 
     return aiMessage || "";
   })();
@@ -1037,6 +953,116 @@ const buildGeneratedPullRequestBody = ({
     .join("\n");
 };
 
+const sanitizeGeneratedPullRequestTitle = (value) => {
+  const firstLine = String(value ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (!firstLine) {
+    return "";
+  }
+
+  return firstLine
+    .replace(/^pull request title:\s*/i, "")
+    .replace(/^#+\s*/, "")
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim();
+};
+
+const sanitizeGeneratedPullRequestBody = (value) => {
+  let body = String(value ?? "").trim();
+  if (!body) {
+    return "";
+  }
+
+  if (/^```(?:markdown|md)?\s*$/i.test(body)) {
+    body = body
+      .replace(/^```(?:markdown|md)?\s*\n?/i, "")
+      .replace(/\n?```\s*$/, "")
+      .trim();
+  }
+
+  return body.replace(/^pull request description:\s*/i, "").trim();
+};
+
+const buildPullRequestContext = ({
+  branch,
+  commitSubjects,
+  customInstructions,
+  diffStat,
+}) => {
+  const subjects = commitSubjects.slice(0, 12);
+  const instructions = normalizeGitActionText(customInstructions);
+
+  return [
+    `Branch: ${branch || "current branch"}`,
+    commitSubjects.length > 0 ? "Commits:" : null,
+    ...subjects.map((subject) => `- ${subject}`),
+    instructions ? `User instructions: ${instructions}` : null,
+    diffStat ? "\nDiff stat:\n```text" : null,
+    diffStat || null,
+    diffStat ? "```" : null,
+  ]
+    .filter((part) => part !== null)
+    .join("\n");
+};
+
+const PULL_REQUEST_TITLE_INSTRUCTION =
+  "Generate one concise pull request title for these changes. Use imperative mood, no markdown, no quotes, no trailing period. Be specific about behavior, not just filenames. Return only the title.";
+
+const PULL_REQUEST_BODY_INSTRUCTION =
+  'Write a pull request description in GitHub-flavored markdown for these changes. Start with a "## Summary" section describing the high-level purpose. Then add a "## Changes" section listing the key changes as bullet points. Only mention concrete behavior changes, not just filenames. Return only the description body.';
+
+const generateAiPullRequestDetails = async ({
+  branch,
+  commitSubjects,
+  customInstructions,
+  diffStat,
+  model,
+  projectPath,
+  provider,
+}) => {
+  const context = buildPullRequestContext({
+    branch,
+    commitSubjects,
+    customInstructions,
+    diffStat,
+  });
+  const titlePrompt =
+    provider === "anthropic"
+      ? context
+      : [PULL_REQUEST_TITLE_INSTRUCTION, context].join("\n\n");
+  const bodyPrompt =
+    provider === "anthropic"
+      ? context
+      : [PULL_REQUEST_BODY_INSTRUCTION, context].join("\n\n");
+
+  const [titleText, bodyText] = await Promise.all([
+    generateAiText({
+      model,
+      projectPath,
+      prompt: titlePrompt,
+      provider,
+      system:
+        provider === "anthropic" ? PULL_REQUEST_TITLE_INSTRUCTION : undefined,
+    }),
+    generateAiText({
+      model,
+      projectPath,
+      prompt: bodyPrompt,
+      provider,
+      system:
+        provider === "anthropic" ? PULL_REQUEST_BODY_INSTRUCTION : undefined,
+    }),
+  ]);
+
+  return {
+    title: sanitizeGeneratedPullRequestTitle(titleText),
+    description: sanitizeGeneratedPullRequestBody(bodyText),
+  };
+};
+
 const getProjectPullRequestGenerationContext = async (
   projectPath,
   requestedBaseBranch,
@@ -1103,17 +1129,44 @@ export const generateProjectPullRequestDetails = async (
       ]
     : existingCommitSubjects;
 
-  return {
-    baseBranch: context.baseBranch,
-    commitMessage: generatedCommitMessage || null,
-    description: buildGeneratedPullRequestBody({
+  const hasModel = typeof model === "string" && model.trim().length > 0;
+  let generatedTitle = "";
+  let generatedDescription = "";
+  if (hasModel) {
+    try {
+      const aiDetails = await generateAiPullRequestDetails({
+        branch: context.headBranch,
+        commitSubjects,
+        customInstructions,
+        diffStat,
+        model,
+        projectPath,
+        provider,
+      });
+      generatedTitle = aiDetails.title;
+      generatedDescription = aiDetails.description;
+    } catch (error) {
+      console.warn("[git] AI pull request details generation failed:", error);
+    }
+  }
+  generatedTitle =
+    generatedTitle ||
+    buildGeneratedPullRequestTitle(context.headBranch, commitSubjects);
+  generatedDescription =
+    generatedDescription ||
+    buildGeneratedPullRequestBody({
       branch: context.headBranch,
       commitSubjects,
       customInstructions,
       diffStat,
-    }),
+    });
+
+  return {
+    baseBranch: context.baseBranch,
+    commitMessage: generatedCommitMessage || null,
+    description: generatedDescription,
     headBranch: context.headBranch,
-    title: buildGeneratedPullRequestTitle(context.headBranch, commitSubjects),
+    title: generatedTitle,
   };
 };
 
