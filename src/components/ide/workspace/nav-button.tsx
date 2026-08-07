@@ -23,13 +23,13 @@ export const WorkspaceNavButton = ({
       active
         ? "bg-muted text-foreground hover:bg-muted hover:text-foreground"
         : accent
-          ? "bg-primary-surface text-primary hover:bg-primary-surface-hover hover:text-primary"
+          ? undefined
           : "text-muted-foreground hover:text-foreground",
       className,
     )}
     size="icon"
     title={title}
-    variant="ghost"
+    variant={!active && accent ? "accent-subtle" : "ghost"}
     {...props}
   >
     {children}

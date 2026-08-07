@@ -4,6 +4,7 @@ import {
   FileIcon,
   Files,
   RotateCw,
+  Save,
   Search,
   TextWrap,
 } from "lucide-react";
@@ -1341,22 +1342,37 @@ const FileExplorerPanelImpl = ({
                     type="button"
                     variant="ghost"
                   >
-                    <Search />
+                    <Search className="size-3.5" />
                   </Button>
                   <CodeBlockCopyButton text={selectedFileBuffer.draftContent} />
                   <Button
+                    aria-label={commonT("save")}
+                    className={
+                      selectedFileBuffer.draftContent !==
+                      selectedFileBuffer.diskContent
+                        ? undefined
+                        : "text-muted-foreground"
+                    }
                     disabled={
                       selectedFileBuffer.status !== "dirty" ||
                       !selectedFileMetadata?.writable
                     }
                     onClick={() => void handleSaveEditing()}
-                    size="xs"
+                    size="icon-xs"
+                    title={commonT("save")}
                     type="button"
+                    variant={
+                      selectedFileBuffer.draftContent !==
+                      selectedFileBuffer.diskContent
+                        ? "accent-subtle"
+                        : "ghost"
+                    }
                   >
                     {selectedFileBuffer.status === "saving" ? (
-                      <Spinner className="size-3" />
-                    ) : null}
-                    {commonT("save")}
+                      <Spinner className="size-3.5" />
+                    ) : (
+                      <Save className="size-3.5" />
+                    )}
                   </Button>
                 </CodeBlockActions>
               </CodeBlockHeader>
