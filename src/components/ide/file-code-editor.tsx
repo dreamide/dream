@@ -6,9 +6,12 @@ import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
 import {
   closeSearchPanel,
+  getSearchQuery,
   openSearchPanel,
+  SearchQuery,
   search,
   searchPanelOpen,
+  setSearchQuery,
 } from "@codemirror/search";
 import CodeMirror, {
   EditorView,
@@ -205,6 +208,19 @@ const FileCodeEditor = ({
       view.focus();
     } else {
       openSearchPanel(view);
+      const query = getSearchQuery(view.state);
+      view.dispatch({
+        effects: setSearchQuery.of(
+          new SearchQuery({
+            caseSensitive: query.caseSensitive,
+            literal: query.literal,
+            regexp: query.regexp,
+            replace: "",
+            search: "",
+            wholeWord: query.wholeWord,
+          }),
+        ),
+      });
     }
   }, [searchRequest]);
 
