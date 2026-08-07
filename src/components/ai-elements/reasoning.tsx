@@ -320,6 +320,17 @@ export const ReasoningContent = memo(
         return;
       }
 
+      // A reasoning part stops being the active streaming part as soon as a
+      // later tool call or text part arrives. Flush any reveal backlog at that
+      // point so newer content never renders ahead of older reasoning text.
+      if (!isStreaming) {
+        animationStartOffsetRef.current = children.length;
+        visibleChildrenRef.current = children;
+        setVisibleChildren(children);
+        setAnimateStreamedText(false);
+        return;
+      }
+
       let cancelled = false;
 
       function scheduleRevealTick(delayMs: number) {

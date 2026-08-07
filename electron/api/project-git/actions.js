@@ -15,12 +15,6 @@ import {
 } from "../providers/cursor-cli.js";
 import { runGrokPrompt } from "../providers/grok-acp.js";
 import { normalizeClaudeCodeModel } from "../providers/model-options.js";
-import {
-  fetchAnthropicLowCostModel,
-  fetchCursorLowCostModel,
-  fetchOpenAiLowCostModel,
-  fetchOpenCodeLowCostModel,
-} from "../providers/provider-models.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
 import {
   getGitCommandErrorMessage,
@@ -188,8 +182,7 @@ const generateClaudeCommitMessage = async ({
   model: requestedModel,
   projectPath,
 }) => {
-  const model =
-    requestedModel || (await fetchAnthropicLowCostModel()) || "haiku";
+  const model = requestedModel || "haiku";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
   const result = await generateText({
     model: claudeCode(normalizeClaudeCodeModel(model), {
@@ -274,12 +267,7 @@ const generateCodexCommitMessage = async ({
       }
     };
 
-    void Promise.all([
-      resolveCodexCliLaunch(),
-      requestedModel
-        ? Promise.resolve(requestedModel)
-        : fetchOpenAiLowCostModel(),
-    ])
+    void Promise.all([resolveCodexCliLaunch(), Promise.resolve(requestedModel)])
       .then(([launch, model]) => {
         const child = spawn(
           launch.command,
@@ -373,7 +361,7 @@ const generateOpenCodeCommitMessage = async ({
   model: requestedModel,
   projectPath,
 }) => {
-  const model = requestedModel || (await fetchOpenCodeLowCostModel());
+  const model = requestedModel;
   if (!model) {
     throw new Error("No OpenCode commit message model is available.");
   }
@@ -530,9 +518,7 @@ const generateCursorCommitMessage = async ({
 
     void Promise.all([
       resolveCursorCliLaunch(),
-      requestedModel
-        ? Promise.resolve(requestedModel)
-        : fetchCursorLowCostModel(),
+      Promise.resolve(requestedModel),
     ])
       .then(([launch, model]) => {
         const child = spawn(

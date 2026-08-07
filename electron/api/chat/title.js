@@ -8,11 +8,6 @@ import {
   getModelReasoningEfforts,
   normalizeClaudeCodeModel,
 } from "../providers/model-options.js";
-import {
-  fetchAnthropicLowCostModel,
-  fetchOpenAiLowCostModel,
-  fetchOpenCodeLowCostModel,
-} from "../providers/provider-models.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
 import {
   getCodexCliSpawnErrorMessage,
@@ -363,7 +358,7 @@ export const generateChatTitle = async ({
       : normalizedPrompt;
 
   if (provider === "anthropic") {
-    const model = (await fetchAnthropicLowCostModel()) || "haiku";
+    const model = fallbackModel?.trim() || "haiku";
     return generateClaudeChatTitle({
       model,
       projectPath,
@@ -372,8 +367,7 @@ export const generateChatTitle = async ({
   }
 
   if (provider === "opencode") {
-    const model =
-      (await fetchOpenCodeLowCostModel(fallbackModel)) || fallbackModel?.trim();
+    const model = fallbackModel?.trim();
     if (!model) {
       throw new Error("No OpenCode title model is available.");
     }
@@ -400,7 +394,7 @@ export const generateChatTitle = async ({
     });
   }
 
-  const model = (await fetchOpenAiLowCostModel()) || fallbackModel?.trim();
+  const model = fallbackModel?.trim();
   if (!model) {
     throw new Error("No OpenAI title model is available.");
   }

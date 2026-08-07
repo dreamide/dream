@@ -10,8 +10,6 @@ import {
   normalizeModelSpeed,
   normalizeModelSpeedTiers,
   normalizeReasoningEfforts,
-  selectLowCostAnthropicModel,
-  selectLowCostOpenAiModel,
   sortCursorModelOptions,
 } from "./model-options.js";
 
@@ -163,27 +161,6 @@ test("sorts Cursor models with auto first, composer second, then original order"
     sorted.map((model) => model.id),
     ["auto", "composer", "gpt-5.4", "sonnet"],
   );
-});
-
-test("selects the cheapest OpenAI model by candidate priority preserving casing", () => {
-  assert.equal(
-    selectLowCostOpenAiModel([{ id: "GPT-5.4-Mini" }, { id: "gpt-5.4-nano" }]),
-    "gpt-5.4-nano",
-  );
-  assert.equal(
-    selectLowCostOpenAiModel([{ id: "GPT-5.4-Mini" }]),
-    "GPT-5.4-Mini",
-  );
-  assert.equal(selectLowCostOpenAiModel([{ id: "gpt-4o" }]), "");
-});
-
-test("selects a low cost Anthropic model with haiku word fallback", () => {
-  assert.equal(selectLowCostAnthropicModel([{ id: "haiku" }]), "haiku");
-  assert.equal(
-    selectLowCostAnthropicModel([{ id: "claude-haiku-4-5" }]),
-    "claude-haiku-4-5",
-  );
-  assert.equal(selectLowCostAnthropicModel([{ id: "claude-opus-4" }]), "");
 });
 
 test("normalizes Claude Code model ids to family aliases", () => {

@@ -15,11 +15,6 @@ export const CLAUDE_REASONING_EFFORT_MAP = {
   xhigh: "high",
 };
 
-export const OPENAI_LOW_COST_MODEL_CANDIDATES = [
-  "gpt-5.4-nano",
-  "gpt-5.4-mini",
-];
-export const ANTHROPIC_LOW_COST_MODEL_CANDIDATES = ["haiku"];
 const OPENAI_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"];
 const ANTHROPIC_REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 const HIDDEN_OPENAI_MODEL_LABELS = new Set(["codex auto review"]);
@@ -354,40 +349,6 @@ export const sortCursorModelOptions = (models) =>
         left.priority - right.priority || left.index - right.index,
     )
     .map(({ model }) => model);
-
-export const selectLowCostOpenAiModel = (models) => {
-  const modelIds = models.map((model) => model?.id?.trim()).filter(Boolean);
-  const modelIdsByLowercase = new Map(
-    modelIds.map((id) => [id.toLowerCase(), id]),
-  );
-
-  for (const candidate of OPENAI_LOW_COST_MODEL_CANDIDATES) {
-    const matched = modelIdsByLowercase.get(candidate.toLowerCase());
-    if (matched) {
-      return matched;
-    }
-  }
-
-  return "";
-};
-
-export const selectLowCostAnthropicModel = (models) => {
-  const modelIds = models.map((model) => model?.id?.trim()).filter(Boolean);
-  const modelIdsByLowercase = new Map(
-    modelIds.map((id) => [id.toLowerCase(), id]),
-  );
-
-  for (const candidate of ANTHROPIC_LOW_COST_MODEL_CANDIDATES) {
-    const matched = modelIdsByLowercase.get(candidate.toLowerCase());
-    if (matched) {
-      return matched;
-    }
-  }
-
-  return (
-    modelIds.find((id) => /\bhaiku\b/i.test(id.replace(/[-_.]/g, " "))) ?? ""
-  );
-};
 
 const CLAUDE_CODE_MODEL_LABELS = {
   haiku: "Claude Haiku",
