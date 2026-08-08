@@ -151,6 +151,8 @@ export const MessageHoverFooter = ({
         })
       : null;
   const text = getMessageText(message);
+  const continueChatContext =
+    message.role === "assistant" ? continueChat : undefined;
   const footerItems = [
     { id: "model", text: modelLabel, shimmer: false },
     { id: "reasoning", text: reasoningLabel, shimmer: false },
@@ -188,7 +190,7 @@ export const MessageHoverFooter = ({
     window.setTimeout(() => setCopied(false), 1200);
   }, [text]);
 
-  if (footerItems.length === 0 && !text && !continueChat) {
+  if (footerItems.length === 0 && !text && !continueChatContext) {
     return null;
   }
 
@@ -226,8 +228,8 @@ export const MessageHoverFooter = ({
           )}
         </button>
       ) : null}
-      {!isRunning && continueChat ? (
-        <ContinueChatPopover {...continueChat} messageId={message.id} />
+      {!isRunning && continueChatContext ? (
+        <ContinueChatPopover {...continueChatContext} messageId={message.id} />
       ) : null}
     </div>
   );
