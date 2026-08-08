@@ -88,7 +88,7 @@ const FileCodeSearchPanelContent = ({
             aria-invalid={query.search.length > 0 && !query.valid}
             aria-label="Find"
             autoComplete="off"
-            className="h-8 pr-14 font-mono text-xs text-foreground md:text-xs dark:bg-surface-950"
+            className="h-8 bg-surface-50 pr-14 text-xs text-foreground md:text-xs dark:bg-surface-900"
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={handleSearchKeyDown}
             placeholder="Find"
@@ -173,7 +173,7 @@ const FileCodeSearchPanelContent = ({
           <Input
             aria-label="Replace"
             autoComplete="off"
-            className="h-8 min-w-32 flex-1 font-mono text-xs text-foreground md:text-xs dark:bg-surface-950"
+            className="h-8 min-w-32 flex-1 bg-surface-50 text-xs text-foreground md:text-xs dark:bg-surface-900"
             onChange={(event) => onReplaceChange(event.target.value)}
             onKeyDown={handleReplaceKeyDown}
             placeholder="Replace"

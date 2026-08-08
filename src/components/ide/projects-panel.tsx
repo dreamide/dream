@@ -2,6 +2,7 @@ import { Archive, FolderTree, FolderX, Search } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SEARCH_INPUT_GROUP_CLASS_NAME } from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -344,7 +345,7 @@ export const ProjectSidebar = ({
     >
       <div className="px-3 py-3">
         <p className="font-medium text-sm">{projectsT("chatHistory")}</p>
-        <InputGroup className="mt-2">
+        <InputGroup className={cn("mt-2", SEARCH_INPUT_GROUP_CLASS_NAME)}>
           <InputGroupInput
             className="text-sm"
             onChange={(event) => setSearchQuery(event.target.value)}

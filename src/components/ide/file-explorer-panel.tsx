@@ -184,32 +184,48 @@ const FILE_TREE_UNSAFE_CSS = `
   }
 
   [data-file-tree-search-container] {
-    padding: 12px 24px 8px;
+    position: relative;
+    padding: 12px 12px 8px;
+  }
+
+  [data-file-tree-search-container]::before {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 16px;
+    height: 16px;
+    background-color: var(--muted-foreground);
+    content: "";
+    opacity: 0.5;
+    pointer-events: none;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat;
   }
 
   [data-file-tree-search-input] {
     appearance: none;
     box-sizing: border-box;
     width: 100%;
-    height: 36px;
+    height: 32px;
     min-width: 0;
     margin: 0;
-    border: 1px solid var(--input);
-    border-radius: 6px;
-    background-color: transparent;
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius);
+    background-color: var(--surface-50);
     background-clip: padding-box;
-    padding: 4px 10px;
+    padding: 4px 10px 4px 34px;
     color: var(--foreground);
-    font-family: inherit;
+    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
     font-size: 12px;
     line-height: 18px;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    box-shadow: none;
     transition-property: color, box-shadow;
     outline: none;
   }
 
   :host-context(.dark) [data-file-tree-search-input] {
-    background-color: color-mix(in oklab, var(--input) 30%, transparent);
+    border-color: var(--surface-800);
+    background-color: var(--surface-900);
   }
 
   [data-file-tree-search-input]::placeholder {

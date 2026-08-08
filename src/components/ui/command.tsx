@@ -12,6 +12,9 @@ import {
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 
+export const SEARCH_INPUT_GROUP_CLASS_NAME =
+  "h-8! rounded-lg! border-surface-200 bg-surface-50 shadow-none! dark:border-surface-800 dark:bg-surface-900 *:data-[slot=input-group-addon]:pl-2!";
+
 function Command({
   className,
   ...props
@@ -68,7 +71,7 @@ function CommandInput({
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
     <div data-slot="command-input-wrapper" className="p-1 pb-0">
-      <InputGroup className="h-8! rounded-lg! border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
+      <InputGroup className={SEARCH_INPUT_GROUP_CLASS_NAME}>
         <CommandPrimitive.Input
           data-slot="command-input"
           className={cn(

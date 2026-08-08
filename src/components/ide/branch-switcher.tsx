@@ -193,7 +193,6 @@ const BranchSwitcherImpl = ({
         >
           <Command shouldFilter>
             <CommandInput
-              className="text-xs"
               onValueChange={setSearchValue}
               placeholder={branchT("searchBranches")}
               value={searchValue}
