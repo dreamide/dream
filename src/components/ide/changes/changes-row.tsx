@@ -387,7 +387,7 @@ export const ChangesRow = ({
     <div className="border-b border-surface-200 dark:border-surface-700 bg-background">
       <div
         className={cn(
-          "relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left transition-colors",
+          "relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left",
           expanded
             ? "sticky top-0 z-30 border-b border-surface-200 dark:border-surface-700 bg-background"
             : "hover:bg-surface-100 dark:hover:bg-surface-900",
