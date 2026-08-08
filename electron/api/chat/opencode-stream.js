@@ -80,6 +80,39 @@ const getOpenCodeErrorDetail = (event) => {
   return null;
 };
 
+const describeOpenCodeRequestError = ({
+  error,
+  fallbackDetail,
+  model,
+  sessionId,
+}) => {
+  const details = [
+    formatStreamError(error),
+    ...String(fallbackDetail ?? "").split(/\r?\n/),
+  ]
+    .map((detail) => detail.trim())
+    .filter(
+      (detail, index, values) =>
+        detail &&
+        detail !== "An unknown error occurred." &&
+        detail !==
+          "An unexpected error occurred. Check the server console for details." &&
+        values.indexOf(detail) === index,
+    );
+  const detail = details.join(" — ") || "OpenCode request failed.";
+
+  if (!/\bfetch failed\b/i.test(detail)) {
+    return detail;
+  }
+
+  const sessionDetail = sessionId ? ` Session: ${sessionId}.` : "";
+  if (/\bECONNREFUSED\b[^\n]*(?:127\.0\.0\.1|localhost)/i.test(detail)) {
+    return `OpenCode's local server stopped responding while running ${model}. Technical detail: ${detail}.${sessionDetail} Retry the request; if it repeats, run \`opencode debug paths\` and inspect the latest OpenCode log.`;
+  }
+
+  return `OpenCode could not complete a network request while running ${model}. Technical detail: ${detail}.${sessionDetail} No provider HTTP response was available; this usually means the connection was refused, reset, timed out, blocked by DNS/proxy/TLS, or the local OpenCode server exited. Retry the request; if it repeats, run \`opencode debug paths\` and inspect the latest OpenCode log.`;
+};
+
 const parseOpenCodeModel = (model) => {
   const [providerID, ...modelParts] = String(model ?? "").split("/");
   const modelID = modelParts.join("/");
@@ -1182,9 +1215,12 @@ export const streamOpenCodeResponse = ({
             finish(() =>
               reject(
                 new Error(
-                  error instanceof Error
-                    ? error.message
-                    : stderrBuffer.trim() || "OpenCode request failed.",
+                  describeOpenCodeRequestError({
+                    error,
+                    fallbackDetail: stderrBuffer,
+                    model,
+                    sessionId: activeSessionId,
+                  }),
                 ),
               ),
             );

@@ -9,7 +9,13 @@ export const formatStreamError = (error) => {
   const isGeneric = (s) =>
     !s || s === "Error" || s === "error" || s === "Unknown error";
 
-  const statusCode = error.statusCode ?? error.status;
+  const rawErrorData =
+    error.data && typeof error.data === "object" ? error.data : null;
+  const statusCode =
+    error.statusCode ??
+    error.status ??
+    rawErrorData?.statusCode ??
+    rawErrorData?.status;
   if (statusCode) details.push(`[${statusCode}]`);
 
   const msg = error.message;
@@ -21,7 +27,7 @@ export const formatStreamError = (error) => {
     details.push(error.stderr.trim());
   }
 
-  const errData = error.data?.error ?? error.data;
+  const errData = rawErrorData?.error ?? rawErrorData;
   if (errData && typeof errData === "object") {
     const errType = errData.type ?? errData.code;
     if (typeof errType === "string" && errType.length > 0) {
@@ -33,13 +39,10 @@ export const formatStreamError = (error) => {
     }
   }
 
-  if (
-    details.length <= 1 &&
-    typeof error.responseBody === "string" &&
-    error.responseBody.length > 0
-  ) {
+  const responseBody = error.responseBody ?? rawErrorData?.responseBody;
+  if (typeof responseBody === "string" && responseBody.length > 0) {
     try {
-      const body = JSON.parse(error.responseBody);
+      const body = JSON.parse(responseBody);
       const bodyErrType = body?.error?.type ?? body?.error?.code;
       const bodyMsg =
         body?.error?.message ?? body?.message ?? body?.error_description;
@@ -54,7 +57,7 @@ export const formatStreamError = (error) => {
         details.push(bodyMsg);
       }
     } catch {
-      const trimmed = error.responseBody.trim();
+      const trimmed = responseBody.trim();
       if (trimmed.length > 0 && trimmed.length < 500 && trimmed !== msg) {
         details.push(trimmed);
       }
@@ -65,15 +68,31 @@ export const formatStreamError = (error) => {
   const seen = new Set();
   while (cause && !seen.has(cause)) {
     seen.add(cause);
-    const causeMsg = cause instanceof Error ? cause.message : String(cause);
-    if (!isGeneric(causeMsg) && causeMsg !== msg) {
-      details.push(causeMsg);
+    const causeMsg =
+      cause instanceof Error
+        ? cause.message
+        : typeof cause?.message === "string"
+          ? cause.message
+          : "";
+    const causeCode =
+      typeof cause?.code === "string" && !causeMsg.includes(cause.code)
+        ? cause.code
+        : "";
+    const causeLocation =
+      typeof cause?.address === "string" && !causeMsg.includes(cause.address)
+        ? `${cause.address}${cause.port ? `:${cause.port}` : ""}`
+        : "";
+    const causeDetail = [causeMsg, causeCode, causeLocation]
+      .filter(Boolean)
+      .join(" ");
+    if (!isGeneric(causeDetail) && causeDetail !== msg) {
+      details.push(causeDetail);
       break;
     }
     cause = cause?.cause;
   }
 
-  if (details.length > 0) return details.join(" — ");
+  if (details.length > 0) return Array.from(new Set(details)).join(" — ");
 
   return "An unexpected error occurred. Check the server console for details.";
 };
