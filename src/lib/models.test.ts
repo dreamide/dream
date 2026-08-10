@@ -99,6 +99,7 @@ test("formatModelIdLabel formats provider-specific model ids", () => {
   );
   assert.equal(formatModelIdLabel("anthropic", "opus[1m]"), "Claude Opus 1M");
   assert.equal(formatModelIdLabel("anthropic", "sonnet"), "Claude Sonnet");
+  assert.equal(formatModelIdLabel("amp", "smart"), "Smart");
   assert.equal(formatModelIdLabel("openai", "   "), "");
 });
 

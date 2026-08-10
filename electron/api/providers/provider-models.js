@@ -3,6 +3,13 @@ import {
   getCliVersion,
   isCliCommandAvailable,
 } from "../shared/cli.js";
+import {
+  getAmpConfigOptions,
+  getAmpModelOptions,
+  getAmpReasoningEfforts,
+  initializeAmpAcp,
+  spawnAmpAcp,
+} from "./amp-acp.js";
 import { readCodexAccessToken, readCodexModelsCache } from "./codex-auth.js";
 import {
   execCursorCliCommand,
@@ -404,6 +411,89 @@ export const fetchGrokModels = async ({ force = false } = {}) => {
       models: [],
       source: "unavailable",
       version,
+    };
+  } finally {
+    connection?.close();
+  }
+};
+
+export const fetchAmpModels = async () => {
+  const installed = await isCliCommandAvailable("amp-acp");
+  if (!installed) {
+    return {
+      error:
+        "Amp ACP adapter is not installed or available on PATH. Install amp-acp, then run `amp login` or complete adapter setup.",
+      installed: false,
+      models: [],
+      source: "unavailable",
+      version: null,
+    };
+  }
+
+  let connection;
+  try {
+    connection = await spawnAmpAcp();
+    const initializeResult = await initializeAmpAcp(connection);
+    const version = initializeResult.agentInfo.version;
+    const session = await connection.request("session/new", {
+      cwd: process.cwd(),
+      mcpServers: [],
+    });
+    const modelEntries = getAmpModelOptions(session);
+    const models = [];
+    let currentSession = session;
+    for (const entry of modelEntries) {
+      const id = String(
+        typeof entry === "string" ? entry : (entry?.value ?? entry?.id ?? ""),
+      ).trim();
+      if (!id) continue;
+
+      const currentModel = getAmpConfigOptions(currentSession).find(
+        (option) => option?.id === "amp-mode",
+      )?.currentValue;
+      if (currentModel !== id) {
+        const result = await connection.request("session/set_config_option", {
+          sessionId: session.sessionId,
+          configId: "amp-mode",
+          value: id,
+        });
+        if (Array.isArray(result?.configOptions)) {
+          currentSession = { ...session, configOptions: result.configOptions };
+        }
+      }
+
+      const fallbackLabel = id.charAt(0).toUpperCase() + id.slice(1);
+      const label = entry?.name ?? entry?.label ?? fallbackLabel;
+      models.push(
+        createModelOption(
+          "amp",
+          id,
+          `Amp ${label}`,
+          normalizeReasoningEfforts(getAmpReasoningEfforts(currentSession)),
+        ),
+      );
+    }
+    if (!models.length) {
+      throw new Error(
+        "Amp ACP returned no mode options. Complete adapter setup and try again.",
+      );
+    }
+    return {
+      installed: true,
+      models: dedupeModelOptions(models),
+      source: "cli",
+      version,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? `Unable to query Amp ACP: ${error.message}`
+          : "Unable to query Amp ACP. Run `amp login` or complete adapter setup.",
+      installed: true,
+      models: [],
+      source: "unavailable",
+      version: error?.ampAcpVersion ?? null,
     };
   } finally {
     connection?.close();

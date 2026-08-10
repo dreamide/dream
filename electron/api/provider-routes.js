@@ -9,6 +9,7 @@ import {
   normalizeClaudeCodeModel,
 } from "./providers/model-options.js";
 import {
+  fetchAmpModels,
   fetchAnthropicModels,
   fetchCursorModels,
   fetchGrokModels,
@@ -36,7 +37,14 @@ export {
 };
 
 const providerUsageLimitsRequestSchema = z.object({
-  provider: z.enum(["openai", "anthropic", "opencode", "cursor", "grok"]),
+  provider: z.enum([
+    "openai",
+    "anthropic",
+    "opencode",
+    "cursor",
+    "grok",
+    "amp",
+  ]),
   projectPath: z.string().optional(),
 });
 
@@ -44,7 +52,7 @@ const providerModelsRequestSchema = z
   .object({
     force: z.boolean().optional(),
     provider: z
-      .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
+      .enum(["openai", "anthropic", "opencode", "cursor", "grok", "amp"])
       .optional(),
   })
   .optional();
@@ -65,24 +73,55 @@ export const registerProviderRoutes = (app) => {
 
     const force = parsed.data?.force ?? false;
     const provider = parsed.data?.provider;
-    const [openai, anthropic, opencode, cursor, grok] =
+    const [openai, anthropic, opencode, cursor, grok, amp] =
       provider === "openai"
-        ? [await fetchOpenAiModels({ force }), null, null, null, null]
+        ? [await fetchOpenAiModels({ force }), null, null, null, null, null]
         : provider === "anthropic"
-          ? [null, await fetchAnthropicModels({ force }), null, null, null]
+          ? [
+              null,
+              await fetchAnthropicModels({ force }),
+              null,
+              null,
+              null,
+              null,
+            ]
           : provider === "opencode"
-            ? [null, null, await fetchOpenCodeModels({ force }), null, null]
+            ? [
+                null,
+                null,
+                await fetchOpenCodeModels({ force }),
+                null,
+                null,
+                null,
+              ]
             : provider === "cursor"
-              ? [null, null, null, await fetchCursorModels({ force }), null]
+              ? [
+                  null,
+                  null,
+                  null,
+                  await fetchCursorModels({ force }),
+                  null,
+                  null,
+                ]
               : provider === "grok"
-                ? [null, null, null, null, await fetchGrokModels({ force })]
-                : await Promise.all([
-                    fetchOpenAiModels({ force }),
-                    fetchAnthropicModels({ force }),
-                    fetchOpenCodeModels({ force }),
-                    fetchCursorModels({ force }),
-                    fetchGrokModels({ force }),
-                  ]);
+                ? [
+                    null,
+                    null,
+                    null,
+                    null,
+                    await fetchGrokModels({ force }),
+                    null,
+                  ]
+                : provider === "amp"
+                  ? [null, null, null, null, null, await fetchAmpModels()]
+                  : await Promise.all([
+                      fetchOpenAiModels({ force }),
+                      fetchAnthropicModels({ force }),
+                      fetchOpenCodeModels({ force }),
+                      fetchCursorModels({ force }),
+                      fetchGrokModels({ force }),
+                      fetchAmpModels(),
+                    ]);
 
     return c.json({
       ...(anthropic ? { anthropic } : {}),
@@ -91,6 +130,7 @@ export const registerProviderRoutes = (app) => {
       ...(openai ? { openai } : {}),
       ...(opencode ? { opencode } : {}),
       ...(grok ? { grok } : {}),
+      ...(amp ? { amp } : {}),
     });
   });
 
@@ -116,11 +156,12 @@ export const registerProviderRoutes = (app) => {
       });
     }
 
-    if (parsed.data.provider === "grok") {
+    if (parsed.data.provider === "grok" || parsed.data.provider === "amp") {
+      const label = parsed.data.provider === "amp" ? "Amp" : "Grok Build";
       return c.json({
-        error: "Grok Build usage limits are unavailable.",
+        error: `${label} usage limits are unavailable.`,
         fetchedAt: new Date().toISOString(),
-        provider: "grok",
+        provider: parsed.data.provider,
         status: "unavailable",
       });
     }

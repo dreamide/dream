@@ -12,6 +12,14 @@ import { dedupeModels, type ProviderModelsResponse } from "../ide-types";
 import type { IdeState } from "./ide-store-types";
 
 export const DEFAULT_PROVIDER_MODELS: IdeState["providerModels"] = {
+  amp: {
+    error: null,
+    installed: false,
+    loading: false,
+    models: [],
+    source: "unavailable",
+    version: null,
+  },
   anthropic: {
     error: null,
     installed: false,
@@ -109,6 +117,11 @@ export const toggleProviderModelInSettings = (
     });
   }
 
+  if (provider === "amp") {
+    const ampSelectedModels = updateModels(settings.ampSelectedModels);
+    return normalizeDefaultModelSettings({ ...settings, ampSelectedModels });
+  }
+
   const anthropicSelectedModels = updateModels(
     settings.anthropicSelectedModels,
   );
@@ -124,6 +137,19 @@ export const markProviderModelsLoading = (
   provider?: AiProvider,
 ): IdeState["providerModels"] => ({
   ...providerModels,
+  amp: {
+    ...providerModels.amp,
+    error:
+      provider === undefined || provider === "amp"
+        ? null
+        : providerModels.amp.error,
+    loading:
+      provider === undefined
+        ? true
+        : provider === "amp"
+          ? true
+          : providerModels.amp.loading,
+  },
   anthropic: {
     ...providerModels.anthropic,
     error:
@@ -195,6 +221,16 @@ export const getProviderModelsFromResponse = (
   payload: ProviderModelsResponse,
   previous: IdeState["providerModels"] = DEFAULT_PROVIDER_MODELS,
 ): IdeState["providerModels"] => {
+  const amp = payload.amp
+    ? {
+        error: payload.amp.error ?? null,
+        installed: payload.amp.installed,
+        loading: false,
+        models: dedupeModelOptions(payload.amp.models),
+        source: payload.amp.source,
+        version: payload.amp.version ?? null,
+      }
+    : previous.amp;
   const anthropic = payload.anthropic
     ? {
         error: payload.anthropic.error ?? null,
@@ -251,6 +287,7 @@ export const getProviderModelsFromResponse = (
     : previous.grok;
 
   return {
+    amp,
     anthropic,
     cursor,
     grok,
@@ -297,6 +334,7 @@ export const reconcileSettingsWithProviderModels = (
   );
   const cursorModelIds = providerModels.cursor.models.map((model) => model.id);
   const grokModelIds = providerModels.grok.models.map((model) => model.id);
+  const ampModelIds = providerModels.amp.models.map((model) => model.id);
   const openAiSelectedModels = reconcileProviderSelection(
     settings.openAiSelectedModels,
     openAiModelIds,
@@ -322,9 +360,15 @@ export const reconcileSettingsWithProviderModels = (
     grokModelIds,
     providerModels.grok,
   );
+  const ampSelectedModels = reconcileProviderSelection(
+    settings.ampSelectedModels,
+    ampModelIds,
+    providerModels.amp,
+  );
   const nextSettings = {
     ...settings,
     anthropicSelectedModels,
+    ampSelectedModels,
     cursorSelectedModels,
     grokSelectedModels,
     openCodeSelectedModels,
@@ -344,6 +388,7 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   a.openCodeSelectedModels.length === b.openCodeSelectedModels.length &&
   a.cursorSelectedModels.length === b.cursorSelectedModels.length &&
   a.grokSelectedModels.length === b.grokSelectedModels.length &&
+  a.ampSelectedModels.length === b.ampSelectedModels.length &&
   a.openAiSelectedModels.every(
     (model, index) => b.openAiSelectedModels[index] === model,
   ) &&
@@ -358,6 +403,9 @@ export const areSettingsSelectionsEqual = (a: AppSettings, b: AppSettings) =>
   ) &&
   a.grokSelectedModels.every(
     (model, index) => b.grokSelectedModels[index] === model,
+  ) &&
+  a.ampSelectedModels.every(
+    (model, index) => b.ampSelectedModels[index] === model,
   );
 
 export const getProviderModelsErrorState = (
@@ -365,6 +413,12 @@ export const getProviderModelsErrorState = (
   message: string,
   provider?: AiProvider,
 ): IdeState["providerModels"] => ({
+  amp: {
+    ...providerModels.amp,
+    error: provider && provider !== "amp" ? providerModels.amp.error : message,
+    loading:
+      provider && provider !== "amp" ? providerModels.amp.loading : false,
+  },
   anthropic: {
     ...providerModels.anthropic,
     error:

@@ -131,6 +131,7 @@
   },
   "chat": {
     "agentMode": "エージェントモード",
+    "ampManagedPermissions": "Amp によって管理",
     "askAnything": "何でも質問...",
     "build": "ビルド",
     "buildAnything": "何でもビルド",
@@ -205,6 +206,11 @@
     "themeDescription": "インターフェイスのテーマを制御します。"
   },
   "settings": {
+    "ampAdapterDocs": "アダプターのドキュメント",
+    "ampAdapterHelp": "tao12345666333 による amp-acp アダプターをインストールしてください。名前が似ている acp-amp アダプターは、この統合とは互換性がありません。",
+    "ampAdapterInstall": "インストールまたは更新",
+    "ampAdapterPrerequisite": "Amp CLI もインストールし、amp login でログインしておく必要があります。",
+    "ampAdapterUpdateRequired": "amp-acp {version} は古いため、amp-acp 0.9.0 以降をインストールしてください。",
     "archiveNow": "今すぐアーカイブ",
     "archiveChatsAfterDays": "指定日数後にチャットをアーカイブ",
     "archiveDays": "アーカイブまでの日数",

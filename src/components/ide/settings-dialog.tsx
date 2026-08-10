@@ -1,5 +1,6 @@
 import {
   Archive,
+  ExternalLink,
   Monitor,
   Moon,
   Plug,
@@ -14,7 +15,12 @@ import { useEffect, useMemo, useState } from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
 import openCodeLogo from "@/assets/opencode.svg";
-import { CursorIcon, GrokIcon } from "@/components/ai-elements/provider-icons";
+import { CodeBlockCopyButton } from "@/components/ai-elements/code-block";
+import {
+  AmpIcon,
+  CursorIcon,
+  GrokIcon,
+} from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -159,6 +165,7 @@ export const SettingsDialog = () => {
   const archiveInactiveChats = useIdeStore((s) => s.archiveInactiveChats);
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
+  const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
 
   const accentColor = useUiStore((s) => s.accentColor);
   const baseColor = useUiStore((s) => s.baseColor);
@@ -248,11 +255,16 @@ export const SettingsDialog = () => {
     () => getModelsForProvider("grok", settings),
     [settings],
   );
+  const ampModels = useMemo(
+    () => getModelsForProvider("amp", settings),
+    [settings],
+  );
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
   const availableOpenCodeModels = providerModels.opencode.models;
   const availableCursorModels = providerModels.cursor.models;
   const availableGrokModels = providerModels.grok.models;
+  const availableAmpModels = providerModels.amp.models;
 
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
@@ -280,6 +292,10 @@ export const SettingsDialog = () => {
     () => getModelOptionsForProvider("grok", settings, availableGrokModels),
     [availableGrokModels, settings],
   );
+  const ampModelOptions = useMemo(
+    () => getModelOptionsForProvider("amp", settings, availableAmpModels),
+    [availableAmpModels, settings],
+  );
   const groupedDefaultModelOptions = useMemo(
     () =>
       [
@@ -288,9 +304,11 @@ export const SettingsDialog = () => {
         { models: openCodeModelOptions, provider: "opencode" as const },
         { models: cursorModelOptions, provider: "cursor" as const },
         { models: grokModelOptions, provider: "grok" as const },
+        { models: ampModelOptions, provider: "amp" as const },
       ].filter((group) => group.models.length > 0),
     [
       anthropicModelOptions,
+      ampModelOptions,
       cursorModelOptions,
       grokModelOptions,
       openAiModelOptions,
@@ -479,8 +497,20 @@ export const SettingsDialog = () => {
   const handleRefreshGrokProvider = () => {
     void refreshProviderModels({ force: true, provider: "grok" });
   };
+  const handleRefreshAmpProvider = () => {
+    void refreshProviderModels({ force: true, provider: "amp" });
+  };
   const getProviderError = (error: string | null) =>
     error ? uiT("unableToFetchModels") : null;
+  const ampVersion = providerModels.amp.version?.match(/^(\d+)\.(\d+)\.(\d+)/);
+  const ampAdapterOutdated = ampVersion
+    ? Number(ampVersion[1]) === 0 && Number(ampVersion[2]) < 9
+    : false;
+  const ampProviderError = ampAdapterOutdated
+    ? settingsT("ampAdapterUpdateRequired", {
+        version: providerModels.amp.version ?? "0.8",
+      })
+    : getProviderError(providerModels.amp.error);
 
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
@@ -962,6 +992,118 @@ export const SettingsDialog = () => {
                   ) : null}
 
                   <div className="grid gap-3">
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: "Amp",
+                          })}
+                          disabled={providerModels.amp.loading}
+                          onClick={handleRefreshAmpProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: "Amp",
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      error={ampProviderError}
+                      help={
+                        <div className="space-y-2 rounded-md border border-surface-200 bg-surface-50 px-3 py-2.5 text-sm dark:border-surface-800 dark:bg-surface-900">
+                          <p className="text-muted-foreground">
+                            {settingsT("ampAdapterHelp")}
+                          </p>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-muted-foreground text-xs">
+                                {settingsT("ampAdapterInstall")}
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <code className="select-all font-mono text-xs">
+                                  npm install -g amp-acp@latest
+                                </code>
+                                <CodeBlockCopyButton
+                                  aria-label={settingsT("ampAdapterInstall")}
+                                  text="npm install -g amp-acp@latest"
+                                  title={settingsT("ampAdapterInstall")}
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() =>
+                                openExternalUrl(
+                                  "https://github.com/tao12345666333/amp-acp",
+                                )
+                              }
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              {settingsT("ampAdapterDocs")}
+                              <ExternalLink className="size-3.5" />
+                            </Button>
+                          </div>
+                          <p className="text-muted-foreground text-xs">
+                            {settingsT("ampAdapterPrerequisite")}
+                          </p>
+                        </div>
+                      }
+                      icon={
+                        <AmpIcon
+                          aria-hidden="true"
+                          className="size-4 text-foreground"
+                        />
+                      }
+                      installed={providerModels.amp.installed}
+                      label="Amp"
+                      loading={providerModels.amp.loading}
+                      runtimeLabel="amp-acp"
+                      version={providerModels.amp.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableAmpModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noCliModels")}
+                          </p>
+                        ) : (
+                          availableAmpModels.map((model) => {
+                            const isSelected = ampModels.includes(model.id);
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel(
+                                        "amp",
+                                        model.id,
+                                        checked,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
                     <ProviderStatusCard
                       action={
                         <Button

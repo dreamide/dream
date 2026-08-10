@@ -20,6 +20,12 @@ At least one supported agent CLI:
 - Claude Code
 - OpenCode
 - Cursor Agent
+- Amp ([`amp-acp`](https://github.com/tao12345666333/amp-acp) 0.9.0 or newer;
+  install or update with `npm install -g amp-acp@latest`, then authenticate with
+  `amp login` or adapter setup). Do not confuse it with the incompatible
+  `acp-amp` executable. Amp's standard permission mode follows the permissions
+  configured in Amp; Dream's full-access mode uses the adapter's `Bypass`
+  option. The adapter does not currently expose Dream's read-only Plan mode.
 
 ## Download
 

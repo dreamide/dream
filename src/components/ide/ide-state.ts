@@ -282,7 +282,8 @@ const normalizeProvider = (value: unknown): AiProvider => {
   return value === "anthropic" ||
     value === "opencode" ||
     value === "cursor" ||
-    value === "grok"
+    value === "grok" ||
+    value === "amp"
     ? value
     : DEFAULT_PROVIDER;
 };
@@ -688,6 +689,11 @@ export const mergePersistedState = (
     grokSelectedModels: dedupeModels(
       Array.isArray(rawSettings.grokSelectedModels)
         ? rawSettings.grokSelectedModels
+        : [],
+    ),
+    ampSelectedModels: dedupeModels(
+      Array.isArray(rawSettings.ampSelectedModels)
+        ? rawSettings.ampSelectedModels
         : [],
     ),
     openAiSelectedModels: dedupeModels(

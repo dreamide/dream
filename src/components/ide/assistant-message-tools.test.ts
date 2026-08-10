@@ -55,6 +55,36 @@ test("getChipToolKind classifies known tool aliases", () => {
   );
 });
 
+test("getChipToolKind recovers ACP tool names from older generic command parts", () => {
+  assert.equal(
+    getChipToolKind(
+      createToolPart("dynamic-tool", {
+        title: "shell_command: pwd",
+        toolName: "command",
+      }),
+    ),
+    "command",
+  );
+  assert.equal(
+    getChipToolKind(
+      createToolPart("dynamic-tool", {
+        title: "apply_patch: Update files",
+        toolName: "command",
+      }),
+    ),
+    "write",
+  );
+  assert.equal(
+    getChipToolKind(
+      createToolPart("dynamic-tool", {
+        title: "web_search: Search documentation",
+        toolName: "command",
+      }),
+    ),
+    "webFetch",
+  );
+});
+
 test("getChipToolKind recognizes mcp tools via dynamic-tool names", () => {
   assert.equal(
     getChipToolKind(

@@ -26,6 +26,7 @@ export const ProviderStatusCard = ({
   action,
   children,
   error,
+  help,
   icon,
   installed,
   label,
@@ -37,6 +38,7 @@ export const ProviderStatusCard = ({
   action?: ReactNode;
   children?: ReactNode;
   error: string | null;
+  help?: ReactNode;
   icon?: ReactNode;
   installed: boolean;
   label: string;
@@ -85,6 +87,8 @@ export const ProviderStatusCard = ({
           {statusMessage}
         </p>
       ) : null}
+
+      {help ? <div className="mt-3">{help}</div> : null}
 
       {children && installed ? (
         <div className="mt-4 max-h-[min(34vh,22rem)] overflow-y-auto pr-1">

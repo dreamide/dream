@@ -74,6 +74,7 @@ export interface IdeState {
     opencode: ProviderModelState;
     cursor: ProviderModelState;
     grok: ProviderModelState;
+    amp: ProviderModelState;
     fetchedAt: string | null;
   };
 

@@ -3,7 +3,7 @@ import { resolvePersistedProjectPath } from "../persisted-state.js";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCursorResponse } from "./chat/cursor-stream.js";
-import { streamGrokResponse } from "./chat/grok-stream.js";
+import { streamAmpResponse, streamGrokResponse } from "./chat/grok-stream.js";
 import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
 import { resolveChatPermissionModes } from "./chat/permissions.js";
 import {
@@ -99,6 +99,17 @@ const validateGrokReady = async () => {
   return null;
 };
 
+const validateAmpReady = async () => {
+  if (!(await isCliCommandAvailable("amp-acp"))) {
+    return {
+      message:
+        "Amp ACP adapter is not installed or available on PATH. Install amp-acp, then run `amp login` or complete adapter setup.",
+      status: 400,
+    };
+  }
+  return null;
+};
+
 export const registerChatRoutes = (app) => {
   app.post("/api/chat-title", async (c) => {
     let rawBody;
@@ -139,7 +150,12 @@ export const registerChatRoutes = (app) => {
       if (grokError) {
         return c.text(grokError.message, grokError.status);
       }
-    } else {
+    } else if (provider === "amp") {
+      const ampError = await validateAmpReady();
+      if (ampError) {
+        return c.text(ampError.message, ampError.status);
+      }
+    } else if (provider !== "amp") {
       const claudeError = await validateClaudeReady();
       if (claudeError) {
         return c.text(claudeError.message, claudeError.status);
@@ -298,6 +314,25 @@ export const registerChatRoutes = (app) => {
       }
 
       return streamGrokResponse({
+        abortSignal: c.req.raw.signal,
+        agentMode,
+        codexPermissionMode,
+        messages,
+        model,
+        projectReferencesPrompt,
+        projectPath: resolvedProjectPath,
+        reasoningEffort,
+        remoteConversationId,
+        remoteConversationModel,
+        remoteConversationProjectPath,
+        responseMessageMetadata,
+      });
+    }
+
+    if (provider === "amp") {
+      const ampError = await validateAmpReady();
+      if (ampError) return c.text(ampError.message, ampError.status);
+      return streamAmpResponse({
         abortSignal: c.req.raw.signal,
         agentMode,
         codexPermissionMode,

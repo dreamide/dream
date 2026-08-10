@@ -190,6 +190,11 @@ const formatModelIdLabel = (provider, modelId) => {
   if (!trimmed) return "";
   const parts = trimmed.split("-").filter(Boolean);
   if (parts.length === 0) return trimmed;
+  if (provider === "amp") {
+    return parts
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
   if (provider === "openai" && parts[0]?.toLowerCase() === "gpt") {
     const [, version, ...rest] = parts;
     if (!version) return "GPT";

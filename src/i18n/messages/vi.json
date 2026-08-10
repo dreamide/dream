@@ -131,6 +131,7 @@
   },
   "chat": {
     "agentMode": "Chế độ agent",
+    "ampManagedPermissions": "Do Amp quản lý",
     "askAnything": "Hỏi bất cứ điều gì...",
     "build": "Build",
     "buildAnything": "Build bất cứ thứ gì",
@@ -205,6 +206,11 @@
     "themeDescription": "Điều khiển chủ đề giao diện."
   },
   "settings": {
+    "ampAdapterDocs": "Tài liệu bộ chuyển đổi",
+    "ampAdapterHelp": "Hãy cài đặt bộ chuyển đổi amp-acp của tao12345666333. Bộ chuyển đổi có tên tương tự acp-amp không tương thích với tích hợp này.",
+    "ampAdapterInstall": "Cài đặt hoặc cập nhật",
+    "ampAdapterPrerequisite": "Amp CLI cũng phải được cài đặt và đăng nhập bằng amp login.",
+    "ampAdapterUpdateRequired": "amp-acp {version} đã cũ. Hãy cài đặt amp-acp 0.9.0 trở lên.",
     "archiveNow": "Lưu trữ ngay",
     "archiveChatsAfterDays": "Lưu trữ chat sau",
     "archiveDays": "Số ngày trước khi lưu trữ",

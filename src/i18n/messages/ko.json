@@ -131,6 +131,7 @@
   },
   "chat": {
     "agentMode": "에이전트 모드",
+    "ampManagedPermissions": "Amp에서 관리",
     "askAnything": "무엇이든 물어보세요...",
     "build": "빌드",
     "buildAnything": "무엇이든 빌드",
@@ -205,6 +206,11 @@
     "themeDescription": "인터페이스 테마를 제어합니다."
   },
   "settings": {
+    "ampAdapterDocs": "어댑터 문서",
+    "ampAdapterHelp": "tao12345666333의 amp-acp 어댑터를 설치하세요. 이름이 비슷한 acp-amp 어댑터는 이 통합과 호환되지 않습니다.",
+    "ampAdapterInstall": "설치 또는 업데이트",
+    "ampAdapterPrerequisite": "Amp CLI도 설치하고 amp login으로 로그인해야 합니다.",
+    "ampAdapterUpdateRequired": "amp-acp {version}은 오래된 버전입니다. amp-acp 0.9.0 이상을 설치하세요.",
     "archiveNow": "지금 보관",
     "archiveChatsAfterDays": "다음 일수 후 채팅 보관",
     "archiveDays": "보관 전 일수",
