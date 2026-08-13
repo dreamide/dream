@@ -1,6 +1,5 @@
 import { getDesktopApi } from "@/lib/electron";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
 import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
 import {
   ensureActiveProject,
@@ -76,7 +75,6 @@ export const createPersistedIdeState = ({
   chats,
   chatSort,
   closedProjects,
-  draftChatIdByProject,
   messagesByChatId,
   projects,
   settings,
@@ -88,28 +86,33 @@ export const createPersistedIdeState = ({
   | "chats"
   | "chatSort"
   | "closedProjects"
-  | "draftChatIdByProject"
   | "messagesByChatId"
   | "projects"
   | "settings"
 >): PersistedIdeState => {
   const allProjects = [...projects, ...closedProjects];
   const knownProjectIds = new Set(allProjects.map((project) => project.id));
+  const activeChatIdByProject = new Map(
+    allProjects.map((project) => [project.id, project.ui.activeChatId]),
+  );
   const persistedChats = chats.filter((chat) => {
     if (!knownProjectIds.has(chat.projectId)) {
       return false;
     }
 
-    const messageCount = messagesByChatId[chat.id]?.length ?? 0;
-    if (
-      draftChatIdByProject[chat.projectId] === chat.id &&
-      messageCount === 0 &&
-      chat.sparklesPalette === DEFAULT_SPARKLES_PALETTE
-    ) {
-      return false;
+    if (chat.deletedAt !== null) {
+      return true;
     }
 
-    return chat.deletedAt !== null || messageCount > 0;
+    const messageCount = messagesByChatId[chat.id]?.length ?? 0;
+    if (messageCount > 0) {
+      return true;
+    }
+
+    // Keep an empty chat only while it is the chat currently open for its
+    // project so a freshly created chat survives an app restart. Any other
+    // empty draft chats are dropped from persistence.
+    return activeChatIdByProject.get(chat.projectId) === chat.id;
   });
   const persistedMessagesByChatId = Object.fromEntries(
     persistedChats.map((chat) => [chat.id, messagesByChatId[chat.id] ?? []]),

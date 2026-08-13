@@ -132,6 +132,22 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       loaded.activeProjectId,
     );
 
+    // Re-register each project's active empty chat as its draft so a
+    // restored fresh chat is reused instead of a new one being created.
+    const draftChatIdByProject: Record<string, string | null> = {};
+    for (const project of [...loaded.projects, ...loaded.closedProjects]) {
+      const activeChatId = project.ui.activeChatId;
+      if (
+        activeChatId &&
+        (loaded.messagesByChatId[activeChatId]?.length ?? 0) === 0 &&
+        loaded.chats.some(
+          (chat) => chat.id === activeChatId && chat.deletedAt === null,
+        )
+      ) {
+        draftChatIdByProject[project.id] = activeChatId;
+      }
+    }
+
     set({
       projects: loaded.projects,
       closedProjects: loaded.closedProjects,
@@ -140,7 +156,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       browserTabsByProject: loaded.browserTabsByProject,
       chats: loaded.chats,
       messagesByChatId: loaded.messagesByChatId,
-      draftChatIdByProject: {},
+      draftChatIdByProject,
       settings: loaded.settings,
       chatSort: loaded.chatSort,
       stateHydrated: true,
@@ -155,7 +171,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       chatSort,
       chats,
       closedProjects,
-      draftChatIdByProject,
       messagesByChatId,
       projects,
       settings,
@@ -170,7 +185,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       chats,
       chatSort,
       closedProjects,
-      draftChatIdByProject,
       messagesByChatId,
       projects,
       settings,
