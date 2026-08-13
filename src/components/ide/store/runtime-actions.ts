@@ -12,6 +12,7 @@ export const createRuntimeActions = (
   | "setTerminalShell"
   | "setTerminalSessionName"
   | "setChatStreaming"
+  | "setChatAwaitingAnswer"
   | "setChatTitleGenerating"
   | "bumpProjectGitRefreshKey"
   | "bumpProjectFilesRefreshKey"
@@ -83,6 +84,7 @@ export const createRuntimeActions = (
   setChatStreaming: (chatId, streaming) =>
     set((state) => {
       const nextStreamingChatIds = { ...state.streamingChatIds };
+      const nextAwaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
       const nextCompletedChatIds = { ...state.completedChatIds };
 
       if (streaming) {
@@ -91,6 +93,7 @@ export const createRuntimeActions = (
       } else {
         const wasStreaming = Boolean(state.streamingChatIds[chatId]);
         delete nextStreamingChatIds[chatId];
+        delete nextAwaitingAnswerChatIds[chatId];
 
         const chat = state.chats.find((item) => item.id === chatId);
         const project = chat
@@ -114,9 +117,25 @@ export const createRuntimeActions = (
       }
 
       return {
+        awaitingAnswerChatIds: nextAwaitingAnswerChatIds,
         completedChatIds: nextCompletedChatIds,
         streamingChatIds: nextStreamingChatIds,
       };
+    }),
+
+  setChatAwaitingAnswer: (chatId, awaiting) =>
+    set((state) => {
+      if (Boolean(state.awaitingAnswerChatIds[chatId]) === awaiting) {
+        return state;
+      }
+
+      const awaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
+      if (awaiting) {
+        awaitingAnswerChatIds[chatId] = true;
+      } else {
+        delete awaitingAnswerChatIds[chatId];
+      }
+      return { awaitingAnswerChatIds };
     }),
 
   setChatTitleGenerating: (chatId, generating) =>

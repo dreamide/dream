@@ -174,6 +174,7 @@ export const createChatActions = (
       project,
       messageId,
     );
+    branchedChat.messageCount = messages.length;
 
     set((current) => ({
       activeProjectId: project.id,
@@ -207,6 +208,8 @@ export const createChatActions = (
         );
       }),
     }));
+
+    void get().persistMessagesForChat?.(branchedChat.id);
 
     return branchedChat.id;
   },
@@ -545,16 +548,17 @@ export const createChatActions = (
           ...state.messagesByChatId,
           [chatId]: mergedMessages,
         },
-        chats: touchUpdatedAt
-          ? state.chats.map((item) =>
-              item.id === chatId
-                ? {
-                    ...item,
-                    updatedAt: new Date().toISOString(),
-                  }
-                : item,
-            )
-          : state.chats,
+        chats: state.chats.map((item) =>
+          item.id === chatId
+            ? {
+                ...item,
+                messageCount: mergedMessages.length,
+                ...(touchUpdatedAt
+                  ? { updatedAt: new Date().toISOString() }
+                  : {}),
+              }
+            : item,
+        ),
       };
     });
   },

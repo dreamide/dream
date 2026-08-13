@@ -1,11 +1,8 @@
 // Worker thread that owns all persisted-state WRITES.
 //
-// The full-state save in persisted-state.js rewrites every project, chat, and
-// chat message inside a synchronous SQLite transaction. Running that on the
-// Electron main process blocked its event loop for hundreds of milliseconds
-// per save (worse on Windows due to slower sync I/O and antivirus scanning),
-// which delayed input-event delivery to every window — the source of the
-// click-to-action lag. Running it here keeps the main thread free.
+// Metadata snapshots and dirty-chat message upserts use synchronous SQLite
+// transactions. Running them here keeps the Electron main thread free even
+// when a completed transcript contains large tool payloads.
 //
 // The parent passes the resolved database path in workerData so persisted-state.js
 // never needs the (unavailable) "electron" module.
@@ -14,6 +11,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import {
   closePersistedStateDatabase,
   savePersistedActiveProject,
+  savePersistedChatMessages,
   savePersistedState,
 } from "./persisted-state.js";
 
@@ -40,6 +38,14 @@ parentPort.on("message", (message) => {
 
     if (type === "save-active-project") {
       const result = savePersistedActiveProject(message.payload, {
+        databasePath,
+      });
+      parentPort.postMessage({ id, ok: true, result });
+      return;
+    }
+
+    if (type === "save-chat-messages") {
+      const result = savePersistedChatMessages(message.payload, {
         databasePath,
       });
       parentPort.postMessage({ id, ok: true, result });

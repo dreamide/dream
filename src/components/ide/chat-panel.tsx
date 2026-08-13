@@ -22,6 +22,7 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
+import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
@@ -73,6 +74,7 @@ import {
   getCommitChanges,
   warmProjectCommitMessageForStatus,
 } from "./git-commit-message-cache";
+import { chatIsAwaitingAnswer } from "./header/project-tab-status";
 import { useIdeStore } from "./ide-store";
 import {
   MODEL_SPEED_OPTIONS,
@@ -376,6 +378,10 @@ export const ChatPanel = ({
   const chatMessages = useIdeStore(
     (s) => s.messagesByChatId[chat.id] ?? EMPTY_MESSAGES,
   );
+  const messagesLoaded = useIdeStore((s) =>
+    Object.hasOwn(s.messagesByChatId, chat.id),
+  );
+  const loadMessagesForChat = useIdeStore((s) => s.loadMessagesForChat);
   const isDraftChat = useIdeStore(
     (s) => s.draftChatIdByProject[project.id] === chat.id,
   );
@@ -383,8 +389,9 @@ export const ChatPanel = ({
     (s) => !!s.titleGeneratingChatIds[chat.id],
   );
   const providerModels = useIdeStore((s) => s.providerModels);
-  const setMessagesForChat = useIdeStore((s) => s.setMessagesForChat);
+  const persistMessagesForChat = useIdeStore((s) => s.persistMessagesForChat);
   const setChatTitleGenerating = useIdeStore((s) => s.setChatTitleGenerating);
+  const setChatAwaitingAnswer = useIdeStore((s) => s.setChatAwaitingAnswer);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
   const bumpProjectGitRefreshKey = useIdeStore(
@@ -442,6 +449,14 @@ export const ChatPanel = ({
   const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
   const warmedCommitMessageKeysRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
+
+  useEffect(() => {
+    if (!messagesLoaded) {
+      void loadMessagesForChat(chat.id).catch(() => {
+        setLocalError(chatT("unexpectedError"));
+      });
+    }
+  }, [chat.id, chatT, loadMessagesForChat, messagesLoaded]);
 
   const transport = useMemo(
     () =>
@@ -540,7 +555,7 @@ export const ChatPanel = ({
       );
       latestMessagesRef.current = nextMessages;
       setMessages(nextMessages);
-      setMessagesForChat(chat.id, nextMessages);
+      void persistMessagesForChat(chat.id, nextMessages);
 
       const remoteConversationId = metadata?.remoteConversationId?.trim();
 
@@ -568,6 +583,15 @@ export const ChatPanel = ({
     latestMessagesRef.current = messages;
   }, [messages]);
 
+  useEffect(() => {
+    setChatAwaitingAnswer(chat.id, chatIsAwaitingAnswer(messages));
+  }, [chat.id, messages, setChatAwaitingAnswer]);
+
+  useEffect(
+    () => () => setChatAwaitingAnswer(chat.id, false),
+    [chat.id, setChatAwaitingAnswer],
+  );
+
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
     (response) => {
       const messagesWithApprovalAnswer = addAskUserQuestionAnswerToMessages(
@@ -577,7 +601,7 @@ export const ChatPanel = ({
       if (messagesWithApprovalAnswer !== latestMessagesRef.current) {
         latestMessagesRef.current = messagesWithApprovalAnswer;
         setMessages(messagesWithApprovalAnswer);
-        setMessagesForChat(chat.id, messagesWithApprovalAnswer);
+        void persistMessagesForChat(chat.id, messagesWithApprovalAnswer);
       }
 
       if (!response.id.startsWith("anthropic:")) {
@@ -605,15 +629,21 @@ export const ChatPanel = ({
         console.error("[tool approval response]", error);
       });
     },
-    [addAiSdkToolApprovalResponse, chat.id, setMessages, setMessagesForChat],
+    [
+      addAiSdkToolApprovalResponse,
+      chat.id,
+      persistMessagesForChat,
+      setMessages,
+    ],
   );
 
   useChatMessageSync({
     chatId: chat.id,
     chatMessages,
+    isActive,
     messages,
+    persistMessagesForChat,
     setMessages,
-    setMessagesForChat,
   });
 
   // Refresh project panels when completed write tools appear.
@@ -1153,7 +1183,11 @@ export const ChatPanel = ({
             }
             style={{ paddingBottom: CHAT_CONTENT_BOTTOM_PADDING_PX }}
           >
-            {messages.length === 0 ? (
+            {!messagesLoaded ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Spinner className="size-5 text-muted-foreground" />
+              </div>
+            ) : messages.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
                 <img
                   alt=""
@@ -1213,7 +1247,7 @@ export const ChatPanel = ({
           contextWindow={contextWindow}
           contextUsage={contextUsage}
           contextUsedTokens={contextUsedTokens}
-          isActive={isProjectActive}
+          isActive={isProjectActive && messagesLoaded}
           isProcessing={isProcessing}
           isProviderInstalled={isProviderInstalled}
           modelId={modelId}

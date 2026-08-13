@@ -103,7 +103,6 @@ export const IdeShell = () => {
       chatSort: useIdeStore.getState().chatSort,
       chats: useIdeStore.getState().chats,
       closedProjects: useIdeStore.getState().closedProjects,
-      messagesByChatId: useIdeStore.getState().messagesByChatId,
       projects: useIdeStore.getState().projects,
       settings: useIdeStore.getState().settings,
     };
@@ -118,7 +117,6 @@ export const IdeShell = () => {
         chatSort: state.chatSort,
         chats: state.chats,
         closedProjects: state.closedProjects,
-        messagesByChatId: state.messagesByChatId,
         projects: state.projects,
         settings: state.settings,
       };
@@ -135,7 +133,6 @@ export const IdeShell = () => {
         next.browserTabsByProject !== prev.browserTabsByProject ||
         next.chats !== prev.chats ||
         next.closedProjects !== prev.closedProjects ||
-        next.messagesByChatId !== prev.messagesByChatId ||
         next.projects !== prev.projects ||
         next.settings !== prev.settings ||
         next.chatSort !== prev.chatSort
@@ -147,7 +144,6 @@ export const IdeShell = () => {
           next.browserTabsByProject === prev.browserTabsByProject &&
           next.chats === prev.chats &&
           next.closedProjects === prev.closedProjects &&
-          next.messagesByChatId === prev.messagesByChatId &&
           next.settings === prev.settings &&
           next.chatSort === prev.chatSort &&
           areProjectListsEqualExceptLastUsedAt(prev.projects, next.projects);

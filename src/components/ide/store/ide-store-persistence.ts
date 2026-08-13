@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import { getDesktopApi } from "@/lib/electron";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
@@ -68,6 +69,23 @@ export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
   }
 };
 
+export const loadPersistedChatMessages = async (
+  chatId: string,
+): Promise<UIMessage[]> => {
+  const desktopApi = requireDesktopApi();
+
+  try {
+    return await withTimeout(
+      desktopApi.loadChatMessages(chatId),
+      STATE_LOAD_TIMEOUT_MS,
+      `Timed out loading messages for chat ${chatId}.`,
+    );
+  } catch (error) {
+    console.warn(`Unable to load messages for chat ${chatId}.`, error);
+    throw error;
+  }
+};
+
 export const createPersistedIdeState = ({
   activeBrowserTabIdByProject,
   activeProjectId,
@@ -104,7 +122,8 @@ export const createPersistedIdeState = ({
       return true;
     }
 
-    const messageCount = messagesByChatId[chat.id]?.length ?? 0;
+    const messageCount =
+      messagesByChatId[chat.id]?.length ?? chat.messageCount ?? 0;
     if (messageCount > 0) {
       return true;
     }
@@ -114,8 +133,14 @@ export const createPersistedIdeState = ({
     // empty draft chats are dropped from persistence.
     return activeChatIdByProject.get(chat.projectId) === chat.id;
   });
+  // A missing key means the transcript has not been loaded in this renderer.
+  // Preserve that distinction so metadata-only saves never erase lazy rows.
   const persistedMessagesByChatId = Object.fromEntries(
-    persistedChats.map((chat) => [chat.id, messagesByChatId[chat.id] ?? []]),
+    persistedChats.flatMap((chat) =>
+      Object.hasOwn(messagesByChatId, chat.id)
+        ? [[chat.id, messagesByChatId[chat.id]]]
+        : [],
+    ),
   );
   const sanitizeProjectForPersistence = (project: ProjectConfig) => ({
     ...project,
@@ -157,6 +182,13 @@ export const createPersistedIdeState = ({
 
 export const savePersistedIdeState = (state: PersistedIdeState) => {
   void requireDesktopApi().saveState(state);
+};
+
+export const savePersistedChatMessages = async (
+  chatId: string,
+  messages: UIMessage[],
+) => {
+  await requireDesktopApi().saveChatMessages({ chatId, messages });
 };
 
 export const savePersistedActiveProject = (

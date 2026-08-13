@@ -36,6 +36,7 @@ export interface IdeState {
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
+  awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
   draftChatIdByProject: Record<string, string | null>;
@@ -124,6 +125,11 @@ export interface IdeState {
   permanentlyDeleteChats: (chatIds: string[]) => void;
   restoreChats: (chatIds: string[]) => void;
   setMessagesForChat: (chatId: string, messages: UIMessage[]) => void;
+  loadMessagesForChat: (chatId: string) => Promise<UIMessage[]>;
+  persistMessagesForChat: (
+    chatId: string,
+    messages?: UIMessage[],
+  ) => Promise<void>;
   setChatSort: (sortOrder: ChatSortOrder) => void;
 
   // Actions - panels
@@ -173,6 +179,7 @@ export interface IdeState {
   setTerminalShell: (projectId: string, shell: string) => void;
   setTerminalSessionName: (sessionId: string, name: string) => void;
   setChatStreaming: (chatId: string, streaming: boolean) => void;
+  setChatAwaitingAnswer: (chatId: string, awaiting: boolean) => void;
   setChatTitleGenerating: (chatId: string, generating: boolean) => void;
   bumpProjectGitRefreshKey: (projectId: string) => void;
   bumpProjectFilesRefreshKey: (projectId: string) => void;

@@ -148,7 +148,11 @@ contextBridge.exposeInMainWorld("dream", {
   pickProjectDirectory: () => ipcRenderer.invoke("projects:pick-directory"),
 
   loadState: () => ipcRenderer.invoke("state:load"),
+  loadChatMessages: (chatId) =>
+    ipcRenderer.invoke("state:load-chat-messages", { chatId }),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
+  saveChatMessages: (payload) =>
+    ipcRenderer.invoke("state:save-chat-messages", payload),
   saveActiveProject: (payload) =>
     ipcRenderer.invoke("state:save-active-project", payload),
   getThemePreferences: () => ipcRenderer.invoke("theme:get-preferences"),

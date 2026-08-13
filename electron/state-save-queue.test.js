@@ -87,3 +87,67 @@ test("state save queue preserves the latest active-project update", async () => 
     await rm(directory, { force: true, recursive: true });
   }
 });
+
+test("state save queue writes and coalesces one dirty transcript", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-queue-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const queue = createStateSaveQueue({ databasePath });
+  const timestamp = "2026-07-19T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  const chat = {
+    agentMode: "build",
+    branchedFrom: null,
+    createdAt: timestamp,
+    deletedAt: null,
+    id: "chat-one",
+    messageCount: 1,
+    model: "gpt-5.6",
+    modelSpeed: "standard",
+    permissionMode: "full-access",
+    projectId: project.id,
+    provider: "openai",
+    reasoningEffort: null,
+    remoteConversationId: null,
+    remoteConversationModel: null,
+    remoteConversationModelSpeed: null,
+    remoteConversationProjectPath: null,
+    sparklesPalette: "dream",
+    title: "Chat",
+    updatedAt: timestamp,
+  };
+
+  try {
+    const metadataSave = queue.save({
+      activeBrowserTabIdByProject: {},
+      activeProjectId: project.id,
+      browserTabsByProject: {},
+      chats: [chat],
+      chatSort: "recent",
+      closedProjects: [],
+      messagesByChatId: {},
+      projects: [project],
+      settings: {},
+    });
+    const firstMessages = queue.saveChatMessages({
+      chatId: chat.id,
+      messages: [{ id: "message-one", parts: [], role: "user" }],
+    });
+    const latestMessages = queue.saveChatMessages({
+      chatId: chat.id,
+      messages: [
+        { id: "message-one", parts: [], role: "user" },
+        { id: "message-two", parts: [], role: "assistant" },
+      ],
+    });
+
+    await Promise.all([metadataSave, firstMessages, latestMessages]);
+    await queue.flushAndClose();
+
+    const updated = loadPersistedState({ databasePath });
+    assert.equal(updated.chats[0]?.messageCount, 2);
+  } finally {
+    await queue.flushAndClose();
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});

@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "vitest";
 import {
   closePersistedStateDatabase,
+  loadPersistedChatMessages,
   loadPersistedState,
   savePersistedActiveProject,
   savePersistedState,
@@ -157,6 +158,39 @@ test("chat branch lineage survives a relational persistence round trip", async (
       chatId: "deleted-parent",
       messageId: "parent-message",
     });
+    assert.equal(loaded.chats[0]?.messageCount, 1);
+    assert.deepEqual(loaded.messagesByChatId, {});
+    assert.deepEqual(
+      loadPersistedChatMessages("branch-chat", { databasePath }),
+      [
+        {
+          id: "branch-message",
+          parts: [{ text: "hello", type: "text" }],
+          role: "user",
+        },
+      ],
+    );
+
+    savePersistedState(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: project.id,
+        browserTabsByProject: {},
+        chats: loaded.chats,
+        chatSort: "recent",
+        closedProjects: [],
+        messagesByChatId: {},
+        projects: [project],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    assert.equal(
+      loadPersistedChatMessages("branch-chat", { databasePath }).length,
+      1,
+      "metadata-only saves preserve lazy message rows",
+    );
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

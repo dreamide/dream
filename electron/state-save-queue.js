@@ -1,9 +1,8 @@
 // Coalescing queue in front of the persisted-state save worker.
 //
-// Full-state saves and lightweight active-project updates share one worker so
-// their ordering is deterministic. Adjacent operations are coalesced to the
-// latest value, which bounds the backlog during chat streaming and rapid tab
-// switching.
+// Metadata saves, dirty-chat transcripts, and lightweight active-project
+// updates share one worker so their ordering is deterministic. Adjacent
+// operations of the same kind are coalesced to the latest value.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
@@ -50,20 +49,20 @@ export function createStateSaveQueue({ databasePath }) {
   let closed = false;
   /** @type {Map<number, { resolve: (value: unknown) => void, reject: (error: Error) => void }>} */
   const inFlight = new Map();
-  /** @type {({ type: "save", state: any, resolvers: Array<{ resolve: (value: unknown) => void, reject: (error: Error) => void }> } | { type: "save-active-project", payload: any, resolvers: Array<{ resolve: (value: unknown) => void, reject: (error: Error) => void }> }) | null} */
-  let pending = null;
+  /** @type {Array<{ type: "save", state: any, resolvers: Array<{ resolve: (value: unknown) => void, reject: (error: Error) => void }> } | { type: "save-active-project" | "save-chat-messages", payload: any, resolvers: Array<{ resolve: (value: unknown) => void, reject: (error: Error) => void }> }>} */
+  let pending = [];
 
   const failAll = (error) => {
     for (const entry of inFlight.values()) {
       entry.reject(error);
     }
     inFlight.clear();
-    if (pending) {
-      for (const resolver of pending.resolvers) {
+    for (const operation of pending) {
+      for (const resolver of operation.resolvers) {
         resolver.reject(error);
       }
-      pending = null;
     }
+    pending = [];
     busy = false;
   };
 
@@ -106,12 +105,14 @@ export function createStateSaveQueue({ databasePath }) {
   };
 
   const drain = () => {
-    if (busy || !pending || closed) {
+    if (busy || pending.length === 0 || closed) {
       return;
     }
 
-    const operation = pending;
-    pending = null;
+    const operation = pending.shift();
+    if (!operation) {
+      return;
+    }
     busy = true;
 
     const id = nextMessageId++;
@@ -150,23 +151,24 @@ export function createStateSaveQueue({ databasePath }) {
     }
 
     return new Promise((resolve, reject) => {
-      if (pending?.type === "save") {
+      const latest = pending.at(-1);
+      if (latest?.type === "save") {
         // Supersede the queued snapshot; all waiters settle with the result
         // of the write that actually persists their (newer) data.
-        pending.state = state;
-        pending.resolvers.push({ resolve, reject });
-      } else if (pending?.type === "save-active-project") {
-        pending = {
+        latest.state = state;
+        latest.resolvers.push({ resolve, reject });
+      } else if (latest?.type === "save-active-project") {
+        pending[pending.length - 1] = {
           type: "save",
           state,
-          resolvers: [...pending.resolvers, { resolve, reject }],
+          resolvers: [...latest.resolvers, { resolve, reject }],
         };
       } else {
-        pending = {
+        pending.push({
           type: "save",
           state,
           resolvers: [{ resolve, reject }],
-        };
+        });
       }
       drain();
     });
@@ -178,18 +180,43 @@ export function createStateSaveQueue({ databasePath }) {
     }
 
     return new Promise((resolve, reject) => {
-      if (pending?.type === "save") {
-        pending.state = mergeActiveProjectIntoState(pending.state, payload);
-        pending.resolvers.push({ resolve, reject });
-      } else if (pending?.type === "save-active-project") {
-        pending.payload = payload;
-        pending.resolvers.push({ resolve, reject });
+      const latest = pending.at(-1);
+      if (latest?.type === "save") {
+        latest.state = mergeActiveProjectIntoState(latest.state, payload);
+        latest.resolvers.push({ resolve, reject });
+      } else if (latest?.type === "save-active-project") {
+        latest.payload = payload;
+        latest.resolvers.push({ resolve, reject });
       } else {
-        pending = {
+        pending.push({
           type: "save-active-project",
           payload,
           resolvers: [{ resolve, reject }],
-        };
+        });
+      }
+      drain();
+    });
+  };
+
+  const saveChatMessages = (payload) => {
+    if (closed) {
+      return Promise.reject(new Error("State save queue is closed."));
+    }
+
+    return new Promise((resolve, reject) => {
+      const latest = pending.at(-1);
+      if (
+        latest?.type === "save-chat-messages" &&
+        latest.payload?.chatId === payload?.chatId
+      ) {
+        latest.payload = payload;
+        latest.resolvers.push({ resolve, reject });
+      } else {
+        pending.push({
+          type: "save-chat-messages",
+          payload,
+          resolvers: [{ resolve, reject }],
+        });
       }
       drain();
     });
@@ -201,7 +228,7 @@ export function createStateSaveQueue({ databasePath }) {
     }
 
     const deadline = Date.now() + FLUSH_TIMEOUT_MS;
-    while ((busy || pending) && Date.now() < deadline) {
+    while ((busy || pending.length > 0) && Date.now() < deadline) {
       drain();
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
@@ -224,5 +251,5 @@ export function createStateSaveQueue({ databasePath }) {
     }
   };
 
-  return { save, saveActiveProject, flushAndClose };
+  return { save, saveActiveProject, saveChatMessages, flushAndClose };
 }

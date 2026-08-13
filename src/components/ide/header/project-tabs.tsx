@@ -171,7 +171,7 @@ export const ProjectTabs = () => {
   const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
   const chats = useIdeStore((s) => s.chats);
-  const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
+  const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const accentColor = useUiStore((s) => s.accentColor);
@@ -203,10 +203,10 @@ export const ProjectTabs = () => {
     () =>
       getAwaitingAnswerProjectIds({
         chats,
-        messagesByChatId,
+        awaitingAnswerChatIds,
         streamingProjectIds,
       }),
-    [chats, messagesByChatId, streamingProjectIds],
+    [awaitingAnswerChatIds, chats, streamingProjectIds],
   );
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)

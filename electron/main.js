@@ -25,6 +25,7 @@ import { getHelloUrl } from "./hello.js";
 import {
   closePersistedStateDatabase,
   ensurePersistedInstallId,
+  loadPersistedChatMessages,
   loadPersistedState,
   loadPersistedThemePreference,
   resolveStateDatabasePath,
@@ -571,6 +572,9 @@ async function createMainWindow() {
 
 ipcMain.handle("projects:pick-directory", pickDirectory);
 ipcMain.handle("state:load", () => loadPersistedState());
+ipcMain.handle("state:load-chat-messages", (_event, { chatId } = {}) =>
+  loadPersistedChatMessages(chatId),
+);
 ipcMain.on("api:get-session-token", (event) => {
   const apiSessionToken = rendererServerManager?.getApiSessionToken();
   if (!apiSessionToken) {
@@ -584,10 +588,9 @@ ipcMain.on("api:get-session-token", (event) => {
   event.returnValue = apiSessionToken;
 });
 
-// State saves rewrite the entire database synchronously; doing that on this
-// (main) thread blocked input-event delivery to every window for the duration
-// of the write — the cause of click-to-action lag on Windows. The queue runs
-// the write in a worker thread and coalesces bursts to the latest snapshot.
+// SQLite state writes stay off the main thread so even a large completed chat
+// cannot delay input-event delivery. The queue coalesces metadata snapshots and
+// per-chat transcript writes independently.
 let stateSaveQueue = null;
 const getStateSaveQueue = () =>
   (stateSaveQueue ??= createStateSaveQueue({
@@ -596,6 +599,9 @@ const getStateSaveQueue = () =>
 
 ipcMain.handle("state:save", (_event, state) =>
   getStateSaveQueue().save(state),
+);
+ipcMain.handle("state:save-chat-messages", (_event, payload) =>
+  getStateSaveQueue().saveChatMessages(payload),
 );
 ipcMain.handle("state:save-active-project", (_event, payload) =>
   getStateSaveQueue().saveActiveProject(payload),

@@ -48,6 +48,7 @@ export interface ChatConfig {
   agentMode: AgentMode;
   branchedFrom: ChatBranchPoint | null;
   id: string;
+  messageCount: number;
   permissionMode: ChatPermissionMode;
   projectId: string;
   title: string;
@@ -511,7 +512,12 @@ export interface DesktopApi {
   pickProjectDirectory: () => Promise<string | null>;
 
   loadState: () => Promise<Partial<PersistedIdeState>>;
+  loadChatMessages: (chatId: string) => Promise<UIMessage[]>;
   saveState: (state: PersistedIdeState) => Promise<boolean>;
+  saveChatMessages: (payload: {
+    chatId: string;
+    messages: UIMessage[];
+  }) => Promise<boolean>;
   saveActiveProject: (payload: {
     activeProjectId: string | null;
     lastUsedAt: string | null;

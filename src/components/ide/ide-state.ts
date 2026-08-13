@@ -493,6 +493,7 @@ const normalizeChat = (
     branchedFrom?: unknown;
     deletedAt?: unknown;
     metadata?: unknown;
+    messageCount?: unknown;
     permissionMode?: unknown;
     sparklesPalette?: unknown;
   };
@@ -534,6 +535,12 @@ const normalizeChat = (
       ? { metadata: rawChat.metadata }
       : {}),
     id: chat.id,
+    messageCount:
+      typeof rawChat.messageCount === "number" &&
+      Number.isInteger(rawChat.messageCount) &&
+      rawChat.messageCount >= 0
+        ? rawChat.messageCount
+        : 0,
     model: model || project.model,
     modelSpeed: normalizeModelSpeed(chat.modelSpeed),
     permissionMode:
@@ -816,16 +823,22 @@ export const mergePersistedState = (
     const chatMessages = legacyMessagesByChatId[chat.id];
     if (isUiMessageArray(chatMessages)) {
       messagesByChatId[chat.id] = chatMessages;
+      chat.messageCount = chatMessages.length;
       continue;
     }
 
     const legacyProjectMessages = legacyMessagesByChatId[chat.projectId];
     if (isUiMessageArray(legacyProjectMessages)) {
       messagesByChatId[chat.id] = legacyProjectMessages;
+      chat.messageCount = legacyProjectMessages.length;
       continue;
     }
 
-    messagesByChatId[chat.id] = [];
+    // Relational hydration intentionally omits message bodies. Only create an
+    // empty loaded entry for chats that are known to have no persisted rows.
+    if (chat.messageCount === 0) {
+      messagesByChatId[chat.id] = [];
+    }
   }
 
   const applyProjectUi = (project: ProjectConfig): ProjectConfig => {

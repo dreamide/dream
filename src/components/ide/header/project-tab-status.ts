@@ -88,38 +88,48 @@ const isAssistantProgressPart = (part: UIMessage["parts"][number]) => {
 };
 
 export const chatIsAwaitingAnswer = (messages: UIMessage[]) => {
-  let awaitingAnswer = false;
-
-  for (const message of messages) {
+  for (
+    let messageIndex = messages.length - 1;
+    messageIndex >= 0;
+    messageIndex--
+  ) {
+    const message = messages[messageIndex];
     if (message.role === "user") {
-      awaitingAnswer = false;
-      continue;
+      return false;
     }
 
     if (message.role !== "assistant") {
       continue;
     }
 
-    for (const part of message.parts) {
+    for (
+      let partIndex = message.parts.length - 1;
+      partIndex >= 0;
+      partIndex--
+    ) {
+      const part = message.parts[partIndex];
       const partAwaitingState = getAskUserQuestionAwaitingState(part);
       if (partAwaitingState !== null) {
-        awaitingAnswer = partAwaitingState;
-      } else if (awaitingAnswer && isAssistantProgressPart(part)) {
-        awaitingAnswer = false;
+        return partAwaitingState;
+      }
+      if (isAssistantProgressPart(part)) {
+        return false;
       }
     }
   }
 
-  return awaitingAnswer;
+  return false;
 };
 
 export const getAwaitingAnswerProjectIds = ({
   chats,
+  awaitingAnswerChatIds,
   messagesByChatId,
   streamingProjectIds,
 }: {
   chats: Pick<ChatConfig, "deletedAt" | "id" | "projectId">[];
-  messagesByChatId: Record<string, UIMessage[]>;
+  awaitingAnswerChatIds?: Record<string, boolean>;
+  messagesByChatId?: Record<string, UIMessage[]>;
   streamingProjectIds: ReadonlySet<string>;
 }) =>
   new Set(
@@ -128,7 +138,9 @@ export const getAwaitingAnswerProjectIds = ({
         (chat) =>
           chat.deletedAt === null &&
           streamingProjectIds.has(chat.projectId) &&
-          chatIsAwaitingAnswer(messagesByChatId[chat.id] ?? []),
+          (awaitingAnswerChatIds
+            ? Boolean(awaitingAnswerChatIds[chat.id])
+            : chatIsAwaitingAnswer(messagesByChatId?.[chat.id] ?? [])),
       )
       .map((chat) => chat.projectId),
   );

@@ -42,28 +42,6 @@ const STATE_DB_PATH_ENV_VAR = "DREAM_DB_PATH";
 const DRIZZLE_MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
 const INSTALL_ID_CONFIG_KEY = "installId";
 const THEME_PREFERENCES_CONFIG_KEY = "themePreferences";
-const PERSISTED_STATE_CONFIG_KEYS = [
-  "activeProjectId",
-  "chatSort",
-  "browserTabsByProject",
-  "activeBrowserTabIdByProject",
-  "settings.defaultModel",
-  "settings.defaultGitGenerationModel",
-  "settings.defaultModelSpeed",
-  "settings.defaultReasoningEffort",
-  "settings.openAiSelectedModels",
-  "settings.anthropicSelectedModels",
-  "settings.openCodeSelectedModels",
-  "settings.cursorSelectedModels",
-  "settings.grokSelectedModels",
-  "settings.autoAcceptPermissions",
-  "settings.archiveChatsAfterDays",
-  "settings.autoArchiveChatsAfterDays",
-  "settings.shellPath",
-  "settings.expandToolCalls",
-  "settings.groupToolCalls",
-  "settings.showReasoningSummaries",
-];
 const DEFAULT_SPARKLES_PALETTE = "dream";
 const SPARKLES_PALETTE_NAMES = new Set([
   "dream",
@@ -579,6 +557,10 @@ function buildChatMetadata(chat) {
   return {
     ...metadata,
     branchedFrom,
+    messageCount:
+      Number.isInteger(chat.messageCount) && chat.messageCount >= 0
+        ? chat.messageCount
+        : 0,
     modelSelection,
     permissions,
     remoteConversation,
@@ -586,6 +568,88 @@ function buildChatMetadata(chat) {
       chat.sparklesPalette ?? metadata.sparklesPalette,
     ),
   };
+}
+
+function saveChatMessagesToRelationalDatabase(
+  database,
+  chatId,
+  messages,
+  now = new Date().toISOString(),
+) {
+  if (
+    typeof chatId !== "string" ||
+    !chatId.trim() ||
+    !Array.isArray(messages)
+  ) {
+    return false;
+  }
+
+  const chatExists = database
+    .prepare("SELECT 1 FROM chats WHERE id = ? LIMIT 1")
+    .get(chatId);
+  if (!chatExists) {
+    return false;
+  }
+
+  const upsertMessage = database.prepare(
+    `
+      INSERT INTO chat_messages (
+        id,
+        chat_id,
+        role,
+        sort_order,
+        payload,
+        metadata,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        chat_id = excluded.chat_id,
+        role = excluded.role,
+        sort_order = excluded.sort_order,
+        payload = excluded.payload,
+        metadata = excluded.metadata
+    `,
+  );
+  const persistedMessageIds = [];
+
+  messages.forEach((message, index) => {
+    if (!isRecord(message)) {
+      return;
+    }
+
+    const messageId =
+      typeof message.id === "string" && message.id.trim()
+        ? message.id
+        : `message-${index}`;
+    const persistedMessageId = `${chatId}:${index}:${messageId}`;
+    persistedMessageIds.push(persistedMessageId);
+    upsertMessage.run(
+      persistedMessageId,
+      chatId,
+      typeof message.role === "string" ? message.role : "",
+      index,
+      toJson(message),
+      toJson({}),
+      now,
+    );
+  });
+
+  // Remove only stale rows belonging to this dirty chat. Other transcripts
+  // are deliberately untouched, including chats not loaded by the renderer.
+  if (persistedMessageIds.length === 0) {
+    database.prepare("DELETE FROM chat_messages WHERE chat_id = ?").run(chatId);
+  } else {
+    database
+      .prepare(
+        `DELETE FROM chat_messages
+         WHERE chat_id = ?
+           AND id NOT IN (${persistedMessageIds.map(() => "?").join(", ")})`,
+      )
+      .run(chatId, ...persistedMessageIds);
+  }
+
+  return true;
 }
 
 function saveStateToRelationalDatabase(database, state) {
@@ -608,14 +672,6 @@ function saveStateToRelationalDatabase(database, state) {
         .all()
         .map((row) => [row.id, row.created_at]),
     );
-
-    database.prepare("DELETE FROM chat_messages").run();
-    database.prepare("DELETE FROM chats").run();
-    database.prepare("DELETE FROM projects").run();
-    const deleteConfig = database.prepare("DELETE FROM config WHERE key = ?");
-    for (const key of PERSISTED_STATE_CONFIG_KEYS) {
-      deleteConfig.run(key);
-    }
 
     const settings = isRecord(state.settings) ? state.settings : {};
     writeConfig(
@@ -764,6 +820,18 @@ function saveStateToRelationalDatabase(database, state) {
       }
     }
 
+    if (projectsToPersist.length === 0) {
+      database.prepare("DELETE FROM projects").run();
+    } else {
+      database
+        .prepare(
+          `DELETE FROM projects WHERE id NOT IN (${projectsToPersist
+            .map(() => "?")
+            .join(", ")})`,
+        )
+        .run(...projectsToPersist.map(({ project }) => project.id));
+    }
+
     const insertProject = database.prepare(
       `
         INSERT INTO projects (
@@ -778,6 +846,14 @@ function saveStateToRelationalDatabase(database, state) {
           updated_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          path = excluded.path,
+          normalized_path = excluded.normalized_path,
+          name = excluded.name,
+          status = excluded.status,
+          sort_order = excluded.sort_order,
+          metadata = excluded.metadata,
+          updated_at = excluded.updated_at
       `,
     );
 
@@ -819,22 +895,15 @@ function saveStateToRelationalDatabase(database, state) {
           deleted_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          project_id = excluded.project_id,
+          title = excluded.title,
+          metadata = excluded.metadata,
+          updated_at = excluded.updated_at,
+          deleted_at = excluded.deleted_at
       `,
     );
-    const insertMessage = database.prepare(
-      `
-        INSERT INTO chat_messages (
-          id,
-          chat_id,
-          role,
-          sort_order,
-          payload,
-          metadata,
-          created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `,
-    );
+    const persistedChatIds = [];
 
     for (const chat of chats) {
       if (
@@ -868,31 +937,31 @@ function saveStateToRelationalDatabase(database, state) {
           ? chat.deletedAt
           : null,
       );
+      persistedChatIds.push(chat.id);
 
-      const messages = Array.isArray(messagesByChatId[chat.id])
-        ? messagesByChatId[chat.id]
-        : [];
-
-      messages.forEach((message, index) => {
-        if (!isRecord(message)) {
-          return;
-        }
-
-        const messageId =
-          typeof message.id === "string" && message.id.trim()
-            ? message.id
-            : `message-${index}`;
-
-        insertMessage.run(
-          `${chat.id}:${index}:${messageId}`,
+      if (
+        Object.hasOwn(messagesByChatId, chat.id) &&
+        Array.isArray(messagesByChatId[chat.id])
+      ) {
+        saveChatMessagesToRelationalDatabase(
+          database,
           chat.id,
-          typeof message.role === "string" ? message.role : "",
-          index,
-          toJson(message),
-          toJson({}),
+          messagesByChatId[chat.id],
           now,
         );
-      });
+      }
+    }
+
+    if (persistedChatIds.length === 0) {
+      database.prepare("DELETE FROM chats").run();
+    } else {
+      database
+        .prepare(
+          `DELETE FROM chats WHERE id NOT IN (${persistedChatIds
+            .map(() => "?")
+            .join(", ")})`,
+        )
+        .run(...persistedChatIds);
     }
 
     database
@@ -1011,9 +1080,11 @@ function loadStateFromRelationalDatabase(database) {
   const chatRows = database
     .prepare(
       `
-        SELECT *
+        SELECT chats.*, COUNT(chat_messages.id) AS message_count
         FROM chats
-        ORDER BY created_at, id
+        LEFT JOIN chat_messages ON chat_messages.chat_id = chats.id
+        GROUP BY chats.id
+        ORDER BY chats.created_at, chats.id
       `,
     )
     .all();
@@ -1040,6 +1111,8 @@ function loadStateFromRelationalDatabase(database) {
           ? row.deleted_at
           : null,
       id: row.id,
+      messageCount:
+        typeof row.message_count === "number" ? row.message_count : 0,
       metadata,
       agentMode: getNestedString(modelSelection, "agentMode", "build"),
       model: getNestedString(modelSelection, "model", ""),
@@ -1067,25 +1140,8 @@ function loadStateFromRelationalDatabase(database) {
     });
   }
 
-  const messagesByChatId = Object.fromEntries(
-    chats.map((chat) => [chat.id, []]),
-  );
-  const messageRows = database
-    .prepare(
-      `
-        SELECT chat_id, payload
-        FROM chat_messages
-        ORDER BY chat_id, sort_order
-      `,
-    )
-    .all();
-
-  for (const row of messageRows) {
-    const payload = parseJson(row.payload, null);
-    if (isRecord(payload) && Array.isArray(messagesByChatId[row.chat_id])) {
-      messagesByChatId[row.chat_id].push(payload);
-    }
-  }
+  // Transcripts are loaded per chat when a panel first opens.
+  const messagesByChatId = {};
 
   for (const project of allProjects) {
     const requestedChatId = project.ui.activeChatId;
@@ -1374,6 +1430,16 @@ export function savePersistedState(state, { databasePath } = {}) {
   return saveStateToRelationalDatabase(database, state);
 }
 
+export function savePersistedChatMessages(
+  { chatId, messages } = {},
+  { databasePath } = {},
+) {
+  const database = getStateDatabase(databasePath);
+  return runInTransaction(database, () =>
+    saveChatMessagesToRelationalDatabase(database, chatId, messages),
+  );
+}
+
 export function savePersistedActiveProject(
   { activeProjectId, lastUsedAt } = {},
   { databasePath } = {},
@@ -1427,6 +1493,28 @@ export function savePersistedActiveProject(
 export function loadPersistedState({ databasePath } = {}) {
   const database = getStateDatabase(databasePath);
   return loadStateFromRelationalDatabase(database);
+}
+
+export function loadPersistedChatMessages(chatId, { databasePath } = {}) {
+  if (typeof chatId !== "string" || !chatId.trim()) {
+    return [];
+  }
+
+  const database = getStateDatabase(databasePath);
+  return database
+    .prepare(
+      `
+        SELECT payload
+        FROM chat_messages
+        WHERE chat_id = ?
+        ORDER BY sort_order, id
+      `,
+    )
+    .all(chatId)
+    .flatMap((row) => {
+      const payload = parseJson(row.payload, null);
+      return isRecord(payload) ? [payload] : [];
+    });
 }
 
 export function ensurePersistedInstallId({ databasePath } = {}) {

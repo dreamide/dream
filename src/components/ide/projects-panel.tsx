@@ -151,7 +151,6 @@ export const ProjectSidebar = ({
   const projectUi = useIdeStore(
     (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
   );
-  const messagesByChatId = useIdeStore((s) => s.messagesByChatId);
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
@@ -184,7 +183,7 @@ export const ProjectSidebar = ({
         (chat) =>
           chat.projectId === project.id &&
           chat.deletedAt === null &&
-          (messagesByChatId[chat.id]?.length ?? 0) > 0,
+          chat.messageCount > 0,
       )
       .sort((left, right) => {
         const leftUpdated = Date.parse(left.updatedAt);
@@ -195,7 +194,7 @@ export const ProjectSidebar = ({
 
         return rightUpdated - leftUpdated;
       });
-  }, [allChats, messagesByChatId, project.id]);
+  }, [allChats, project.id]);
 
   const filteredChats = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

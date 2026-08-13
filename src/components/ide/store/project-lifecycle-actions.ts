@@ -309,6 +309,9 @@ export const createProjectLifecycleActions = (
               options.initialChatSeed.messageId,
             )
           : null;
+        if (nextChat) {
+          nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
+        }
         createdChatId = nextChat?.id ?? existingProject.ui.activeChatId;
         return {
           activeProjectId: existingProject.id,
@@ -366,6 +369,9 @@ export const createProjectLifecycleActions = (
               options.initialChatSeed.messageId,
             )
           : null;
+        if (nextChat) {
+          nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
+        }
         createdChatId = nextChat?.id ?? reopenedProject.ui.activeChatId;
         return {
           activeProjectId: closedProject.id,
@@ -423,6 +429,7 @@ export const createProjectLifecycleActions = (
             options.initialChatSeed.messageId,
           )
         : createChatConfig(nextProject);
+      nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
       createdProjectId = nextProject.id;
       createdChatId = nextChat.id;
 
@@ -452,6 +459,10 @@ export const createProjectLifecycleActions = (
         ],
       };
     });
+
+    if (createdChatId && options.initialChatSeed) {
+      await get().persistMessagesForChat?.(createdChatId);
+    }
 
     return createdProjectId
       ? { chatId: createdChatId, projectId: createdProjectId }
