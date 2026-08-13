@@ -37,6 +37,7 @@ export interface ProviderModelsResponse {
   opencode?: ProviderModelFetchResult;
   cursor?: ProviderModelFetchResult;
   grok?: ProviderModelFetchResult;
+  amp?: ProviderModelFetchResult;
 }
 
 export interface ProviderModelState {
@@ -96,6 +97,7 @@ export const ALL_PROVIDERS: AiProvider[] = [
   "opencode",
   "cursor",
   "grok",
+  "amp",
 ];
 
 export const getProviderLabel = (provider: AiProvider): string => {
@@ -103,6 +105,7 @@ export const getProviderLabel = (provider: AiProvider): string => {
   if (provider === "opencode") return "OpenCode";
   if (provider === "cursor") return "Cursor";
   if (provider === "grok") return "Grok Build";
+  if (provider === "amp") return "Amp";
   return "Anthropic";
 };
 
@@ -119,6 +122,7 @@ export const getProviderDescription = (provider: AiProvider): string => {
   if (provider === "grok") {
     return "Uses the local Grok Build CLI through ACP.";
   }
+  if (provider === "amp") return "Uses the local Amp ACP adapter.";
   return "Uses the local Claude Code CLI for Claude models.";
 };
 
@@ -144,6 +148,8 @@ export const getEnabledProviders = (settings: AppSettings): AiProvider[] => {
   if (settings.grokSelectedModels.length > 0) {
     providers.push("grok");
   }
+
+  if (settings.ampSelectedModels.length > 0) providers.push("amp");
 
   return providers;
 };

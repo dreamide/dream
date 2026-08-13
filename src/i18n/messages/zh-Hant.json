@@ -131,6 +131,7 @@
   },
   "chat": {
     "agentMode": "代理模式",
+    "ampManagedPermissions": "由 Amp 管理",
     "askAnything": "詢問任何問題...",
     "build": "建置",
     "buildAnything": "建置任何東西",
@@ -205,6 +206,12 @@
     "themeDescription": "控制介面主題。"
   },
   "settings": {
+    "ampAdapterDocs": "介接器文件",
+    "ampAdapterHelp": "請安裝 tao12345666333 提供的 amp-acp 介接器。名稱相似的 acp-amp 介接器與此整合不相容。",
+    "ampAdapterInstall": "安裝或更新",
+    "ampAdapterPrerequisite": "還必須安裝 Amp CLI，並透過 amp login 登入。",
+    "ampAdapterUpdateRequired": "amp-acp {version} 已過期。請安裝 amp-acp 0.9.0 或更新版本。",
+    "copy": "複製",
     "archiveNow": "立即封存",
     "archiveChatsAfterDays": "在以下天數後封存聊天",
     "archiveDays": "封存前的天數",

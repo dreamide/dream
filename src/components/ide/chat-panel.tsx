@@ -812,14 +812,7 @@ export const ChatPanel = ({
     [messages],
   );
 
-  const modelId =
-    selectedProvider === "anthropic"
-      ? `anthropic:${selectedModel}`
-      : selectedProvider === "opencode"
-        ? `opencode:${selectedModel}`
-        : selectedProvider === "cursor"
-          ? `cursor:${selectedModel}`
-          : `openai:${selectedModel}`;
+  const modelId = `${selectedProvider}:${selectedModel}`;
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
@@ -1226,6 +1219,8 @@ export const ChatPanel = ({
           onModelChange={(nextOption) => {
             updateChat(chat.id, (current) => ({
               ...current,
+              agentMode:
+                nextOption.provider === "amp" ? "build" : current.agentMode,
               model: nextOption.id,
               modelSpeed: "standard",
               provider: nextOption.provider,

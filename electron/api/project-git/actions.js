@@ -8,6 +8,7 @@ import {
   resolveCodexCliLaunch,
 } from "../chat/codex-cli-launch.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
+import { runAmpPrompt } from "../providers/amp-acp.js";
 import {
   getCursorCliSpawnErrorMessage,
   normalizeCursorCliModel,
@@ -559,6 +560,10 @@ const generateAiText = async ({
       model,
       prompt,
     });
+  }
+
+  if (provider === "amp") {
+    return runAmpPrompt({ cwd: projectPath, model, prompt });
   }
 
   return runCodexPrompt({ model, prompt, projectPath });

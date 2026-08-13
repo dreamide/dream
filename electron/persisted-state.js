@@ -19,6 +19,7 @@ const DEFAULT_PERSISTED_STATE = {
   messagesByChatId: {},
   projects: [],
   settings: {
+    ampSelectedModels: [],
     anthropicSelectedModels: [],
     archiveChatsAfterDays: 30,
     cursorSelectedModels: [],
@@ -51,6 +52,7 @@ const PERSISTED_STATE_CONFIG_KEYS = [
   "settings.defaultGitGenerationModel",
   "settings.defaultModelSpeed",
   "settings.defaultReasoningEffort",
+  "settings.ampSelectedModels",
   "settings.openAiSelectedModels",
   "settings.anthropicSelectedModels",
   "settings.openCodeSelectedModels",
@@ -665,6 +667,14 @@ function saveStateToRelationalDatabase(database, state) {
     );
     writeConfig(
       database,
+      "settings.ampSelectedModels",
+      Array.isArray(settings.ampSelectedModels)
+        ? settings.ampSelectedModels
+        : [],
+      now,
+    );
+    writeConfig(
+      database,
       "settings.openAiSelectedModels",
       Array.isArray(settings.openAiSelectedModels)
         ? settings.openAiSelectedModels
@@ -1138,6 +1148,9 @@ function loadStateFromRelationalDatabase(database) {
     messagesByChatId,
     projects,
     settings: {
+      ampSelectedModels: Array.isArray(config["settings.ampSelectedModels"])
+        ? config["settings.ampSelectedModels"]
+        : [],
       anthropicSelectedModels: Array.isArray(
         config["settings.anthropicSelectedModels"],
       )

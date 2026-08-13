@@ -22,6 +22,14 @@ export const isToolLikePart = (part: MessagePart): part is ToolLikePart =>
 
 export const getToolName = (part: ToolLikePart): string => {
   if (part.type === "dynamic-tool" && isString(part.toolName)) {
+    if (
+      normalizeToolName(part.toolName) === "command" &&
+      "title" in part &&
+      isString(part.title)
+    ) {
+      const acpToolName = part.title.split(":", 1)[0].trim();
+      if (acpToolName) return acpToolName;
+    }
     return part.toolName;
   }
 

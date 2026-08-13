@@ -58,6 +58,11 @@ test("limits Grok reasoning efforts to grok models without composer", () => {
   assert.deepEqual(getModelReasoningEfforts("cursor", "grok-4"), []);
 });
 
+test("formats Amp modes as readable model labels", () => {
+  assert.equal(createModelOption("amp", "smart", "Smart").label, "Smart");
+  assert.equal(createModelOption("amp", "high", "high").label, "High");
+});
+
 test("offers speed tiers only for OpenAI gpt-5.4 and gpt-5.5 families", () => {
   assert.deepEqual(getModelSpeedTiers("openai", "gpt-5.4"), [
     "standard",

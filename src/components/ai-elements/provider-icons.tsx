@@ -90,6 +90,22 @@ export const GrokIcon = ({
   </svg>
 );
 
+export const AmpIcon = ({ className, ...props }: IconProps) => (
+  <svg
+    className={cn("size-3.5", className)}
+    fill="none"
+    role="img"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path
+      d="M4 19 10.5 5h3L20 19h-3.4l-1.3-3H8.7l-1.3 3H4Zm5.9-5.8h4.2L12 8.3l-2.1 4.9Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 export const ProviderIcon = ({
   provider,
   ...props
@@ -98,5 +114,6 @@ export const ProviderIcon = ({
   if (provider === "opencode") return <OpenCodeIcon {...props} />;
   if (provider === "cursor") return <CursorIcon {...props} />;
   if (provider === "grok") return <GrokIcon {...props} />;
+  if (provider === "amp") return <AmpIcon {...props} />;
   return <OpenAiIcon {...props} />;
 };

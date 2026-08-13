@@ -131,6 +131,7 @@
   },
   "chat": {
     "agentMode": "代理模式",
+    "ampManagedPermissions": "由 Amp 管理",
     "askAnything": "询问任何问题...",
     "build": "构建",
     "buildAnything": "构建任何东西",
@@ -205,6 +206,12 @@
     "themeDescription": "控制界面主题。"
   },
   "settings": {
+    "ampAdapterDocs": "适配器文档",
+    "ampAdapterHelp": "请安装 tao12345666333 提供的 amp-acp 适配器。名称相似的 acp-amp 适配器与此集成不兼容。",
+    "ampAdapterInstall": "安装或更新",
+    "ampAdapterPrerequisite": "还必须安装 Amp CLI，并通过 amp login 登录。",
+    "ampAdapterUpdateRequired": "amp-acp {version} 已过期。请安装 amp-acp 0.9.0 或更高版本。",
+    "copy": "复制",
     "archiveNow": "立即归档",
     "archiveChatsAfterDays": "在以下天数后归档聊天",
     "archiveDays": "归档前的天数",

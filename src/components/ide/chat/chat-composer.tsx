@@ -1020,7 +1020,11 @@ export const ChatComposer = ({
                       <SelectItem className="text-xs" value="standard">
                         <span className="flex items-center gap-1.5">
                           <Shield className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                          <span>{chatT("standardPermissions")}</span>
+                          <span>
+                            {selectedProvider === "amp"
+                              ? chatT("ampManagedPermissions")
+                              : chatT("standardPermissions")}
+                          </span>
                         </span>
                       </SelectItem>
                       <SelectItem className="text-xs" value="full-access">
@@ -1052,7 +1056,11 @@ export const ChatComposer = ({
                   <SelectContent className="text-xs" side="top">
                     <SelectGroup>
                       <SelectLabel>{chatT("mode")}</SelectLabel>
-                      {AGENT_MODE_OPTIONS.map((option) => {
+                      {AGENT_MODE_OPTIONS.filter(
+                        (option) =>
+                          selectedProvider !== "amp" ||
+                          option.value === "build",
+                      ).map((option) => {
                         const OptionIcon = getAgentModeIcon(option.value);
 
                         return (

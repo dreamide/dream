@@ -57,21 +57,27 @@ export const RunCommandChip = ({
         ? output.type
         : null;
   const commandOutput = useMemo(() => {
-    if (isString(output)) {
-      return stripAnsiSequences(output);
+    let normalizedOutput = output;
+    if (isString(normalizedOutput)) {
+      const serializedOutput = normalizedOutput;
+      try {
+        normalizedOutput = JSON.parse(serializedOutput);
+      } catch {
+        return stripAnsiSequences(serializedOutput);
+      }
     }
 
-    if (!isRecord(output)) {
+    if (!isRecord(normalizedOutput)) {
       return null;
     }
 
-    const combinedOutput = [output.stdout, output.stderr]
+    const combinedOutput = [normalizedOutput.stdout, normalizedOutput.stderr]
       .filter(isString)
-      .join(output.stdout && output.stderr ? "\n" : "");
+      .join(normalizedOutput.stdout && normalizedOutput.stderr ? "\n" : "");
     const textOutput =
-      (isString(output.output) && output.output) ||
+      (isString(normalizedOutput.output) && normalizedOutput.output) ||
       combinedOutput ||
-      (isString(output.result) ? output.result : null);
+      (isString(normalizedOutput.result) ? normalizedOutput.result : null);
 
     return textOutput ? stripAnsiSequences(textOutput) : null;
   }, [output]);

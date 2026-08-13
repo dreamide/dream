@@ -1,5 +1,10 @@
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import {
+  applyAmpSessionOptions,
+  initializeAmpAcp,
+  spawnAmpAcp,
+} from "../providers/amp-acp.js";
+import {
   authenticateGrokAcp,
   getGrokModelsFromInitializeResult,
   initializeGrokAcp,
@@ -51,14 +56,21 @@ const getFirstString = (...values) => {
 const getDreamToolName = (toolCall) => {
   const kind = String(toolCall?.kind ?? "").toLowerCase();
   const title = String(toolCall?.title ?? "").toLowerCase();
+  const acpToolName = title.split(":", 1)[0].trim();
 
+  if (acpToolName.startsWith("mcp__")) return acpToolName;
   if (["edit", "delete", "move"].includes(kind)) return "writeFile";
   if (kind === "read") return "readFile";
   if (kind === "search") return "searchInFiles";
   if (kind === "execute") return "runCommand";
   if (kind === "fetch") return "webFetch";
+  if (acpToolName === "shell_command") return "runCommand";
+  if (acpToolName === "apply_patch") return "writeFile";
+  if (acpToolName === "read_web_page") return "webFetch";
+  if (acpToolName === "web_search") return "webSearch";
+  if (acpToolName === "finder") return "searchInFiles";
   if (title.includes("todo") || title.includes("plan")) return "command";
-  return "command";
+  return acpToolName || "command";
 };
 
 const normalizeToolInput = (toolName, toolCall) => {
@@ -85,13 +97,72 @@ const normalizeToolInput = (toolName, toolCall) => {
   };
 };
 
+export const parseAcpToolOutput = (value, toolName) => {
+  if (typeof value !== "string" || toolName === "readFile") return value;
+
+  try {
+    const parsed = JSON.parse(value);
+    if (
+      toolName === "skill" &&
+      isRecord(parsed) &&
+      Array.isArray(parsed.content)
+    ) {
+      const text = parsed.content
+        .flatMap((entry) =>
+          entry?.type === "text" && typeof entry.text === "string"
+            ? [entry.text]
+            : [],
+        )
+        .join("\n");
+      if (text) return text;
+    }
+    if (
+      toolName === "webSearch" &&
+      Array.isArray(parsed) &&
+      parsed.length > 0 &&
+      parsed.every(
+        (entry) =>
+          isRecord(entry) &&
+          typeof entry.title === "string" &&
+          typeof entry.url === "string",
+      )
+    ) {
+      return parsed
+        .map((entry) => {
+          const excerpts = Array.isArray(entry.excerpts)
+            ? entry.excerpts.filter((excerpt) => typeof excerpt === "string")
+            : [];
+          return [`[${entry.title}](${entry.url})`, ...excerpts].join("\n\n");
+        })
+        .join("\n\n---\n\n");
+    }
+    if (
+      isRecord(parsed) &&
+      ((toolName === "runCommand" &&
+        (typeof parsed.output === "string" ||
+          typeof parsed.stdout === "string" ||
+          typeof parsed.stderr === "string")) ||
+        (toolName === "writeFile" &&
+          typeof parsed.summary === "string" &&
+          Array.isArray(parsed.files)))
+    ) {
+      return parsed;
+    }
+    return value;
+  } catch {
+    return value;
+  }
+};
+
 const extractToolOutput = (toolCall) => {
-  if (toolCall?.rawOutput !== undefined) return toolCall.rawOutput;
+  if (toolCall?.rawOutput != null) {
+    return parseAcpToolOutput(toolCall.rawOutput, toolCall.toolName);
+  }
   if (!Array.isArray(toolCall?.content)) return null;
 
   const parts = toolCall.content.flatMap((entry) => {
     if (entry?.type === "content" && entry.content?.type === "text") {
-      return [entry.content.text];
+      return [parseAcpToolOutput(entry.content.text, toolCall.toolName)];
     }
     if (entry?.type === "diff") {
       return [
@@ -139,7 +210,7 @@ const shouldLoadRemoteSession = ({
       remoteConversationProjectPath === projectPath,
   );
 
-export const streamGrokResponse = ({
+const streamAcpResponse = ({
   abortSignal,
   agentMode,
   codexPermissionMode,
@@ -152,11 +223,16 @@ export const streamGrokResponse = ({
   remoteConversationModel,
   remoteConversationProjectPath,
   responseMessageMetadata,
+  provider = "grok",
 }) => {
+  const isAmp = provider === "amp";
+  const providerLabel = isAmp ? "Amp" : "Grok Build";
   const stream = createUIMessageStream({
     originalMessages: messages,
     onError: (error) =>
-      error instanceof Error ? error.message : "Grok Build request failed.",
+      error instanceof Error
+        ? error.message
+        : `${providerLabel} request failed.`,
     execute: async ({ writer }) => {
       let connection = null;
       let preparedAttachments = null;
@@ -189,7 +265,7 @@ export const streamGrokResponse = ({
             activeTextId = null;
           }
           if (!activeReasoningId) {
-            activeReasoningId = `grok-reasoning-${Date.now()}`;
+            activeReasoningId = `${provider}-reasoning-${Date.now()}`;
             writer.write({ id: activeReasoningId, type: "reasoning-start" });
           }
           writer.write({
@@ -205,7 +281,7 @@ export const streamGrokResponse = ({
           activeReasoningId = null;
         }
         if (!activeTextId) {
-          activeTextId = `grok-text-${Date.now()}`;
+          activeTextId = `${provider}-text-${Date.now()}`;
           writer.write({ id: activeTextId, type: "text-start" });
         }
         writer.write({ delta, id: activeTextId, type: "text-delta" });
@@ -263,7 +339,7 @@ export const streamGrokResponse = ({
         closeTextParts();
         const toolName = getDreamToolName(merged);
         const input = normalizeToolInput(toolName, merged);
-        const title = merged.title || "Grok tool";
+        const title = merged.title || `${providerLabel} tool`;
         writer.write({
           dynamic: true,
           providerExecuted: true,
@@ -297,11 +373,16 @@ export const streamGrokResponse = ({
         completedToolCalls.add(merged.toolCallId);
         const output = extractToolOutput(merged);
         if (merged.status === "failed") {
+          const outputError =
+            getFirstString(output?.message, output) ||
+            (Array.isArray(output)
+              ? output.filter((entry) => typeof entry === "string").join("\n")
+              : null);
           writer.write({
             dynamic: true,
             errorText:
-              getFirstString(merged.rawOutput?.message, merged.rawOutput) ||
-              `${merged.title || "Grok tool"} failed.`,
+              outputError ||
+              `${merged.title || `${providerLabel} tool`} failed.`,
             providerExecuted: true,
             toolCallId: merged.toolCallId,
             type: "tool-output-error",
@@ -367,7 +448,7 @@ export const streamGrokResponse = ({
             : { outcome: { outcome: "cancelled" } };
         }
 
-        const approvalId = `grok:${sessionId}:${toolCallId}`;
+        const approvalId = `${provider}:${sessionId}:${toolCallId}`;
         writer.write({
           approvalId,
           toolCallId,
@@ -375,7 +456,7 @@ export const streamGrokResponse = ({
         });
         const response = await waitForToolApproval({
           id: approvalId,
-          provider: "grok",
+          provider,
           request: {
             input: toolCall.input,
             options,
@@ -417,17 +498,24 @@ export const streamGrokResponse = ({
       writeMetadata(responseMessageMetadata);
 
       try {
+        if (isAmp && agentMode === "plan") {
+          throw new Error(
+            "Amp ACP does not support Dream's read-only Plan mode. Switch this chat to Build mode.",
+          );
+        }
         preparedAttachments = await prepareCodexPromptAttachments(
           getLatestUserMessage(messages),
         );
         if (stopIfAborted()) return;
-        connection = await spawnGrokAcp({
-          agentMode,
-          codexPermissionMode,
-          cwd: projectPath,
-          model,
-          reasoningEffort,
-        });
+        connection = isAmp
+          ? await spawnAmpAcp({ cwd: projectPath })
+          : await spawnGrokAcp({
+              agentMode,
+              codexPermissionMode,
+              cwd: projectPath,
+              model,
+              reasoningEffort,
+            });
         if (stopIfAborted()) return;
         connection.onNotification = (method, params) => {
           if (method === "session/update") handleSessionUpdate(params);
@@ -436,26 +524,34 @@ export const streamGrokResponse = ({
           if (method === "session/request_permission") {
             return handlePermissionRequest(params);
           }
-          throw new Error(`Unsupported Grok ACP request: ${method}`);
+          throw new Error(
+            `Unsupported ${providerLabel} ACP request: ${method}`,
+          );
         };
 
-        const initializeResult = await initializeGrokAcp(connection);
+        const initializeResult = isAmp
+          ? await initializeAmpAcp(connection)
+          : await initializeGrokAcp(connection);
         if (stopIfAborted()) return;
-        contextWindow = toFiniteNumber(
-          getGrokModelsFromInitializeResult(initializeResult).find(
-            (entry) => entry?.modelId === model,
-          )?._meta?.totalContextTokens,
-        );
-        await authenticateGrokAcp(connection, initializeResult);
+        if (!isAmp) {
+          contextWindow = toFiniteNumber(
+            getGrokModelsFromInitializeResult(initializeResult).find(
+              (entry) => entry?.modelId === model,
+            )?._meta?.totalContextTokens,
+          );
+        }
+        if (!isAmp) await authenticateGrokAcp(connection, initializeResult);
         if (stopIfAborted()) return;
 
-        const shouldLoad = shouldLoadRemoteSession({
-          model,
-          projectPath,
-          remoteConversationId,
-          remoteConversationModel,
-          remoteConversationProjectPath,
-        });
+        const shouldLoad =
+          !isAmp &&
+          shouldLoadRemoteSession({
+            model,
+            projectPath,
+            remoteConversationId,
+            remoteConversationModel,
+            remoteConversationProjectPath,
+          });
         if (shouldLoad && initializeResult?.agentCapabilities?.loadSession) {
           sessionId = remoteConversationId;
           loadingSession = true;
@@ -481,18 +577,28 @@ export const streamGrokResponse = ({
           });
           if (stopIfAborted()) return;
           sessionId = session?.sessionId;
+          if (isAmp && sessionId) {
+            await applyAmpSessionOptions(connection, session, {
+              codexPermissionMode,
+              model,
+              reasoningEffort,
+            });
+            if (stopIfAborted()) return;
+          }
         }
         if (!sessionId) {
-          throw new Error("Grok Build did not return a session id.");
+          throw new Error(`${providerLabel} did not return a session id.`);
         }
 
-        writeMetadata({
-          ...responseMessageMetadata,
-          remoteConversationId: sessionId,
-          remoteConversationModel: model,
-          remoteConversationModelSpeed: "standard",
-          remoteConversationProjectPath: projectPath,
-        });
+        if (!isAmp) {
+          writeMetadata({
+            ...responseMessageMetadata,
+            remoteConversationId: sessionId,
+            remoteConversationModel: model,
+            remoteConversationModelSpeed: "standard",
+            remoteConversationProjectPath: projectPath,
+          });
+        }
 
         const currentTurnAttachments = preparedAttachments?.promptText ?? null;
         const prompt = loadedSession
@@ -506,12 +612,12 @@ export const streamGrokResponse = ({
               currentTurnProjectReferences: projectReferencesPrompt,
               messages,
               projectPath,
-              runtimeDescription:
-                "You are Grok Build running inside the Dream desktop IDE with native project tools.",
+              runtimeDescription: `You are ${providerLabel} running inside the Dream desktop IDE with native project tools.`,
               systemPrompt:
                 "Complete the user's request using the active project when relevant.",
             });
 
+        if (stopIfAborted()) return;
         const promptResult = await connection.request(
           "session/prompt",
           { prompt: [{ text: prompt, type: "text" }], sessionId },
@@ -522,15 +628,25 @@ export const streamGrokResponse = ({
           writeMetadata({
             ...responseMessageMetadata,
             ...(contextWindow ? { contextWindow } : {}),
-            remoteConversationId: sessionId,
-            remoteConversationModel: model,
-            remoteConversationModelSpeed: "standard",
-            remoteConversationProjectPath: projectPath,
+            ...(!isAmp
+              ? {
+                  remoteConversationId: sessionId,
+                  remoteConversationModel: model,
+                  remoteConversationModelSpeed: "standard",
+                  remoteConversationProjectPath: projectPath,
+                }
+              : {}),
             usage,
           });
         }
       } catch (error) {
-        if (!abortSignal?.aborted) throw error;
+        if (!abortSignal?.aborted) {
+          if (connection && sessionId) {
+            connection.notify("session/cancel", { sessionId });
+            await new Promise((resolve) => setTimeout(resolve, 250));
+          }
+          throw error;
+        }
       } finally {
         closeTextParts();
         abortSignal?.removeEventListener("abort", handleAbort);
@@ -542,3 +658,9 @@ export const streamGrokResponse = ({
 
   return createUIMessageStreamResponse({ stream });
 };
+
+export const streamGrokResponse = (options) =>
+  streamAcpResponse({ ...options, provider: "grok" });
+
+export const streamAmpResponse = (options) =>
+  streamAcpResponse({ ...options, provider: "amp" });

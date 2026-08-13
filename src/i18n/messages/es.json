@@ -131,6 +131,7 @@
   },
   "chat": {
     "agentMode": "Modo de agente",
+    "ampManagedPermissions": "Gestionado por Amp",
     "askAnything": "Pregunta lo que quieras...",
     "build": "Construir",
     "buildAnything": "Construye cualquier cosa",
@@ -205,6 +206,12 @@
     "themeDescription": "Controla el tema de la interfaz."
   },
   "settings": {
+    "ampAdapterDocs": "Documentación del adaptador",
+    "ampAdapterHelp": "Instala el adaptador amp-acp de tao12345666333. El adaptador de nombre similar acp-amp no es compatible con esta integración.",
+    "ampAdapterInstall": "Instalar o actualizar",
+    "ampAdapterPrerequisite": "La CLI de Amp también debe estar instalada y haber iniciado sesión con amp login.",
+    "ampAdapterUpdateRequired": "amp-acp {version} está desactualizado. Instala amp-acp 0.9.0 o posterior.",
+    "copy": "Copiar",
     "archiveNow": "Archivar ahora",
     "archiveChatsAfterDays": "Archivar chats después de",
     "archiveDays": "Días antes de archivar",
