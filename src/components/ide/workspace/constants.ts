@@ -26,7 +26,9 @@ export const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4
 // (e.g. 4K) windows — the surrounding content now reflows once (width snaps)
 // while the panel itself still slides in/out via transform.
 export const SLIDING_PANEL_TRANSITION = `transform ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-export const CHAT_KEEP_ALIVE_LIMIT = 10;
+// Keep the active chat, a small recent set, and every actively streaming chat.
+// Open split-view chats are retained separately by useMountedProjectChats.
+export const CHAT_KEEP_ALIVE_LIMIT = 3;
 
 export const clampChatHistoryPanelWidth = (width: number) =>
   Math.max(

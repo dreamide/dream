@@ -5,6 +5,8 @@ import type { StickToBottomContext } from "use-stick-to-bottom";
 import { scrollElementToChatBottom } from "../chat";
 import { mergeChatMessageHistories } from "../chat-message-history";
 
+const CHAT_AUTO_SCROLL_MIN_INTERVAL_MS = 100;
+
 export const useChatMessageSync = ({
   chatId,
   chatMessages,
@@ -104,33 +106,70 @@ export const useChatAutoScroll = ({
 }) => {
   const conversationContextRef = useRef<StickToBottomContext | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<number | null>(null);
+  const lastScrollTimestampRef = useRef(0);
   const wasProcessingRef = useRef(isProcessing);
 
-  const scheduleConversationScroll = useCallback(
-    (mode: "force" | "locked") => {
-      if (!isActive || scrollFrameRef.current !== null) {
+  const runConversationScroll = useCallback((mode: "force" | "locked") => {
+    if (scrollFrameRef.current !== null) {
+      return;
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = null;
+      lastScrollTimestampRef.current = performance.now();
+      const conversationContext = conversationContextRef.current;
+      const element = conversationContext?.scrollRef.current;
+      if (!conversationContext || !element) {
+        return;
+      }
+      if (mode === "locked" && conversationContext.escapedFromLock) {
         return;
       }
 
-      scrollFrameRef.current = window.requestAnimationFrame(() => {
-        scrollFrameRef.current = null;
-        const conversationContext = conversationContextRef.current;
-        const element = conversationContext?.scrollRef.current;
-        if (!conversationContext || !element) {
-          return;
-        }
-        if (mode === "locked" && conversationContext.escapedFromLock) {
-          return;
-        }
-
-        scrollElementToChatBottom(element);
-        void conversationContext.scrollToBottom({
-          animation: "instant",
-          ignoreEscapes: true,
-        });
+      scrollElementToChatBottom(element);
+      void conversationContext.scrollToBottom({
+        animation: "instant",
+        ignoreEscapes: true,
       });
+    });
+  }, []);
+
+  const scheduleConversationScroll = useCallback(
+    (mode: "force" | "locked") => {
+      if (!isActive) {
+        return;
+      }
+
+      if (mode === "force" && scrollTimeoutRef.current !== null) {
+        window.clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
+      }
+
+      if (
+        scrollFrameRef.current !== null ||
+        scrollTimeoutRef.current !== null
+      ) {
+        return;
+      }
+
+      const elapsedMs = performance.now() - lastScrollTimestampRef.current;
+      const delayMs =
+        mode === "force"
+          ? 0
+          : Math.max(0, CHAT_AUTO_SCROLL_MIN_INTERVAL_MS - elapsedMs);
+
+      if (delayMs > 0) {
+        scrollTimeoutRef.current = window.setTimeout(() => {
+          scrollTimeoutRef.current = null;
+          runConversationScroll(mode);
+        }, delayMs);
+        return;
+      }
+
+      runConversationScroll(mode);
     },
-    [isActive],
+    [isActive, runConversationScroll],
   );
 
   useEffect(() => {
@@ -138,6 +177,10 @@ export const useChatAutoScroll = ({
       if (scrollFrameRef.current !== null) {
         window.cancelAnimationFrame(scrollFrameRef.current);
         scrollFrameRef.current = null;
+      }
+      if (scrollTimeoutRef.current !== null) {
+        window.clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
       }
     };
   }, []);

@@ -11,6 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -22,6 +23,7 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
@@ -69,6 +71,10 @@ import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { estimateMessages } from "./chat/message-token-estimate";
 import { projectMessagesForRequest } from "./chat/request-context";
 import { getLatestChatTodoSummary } from "./chat/todo-list";
+import {
+  CHAT_TRANSCRIPT_WINDOW_SIZE,
+  getTranscriptWindow,
+} from "./chat/transcript-window";
 import { mergeChatMessageHistories } from "./chat-message-history";
 import {
   getCommitChanges,
@@ -88,6 +94,10 @@ import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 const EMPTY_MESSAGES: UIMessage[] = [];
 const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
   backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND,
+};
+const CHAT_HISTORY_MESSAGE_STYLE: CSSProperties = {
+  containIntrinsicSize: "auto 180px",
+  contentVisibility: "auto",
 };
 const CHAT_CONVERSATION_FADE_HEIGHT_PX = 24;
 const CHAT_CONVERSATION_FADE_HORIZONTAL_INSET =
@@ -368,7 +378,9 @@ export const ChatPanel = ({
   chat: ChatConfig;
 }) => {
   const chatT = useTranslations("chat");
+  const commonT = useTranslations("common");
   const modelT = useTranslations("models");
+  const workspaceT = useTranslations("workspace");
   const panelDomId = `chat-panel-${chat.id}`;
   const conversationDomId = `chat-conversation-${chat.id}`;
   const conversationContentDomId = `chat-conversation-content-${chat.id}`;
@@ -445,6 +457,16 @@ export const ChatPanel = ({
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [transcriptWindowSize, setTranscriptWindowSize] = useState(
+    CHAT_TRANSCRIPT_WINDOW_SIZE,
+  );
+  const prependScrollSnapshotRef = useRef<{
+    element: HTMLElement;
+    scrollHeight: number;
+    scrollTop: number;
+  } | null>(null);
+  const previousMessageCountRef = useRef(0);
+  const restoredTranscriptWindowSizeRef = useRef(CHAT_TRANSCRIPT_WINDOW_SIZE);
   const refreshedWriteEventsRef = useRef(new Set<string>());
   const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
   const warmedCommitMessageKeysRef = useRef(new Set<string>());
@@ -829,11 +851,11 @@ export const ChatPanel = ({
     latestAssistantContextMetadata?.contextWindow ??
     selectedModelOption?.contextWindow ??
     getModelContextWindow(selectedModel);
-  const fallbackEstimatedTokens = useMemo(
-    () => estimateMessages(messages),
-    [messages],
-  );
   const contextUsage = latestAssistantContextMetadata?.usage;
+  const fallbackEstimatedTokens = useMemo(
+    () => (contextUsage ? 0 : estimateMessages(messages)),
+    [contextUsage, messages],
+  );
   const contextUsedTokens =
     (contextUsage ? getUsageContextTokens(contextUsage) : undefined) ??
     fallbackEstimatedTokens;
@@ -873,6 +895,47 @@ export const ChatPanel = ({
       isProcessing,
       messages,
     });
+  const transcriptWindow = useMemo(
+    () => getTranscriptWindow(messages, transcriptWindowSize),
+    [messages, transcriptWindowSize],
+  );
+
+  useEffect(() => {
+    if (messages.length < previousMessageCountRef.current) {
+      setTranscriptWindowSize(CHAT_TRANSCRIPT_WINDOW_SIZE);
+    }
+    previousMessageCountRef.current = messages.length;
+  }, [messages.length]);
+  const handleLoadEarlierMessages = useCallback(() => {
+    const element = conversationContextRef.current?.scrollRef.current;
+    prependScrollSnapshotRef.current = element
+      ? {
+          element,
+          scrollHeight: element.scrollHeight,
+          scrollTop: element.scrollTop,
+        }
+      : null;
+    setTranscriptWindowSize((currentSize) =>
+      Math.min(messages.length, currentSize + CHAT_TRANSCRIPT_WINDOW_SIZE),
+    );
+  }, [conversationContextRef, messages.length]);
+
+  useLayoutEffect(() => {
+    if (restoredTranscriptWindowSizeRef.current === transcriptWindowSize) {
+      return;
+    }
+    restoredTranscriptWindowSizeRef.current = transcriptWindowSize;
+
+    const snapshot = prependScrollSnapshotRef.current;
+    if (!snapshot) {
+      return;
+    }
+
+    prependScrollSnapshotRef.current = null;
+    snapshot.element.scrollTop =
+      snapshot.scrollTop +
+      Math.max(0, snapshot.element.scrollHeight - snapshot.scrollHeight);
+  }, [transcriptWindowSize]);
   const { handlePromptKeyDown, resetPromptHistory } =
     usePromptHistoryNavigation({
       messages,
@@ -1198,21 +1261,47 @@ export const ChatPanel = ({
                 <p className="font-medium text-lg">{chatT("buildAnything")}</p>
               </div>
             ) : (
-              messages.map((message, index) => (
-                <div className="w-full pb-4" key={message.id}>
-                  <ChatMessage
-                    addToolApprovalResponse={addToolApprovalResponse}
-                    continueChat={continueChat}
-                    expandToolCalls={settings.expandToolCalls}
-                    groupToolCalls={settings.groupToolCalls}
-                    isLastMessage={index === messages.length - 1}
-                    isStreaming={isStreaming}
-                    message={message}
-                    projectPath={project.path}
-                    showReasoningSummaries={settings.showReasoningSummaries}
-                  />
-                </div>
-              ))
+              <>
+                {transcriptWindow.hiddenMessageCount > 0 ? (
+                  <div className="flex w-full justify-center pb-4">
+                    <Button
+                      onClick={handleLoadEarlierMessages}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {commonT("open")} {workspaceT("chatHistory")} (
+                      {transcriptWindow.hiddenMessageCount})
+                    </Button>
+                  </div>
+                ) : null}
+                {transcriptWindow.messages.map((message, index) => {
+                  const messageIndex = transcriptWindow.startIndex + index;
+                  const isLastMessage = messageIndex === messages.length - 1;
+
+                  return (
+                    <div
+                      className="w-full pb-4"
+                      key={message.id}
+                      style={
+                        isLastMessage ? undefined : CHAT_HISTORY_MESSAGE_STYLE
+                      }
+                    >
+                      <ChatMessage
+                        addToolApprovalResponse={addToolApprovalResponse}
+                        continueChat={continueChat}
+                        expandToolCalls={settings.expandToolCalls}
+                        groupToolCalls={settings.groupToolCalls}
+                        isLastMessage={isLastMessage}
+                        isStreaming={isStreaming}
+                        message={message}
+                        projectPath={project.path}
+                        showReasoningSummaries={settings.showReasoningSummaries}
+                      />
+                    </div>
+                  );
+                })}
+              </>
             )}
           </ConversationContent>
           <div

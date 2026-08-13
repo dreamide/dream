@@ -11,7 +11,7 @@ const stringifyEstimatedValue = (value: unknown) => {
   }
 
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(value);
   } catch {
     return String(value);
   }
@@ -52,13 +52,63 @@ const estimatePart = (part: Record<string, unknown>) => {
   return estimateValue(part);
 };
 
+type CachedMessageEstimate = {
+  estimate: number;
+  lastPart: UIMessage["parts"][number] | undefined;
+  lastPartTextLength: number;
+  parts: UIMessage["parts"];
+};
+
+const messageEstimateCache = new WeakMap<UIMessage, CachedMessageEstimate>();
+
+const getPartTextLength = (part: UIMessage["parts"][number] | undefined) =>
+  part && "text" in part && typeof part.text === "string"
+    ? part.text.length
+    : -1;
+
+const calculateMessageEstimate = (message: UIMessage) => {
+  let estimate = 0;
+  for (const part of message.parts as Record<string, unknown>[]) {
+    estimate += estimatePart(part);
+  }
+  return estimate;
+};
+
+export const estimateMessage = (message: UIMessage) => {
+  const lastPart = message.parts.at(-1);
+  const lastPartTextLength = getPartTextLength(lastPart);
+  const cached = messageEstimateCache.get(message);
+
+  if (
+    cached?.parts === message.parts &&
+    cached.lastPart === lastPart &&
+    cached.lastPartTextLength === lastPartTextLength
+  ) {
+    return cached.estimate;
+  }
+
+  const estimate = calculateMessageEstimate(message);
+
+  messageEstimateCache.set(message, {
+    estimate,
+    lastPart,
+    lastPartTextLength,
+    parts: message.parts,
+  });
+  return estimate;
+};
+
 export const estimateMessages = (messages: UIMessage[]) => {
   let total = 0;
 
-  for (const message of messages) {
-    for (const part of message.parts as Record<string, unknown>[]) {
-      total += estimatePart(part);
-    }
+  for (let index = 0; index < messages.length; index++) {
+    // The final message is the only one AI SDK mutates during a stream. Keep
+    // it uncached so in-place tool state/output updates cannot leave a stale
+    // context estimate; every completed historical message remains cached.
+    total +=
+      index === messages.length - 1
+        ? calculateMessageEstimate(messages[index])
+        : estimateMessage(messages[index]);
   }
 
   return total;

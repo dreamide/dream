@@ -1024,7 +1024,12 @@ export const StreamingMessageResponse = ({
 
     if (visibleTextRef.current !== text) {
       const currentText = visibleTextRef.current;
-      animationStartOffsetRef.current = text.startsWith(currentText)
+      const appendedCharacterCount = text.startsWith(currentText)
+        ? text.length - currentText.length
+        : Number.POSITIVE_INFINITY;
+      const shouldAnimateStreamedText =
+        appendedCharacterCount < STREAMING_BACKLOG_FULL_SPEED_CHARS;
+      animationStartOffsetRef.current = shouldAnimateStreamedText
         ? getStreamingTailAnimationStartOffset({
             currentText,
             holdIncompleteInlineCode: isStreaming,
@@ -1035,7 +1040,11 @@ export const StreamingMessageResponse = ({
           })
         : text.length;
       visibleTextRef.current = text;
-      keepTextAnimationActive(true);
+      if (shouldAnimateStreamedText) {
+        keepTextAnimationActive(true);
+      } else {
+        setAnimateStreamedText(false);
+      }
       startTransition(() => {
         setVisibleText(text);
       });
