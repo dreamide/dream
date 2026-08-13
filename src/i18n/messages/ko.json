@@ -211,6 +211,7 @@
     "ampAdapterInstall": "설치 또는 업데이트",
     "ampAdapterPrerequisite": "Amp CLI도 설치하고 amp login으로 로그인해야 합니다.",
     "ampAdapterUpdateRequired": "amp-acp {version}은 오래된 버전입니다. amp-acp 0.9.0 이상을 설치하세요.",
+    "copy": "복사",
     "archiveNow": "지금 보관",
     "archiveChatsAfterDays": "다음 일수 후 채팅 보관",
     "archiveDays": "보관 전 일수",

@@ -211,6 +211,7 @@
     "ampAdapterInstall": "インストールまたは更新",
     "ampAdapterPrerequisite": "Amp CLI もインストールし、amp login でログインしておく必要があります。",
     "ampAdapterUpdateRequired": "amp-acp {version} は古いため、amp-acp 0.9.0 以降をインストールしてください。",
+    "copy": "コピー",
     "archiveNow": "今すぐアーカイブ",
     "archiveChatsAfterDays": "指定日数後にチャットをアーカイブ",
     "archiveDays": "アーカイブまでの日数",

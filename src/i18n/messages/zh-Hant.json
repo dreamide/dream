@@ -211,6 +211,7 @@
     "ampAdapterInstall": "安裝或更新",
     "ampAdapterPrerequisite": "還必須安裝 Amp CLI，並透過 amp login 登入。",
     "ampAdapterUpdateRequired": "amp-acp {version} 已過期。請安裝 amp-acp 0.9.0 或更新版本。",
+    "copy": "複製",
     "archiveNow": "立即封存",
     "archiveChatsAfterDays": "在以下天數後封存聊天",
     "archiveDays": "封存前的天數",

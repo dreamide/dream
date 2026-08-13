@@ -138,11 +138,22 @@ export class AcpConnection {
     this.reader.close();
     this.failPending(new Error(`${this.label} ACP connection closed.`));
     this.child.kill();
+    const killTimer = setTimeout(() => {
+      if (this.child.exitCode === null && this.child.signalCode === null) {
+        this.child.kill("SIGKILL");
+      }
+    }, 2_000);
+    killTimer.unref?.();
+    this.child.once("exit", () => clearTimeout(killTimer));
   }
 }
 
-export const initializeAcp = (connection) =>
-  connection.request("initialize", {
+export const initializeAcp = (connection, timeoutMs) => {
+  const params = {
     protocolVersion: 1,
     clientCapabilities: {},
-  });
+  };
+  return timeoutMs === undefined
+    ? connection.request("initialize", params)
+    : connection.request("initialize", params, timeoutMs);
+};

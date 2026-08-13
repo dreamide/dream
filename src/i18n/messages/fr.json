@@ -211,6 +211,7 @@
     "ampAdapterInstall": "Installer ou mettre à jour",
     "ampAdapterPrerequisite": "La CLI Amp doit également être installée et connectée avec amp login.",
     "ampAdapterUpdateRequired": "amp-acp {version} est obsolète. Installez amp-acp 0.9.0 ou une version ultérieure.",
+    "copy": "Copier",
     "archiveNow": "Archiver maintenant",
     "archiveChatsAfterDays": "Archiver les chats après",
     "archiveDays": "Jours avant archivage",

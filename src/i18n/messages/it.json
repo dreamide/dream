@@ -211,6 +211,7 @@
     "ampAdapterInstall": "Installa o aggiorna",
     "ampAdapterPrerequisite": "Anche la CLI di Amp deve essere installata e autenticata con amp login.",
     "ampAdapterUpdateRequired": "amp-acp {version} non è aggiornato. Installa amp-acp 0.9.0 o versione successiva.",
+    "copy": "Copia",
     "archiveNow": "Archivia ora",
     "archiveChatsAfterDays": "Archivia le chat dopo",
     "archiveDays": "Giorni prima dell’archiviazione",

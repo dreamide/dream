@@ -66,6 +66,20 @@ describe("Amp ACP configuration", () => {
     );
   });
 
+  it("uses the caller timeout while initializing", async () => {
+    const request = vi.fn().mockResolvedValue({
+      agentInfo: { name: "amp-acp", version: "0.9.0" },
+    });
+
+    await initializeAmpAcp({ request }, 120_000);
+
+    expect(request).toHaveBeenCalledWith(
+      "initialize",
+      { clientCapabilities: {}, protocolVersion: 1 },
+      120_000,
+    );
+  });
+
   it("extracts model-category options", () => {
     expect(getAmpModelOptions(session)).toEqual([
       { value: "smart", name: "Smart" },
@@ -136,6 +150,37 @@ describe("Amp ACP configuration", () => {
         { sessionId: "session-1", configId: "permission", value: "default" },
       ],
     ]);
+  });
+
+  it("uses the caller timeout for every configuration request", async () => {
+    const request = vi.fn().mockResolvedValue({});
+
+    await applyAmpSessionOptions(
+      { request },
+      session,
+      {
+        model: "deep",
+        codexPermissionMode: "full-access",
+        reasoningEffort: "max",
+      },
+      120_000,
+    );
+
+    expect(request).toHaveBeenCalledTimes(3);
+    for (const call of request.mock.calls) {
+      expect(call[2]).toBe(120_000);
+    }
+  });
+
+  it("reports a missing model selection separately", async () => {
+    const request = vi.fn().mockResolvedValue({});
+
+    await expect(
+      applyAmpSessionOptions({ request }, session, {
+        codexPermissionMode: "default",
+      }),
+    ).rejects.toThrow("requires a model selection");
+    expect(request).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported models and missing full-access bypass", async () => {

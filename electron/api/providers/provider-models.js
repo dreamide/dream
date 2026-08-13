@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import {
   execCliCommand,
   getCliVersion,
@@ -39,6 +40,8 @@ const OPENAI_CODEX_CHATGPT_MODELS_URL =
   "https://chatgpt.com/backend-api/codex/models";
 const CODEX_CLIENT_VERSION = "1.0.0";
 const CURSOR_AUTO_MODEL = "auto";
+const ampModelsByVersion = new Map();
+let lastAmpAdapterVersion = null;
 
 const dedupeAndSort = (models) => {
   return dedupeModelOptions(models)
@@ -417,7 +420,7 @@ export const fetchGrokModels = async ({ force = false } = {}) => {
   }
 };
 
-export const fetchAmpModels = async () => {
+export const fetchAmpModels = async ({ force = false } = {}) => {
   const installed = await isCliCommandAvailable("amp-acp");
   if (!installed) {
     return {
@@ -429,6 +432,15 @@ export const fetchAmpModels = async () => {
       version: null,
     };
   }
+  // amp-acp is a stdio server without a --version command; initialize provides
+  // the adapter version used as the cache key below.
+  if (
+    !force &&
+    lastAmpAdapterVersion &&
+    ampModelsByVersion.has(lastAmpAdapterVersion)
+  ) {
+    return ampModelsByVersion.get(lastAmpAdapterVersion);
+  }
 
   let connection;
   try {
@@ -436,7 +448,7 @@ export const fetchAmpModels = async () => {
     const initializeResult = await initializeAmpAcp(connection);
     const version = initializeResult.agentInfo.version;
     const session = await connection.request("session/new", {
-      cwd: process.cwd(),
+      cwd: tmpdir(),
       mcpServers: [],
     });
     const modelEntries = getAmpModelOptions(session);
@@ -478,12 +490,15 @@ export const fetchAmpModels = async () => {
         "Amp ACP returned no mode options. Complete adapter setup and try again.",
       );
     }
-    return {
+    const result = {
       installed: true,
       models: dedupeModelOptions(models),
       source: "cli",
       version,
     };
+    ampModelsByVersion.set(version, result);
+    lastAmpAdapterVersion = version;
+    return result;
   } catch (error) {
     return {
       error:

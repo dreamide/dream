@@ -46,8 +46,8 @@ export const spawnAmpAcp = async ({ cwd, env } = {}) => {
   return new AcpConnection(child, "Amp");
 };
 
-export const initializeAmpAcp = async (connection) => {
-  const result = await initializeAcp(connection);
+export const initializeAmpAcp = async (connection, timeoutMs) => {
+  const result = await initializeAcp(connection, timeoutMs);
   const name = result?.agentInfo?.name;
   const version = result?.agentInfo?.version;
   if (name !== "amp-acp") {
@@ -114,6 +114,7 @@ export const applyAmpSessionOptions = async (
   connection,
   session,
   { model, codexPermissionMode, reasoningEffort } = {},
+  timeoutMs,
 ) => {
   let options = getAmpConfigOptions(session);
   const required = [
@@ -127,17 +128,28 @@ export const applyAmpSessionOptions = async (
 
   for (const [configId, value, label] of required) {
     const option = options.find((entry) => entry?.id === configId);
-    if (!value || !optionSupports(option, value)) {
+    if (!value) {
+      throw new Error(`Amp ACP requires a ${label} selection.`);
+    }
+    if (!optionSupports(option, value)) {
       throw new Error(
         `Amp ACP does not support the requested ${label} "${value}".`,
       );
     }
 
-    const result = await connection.request("session/set_config_option", {
+    const params = {
       sessionId: session.sessionId,
       configId,
       value,
-    });
+    };
+    const result =
+      timeoutMs === undefined
+        ? await connection.request("session/set_config_option", params)
+        : await connection.request(
+            "session/set_config_option",
+            params,
+            timeoutMs,
+          );
     if (Array.isArray(result?.configOptions)) {
       options = result.configOptions;
     }
@@ -145,11 +157,16 @@ export const applyAmpSessionOptions = async (
 
   const effortOption = options.find((entry) => entry?.id === "effort");
   if (reasoningEffort && optionSupports(effortOption, reasoningEffort)) {
-    await connection.request("session/set_config_option", {
+    const params = {
       sessionId: session.sessionId,
       configId: "effort",
       value: reasoningEffort,
-    });
+    };
+    if (timeoutMs === undefined) {
+      await connection.request("session/set_config_option", params);
+    } else {
+      await connection.request("session/set_config_option", params, timeoutMs);
+    }
   }
 };
 
@@ -183,19 +200,28 @@ export const runAmpPrompt = async ({
       }
     };
     connection.onRequest = () => ({ outcome: { outcome: "cancelled" } });
-    await initializeAmpAcp(connection);
-    const session = await connection.request("session/new", {
-      cwd,
-      mcpServers: [],
-    });
+    await initializeAmpAcp(connection, timeoutMs);
+    const session = await connection.request(
+      "session/new",
+      {
+        cwd,
+        mcpServers: [],
+      },
+      timeoutMs,
+    );
     if (!session?.sessionId)
       throw new Error("Amp did not return a session id.");
     sessionId = session.sessionId;
-    await applyAmpSessionOptions(connection, session, {
-      model,
-      codexPermissionMode: "default",
-      reasoningEffort: "high",
-    });
+    await applyAmpSessionOptions(
+      connection,
+      session,
+      {
+        model,
+        codexPermissionMode: "default",
+        reasoningEffort: "high",
+      },
+      timeoutMs,
+    );
     await connection.request(
       "session/prompt",
       {
@@ -214,7 +240,9 @@ export const runAmpPrompt = async ({
   } finally {
     connection?.close();
     if (settingsDirectory) {
-      await fs.rm(settingsDirectory, { force: true, recursive: true });
+      await fs
+        .rm(settingsDirectory, { force: true, recursive: true })
+        .catch(() => {});
     }
   }
 };

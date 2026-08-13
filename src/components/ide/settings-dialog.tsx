@@ -265,6 +265,11 @@ export const SettingsDialog = () => {
   const availableCursorModels = providerModels.cursor.models;
   const availableGrokModels = providerModels.grok.models;
   const availableAmpModels = providerModels.amp.models;
+  const ampVersion = providerModels.amp.version?.match(/^(\d+)\.(\d+)\.(\d+)/);
+  const ampAdapterOutdated = ampVersion
+    ? Number(ampVersion[1]) === 0 && Number(ampVersion[2]) < 9
+    : false;
+  const ampProviderUsable = providerModels.amp.installed && !ampAdapterOutdated;
 
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
@@ -293,8 +298,11 @@ export const SettingsDialog = () => {
     [availableGrokModels, settings],
   );
   const ampModelOptions = useMemo(
-    () => getModelOptionsForProvider("amp", settings, availableAmpModels),
-    [availableAmpModels, settings],
+    () =>
+      ampProviderUsable
+        ? getModelOptionsForProvider("amp", settings, availableAmpModels)
+        : [],
+    [ampProviderUsable, availableAmpModels, settings],
   );
   const groupedDefaultModelOptions = useMemo(
     () =>
@@ -502,10 +510,6 @@ export const SettingsDialog = () => {
   };
   const getProviderError = (error: string | null) =>
     error ? uiT("unableToFetchModels") : null;
-  const ampVersion = providerModels.amp.version?.match(/^(\d+)\.(\d+)\.(\d+)/);
-  const ampAdapterOutdated = ampVersion
-    ? Number(ampVersion[1]) === 0 && Number(ampVersion[2]) < 9
-    : false;
   const ampProviderError = ampAdapterOutdated
     ? settingsT("ampAdapterUpdateRequired", {
         version: providerModels.amp.version ?? "0.8",
@@ -1026,9 +1030,9 @@ export const SettingsDialog = () => {
                                   npm install -g amp-acp@latest
                                 </code>
                                 <CodeBlockCopyButton
-                                  aria-label={settingsT("ampAdapterInstall")}
+                                  aria-label={settingsT("copy")}
                                   text="npm install -g amp-acp@latest"
-                                  title={settingsT("ampAdapterInstall")}
+                                  title={settingsT("copy")}
                                 />
                               </div>
                             </div>
@@ -1057,7 +1061,7 @@ export const SettingsDialog = () => {
                           className="size-4 text-foreground"
                         />
                       }
-                      installed={providerModels.amp.installed}
+                      installed={ampProviderUsable}
                       label="Amp"
                       loading={providerModels.amp.loading}
                       runtimeLabel="amp-acp"
@@ -1071,6 +1075,7 @@ export const SettingsDialog = () => {
                         ) : (
                           availableAmpModels.map((model) => {
                             const isSelected = ampModels.includes(model.id);
+                            const switchId = `amp-model-${encodeURIComponent(model.id)}`;
                             return (
                               <div
                                 className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
@@ -1083,11 +1088,13 @@ export const SettingsDialog = () => {
                                       ? "text-foreground"
                                       : "text-muted-foreground",
                                   )}
+                                  htmlFor={switchId}
                                 >
                                   {model.label}
                                 </Label>
                                 <Switch
                                   checked={isSelected}
+                                  id={switchId}
                                   onCheckedChange={(checked) => {
                                     if (checked !== isSelected) {
                                       toggleProviderModel(

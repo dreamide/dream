@@ -211,6 +211,7 @@
     "ampAdapterInstall": "Cài đặt hoặc cập nhật",
     "ampAdapterPrerequisite": "Amp CLI cũng phải được cài đặt và đăng nhập bằng amp login.",
     "ampAdapterUpdateRequired": "amp-acp {version} đã cũ. Hãy cài đặt amp-acp 0.9.0 trở lên.",
+    "copy": "Sao chép",
     "archiveNow": "Lưu trữ ngay",
     "archiveChatsAfterDays": "Lưu trữ chat sau",
     "archiveDays": "Số ngày trước khi lưu trữ",

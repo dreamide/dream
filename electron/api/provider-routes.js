@@ -113,14 +113,21 @@ export const registerProviderRoutes = (app) => {
                     null,
                   ]
                 : provider === "amp"
-                  ? [null, null, null, null, null, await fetchAmpModels()]
+                  ? [
+                      null,
+                      null,
+                      null,
+                      null,
+                      null,
+                      await fetchAmpModels({ force }),
+                    ]
                   : await Promise.all([
                       fetchOpenAiModels({ force }),
                       fetchAnthropicModels({ force }),
                       fetchOpenCodeModels({ force }),
                       fetchCursorModels({ force }),
                       fetchGrokModels({ force }),
-                      fetchAmpModels(),
+                      fetchAmpModels({ force }),
                     ]);
 
     return c.json({
