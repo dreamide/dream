@@ -125,6 +125,10 @@ test("creates a model option with formatted label and normalized fields", () => 
     id: "opus",
     label: "Claude Opus",
   });
+  assert.deepEqual(createModelOption("grok", "grok-4.5", "Grok Build"), {
+    id: "grok-4.5",
+    label: "Grok 4.5",
+  });
 });
 
 test("dedupes model options by id while merging labels, efforts, and context windows", () => {

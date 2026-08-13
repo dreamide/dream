@@ -150,6 +150,14 @@ export const formatModelIdLabel = (
     return suffix ? `GPT-${version} ${suffix}` : `GPT-${version}`;
   }
 
+  if (provider === "grok" && parts[0]?.toLowerCase() === "grok") {
+    const rest = parts
+      .slice(1)
+      .map((part) => formatToken(provider, part, false))
+      .join(" ");
+    return rest ? `Grok ${rest}` : "Grok";
+  }
+
   if (provider === "anthropic" && parts[0]?.toLowerCase() === "claude") {
     const rest = parts
       .slice(1)
@@ -179,7 +187,16 @@ const getModelDisplayLabel = (
 ): string => {
   const trimmedId = id.trim();
   const trimmedLabel = label?.trim() ?? "";
-  if (!trimmedLabel || trimmedLabel.toLowerCase() === trimmedId.toLowerCase()) {
+  const normalizedLabel = trimmedLabel.toLowerCase();
+  const isGenericGrokLabel =
+    provider === "grok" &&
+    trimmedId.toLowerCase().startsWith("grok-") &&
+    ["grok", "grok build"].includes(normalizedLabel);
+  if (
+    !trimmedLabel ||
+    normalizedLabel === trimmedId.toLowerCase() ||
+    isGenericGrokLabel
+  ) {
     return formatModelIdLabel(provider, trimmedId);
   }
 
@@ -188,6 +205,9 @@ const getModelDisplayLabel = (
 
 const inferProviderForModelLabel = (id: string): AiProvider => {
   const normalizedId = id.trim().toLowerCase();
+  if (normalizedId.startsWith("grok-")) {
+    return "grok";
+  }
   if (
     normalizedId.startsWith("claude-") ||
     ["haiku", "opus", "opus[1m]", "sonnet", "sonnet[1m]"].includes(normalizedId)

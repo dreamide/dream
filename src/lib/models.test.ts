@@ -93,6 +93,7 @@ test("formatModelIdLabel formats provider-specific model ids", () => {
   assert.equal(formatModelIdLabel("openai", "gpt-5.4-codex"), "GPT-5.4 Codex");
   assert.equal(formatModelIdLabel("openai", "gpt-4o"), "GPT-4o");
   assert.equal(formatModelIdLabel("openai", "o3-mini"), "o3 Mini");
+  assert.equal(formatModelIdLabel("grok", "grok-4.5"), "Grok 4.5");
   assert.equal(
     formatModelIdLabel("anthropic", "claude-fable-5"),
     "Claude Fable 5",
@@ -126,10 +127,12 @@ test("dedupeModelOptions merges duplicate ids and unions their capabilities", ()
 test("dedupeModelOptions derives a display label when the label echoes the id", () => {
   const deduped = dedupeModelOptions([
     createOption({ id: "claude-fable-5", label: "claude-fable-5" }),
+    createOption({ id: "grok-4.5", label: "Grok Build" }),
   ]);
 
   assert.deepEqual(deduped, [
     { id: "claude-fable-5", label: "Claude Fable 5" },
+    { id: "grok-4.5", label: "Grok 4.5" },
   ]);
 });
 
