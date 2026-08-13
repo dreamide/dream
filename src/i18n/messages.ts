@@ -1,16 +1,4 @@
 import type { AppLocale } from "./config";
-import de from "./messages/de.json";
-import en from "./messages/en.json";
-import es from "./messages/es.json";
-import fr from "./messages/fr.json";
-import it from "./messages/it.json";
-import ja from "./messages/ja.json";
-import ko from "./messages/ko.json";
-import pt from "./messages/pt.json";
-import vi from "./messages/vi.json";
-import zhHans from "./messages/zh-Hans.json";
-import zhHant from "./messages/zh-Hant.json";
-import { supplementalMessages } from "./supplemental-messages";
 
 type MessageObject = Record<string, unknown>;
 
@@ -34,16 +22,37 @@ const mergeMessages = <Base extends MessageObject, Extra extends MessageObject>(
   return merged as Base & Extra;
 };
 
-export const messages = {
-  de: mergeMessages(de, supplementalMessages.de),
-  en: mergeMessages(en, supplementalMessages.en),
-  es: mergeMessages(es, supplementalMessages.es),
-  fr: mergeMessages(fr, supplementalMessages.fr),
-  it: mergeMessages(it, supplementalMessages.it),
-  ja: mergeMessages(ja, supplementalMessages.ja),
-  ko: mergeMessages(ko, supplementalMessages.ko),
-  pt: mergeMessages(pt, supplementalMessages.pt),
-  vi: mergeMessages(vi, supplementalMessages.vi),
-  "zh-Hans": mergeMessages(zhHans, supplementalMessages["zh-Hans"]),
-  "zh-Hant": mergeMessages(zhHant, supplementalMessages["zh-Hant"]),
-} satisfies Record<AppLocale, MessageObject>;
+const localeMessageLoaders: Record<
+  AppLocale,
+  () => Promise<{ default: MessageObject }>
+> = {
+  de: () => import("./messages/de.json"),
+  en: () => import("./messages/en.json"),
+  es: () => import("./messages/es.json"),
+  fr: () => import("./messages/fr.json"),
+  it: () => import("./messages/it.json"),
+  ja: () => import("./messages/ja.json"),
+  ko: () => import("./messages/ko.json"),
+  pt: () => import("./messages/pt.json"),
+  vi: () => import("./messages/vi.json"),
+  "zh-Hans": () => import("./messages/zh-Hans.json"),
+  "zh-Hant": () => import("./messages/zh-Hant.json"),
+};
+
+const messageCache = new Map<AppLocale, Promise<MessageObject>>();
+
+export const loadMessages = (locale: AppLocale): Promise<MessageObject> => {
+  const cached = messageCache.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const messagesPromise = Promise.all([
+    localeMessageLoaders[locale](),
+    import("./supplemental-messages"),
+  ]).then(([baseMessages, { supplementalMessages }]) =>
+    mergeMessages(baseMessages.default, supplementalMessages[locale]),
+  );
+  messageCache.set(locale, messagesPromise);
+  return messagesPromise;
+};

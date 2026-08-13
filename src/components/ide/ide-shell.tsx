@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect } from "react";
+import { lazy, Suspense, useDeferredValue, useEffect } from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -17,8 +17,13 @@ import { areProjectListsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
 import { ProjectWorkspace } from "./project-workspace";
-import { SettingsDialog } from "./settings-dialog";
 import { savePersistedActiveProject } from "./store/ide-store-persistence";
+
+const SettingsDialog = lazy(() =>
+  import("./settings-dialog").then((module) => ({
+    default: module.SettingsDialog,
+  })),
+);
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -497,7 +502,11 @@ export const IdeShell = () => {
         )}
       </div>
 
-      <SettingsDialog />
+      {settingsOpen ? (
+        <Suspense fallback={null}>
+          <SettingsDialog />
+        </Suspense>
+      ) : null}
     </div>
   );
 };

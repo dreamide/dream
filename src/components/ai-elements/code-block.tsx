@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 import type { BundledLanguage, ThemedToken } from "shiki";
-import { bundledLanguages, getSingletonHighlighter } from "shiki";
+import { normalizeCodeLanguage } from "@/components/ai-elements/code-languages";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -298,11 +298,12 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
 });
 
 // Returns the singleton highlighter with the requested language loaded
-const getHighlighter = (language: BundledLanguage) =>
-  getSingletonHighlighter({
-    langs: [language],
-    themes: ["github-light", "github-dark"],
-  });
+const getHighlighter = async (language: BundledLanguage) => {
+  const { getCodeHighlighter } = await import(
+    "@/components/ai-elements/shiki-highlighter"
+  );
+  return getCodeHighlighter(language);
+};
 
 const copyTextToClipboard = async (value: string) => {
   const desktopApi = getDesktopApi();
@@ -348,12 +349,7 @@ const downloadTextFile = async (
 };
 
 export const resolveBundledLanguage = (language: string): BundledLanguage => {
-  const normalized = language.trim().toLowerCase();
-  if (normalized && Object.hasOwn(bundledLanguages, normalized)) {
-    return normalized as BundledLanguage;
-  }
-
-  return "log";
+  return normalizeCodeLanguage(language) as BundledLanguage;
 };
 
 const getCodeBlockDownloadFilename = (language: string) => {

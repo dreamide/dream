@@ -1,15 +1,39 @@
-import type { ReactNode } from "react";
+import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
+import { Spinner } from "@/components/ui/spinner";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
-import { BrowserPanel } from "./browser-panel";
-import { ChangesPanel } from "./changes-panel";
-import { FileExplorerPanel } from "./file-explorer-panel";
 import type { RightPanelView } from "./ide-types";
-import { ProjectTerminalTabsPanel } from "./terminal-panel";
+
+const BrowserPanel = lazy(() =>
+  import("./browser-panel").then((module) => ({
+    default: module.BrowserPanel,
+  })),
+);
+const ChangesPanel = lazy(() =>
+  import("./changes-panel").then((module) => ({
+    default: module.ChangesPanel,
+  })),
+);
+const FileExplorerPanel = lazy(() =>
+  import("./file-explorer-panel").then((module) => ({
+    default: module.FileExplorerPanel,
+  })),
+);
+const ProjectTerminalTabsPanel = lazy(() =>
+  import("./terminal-panel").then((module) => ({
+    default: module.ProjectTerminalTabsPanel,
+  })),
+);
 
 const RIGHT_PANEL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background text-foreground shadow-md";
+
+const RightPanelLoadingFallback = () => (
+  <div className="flex h-full items-center justify-center">
+    <Spinner className="text-muted-foreground" />
+  </div>
+);
 
 export interface RightPanelViewsProps {
   active?: boolean;
@@ -43,6 +67,24 @@ const RightPanelViewSlot = ({
 export const RightPanelViews = (props: RightPanelViewsProps) => {
   const baseColor = useUiStore((state) => state.baseColor);
   const rightPanelView = props.rightPanelView;
+  const [visitedPersistentViews, setVisitedPersistentViews] = useState(
+    () =>
+      new Set<RightPanelView>(
+        props.open && rightPanelView !== "terminal" ? [rightPanelView] : [],
+      ),
+  );
+
+  useEffect(() => {
+    if (props.open && rightPanelView !== "terminal") {
+      setVisitedPersistentViews((visitedViews) => {
+        if (visitedViews.has(rightPanelView)) {
+          return visitedViews;
+        }
+
+        return new Set([...visitedViews, rightPanelView]);
+      });
+    }
+  }, [props.open, rightPanelView]);
 
   return (
     <div
@@ -60,41 +102,53 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
         data-base-color={baseColor === "neutral" ? undefined : baseColor}
       >
         <div className="relative min-h-0 flex-1">
-          <RightPanelViewSlot active={rightPanelView === "explorer"}>
-            <FileExplorerPanel
-              active={props.active}
-              onClosePanel={props.onClosePanel}
-              projectId={props.project.id}
-            />
-          </RightPanelViewSlot>
-          <RightPanelViewSlot active={rightPanelView === "changes"}>
-            <ChangesPanel
-              active={
-                props.active && props.open && rightPanelView === "changes"
-              }
-              onClosePanel={props.onClosePanel}
-              projectId={props.project.id}
-            />
-          </RightPanelViewSlot>
-          <RightPanelViewSlot active={rightPanelView === "browser"}>
-            <BrowserPanel
-              active={props.active}
-              expanded={props.browserExpanded}
-              onClosePanel={props.onClosePanel}
-              onToggleExpanded={props.onToggleBrowserExpanded}
-              project={props.project}
-            />
-          </RightPanelViewSlot>
-          {rightPanelView === "terminal" ? (
-            <RightPanelViewSlot active={true}>
-              <ProjectTerminalTabsPanel
-                active={props.active}
-                embedded={true}
-                onClosePanel={props.onClosePanel}
-                projectId={props.project.id}
-              />
-            </RightPanelViewSlot>
-          ) : null}
+          <Suspense fallback={<RightPanelLoadingFallback />}>
+            {visitedPersistentViews.has("explorer") ? (
+              <RightPanelViewSlot active={rightPanelView === "explorer"}>
+                <FileExplorerPanel
+                  active={
+                    props.active && props.open && rightPanelView === "explorer"
+                  }
+                  onClosePanel={props.onClosePanel}
+                  projectId={props.project.id}
+                />
+              </RightPanelViewSlot>
+            ) : null}
+            {visitedPersistentViews.has("changes") ? (
+              <RightPanelViewSlot active={rightPanelView === "changes"}>
+                <ChangesPanel
+                  active={
+                    props.active && props.open && rightPanelView === "changes"
+                  }
+                  onClosePanel={props.onClosePanel}
+                  projectId={props.project.id}
+                />
+              </RightPanelViewSlot>
+            ) : null}
+            {visitedPersistentViews.has("browser") ? (
+              <RightPanelViewSlot active={rightPanelView === "browser"}>
+                <BrowserPanel
+                  active={
+                    props.active && props.open && rightPanelView === "browser"
+                  }
+                  expanded={props.browserExpanded}
+                  onClosePanel={props.onClosePanel}
+                  onToggleExpanded={props.onToggleBrowserExpanded}
+                  project={props.project}
+                />
+              </RightPanelViewSlot>
+            ) : null}
+            {rightPanelView === "terminal" ? (
+              <RightPanelViewSlot active={true}>
+                <ProjectTerminalTabsPanel
+                  active={props.active && props.open}
+                  embedded={true}
+                  onClosePanel={props.onClosePanel}
+                  projectId={props.project.id}
+                />
+              </RightPanelViewSlot>
+            ) : null}
+          </Suspense>
         </div>
       </div>
     </div>

@@ -1,15 +1,16 @@
 import {
   type ComponentProps,
   createContext,
+  lazy,
+  Suspense,
   startTransition,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { Block, type BlockProps, parseMarkdownIntoBlocks } from "streamdown";
+import type { BlockProps } from "streamdown";
 import {
   MAX_STREAMDOWN_MARKDOWN_CHARS,
   MessageResponse,
@@ -181,8 +182,10 @@ const getMarkdownAnimatedTokenCount = (markdownText: string) =>
   getMarkdownTableAnimatedTokenCount(markdownText) ??
   getMarkdownTextAnimatedTokenCount(markdownText);
 
-export const getMarkdownBlockStartOffsets = (markdownText: string) => {
-  const blocks = parseMarkdownIntoBlocks(markdownText);
+export const getMarkdownBlockStartOffsets = (
+  markdownText: string,
+  blocks: readonly string[],
+) => {
   let searchOffset = 0;
 
   return blocks.map((block) => {
@@ -200,8 +203,8 @@ export const getMarkdownBlockStartOffsets = (markdownText: string) => {
 export const getMarkdownBlockAnimationTokenStartIndices = (
   markdownText: string,
   animationStartOffset: number,
+  blocks: readonly string[],
 ) => {
-  const blocks = parseMarkdownIntoBlocks(markdownText);
   let searchOffset = 0;
   let animatedTokenCount = 0;
 
@@ -226,7 +229,9 @@ export const getMarkdownBlockAnimationTokenStartIndices = (
   });
 };
 
-const getInlineCodeRanges = (markdownText: string): InlineCodeRange[] => {
+export const getInlineCodeRanges = (
+  markdownText: string,
+): InlineCodeRange[] => {
   const ranges: InlineCodeRange[] = [];
   let index = 0;
 
@@ -462,54 +467,28 @@ const InlineCode = ({ className, ...props }: ComponentProps<"code">) => {
 export type StreamingMarkdownBlockContextValue = {
   animateStreamedText: boolean;
   markdownAnimationStartOffset: number;
-  markdownBlockAnimationTokenStartIndices: readonly number[];
-  markdownBlockStartOffsets: readonly number[];
+  markdownText: string;
 };
 
 export const StreamingMarkdownBlockContext =
   createContext<StreamingMarkdownBlockContextValue | null>(null);
 
-export const StreamingMarkdownBlock = (props: BlockProps) => {
-  const animationContext = useContext(StreamingMarkdownBlockContext);
-  const inlineCodeRanges = useMemo(
-    () => getInlineCodeRanges(props.content),
-    [props.content],
-  );
-  const blockStartOffset =
-    animationContext?.markdownBlockStartOffsets[props.index] ?? 0;
-  const blockAnimationStartOffset = animationContext
-    ? Math.min(
-        props.content.length,
-        Math.max(
-          0,
-          animationContext.markdownAnimationStartOffset - blockStartOffset,
-        ),
-      )
-    : 0;
-  const animationTokenStartIndex =
-    animationContext?.markdownBlockAnimationTokenStartIndices[props.index] ?? 0;
-  const rehypePlugins = useMemo(
-    () =>
-      animationContext?.animateStreamedText
-        ? [
-            ...(props.rehypePlugins ?? []),
-            createDreamStreamingRehypePlugin(
-              blockAnimationStartOffset,
-              inlineCodeRanges,
-              animationTokenStartIndex,
-            ),
-          ]
-        : props.rehypePlugins,
-    [
-      animationContext?.animateStreamedText,
-      animationTokenStartIndex,
-      blockAnimationStartOffset,
-      inlineCodeRanges,
-      props.rehypePlugins,
-    ],
-  );
+const LazyStreamingMarkdownBlock = lazy(
+  () => import("./streaming-markdown-block"),
+);
 
-  return <Block {...props} rehypePlugins={rehypePlugins} />;
+export const StreamingMarkdownBlock = (props: BlockProps) => {
+  return (
+    <Suspense
+      fallback={
+        <pre className="whitespace-pre-wrap break-words font-sans">
+          {props.content}
+        </pre>
+      }
+    >
+      <LazyStreamingMarkdownBlock {...props} />
+    </Suspense>
+  );
 };
 
 const MARKDOWN_BLOCK_BOUNDARY_PATTERN =
@@ -1089,23 +1068,10 @@ export const StreamingMessageResponse = ({
           ).length,
     [projectPath, visibleText],
   );
-  const markdownBlockStartOffsets = useMemo(
-    () => getMarkdownBlockStartOffsets(markdownText),
-    [markdownText],
-  );
-  const markdownBlockAnimationTokenStartIndices = useMemo(
-    () =>
-      getMarkdownBlockAnimationTokenStartIndices(
-        markdownText,
-        markdownAnimationStartOffset,
-      ),
-    [markdownAnimationStartOffset, markdownText],
-  );
   const streamingMarkdownBlockContext: StreamingMarkdownBlockContextValue = {
     animateStreamedText,
     markdownAnimationStartOffset,
-    markdownBlockAnimationTokenStartIndices,
-    markdownBlockStartOffsets,
+    markdownText,
   };
   const markdownComponents = useMemo<
     NonNullable<MessageResponseProps["components"]>

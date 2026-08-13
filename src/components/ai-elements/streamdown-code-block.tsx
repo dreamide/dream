@@ -1,7 +1,7 @@
 import type { CustomRendererProps } from "streamdown";
 import type { ComponentProps, ReactElement } from "react";
 import { cloneElement, isValidElement } from "react";
-import { bundledLanguages } from "shiki";
+import { codeFenceLanguageMarkers } from "@/components/ai-elements/code-languages";
 import {
   CodeBlock,
   CodeBlockActions,
@@ -12,18 +12,6 @@ import {
   CodeBlockTitle,
   resolveBundledLanguage,
 } from "@/components/ai-elements/code-block";
-
-const codeFenceLanguageMarkers = new Set([
-  "text",
-  "txt",
-  "plaintext",
-  "plain",
-  "console",
-  "shell-session",
-  "output",
-  "log",
-  ...Object.keys(bundledLanguages).filter((language) => language !== "mermaid"),
-]);
 
 const codeFenceLanguageRegex = /(?:^|\s)language-([^\s]+)/;
 

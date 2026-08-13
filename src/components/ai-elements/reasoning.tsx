@@ -4,8 +4,10 @@ import { useTranslations } from "next-intl";
 import type { ComponentProps, ReactNode } from "react";
 import {
   createContext,
+  lazy,
   memo,
   startTransition,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -14,8 +16,6 @@ import {
   useState,
 } from "react";
 import {
-  getMarkdownBlockAnimationTokenStartIndices,
-  getMarkdownBlockStartOffsets,
   getNextStreamingFrame,
   STREAMING_TEXT_REVEAL_DURATION_MS,
   STREAMING_TEXT_REVEAL_SETTLE_MS,
@@ -23,17 +23,12 @@ import {
   StreamingMarkdownBlockContext,
   type StreamingMarkdownBlockContextValue,
 } from "@/components/ide/assistant-message/streaming-message";
-import { Streamdown } from "streamdown";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  normalizeCodeFenceLanguageMarkers,
-  StreamdownCodePre,
-} from "@/components/ai-elements/streamdown-code-block";
-import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
+import { normalizeCodeFenceLanguageMarkers } from "@/components/ai-elements/streamdown-code-block";
 import { cn } from "@/lib/utils";
 
 import { Shimmer } from "./shimmer";
@@ -67,9 +62,9 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
 
 const AUTO_CLOSE_DELAY = 1000;
 const MS_IN_S = 1000;
-const reasoningMarkdownComponents = {
-  pre: StreamdownCodePre,
-} as NonNullable<ComponentProps<typeof Streamdown>["components"]>;
+const StreamdownReasoningRenderer = lazy(
+  () => import("@/components/ai-elements/streamdown-reasoning-renderer"),
+);
 
 export const Reasoning = memo(
   ({
@@ -281,23 +276,10 @@ export const ReasoningContent = memo(
         ).length,
       [rawMarkdownAnimationStartOffset, visibleChildren],
     );
-    const markdownBlockStartOffsets = useMemo(
-      () => getMarkdownBlockStartOffsets(markdownText),
-      [markdownText],
-    );
-    const markdownBlockAnimationTokenStartIndices = useMemo(
-      () =>
-        getMarkdownBlockAnimationTokenStartIndices(
-          markdownText,
-          markdownAnimationStartOffset,
-        ),
-      [markdownAnimationStartOffset, markdownText],
-    );
     const streamingMarkdownBlockContext: StreamingMarkdownBlockContextValue = {
       animateStreamedText,
       markdownAnimationStartOffset,
-      markdownBlockAnimationTokenStartIndices,
-      markdownBlockStartOffsets,
+      markdownText,
     };
 
     useEffect(() => {
@@ -428,14 +410,20 @@ export const ReasoningContent = memo(
         <StreamingMarkdownBlockContext.Provider
           value={streamingMarkdownBlockContext}
         >
-          <Streamdown
-            BlockComponent={StreamingMarkdownBlock}
-            components={reasoningMarkdownComponents}
-            isAnimating={animateStreamedText}
-            plugins={streamdownPlugins}
+          <Suspense
+            fallback={
+              <pre className="whitespace-pre-wrap break-words font-sans">
+                {markdownText}
+              </pre>
+            }
           >
-            {markdownText}
-          </Streamdown>
+            <StreamdownReasoningRenderer
+              BlockComponent={StreamingMarkdownBlock}
+              isAnimating={animateStreamedText}
+            >
+              {markdownText}
+            </StreamdownReasoningRenderer>
+          </Suspense>
         </StreamingMarkdownBlockContext.Provider>
       </CollapsibleContent>
     );

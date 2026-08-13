@@ -18,7 +18,9 @@ import type {
 } from "react";
 import {
   createContext,
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -27,13 +29,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import {
-  extractTableDataFromElement,
-  Streamdown,
-  tableDataToCSV,
-  tableDataToMarkdown,
-  tableDataToTSV,
-} from "streamdown";
+import type { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import {
@@ -42,11 +38,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { normalizeCodeFenceLanguageMarkers } from "@/components/ai-elements/streamdown-code-block";
 import {
-  normalizeCodeFenceLanguageMarkers,
-  StreamdownCodePre,
-} from "@/components/ai-elements/streamdown-code-block";
-import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
+  extractTableDataFromElement,
+  tableDataToCSV,
+  tableDataToMarkdown,
+  tableDataToTSV,
+} from "@/components/ai-elements/markdown-table-utils";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 
@@ -332,6 +330,10 @@ export const MessageBranchPage = ({
 };
 
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
+
+const StreamdownMessageRenderer = lazy(
+  () => import("@/components/ai-elements/streamdown-message-renderer"),
+);
 
 type TableTextFormat = "csv" | "markdown" | "tsv";
 type TableDownloadFormat = Exclude<TableTextFormat, "tsv">;
@@ -652,7 +654,6 @@ const MarkdownTable = memo(
 MarkdownTable.displayName = "MarkdownTable";
 
 const defaultMessageResponseComponents = {
-  pre: StreamdownCodePre,
   table: MarkdownTable,
 } as NonNullable<MessageResponseProps["components"]>;
 
@@ -768,17 +769,29 @@ export const MessageResponse = memo(
     }
 
     return (
-      <Streamdown
-        className={cn(
-          "dream-markdown-code-size size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-          className,
-        )}
-        components={mergedComponents}
-        plugins={streamdownPlugins}
-        {...props}
+      <Suspense
+        fallback={
+          <pre
+            className={cn(
+              "size-full whitespace-pre-wrap break-words font-sans",
+              className,
+            )}
+          >
+            {normalizedChildren}
+          </pre>
+        }
       >
-        {normalizedChildren}
-      </Streamdown>
+        <StreamdownMessageRenderer
+          className={cn(
+            "dream-markdown-code-size size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+            className,
+          )}
+          components={mergedComponents}
+          {...props}
+        >
+          {normalizedChildren}
+        </StreamdownMessageRenderer>
+      </Suspense>
     );
   },
   (prevProps, nextProps) =>
