@@ -18,6 +18,10 @@ import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
 import { ProjectWorkspace } from "./project-workspace";
 import { savePersistedActiveProject } from "./store/ide-store-persistence";
+import {
+  hasTerminalScrollback,
+  publishTerminalOutput,
+} from "./terminal-scrollback";
 
 const SettingsDialog = lazy(() =>
   import("./settings-dialog").then((module) => ({
@@ -40,7 +44,6 @@ export const IdeShell = () => {
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
   const setIsElectron = useIdeStore((s) => s.setIsElectron);
-  const appendTerminalOutput = useIdeStore((s) => s.appendTerminalOutput);
   const setTerminalStatus = useIdeStore((s) => s.setTerminalStatus);
   const setTerminalTransport = useIdeStore((s) => s.setTerminalTransport);
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
@@ -238,18 +241,11 @@ export const IdeShell = () => {
     if (!desktopApi) return;
 
     const removeTerminalData = desktopApi.onTerminalData((event) => {
-      if (
-        !Object.hasOwn(useIdeStore.getState().terminalOutput, event.projectId)
-      ) {
-        return;
-      }
-      appendTerminalOutput(event.projectId, event.chunk);
+      publishTerminalOutput(event.projectId, event.chunk);
     });
 
     const removeTerminalStatus = desktopApi.onTerminalStatus((event) => {
-      if (
-        !Object.hasOwn(useIdeStore.getState().terminalOutput, event.projectId)
-      ) {
+      if (!hasTerminalScrollback(event.projectId)) {
         return;
       }
       setTerminalStatus(event.projectId, event.status);
@@ -275,7 +271,6 @@ export const IdeShell = () => {
       removeBrowserError();
     };
   }, [
-    appendTerminalOutput,
     setTerminalStatus,
     setTerminalTransport,
     setTerminalShell,

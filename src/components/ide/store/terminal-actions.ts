@@ -4,6 +4,10 @@ import {
   getBrowserTerminalSessionId,
 } from "../ide-types";
 import {
+  deleteTerminalScrollback,
+  resetTerminalScrollback,
+} from "../terminal-scrollback";
+import {
   getDefaultTerminalSessionName,
   getTerminalOrdinalFromName,
   moveItem,
@@ -32,12 +36,12 @@ export const createTerminalActions = (
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
     const sessionId = getBrowserTerminalSessionId(project.id);
+    resetTerminalScrollback(sessionId);
 
-    set((state) => ({
+    set({
       outputPanelOpen: true,
       browserError: null,
-      terminalOutput: { ...state.terminalOutput, [sessionId]: "" },
-    }));
+    });
 
     await desktopApi.startTerminal({
       command: project.runCommand,
@@ -54,10 +58,10 @@ export const createTerminalActions = (
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
     const sessionId = getBrowserTerminalSessionId(project.id);
+    resetTerminalScrollback(sessionId);
 
     set((state) => ({
       outputPanelOpen: false,
-      terminalOutput: { ...state.terminalOutput, [sessionId]: "" },
       terminalStatus: { ...state.terminalStatus, [sessionId]: "stopped" },
     }));
 
@@ -108,6 +112,7 @@ export const createTerminalActions = (
     if (!desktopApi) return;
 
     const sessionId = createProjectTerminalSessionId(projectId);
+    resetTerminalScrollback(sessionId);
 
     set((state) => {
       const existingSessionIds =
@@ -142,10 +147,6 @@ export const createTerminalActions = (
         projectTerminalPanelOpenByProject: {
           ...state.projectTerminalPanelOpenByProject,
           [projectId]: true,
-        },
-        terminalOutput: {
-          ...state.terminalOutput,
-          [sessionId]: "",
         },
         terminalSessionNames: {
           ...state.terminalSessionNames,
@@ -225,7 +226,6 @@ export const createTerminalActions = (
         activeSessionId === sessionId
           ? (nextSessionIds.at(-1) ?? null)
           : activeSessionId;
-      const nextTerminalOutput = { ...state.terminalOutput };
       const nextTerminalStatus = { ...state.terminalStatus };
       const nextTerminalTransport = { ...state.terminalTransport };
       const nextTerminalShell = { ...state.terminalShell };
@@ -234,13 +234,11 @@ export const createTerminalActions = (
         ...state.projectTerminalPanelOpenByProject,
       };
 
-      delete nextTerminalOutput[sessionId];
       delete nextTerminalStatus[sessionId];
       delete nextTerminalTransport[sessionId];
       delete nextTerminalShell[sessionId];
       delete nextTerminalSessionNames[sessionId];
       const nextState: Partial<IdeState> = {
-        terminalOutput: nextTerminalOutput,
         terminalStatus: nextTerminalStatus,
         terminalTransport: nextTerminalTransport,
         terminalShell: nextTerminalShell,
@@ -285,6 +283,7 @@ export const createTerminalActions = (
 
       return nextState;
     });
+    deleteTerminalScrollback(sessionId);
 
     const desktopApi = getDesktopApi();
     if (desktopApi) {

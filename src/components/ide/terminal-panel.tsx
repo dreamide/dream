@@ -14,6 +14,10 @@ import { useIdeStore } from "./ide-store";
 import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { StandardTabs } from "./standard-tabs";
+import {
+  getTerminalScrollback,
+  subscribeToTerminalOutput,
+} from "./terminal-scrollback";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 const TERMINAL_SURFACE_CLASSES =
@@ -362,8 +366,7 @@ export const TerminalPanel = ({
 
     fitAndSyncSize();
 
-    const initialOutput =
-      useIdeStore.getState().terminalOutput[sessionId] ?? "";
+    const initialOutput = getTerminalScrollback(sessionId);
     if (initialOutput) {
       terminal.write(stylePowerShellUpdateNotification(initialOutput));
     }
@@ -372,13 +375,8 @@ export const TerminalPanel = ({
       void onStart?.();
     }
 
-    const desktopApi = getDesktopApi();
-    const removeTerminalData = desktopApi?.onTerminalData((event) => {
-      if (event.projectId !== sessionId) {
-        return;
-      }
-
-      terminal.write(stylePowerShellUpdateNotification(event.chunk));
+    const removeTerminalData = subscribeToTerminalOutput(sessionId, (chunk) => {
+      terminal.write(stylePowerShellUpdateNotification(chunk));
     });
 
     const inputSubscription = terminal.onData((data) => {
@@ -405,7 +403,7 @@ export const TerminalPanel = ({
       if (resizeFrame !== null) {
         window.cancelAnimationFrame(resizeFrame);
       }
-      removeTerminalData?.();
+      removeTerminalData();
       inputSubscription.dispose();
       resizeObserver.disconnect();
       window.removeEventListener("resize", scheduleFitAndSyncSize);

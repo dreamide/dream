@@ -5,8 +5,6 @@ export const createRuntimeActions = (
   set: IdeStoreSet,
 ): Pick<
   IdeState,
-  | "appendTerminalOutput"
-  | "clearTerminalOutput"
   | "setTerminalStatus"
   | "setTerminalTransport"
   | "setTerminalShell"
@@ -21,25 +19,6 @@ export const createRuntimeActions = (
   | "setAppReady"
   | "openExternalUrl"
 > => ({
-  appendTerminalOutput: (projectId, chunk) => {
-    set((state) => {
-      const current = state.terminalOutput[projectId] ?? "";
-      const next = `${current}${chunk}`;
-      return {
-        terminalOutput: {
-          ...state.terminalOutput,
-          [projectId]: next.slice(-150_000),
-        },
-      };
-    });
-  },
-
-  clearTerminalOutput: (projectId) => {
-    set((state) => ({
-      terminalOutput: { ...state.terminalOutput, [projectId]: "" },
-    }));
-  },
-
   setTerminalStatus: (projectId, status) => {
     set((state) => ({
       terminalStatus: { ...state.terminalStatus, [projectId]: status },

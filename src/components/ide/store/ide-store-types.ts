@@ -40,7 +40,6 @@ export interface IdeState {
   completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
   draftChatIdByProject: Record<string, string | null>;
-  terminalOutput: Record<string, string>;
   terminalStatus: Record<string, "running" | "stopped">;
   terminalTransport: Record<string, "pty" | "pipe">;
   terminalShell: Record<string, string>;
@@ -172,8 +171,6 @@ export interface IdeState {
   ) => void;
 
   // Actions - runtime
-  appendTerminalOutput: (projectId: string, chunk: string) => void;
-  clearTerminalOutput: (projectId: string) => void;
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
   setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
   setTerminalShell: (projectId: string, shell: string) => void;

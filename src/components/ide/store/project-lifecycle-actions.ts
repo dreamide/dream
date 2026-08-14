@@ -15,6 +15,7 @@ import {
   normalizeProjectPathKey,
   sanitizeProjectUiForChats,
 } from "../ide-state";
+import { deleteTerminalScrollback } from "../terminal-scrollback";
 import { updateProjectInList, updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
@@ -474,6 +475,7 @@ export const createProjectLifecycleActions = (
     const desktopApi = getDesktopApi();
     for (const sessionId of terminalSessionIds) {
       void desktopApi?.stopTerminal(sessionId);
+      deleteTerminalScrollback(sessionId);
     }
 
     set((state) => {
@@ -511,7 +513,6 @@ export const createProjectLifecycleActions = (
       const nextTerminalOrdinalByProject = {
         ...state.nextTerminalOrdinalByProject,
       };
-      const nextTerminalOutput = { ...state.terminalOutput };
       const nextTerminalStatus = { ...state.terminalStatus };
       const nextTerminalTransport = { ...state.terminalTransport };
       const nextTerminalShell = { ...state.terminalShell };
@@ -541,7 +542,6 @@ export const createProjectLifecycleActions = (
         delete nextBrowserLoading[tab.id];
       }
       for (const sessionId of terminalSessionIds) {
-        delete nextTerminalOutput[sessionId];
         delete nextTerminalStatus[sessionId];
         delete nextTerminalTransport[sessionId];
         delete nextTerminalShell[sessionId];
@@ -591,7 +591,6 @@ export const createProjectLifecycleActions = (
         activeProjectId: nextActiveProjectId,
         closedProjects: nextClosedProjectsWithUi,
         nextTerminalOrdinalByProject,
-        terminalOutput: nextTerminalOutput,
         terminalStatus: nextTerminalStatus,
         terminalTransport: nextTerminalTransport,
         terminalShell: nextTerminalShell,

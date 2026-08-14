@@ -41,7 +41,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   completedChatIds: {},
   titleGeneratingChatIds: {},
   draftChatIdByProject: {},
-  terminalOutput: {},
   terminalStatus: {},
   terminalTransport: {},
   terminalShell: {},
