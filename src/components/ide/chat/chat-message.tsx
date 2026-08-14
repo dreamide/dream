@@ -15,6 +15,7 @@ import {
   isChipToolPart,
   isRedundantDirectWebToolSearchPart,
 } from "../assistant-message-tools";
+import { CollapsibleUserMessage } from "./collapsible-user-message";
 import {
   ContextCompactionMessage,
   getContextCompactionState,
@@ -102,7 +103,9 @@ export const ChatMessage = memo(
       return (
         <Message className="relative" from="user">
           <MessageContent>
-            <UserMessageContent message={message} projectPath={projectPath} />
+            <CollapsibleUserMessage>
+              <UserMessageContent message={message} projectPath={projectPath} />
+            </CollapsibleUserMessage>
           </MessageContent>
           <MessageHoverFooter continueChat={continueChat} message={message} />
         </Message>
