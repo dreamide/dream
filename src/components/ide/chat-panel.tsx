@@ -28,7 +28,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
-  getDefaultGitGenerationModelSelection,
   getModelOptionsForProvider,
 } from "@/lib/ide-defaults";
 import {
@@ -76,10 +75,6 @@ import {
   getTranscriptWindow,
 } from "./chat/transcript-window";
 import { mergeChatMessageHistories } from "./chat-message-history";
-import {
-  getCommitChanges,
-  warmProjectCommitMessageForStatus,
-} from "./git-commit-message-cache";
 import { chatIsAwaitingAnswer } from "./header/project-tab-status";
 import { useIdeStore } from "./ide-store";
 import {
@@ -88,6 +83,10 @@ import {
   normalizeReasoningEffort,
   REASONING_EFFORT_OPTIONS,
 } from "./ide-types";
+import {
+  flushProjectPanelRefresh,
+  scheduleProjectPanelRefresh,
+} from "./project-panel-refresh";
 import { ProjectBranchFooter } from "./project-status-bar";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
@@ -406,28 +405,19 @@ export const ChatPanel = ({
   const setChatAwaitingAnswer = useIdeStore((s) => s.setChatAwaitingAnswer);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
-  const bumpProjectGitRefreshKey = useIdeStore(
-    (s) => s.bumpProjectGitRefreshKey,
-  );
-  const bumpProjectFilesRefreshKey = useIdeStore(
-    (s) => s.bumpProjectFilesRefreshKey,
-  );
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  const {
-    branch: currentGitBranch,
-    isRepo,
-    status: projectGitStatus,
-    statusRefreshToken,
-  } = useProjectGitStatus(project.path, gitRefreshKey);
+  const { branch: currentGitBranch, isRepo } = useProjectGitStatus(
+    project.path,
+    gitRefreshKey,
+    {
+      detail: "summary",
+    },
+  );
   const autoApproveClaudeWrites =
     chat.permissionMode === "full-access" || chat.agentMode === "build";
   const connectedProviders = getConnectedProviders(settings);
-  const gitGenerationModelSelection = useMemo(
-    () => getDefaultGitGenerationModelSelection(settings),
-    [settings],
-  );
   const allModelOptions = useMemo<ChatPanelModelOption[]>(() => {
     return connectedProviders.flatMap((provider) =>
       getModelOptionsForProvider(
@@ -468,8 +458,6 @@ export const ChatPanel = ({
   const previousMessageCountRef = useRef(0);
   const restoredTranscriptWindowSizeRef = useRef(CHAT_TRANSCRIPT_WINDOW_SIZE);
   const refreshedWriteEventsRef = useRef(new Set<string>());
-  const pendingCommitMessageWarmRefreshTokensRef = useRef(new Set<number>());
-  const warmedCommitMessageKeysRef = useRef(new Set<string>());
   const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
 
   useEffect(() => {
@@ -668,102 +656,42 @@ export const ChatPanel = ({
     setMessages,
   });
 
-  // Refresh project panels when completed write tools appear.
+  // Only the live tail can gain new write results. Avoid walking the entire
+  // transcript on every stream update, then coalesce bursts across every chat
+  // in the project before refreshing Git and the file tree.
+  const latestStreamMessage = messages.at(-1);
   useEffect(() => {
-    let shouldRefreshProjectPanels = false;
+    if (latestStreamMessage?.role !== "assistant") {
+      return;
+    }
 
-    for (const message of messages) {
-      if (message.role !== "assistant") {
+    let shouldRefreshProjectPanels = false;
+    for (
+      let partIndex = 0;
+      partIndex < latestStreamMessage.parts.length;
+      partIndex++
+    ) {
+      const part = latestStreamMessage.parts[partIndex];
+      if (getChipToolKind(part) !== "write") {
         continue;
       }
 
-      for (let partIndex = 0; partIndex < message.parts.length; partIndex++) {
-        const part = message.parts[partIndex];
-        if (getChipToolKind(part) !== "write") {
-          continue;
-        }
+      const partRecord = part as Record<string, unknown>;
+      if (partRecord.state !== "output-available") {
+        continue;
+      }
 
-        const partRecord = part as Record<string, unknown>;
-        if (partRecord.state !== "output-available") {
-          continue;
-        }
-
-        const writeRefreshKey = `${chat.id}:${message.id}:${partIndex}`;
-        if (!refreshedWriteEventsRef.current.has(writeRefreshKey)) {
-          refreshedWriteEventsRef.current.add(writeRefreshKey);
-          shouldRefreshProjectPanels = true;
-        }
+      const writeRefreshKey = `${chat.id}:${latestStreamMessage.id}:${partIndex}`;
+      if (!refreshedWriteEventsRef.current.has(writeRefreshKey)) {
+        refreshedWriteEventsRef.current.add(writeRefreshKey);
+        shouldRefreshProjectPanels = true;
       }
     }
 
     if (shouldRefreshProjectPanels) {
-      const nextGitRefreshKey =
-        (useIdeStore.getState().projectGitRefreshKeys[project.id] ?? 0) + 1;
-      pendingCommitMessageWarmRefreshTokensRef.current.add(nextGitRefreshKey);
-      bumpProjectGitRefreshKey(project.id);
-      bumpProjectFilesRefreshKey(project.id);
+      scheduleProjectPanelRefresh(project.id);
     }
-  }, [
-    bumpProjectFilesRefreshKey,
-    bumpProjectGitRefreshKey,
-    chat.id,
-    messages,
-    project.id,
-  ]);
-
-  useEffect(() => {
-    if (!projectGitStatus) {
-      return;
-    }
-
-    if (statusRefreshToken === null) {
-      return;
-    }
-
-    if (
-      !pendingCommitMessageWarmRefreshTokensRef.current.has(statusRefreshToken)
-    ) {
-      return;
-    }
-
-    pendingCommitMessageWarmRefreshTokensRef.current.delete(statusRefreshToken);
-    const changes = getCommitChanges(projectGitStatus, true);
-    if (changes.length === 0) {
-      return;
-    }
-
-    const warmKey = JSON.stringify({
-      changes: changes.map((change) => ({
-        addedLines: change.addedLines,
-        path: change.path,
-        removedLines: change.removedLines,
-        staged: change.staged,
-        unstaged: change.unstaged,
-      })),
-      projectPath: project.path,
-      model: gitGenerationModelSelection.model,
-      provider: gitGenerationModelSelection.provider,
-      refreshToken: statusRefreshToken,
-    });
-    if (warmedCommitMessageKeysRef.current.has(warmKey)) {
-      return;
-    }
-
-    warmedCommitMessageKeysRef.current.add(warmKey);
-    void warmProjectCommitMessageForStatus({
-      model: gitGenerationModelSelection.model,
-      projectPath: project.path,
-      provider: gitGenerationModelSelection.provider,
-      refreshToken: statusRefreshToken,
-      status: projectGitStatus,
-    });
-  }, [
-    gitGenerationModelSelection.model,
-    gitGenerationModelSelection.provider,
-    project.path,
-    projectGitStatus,
-    statusRefreshToken,
-  ]);
+  }, [chat.id, latestStreamMessage, project.id]);
 
   // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
   useEffect(() => {
@@ -1082,12 +1010,7 @@ export const ChatPanel = ({
       }
       const finishStreaming = () => {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
-        const nextGitRefreshKey =
-          (useIdeStore.getState().projectGitRefreshKeys[submittedProject.id] ??
-            0) + 1;
-        pendingCommitMessageWarmRefreshTokensRef.current.add(nextGitRefreshKey);
-        bumpProjectGitRefreshKey(submittedProject.id);
-        bumpProjectFilesRefreshKey(submittedProject.id);
+        flushProjectPanelRefresh(submittedProject.id);
       };
 
       try {
@@ -1151,8 +1074,6 @@ export const ChatPanel = ({
     },
     [
       allModelOptions,
-      bumpProjectFilesRefreshKey,
-      bumpProjectGitRefreshKey,
       chatT,
       clearError,
       chatMessages,

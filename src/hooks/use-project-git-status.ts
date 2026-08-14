@@ -54,13 +54,20 @@ const readResponseText = async (
 const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
   projectPath?.trim() ?? "";
 
+export type ProjectGitStatusDetail = "full" | "summary";
+
 export const useProjectGitStatus = (
   projectPath: string | null | undefined,
   refreshKey?: number,
+  options: { detail?: ProjectGitStatusDetail } = {},
 ) => {
   const uiT = useTranslations("ui");
+  const detail = options.detail ?? "full";
   const refreshToken = refreshKey ?? 0;
-  const cacheKey = getProjectPathCacheKey(projectPath);
+  const projectPathCacheKey = getProjectPathCacheKey(projectPath);
+  const cacheKey = projectPathCacheKey
+    ? `${projectPathCacheKey}\0${detail}`
+    : "";
   const cachedEntry = cacheKey ? gitStatusCache.get(cacheKey) : null;
   const [status, setStatus] = useState<ProjectGitStatusResponse | null>(
     cachedEntry?.refreshToken === refreshToken
@@ -98,6 +105,7 @@ export const useProjectGitStatus = (
 
       setLoading(true);
       setError(null);
+      setStatusRefreshToken(null);
 
       try {
         const inflightKey = `${cacheKey}:${refreshToken}`;
@@ -107,7 +115,7 @@ export const useProjectGitStatus = (
           request = (async () => {
             try {
               const response = await fetch("/api/project-git-status", {
-                body: JSON.stringify({ projectPath }),
+                body: JSON.stringify({ detail, projectPath }),
                 headers: { "Content-Type": "application/json" },
                 method: "POST",
               });
@@ -165,7 +173,7 @@ export const useProjectGitStatus = (
         }
       }
     },
-    [cacheKey, projectPath, refreshToken, uiT],
+    [cacheKey, detail, projectPath, refreshToken, uiT],
   );
 
   useEffect(() => {

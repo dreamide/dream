@@ -94,6 +94,7 @@ const ProjectWorkspaceComponent = ({
   const { status: projectGitStatus } = useProjectGitStatus(
     project.path,
     gitRefreshKey,
+    { detail: "summary" },
   );
 
   // ── Local workspace state ───────────────────────────────────────────

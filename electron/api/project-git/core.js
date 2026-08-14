@@ -371,7 +371,10 @@ const mapGitChangeStatus = (xy, fallbackCode = "") => {
   return "modified";
 };
 
-export const listProjectGitChanges = async (projectPath) => {
+export const listProjectGitChanges = async (
+  projectPath,
+  { includeMetadata = true, includeStats = true, includeUntracked = true } = {},
+) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
     return {
@@ -398,7 +401,7 @@ export const listProjectGitChanges = async (projectPath) => {
     "status",
     "--porcelain=v2",
     "-z",
-    "--untracked-files=all",
+    includeUntracked ? "--untracked-files=all" : "--untracked-files=no",
   ]);
   const entries = statusResult.stdout.split("\0").filter(Boolean);
   const changes = [];
@@ -479,11 +482,9 @@ export const listProjectGitChanges = async (projectPath) => {
   }
 
   changes.sort((left, right) => left.path.localeCompare(right.path));
-  const statsByPath = await getProjectGitChangeStats(
-    projectPath,
-    repoInfo.repoRoot,
-    changes,
-  );
+  const statsByPath = includeStats
+    ? await getProjectGitChangeStats(projectPath, repoInfo.repoRoot, changes)
+    : new Map();
 
   const enrichedChanges = changes.map((change) => {
     const stats = statsByPath.get(change.path) ?? {
@@ -497,10 +498,15 @@ export const listProjectGitChanges = async (projectPath) => {
       removedLines: stats.removedLines,
     };
   });
-  const metadata = await getProjectGitMetadata(
-    repoInfo.repoRoot,
-    repoInfo.branch,
-  );
+  const metadata = includeMetadata
+    ? await getProjectGitMetadata(repoInfo.repoRoot, repoInfo.branch)
+    : {
+        aheadCount: 0,
+        baseBranch: null,
+        behindCount: 0,
+        remoteName: null,
+        upstreamBranch: null,
+      };
 
   return {
     ...metadata,

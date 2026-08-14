@@ -30,6 +30,7 @@ export const projectIconRequestSchema = z.object({
 });
 
 export const projectGitStatusRequestSchema = z.object({
+  detail: z.enum(["full", "summary"]).default("full"),
   projectPath: z.string().min(1),
 });
 

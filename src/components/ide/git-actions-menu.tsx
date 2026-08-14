@@ -123,8 +123,11 @@ const GitActionsMenuImpl = ({
     () => getDefaultGitGenerationModelSelection(settings),
     [settings],
   );
-  const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey);
   const [activeDialog, setActiveDialog] = useState<GitActionDialog>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey, {
+    detail: menuOpen || activeDialog ? "full" : "summary",
+  });
   const hasGitChanges = getStatusFileCount(status) > 0;
   const canPush = hasPushableCommits(status);
   const canCreatePr = hasGitChanges || canPush;
@@ -137,6 +140,7 @@ const GitActionsMenuImpl = ({
 
   const handleMenuOpenChange = useCallback(
     (open: boolean) => {
+      setMenuOpen(open);
       if (open) {
         bumpProjectGitRefreshKey(projectId);
       }
@@ -185,7 +189,7 @@ const GitActionsMenuImpl = ({
 
   return (
     <>
-      <DropdownMenu onOpenChange={handleMenuOpenChange}>
+      <DropdownMenu onOpenChange={handleMenuOpenChange} open={menuOpen}>
         <DropdownMenuTrigger
           render={
             <WorkspaceNavButton

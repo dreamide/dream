@@ -125,7 +125,9 @@ const ChangesPanelImpl = ({
     loading: statusLoading,
     status: gitStatus,
     statusRefreshToken,
-  } = useProjectGitStatus(projectPath, gitRefreshKey);
+  } = useProjectGitStatus(projectPath, gitRefreshKey, {
+    detail: active ? "full" : "summary",
+  });
   const hasStaleGitStatus = statusLoading && gitStatus !== null;
   const hasFreshGitStatus = statusRefreshToken === gitRefreshKey;
 

@@ -354,11 +354,17 @@ export const registerProjectGitRoutes = (app) => {
       return c.text(parsed.error.message, 400);
     }
 
-    const { projectPath } = parsed.data;
+    const { detail, projectPath } = parsed.data;
 
     try {
       await ensureProjectDirectory(projectPath);
-      return c.json(await listProjectGitChanges(projectPath));
+      return c.json(
+        await listProjectGitChanges(projectPath, {
+          includeMetadata: detail === "full",
+          includeStats: detail === "full",
+          includeUntracked: detail === "full",
+        }),
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to read Git status.";
