@@ -13,6 +13,7 @@ import { useCallback, useMemo, useState } from "react";
 import dreamSvg from "@/assets/dream.svg";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
+import { SEARCH_INPUT_GROUP_CLASS_NAME } from "@/components/ui/command";
 import {
   Empty,
   EmptyContent,
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/input-group";
 import { getDesktopApi } from "@/lib/electron";
 import { getConnectedProviders } from "@/lib/ide-defaults";
+import { cn } from "@/lib/utils";
 import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
@@ -259,7 +261,9 @@ export const EmptyProjectWorkspace = () => {
                 <History className="size-3.5" />
                 {emptyT("recentlyClosed")}
               </div>
-              <InputGroup className="h-8 max-w-64">
+              <InputGroup
+                className={cn("max-w-64", SEARCH_INPUT_GROUP_CLASS_NAME)}
+              >
                 <InputGroupInput
                   aria-label={emptyT("searchRecentlyClosed")}
                   autoComplete="off"
