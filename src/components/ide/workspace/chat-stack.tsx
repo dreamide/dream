@@ -226,6 +226,12 @@ const WorkspaceChatStackImpl = ({
   const hiddenMountedChats = mountedChats.filter(
     (chat) => !visibleChatIds.has(chat.id),
   );
+  // Keep background chats in the same keyed sibling list so hiding a panel
+  // does not remount ChatPanel and detach it from an in-flight response.
+  const renderedChats = [...visibleChats, ...hiddenMountedChats];
+  const visibleChatIndexById = new Map(
+    visibleChats.map((chat, index) => [chat.id, index]),
+  );
 
   useLayoutEffect(() => {
     const nextVisibleChatIds = visibleChats.map((chat) => chat.id);
@@ -759,7 +765,19 @@ const WorkspaceChatStackImpl = ({
       style={{ minHeight: CHAT_PANEL_MIN_HEIGHT_PX }}
     >
       <div className="flex h-full min-h-0 min-w-full">
-        {visibleChats.map((chat, index) => {
+        {renderedChats.map((chat) => {
+          const index = visibleChatIndexById.get(chat.id);
+          const isVisible = index !== undefined;
+          if (!isVisible) {
+            return (
+              <div aria-hidden className="hidden" inert key={chat.id}>
+                <div className="flex h-full min-w-0 flex-1 flex-col">
+                  <ChatPanel isActive={false} project={project} chat={chat} />
+                </div>
+              </div>
+            );
+          }
+
           const width = getColumnWidth(chat.id);
           const nextChat = visibleChats[index + 1] ?? null;
           const isClosing = closingChatIdSet.has(chat.id);
@@ -829,12 +847,6 @@ const WorkspaceChatStackImpl = ({
           );
         })}
       </div>
-
-      {hiddenMountedChats.map((chat) => (
-        <div aria-hidden inert className="hidden" key={chat.id}>
-          <ChatPanel isActive={false} project={project} chat={chat} />
-        </div>
-      ))}
     </div>
   );
 };
