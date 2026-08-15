@@ -47,6 +47,7 @@ export const App = () => {
     <NextIntlClientProvider
       locale={loadedMessages.locale}
       messages={loadedMessages.messages}
+      timeZone={Intl.DateTimeFormat().resolvedOptions().timeZone}
     >
       <ThemeProvider
         attribute="class"

@@ -30,39 +30,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    rolldownOptions: {
-      output: {
-        codeSplitting: {
-          includeDependenciesRecursively: false,
-          groups: [
-            {
-              name: "mermaid",
-              test: /node_modules[\\/](?:@streamdown[\\/]mermaid|mermaid)[\\/]/,
-              priority: 20,
-            },
-            {
-              name: "streamdown",
-              test: /node_modules[\\/](?:streamdown|@streamdown)[\\/]/,
-              priority: 10,
-            },
-            {
-              name: "xterm",
-              test: /node_modules[\\/]@xterm[\\/]/,
-              priority: 10,
-            },
-            {
-              name: "codemirror",
-              test: /node_modules[\\/](?:@codemirror|@uiw[\\/]react-codemirror)[\\/]/,
-              priority: 10,
-            },
-            {
-              name: "lucide",
-              test: /node_modules[\\/]lucide-react[\\/]/,
-              priority: 5,
-            },
-          ],
-        },
-      },
-    },
+    // Keep Rolldown's default recursive dependency capture. Splitting Streamdown
+    // and Mermaid without their dependencies creates a circular production graph.
   },
 });
