@@ -126,6 +126,64 @@ test("mergePersistedState preserves the project changes diff word-wrap preferenc
   assert.equal(merged.projects[0].ui.changesDiffWordWrap, true);
 });
 
+test("mergePersistedState preserves stash items and drops invalid ones", () => {
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        ui: {
+          stashItems: [
+            {
+              agentMode: "plan",
+              createdAt: "2026-08-15T12:00:00.000Z",
+              id: "stash-one",
+              model: "gpt-5",
+              modelSpeed: "fast",
+              permissionMode: "standard",
+              provider: "openai",
+              reasoningEffort: "high",
+              references: [
+                {
+                  kind: "file",
+                  name: "app.tsx",
+                  parentPath: "src",
+                  path: "src/app.tsx",
+                },
+              ],
+              text: "Ship stash",
+              updatedAt: "2026-08-15T12:00:00.000Z",
+            },
+            { id: "", text: "missing id" },
+            { id: "stash-one", text: "duplicate" },
+          ],
+        } as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  assert.deepEqual(merged.projects[0].ui.stashItems, [
+    {
+      agentMode: "plan",
+      createdAt: "2026-08-15T12:00:00.000Z",
+      id: "stash-one",
+      model: "gpt-5",
+      modelSpeed: "fast",
+      permissionMode: "standard",
+      provider: "openai",
+      reasoningEffort: "high",
+      references: [
+        {
+          kind: "file",
+          name: "app.tsx",
+          parentPath: "src",
+          path: "src/app.tsx",
+        },
+      ],
+      text: "Ship stash",
+      updatedAt: "2026-08-15T12:00:00.000Z",
+    },
+  ]);
+});
+
 test("mergePersistedState creates a default chat for projects without chats", () => {
   const merged = mergePersistedState({
     chats: [],

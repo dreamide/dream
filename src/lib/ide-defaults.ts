@@ -15,6 +15,7 @@ import type {
   ProjectConfig,
   ProjectUiState,
   ReasoningEffort,
+  StashItem,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
@@ -101,6 +102,7 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
   panelSizes: DEFAULT_PANEL_SIZES,
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,
   rightPanelView: "changes",
+  stashItems: [],
 };
 
 export const createEmptyState = (): PersistedIdeState => ({
@@ -138,6 +140,7 @@ export const createProjectConfig = (
     ui: {
       ...DEFAULT_PROJECT_UI,
       rightPanelOpen: false,
+      stashItems: [],
     },
     worktree: null,
   };
@@ -182,6 +185,42 @@ export const createChatConfig = (
     remoteConversationProjectPath: null,
     sparklesPalette: DEFAULT_SPARKLES_PALETTE,
     title: overrides?.title?.trim() || "New chat",
+    updatedAt: timestamp,
+  };
+};
+
+export const createStashItem = (
+  project: ProjectConfig,
+  overrides?: Partial<
+    Pick<
+      StashItem,
+      | "agentMode"
+      | "model"
+      | "modelSpeed"
+      | "permissionMode"
+      | "provider"
+      | "reasoningEffort"
+      | "references"
+      | "text"
+    >
+  >,
+): StashItem => {
+  const timestamp = new Date().toISOString();
+
+  return {
+    agentMode: overrides?.agentMode ?? "build",
+    createdAt: timestamp,
+    id: crypto.randomUUID(),
+    model: overrides?.model ?? project.model,
+    modelSpeed: overrides?.modelSpeed ?? project.modelSpeed,
+    permissionMode: overrides?.permissionMode ?? "full-access",
+    provider: overrides?.provider ?? project.provider,
+    reasoningEffort:
+      overrides && "reasoningEffort" in overrides
+        ? (overrides.reasoningEffort ?? null)
+        : project.reasoningEffort,
+    references: overrides?.references ?? [],
+    text: overrides?.text ?? "",
     updatedAt: timestamp,
   };
 };

@@ -38,6 +38,7 @@ const createProject = (id, lastUsedAt) => ({
     },
     rightPanelOpen: true,
     rightPanelView: "changes",
+    stashItems: [],
   },
   worktree: null,
 });
@@ -91,6 +92,53 @@ test("active-project persistence updates only selection metadata", async () => {
         ?.lastUsedAt,
       firstLastUsedAt,
     );
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("stash items survive a relational persistence round trip", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  project.ui.rightPanelView = "stash";
+  project.ui.stashItems = [
+    {
+      agentMode: "plan",
+      createdAt: timestamp,
+      id: "stash-one",
+      model: "gpt-5",
+      modelSpeed: "fast",
+      permissionMode: "standard",
+      provider: "openai",
+      reasoningEffort: "high",
+      references: [],
+      text: "queued work",
+      updatedAt: timestamp,
+    },
+  ];
+
+  try {
+    savePersistedState(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: project.id,
+        browserTabsByProject: {},
+        chats: [],
+        chatSort: "recent",
+        closedProjects: [],
+        messagesByChatId: {},
+        projects: [project],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.equal(loaded.projects[0]?.ui.rightPanelView, "stash");
+    assert.deepEqual(loaded.projects[0]?.ui.stashItems, project.ui.stashItems);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

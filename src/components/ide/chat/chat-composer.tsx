@@ -1,5 +1,5 @@
 import type { ChatStatus, LanguageModelUsage } from "ai";
-import { Bot, MapIcon, Shield, ShieldAlert } from "lucide-react";
+import { Bot, MapIcon, Shield, ShieldAlert, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type ChangeEventHandler,
@@ -522,13 +522,16 @@ export interface ChatComposerProps {
   agentMode: AgentMode;
   allModelOptions: ChatPanelModelOption[];
   chatProvider: AiProvider;
+  className?: string;
   contextWindow: number;
   contextUsage?: LanguageModelUsage;
   contextUsedTokens: number;
+  hideUsageAndContext?: boolean;
   isActive: boolean;
   isProcessing: boolean;
   isProviderInstalled: boolean;
   modelId: string;
+  onDelete?: () => void;
   onAgentModeChange: (mode: AgentMode) => void;
   onModelChange: (option: ChatPanelModelOption) => void;
   onModelSpeedChange: (speed: ModelSpeed) => void;
@@ -563,13 +566,16 @@ export const ChatComposer = ({
   agentMode,
   allModelOptions,
   chatProvider,
+  className,
   contextWindow,
   contextUsage,
   contextUsedTokens,
+  hideUsageAndContext = false,
   isActive,
   isProcessing,
   isProviderInstalled,
   modelId,
+  onDelete,
   onAgentModeChange,
   onModelChange,
   onModelSpeedChange,
@@ -866,7 +872,7 @@ export const ChatComposer = ({
     );
 
   return (
-    <div id={promptDomId} className="shrink-0 px-2 pb-2">
+    <div id={promptDomId} className={cn("shrink-0 px-2 pb-2", className)}>
       <div className="@container/chat-composer mx-auto w-full max-w-[700px]">
         {showReferenceResults ? (
           <div className="mb-2 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-700 bg-background text-foreground shadow-lg">
@@ -1197,29 +1203,45 @@ export const ChatComposer = ({
                   </Select>
                 ) : null}
 
-                <div className="ml-auto flex items-center gap-1">
-                  <UsageLimitsPopover provider={selectedProvider} />
-                  <Context
-                    maxTokens={contextWindow}
-                    modelId={modelId}
-                    usage={contextUsage}
-                    usedTokens={contextUsedTokens}
-                  >
-                    <ContextTrigger
-                      className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                      title={chatT("contextUsage")}
-                    />
-                    <ContextContent side="top" align="end">
-                      <ContextContentHeader />
-                      <ContextContentBody className="space-y-1.5">
-                        <ContextInputUsage />
-                        <ContextOutputUsage />
-                        <ContextReasoningUsage />
-                        <ContextCacheUsage />
-                      </ContextContentBody>
-                    </ContextContent>
-                  </Context>
-                </div>
+                {hideUsageAndContext ? (
+                  onDelete ? (
+                    <div className="ml-auto flex items-center">
+                      <button
+                        aria-label={chatT("deleteStashItem")}
+                        className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+                        onClick={onDelete}
+                        title={chatT("deleteStashItem")}
+                        type="button"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  ) : null
+                ) : (
+                  <div className="ml-auto flex items-center gap-1">
+                    <UsageLimitsPopover provider={selectedProvider} />
+                    <Context
+                      maxTokens={contextWindow}
+                      modelId={modelId}
+                      usage={contextUsage}
+                      usedTokens={contextUsedTokens}
+                    >
+                      <ContextTrigger
+                        className="h-7 gap-1.5 border-none bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                        title={chatT("contextUsage")}
+                      />
+                      <ContextContent side="top" align="end">
+                        <ContextContentHeader />
+                        <ContextContentBody className="space-y-1.5">
+                          <ContextInputUsage />
+                          <ContextOutputUsage />
+                          <ContextReasoningUsage />
+                          <ContextCacheUsage />
+                        </ContextContentBody>
+                      </ContextContent>
+                    </Context>
+                  </div>
+                )}
               </div>
             </div>
           </Sparkles>

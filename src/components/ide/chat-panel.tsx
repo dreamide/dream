@@ -405,6 +405,10 @@ export const ChatPanel = ({
   const setChatAwaitingAnswer = useIdeStore((s) => s.setChatAwaitingAnswer);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
+  const pendingChatSubmit = useIdeStore(
+    (s) => s.pendingChatSubmitByChatId[chat.id] ?? null,
+  );
+  const takePendingChatSubmit = useIdeStore((s) => s.takePendingChatSubmit);
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -1094,6 +1098,48 @@ export const ChatPanel = ({
       updateChat,
     ],
   );
+
+  const handleSubmitRef = useRef(handleSubmit);
+  handleSubmitRef.current = handleSubmit;
+
+  useEffect(() => {
+    if (!pendingChatSubmit || !isActive || !messagesLoaded || isProcessing) {
+      return;
+    }
+
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextSubmit = takePendingChatSubmit(chat.id);
+      if (
+        !nextSubmit ||
+        (!nextSubmit.text.trim() && nextSubmit.references.length === 0)
+      ) {
+        return;
+      }
+
+      void handleSubmitRef.current({
+        files: [],
+        references: nextSubmit.references,
+        text: nextSubmit.text,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [
+    chat.id,
+    isActive,
+    isProcessing,
+    messagesLoaded,
+    pendingChatSubmit,
+    takePendingChatSubmit,
+  ]);
 
   const closeEditDialog = useCallback(() => {
     setEditTarget(null);

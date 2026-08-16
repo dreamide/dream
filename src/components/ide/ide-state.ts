@@ -30,9 +30,11 @@ import type {
   ChatPermissionMode,
   PersistedIdeState,
   ProjectConfig,
+  ProjectReference,
   ProjectUiState,
   ProjectWorktreeInfo,
   RightPanelView,
+  StashItem,
 } from "@/types/ide";
 import {
   dedupeModels,
@@ -112,7 +114,82 @@ const isRightPanelView = (value: unknown): value is RightPanelView =>
   value === "browser" ||
   value === "explorer" ||
   value === "changes" ||
-  value === "terminal";
+  value === "terminal" ||
+  value === "stash";
+
+const isProjectReference = (value: unknown): value is ProjectReference => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const reference = value as Partial<ProjectReference>;
+  return (
+    (reference.kind === "file" || reference.kind === "folder") &&
+    typeof reference.name === "string" &&
+    typeof reference.parentPath === "string" &&
+    typeof reference.path === "string" &&
+    reference.path.trim().length > 0
+  );
+};
+
+const normalizeStashItem = (value: unknown): StashItem | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as Partial<StashItem>;
+  const id = typeof item.id === "string" ? item.id.trim() : "";
+  if (!id) {
+    return null;
+  }
+
+  const createdAt =
+    typeof item.createdAt === "string" && item.createdAt.trim().length > 0
+      ? item.createdAt
+      : new Date().toISOString();
+  const updatedAt =
+    typeof item.updatedAt === "string" && item.updatedAt.trim().length > 0
+      ? item.updatedAt
+      : createdAt;
+
+  return {
+    agentMode: item.agentMode === "plan" ? "plan" : "build",
+    createdAt,
+    id,
+    model: typeof item.model === "string" ? item.model : "",
+    modelSpeed: normalizeModelSpeed(item.modelSpeed),
+    permissionMode:
+      item.permissionMode === "standard" ? "standard" : "full-access",
+    provider: normalizeProvider(item.provider),
+    reasoningEffort: normalizeReasoningEffort(item.reasoningEffort),
+    references: Array.isArray(item.references)
+      ? item.references.filter(isProjectReference)
+      : [],
+    text: typeof item.text === "string" ? item.text : "",
+    updatedAt,
+  };
+};
+
+const normalizeStashItems = (value: unknown): StashItem[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenIds = new Set<string>();
+  const items: StashItem[] = [];
+
+  for (const rawItem of value) {
+    const item = normalizeStashItem(rawItem);
+    if (!item || seenIds.has(item.id)) {
+      continue;
+    }
+
+    seenIds.add(item.id);
+    items.push(item);
+  }
+
+  return items;
+};
 
 const normalizeBrowserTab = (value: unknown): BrowserTabState | null => {
   if (!value || typeof value !== "object") {
@@ -456,6 +533,7 @@ const normalizeProject = (
       rightPanelView: isRightPanelView(rawUi.rightPanelView)
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
+      stashItems: normalizeStashItems(rawUi.stashItems),
     },
     worktree: normalizeProjectWorktree(
       rawProject.worktree ?? rawMetadata.worktree,

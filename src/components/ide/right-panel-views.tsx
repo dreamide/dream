@@ -25,6 +25,11 @@ const ProjectTerminalTabsPanel = lazy(() =>
     default: module.ProjectTerminalTabsPanel,
   })),
 );
+const StashPanel = lazy(() =>
+  import("./stash-panel").then((module) => ({
+    default: module.StashPanel,
+  })),
+);
 
 const RIGHT_PANEL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background text-foreground shadow-md";
@@ -134,6 +139,17 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
                   expanded={props.browserExpanded}
                   onClosePanel={props.onClosePanel}
                   onToggleExpanded={props.onToggleBrowserExpanded}
+                  project={props.project}
+                />
+              </RightPanelViewSlot>
+            ) : null}
+            {visitedPersistentViews.has("stash") ? (
+              <RightPanelViewSlot active={rightPanelView === "stash"}>
+                <StashPanel
+                  active={
+                    props.active && props.open && rightPanelView === "stash"
+                  }
+                  onClosePanel={props.onClosePanel}
                   project={props.project}
                 />
               </RightPanelViewSlot>

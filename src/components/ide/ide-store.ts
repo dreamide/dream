@@ -34,6 +34,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   chatSort: "recent",
   settings: DEFAULT_SETTINGS,
   messagesByChatId: {},
+  pendingChatSubmitByChatId: {},
 
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},

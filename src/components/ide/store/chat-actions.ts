@@ -36,7 +36,13 @@ export const createChatActions = (
   | "setMessagesForChat"
   | "setChatSort"
 > => ({
-  addChat: (projectId: string, title?: string) => {
+  addChat: (
+    projectId: string,
+    title?: string,
+    options?: { forceNew?: boolean },
+  ) => {
+    let nextChatId: string | null = null;
+
     set((state) => {
       const project = state.projects.find((item) => item.id === projectId);
       if (!project) {
@@ -45,9 +51,11 @@ export const createChatActions = (
 
       const existingDraftChatId = state.draftChatIdByProject[projectId] ?? null;
       if (
+        !options?.forceNew &&
         existingDraftChatId &&
         state.chats.some((item) => item.id === existingDraftChatId)
       ) {
+        nextChatId = existingDraftChatId;
         return {
           activeProjectId: projectId,
           projects: updateProjectUiInList(
@@ -77,6 +85,7 @@ export const createChatActions = (
           : project.reasoningEffort,
         title,
       });
+      nextChatId = nextChat.id;
 
       return {
         activeProjectId: projectId,
@@ -97,9 +106,13 @@ export const createChatActions = (
         chats: [...state.chats, nextChat],
       };
     });
+
+    return nextChatId;
   },
 
   addChatBeside: (projectId: string) => {
+    let nextChatId: string | null = null;
+
     set((state) => {
       const project = state.projects.find((item) => item.id === projectId);
       if (!project) {
@@ -119,6 +132,7 @@ export const createChatActions = (
           ? defaultSelection.reasoningEffort
           : project.reasoningEffort,
       });
+      nextChatId = nextChat.id;
       const nextChats = [...state.chats, nextChat];
 
       return {
@@ -146,6 +160,8 @@ export const createChatActions = (
         chats: nextChats,
       };
     });
+
+    return nextChatId;
   },
 
   branchChatInWorkspace: ({ chatId, messageId }) => {

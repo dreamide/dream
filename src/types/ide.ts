@@ -77,6 +77,25 @@ export interface ProjectReference {
   path: string;
 }
 
+export interface StashItem {
+  agentMode: AgentMode;
+  createdAt: string;
+  id: string;
+  model: string;
+  modelSpeed: ModelSpeed;
+  permissionMode: ChatPermissionMode;
+  provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
+  references: ProjectReference[];
+  text: string;
+  updatedAt: string;
+}
+
+export interface PendingChatSubmit {
+  references: ProjectReference[];
+  text: string;
+}
+
 export interface ProjectConfig {
   id: string;
   icon: ProjectIconInfo | null;
@@ -143,7 +162,12 @@ export interface PanelSizes {
   terminalHeight: number;
 }
 
-export type RightPanelView = "browser" | "explorer" | "changes" | "terminal";
+export type RightPanelView =
+  | "browser"
+  | "explorer"
+  | "changes"
+  | "terminal"
+  | "stash";
 
 export interface ProjectUiState {
   activeChatId: string | null;
@@ -156,6 +180,7 @@ export interface ProjectUiState {
   panelSizes: PanelSizes;
   rightPanelOpen: boolean;
   rightPanelView: RightPanelView;
+  stashItems: StashItem[];
 }
 
 export interface PersistedIdeState {

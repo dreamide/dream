@@ -8,8 +8,10 @@ import type {
   ChatSortOrder,
   PanelSizes,
   PanelVisibility,
+  PendingChatSubmit,
   ProjectConfig,
   RightPanelView,
+  StashItem,
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
 
@@ -33,6 +35,7 @@ export interface IdeState {
   chatSort: ChatSortOrder;
   settings: AppSettings;
   messagesByChatId: Record<string, UIMessage[]>;
+  pendingChatSubmitByChatId: Record<string, PendingChatSubmit>;
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
@@ -101,8 +104,12 @@ export interface IdeState {
     projectId: string,
     updater: (project: ProjectConfig) => ProjectConfig,
   ) => void;
-  addChat: (projectId: string, title?: string) => void;
-  addChatBeside: (projectId: string) => void;
+  addChat: (
+    projectId: string,
+    title?: string,
+    options?: { forceNew?: boolean },
+  ) => string | null;
+  addChatBeside: (projectId: string) => string | null;
   branchChatInWorkspace: (options: {
     chatId: string;
     messageId: string;
@@ -130,6 +137,18 @@ export interface IdeState {
     messages?: UIMessage[],
   ) => Promise<void>;
   setChatSort: (sortOrder: ChatSortOrder) => void;
+  addStashItem: (
+    projectId: string,
+    item: Omit<StashItem, "createdAt" | "id" | "updatedAt">,
+  ) => string | null;
+  updateStashItem: (
+    projectId: string,
+    itemId: string,
+    updater: (item: StashItem) => StashItem,
+  ) => void;
+  deleteStashItem: (projectId: string, itemId: string) => void;
+  executeStashItem: (projectId: string, itemId: string) => string | null;
+  takePendingChatSubmit: (chatId: string) => PendingChatSubmit | null;
 
   // Actions - panels
   togglePanel: (panel: keyof PanelVisibility) => void;

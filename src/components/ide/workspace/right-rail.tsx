@@ -1,4 +1,4 @@
-import { Code, Files, Globe, TerminalSquare } from "lucide-react";
+import { Code, Files, Globe, Inbox, TerminalSquare } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo } from "react";
 import type { RightPanelView } from "@/types/ide";
@@ -14,6 +14,7 @@ export interface WorkspaceRightRailProps {
   projectPath: string;
   rightPanelView: RightPanelView;
   rightVisible: boolean;
+  stashAvailable: boolean;
   terminalHiddenWithActiveSession: boolean;
 }
 
@@ -26,6 +27,7 @@ const WorkspaceRightRailImpl = ({
   projectPath,
   rightPanelView,
   rightVisible,
+  stashAvailable,
   terminalHiddenWithActiveSession,
 }: WorkspaceRightRailProps) => {
   const t = useTranslations("common");
@@ -65,6 +67,15 @@ const WorkspaceRightRailImpl = ({
         <TerminalSquare className="size-4" />
       </WorkspaceNavButton>
       <GitActionsMenu projectId={projectId} projectPath={projectPath} />
+      <WorkspaceNavButton
+        active={rightVisible && rightPanelView === "stash"}
+        accent={stashAvailable}
+        className="mt-auto"
+        onClick={() => onSelectRightPanelView("stash")}
+        title={t("stash")}
+      >
+        <Inbox className="size-4" />
+      </WorkspaceNavButton>
     </aside>
   );
 };

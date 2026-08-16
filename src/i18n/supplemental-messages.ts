@@ -26,8 +26,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "Geben Sie eine URL ein, um mit dem Surfen zu beginnen.",
     },
+    stash: {
+      empty: "Noch keine gespeicherten Chats.",
+    },
     chat: {
       attachFile: "Datei anhängen",
+      deleteStashItem: "Gespeicherten Chat löschen",
       chatActions: "{title} Aktionen",
       closeChat: "Chat schließen",
       closeNamedChat: "Schließen Sie {title}",
@@ -390,8 +394,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "Enter a URL to start browsing.",
     },
+    stash: {
+      empty: "No stashed chats yet.",
+    },
     chat: {
       attachFile: "Attach file",
+      deleteStashItem: "Delete stashed chat",
       chatActions: "{title} actions",
       closeChat: "Close chat",
       closeNamedChat: "Close {title}",
@@ -743,8 +751,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "Ingresa una URL para comenzar a navegar.",
     },
+    stash: {
+      empty: "Aún no hay chats en el stash.",
+    },
     chat: {
       attachFile: "Adjuntar archivo",
+      deleteStashItem: "Eliminar chat del stash",
       chatActions: "{title} acciones",
       closeChat: "Cerrar chat",
       closeNamedChat: "Cerrar {title}",
@@ -1103,8 +1115,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "Saisissez une URL pour commencer la navigation.",
     },
+    stash: {
+      empty: "Aucun chat en stash pour le moment.",
+    },
     chat: {
       attachFile: "Joindre un fichier",
+      deleteStashItem: "Supprimer le chat du stash",
       chatActions: "{title} actions",
       closeChat: "Fermer le chat",
       closeNamedChat: "Fermer {title}",
@@ -1462,8 +1478,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "Inserisci un URL per iniziare la navigazione.",
     },
+    stash: {
+      empty: "Nessuna chat nello stash.",
+    },
     chat: {
       attachFile: "Allega file",
+      deleteStashItem: "Elimina chat dallo stash",
       chatActions: "azioni {title}",
       closeChat: "Chiudi la chat",
       closeNamedChat: "Chiudi {title}",
@@ -1821,8 +1841,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "URL を入力して閲覧を開始します。",
     },
+    stash: {
+      empty: "スタッシュされたチャットはまだありません。",
+    },
     chat: {
       attachFile: "ファイルを添付",
+      deleteStashItem: "スタッシュしたチャットを削除",
       chatActions: "{title} アクション",
       closeChat: "チャットを閉じる",
       closeNamedChat: "{title}を閉じる",
@@ -2176,8 +2200,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "탐색을 시작하려면 URL을 입력하세요.",
     },
+    stash: {
+      empty: "아직 스태시된 채팅이 없습니다.",
+    },
     chat: {
       attachFile: "파일 첨부",
+      deleteStashItem: "스태시된 채팅 삭제",
       chatActions: "{title} 작업",
       closeChat: "채팅 닫기",
       closeNamedChat: "{title} 닫기",
@@ -2528,8 +2556,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "Insira um URL para começar a navegar.",
     },
+    stash: {
+      empty: "Ainda não há chats no stash.",
+    },
     chat: {
       attachFile: "Anexar arquivo",
+      deleteStashItem: "Excluir chat do stash",
       chatActions: "ações de {title}",
       closeChat: "Fechar bate-papo",
       closeNamedChat: "Fechar {title}",
@@ -2884,8 +2916,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "Nhập URL để bắt đầu duyệt.",
     },
+    stash: {
+      empty: "Chưa có chat nào trong stash.",
+    },
     chat: {
       attachFile: "Đính kèm tệp",
+      deleteStashItem: "Xóa chat khỏi stash",
       chatActions: "hành động {title}",
       closeChat: "Đóng trò chuyện",
       closeNamedChat: "Đóng {title}",
@@ -3238,8 +3274,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "输入 URL 以开始浏览。",
     },
+    stash: {
+      empty: "还没有暂存的聊天。",
+    },
     chat: {
       attachFile: "附加文件",
+      deleteStashItem: "删除暂存的聊天",
       chatActions: "{title} 操作",
       closeChat: "关闭聊天",
       closeNamedChat: "关闭{title}",
@@ -3585,8 +3625,12 @@ export const supplementalMessages = {
     browser: {
       enterUrlToStart: "輸入 URL 以開始瀏覽。",
     },
+    stash: {
+      empty: "還沒有暫存的聊天。",
+    },
     chat: {
       attachFile: "附加文件",
+      deleteStashItem: "刪除暫存的聊天",
       chatActions: "{title} 操作",
       closeChat: "關閉聊天",
       closeNamedChat: "關閉{title}",

@@ -249,9 +249,36 @@ function getNestedRightPanelView(parent, key, fallback = "changes") {
   return value === "browser" ||
     value === "explorer" ||
     value === "changes" ||
-    value === "terminal"
+    value === "terminal" ||
+    value === "stash"
     ? value
     : fallback;
+}
+
+function getNestedStashItems(parent) {
+  const value = isRecord(parent) ? parent.stashItems : null;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenIds = new Set();
+  const items = [];
+
+  for (const rawItem of value) {
+    if (!isRecord(rawItem) || typeof rawItem.id !== "string") {
+      continue;
+    }
+
+    const id = rawItem.id.trim();
+    if (!id || seenIds.has(id)) {
+      continue;
+    }
+
+    seenIds.add(id);
+    items.push(rawItem);
+  }
+
+  return items;
 }
 
 function normalizeSparklesPaletteName(value) {
@@ -465,6 +492,9 @@ function buildProjectMetadata(project) {
     projectUi,
     "chatHistoryPanelOpen",
     getNestedBoolean(ui, "chatHistoryPanelOpen", false),
+  );
+  ui.stashItems = getNestedStashItems(
+    Object.hasOwn(projectUi, "stashItems") ? projectUi : ui,
   );
   ui.panelSizes = {
     chatHistoryPanelWidth: getNestedNumber(
@@ -1066,6 +1096,7 @@ function loadStateFromRelationalDatabase(database) {
         true,
       ),
       rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
+      stashItems: getNestedStashItems(ui),
     };
     allProjects.push(project);
 

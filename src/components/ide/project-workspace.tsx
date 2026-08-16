@@ -132,6 +132,7 @@ const ProjectWorkspaceComponent = ({
   const terminalHiddenWithActiveSession =
     hasProjectTerminalSessions && !terminalPanelVisible;
   const changesAvailable = getStatusFileCount(projectGitStatus) > 0;
+  const stashAvailable = (projectUi.stashItems?.length ?? 0) > 0;
   const activeBrowserTab =
     browserTabs.find((tab) => tab.id === activeBrowserTabId) ??
     browserTabs[0] ??
@@ -709,6 +710,7 @@ const ProjectWorkspaceComponent = ({
         projectPath={project.path}
         rightPanelView={rightPanelView}
         rightVisible={rightVisible}
+        stashAvailable={stashAvailable}
         terminalHiddenWithActiveSession={terminalHiddenWithActiveSession}
       />
     </div>
