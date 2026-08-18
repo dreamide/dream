@@ -187,7 +187,7 @@ export const ContextContentHeader = ({
           </div>
           <div className="space-y-2">
             <Progress
-              className="bg-muted"
+              className="bg-muted [&_[data-slot=progress-indicator]]:bg-foreground"
               value={clampPercent(usedPercent * PERCENT_MAX)}
             />
           </div>
