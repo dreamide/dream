@@ -738,8 +738,11 @@ export const ChatComposer = ({
       const before = promptText.slice(0, activeReferenceToken.start);
       const after = promptText.slice(activeReferenceToken.end);
       const mentionText = getReferenceMentionText(item);
+      const nextCharacter = after.at(0);
       const separator =
-        after.length > 0 && !isReferenceMentionBoundary(after.at(0)) ? " " : "";
+        nextCharacter !== undefined && isReferenceMentionBoundary(nextCharacter)
+          ? ""
+          : " ";
       const nextValue = `${before}${mentionText}${separator}${after}`;
       const nextCaretIndex =
         before.length + mentionText.length + separator.length;
@@ -954,9 +957,9 @@ export const ChatComposer = ({
                     />
                     <PromptInputTextarea
                       className={cn(
-                        "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0",
+                        "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0 selection:bg-foreground/20 selection:text-foreground",
                         selectedReferences.length > 0 &&
-                          "text-transparent placeholder:text-muted-foreground selection:bg-primary-selection",
+                          "text-transparent placeholder:text-muted-foreground selection:text-transparent",
                       )}
                       disabled={!isActive}
                       onChange={handlePromptChange}
