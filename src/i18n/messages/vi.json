@@ -185,11 +185,13 @@
     "addProjectForChanges": "Thêm dự án để xem các thay đổi Git.",
     "addProjectForFiles": "Thêm dự án để duyệt tệp.",
     "changesActions": "Thao tác thay đổi",
+    "clearSearch": "Xóa tìm kiếm",
     "enableWordWrap": "Bật ngắt dòng",
     "fileActions": "Thao tác tệp",
     "refreshChanges": "Làm mới thay đổi",
     "refreshFiles": "Làm mới tệp",
     "revertAllChanges": "Hoàn tác tất cả thay đổi",
+    "searchFiles": "Tìm kiếm tệp",
     "splitDiff": "Diff chia đôi",
     "unifiedDiff": "Diff thống nhất"
   },

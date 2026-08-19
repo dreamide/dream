@@ -98,6 +98,10 @@ export class ProjectDirectoryLoader {
     return this.#loadedDirectories.has(normalizeProjectDirectory(directory));
   }
 
+  isLoading(directory: string) {
+    return this.#inFlightDirectories.has(normalizeProjectDirectory(directory));
+  }
+
   invalidate() {
     this.#generation += 1;
     this.#loadedDirectories.clear();
@@ -108,6 +112,27 @@ export class ProjectDirectoryLoader {
     this.#knownFiles.clear();
     this.#expandedDirectories.clear();
     return this.#generation;
+  }
+
+  /**
+   * Registers files discovered outside of a directory listing (e.g. search
+   * results injected into the tree) so that revealing them walks their
+   * ancestors and expanding those ancestors later loads the full listing.
+   * Directories are marked as known but not loaded.
+   */
+  registerPaths(filePaths: Iterable<string>) {
+    for (const filePath of filePaths) {
+      const normalizedFilePath = filePath.replace(/\\/g, "/");
+      if (!normalizedFilePath || normalizedFilePath.endsWith("/")) {
+        continue;
+      }
+      for (const directory of getProjectFileAncestorDirectories(
+        normalizedFilePath,
+      )) {
+        this.#knownDirectories.add(directory);
+      }
+      this.#knownFiles.add(normalizedFilePath);
+    }
   }
 
   load(directory: string): Promise<ProjectDirectoryResponse | null> {

@@ -185,11 +185,13 @@
     "addProjectForChanges": "Git 변경 사항을 검사하려면 프로젝트를 추가하세요.",
     "addProjectForFiles": "파일을 탐색하려면 프로젝트를 추가하세요.",
     "changesActions": "변경 작업",
+    "clearSearch": "검색 지우기",
     "enableWordWrap": "자동 줄 바꿈 사용",
     "fileActions": "파일 작업",
     "refreshChanges": "변경 사항 새로 고침",
     "refreshFiles": "파일 새로 고침",
     "revertAllChanges": "모든 변경 사항 되돌리기",
+    "searchFiles": "파일 검색",
     "splitDiff": "분할 diff",
     "unifiedDiff": "통합 diff"
   },

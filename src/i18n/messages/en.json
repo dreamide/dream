@@ -185,11 +185,13 @@
     "addProjectForChanges": "Add a project to inspect its Git changes.",
     "addProjectForFiles": "Add a project to browse its files.",
     "changesActions": "Changes actions",
+    "clearSearch": "Clear search",
     "enableWordWrap": "Enable word wrap",
     "fileActions": "File actions",
     "refreshChanges": "Refresh changes",
     "refreshFiles": "Refresh files",
     "revertAllChanges": "Revert all changes",
+    "searchFiles": "Search files",
     "splitDiff": "Split diff",
     "unifiedDiff": "Unified diff"
   },

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const projectFilesRequestSchema = z.object({
   directory: z.string().min(1).default("."),
-  maxResults: z.number().int().min(1).max(5000).default(2000),
+  maxResults: z.number().int().min(1).max(50_000).default(2000),
   projectPath: z.string().min(1),
 });
 

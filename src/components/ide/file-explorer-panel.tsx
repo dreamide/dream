@@ -1,4 +1,8 @@
-import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
+import {
+  FileTree as PierreFileTree,
+  useFileTree,
+  useFileTreeSearch,
+} from "@pierre/trees/react";
 import {
   Ellipsis,
   FileIcon,
@@ -7,6 +11,7 @@ import {
   Save,
   Search,
   TextWrap,
+  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -54,11 +59,18 @@ import {
   resolveSelectedProjectFile,
   toProjectTreePath,
 } from "./project-directory-loader";
+import { ProjectFileSearchIndex } from "./project-file-search-index";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 
 const FILE_TREE_MIN_WIDTH_PX = 250;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
 const FILE_TREE_ITEM_HEIGHT_PX = 24;
+// Flat path index used to back tree search. Paths only, gitignore-aware, and
+// fetched at most once per project until the panel is refreshed.
+const PROJECT_SEARCH_INDEX_LIMIT = 50_000;
+// Upper bound on how many matching paths get injected into the tree per query.
+const PROJECT_SEARCH_INJECT_LIMIT = 200;
+const PROJECT_SEARCH_DEBOUNCE_MS = 120;
 
 const FileCodeEditor = lazy(() => import("./file-code-editor"));
 
@@ -183,62 +195,6 @@ const FILE_TREE_UNSAFE_CSS = `
     outline: none;
   }
 
-  [data-file-tree-search-container] {
-    position: relative;
-    padding: 12px 12px 8px;
-  }
-
-  [data-file-tree-search-container]::before {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 16px;
-    height: 16px;
-    background-color: var(--muted-foreground);
-    content: "";
-    opacity: 0.5;
-    pointer-events: none;
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat;
-  }
-
-  [data-file-tree-search-input] {
-    appearance: none;
-    box-sizing: border-box;
-    width: 100%;
-    height: 32px;
-    min-width: 0;
-    margin: 0;
-    border: 1px solid var(--surface-200);
-    border-radius: var(--radius);
-    background-color: var(--surface-50);
-    background-clip: padding-box;
-    padding: 4px 10px 4px 34px;
-    color: var(--foreground);
-    font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-    font-size: 12px;
-    line-height: 18px;
-    box-shadow: none;
-    transition-property: color, box-shadow;
-    outline: none;
-  }
-
-  :host-context(.dark) [data-file-tree-search-input] {
-    border-color: var(--surface-800);
-    background-color: var(--surface-900);
-  }
-
-  [data-file-tree-search-input]::placeholder {
-    color: var(--muted-foreground);
-  }
-
-  [data-file-tree-search-input]:focus-visible,
-  [data-file-tree-search-input][data-file-tree-search-input-fake-focus="true"] {
-    border-color: var(--input);
-    outline: none;
-    box-shadow: 0 0 0 0 var(--ring);
-  }
-
   [data-file-tree-virtualized-scroll]::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -258,7 +214,6 @@ const fileTreeStyle = {
   "--trees-focus-ring-offset-override": "0px",
   "--trees-focus-ring-width-override": "0px",
   "--trees-padding-inline-override": "24px",
-  "--trees-search-bg-override": "var(--background)",
   "--trees-selected-focused-border-color-override": "transparent",
   "--trees-scrollbar-gutter-override": "10px",
   "--trees-theme-focus-ring": "var(--ring)",
@@ -329,6 +284,8 @@ const ProjectFileTree = ({
     [],
   );
 
+  const searchChangeRef = useRef<(value: string | null) => void>(() => {});
+
   const { model } = useFileTree({
     density: "compact",
     fileTreeSearchMode: "hide-non-matches",
@@ -336,15 +293,54 @@ const ProjectFileTree = ({
     icons: materialFileTreeIcons,
     initialExpansion: "closed",
     itemHeight: FILE_TREE_ITEM_HEIGHT_PX,
+    onSearchChange: (value) => searchChangeRef.current(value),
     onSelectionChange: handleSelectionChange,
     paths: [],
-    // Search intentionally filters only the paths already loaded into the
-    // model. Focusing or typing here must never trigger filesystem traversal.
-    search: true,
-    searchBlurBehavior: "retain",
+    // The tree's search filters the paths present in the model. The model is
+    // populated lazily, so typing consults a flat, cached path index (see the
+    // injection effect below) and injects only matching paths. Search never
+    // triggers per-directory filesystem traversal.
+    //
+    // The built-in search input (`search: true`) is intentionally disabled:
+    // it closes the search on blur regardless of `searchBlurBehavior`. We
+    // render our own input bound to the model via useFileTreeSearch instead,
+    // so the filter persists until the user explicitly clears it.
+    search: false,
     stickyFolders: false,
     unsafeCSS: FILE_TREE_UNSAFE_CSS,
   });
+
+  const treeSearch = useFileTreeSearch(model);
+
+  const searchIndex = useMemo(
+    () =>
+      new ProjectFileSearchIndex({
+        fetchFiles: async () => {
+          const response = await fetch("/api/project-files", {
+            body: JSON.stringify({
+              directory: ".",
+              maxResults: PROJECT_SEARCH_INDEX_LIMIT,
+              projectPath,
+            }),
+            headers: { "Content-Type": "application/json" },
+            method: "POST",
+          });
+
+          if (!response.ok) {
+            throw new Error(
+              await readResponseText(
+                response,
+                `Request failed (${response.status}).`,
+              ),
+            );
+          }
+
+          const payload = (await response.json()) as { files?: string[] };
+          return payload.files ?? [];
+        },
+      }),
+    [projectPath],
+  );
 
   const loader = useMemo(
     () =>
@@ -381,10 +377,13 @@ const ProjectFileTree = ({
           }
         },
         onDirectoryLoaded: (response) => {
-          const operations = response.entries.map((entry) => ({
-            path: toProjectTreePath(entry),
-            type: "add" as const,
-          }));
+          // Skip paths already present in the model (e.g. injected by search,
+          // or ancestors implicitly created by them): adding an existing path
+          // throws "Path already exists".
+          const operations = response.entries
+            .map((entry) => toProjectTreePath(entry))
+            .filter((path) => !model.getItem(path))
+            .map((path) => ({ path, type: "add" as const }));
           if (operations.length > 0) {
             model.batch(operations);
           }
@@ -439,26 +438,92 @@ const ProjectFileTree = ({
     return model.subscribe(syncExpandedDirectories);
   }, [loader, model]);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+
+    const injectSearchMatches = async (query: string) => {
+      const generation = searchIndex.generation;
+      const loaded = await searchIndex.ensureLoaded();
+      if (
+        !loaded ||
+        disposed ||
+        generation !== searchIndex.generation ||
+        model.getSearchValue() !== query
+      ) {
+        return;
+      }
+
+      const matches = searchIndex.search(query, PROJECT_SEARCH_INJECT_LIMIT);
+      const pathsToAdd = matches.filter((path) => !model.getItem(path));
+      if (pathsToAdd.length === 0) {
+        return;
+      }
+
+      loader.registerPaths(pathsToAdd);
+      const nextKnownFiles = new Set(knownFilesRef.current);
+      for (const path of pathsToAdd) {
+        nextKnownFiles.add(path);
+      }
+      knownFilesRef.current = nextKnownFiles;
+      model.batch(pathsToAdd.map((path) => ({ path, type: "add" as const })));
+    };
+
+    searchChangeRef.current = (value) => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (!value) {
+        return;
+      }
+      timer = setTimeout(() => {
+        timer = null;
+        void injectSearchMatches(value);
+      }, PROJECT_SEARCH_DEBOUNCE_MS);
+    };
+
+    return () => {
+      disposed = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      searchChangeRef.current = () => {};
+    };
+  }, [loader, model, searchIndex]);
+
   const loadedDirectoryVersionRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!active) {
+      return;
+    }
     const directoryVersion = `${projectPath}\0${refreshVersion}`;
-    if (!active || loadedDirectoryVersionRef.current === directoryVersion) {
+    // Key on the loader's own state rather than only on the version ref:
+    // StrictMode's simulated unmount (and @pierre/trees swapping its model on
+    // remount) invalidates the loader after the first request fires, which
+    // would otherwise leave the tree stuck on the loading spinner.
+    if (
+      loadedDirectoryVersionRef.current === directoryVersion &&
+      (loader.isLoaded(".") || loader.isLoading("."))
+    ) {
       return;
     }
     loadedDirectoryVersionRef.current = directoryVersion;
     loader.invalidate();
+    searchIndex.invalidate();
     knownFilesRef.current = new Set();
     model.resetPaths([]);
     setDirectoryErrors({});
     setRootStatus("loading");
     void loader.load(".").catch(() => undefined);
-  }, [active, loader, model, projectPath, refreshVersion]);
+  }, [active, loader, model, projectPath, refreshVersion, searchIndex]);
 
   useEffect(
     () => () => {
       loader.invalidate();
+      searchIndex.invalidate();
     },
-    [loader],
+    [loader, searchIndex],
   );
 
   useEffect(() => {
@@ -621,6 +686,43 @@ const ProjectFileTree = ({
       onClickCapture={scheduleSelectionSync}
       onKeyUpCapture={scheduleSelectionSync}
     >
+      <div className="shrink-0 px-3 pt-3 pb-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground opacity-50" />
+          <input
+            aria-label={panelsT("searchFiles")}
+            className="h-8 w-full min-w-0 rounded-md border border-surface-200 bg-surface-50 py-1 pr-8 pl-[34px] text-foreground text-xs outline-none placeholder:text-muted-foreground focus-visible:border-input dark:border-surface-800 dark:bg-surface-900"
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              if (treeSearch.isOpen) {
+                treeSearch.setValue(value);
+              } else {
+                treeSearch.open(value);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                treeSearch.close();
+              }
+            }}
+            placeholder={panelsT("searchFiles")}
+            spellCheck={false}
+            type="text"
+            value={treeSearch.isOpen ? treeSearch.value : ""}
+          />
+          {treeSearch.isOpen && treeSearch.value ? (
+            <button
+              aria-label={panelsT("clearSearch")}
+              className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              onClick={() => treeSearch.close()}
+              type="button"
+            >
+              <X className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
+      </div>
       {nestedErrors.length > 0 ? (
         <div className="shrink-0 space-y-1 p-2 pb-0">
           {nestedErrors.map(([directory, message]) => (
