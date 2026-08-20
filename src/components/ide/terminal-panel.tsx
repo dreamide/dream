@@ -231,6 +231,7 @@ const resolveTerminalFontFamily = (host: HTMLElement) => {
 };
 
 export interface TerminalPanelProps {
+  projectId: string;
   sessionId: string;
   title?: string;
   subtitle?: string;
@@ -245,6 +246,7 @@ export interface TerminalPanelProps {
 }
 
 export const TerminalPanel = ({
+  projectId,
   sessionId,
   title,
   subtitle,
@@ -309,7 +311,23 @@ export const TerminalPanel = ({
     terminalInstanceRef.current = terminal;
 
     const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
+    const webLinksAddon = new WebLinksAddon((event, uri) => {
+      const state = useIdeStore.getState();
+
+      if (event.ctrlKey || event.metaKey) {
+        state.openExternalUrl(uri);
+        return;
+      }
+
+      state.createBrowserTab(projectId, uri);
+      state.updateProject(projectId, (project) => ({
+        ...project,
+        browserUrl: uri,
+      }));
+      state.setProjectTerminalPanelOpen(projectId, false);
+      state.setProjectRightPanelView(projectId, "browser");
+      state.setProjectRightPanelOpen(projectId, true);
+    });
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
@@ -410,7 +428,7 @@ export const TerminalPanel = ({
       terminalInstanceRef.current = null;
       terminal.dispose();
     };
-  }, [autoStart, onStart, resolvedTheme, sessionId]);
+  }, [autoStart, onStart, projectId, resolvedTheme, sessionId]);
 
   useEffect(() => {
     if (!isActive) {
@@ -630,6 +648,7 @@ export const ProjectTerminalTabsPanel = ({
                 bordered={false}
                 isActive={active && isActive}
                 onClose={() => void closeProjectTerminal(projectId, sessionId)}
+                projectId={projectId}
                 sessionId={sessionId}
                 showHeader={false}
                 stopOnClose={false}
