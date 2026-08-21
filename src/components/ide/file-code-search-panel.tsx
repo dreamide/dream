@@ -232,6 +232,12 @@ class FileCodeSearchPanel implements Panel {
 
   mount() {
     this.onOpenChange(true);
+    const searchField =
+      this.dom.querySelector<HTMLInputElement>("[main-field]");
+    if (searchField) {
+      searchField.focus();
+      searchField.select();
+    }
   }
 
   update(update: ViewUpdate) {
