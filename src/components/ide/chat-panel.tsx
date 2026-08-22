@@ -28,6 +28,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   getConnectedProviders,
+  getDefaultGitGenerationModelSelection,
   getModelOptionsForProvider,
 } from "@/lib/ide-defaults";
 import {
@@ -75,6 +76,7 @@ import {
   getTranscriptWindow,
 } from "./chat/transcript-window";
 import { mergeChatMessageHistories } from "./chat-message-history";
+import { warmProjectCommitMessage } from "./git-commit-message-cache";
 import { chatIsAwaitingAnswer } from "./header/project-tab-status";
 import { useIdeStore } from "./ide-store";
 import {
@@ -422,6 +424,10 @@ export const ChatPanel = ({
   const autoApproveClaudeWrites =
     chat.permissionMode === "full-access" || chat.agentMode === "build";
   const connectedProviders = getConnectedProviders(settings);
+  const gitGenerationModelSelection = useMemo(
+    () => getDefaultGitGenerationModelSelection(settings),
+    [settings],
+  );
   const allModelOptions = useMemo<ChatPanelModelOption[]>(() => {
     return connectedProviders.flatMap((provider) =>
       getModelOptionsForProvider(
@@ -1015,6 +1021,14 @@ export const ChatPanel = ({
       const finishStreaming = () => {
         useIdeStore.getState().setChatStreaming(submittedChatId, false);
         flushProjectPanelRefresh(submittedProject.id);
+        void warmProjectCommitMessage({
+          model: gitGenerationModelSelection.model,
+          projectPath: submittedProjectPath,
+          provider: gitGenerationModelSelection.provider,
+          refreshToken:
+            useIdeStore.getState().projectGitRefreshKeys[submittedProject.id] ??
+            0,
+        });
       };
 
       try {
@@ -1083,6 +1097,8 @@ export const ChatPanel = ({
       chatMessages,
       isProcessing,
       handleActivateChat,
+      gitGenerationModelSelection.model,
+      gitGenerationModelSelection.provider,
       providerModels,
       project.id,
       resetPromptHistory,
