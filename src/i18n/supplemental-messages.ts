@@ -37,6 +37,7 @@ export const supplementalMessages = {
       closeNamedChat: "Schließen Sie {title}",
       compactingContext: "Kontext wird komprimiert...",
       contextCompacted: "Kontext komprimiert",
+      continueInTerminal: "Im Terminal fortsetzen",
       copyMessage: "Nachricht kopieren",
       doubleClickToRename: "Zum Umbenennen doppelklicken",
       editChat: "Chat bearbeiten",
@@ -56,6 +57,8 @@ export const supplementalMessages = {
         "Dieser Chat ist nicht mehr im aktiven Projekt. Wechseln Sie zurück zu diesem Projekt und versuchen Sie es erneut.",
       providerCliUnavailable:
         "{provider} CLI ist nicht verfügbar. Überprüfen Sie Einstellungen > Anbieter.",
+      unableToContinueInTerminal:
+        "Der Chat konnte im Terminal nicht fortgesetzt werden.",
       unexpectedError:
         "Es ist ein unerwarteter Fehler aufgetreten. Weitere Informationen finden Sie in der Entwicklerkonsole.",
     },
@@ -405,6 +408,7 @@ export const supplementalMessages = {
       closeNamedChat: "Close {title}",
       compactingContext: "Compacting context...",
       contextCompacted: "Context compacted",
+      continueInTerminal: "Continue in terminal",
       copyMessage: "Copy message",
       doubleClickToRename: "Double-click to rename",
       editChat: "Edit chat",
@@ -423,6 +427,8 @@ export const supplementalMessages = {
         "This chat is no longer in the active project. Switch back to this project and try again.",
       providerCliUnavailable:
         "{provider} CLI is not available. Check Settings > Providers.",
+      unableToContinueInTerminal:
+        "Unable to continue this chat in the terminal.",
       unexpectedError:
         "An unexpected error occurred. Check the developer console for details.",
     },
@@ -762,6 +768,7 @@ export const supplementalMessages = {
       closeNamedChat: "Cerrar {title}",
       compactingContext: "Compactando el contexto...",
       contextCompacted: "Contexto compactado",
+      continueInTerminal: "Continuar en la terminal",
       copyMessage: "Copiar mensaje",
       doubleClickToRename: "Haz doble clic para cambiar el nombre",
       editChat: "Editar chat",
@@ -780,6 +787,8 @@ export const supplementalMessages = {
         "Este chat ya no está en el proyecto activo. Vuelve a este proyecto e inténtalo de nuevo.",
       providerCliUnavailable:
         "La CLI {provider} no está disponible. Verifique Configuración> Proveedores.",
+      unableToContinueInTerminal:
+        "No se pudo continuar este chat en la terminal.",
       unexpectedError:
         "Se produjo un error inesperado. Consulte la consola del desarrollador para obtener más detalles.",
     },
@@ -1126,6 +1135,7 @@ export const supplementalMessages = {
       closeNamedChat: "Fermer {title}",
       compactingContext: "Compression du contexte...",
       contextCompacted: "Contexte compressé",
+      continueInTerminal: "Continuer dans le terminal",
       copyMessage: "Copier le message",
       doubleClickToRename: "Double-cliquez pour renommer",
       editChat: "Modifier le chat",
@@ -1144,6 +1154,8 @@ export const supplementalMessages = {
         "Ce chat n'est plus dans le projet actif. Revenez à ce projet et réessayez.",
       providerCliUnavailable:
         "La CLI {provider} n’est pas disponible. Vérifiez Paramètres > Fournisseurs.",
+      unableToContinueInTerminal:
+        "Impossible de continuer cette discussion dans le terminal.",
       unexpectedError:
         "Une erreur inattendue s'est produite. Consultez la console du développeur pour plus de détails.",
     },
@@ -1489,6 +1501,7 @@ export const supplementalMessages = {
       closeNamedChat: "Chiudi {title}",
       compactingContext: "Compattazione del contesto...",
       contextCompacted: "Contesto compattato",
+      continueInTerminal: "Continua nel terminale",
       copyMessage: "Copia il messaggio",
       doubleClickToRename: "Fare doppio clic per rinominare",
       editChat: "Modifica la chat",
@@ -1507,6 +1520,8 @@ export const supplementalMessages = {
         "Questa chat non è più nel progetto attivo. Torna a questo progetto e riprova.",
       providerCliUnavailable:
         "{provider} CLI non è disponibile. Controlla Impostazioni > Provider.",
+      unableToContinueInTerminal:
+        "Impossibile continuare questa chat nel terminale.",
       unexpectedError:
         "Si è verificato un errore imprevisto. Controlla la console per sviluppatori per i dettagli.",
     },
@@ -1852,6 +1867,7 @@ export const supplementalMessages = {
       closeNamedChat: "{title}を閉じる",
       compactingContext: "コンテキストを圧縮しています...",
       contextCompacted: "コンテキストを圧縮しました",
+      continueInTerminal: "ターミナルで続行",
       copyMessage: "メッセージをコピー",
       doubleClickToRename: "ダブルクリックして名前を変更します",
       editChat: "チャットを編集",
@@ -1870,6 +1886,8 @@ export const supplementalMessages = {
         "このチャットはアクティブなプロジェクトには存在しません。このプロジェクトに戻って再試行してください。",
       providerCliUnavailable:
         "{provider} CLI は使用できません。 [設定] > [プロバイダー] を確認します。",
+      unableToContinueInTerminal:
+        "このチャットをターミナルで続行できませんでした。",
       unexpectedError:
         "予期しないエラーが発生しました。詳細については、開発者コンソールを確認してください。",
     },
@@ -2211,6 +2229,7 @@ export const supplementalMessages = {
       closeNamedChat: "{title} 닫기",
       compactingContext: "컨텍스트 압축 중...",
       contextCompacted: "컨텍스트 압축 완료",
+      continueInTerminal: "터미널에서 계속",
       copyMessage: "메시지 복사",
       doubleClickToRename: "이름을 바꾸려면 두 번 클릭하세요.",
       editChat: "채팅 수정",
@@ -2229,6 +2248,7 @@ export const supplementalMessages = {
         "이 채팅은 더 이상 활성 프로젝트에 없습니다. 이 프로젝트로 다시 전환하고 다시 시도하세요.",
       providerCliUnavailable:
         "{provider} CLI를 사용할 수 없습니다. 설정 > 공급자를 확인하세요.",
+      unableToContinueInTerminal: "터미널에서 이 채팅을 계속할 수 없습니다.",
       unexpectedError:
         "예상치 못한 오류가 발생했습니다. 자세한 내용은 개발자 콘솔을 확인하세요.",
     },
@@ -2567,6 +2587,7 @@ export const supplementalMessages = {
       closeNamedChat: "Fechar {title}",
       compactingContext: "Compactando o contexto...",
       contextCompacted: "Contexto compactado",
+      continueInTerminal: "Continuar no terminal",
       copyMessage: "Copiar mensagem",
       doubleClickToRename: "Clique duas vezes para renomear",
       editChat: "Editar bate-papo",
@@ -2585,6 +2606,8 @@ export const supplementalMessages = {
         "Este chat não está mais no projeto ativo. Volte para este projeto e tente novamente.",
       providerCliUnavailable:
         "A CLI {provider} não está disponível. Verifique Configurações > Provedores.",
+      unableToContinueInTerminal:
+        "Não foi possível continuar esta conversa no terminal.",
       unexpectedError:
         "Ocorreu um erro inesperado. Verifique o console do desenvolvedor para obter detalhes.",
     },
@@ -2927,6 +2950,7 @@ export const supplementalMessages = {
       closeNamedChat: "Đóng {title}",
       compactingContext: "Đang nén ngữ cảnh...",
       contextCompacted: "Đã nén ngữ cảnh",
+      continueInTerminal: "Tiếp tục trong terminal",
       copyMessage: "Sao chép tin nhắn",
       doubleClickToRename: "Nhấp đúp để đổi tên",
       editChat: "Chỉnh sửa trò chuyện",
@@ -2946,6 +2970,8 @@ export const supplementalMessages = {
         "Cuộc trò chuyện này không còn trong dự án đang hoạt động. Hãy quay lại dự án này và thử lại.",
       providerCliUnavailable:
         "{provider} CLI không có sẵn. Kiểm tra Cài đặt > Nhà cung cấp.",
+      unableToContinueInTerminal:
+        "Không thể tiếp tục cuộc trò chuyện này trong terminal.",
       unexpectedError:
         "Đã xảy ra lỗi không mong muốn. Kiểm tra bảng điều khiển dành cho nhà phát triển để biết chi tiết.",
     },
@@ -3285,6 +3311,7 @@ export const supplementalMessages = {
       closeNamedChat: "关闭{title}",
       compactingContext: "正在压缩上下文...",
       contextCompacted: "上下文已压缩",
+      continueInTerminal: "在终端中继续",
       copyMessage: "复制消息",
       doubleClickToRename: "双击重命名",
       editChat: "编辑聊天记录",
@@ -3301,6 +3328,7 @@ export const supplementalMessages = {
       enableModelFirst: "首先在“设置”中启用至少一个模型。",
       notInActiveProject: "此聊天不再处于活动项目中。切换回该项目并重试。",
       providerCliUnavailable: "{provider} CLI 不可用。检查设置 > 提供商。",
+      unableToContinueInTerminal: "无法在终端中继续此聊天。",
       unexpectedError: "发生意外错误。检查开发者控制台了解详细信息。",
     },
     panels: {
@@ -3636,6 +3664,7 @@ export const supplementalMessages = {
       closeNamedChat: "關閉{title}",
       compactingContext: "正在壓縮上下文...",
       contextCompacted: "上下文已壓縮",
+      continueInTerminal: "在終端中繼續",
       copyMessage: "複製訊息",
       doubleClickToRename: "雙擊重新命名",
       editChat: "編輯聊天記錄",
@@ -3652,6 +3681,7 @@ export const supplementalMessages = {
       enableModelFirst: "首先在「設定」中啟用至少一個模型。",
       notInActiveProject: "此聊天不再處於活動項目中。切換回該項目並重試。",
       providerCliUnavailable: "{provider} CLI 不可用。檢查設定 > 提供者。",
+      unableToContinueInTerminal: "無法在終端中繼續此聊天。",
       unexpectedError: "發生意外錯誤。檢查開發者控制台以了解詳細資訊。",
     },
     panels: {

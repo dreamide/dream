@@ -26,6 +26,13 @@ export interface WorktreeProjectCreationResult {
   projectId: string;
 }
 
+export interface AddProjectTerminalOptions {
+  command?: string;
+  cwd?: string;
+  name?: string;
+  strictCwd?: boolean;
+}
+
 export interface IdeState {
   // Persisted state
   projects: ProjectConfig[];
@@ -227,7 +234,10 @@ export interface IdeState {
   // Actions - terminal
   openProjectTerminal: (projectId: string) => Promise<void>;
   setProjectTerminalPanelOpen: (projectId: string, open: boolean) => void;
-  addProjectTerminal: (projectId: string) => Promise<void>;
+  addProjectTerminal: (
+    projectId: string,
+    options?: AddProjectTerminalOptions,
+  ) => Promise<void>;
   setActiveProjectTerminalId: (
     projectId: string,
     sessionId: string | null,

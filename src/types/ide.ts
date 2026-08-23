@@ -484,6 +484,7 @@ export interface StartTerminalPayload {
   cwd: string;
   command?: string;
   shellPath?: string;
+  strictCwd?: boolean;
 }
 
 export interface TerminalShellOption {

@@ -1,4 +1,10 @@
-import { Archive, Ellipsis, FilePenLine, X } from "lucide-react";
+import {
+  Archive,
+  Ellipsis,
+  FilePenLine,
+  SquareTerminal,
+  X,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,11 +23,13 @@ export interface ChatPanelHeaderProps {
   canShowChatMenu: boolean;
   canCloseChat?: boolean;
   chatMenuOpen: boolean;
+  continueInTerminalDisabled?: boolean;
   isTitleGenerating?: boolean;
   onCloseChat?: () => void;
   onChatMenuOpenChange: (open: boolean) => void;
   onDeleteChat: () => void;
   onEditChat: () => void;
+  onContinueInTerminal?: () => void;
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onRenameChat?: (title: string) => void;
   title: string;
@@ -31,11 +39,13 @@ export const ChatPanelHeader = ({
   canShowChatMenu,
   canCloseChat = false,
   chatMenuOpen,
+  continueInTerminalDisabled = false,
   isTitleGenerating = false,
   onCloseChat,
   onChatMenuOpenChange,
   onDeleteChat,
   onEditChat,
+  onContinueInTerminal,
   onHeaderPointerDown,
   onRenameChat,
   title,
@@ -160,7 +170,19 @@ export const ChatPanelHeader = ({
                 >
                   <Ellipsis className="size-4" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuContent align="end" className="w-48">
+                  {onContinueInTerminal ? (
+                    <>
+                      <DropdownMenuItem
+                        disabled={continueInTerminalDisabled}
+                        onClick={onContinueInTerminal}
+                      >
+                        <SquareTerminal className="size-4" />
+                        {chatT("continueInTerminal")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
                   <DropdownMenuItem onClick={onEditChat}>
                     <FilePenLine className="size-4" />
                     {commonT("edit")}

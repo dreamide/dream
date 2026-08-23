@@ -721,12 +721,16 @@ ipcMain.handle("runner:stop", async (_event, { projectId }) => {
 
 ipcMain.handle(
   "terminal:start",
-  (_event, { command, cwd, projectId, shellPath: preferredShellPath }) => {
+  (
+    _event,
+    { command, cwd, projectId, shellPath: preferredShellPath, strictCwd },
+  ) => {
     return processSessionManager.startTerminal({
       command,
       cwd,
       projectId,
       shellPath: preferredShellPath,
+      strictCwd,
     });
   },
 );

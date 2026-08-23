@@ -103,7 +103,7 @@ export const createTerminalActions = (
     }));
   },
 
-  addProjectTerminal: async (projectId) => {
+  addProjectTerminal: async (projectId, options = {}) => {
     const { projects, settings } = get();
     const project = projects.find((item) => item.id === projectId);
     if (!project) return;
@@ -150,7 +150,8 @@ export const createTerminalActions = (
         },
         terminalSessionNames: {
           ...state.terminalSessionNames,
-          [sessionId]: getDefaultTerminalSessionName(nextOrdinal),
+          [sessionId]:
+            options.name?.trim() || getDefaultTerminalSessionName(nextOrdinal),
         },
         terminalStatus: {
           ...state.terminalStatus,
@@ -163,11 +164,22 @@ export const createTerminalActions = (
       };
     });
 
-    await desktopApi.startTerminal({
-      cwd: project.path,
-      projectId: sessionId,
-      shellPath: settings.shellPath || undefined,
-    });
+    try {
+      const result = await desktopApi.startTerminal({
+        command: options.command,
+        cwd: options.cwd?.trim() || project.path,
+        projectId: sessionId,
+        shellPath: settings.shellPath || undefined,
+        strictCwd: options.strictCwd,
+      });
+
+      if (result.status !== "running") {
+        throw new Error("Terminal failed to start.");
+      }
+    } catch (error) {
+      await get().closeProjectTerminal(projectId, sessionId);
+      throw error;
+    }
   },
 
   setActiveProjectTerminalId: (projectId, sessionId) => {

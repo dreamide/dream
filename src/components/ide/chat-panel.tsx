@@ -105,6 +105,7 @@ const CHAT_CONVERSATION_FADE_HORIZONTAL_INSET =
   "max(0px, calc((100% - 700px) / 2))";
 const CHAT_CONVERSATION_FADE_RIGHT_INSET =
   "max(12px, calc((100% - 700px) / 2))";
+const CLAUDE_SESSION_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
 const CHAT_CONVERSATION_TOP_FADE_STYLE: CSSProperties = {
   background: `linear-gradient(to bottom, ${WORKSPACE_VIEWPORT_BACKGROUND} 0%, transparent 100%)`,
   height: CHAT_CONVERSATION_FADE_HEIGHT_PX,
@@ -407,6 +408,7 @@ export const ChatPanel = ({
   const setChatAwaitingAnswer = useIdeStore((s) => s.setChatAwaitingAnswer);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
+  const addProjectTerminal = useIdeStore((s) => s.addProjectTerminal);
   const pendingChatSubmit = useIdeStore(
     (s) => s.pendingChatSubmitByChatId[chat.id] ?? null,
   );
@@ -813,6 +815,37 @@ export const ChatPanel = ({
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
+  const claudeSessionId = chat.remoteConversationId?.trim() ?? "";
+  const claudeSessionProjectPath =
+    chat.remoteConversationProjectPath?.trim() ?? "";
+  const canContinueInTerminal =
+    chat.provider === "anthropic" &&
+    CLAUDE_SESSION_ID_PATTERN.test(claudeSessionId) &&
+    Boolean(claudeSessionProjectPath);
+  const handleContinueInTerminal = useCallback(() => {
+    if (!canContinueInTerminal || isProcessing) {
+      return;
+    }
+
+    setLocalError(null);
+    void addProjectTerminal(project.id, {
+      command: `claude --resume ${claudeSessionId}`,
+      cwd: claudeSessionProjectPath,
+      name: "Claude",
+      strictCwd: true,
+    }).catch((error) => {
+      console.error("Failed to continue Claude session in terminal:", error);
+      setLocalError(chatT("unableToContinueInTerminal"));
+    });
+  }, [
+    addProjectTerminal,
+    canContinueInTerminal,
+    chatT,
+    claudeSessionId,
+    claudeSessionProjectPath,
+    isProcessing,
+    project.id,
+  ]);
   const handleBranchError = useCallback((message: string) => {
     setLocalError(message);
   }, []);
@@ -1202,11 +1235,15 @@ export const ChatPanel = ({
             canCloseChat={canCloseChat}
             canShowChatMenu={canShowChatMenu}
             chatMenuOpen={chatMenuOpen}
+            continueInTerminalDisabled={isProcessing}
             isTitleGenerating={isTitleGenerating}
             onCloseChat={onCloseChat}
             onChatMenuOpenChange={setChatMenuOpen}
             onDeleteChat={() => deleteChat(chat.id)}
             onEditChat={handleEditChat}
+            onContinueInTerminal={
+              canContinueInTerminal ? handleContinueInTerminal : undefined
+            }
             onHeaderPointerDown={onHeaderPointerDown}
             onRenameChat={(title) =>
               updateChat(chat.id, (current) => ({ ...current, title }))

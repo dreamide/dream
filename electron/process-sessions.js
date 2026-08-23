@@ -61,13 +61,19 @@ function createTerminalStartupCommands(command) {
   return commands;
 }
 
-function resolveTerminalCwd(cwd) {
+function resolveTerminalCwd(cwd, { strict = false } = {}) {
   if (typeof cwd !== "string") {
+    if (strict) {
+      throw new Error("Terminal working directory does not exist.");
+    }
     return app.getPath("home");
   }
 
   const trimmed = cwd.trim();
   if (!trimmed) {
+    if (strict) {
+      throw new Error("Terminal working directory does not exist.");
+    }
     return app.getPath("home");
   }
 
@@ -77,6 +83,10 @@ function resolveTerminalCwd(cwd) {
     }
   } catch {
     // ignore and fall back
+  }
+
+  if (strict) {
+    throw new Error("Terminal working directory does not exist.");
   }
 
   return app.getPath("home");
@@ -296,7 +306,13 @@ export function createProcessSessionManager({ sendToRenderer }) {
     return { pid: child.pid, status: "running" };
   }
 
-  async function startTerminal({ command, cwd, projectId, shellPath }) {
+  async function startTerminal({
+    command,
+    cwd,
+    projectId,
+    shellPath,
+    strictCwd,
+  }) {
     if (!projectId || !cwd) {
       throw new Error("Missing terminal parameters.");
     }
@@ -304,7 +320,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
     await stopTerminalSession(projectId);
 
     const shellCandidates = buildTerminalShellCandidates(shellPath);
-    const resolvedCwd = resolveTerminalCwd(cwd);
+    const resolvedCwd = resolveTerminalCwd(cwd, { strict: strictCwd === true });
 
     let terminalSession;
     let chosenShell = null;
