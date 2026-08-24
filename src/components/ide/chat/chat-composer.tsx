@@ -784,6 +784,13 @@ export const ChatComposer = ({
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> =
     useCallback(
       (event) => {
+        if (event.key === "PageUp" || event.key === "PageDown") {
+          // Chromium can route these keys to the horizontally scrollable chat
+          // stack and move the entire active chat out of the viewport.
+          event.preventDefault();
+          return;
+        }
+
         if (
           (event.key === "Backspace" || event.key === "Delete") &&
           selectedReferences.length > 0
