@@ -280,6 +280,7 @@ const CODE_BLOCK_DOWNLOAD_EXTENSIONS: Record<string, string> = {
   json: "json",
   markdown: "md",
   md: "md",
+  mdx: "mdx",
   plaintext: "txt",
   python: "py",
   shell: "sh",

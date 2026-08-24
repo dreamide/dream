@@ -20,6 +20,7 @@ const COMMON_CODE_LANGUAGES = [
   "log",
   "markdown",
   "md",
+  "mdx",
   "php",
   "powershell",
   "python",
