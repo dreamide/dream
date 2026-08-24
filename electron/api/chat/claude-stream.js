@@ -176,6 +176,32 @@ export const keepClaudeAgentAttachedToTurn = (toolName, input) => {
   };
 };
 
+// PreToolUse hook wrapper for keepClaudeAgentAttachedToTurn. The canUseTool
+// rewrite only runs when the SDK asks for permission, but Agent/Task is in
+// `allowedTools` (and bypass mode skips permissions entirely), so the callback
+// never fires for it. Hooks run before permission evaluation in every mode.
+export const createClaudeAgentAttachmentHook = () => {
+  return async (hookInput) => {
+    const toolInput = hookInput?.tool_input;
+    const attachedInput = keepClaudeAgentAttachedToTurn(
+      hookInput?.tool_name,
+      toolInput,
+    );
+
+    if (attachedInput === toolInput) {
+      return { continue: true };
+    }
+
+    return {
+      continue: true,
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        updatedInput: attachedInput,
+      },
+    };
+  };
+};
+
 // Native file tools whose target paths must stay inside the project root.
 const CLAUDE_PATH_GUARDED_TOOLS = new Set([
   "edit",
@@ -562,6 +588,12 @@ export const streamClaudeResponse = async ({
                 return { continue: true };
               },
             ],
+          },
+        ],
+        PreToolUse: [
+          {
+            matcher: "^(Agent|Task)$",
+            hooks: [createClaudeAgentAttachmentHook()],
           },
         ],
         PreCompact: [
