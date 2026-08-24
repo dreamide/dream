@@ -226,6 +226,7 @@ export interface IdeState {
   setIsElectron: (value: boolean) => void;
   setAppReady: (value: boolean) => void;
   openExternalUrl: (url: string) => void;
+  openExternalPath: (path: string) => void;
 
   // Actions - runner
   startRunner: () => Promise<void>;

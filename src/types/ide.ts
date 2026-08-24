@@ -524,6 +524,7 @@ export interface DesktopApi {
   };
 
   openExternal: (url: string) => Promise<boolean>;
+  openPath: (path: string) => Promise<boolean>;
   writeClipboardText: (text: string) => Promise<boolean>;
   saveTextFile: (payload: {
     contents: string;

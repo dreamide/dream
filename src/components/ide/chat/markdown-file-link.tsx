@@ -22,6 +22,11 @@ const normalizePath = (value: string) => value.replace(/\\/g, "/");
 const normalizeFilePathCandidate = (value: string) =>
   normalizePath(decodePath(value)).replace(/^\/([a-z]:\/)/i, "$1");
 
+const hasWindowsDrive = (value: string) => /^[a-z]:[/]/i.test(value);
+
+const toComparablePath = (value: string) =>
+  hasWindowsDrive(value) ? value.toLowerCase() : value;
+
 const decodePath = (value: string) => {
   try {
     return decodeURIComponent(value);
@@ -55,11 +60,16 @@ export const getProjectFilePathFromHref = (
     return candidatePath.slice(PROJECT_FILE_LINK_PREFIX.length);
   }
 
-  if (candidatePath === normalizedProjectPath) {
+  // Windows paths are case-insensitive and drive letters commonly differ in
+  // case between the stored project path and model output (e:/ vs E:/).
+  const comparableCandidatePath = toComparablePath(candidatePath);
+  const comparableProjectPath = toComparablePath(normalizedProjectPath);
+
+  if (comparableCandidatePath === comparableProjectPath) {
     return null;
   }
 
-  if (candidatePath.startsWith(`${normalizedProjectPath}/`)) {
+  if (comparableCandidatePath.startsWith(`${comparableProjectPath}/`)) {
     return candidatePath.slice(normalizedProjectPath.length + 1);
   }
 
@@ -68,6 +78,53 @@ export const getProjectFilePathFromHref = (
     !/^[a-z][a-z0-9+.-]*:/i.test(candidatePath)
   ) {
     return candidatePath.replace(/^\.?\//, "");
+  }
+
+  return null;
+};
+
+const EXTERNAL_FILE_LINK_PREFIX = "/__dream_external_file__/";
+
+const stripUrlExtras = (value: string) => {
+  const withoutFragment = value.split("#", 1)[0]?.split("?", 1)[0] ?? "";
+  return withoutFragment.startsWith("file://")
+    ? withoutFragment.slice("file://".length)
+    : withoutFragment;
+};
+
+// Absolute file paths that fall outside the active project can't open in the
+// editor, so they are handed to the OS shell instead. Only POSIX-style absolute
+// paths are considered external when the project itself is POSIX-style; on
+// Windows a leading "/" is far more likely to be a project-relative path.
+export const getExternalFilePathFromHref = (
+  href: string | undefined,
+  projectPath: string,
+) => {
+  const rawHref = href?.trim();
+  if (!rawHref || getProjectFilePathFromHref(rawHref, projectPath)) {
+    return null;
+  }
+
+  const candidatePath = stripLineSuffix(
+    normalizeFilePathCandidate(stripUrlExtras(rawHref)),
+  );
+
+  if (candidatePath.startsWith(EXTERNAL_FILE_LINK_PREFIX)) {
+    const encodedPath = candidatePath.slice(EXTERNAL_FILE_LINK_PREFIX.length);
+    return hasWindowsDrive(encodedPath) ? encodedPath : `/${encodedPath}`;
+  }
+
+  if (candidatePath.startsWith(PROJECT_FILE_LINK_PREFIX)) {
+    return null;
+  }
+
+  if (hasWindowsDrive(candidatePath)) {
+    return candidatePath;
+  }
+
+  const projectIsPosix = !hasWindowsDrive(normalizePath(projectPath.trim()));
+  if (projectIsPosix && candidatePath.startsWith("/")) {
+    return candidatePath;
   }
 
   return null;
@@ -91,7 +148,9 @@ export const normalizeProjectFileLinksInMarkdown = (
   projectPath: string,
 ) =>
   value.replace(
-    /\[([^\]\n]+)\]\((<[^>\n]*>|[^)\n]+)\)/g,
+    // Raw destinations may contain balanced parentheses (e.g. Next.js route
+    // groups like `app/(main)/page.tsx`), so allow one nesting level.
+    /\[([^\]\n]+)\]\((<[^>\n]*>|(?:[^()\n]|\([^()\n]*\))+)\)/g,
     (match, label, href) => {
       const unwrappedHref = unwrapMarkdownLinkDestination(href);
       const projectFilePath = getProjectFilePathFromHref(
@@ -99,15 +158,22 @@ export const normalizeProjectFileLinksInMarkdown = (
         projectPath,
       );
 
-      if (!projectFilePath) {
+      const externalFilePath = projectFilePath
+        ? null
+        : getExternalFilePathFromHref(unwrappedHref, projectPath);
+
+      if (!projectFilePath && !externalFilePath) {
         return match;
       }
 
       const lineSuffix = getLineSuffix(
-        normalizeFilePathCandidate(unwrappedHref.split("#", 1)[0] ?? ""),
+        normalizeFilePathCandidate(stripUrlExtras(unwrappedHref)),
       );
+      const destination = projectFilePath
+        ? `${PROJECT_FILE_LINK_PREFIX}${projectFilePath}`
+        : `${EXTERNAL_FILE_LINK_PREFIX}${(externalFilePath ?? "").replace(/^\//, "")}`;
       return `[${label}](<${escapeMarkdownLinkDestination(
-        `${PROJECT_FILE_LINK_PREFIX}${projectFilePath}`,
+        destination,
       )}${lineSuffix}>)`;
     },
   );
@@ -121,14 +187,21 @@ export const MarkdownFileLink = ({
   ...props
 }: MarkdownFileLinkProps) => {
   const openProjectFile = useIdeStore((state) => state.openProjectFile);
+  const openExternalPath = useIdeStore((state) => state.openExternalPath);
   const projectId = useIdeStore((state) => state.activeProjectId);
   const projectFilePath = useMemo(
     () => getProjectFilePathFromHref(href, projectPath),
     [href, projectPath],
   );
+  const externalFilePath = useMemo(
+    () =>
+      projectFilePath ? null : getExternalFilePathFromHref(href, projectPath),
+    [href, projectFilePath, projectPath],
+  );
+  const filePath = projectFilePath ?? externalFilePath;
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (!projectFilePath) {
+    if (!filePath) {
       onClick?.(event);
       return;
     }
@@ -137,13 +210,18 @@ export const MarkdownFileLink = ({
       event.preventDefault();
       event.stopPropagation();
 
-      if (projectId) {
-        openProjectFile(projectId, projectFilePath);
+      if (projectFilePath) {
+        if (projectId) {
+          openProjectFile(projectId, projectFilePath);
+        }
+        return;
       }
+
+      openExternalPath(filePath);
     }
   };
 
-  if (projectFilePath) {
+  if (filePath) {
     return (
       <a
         {...props}
@@ -154,10 +232,11 @@ export const MarkdownFileLink = ({
         )}
         href={href}
         onClick={handleClick}
+        title={externalFilePath ?? props.title}
       >
         <MaterialFileIcon
           className="relative top-0.5 size-3.5 shrink-0"
-          path={projectFilePath}
+          path={filePath}
         />
         <span className="min-w-0 truncate">{props.children}</span>
       </a>

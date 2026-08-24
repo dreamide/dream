@@ -137,6 +137,7 @@ contextBridge.exposeInMainWorld("dream", {
   initialThemePreferences,
 
   openExternal: (url) => ipcRenderer.invoke("shell:open-external", { url }),
+  openPath: (path) => ipcRenderer.invoke("shell:open-path", { path }),
   writeClipboardText: (text) =>
     ipcRenderer.invoke("clipboard:write-text", { text }),
   saveTextFile: (payload) => ipcRenderer.invoke("files:save-text", payload),

@@ -18,6 +18,7 @@ export const createRuntimeActions = (
   | "setIsElectron"
   | "setAppReady"
   | "openExternalUrl"
+  | "openExternalPath"
 > => ({
   setTerminalStatus: (projectId, status) => {
     set((state) => ({
@@ -173,5 +174,12 @@ export const createRuntimeActions = (
       return;
     }
     window.open(url, "_blank", "noopener,noreferrer");
+  },
+
+  openExternalPath: (path) => {
+    const desktopApi = getDesktopApi();
+    if (desktopApi) {
+      void desktopApi.openPath(path);
+    }
   },
 });

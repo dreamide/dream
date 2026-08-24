@@ -655,6 +655,19 @@ ipcMain.handle("shell:open-external", (_event, { url }) => {
   return true;
 });
 
+ipcMain.handle("shell:open-path", async (_event, { path: targetPath }) => {
+  if (
+    !targetPath ||
+    typeof targetPath !== "string" ||
+    !path.isAbsolute(targetPath)
+  ) {
+    return false;
+  }
+
+  const errorMessage = await shell.openPath(targetPath);
+  return errorMessage === "";
+});
+
 ipcMain.handle("terminal:detect-shells", detectAvailableTerminalShells);
 
 ipcMain.handle("clipboard:write-text", (_event, { text }) => {
