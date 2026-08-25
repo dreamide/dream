@@ -1,46 +1,52 @@
 import { type ReactNode, useEffect, useState } from "react";
 import type { ProjectIconInfo } from "@/types/ide";
 
-export const areProjectIconsEqual = (
-  left: ProjectIconInfo | null,
-  right: ProjectIconInfo | null,
-) =>
-  left?.path === right?.path &&
-  left?.mimeType === right?.mimeType &&
-  left?.source === right?.source &&
-  left?.mtimeMs === right?.mtimeMs;
-
 const getProjectIconUrl = (projectPath: string, iconPath: string) =>
   `/api/project-file-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(iconPath)}`;
 
-export const normalizeProjectIconResponse = (
-  value: unknown,
-): ProjectIconInfo | null => {
-  if (!value || typeof value !== "object") {
-    return null;
+const getProjectIconCacheKey = (projectPath: string, icon: ProjectIconInfo) =>
+  `${projectPath}\x00${icon.path}\x00${icon.mtimeMs}`;
+
+// Object URLs are cached across mounts so a tab icon that is swapped out for
+// a status dot and back again renders synchronously instead of flashing while
+// it refetches the image.
+const projectIconObjectUrls = new Map<string, string>();
+const projectIconLoads = new Map<string, Promise<string>>();
+
+const loadProjectIcon = (projectPath: string, icon: ProjectIconInfo) => {
+  const cacheKey = getProjectIconCacheKey(projectPath, icon);
+  const cachedUrl = projectIconObjectUrls.get(cacheKey);
+  if (cachedUrl) {
+    return Promise.resolve(cachedUrl);
   }
 
-  const icon = value as Partial<ProjectIconInfo>;
-  const iconPath = typeof icon.path === "string" ? icon.path.trim() : "";
-  if (!iconPath) {
-    return null;
+  const pendingLoad = projectIconLoads.get(cacheKey);
+  if (pendingLoad) {
+    return pendingLoad;
   }
 
-  return {
-    mimeType:
-      typeof icon.mimeType === "string" && icon.mimeType.trim()
-        ? icon.mimeType.trim()
-        : "application/octet-stream",
-    mtimeMs: typeof icon.mtimeMs === "number" ? icon.mtimeMs : 0,
-    path: iconPath,
-    source:
-      typeof icon.source === "string" && icon.source.trim()
-        ? icon.source.trim()
-        : "unknown",
-  };
+  const load = fetch(getProjectIconUrl(projectPath, icon.path))
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Unable to load project icon: ${response.status}`);
+      }
+
+      return response.blob();
+    })
+    .then((blob) => {
+      const objectUrl = URL.createObjectURL(blob);
+      projectIconObjectUrls.set(cacheKey, objectUrl);
+      return objectUrl;
+    })
+    .finally(() => {
+      projectIconLoads.delete(cacheKey);
+    });
+
+  projectIconLoads.set(cacheKey, load);
+  return load;
 };
 
-export const ProjectTabIcon = ({
+export function ProjectTabIcon({
   fallback = null,
   icon,
   projectName,
@@ -50,57 +56,45 @@ export const ProjectTabIcon = ({
   icon: ProjectIconInfo | null;
   projectName: string;
   projectPath: string;
-}) => {
-  const [failed, setFailed] = useState(false);
-  const [src, setSrc] = useState<string | null>(null);
+}) {
+  const cacheKey = icon ? getProjectIconCacheKey(projectPath, icon) : null;
+  const cachedSrc = cacheKey
+    ? (projectIconObjectUrls.get(cacheKey) ?? null)
+    : null;
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; src: string } | null>(
+    null,
+  );
 
   useEffect(() => {
-    setFailed(false);
-    setSrc(null);
-
-    if (!icon) {
+    if (!icon || cachedSrc) {
       return;
     }
 
-    const abortController = new AbortController();
-    let objectUrl: string | null = null;
+    let cancelled = false;
+    const key = getProjectIconCacheKey(projectPath, icon);
 
-    void fetch(getProjectIconUrl(projectPath, icon.path), {
-      signal: abortController.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Unable to load project icon: ${response.status}`);
+    void loadProjectIcon(projectPath, icon)
+      .then((src) => {
+        if (!cancelled) {
+          setLoaded({ key, src });
         }
-
-        return response.blob();
       })
-      .then((blob) => {
-        if (abortController.signal.aborted) {
-          return;
-        }
-
-        objectUrl = URL.createObjectURL(blob);
-        setSrc(objectUrl);
-      })
-      .catch((error: unknown) => {
-        if (
-          !abortController.signal.aborted &&
-          !(error instanceof DOMException && error.name === "AbortError")
-        ) {
-          setFailed(true);
+      .catch(() => {
+        if (!cancelled) {
+          setFailedKey(key);
         }
       });
 
     return () => {
-      abortController.abort();
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      cancelled = true;
     };
-  }, [icon, projectPath]);
+  }, [cachedSrc, icon, projectPath]);
 
-  if (!icon || failed || !src) {
+  const src =
+    cachedSrc ?? (loaded && loaded.key === cacheKey ? loaded.src : null);
+
+  if (!icon || !src || failedKey === cacheKey) {
     return fallback;
   }
 
@@ -110,9 +104,9 @@ export const ProjectTabIcon = ({
       aria-hidden="true"
       className="size-4 shrink-0 rounded-sm object-contain"
       draggable={false}
-      onError={() => setFailed(true)}
+      onError={() => setFailedKey(cacheKey)}
       src={src}
       title={projectName}
     />
   );
-};
+}

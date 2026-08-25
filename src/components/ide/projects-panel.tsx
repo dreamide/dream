@@ -28,6 +28,7 @@ import type {
 } from "@/types/ide";
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
+import { LoadingState } from "./loading-state";
 
 const formatLastActiveTime = (
   value: string,
@@ -456,9 +457,9 @@ export const ProjectSidebar = ({
                   chat.id !== activeChatId;
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
                 const statusIndicator = isStreaming ? (
-                  <StatusDot
+                  <LoadingState
                     aria-label={projectsT("chatStreaming")}
-                    color="blue"
+                    compact
                   />
                 ) : isCompleted ? (
                   <StatusDot
@@ -472,10 +473,10 @@ export const ProjectSidebar = ({
                 return (
                   <div
                     className={cn(
-                      "group relative min-w-0 rounded-md border",
-                      isActiveChat
-                        ? "border-border bg-surface-50 dark:bg-surface-900"
-                        : "border-transparent hover:bg-surface-50 dark:hover:bg-surface-900",
+                      "group relative min-w-0 rounded-md border border-transparent",
+                      isActiveChat || isOpenChat || isStreaming
+                        ? "bg-muted"
+                        : "hover:bg-surface-50 dark:hover:bg-surface-900",
                     )}
                     key={chat.id}
                   >
@@ -497,12 +498,7 @@ export const ProjectSidebar = ({
                           </div>
                         ) : null}
                         <div className="min-w-0 flex-1">
-                          <p
-                            className={cn(
-                              "min-w-0 truncate text-sm leading-5",
-                              isOpenChat && "text-muted-foreground",
-                            )}
-                          >
+                          <p className="min-w-0 truncate text-sm leading-5">
                             {chat.title}
                           </p>
                         </div>

@@ -29,12 +29,12 @@ import {
   ProjectEditDialog,
   type ProjectEditTarget,
 } from "./project-edit-dialog";
-import { ProjectTabFrame } from "./project-tab-frame";
 import {
   areProjectIconsEqual,
   normalizeProjectIconResponse,
-  ProjectTabIcon,
-} from "./project-tab-icon";
+} from "./project-icon";
+import { ProjectTabFrame } from "./project-tab-frame";
+import { ProjectTabIcon } from "./project-tab-icon";
 import { getAwaitingAnswerProjectIds } from "./project-tab-status";
 
 const PROJECT_TABS_END_DRAG_SPACE = 48;
