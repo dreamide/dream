@@ -90,6 +90,7 @@ export const supplementalMessages = {
       revertNamedFile: "Änderungen an {path} rückgängig machen",
       selectFileToOpen:
         "Wählen Sie eine Datei aus der Baumstruktur aus, um sie hier zu öffnen.",
+      openFiles: "Geöffnete Dateien",
       workingTreeClean: "Der Arbeitsbaum ist sauber.",
     },
     projects: {
@@ -457,6 +458,7 @@ export const supplementalMessages = {
       revertFileChanges: "Revert file changes",
       revertNamedFile: "Revert changes to {path}",
       selectFileToOpen: "Select a file from the tree to open it here.",
+      openFiles: "Open files",
       workingTreeClean: "Working tree is clean.",
     },
     projects: {
@@ -817,6 +819,7 @@ export const supplementalMessages = {
       revertFileChanges: "Revertir cambios de archivo",
       revertNamedFile: "Revertir cambios a {path}",
       selectFileToOpen: "Seleccione un archivo del árbol para abrirlo aquí.",
+      openFiles: "Archivos abiertos",
       workingTreeClean: "El árbol de trabajo está limpio.",
     },
     projects: {
@@ -1185,6 +1188,7 @@ export const supplementalMessages = {
       revertNamedFile: "Annuler les modifications apportées à {path}",
       selectFileToOpen:
         "Sélectionnez un fichier dans l'arborescence pour l'ouvrir ici.",
+      openFiles: "Fichiers ouverts",
       workingTreeClean: "L'arborescence de travail est propre.",
     },
     projects: {
@@ -1551,6 +1555,7 @@ export const supplementalMessages = {
       revertFileChanges: "Annulla le modifiche apportate al file",
       revertNamedFile: "Ripristina le modifiche a {path}",
       selectFileToOpen: "Seleziona un file dall'albero per aprirlo qui.",
+      openFiles: "File aperti",
       workingTreeClean: "L'albero di lavoro è pulito.",
     },
     projects: {
@@ -1916,6 +1921,7 @@ export const supplementalMessages = {
       revertFileChanges: "ファイルの変更を元に戻す",
       revertNamedFile: "{path} への変更を元に戻す",
       selectFileToOpen: "ツリーからファイルを選択して、ここで開きます。",
+      openFiles: "開いているファイル",
       workingTreeClean: "作業ツリーはクリーンです。",
     },
     projects: {
@@ -2277,6 +2283,7 @@ export const supplementalMessages = {
       revertFileChanges: "파일 변경사항 되돌리기",
       revertNamedFile: "변경 사항을 {path}(으)로 되돌립니다.",
       selectFileToOpen: "트리에서 파일을 선택하여 여기에서 엽니다.",
+      openFiles: "열린 파일",
       workingTreeClean: "작업 트리가 깨끗합니다.",
     },
     projects: {
@@ -2636,6 +2643,7 @@ export const supplementalMessages = {
       revertFileChanges: "Reverter alterações no arquivo",
       revertNamedFile: "Reverter alterações para {path}",
       selectFileToOpen: "Selecione um arquivo da árvore para abri-lo aqui.",
+      openFiles: "Arquivos abertos",
       workingTreeClean: "A árvore de trabalho está limpa.",
     },
     projects: {
@@ -3000,6 +3008,7 @@ export const supplementalMessages = {
       revertFileChanges: "Hoàn nguyên các thay đổi của tệp",
       revertNamedFile: "Hoàn nguyên các thay đổi đối với {path}",
       selectFileToOpen: "Chọn một tệp từ cây để mở nó ở đây.",
+      openFiles: "Tệp đang mở",
       workingTreeClean: "Cây đang làm việc sạch sẽ.",
     },
     projects: {
@@ -3355,6 +3364,7 @@ export const supplementalMessages = {
       revertFileChanges: "恢复文件更改",
       revertNamedFile: "恢复对 {path} 的更改",
       selectFileToOpen: "从树中选择一个文件以在此处打开它。",
+      openFiles: "打开的文件",
       workingTreeClean: "工作树是干净的。",
     },
     projects: {
@@ -3708,6 +3718,7 @@ export const supplementalMessages = {
       revertFileChanges: "恢復檔案更改",
       revertNamedFile: "恢復對 {path} 的更改",
       selectFileToOpen: "從樹中選擇一個檔案以在此處開啟它。",
+      openFiles: "開啟的檔案",
       workingTreeClean: "工作樹是乾淨的。",
     },
     projects: {

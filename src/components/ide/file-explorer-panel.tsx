@@ -28,12 +28,8 @@ import {
 } from "react";
 import type { BundledLanguage } from "shiki";
 import {
-  CodeBlockActions,
   CodeBlockContainer,
   CodeBlockCopyButton,
-  CodeBlockFilename,
-  CodeBlockHeader,
-  CodeBlockTitle,
 } from "@/components/ai-elements/code-block";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +46,11 @@ import {
   fileBuffersReducer,
   getFileBufferKey,
 } from "./file-buffers";
+import {
+  type FileTabsState,
+  fileTabsReducer,
+  getProjectFileTabs,
+} from "./file-tabs";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { useMaterialFileTreeIcons } from "./material-file-icon";
@@ -61,6 +62,7 @@ import {
 } from "./project-directory-loader";
 import { ProjectFileSearchIndex } from "./project-file-search-index";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
+import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const FILE_TREE_MIN_WIDTH_PX = 250;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
@@ -109,6 +111,9 @@ interface ProjectFileTreeProps {
   refreshVersion: number;
   selectedFilePath: string | null;
   onSelectFile: (path: string | null) => void;
+  // Fired on double-click / Enter. Mirrors VS Code: a single click previews
+  // the file in a reusable tab, while this promotes it to a persistent tab.
+  onPinFile: (path: string) => void;
 }
 
 const IMAGE_EXTENSIONS = new Set([
@@ -238,6 +243,7 @@ const fileTreeStyle = {
 
 const ProjectFileTree = ({
   active,
+  onPinFile,
   onSelectedFileMissing,
   onSelectFile,
   projectPath,
@@ -247,6 +253,7 @@ const ProjectFileTree = ({
   const panelsT = useTranslations("panels");
   const knownFilesRef = useRef<ReadonlySet<string>>(new Set());
   const onSelectFileRef = useRef(onSelectFile);
+  const onPinFileRef = useRef(onPinFile);
   const onSelectedFileMissingRef = useRef(onSelectedFileMissing);
   const selectedFilePathRef = useRef(selectedFilePath);
   const materialFileTreeIcons = useMaterialFileTreeIcons();
@@ -264,6 +271,10 @@ const ProjectFileTree = ({
   useEffect(() => {
     onSelectFileRef.current = onSelectFile;
   }, [onSelectFile]);
+
+  useEffect(() => {
+    onPinFileRef.current = onPinFile;
+  }, [onPinFile]);
 
   useEffect(() => {
     onSelectedFileMissingRef.current = onSelectedFileMissing;
@@ -590,6 +601,13 @@ const ProjectFileTree = ({
     }
   }, [model]);
 
+  const pinSelectedFile = useCallback(() => {
+    const selectedPath = model.getSelectedPaths()[0] ?? null;
+    if (selectedPath && knownFilesRef.current.has(selectedPath)) {
+      onPinFileRef.current(selectedPath);
+    }
+  }, [model]);
+
   const scheduleSelectionSync = useCallback(() => {
     if (selectionSyncFrameRef.current !== null) {
       window.cancelAnimationFrame(selectionSyncFrameRef.current);
@@ -684,7 +702,16 @@ const ProjectFileTree = ({
       ref={wrapperRef}
       className="flex h-full flex-col"
       onClickCapture={scheduleSelectionSync}
-      onKeyUpCapture={scheduleSelectionSync}
+      onDoubleClickCapture={pinSelectedFile}
+      onKeyUpCapture={(event) => {
+        scheduleSelectionSync();
+        if (
+          event.key === "Enter" &&
+          !(event.target instanceof HTMLInputElement)
+        ) {
+          pinSelectedFile();
+        }
+      }}
     >
       <div className="shrink-0 px-3 pt-3 pb-2">
         <div className="relative">
@@ -779,9 +806,10 @@ const FileExplorerPanelImpl = ({
     Record<string, number>
   >({});
 
-  const [selectedFileByProject, setSelectedFileByProject] = useState<
-    Record<string, string | null>
-  >({});
+  const [fileTabs, dispatchFileTab] = useReducer(
+    fileTabsReducer,
+    {} as FileTabsState,
+  );
   const [fileBuffers, dispatchFileBuffer] = useReducer(
     fileBuffersReducer,
     {} as FileBuffersState,
@@ -823,9 +851,8 @@ const FileExplorerPanelImpl = ({
   const fileOpenRequestKey = fileOpenRequest
     ? `${fileOpenRequest.requestId}:${fileOpenRequest.filePath}`
     : "";
-  const selectedFilePath = projectId
-    ? (selectedFileByProject[projectId] ?? null)
-    : null;
+  const projectFileTabs = getProjectFileTabs(fileTabs, projectId);
+  const selectedFilePath = projectFileTabs.activePath;
   const selectedFileBufferKey =
     projectId && selectedFilePath
       ? getFileBufferKey(projectId, selectedFilePath)
@@ -933,10 +960,7 @@ const FileExplorerPanelImpl = ({
       return;
     }
 
-    setSelectedFileByProject((current) => ({
-      ...current,
-      [projectId]: fileOpenRequestPath,
-    }));
+    dispatchFileTab({ type: "preview", projectId, path: fileOpenRequestPath });
     setFileError(null);
   }, [active, fileOpenRequestKey, fileOpenRequestPath, projectId]);
 
@@ -1121,19 +1145,67 @@ const FileExplorerPanelImpl = ({
     uiT,
   ]);
 
+  const resetEditorChrome = useCallback(() => {
+    setFileError(null);
+    setEditorSearchRequest(0);
+    setIsEditorSearchOpen(false);
+  }, []);
+
   const handleSelectFile = useCallback(
     (path: string | null) => {
+      if (!projectId || !path) {
+        return;
+      }
+
+      dispatchFileTab({ type: "preview", projectId, path });
+      resetEditorChrome();
+    },
+    [projectId, resetEditorChrome],
+  );
+
+  const handlePinFile = useCallback(
+    (path: string) => {
       if (!projectId) {
         return;
       }
 
-      setSelectedFileByProject((current) => ({
-        ...current,
-        [projectId]: path,
-      }));
-      setFileError(null);
-      setEditorSearchRequest(0);
-      setIsEditorSearchOpen(false);
+      dispatchFileTab({ type: "pin", projectId, path });
+      resetEditorChrome();
+    },
+    [projectId, resetEditorChrome],
+  );
+
+  const handleActivateTab = useCallback(
+    (path: string) => {
+      if (!projectId) {
+        return;
+      }
+
+      dispatchFileTab({ type: "activate", projectId, path });
+      resetEditorChrome();
+    },
+    [projectId, resetEditorChrome],
+  );
+
+  const handleCloseTab = useCallback(
+    (path: string) => {
+      if (!projectId) {
+        return;
+      }
+
+      dispatchFileTab({ type: "close", projectId, path });
+      resetEditorChrome();
+    },
+    [projectId, resetEditorChrome],
+  );
+
+  const handleReorderTabs = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (!projectId) {
+        return;
+      }
+
+      dispatchFileTab({ type: "reorder", projectId, fromIndex, toIndex });
     },
     [projectId],
   );
@@ -1143,14 +1215,57 @@ const FileExplorerPanelImpl = ({
       if (!projectId) {
         return;
       }
-      setSelectedFileByProject((current) => {
-        if (current[projectId] !== path) {
-          return current;
-        }
-        return { ...current, [projectId]: null };
-      });
+      dispatchFileTab({ type: "close", projectId, path });
     },
     [projectId],
+  );
+
+  // Editing a preview tab promotes it to a persistent tab so the draft can't
+  // be silently swapped out by the next single-click (VS Code behaviour).
+  const activeTabIsPreview = projectFileTabs.tabs.some(
+    (tab) => tab.path === selectedFilePath && !tab.pinned,
+  );
+  const activeBufferIsDirty = Boolean(
+    selectedFileBuffer &&
+      selectedFileBuffer.draftContent !== selectedFileBuffer.diskContent,
+  );
+  useEffect(() => {
+    if (!projectId || !selectedFilePath) {
+      return;
+    }
+    if (activeTabIsPreview && activeBufferIsDirty) {
+      dispatchFileTab({ type: "pin", projectId, path: selectedFilePath });
+    }
+  }, [activeBufferIsDirty, activeTabIsPreview, projectId, selectedFilePath]);
+
+  const fileTabItems = useMemo<StandardTabItem[]>(
+    () =>
+      projectId
+        ? projectFileTabs.tabs.map((tab) => {
+            const buffer = fileBuffers[getFileBufferKey(projectId, tab.path)];
+            const isDirty = Boolean(
+              buffer && buffer.draftContent !== buffer.diskContent,
+            );
+
+            return {
+              id: tab.path,
+              label: tab.path.split("/").pop() ?? tab.path,
+              labelClassName: tab.pinned ? undefined : "italic",
+              leading: isDirty ? (
+                <span
+                  className="size-2 shrink-0 rounded-full bg-amber-500"
+                  title="Unsaved changes"
+                />
+              ) : (
+                <FileIcon
+                  className="shrink-0 text-muted-foreground"
+                  size={12}
+                />
+              ),
+            };
+          })
+        : [],
+    [fileBuffers, projectFileTabs.tabs, projectId],
   );
 
   const handleDiscardChanges = useCallback(() => {
@@ -1363,6 +1478,7 @@ const FileExplorerPanelImpl = ({
           <div className="h-full border-r border-surface-200 dark:border-surface-800 bg-background">
             <ProjectFileTree
               active={active}
+              onPinFile={handlePinFile}
               onSelectedFileMissing={handleSelectedFileMissing}
               onSelectFile={handleSelectFile}
               projectPath={activeProject.path}
@@ -1379,60 +1495,24 @@ const FileExplorerPanelImpl = ({
         />
 
         {/* File content */}
-        <div className="min-w-0 flex-1 overflow-hidden">
-          {!selectedFilePath ? (
-            <div className="h-full p-3">
-              <AppShellPlaceholder message={panelsT("selectFileToOpen")} />
-            </div>
-          ) : selectedFilePreviewMessage ? (
-            <div className="h-full p-3">
-              <AppShellPlaceholder message={selectedFilePreviewMessage} />
-            </div>
-          ) : fileError ? (
-            <div className="p-3">
-              <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
-                {fileError}
-              </div>
-            </div>
-          ) : fileLoading &&
-            (isImageFile(selectedFilePath)
-              ? !selectedImagePreviewUrl
-              : !selectedFileBuffer) ? (
-            <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
-              <Spinner className="size-4" />
-            </div>
-          ) : isImageFile(selectedFilePath) ? (
-            selectedImagePreviewUrl ? (
-              <div className="flex h-full items-center justify-center p-6">
-                <img
-                  alt={selectedFilePath}
-                  className="max-h-full max-w-full object-contain"
-                  src={selectedImagePreviewUrl}
-                />
-              </div>
-            ) : null
-          ) : selectedFileBuffer && selectedFileBufferKey ? (
-            <CodeBlockContainer
-              className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none"
-              language={inferLanguage(selectedFilePath)}
-              onKeyDownCapture={handleEditorKeyDown}
-              style={{ contentVisibility: "visible" }}
-            >
-              <CodeBlockHeader className="min-h-10 shrink-0 border-0 bg-transparent">
-                <CodeBlockTitle className="min-w-0">
-                  <FileIcon className="shrink-0" size={14} />
-                  <CodeBlockFilename className="truncate">
-                    {selectedFilePath}
-                  </CodeBlockFilename>
-                  {selectedFileBuffer.draftContent !==
-                  selectedFileBuffer.diskContent ? (
-                    <span
-                      className="size-2 shrink-0 rounded-full bg-amber-500"
-                      title="Unsaved changes"
-                    />
-                  ) : null}
-                </CodeBlockTitle>
-                <CodeBlockActions className="shrink-0">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {fileTabItems.length > 0 ? (
+            <div className="flex shrink-0 items-center border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-2 py-1">
+              <StandardTabs
+                activeId={selectedFilePath}
+                ariaLabel={panelsT("openFiles")}
+                canClose={true}
+                className="flex-1"
+                items={fileTabItems}
+                onActivate={handleActivateTab}
+                onClose={handleCloseTab}
+                onReorder={handleReorderTabs}
+              />
+              {selectedFilePath &&
+              selectedFileBuffer &&
+              selectedFileBufferKey &&
+              !isImageFile(selectedFilePath) ? (
+                <div className="ml-2 flex shrink-0 items-center gap-1">
                   {selectedFileBuffer.status === "dirty" ||
                   selectedFileBuffer.status === "conflict" ? (
                     <Button
@@ -1492,75 +1572,117 @@ const FileExplorerPanelImpl = ({
                       <Save className="size-3.5" />
                     )}
                   </Button>
-                </CodeBlockActions>
-              </CodeBlockHeader>
-              <div className="flex min-h-0 flex-1 flex-col">
-                {selectedFileMetadata?.readOnlyReason ? (
-                  <div className="shrink-0 border-amber-500/30 border-b bg-amber-500/10 px-3 py-2 text-amber-800 text-xs dark:text-amber-200">
-                    {selectedFileMetadata.readOnlyReason}
-                  </div>
-                ) : null}
-                {selectedFileBuffer.error ? (
-                  <div className="flex shrink-0 items-center justify-between gap-3 border-destructive-border border-b bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
-                    <div>
-                      <div>{selectedFileBuffer.error}</div>
-                      {selectedFileBuffer.status === "conflict" ? (
-                        <div className="mt-1 font-medium">
-                          Reloading from disk will replace your local draft.
-                        </div>
-                      ) : null}
-                    </div>
-                    {selectedFileBuffer.status === "conflict" ? (
-                      <Button
-                        className="shrink-0"
-                        onClick={handleReloadFromDisk}
-                        size="xs"
-                        type="button"
-                        variant="outline"
-                      >
-                        Reload from disk
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="min-h-0 flex-1">
-                  <Suspense
-                    fallback={
-                      <div className="flex h-full items-center justify-center">
-                        <Spinner className="size-4 text-muted-foreground" />
-                      </div>
-                    }
-                  >
-                    <FileCodeEditor
-                      disabled={
-                        selectedFileBuffer.status === "saving" ||
-                        !selectedFileMetadata?.writable
-                      }
-                      filePath={selectedFilePath}
-                      key={selectedFileBufferKey}
-                      lineEnding={
-                        selectedFileMetadata?.lineEnding ??
-                        (selectedFileBuffer.diskContent.includes("\r\n")
-                          ? "crlf"
-                          : "lf")
-                      }
-                      onChange={(content) =>
-                        dispatchFileBuffer({
-                          type: "edit",
-                          key: selectedFileBufferKey,
-                          content,
-                        })
-                      }
-                      onSearchOpenChange={setIsEditorSearchOpen}
-                      searchRequest={editorSearchRequest}
-                      value={selectedFileBuffer.draftContent}
-                      wordWrap={wordWrapEnabled}
-                    />
-                  </Suspense>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {!selectedFilePath ? (
+              <div className="h-full p-3">
+                <AppShellPlaceholder message={panelsT("selectFileToOpen")} />
+              </div>
+            ) : selectedFilePreviewMessage ? (
+              <div className="h-full p-3">
+                <AppShellPlaceholder message={selectedFilePreviewMessage} />
+              </div>
+            ) : fileError ? (
+              <div className="p-3">
+                <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-sm">
+                  {fileError}
                 </div>
               </div>
-            </CodeBlockContainer>
-          ) : null}
+            ) : fileLoading &&
+              (isImageFile(selectedFilePath)
+                ? !selectedImagePreviewUrl
+                : !selectedFileBuffer) ? (
+              <div className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+                <Spinner className="size-4" />
+              </div>
+            ) : isImageFile(selectedFilePath) ? (
+              selectedImagePreviewUrl ? (
+                <div className="flex h-full items-center justify-center p-6">
+                  <img
+                    alt={selectedFilePath}
+                    className="max-h-full max-w-full object-contain"
+                    src={selectedImagePreviewUrl}
+                  />
+                </div>
+              ) : null
+            ) : selectedFileBuffer && selectedFileBufferKey ? (
+              <CodeBlockContainer
+                className="flex h-full max-h-full flex-col overflow-hidden rounded-none border-0 shadow-none"
+                language={inferLanguage(selectedFilePath)}
+                onKeyDownCapture={handleEditorKeyDown}
+                style={{ contentVisibility: "visible" }}
+              >
+                <div className="flex min-h-0 flex-1 flex-col">
+                  {selectedFileMetadata?.readOnlyReason ? (
+                    <div className="shrink-0 border-amber-500/30 border-b bg-amber-500/10 px-3 py-2 text-amber-800 text-xs dark:text-amber-200">
+                      {selectedFileMetadata.readOnlyReason}
+                    </div>
+                  ) : null}
+                  {selectedFileBuffer.error ? (
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-destructive-border border-b bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
+                      <div>
+                        <div>{selectedFileBuffer.error}</div>
+                        {selectedFileBuffer.status === "conflict" ? (
+                          <div className="mt-1 font-medium">
+                            Reloading from disk will replace your local draft.
+                          </div>
+                        ) : null}
+                      </div>
+                      {selectedFileBuffer.status === "conflict" ? (
+                        <Button
+                          className="shrink-0"
+                          onClick={handleReloadFromDisk}
+                          size="xs"
+                          type="button"
+                          variant="outline"
+                        >
+                          Reload from disk
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="min-h-0 flex-1">
+                    <Suspense
+                      fallback={
+                        <div className="flex h-full items-center justify-center">
+                          <Spinner className="size-4 text-muted-foreground" />
+                        </div>
+                      }
+                    >
+                      <FileCodeEditor
+                        disabled={
+                          selectedFileBuffer.status === "saving" ||
+                          !selectedFileMetadata?.writable
+                        }
+                        filePath={selectedFilePath}
+                        key={selectedFileBufferKey}
+                        lineEnding={
+                          selectedFileMetadata?.lineEnding ??
+                          (selectedFileBuffer.diskContent.includes("\r\n")
+                            ? "crlf"
+                            : "lf")
+                        }
+                        onChange={(content) =>
+                          dispatchFileBuffer({
+                            type: "edit",
+                            key: selectedFileBufferKey,
+                            content,
+                          })
+                        }
+                        onSearchOpenChange={setIsEditorSearchOpen}
+                        searchRequest={editorSearchRequest}
+                        value={selectedFileBuffer.draftContent}
+                        wordWrap={wordWrapEnabled}
+                      />
+                    </Suspense>
+                  </div>
+                </div>
+              </CodeBlockContainer>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
