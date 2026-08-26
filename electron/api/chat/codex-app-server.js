@@ -1,18 +1,9 @@
-import { spawn } from "node:child_process";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import {
   getProjectGitDiff,
   listProjectGitChanges,
 } from "../project-git-service.js";
-import { readCodexChatGptAuthTokens } from "../providers/codex-auth.js";
-import {
-  findRateLimitsObject,
-  storeProviderUsageLimitSnapshot,
-} from "../providers/usage-limits.js";
-import {
-  getCodexCliSpawnErrorMessage,
-  resolveCodexCliLaunch,
-} from "./codex-cli-launch.js";
+import { getCodexAppServerClient } from "./codex-app-server-client.js";
 import {
   chooseCodexApprovalDecision,
   codexSessionsByChatId,
@@ -477,7 +468,6 @@ export const streamCodexAppServerResponse = ({
         : "Codex app-server request failed.",
     execute: ({ writer }) =>
       new Promise((resolve, reject) => {
-        const pendingRequests = new Map();
         const commandOutputs = new Map();
         const startedTextParts = new Set();
         const startedToolCalls = new Set();
@@ -485,29 +475,22 @@ export const streamCodexAppServerResponse = ({
         const subagentThreadsById = new Map();
         const subagentToolCallIdsByThreadId = new Map();
         const pendingToolCompletions = new Set();
-        let nextRequestId = 1;
-        let stdoutBuffer = "";
-        let stderrBuffer = "";
         let finished = false;
         let preparedAttachments = null;
         let rootThreadId = null;
+        let rootTurnId = null;
         let persistedThreadId = null;
-        let child;
+        let appServerClient = null;
+        let turnStartPromise = null;
+        let unregisterThread = null;
 
         const finish = (callback) => {
           if (finished) return;
           finished = true;
           abortSignal?.removeEventListener("abort", handleAbort);
-          if (child && !child.killed) {
-            child.kill("SIGTERM");
-          }
+          unregisterThread?.();
+          unregisterThread = null;
           preparedAttachments?.cleanup?.();
-          for (const [, pending] of pendingRequests) {
-            pending.reject(
-              new Error("Codex app-server request was cancelled."),
-            );
-          }
-          pendingRequests.clear();
           callback();
         };
 
@@ -558,32 +541,12 @@ export const streamCodexAppServerResponse = ({
           }
         };
 
-        const sendJson = (message) => {
-          child?.stdin.write(`${JSON.stringify(message)}\n`);
-        };
-
-        const sendRequest = (method, params) => {
-          const id = nextRequestId++;
-          sendJson({ id, jsonrpc: "2.0", method, params });
-
-          return new Promise((requestResolve, requestReject) => {
-            pendingRequests.set(id, {
-              reject: requestReject,
-              resolve: requestResolve,
-            });
-          });
-        };
-
         const sendResponse = (id, result) => {
-          sendJson({ id, jsonrpc: "2.0", result });
+          appServerClient?.sendResponse(id, result);
         };
 
         const sendErrorResponse = (id, message) => {
-          sendJson({
-            error: { code: -32_000, message },
-            id,
-            jsonrpc: "2.0",
-          });
+          appServerClient?.sendErrorResponse(id, message);
         };
 
         const ensureTextStarted = (id, type = "text") => {
@@ -829,17 +792,6 @@ export const streamCodexAppServerResponse = ({
           const { id, method, params } = message;
 
           try {
-            if (method === "account/chatgptAuthTokens/refresh") {
-              const tokens = await readCodexChatGptAuthTokens();
-              if (!tokens) {
-                sendErrorResponse(id, "Codex login not found.");
-                return;
-              }
-
-              sendResponse(id, tokens);
-              return;
-            }
-
             if (method === "item/commandExecution/requestApproval") {
               const toolCallId = params?.itemId ?? `codex-command-${id}`;
               const approvalId = `codex:command:${params?.approvalId ?? toolCallId}`;
@@ -1067,6 +1019,15 @@ export const streamCodexAppServerResponse = ({
             return;
           }
 
+          if (
+            method === "turn/started" &&
+            params?.threadId === rootThreadId &&
+            params?.turn?.id
+          ) {
+            rootTurnId = params.turn.id;
+            return;
+          }
+
           if (method === "item/started" && params?.item) {
             const item = params.item;
             if (
@@ -1171,15 +1132,12 @@ export const streamCodexAppServerResponse = ({
 
             const turn = params.turn;
             if (turn.status === "failed") {
-              finish(() =>
-                reject(
-                  new Error(
-                    turn.error?.message ||
-                      turn.error?.additionalDetails ||
-                      "Codex turn failed.",
-                  ),
-                ),
+              const turnError = new Error(
+                turn.error?.message ||
+                  turn.error?.additionalDetails ||
+                  "Codex turn failed.",
               );
+              finish(() => reject(turnError));
               return;
             }
 
@@ -1209,25 +1167,6 @@ export const streamCodexAppServerResponse = ({
             });
           }
 
-          const rateLimits = findRateLimitsObject(message);
-          if (rateLimits) {
-            storeProviderUsageLimitSnapshot("openai", rateLimits, "codex");
-          }
-
-          if (Object.hasOwn(message, "id") && pendingRequests.has(message.id)) {
-            const pending = pendingRequests.get(message.id);
-            pendingRequests.delete(message.id);
-
-            if (message.error) {
-              pending.reject(
-                new Error(message.error.message || "Codex app-server error."),
-              );
-            } else {
-              pending.resolve(message.result);
-            }
-            return;
-          }
-
           if (Object.hasOwn(message, "id") && message.method) {
             void handleServerRequest(message);
             return;
@@ -1236,78 +1175,53 @@ export const streamCodexAppServerResponse = ({
           handleNotification(message);
         };
 
-        const handleStdoutChunk = (chunk) => {
-          stdoutBuffer += chunk.toString();
-          const lines = stdoutBuffer.split(/\r?\n/);
-          stdoutBuffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) {
-              continue;
-            }
-
-            try {
-              handleMessage(JSON.parse(trimmed));
-            } catch {
-              stderrBuffer += `${trimmed}\n`;
-            }
-          }
-        };
-
         const handleAbort = () => {
-          child?.kill("SIGTERM");
-          finish(resolve);
+          const interruptRequest = (async () => {
+            if (!rootTurnId && turnStartPromise) {
+              try {
+                const turnResponse = await turnStartPromise;
+                rootTurnId = turnResponse?.turn?.id ?? null;
+              } catch {
+                return;
+              }
+            }
+            if (appServerClient && rootThreadId && rootTurnId) {
+              await appServerClient.sendRequest("turn/interrupt", {
+                threadId: rootThreadId,
+                turnId: rootTurnId,
+              });
+            }
+          })();
+          void interruptRequest
+            .catch(() => {
+              // The turn may have completed while cancellation was in flight.
+            })
+            .finally(() => finish(resolve));
         };
 
-        abortSignal?.addEventListener("abort", handleAbort, { once: true });
+        if (abortSignal?.aborted) {
+          handleAbort();
+          return;
+        } else {
+          abortSignal?.addEventListener("abort", handleAbort, { once: true });
+        }
         writer.write({
           messageMetadata: responseMessageMetadata,
           type: "message-metadata",
         });
 
-        void resolveCodexCliLaunch()
-          .then(async (launch) => {
-            child = spawn(
-              launch.command,
-              [
-                ...launch.argsPrefix,
-                ...(modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : []),
-                "--enable",
-                "default_mode_request_user_input",
-                "app-server",
-              ],
-              {
-                cwd: projectPath,
-                env: process.env,
-                shell: launch.shell ?? false,
-                stdio: ["pipe", "pipe", "pipe"],
-              },
-            );
-
-            child.stdout.on("data", handleStdoutChunk);
-            child.stderr.on("data", (chunk) => {
-              stderrBuffer += chunk.toString();
-            });
-            child.on("error", (error) => {
-              finish(() =>
-                reject(new Error(getCodexCliSpawnErrorMessage(error))),
-              );
-            });
-            child.on("close", (code) => {
-              if (finished) {
-                return;
-              }
-
-              const detail =
-                stderrBuffer.trim() ||
-                `Codex app-server exited with code ${code}.`;
-              finish(() => reject(new Error(detail)));
-            });
-
+        void getCodexAppServerClient()
+          .then(async (client) => {
+            appServerClient = client;
+            if (finished) {
+              return;
+            }
             preparedAttachments = await prepareCodexPromptAttachments(
               getLatestUserMessage(messages),
             );
+            if (finished) {
+              return;
+            }
             const fullPrompt = buildCodexAppServerConversationPrompt({
               currentTurnAttachments: preparedAttachments?.promptText ?? null,
               currentTurnProjectReferences: projectReferencesPrompt,
@@ -1323,14 +1237,8 @@ export const streamCodexAppServerResponse = ({
             const sandbox = getCodexAppSandboxMode(codexPermissionMode);
             const approvalPolicy =
               getCodexAppApprovalPolicy(codexPermissionMode);
+            const serviceTier = modelSpeed === "fast" ? "fast" : null;
 
-            await sendRequest("initialize", {
-              capabilities: {
-                experimentalApi: true,
-                requestAttestation: false,
-              },
-              clientInfo: { name: "Dream", version: "0.1.0" },
-            });
             const shouldResume = shouldResumeProviderSession({
               model,
               modelSpeed,
@@ -1344,40 +1252,71 @@ export const streamCodexAppServerResponse = ({
             let threadResponse = null;
 
             if (shouldResume) {
-              try {
-                threadResponse = await sendRequest("thread/resume", {
-                  approvalPolicy,
-                  approvalsReviewer: "user",
-                  baseInstructions: systemPrompt,
-                  config: null,
-                  cwd: projectPath,
-                  excludeTurns: true,
-                  model,
-                  modelProvider: "openai",
-                  sandbox,
-                  threadId: remoteConversationId,
-                });
+              if (client.hasThread(remoteConversationId)) {
+                threadResponse = { thread: { id: remoteConversationId } };
                 resumed = true;
-              } catch (error) {
-                console.warn(
-                  "[codex app-server] Stored thread could not be resumed; starting a new thread.",
-                  error instanceof Error ? error.message : error,
-                );
+              } else {
+                let restoredPersistedThread = false;
+                let forkedPersistedThread = false;
+                try {
+                  await client.sendRequest("thread/unarchive", {
+                    threadId: remoteConversationId,
+                  });
+                  restoredPersistedThread = true;
+                } catch {
+                  // The id may belong to an ephemeral thread from an old process.
+                }
+                try {
+                  threadResponse = await client.sendRequest("thread/fork", {
+                    approvalPolicy,
+                    approvalsReviewer: "user",
+                    baseInstructions: systemPrompt,
+                    config: null,
+                    cwd: projectPath,
+                    ephemeral: true,
+                    model,
+                    modelProvider: "openai",
+                    sandbox,
+                    serviceTier,
+                    threadId: remoteConversationId,
+                    threadSource: "dream",
+                  });
+                  resumed = true;
+                  forkedPersistedThread = true;
+                } catch (error) {
+                  console.warn(
+                    "[codex app-server] Dream thread could not be restored; starting a new thread.",
+                    error instanceof Error ? error.message : error,
+                  );
+                } finally {
+                  if (restoredPersistedThread || forkedPersistedThread) {
+                    try {
+                      await client.sendRequest("thread/archive", {
+                        threadId: remoteConversationId,
+                      });
+                    } catch {
+                      // Keep migration best-effort; the new thread is ephemeral.
+                    }
+                  }
+                }
               }
             }
 
             if (!threadResponse) {
-              threadResponse = await sendRequest("thread/start", {
+              threadResponse = await client.sendRequest("thread/start", {
                 approvalPolicy,
                 approvalsReviewer: "user",
                 baseInstructions: systemPrompt,
                 config: null,
                 cwd: projectPath,
-                ephemeral: false,
+                ephemeral: true,
                 experimentalRawEvents: false,
                 model,
                 modelProvider: "openai",
                 sandbox,
+                serviceName: "Dream",
+                serviceTier,
+                threadSource: "dream",
               });
             }
             const threadId = threadResponse?.thread?.id;
@@ -1385,9 +1324,18 @@ export const streamCodexAppServerResponse = ({
               throw new Error("Codex app-server did not return a thread id.");
             }
             rootThreadId = threadId;
+            unregisterThread = client.registerThread(threadId, {
+              onDisconnect: (error) => {
+                finish(() => reject(error));
+              },
+              onMessage: handleMessage,
+            });
             writeSessionMetadata(threadId);
+            if (finished) {
+              return;
+            }
 
-            await sendRequest("turn/start", {
+            turnStartPromise = client.sendRequest("turn/start", {
               approvalPolicy,
               approvalsReviewer: "user",
               ...(reasoningEffort
@@ -1405,19 +1353,19 @@ export const streamCodexAppServerResponse = ({
                 codexPermissionMode,
                 projectPath,
               }),
+              serviceTier,
               threadId,
             });
+            const turnResponse = await turnStartPromise;
+            rootTurnId = turnResponse?.turn?.id ?? rootTurnId;
           })
           .catch((error) => {
-            finish(() =>
-              reject(
-                new Error(
-                  error instanceof Error
-                    ? error.message
-                    : "Codex app-server request failed.",
-                ),
-              ),
+            const appServerError = new Error(
+              error instanceof Error
+                ? error.message
+                : "Codex app-server request failed.",
             );
+            finish(() => reject(appServerError));
           });
       }),
   });

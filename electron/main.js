@@ -14,7 +14,7 @@ import {
   WebContentsView,
 } from "electron";
 import getPort from "get-port";
-
+import { stopCodexAppServer } from "./api/chat/codex-app-server-client.js";
 import {
   configureApplicationMenu,
   toggleWebContentsDevToolsDetached,
@@ -829,6 +829,7 @@ app.on("before-quit", (event) => {
 
   Promise.resolve()
     .then(async () => {
+      await stopCodexAppServer();
       await processSessionManager.stopAllProcesses();
       await rendererServerManager?.stop();
       await stateSaveQueue?.flushAndClose();
