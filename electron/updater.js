@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import electronUpdater from "electron-updater";
@@ -6,6 +6,7 @@ import electronUpdater from "electron-updater";
 const require = createRequire(import.meta.url);
 const updaterRequire = createRequire(require.resolve("electron-updater"));
 const updaterSemver = updaterRequire("semver");
+const packageJson = require("../package.json");
 
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const INITIAL_UPDATE_CHECK_DELAY_MS = 5000;
@@ -39,44 +40,18 @@ function getErrorMessage(error) {
   return "Update check failed.";
 }
 
-function getUpdateFeedUrl() {
-  const url = process.env.DREAM_UPDATE_FEED_URL?.trim();
+function getGithubPublishConfig() {
+  const publish = packageJson.build?.publish;
+  const entries = Array.isArray(publish) ? publish : publish ? [publish] : [];
+  const github = entries.find((entry) => entry?.provider === "github");
 
-  return url ? url.replace(/\/+$/, "") : null;
-}
-
-function parseScalar(value) {
-  const trimmed = value.trim();
-  if (
-    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
-    (trimmed.startsWith('"') && trimmed.endsWith('"'))
-  ) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function getPackagedUpdateFeedUrl() {
-  if (!process.resourcesPath) {
-    return null;
-  }
-
-  try {
-    const config = readFileSync(
-      path.join(process.resourcesPath, "app-update.yml"),
-      "utf8",
+  if (!github?.owner || !github?.repo) {
+    throw new Error(
+      'package.json build.publish must include a GitHub entry with "owner" and "repo".',
     );
-    const match = config.match(/^\s*url:\s*(.+?)\s*$/m);
-    const url = match ? parseScalar(match[1]).trim() : null;
-
-    return url ? url.replace(/\/+$/, "") : null;
-  } catch {
-    return null;
   }
-}
 
-function getBaseUpdateFeedUrl() {
-  return getUpdateFeedUrl() ?? getPackagedUpdateFeedUrl();
+  return { owner: github.owner, repo: github.repo };
 }
 
 function getDevUpdateCurrentVersion() {
@@ -104,14 +79,15 @@ function applyDevUpdateCurrentVersion(app, devCurrentVersion) {
   app.setVersion(devCurrentVersion.format());
 }
 
-function writeDevUpdateConfig(app, updateFeedUrl) {
+function writeDevUpdateConfig(app, { owner, repo }) {
   const configDir = path.join(app.getPath("userData"), "updater-dev");
   const configPath = path.join(configDir, "dev-app-update.yml");
   mkdirSync(configDir, { recursive: true });
   writeFileSync(
     configPath,
-    `provider: generic
-url: ${JSON.stringify(updateFeedUrl)}
+    `provider: github
+owner: ${JSON.stringify(owner)}
+repo: ${JSON.stringify(repo)}
 updaterCacheDirName: dream-updater
 `,
     "utf8",
@@ -160,10 +136,11 @@ export function initializeAutoUpdater({
   const devCurrentVersion = devUpdatesEnabled
     ? getDevUpdateCurrentVersion()
     : null;
-  const updateFeedUrl = getBaseUpdateFeedUrl();
+  // Packaged builds read the GitHub publish config from resources/app-update.yml
+  // (written by scripts/prune-packaged-app.cjs); dev update checks use the same
+  // owner/repo from package.json build.publish.
   const updatesEnabled =
-    (app.isPackaged && !isDevelopment) ||
-    (devUpdatesEnabled && Boolean(updateFeedUrl));
+    (app.isPackaged && !isDevelopment) || devUpdatesEnabled;
   let checkInFlight = null;
   let initialUpdateCheckTimer = null;
   let updateCheckTimer = null;
@@ -260,28 +237,22 @@ export function initializeAutoUpdater({
     };
   }
 
-  if (devUpdatesEnabled && !updateFeedUrl) {
-    console.warn(
-      "[updater] Dev update checks need DREAM_UPDATE_FEED_URL to point at the public R2 releases URL.",
-    );
-  }
-
-  if (devUpdatesEnabled && updateFeedUrl) {
+  if (devUpdatesEnabled) {
     applyDevUpdateCurrentVersion(app, devCurrentVersion);
   }
 
   const { autoUpdater } = electronUpdater;
   disableUpdateStagingIdentifier(autoUpdater);
 
-  if (devUpdatesEnabled && updateFeedUrl) {
-    autoUpdater.updateConfigPath = writeDevUpdateConfig(app, updateFeedUrl);
+  if (devUpdatesEnabled) {
+    const githubConfig = getGithubPublishConfig();
+    autoUpdater.updateConfigPath = writeDevUpdateConfig(app, githubConfig);
     autoUpdater.forceDevUpdateConfig = true;
-    autoUpdater.setFeedURL({
-      provider: "generic",
-      url: updateFeedUrl,
-    });
+    autoUpdater.setFeedURL({ provider: "github", ...githubConfig });
     if (devCurrentVersion) {
       autoUpdater.currentVersion = devCurrentVersion;
+      // The GitHub provider only treats "alpha" and "beta" prerelease ids as
+      // update channels, so prerelease tags should look like v1.2.3-beta.1.
       autoUpdater.allowPrerelease =
         updaterSemver.prerelease(devCurrentVersion) !== null;
     }

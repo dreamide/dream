@@ -40,21 +40,29 @@ const PLATFORM_VENDOR_DIRS = {
   },
 };
 
-function getUpdateFeedUrl() {
-  const rawUrl = process.env.DREAM_UPDATE_FEED_URL?.trim();
+function getGithubPublishConfig() {
+  const publish = require("../package.json").build?.publish;
+  const entries = Array.isArray(publish) ? publish : publish ? [publish] : [];
+  const github = entries.find((entry) => entry?.provider === "github");
 
-  if (rawUrl) {
-    return rawUrl.replace(/\/+$/, "");
+  if (!github?.owner || !github?.repo) {
+    throw new Error(
+      'package.json build.publish must include a GitHub entry with "owner" and "repo".',
+    );
   }
 
-  throw new Error(
-    "Missing DREAM_UPDATE_FEED_URL. Set it to the public R2 releases URL, for example https://downloads.example.com/releases.",
-  );
+  return { owner: github.owner, repo: github.repo };
 }
 
+// electron-builder only writes app-update.yml itself when the run includes a
+// dmg/zip (macOS) or nsis (Windows) target. The signed CI flows package with
+// "dir" first and then --prepackaged (which skips afterPack), so we always
+// write the file here to guarantee auto-updates work in shipped builds.
 function getAppUpdateYml() {
-  return `provider: generic
-url: ${getUpdateFeedUrl()}
+  const { owner, repo } = getGithubPublishConfig();
+  return `provider: github
+owner: ${JSON.stringify(owner)}
+repo: ${JSON.stringify(repo)}
 updaterCacheDirName: dream-updater
 `;
 }

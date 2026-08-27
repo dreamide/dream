@@ -19,7 +19,6 @@ env:
   ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/../electron-builder-cache
   ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.sign == true }}
-  DREAM_UPDATE_FEED_URL: ${{ vars.DREAM_UPDATE_FEED_URL || secrets.DREAM_UPDATE_FEED_URL }}
   SSL_COM_ENVIRONMENT_NAME: ${{ secrets.SSL_COM_ENVIRONMENT_NAME || 'PROD' }}
 
 jobs:
@@ -431,155 +430,6 @@ jobs:
             release/*.blockmap
             release/latest.yml
 
-  upload-r2:
-    name: Upload release assets to Cloudflare R2
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
-    needs:
-      - package-linux
-      - package-macos
-      - package-windows
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 25
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6.0.3
-
-      - name: Download Linux artifacts
-        uses: actions/download-artifact@v8.0.1
-        with:
-          name: dream-linux
-          path: release-assets
-
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v8.0.1
-        with:
-          name: dream-macos
-          path: release-assets
-
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v8.0.1
-        with:
-          name: dream-windows
-          path: release-assets
-
-      - name: Rewrite update metadata for R2
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          mapfile -t metadata_files < <(
-            find release-assets -type f \( \
-              -name 'latest.yml' -o \
-              -name 'latest-linux.yml' -o \
-              -name 'latest-mac.yml' \
-            \) -print | sort
-          )
-
-          if [[ "${#metadata_files[@]}" -eq 0 ]]; then
-            echo "No update metadata files found." >&2
-            exit 1
-          fi
-
-          node scripts/rewrite-update-metadata-urls.mjs "${metadata_files[@]}"
-
-      - name: Install AWS CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if command -v aws >/dev/null 2>&1; then
-            aws --version
-            exit 0
-          fi
-
-          case "$(uname -m)" in
-            x86_64)
-              aws_arch="x86_64"
-              ;;
-            aarch64 | arm64)
-              aws_arch="aarch64"
-              ;;
-            *)
-              echo "Unsupported AWS CLI architecture: $(uname -m)" >&2
-              exit 1
-              ;;
-          esac
-
-          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${aws_arch}.zip" -o "$RUNNER_TEMP/awscliv2.zip"
-          unzip -q "$RUNNER_TEMP/awscliv2.zip" -d "$RUNNER_TEMP"
-          sudo "$RUNNER_TEMP/aws/install" --update
-          aws --version
-
-      - name: Upload release assets to Cloudflare R2
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          missing=0
-          for name in \
-            AWS_ACCESS_KEY_ID \
-            AWS_SECRET_ACCESS_KEY \
-            CLOUDFLARE_R2_ACCOUNT_ID \
-            CLOUDFLARE_R2_BUCKET \
-            DREAM_UPDATE_FEED_URL; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Missing required secret-backed environment variable: $name"
-              missing=1
-            fi
-          done
-
-          if [[ "$missing" -ne 0 ]]; then
-            exit 1
-          fi
-
-          endpoint="https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-
-          echo "::group::R2 upload manifest"
-          find release-assets -type f -print | sort
-          echo "::endgroup::"
-
-          aws s3 cp release-assets/ "s3://${CLOUDFLARE_R2_BUCKET}/releases/" \
-            --endpoint-url "$endpoint" \
-            --recursive \
-            --only-show-errors
-
-          version="$(node -p "require('./package.json').version")"
-
-          upload_latest_alias() {
-            local source_path="$1"
-            local alias_name="$2"
-
-            if [[ ! -f "$source_path" ]]; then
-              echo "Skipping missing latest alias source: $source_path"
-              return
-            fi
-
-            aws s3 cp "$source_path" "s3://${CLOUDFLARE_R2_BUCKET}/latest/${alias_name}" \
-              --endpoint-url "$endpoint" \
-              --only-show-errors
-          }
-
-          echo "::group::R2 latest aliases"
-          upload_latest_alias "release-assets/Dream-${version}-mac-arm64.dmg" "Dream-mac-arm64.dmg"
-          upload_latest_alias "release-assets/Dream-${version}-mac-x64.dmg" "Dream-mac-x64.dmg"
-          upload_latest_alias "release-assets/Dream-${version}-windows-x64-setup.exe" "Dream-windows-x64.exe"
-          upload_latest_alias "release-assets/Dream-${version}-linux-amd64.deb" "Dream-linux-x64.deb"
-          upload_latest_alias "release-assets/Dream-${version}-linux-x86_64.rpm" "Dream-linux-x64.rpm"
-          upload_latest_alias "release-assets/Dream-${version}-linux-x86_64.AppImage" "Dream-linux-x64.AppImage"
-          upload_latest_alias "release-assets/Dream-${version}-linux-arm64.deb" "Dream-linux-arm64.deb"
-          upload_latest_alias "release-assets/Dream-${version}-linux-aarch64.rpm" "Dream-linux-arm64.rpm"
-          upload_latest_alias "release-assets/Dream-${version}-linux-aarch64.AppImage" "Dream-linux-arm64.AppImage"
-          echo "::endgroup::"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          AWS_EC2_METADATA_DISABLED: true
-          CLOUDFLARE_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_R2_ACCOUNT_ID }}
-          CLOUDFLARE_R2_BUCKET: ${{ secrets.CLOUDFLARE_R2_BUCKET }}
-
   publish-release:
     name: Publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -587,7 +437,6 @@ jobs:
       - package-linux
       - package-macos
       - package-windows
-      - upload-r2
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
@@ -614,6 +463,44 @@ jobs:
           name: dream-windows
           path: release-assets
 
+      - name: Create latest download aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          version="$(node -p "require('./package.json').version")"
+          if [[ "${tag#v}" != "$version" ]]; then
+            echo "::error::Tag $tag does not match package.json version $version"
+            exit 1
+          fi
+
+          # Unversioned copies so README links like
+          # https://github.com/dreamide/dream/releases/latest/download/Dream-mac-arm64.dmg
+          # always resolve. They are not referenced by latest*.yml, so the
+          # auto-updater ignores them.
+          create_alias() {
+            local source_path="release-assets/$1"
+            local alias_path="release-assets/$2"
+
+            if [[ ! -f "$source_path" ]]; then
+              echo "::error::Missing release asset for alias $2: $source_path"
+              exit 1
+            fi
+
+            cp "$source_path" "$alias_path"
+            echo "$2 <- $1"
+          }
+
+          echo "::group::Latest download aliases"
+          create_alias "Dream-${version}-mac-arm64.dmg" "Dream-mac-arm64.dmg"
+          create_alias "Dream-${version}-mac-x64.dmg" "Dream-mac-x64.dmg"
+          create_alias "Dream-${version}-windows-x64-setup.exe" "Dream-windows-x64.exe"
+          create_alias "Dream-${version}-linux-amd64.deb" "Dream-linux-x64.deb"
+          create_alias "Dream-${version}-linux-x86_64.rpm" "Dream-linux-x64.rpm"
+          create_alias "Dream-${version}-linux-x86_64.AppImage" "Dream-linux-x64.AppImage"
+          echo "::endgroup::"
+
       - name: Publish release assets
         shell: bash
         run: |
@@ -638,10 +525,18 @@ jobs:
             exit 1
           fi
 
+          # Prerelease tags (e.g. v1.2.3-beta.1) must not become the "latest"
+          # release: both the stable auto-update path and the README download
+          # links resolve through /releases/latest.
+          release_flags=(--latest)
+          if [[ "$tag" == *-* ]]; then
+            release_flags=(--prerelease --latest=false)
+          fi
+
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --title "$tag" --generate-notes
+            gh release create "$tag" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --title "$tag" --generate-notes "${release_flags[@]}"
           fi
         env:
           GH_TOKEN: ${{ github.token }}
