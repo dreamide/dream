@@ -31,9 +31,9 @@ At least one supported agent CLI:
 - [x64](https://github.com/dreamide/dream/releases/latest/download/Dream-windows-x64.exe)
 
 ### Linux
-- [DEB x64](https://github.com/dreamide/dream/releases/latest/download/Dream-linux-x64.deb)
-- [RPM x64](https://github.com/dreamide/dream/releases/latest/download/Dream-linux-x64.rpm)
-- [AppImage x64](https://github.com/dreamide/dream/releases/latest/download/Dream-linux-x64.AppImage)
+- [DEB x64](https://github.com/dreamide/dream/releases/latest/download/Dream-linux-amd64.deb)
+- [RPM x64](https://github.com/dreamide/dream/releases/latest/download/Dream-linux-x86_64.rpm)
+- [AppImage x64](https://github.com/dreamide/dream/releases/latest/download/Dream-linux-x86_64.AppImage)
 
 ## Installation
 
@@ -74,10 +74,11 @@ pnpm package
 Artifacts are written to `release/` by `electron-builder`.
 
 No environment variables are required to package locally. Pushing a `v*` tag runs the
-`Package installers` workflow, which builds all platforms and publishes the installers,
-`latest*.yml` update metadata, and unversioned download aliases to
-[GitHub Releases](https://github.com/dreamide/dream/releases). The app auto-updates from
-those releases via `electron-updater`.
+`Package installers` workflow, which builds all platforms and publishes the installers and
+`latest*.yml` update metadata to [GitHub Releases](https://github.com/dreamide/dream/releases).
+Installer filenames are unversioned (for example `Dream-mac-arm64.dmg`) so
+`releases/latest/download/<file>` links always point at the newest stable release. The app
+auto-updates from those releases via `electron-updater`.
 
 Platform-specific and unpacked variants:
 

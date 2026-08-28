@@ -155,7 +155,7 @@
         "dmg",
         "zip"
       ],
-      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "artifactName": "${productName}-mac-${arch}.${ext}",
       "category": "public.app-category.developer-tools",
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
@@ -179,7 +179,7 @@
       ]
     },
     "nsis": {
-      "artifactName": "${productName}-${version}-windows-${arch}-setup.${ext}"
+      "artifactName": "${productName}-windows-${arch}.${ext}"
     },
     "linux": {
       "target": [
@@ -188,7 +188,7 @@
         "rpm"
       ],
       "maintainer": "Dream <support@dreamide.dev>",
-      "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+      "artifactName": "${productName}-linux-${arch}.${ext}"
     }
   },
   "type": "module"

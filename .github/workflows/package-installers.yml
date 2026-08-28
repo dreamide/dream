@@ -463,44 +463,6 @@ jobs:
           name: dream-windows
           path: release-assets
 
-      - name: Create latest download aliases
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          tag="${GITHUB_REF_NAME}"
-          version="$(node -p "require('./package.json').version")"
-          if [[ "${tag#v}" != "$version" ]]; then
-            echo "::error::Tag $tag does not match package.json version $version"
-            exit 1
-          fi
-
-          # Unversioned copies so README links like
-          # https://github.com/dreamide/dream/releases/latest/download/Dream-mac-arm64.dmg
-          # always resolve. They are not referenced by latest*.yml, so the
-          # auto-updater ignores them.
-          create_alias() {
-            local source_path="release-assets/$1"
-            local alias_path="release-assets/$2"
-
-            if [[ ! -f "$source_path" ]]; then
-              echo "::error::Missing release asset for alias $2: $source_path"
-              exit 1
-            fi
-
-            cp "$source_path" "$alias_path"
-            echo "$2 <- $1"
-          }
-
-          echo "::group::Latest download aliases"
-          create_alias "Dream-${version}-mac-arm64.dmg" "Dream-mac-arm64.dmg"
-          create_alias "Dream-${version}-mac-x64.dmg" "Dream-mac-x64.dmg"
-          create_alias "Dream-${version}-windows-x64-setup.exe" "Dream-windows-x64.exe"
-          create_alias "Dream-${version}-linux-amd64.deb" "Dream-linux-x64.deb"
-          create_alias "Dream-${version}-linux-x86_64.rpm" "Dream-linux-x64.rpm"
-          create_alias "Dream-${version}-linux-x86_64.AppImage" "Dream-linux-x64.AppImage"
-          echo "::endgroup::"
-
       - name: Publish release assets
         shell: bash
         run: |
