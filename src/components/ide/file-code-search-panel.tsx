@@ -1,4 +1,5 @@
 import {
+  closeSearchPanel,
   findNext,
   findPrevious,
   getSearchQuery,
@@ -29,6 +30,7 @@ import { Toggle } from "@/components/ui/toggle";
 interface FileCodeSearchPanelContentProps {
   matchPosition: { current: number; total: number } | null;
   onCaseSensitiveChange: (pressed: boolean) => void;
+  onClose: () => void;
   onFindNext: () => void;
   onFindPrevious: () => void;
   onRegexpChange: (pressed: boolean) => void;
@@ -45,6 +47,7 @@ interface FileCodeSearchPanelContentProps {
 const FileCodeSearchPanelContent = ({
   matchPosition,
   onCaseSensitiveChange,
+  onClose,
   onFindNext,
   onFindPrevious,
   onRegexpChange,
@@ -58,6 +61,12 @@ const FileCodeSearchPanelContent = ({
   readOnly,
 }: FileCodeSearchPanelContentProps) => {
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
     if (event.key !== "Enter") {
       return;
     }
@@ -71,6 +80,12 @@ const FileCodeSearchPanelContent = ({
   };
 
   const handleReplaceKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
       onReplace();
@@ -290,6 +305,10 @@ class FileCodeSearchPanel implements Panel {
         onCaseSensitiveChange={(caseSensitive) =>
           this.updateQuery({ caseSensitive })
         }
+        onClose={() => {
+          closeSearchPanel(this.view);
+          this.view.focus();
+        }}
         onFindNext={() => findNext(this.view)}
         onFindPrevious={() => findPrevious(this.view)}
         onRegexpChange={(regexp) => this.updateQuery({ regexp })}
