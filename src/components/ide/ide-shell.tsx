@@ -36,7 +36,12 @@ export const IdeShell = () => {
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
-  const renderedActiveProjectId = useDeferredValue(activeProjectId);
+  const deferredActiveProjectId = useDeferredValue(activeProjectId);
+  const renderedActiveProjectId =
+    activeProjectId !== null &&
+    projects.some((project) => project.id === deferredActiveProjectId)
+      ? deferredActiveProjectId
+      : activeProjectId;
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -457,39 +462,32 @@ export const IdeShell = () => {
         {!stateHydrated ? null : (
           <>
             {projects.map((project) => {
-              // Swap the already-mounted surface immediately, then let active
-              // effects and expensive child renders follow on the deferred
-              // lifecycle value.
-              const visible = project.id === activeProjectId;
-              const lifecycleActive = project.id === renderedActiveProjectId;
+              // Keep the outgoing surface painted while React prepares the
+              // incoming workspace, then reveal and activate it atomically.
+              const active = project.id === renderedActiveProjectId;
 
               return (
                 <div
-                  aria-hidden={!visible}
+                  aria-hidden={!active}
                   className={cn(
-                    "absolute inset-0 min-h-0",
-                    visible
-                      ? "visible translate-x-0 pointer-events-auto opacity-100"
-                      : // `invisible` (visibility: hidden) drops inactive
-                        // workspaces out of paint/hit-testing entirely while
-                        // preserving layout and keeping <webview>/terminal
-                        // state alive (unlike display: none, which destroys
-                        // webview surfaces and forces an expensive re-show).
-                        "invisible translate-x-full pointer-events-none opacity-0",
+                    "absolute inset-0 min-h-0 bg-surface-50 dark:bg-surface-900",
+                    active
+                      ? "z-10 pointer-events-auto"
+                      : // Keep inactive workspaces painted beneath the active
+                        // one. Hiding or moving them offscreen makes Chromium
+                        // rebuild the layer when a project is selected, which
+                        // produces a blank frame during the tab switch.
+                        "z-0 pointer-events-none",
                   )}
-                  inert={!visible}
+                  inert={!active}
                   key={project.id}
                 >
-                  <ProjectWorkspace
-                    active={lifecycleActive}
-                    project={project}
-                    visible={visible}
-                  />
+                  <ProjectWorkspace active={active} project={project} />
                 </div>
               );
             })}
-            {!activeProjectId ? (
-              <div className="absolute inset-0 p-3">
+            {!renderedActiveProjectId ? (
+              <div className="absolute inset-0 z-20 bg-surface-50 p-3 dark:bg-surface-900">
                 <EmptyProjectWorkspace />
               </div>
             ) : null}
