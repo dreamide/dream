@@ -16,6 +16,8 @@ const CLAUDE_KEYCHAIN_SERVICES = ["Claude Code-credentials", "Claude Code"];
 const OPENCODE_STATS_DAYS = 30;
 const OPENCODE_STATS_MODEL_LIMIT = 10;
 const OPENCODE_STATS_SERVER_TIMEOUT_MS = 10_000;
+const OPENCODE_GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
+const OPENCODE_GO_USAGE_REQUEST_TIMEOUT_MS = 15_000;
 const GROK_CLI_CHAT_PROXY_DEFAULT_BASE_URL =
   "https://cli-chat-proxy.grok.com/v1";
 const GROK_TOKEN_AUTH_VALUE = "xai-grok-cli";
@@ -632,7 +634,154 @@ const fetchOpenCodeUsageStatsWithCli = async ({ projectPath } = {}) => {
   });
 };
 
+const getOpenCodeDataPath = () => {
+  const xdgDataHome = process.env.XDG_DATA_HOME?.trim();
+  return path.join(
+    xdgDataHome || path.join(os.homedir(), ".local", "share"),
+    "opencode",
+  );
+};
+
+const getOpenCodeAuthPath = () => path.join(getOpenCodeDataPath(), "auth.json");
+
+const readOpenCodeGoApiKey = async () => {
+  let raw;
+  try {
+    raw = await fs.readFile(getOpenCodeAuthPath(), "utf8");
+  } catch {
+    return null;
+  }
+
+  try {
+    const auth = JSON.parse(raw);
+    const entry = auth?.["opencode-go"];
+    const key = typeof entry?.key === "string" ? entry.key.trim() : "";
+    return key || null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeOpenCodeGoUsageWindow = (entry, label) => {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  const usedPercent = normalizeUsageUtilizationPercent(
+    entry.percent ?? entry.usagePercent ?? entry.used_percent,
+  );
+  if (usedPercent === null) {
+    return null;
+  }
+
+  return {
+    label,
+    resetAfterSeconds:
+      toFiniteNumber(entry.resetInSec) ??
+      toFiniteNumber(entry.reset_after_seconds),
+    resetAt:
+      normalizeResetAt(entry.resetsAt) ??
+      normalizeResetAt(entry.resetAt) ??
+      normalizeResetAt(entry.resets_at),
+    usedPercent,
+  };
+};
+
+export const normalizeOpenCodeGoUsageLimits = (payload) => {
+  const usage =
+    payload?.usage && typeof payload.usage === "object"
+      ? payload.usage
+      : payload;
+
+  return [
+    normalizeOpenCodeGoUsageWindow(
+      usage?.rolling ?? usage?.rolling5h ?? usage?.five_hour,
+      "Go 5h limit",
+    ),
+    normalizeOpenCodeGoUsageWindow(usage?.weekly, "Go weekly limit"),
+    normalizeOpenCodeGoUsageWindow(usage?.monthly, "Go monthly limit"),
+  ].filter(Boolean);
+};
+
+const fetchOpenCodeGoUsagePayload = async (apiKey) => {
+  const response = await fetch(OPENCODE_GO_USAGE_URL, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    method: "GET",
+    signal: AbortSignal.timeout(OPENCODE_GO_USAGE_REQUEST_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenCode Go usage request failed (${response.status}).`);
+  }
+
+  return response.json();
+};
+
+export const fetchOpenCodeGoUsageLimits = async () => {
+  const apiKey = await readOpenCodeGoApiKey();
+  if (!apiKey) {
+    return null;
+  }
+
+  try {
+    const payload = await fetchOpenCodeGoUsagePayload(apiKey);
+    const limits = normalizeOpenCodeGoUsageLimits(payload);
+    if (limits.length === 0) {
+      throw new Error("OpenCode Go returned no usage limit windows.");
+    }
+
+    const result = { error: null, limits, source: "opencode go" };
+    providerUsageLimitSnapshots.set("opencode-go", result);
+    return result;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "OpenCode Go usage failed.";
+    const cached = providerUsageLimitSnapshots.get("opencode-go");
+    if (cached) {
+      return { ...cached, error: message };
+    }
+
+    return { error: message, limits: [], source: "opencode go" };
+  }
+};
+
+const mergeOpenCodeGoUsageLimits = (statsResult, goResult) => {
+  if (!goResult) {
+    return statsResult;
+  }
+
+  const limits = goResult.limits ?? [];
+  const errors = [statsResult.error, goResult.error].filter(Boolean);
+  const hasStats =
+    statsResult.stats.length > 0 || statsResult.modelStats.length > 0;
+
+  return {
+    ...statsResult,
+    error: errors.length > 0 ? errors.join(" ") : null,
+    limits,
+    source:
+      limits.length > 0 && statsResult.status === "ok"
+        ? `${goResult.source} + ${statsResult.source}`
+        : limits.length > 0
+          ? goResult.source
+          : statsResult.source,
+    status: limits.length > 0 || hasStats ? "ok" : "unavailable",
+  };
+};
+
 export const fetchOpenCodeUsageStats = async ({ projectPath } = {}) => {
+  const [statsResult, goResult] = await Promise.all([
+    fetchOpenCodeLocalUsageStats({ projectPath }),
+    fetchOpenCodeGoUsageLimits(),
+  ]);
+
+  return mergeOpenCodeGoUsageLimits(statsResult, goResult);
+};
+
+const fetchOpenCodeLocalUsageStats = async ({ projectPath } = {}) => {
   const installed = await isCliCommandAvailable("opencode");
   if (!installed) {
     return makeUsageLimitsResult({

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { normalizeGrokUsageLimits } from "./usage-limits.js";
+import {
+  normalizeGrokUsageLimits,
+  normalizeOpenCodeGoUsageLimits,
+} from "./usage-limits.js";
 
 test("normalizes Grok weekly credits config into a usage window", () => {
   const result = normalizeGrokUsageLimits(
@@ -116,4 +119,52 @@ test("returns empty Grok limits when billing config is missing", () => {
     note: null,
     stats: [],
   });
+});
+
+test("normalizes OpenCode Go usage payload into limit windows", () => {
+  const limits = normalizeOpenCodeGoUsageLimits({
+    usage: {
+      monthly: {
+        percent: 31,
+        resetsAt: "2026-09-19T21:19:33.311Z",
+        status: "ok",
+      },
+      rolling: {
+        percent: 12,
+        resetsAt: "2026-09-04T08:07:24.311Z",
+        status: "ok",
+      },
+      weekly: {
+        percent: 5,
+        resetsAt: "2026-09-07T00:00:00.311Z",
+        status: "ok",
+      },
+    },
+  });
+
+  assert.deepEqual(limits, [
+    {
+      label: "Go 5h limit",
+      resetAfterSeconds: null,
+      resetAt: "2026-09-04T08:07:24.311Z",
+      usedPercent: 12,
+    },
+    {
+      label: "Go weekly limit",
+      resetAfterSeconds: null,
+      resetAt: "2026-09-07T00:00:00.311Z",
+      usedPercent: 5,
+    },
+    {
+      label: "Go monthly limit",
+      resetAfterSeconds: null,
+      resetAt: "2026-09-19T21:19:33.311Z",
+      usedPercent: 31,
+    },
+  ]);
+});
+
+test("returns no OpenCode Go limit windows for an empty payload", () => {
+  assert.deepEqual(normalizeOpenCodeGoUsageLimits(null), []);
+  assert.deepEqual(normalizeOpenCodeGoUsageLimits({ usage: {} }), []);
 });

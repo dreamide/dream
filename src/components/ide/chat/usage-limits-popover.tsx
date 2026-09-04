@@ -21,27 +21,14 @@ type UsageLimitWindow = {
   usedPercent: number;
 };
 
-type UsageStatRow = {
-  label: string;
-  value: string;
-};
-
-type ModelUsageStat = {
-  id: string;
-  stats: UsageStatRow[];
-};
-
 type UsageLimitsResponse = {
   error?: string | null;
   fetchedAt?: string;
   limits?: UsageLimitWindow[];
-  modelStats?: ModelUsageStat[];
   note?: string | null;
   provider?: ChatConfig["provider"];
   source?: string;
-  stats?: UsageStatRow[];
   status?: "ok" | "unavailable";
-  toolStats?: UsageStatRow[];
 };
 
 type UsageLimitsState = {
@@ -161,122 +148,6 @@ const UsageLimitRow = ({
   );
 };
 
-const getModelUsageStatValue = (model: ModelUsageStat, label: string) =>
-  model.stats.find((stat) => stat.label === label)?.value;
-
-const OpenCodeModelStatsList = ({
-  modelStats,
-}: {
-  modelStats: ModelUsageStat[];
-}) => {
-  const usageT = useTranslations("usage");
-  const [listElement, setListElement] = useState<HTMLDivElement | null>(null);
-  const [isScrollable, setIsScrollable] = useState(false);
-  const handleListRef = useCallback((element: HTMLDivElement | null) => {
-    setListElement(element);
-  }, []);
-
-  useEffect(() => {
-    if (!listElement) {
-      setIsScrollable(false);
-      return;
-    }
-
-    const updateScrollableState = () => {
-      setIsScrollable(listElement.scrollHeight > listElement.clientHeight + 1);
-    };
-
-    updateScrollableState();
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", updateScrollableState);
-      return () => window.removeEventListener("resize", updateScrollableState);
-    }
-
-    const resizeObserver = new ResizeObserver(updateScrollableState);
-    resizeObserver.observe(listElement);
-    if (listElement.firstElementChild) {
-      resizeObserver.observe(listElement.firstElementChild);
-    }
-    window.addEventListener("resize", updateScrollableState);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateScrollableState);
-    };
-  }, [listElement]);
-
-  return (
-    <div
-      className={`max-h-[min(45vh,18rem)] pr-1 ${
-        isScrollable ? "overflow-y-auto" : "overflow-y-hidden"
-      }`}
-      ref={handleListRef}
-    >
-      <div className="space-y-2">
-        {modelStats.map((model) => {
-          const messages = getModelUsageStatValue(model, "Messages");
-          const cost = getModelUsageStatValue(model, "Cost");
-
-          return (
-            <div key={model.id} className="min-w-0 space-y-0.5">
-              <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="min-w-0 truncate">{model.id}</span>
-                {messages ? (
-                  <span className="shrink-0 text-muted-foreground">
-                    {usageT("messagesShort", { count: messages })}
-                  </span>
-                ) : null}
-              </div>
-              {cost ? (
-                <div className="truncate text-[11px] text-muted-foreground">
-                  {cost}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-const OpenCodeUsageStats = ({
-  modelStats,
-  stats,
-}: {
-  modelStats: ModelUsageStat[];
-  stats: UsageStatRow[];
-}) => {
-  const usageT = useTranslations("usage");
-
-  return (
-    <div className="space-y-3">
-      {stats.length > 0 ? (
-        <div className="grid grid-cols-2 gap-2">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="min-w-0 rounded-md bg-muted/50 p-2"
-            >
-              <div className="truncate text-[11px] text-muted-foreground">
-                {stat.label}
-              </div>
-              <div className="truncate font-medium text-sm">{stat.value}</div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {modelStats.length > 0 ? (
-        <div className="space-y-2">
-          <div className="font-medium text-xs">{usageT("topModels")}</div>
-          <OpenCodeModelStatsList modelStats={modelStats} />
-        </div>
-      ) : null}
-    </div>
-  );
-};
-
 export const UsageLimitsPopover = ({
   provider,
 }: {
@@ -291,9 +162,6 @@ export const UsageLimitsPopover = ({
   });
   const now = Date.now();
   const limits = usageLimits.data?.limits ?? [];
-  const stats = usageLimits.data?.stats ?? [];
-  const modelStats = usageLimits.data?.modelStats ?? [];
-  const hasUsageStats = stats.length > 0 || modelStats.length > 0;
   const usageTitle =
     provider === "opencode" ? usageT("usageStats") : usageT("planUsage");
 
@@ -375,20 +243,10 @@ export const UsageLimitsPopover = ({
             <div className="flex justify-center py-2 text-muted-foreground">
               <Spinner className="size-4" />
             </div>
-          ) : limits.length > 0 || hasUsageStats ? (
-            <>
-              {limits.map((limit) => (
-                <UsageLimitRow key={limit.label} limit={limit} now={now} />
-              ))}
-              {hasUsageStats ? (
-                <OpenCodeUsageStats modelStats={modelStats} stats={stats} />
-              ) : null}
-              {usageLimits.data?.note ? (
-                <p className="text-[11px] text-muted-foreground">
-                  {usageLimits.data.note}
-                </p>
-              ) : null}
-            </>
+          ) : limits.length > 0 ? (
+            limits.map((limit) => (
+              <UsageLimitRow key={limit.label} limit={limit} now={now} />
+            ))
           ) : (
             <p className="text-xs text-muted-foreground">
               {usageLimits.error ?? usageT("unavailable")}
