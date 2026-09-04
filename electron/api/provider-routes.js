@@ -17,6 +17,7 @@ import {
 } from "./providers/provider-models.js";
 import {
   fetchAnthropicUsageLimits,
+  fetchGrokUsageLimits,
   fetchOpenAiUsageLimits,
   fetchOpenCodeUsageStats,
   findRateLimitsObject,
@@ -117,12 +118,7 @@ export const registerProviderRoutes = (app) => {
     }
 
     if (parsed.data.provider === "grok") {
-      return c.json({
-        error: "Grok Build usage limits are unavailable.",
-        fetchedAt: new Date().toISOString(),
-        provider: "grok",
-        status: "unavailable",
-      });
+      return c.json(await fetchGrokUsageLimits());
     }
 
     if (parsed.data.provider === "opencode") {

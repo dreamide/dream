@@ -15,6 +15,7 @@ import {
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import type { AiProvider, ProjectGitStatusResponse } from "@/types/ide";
+import { getPullRequestBranchError } from "./git-actions/branch-utils";
 import { CommitDialog } from "./git-actions/commit-dialog";
 import { CreatePrDialog } from "./git-actions/create-pr-dialog";
 import { PushDialog } from "./git-actions/push-dialog";
@@ -130,7 +131,13 @@ const GitActionsMenuImpl = ({
   });
   const hasGitChanges = getStatusFileCount(status) > 0;
   const canPush = hasPushableCommits(status);
-  const canCreatePr = hasGitChanges || canPush;
+  const isPullRequestHeadBranch =
+    Boolean(status?.remoteName) &&
+    !getPullRequestBranchError(branch, status?.baseBranch ?? "main", {
+      detachedHead: "detached",
+      sameBranch: () => "same",
+    });
+  const canCreatePr = hasGitChanges || canPush || isPullRequestHeadBranch;
   const hasGitActivity = hasGitChanges || canPush;
 
   const handleOpenChanges = useCallback(() => {

@@ -16,6 +16,10 @@ const CLAUDE_KEYCHAIN_SERVICES = ["Claude Code-credentials", "Claude Code"];
 const OPENCODE_STATS_DAYS = 30;
 const OPENCODE_STATS_MODEL_LIMIT = 10;
 const OPENCODE_STATS_SERVER_TIMEOUT_MS = 10_000;
+const GROK_CLI_CHAT_PROXY_DEFAULT_BASE_URL =
+  "https://cli-chat-proxy.grok.com/v1";
+const GROK_TOKEN_AUTH_VALUE = "xai-grok-cli";
+const GROK_USAGE_REQUEST_TIMEOUT_MS = 15_000;
 const PROVIDER_USAGE_SESSION_FILE_LIMIT = 80;
 const ANSI_ESCAPE_PATTERN = new RegExp(
   `${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`,
@@ -1036,4 +1040,326 @@ export const fetchAnthropicUsageLimits = async () => {
       "Claude usage limit windows are unavailable. Claude Code can still be connected and working normally when it does not expose local rate-limit data.",
     provider: "anthropic",
   });
+};
+
+const getGrokHomePath = () =>
+  process.env.GROK_HOME?.trim() || path.join(os.homedir(), ".grok");
+
+const getGrokAuthPath = () => path.join(getGrokHomePath(), "auth.json");
+
+const getGrokCliProxyBaseUrl = () =>
+  (
+    process.env.GROK_CLI_CHAT_PROXY_BASE_URL?.trim() ||
+    GROK_CLI_CHAT_PROXY_DEFAULT_BASE_URL
+  ).replace(/\/+$/, "");
+
+const getCentValue = (value) => {
+  if (value && typeof value === "object") {
+    return toFiniteNumber(value.val ?? value.value);
+  }
+
+  return toFiniteNumber(value);
+};
+
+const isGrokAuthExpired = (entry) => {
+  const expiresAt = normalizeResetAt(entry?.expires_at ?? entry?.expiresAt);
+  if (!expiresAt) {
+    return false;
+  }
+
+  return Date.parse(expiresAt) <= Date.now();
+};
+
+const scoreGrokAuthEntry = (scope, entry) => {
+  let score = 0;
+  if (typeof scope === "string" && scope.startsWith("https://auth.x.ai::")) {
+    score += 4;
+  } else if (typeof scope === "string" && scope.includes("accounts.x.ai")) {
+    score += 2;
+  }
+
+  if (
+    String(entry?.auth_mode ?? entry?.authMode ?? "").toLowerCase() === "oidc"
+  ) {
+    score += 1;
+  }
+
+  if (!isGrokAuthExpired(entry)) {
+    score += 8;
+  }
+
+  return score;
+};
+
+const readGrokAuthCredentials = async () => {
+  let parsed;
+  try {
+    parsed = JSON.parse(await fs.readFile(getGrokAuthPath(), "utf8"));
+  } catch {
+    return null;
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+
+  const candidates = Object.entries(parsed).flatMap(([scope, entry]) => {
+    const accessToken = entry?.key?.trim?.() || entry?.access_token?.trim?.();
+    if (!accessToken) {
+      return [];
+    }
+
+    return [
+      {
+        accessToken,
+        scope,
+        userId: entry.user_id?.trim?.() || entry.userId?.trim?.() || "",
+        score: scoreGrokAuthEntry(scope, entry),
+      },
+    ];
+  });
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  candidates.sort((left, right) => right.score - left.score);
+  return candidates[0];
+};
+
+const getGrokPeriodWindow = (config) => {
+  const period = config?.currentPeriod ?? config?.current_period;
+  const start =
+    period?.start ?? config?.billingPeriodStart ?? config?.billing_period_start;
+  const end =
+    period?.end ?? config?.billingPeriodEnd ?? config?.billing_period_end;
+  const startMs = start ? Date.parse(start) : Number.NaN;
+  const endMs = end ? Date.parse(end) : Number.NaN;
+  const windowSeconds =
+    Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs
+      ? null
+      : Math.round((endMs - startMs) / 1000);
+  const periodType = String(period?.type ?? period?.period_type ?? "");
+
+  let fallbackLabel = "Credits";
+  if (/weekly/i.test(periodType)) {
+    fallbackLabel = "Weekly limit";
+  } else if (/monthly/i.test(periodType)) {
+    fallbackLabel = "Monthly limit";
+  } else if (
+    windowSeconds !== null &&
+    windowSeconds >= 20 * 86_400 &&
+    windowSeconds <= 45 * 86_400
+  ) {
+    fallbackLabel = "Monthly limit";
+  } else if (
+    windowSeconds !== null &&
+    windowSeconds >= 4 * 86_400 &&
+    windowSeconds <= 12 * 86_400
+  ) {
+    fallbackLabel = "Weekly limit";
+  }
+
+  return {
+    fallbackLabel,
+    resetAt: normalizeResetAt(end),
+    windowSeconds: fallbackLabel === "Credits" ? windowSeconds : null,
+  };
+};
+
+const getGrokUsedPercent = (config) => {
+  const percent = toFiniteNumber(
+    config?.creditUsagePercent ?? config?.credit_usage_percent,
+  );
+  if (percent !== null) {
+    return percent;
+  }
+
+  const used = getCentValue(config?.used);
+  const limit = getCentValue(config?.monthlyLimit ?? config?.monthly_limit);
+  if (used !== null && limit !== null && limit > 0) {
+    return (used / limit) * 100;
+  }
+
+  if (
+    config?.currentPeriod ||
+    config?.current_period ||
+    config?.billingPeriodEnd ||
+    config?.billing_period_end
+  ) {
+    return 0;
+  }
+
+  return null;
+};
+
+const isGrokBuildProduct = (value) =>
+  /grok[\s_-]*build/i.test(String(value ?? ""));
+
+const getGrokSubscriptionTier = (payload, settings) => {
+  const tier =
+    settings?.subscription_tier_display ??
+    settings?.subscriptionTierDisplay ??
+    payload?.subscription_tier ??
+    payload?.subscriptionTier ??
+    payload?.subscription_tier_display;
+  return typeof tier === "string" && tier.trim() ? tier.trim() : null;
+};
+
+export const normalizeGrokUsageLimits = (payload, settings = null) => {
+  const config =
+    payload?.config && typeof payload.config === "object"
+      ? payload.config
+      : payload && typeof payload === "object"
+        ? payload
+        : null;
+  if (!config) {
+    return { limits: [], note: null, stats: [] };
+  }
+
+  const { fallbackLabel, resetAt, windowSeconds } = getGrokPeriodWindow(config);
+  const usedPercent = getGrokUsedPercent(config);
+  const limits = [];
+
+  if (usedPercent !== null) {
+    limits.push({
+      label: formatUsageWindowLabel(windowSeconds, fallbackLabel),
+      resetAfterSeconds: null,
+      resetAt,
+      usedPercent,
+    });
+  }
+
+  const products = Array.isArray(config.productUsage)
+    ? config.productUsage
+    : Array.isArray(config.product_usage)
+      ? config.product_usage
+      : [];
+  for (const product of products) {
+    const productPercent = toFiniteNumber(
+      product?.usagePercent ?? product?.usage_percent,
+    );
+    if (
+      productPercent === null ||
+      !isGrokBuildProduct(product?.product) ||
+      (usedPercent !== null && Math.abs(productPercent - usedPercent) < 0.5)
+    ) {
+      continue;
+    }
+
+    limits.push({
+      label: "Build limit",
+      resetAfterSeconds: null,
+      resetAt,
+      usedPercent: productPercent,
+    });
+  }
+
+  const stats = [];
+  const prepaid = getCentValue(config.prepaidBalance ?? config.prepaid_balance);
+  if (prepaid !== null && prepaid > 0) {
+    stats.push({
+      label: "Prepaid credits",
+      value: formatCost(prepaid / 100),
+    });
+  }
+
+  const onDemandCap = getCentValue(config.onDemandCap ?? config.on_demand_cap);
+  const onDemandUsed = getCentValue(
+    config.onDemandUsed ?? config.on_demand_used,
+  );
+  if (onDemandCap !== null && onDemandCap > 0) {
+    stats.push({
+      label: "Extra usage",
+      value: `${formatCost((onDemandUsed ?? 0) / 100)} / ${formatCost(onDemandCap / 100)}`,
+    });
+  }
+
+  return {
+    limits,
+    note: getGrokSubscriptionTier(payload, settings),
+    stats,
+  };
+};
+
+const createGrokUsageHeaders = (credentials) => {
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${credentials.accessToken}`,
+    "X-XAI-Token-Auth": GROK_TOKEN_AUTH_VALUE,
+  };
+  if (credentials.userId) {
+    headers["x-userid"] = credentials.userId;
+  }
+
+  return headers;
+};
+
+const fetchGrokJson = async (url, headers) => {
+  const response = await fetch(url, {
+    headers,
+    method: "GET",
+    signal: AbortSignal.timeout(GROK_USAGE_REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    const error = new Error(`Grok usage request failed (${response.status}).`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json();
+};
+
+export const fetchGrokUsageLimits = async () => {
+  const credentials = await readGrokAuthCredentials();
+  if (!credentials) {
+    return makeUsageLimitsResult({
+      error: "Run `grok login` to fetch Grok usage limits.",
+      provider: "grok",
+    });
+  }
+
+  const headers = createGrokUsageHeaders(credentials);
+  const baseUrl = getGrokCliProxyBaseUrl();
+
+  try {
+    const [payload, settings] = await Promise.all([
+      fetchGrokJson(`${baseUrl}/billing?format=credits`, headers),
+      fetchGrokJson(`${baseUrl}/settings`, headers).catch(() => null),
+    ]);
+    const { limits, note, stats } = normalizeGrokUsageLimits(payload, settings);
+    if (limits.length === 0 && stats.length === 0) {
+      throw new Error("Grok returned no usage limit windows.");
+    }
+
+    const result = makeUsageLimitsResult({
+      limits,
+      note,
+      provider: "grok",
+      source: "grok",
+      stats,
+      status: "ok",
+    });
+    providerUsageLimitSnapshots.set("grok", result);
+    return result;
+  } catch (error) {
+    const cached = providerUsageLimitSnapshots.get("grok");
+    if (cached) {
+      return {
+        ...cached,
+        error: error instanceof Error ? error.message : "Grok usage failed.",
+      };
+    }
+
+    const status = error?.status;
+    return makeUsageLimitsResult({
+      error:
+        status === 401 || status === 403
+          ? "Run `grok login` to fetch Grok usage limits."
+          : error instanceof Error
+            ? error.message
+            : "Unable to fetch Grok usage limits.",
+      provider: "grok",
+    });
+  }
 };

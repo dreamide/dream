@@ -375,12 +375,20 @@ export const UsageLimitsPopover = ({
             <div className="flex justify-center py-2 text-muted-foreground">
               <Spinner className="size-4" />
             </div>
-          ) : limits.length > 0 ? (
-            limits.map((limit) => (
-              <UsageLimitRow key={limit.label} limit={limit} now={now} />
-            ))
-          ) : hasUsageStats ? (
-            <OpenCodeUsageStats modelStats={modelStats} stats={stats} />
+          ) : limits.length > 0 || hasUsageStats ? (
+            <>
+              {limits.map((limit) => (
+                <UsageLimitRow key={limit.label} limit={limit} now={now} />
+              ))}
+              {hasUsageStats ? (
+                <OpenCodeUsageStats modelStats={modelStats} stats={stats} />
+              ) : null}
+              {usageLimits.data?.note ? (
+                <p className="text-[11px] text-muted-foreground">
+                  {usageLimits.data.note}
+                </p>
+              ) : null}
+            </>
           ) : (
             <p className="text-xs text-muted-foreground">
               {usageLimits.error ?? usageT("unavailable")}
