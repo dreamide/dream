@@ -7,6 +7,8 @@ import {
   Ellipsis,
   FileIcon,
   Files,
+  Maximize2,
+  Minimize2,
   RotateCw,
   Save,
   Search,
@@ -78,7 +80,9 @@ const FileCodeEditor = lazy(() => import("./file-code-editor"));
 
 export interface FileExplorerPanelProps {
   active?: boolean;
+  expanded?: boolean;
   onClosePanel: () => void;
+  onToggleExpanded?: () => void;
   projectId?: string | null;
 }
 
@@ -787,7 +791,9 @@ const ProjectFileTree = ({
 
 const FileExplorerPanelImpl = ({
   active = true,
+  expanded = false,
   onClosePanel,
+  onToggleExpanded,
   projectId: requestedProjectId,
 }: FileExplorerPanelProps) => {
   const commonT = useTranslations("common");
@@ -1404,6 +1410,23 @@ const FileExplorerPanelImpl = ({
         <div className="flex min-h-[50px] items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2 text-sm font-medium">
           <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
           <span>{commonT("files")}</span>
+          <div className="flex-1" />
+          {onToggleExpanded ? (
+            <button
+              aria-label={expanded ? panelsT("collapse") : panelsT("expand")}
+              aria-pressed={expanded}
+              className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:hover:bg-surface-800 dark:focus-visible:ring-surface-500"
+              onClick={onToggleExpanded}
+              title={expanded ? panelsT("collapse") : panelsT("expand")}
+              type="button"
+            >
+              {expanded ? (
+                <Minimize2 className="size-4" />
+              ) : (
+                <Maximize2 className="size-4" />
+              )}
+            </button>
+          ) : null}
         </div>
         <div className="min-h-0 flex-1 p-3">
           <AppShellPlaceholder message={panelsT("addProjectForFiles")} />
@@ -1435,33 +1458,51 @@ const FileExplorerPanelImpl = ({
         >
           {activeProject.path}
         </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                aria-label={panelsT("fileActions")}
-                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted data-[popup-open]:text-foreground"
-                title={panelsT("fileActions")}
-                type="button"
-              />
-            }
-          >
-            <Ellipsis className="size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={handleRefreshFiles}>
-              <RotateCw className="size-4" />
-              {commonT("refresh")}
-            </DropdownMenuItem>
-            <DropdownMenuCheckboxItem
-              checked={wordWrapEnabled}
-              onCheckedChange={handleWordWrapChange}
+        <div className="flex shrink-0 items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  aria-label={panelsT("fileActions")}
+                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted data-[popup-open]:text-foreground"
+                  title={panelsT("fileActions")}
+                  type="button"
+                />
+              }
             >
-              <TextWrap className="size-4" />
-              {panelsT("enableWordWrap")}
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <Ellipsis className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={handleRefreshFiles}>
+                <RotateCw className="size-4" />
+                {commonT("refresh")}
+              </DropdownMenuItem>
+              <DropdownMenuCheckboxItem
+                checked={wordWrapEnabled}
+                onCheckedChange={handleWordWrapChange}
+              >
+                <TextWrap className="size-4" />
+                {panelsT("enableWordWrap")}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {onToggleExpanded ? (
+            <button
+              aria-label={expanded ? panelsT("collapse") : panelsT("expand")}
+              aria-pressed={expanded}
+              className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:hover:bg-surface-800 dark:focus-visible:ring-surface-500"
+              onClick={onToggleExpanded}
+              title={expanded ? panelsT("collapse") : panelsT("expand")}
+              type="button"
+            >
+              {expanded ? (
+                <Minimize2 className="size-4" />
+              ) : (
+                <Maximize2 className="size-4" />
+              )}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div ref={splitContainerRef} className="flex min-h-0 flex-1">

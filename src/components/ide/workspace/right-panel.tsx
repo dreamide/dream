@@ -7,10 +7,10 @@ import { WorkspaceSlidingPanel } from "./sliding-panel";
 
 export interface WorkspaceRightPanelProps {
   active: boolean;
-  browserExpanded: boolean;
+  panelExpanded: boolean;
   handleVisible: boolean;
   maxWidth: number;
-  onBrowserExpandedChange: (expanded: boolean) => void;
+  onPanelExpandedChange: (expanded: boolean) => void;
   onCloseRightPanel: () => void;
   onResizeEnd: (width: number) => void;
   onResizeStart: () => void;
@@ -26,10 +26,10 @@ export interface WorkspaceRightPanelProps {
 
 const WorkspaceRightPanelImpl = ({
   active,
-  browserExpanded,
+  panelExpanded,
   handleVisible,
   maxWidth,
-  onBrowserExpandedChange,
+  onPanelExpandedChange,
   onCloseRightPanel,
   onResizeEnd,
   onResizeStart,
@@ -43,10 +43,10 @@ const WorkspaceRightPanelImpl = ({
   widthRef,
 }: WorkspaceRightPanelProps) => (
   <WorkspaceSlidingPanel
-    className={cn(browserExpanded && "left-0 right-0 z-50")}
-    contentClassName={browserExpanded ? "pb-0" : "pb-2"}
+    className={cn(panelExpanded && "left-0 right-0 z-50")}
+    contentClassName={panelExpanded ? "pb-0" : "pb-2"}
     contentMinWidth={BROWSER_PANEL_MIN_WIDTH_PX}
-    handleVisible={browserExpanded ? false : handleVisible}
+    handleVisible={panelExpanded ? false : handleVisible}
     maxWidth={maxWidth}
     minWidth={BROWSER_PANEL_MIN_WIDTH_PX}
     onHandleDoubleClick={onToggleRightPanel}
@@ -54,7 +54,7 @@ const WorkspaceRightPanelImpl = ({
     onResizeStart={onResizeStart}
     open={open}
     panelRef={rightPanelRef}
-    reserveSpace={!browserExpanded}
+    reserveSpace={!panelExpanded}
     side="right"
     transition={rightPanelTransition}
     width={width}
@@ -62,9 +62,9 @@ const WorkspaceRightPanelImpl = ({
   >
     <RightPanelViews
       active={active}
-      browserExpanded={browserExpanded}
+      panelExpanded={panelExpanded}
       onClosePanel={onCloseRightPanel}
-      onToggleBrowserExpanded={() => onBrowserExpandedChange(!browserExpanded)}
+      onTogglePanelExpanded={() => onPanelExpandedChange(!panelExpanded)}
       open={open}
       project={project}
       rightPanelView={rightPanelView}

@@ -42,9 +42,9 @@ const RightPanelLoadingFallback = () => (
 
 export interface RightPanelViewsProps {
   active?: boolean;
-  browserExpanded?: boolean;
+  panelExpanded?: boolean;
   onClosePanel: () => void;
-  onToggleBrowserExpanded?: () => void;
+  onTogglePanelExpanded?: () => void;
   open: boolean;
   project: ProjectConfig;
   rightPanelView: RightPanelView;
@@ -95,14 +95,14 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
     <div
       className={cn(
         "flex h-full min-h-0 flex-col",
-        props.browserExpanded ? "pt-0" : "pt-2",
+        props.panelExpanded ? "pt-0" : "pt-2",
       )}
     >
       <div
         className={cn(
           RIGHT_PANEL_SURFACE_CLASSES,
           "flex min-h-0 flex-1 flex-col",
-          props.browserExpanded && "rounded-none border-0 shadow-none",
+          props.panelExpanded && "rounded-none border-0 shadow-none",
         )}
         data-base-color={baseColor === "neutral" ? undefined : baseColor}
       >
@@ -114,7 +114,9 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
                   active={
                     props.active && props.open && rightPanelView === "explorer"
                   }
+                  expanded={props.panelExpanded}
                   onClosePanel={props.onClosePanel}
+                  onToggleExpanded={props.onTogglePanelExpanded}
                   projectId={props.project.id}
                 />
               </RightPanelViewSlot>
@@ -136,9 +138,9 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
                   active={
                     props.active && props.open && rightPanelView === "browser"
                   }
-                  expanded={props.browserExpanded}
+                  expanded={props.panelExpanded}
                   onClosePanel={props.onClosePanel}
-                  onToggleExpanded={props.onToggleBrowserExpanded}
+                  onToggleExpanded={props.onTogglePanelExpanded}
                   project={props.project}
                 />
               </RightPanelViewSlot>
