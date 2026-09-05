@@ -1188,6 +1188,7 @@ export const createProjectPullRequest = async (
     title = "",
   } = {},
 ) => {
+  const repoInfo = await ensureProjectGitRepository(projectPath);
   let commit = null;
   let push = null;
 
