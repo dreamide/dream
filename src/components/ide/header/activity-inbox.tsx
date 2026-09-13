@@ -3,11 +3,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StatusDot } from "@/components/ui/status-dot";
+import {
+  formatModelIdLabel,
+  getModelReasoningEfforts,
+  getModelSpeedTiers,
+} from "@/lib/models";
 import { cn } from "@/lib/utils";
 import type { ChatConfig } from "@/types/ide";
 import { type ChatActivity, useActivityStore } from "../activity-store";
 import { formatLastActiveTime } from "../activity-time";
-import { PROVIDER_LABELS } from "../chat/chat-message";
 import { AppShellPlaceholder } from "../ide-helpers";
 import { useIdeStore } from "../ide-store";
 import {
@@ -19,6 +23,7 @@ import { WorkspaceSlidingPanel } from "../workspace/sliding-panel";
 
 export function ActivityInbox() {
   const t = useTranslations("activity");
+  const modelT = useTranslations("models");
   const format = useFormatter();
   const locale = useLocale();
   const relativeTimeFormatter = useMemo(
@@ -33,6 +38,7 @@ export function ActivityInbox() {
   const toggleOpen = useActivityStore((s) => s.toggleOpen);
   const entries = useActivityStore((s) => s.entries);
   const chats = useIdeStore((s) => s.chats);
+  const providerModels = useIdeStore((s) => s.providerModels);
   const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
@@ -119,6 +125,36 @@ export function ActivityInbox() {
             ) : (
               <ul className="space-y-1">
                 {rows.map(({ chat, project, entry, updatedAt, status }) => {
+                  const model = providerModels[chat.provider].models.find(
+                    (option) => option.id === chat.model,
+                  );
+                  const reasoningEfforts = model?.reasoningEfforts?.length
+                    ? model.reasoningEfforts
+                    : getModelReasoningEfforts(chat.provider, chat.model);
+                  const reasoningEffort =
+                    chat.reasoningEffort &&
+                    reasoningEfforts.includes(chat.reasoningEffort)
+                      ? chat.reasoningEffort
+                      : reasoningEfforts.includes("medium")
+                        ? "medium"
+                        : reasoningEfforts[0];
+                  const speedTiers = model?.speedTiers?.length
+                    ? model.speedTiers
+                    : getModelSpeedTiers(chat.provider, chat.model);
+                  const modelDetails = [
+                    model?.label ||
+                      formatModelIdLabel(chat.provider, chat.model),
+                    reasoningEffort ? modelT(reasoningEffort) : null,
+                    speedTiers.length > 0
+                      ? modelT(
+                          speedTiers.includes(chat.modelSpeed)
+                            ? chat.modelSpeed
+                            : "standard",
+                        )
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ");
                   const selected =
                     activeProjectId === project.id &&
                     project.ui.activeChatId === chat.id;
@@ -184,9 +220,16 @@ export function ActivityInbox() {
                             {project.name}
                             {project.worktree
                               ? ` · ${project.worktree.branch}`
-                              : ""}{" "}
-                            · {PROVIDER_LABELS[chat.provider]}
+                              : ""}
                           </p>
+                          {modelDetails ? (
+                            <p
+                              className="mt-0.5 truncate text-xs text-muted-foreground"
+                              title={modelDetails}
+                            >
+                              {modelDetails}
+                            </p>
+                          ) : null}
                           <Badge
                             variant={
                               status === "failed" ? "destructive" : "secondary"
@@ -208,7 +251,10 @@ export function ActivityInbox() {
                             {t(status)}
                           </Badge>
                           {entry?.detail ? (
-                            <p className="mt-0.5 line-clamp-2 break-words text-sm text-muted-foreground">
+                            <p
+                              className="mt-0.5 truncate text-sm text-muted-foreground"
+                              title={entry.detail}
+                            >
                               {entry.detail}
                             </p>
                           ) : null}
