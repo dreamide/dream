@@ -261,6 +261,11 @@ function getNestedNumberRecord(parent, key) {
   );
 }
 
+function getNestedWorkspaceView(parent, key, fallback = "code") {
+  const value = parent?.[key];
+  return value === "code" || value === "kanban" ? value : fallback;
+}
+
 function getNestedRightPanelView(parent, key, fallback = "changes") {
   const value = parent?.[key];
   return value === "browser" ||
@@ -504,6 +509,11 @@ function buildProjectMetadata(project) {
     projectUi,
     "rightPanelView",
     getNestedRightPanelView(ui, "rightPanelView", "changes"),
+  );
+  ui.workspaceView = getNestedWorkspaceView(
+    projectUi,
+    "workspaceView",
+    getNestedWorkspaceView(ui, "workspaceView", "code"),
   );
   ui.chatHistoryPanelOpen = getNestedBoolean(
     projectUi,
@@ -1128,6 +1138,7 @@ function loadStateFromRelationalDatabase(database) {
       ),
       rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
       stashItems: getNestedStashItems(ui),
+      workspaceView: getNestedWorkspaceView(ui, "workspaceView", "code"),
     };
     allProjects.push(project);
 

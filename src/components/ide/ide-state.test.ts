@@ -126,6 +126,29 @@ test("mergePersistedState preserves the project changes diff word-wrap preferenc
   assert.equal(merged.projects[0].ui.changesDiffWordWrap, true);
 });
 
+test("mergePersistedState preserves the project workspace view and falls back to code", () => {
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        id: "project-kanban",
+        ui: { workspaceView: "kanban" } as ProjectConfig["ui"],
+      }),
+      createPersistedProject({
+        id: "project-invalid",
+        ui: { workspaceView: "bogus" } as unknown as ProjectConfig["ui"],
+      }),
+      createPersistedProject({
+        id: "project-missing",
+        ui: {} as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  assert.equal(merged.projects[0].ui.workspaceView, "kanban");
+  assert.equal(merged.projects[1].ui.workspaceView, "code");
+  assert.equal(merged.projects[2].ui.workspaceView, "code");
+});
+
 test("mergePersistedState preserves stash items and drops invalid ones", () => {
   const merged = mergePersistedState({
     projects: [

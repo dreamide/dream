@@ -39,6 +39,7 @@ const createProject = (id, lastUsedAt) => ({
     rightPanelOpen: true,
     rightPanelView: "changes",
     stashItems: [],
+    workspaceView: "code",
   },
   worktree: null,
 });
@@ -287,6 +288,68 @@ test("MCP servers and project overrides survive a persistence round trip", async
     assert.deepEqual(loaded.projects[0].mcpServerOverrides, {
       "mcp-github": false,
     });
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("workspace view survives a relational persistence round trip", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  project.ui.workspaceView = "kanban";
+
+  try {
+    savePersistedState(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: project.id,
+        browserTabsByProject: {},
+        chats: [],
+        chatSort: "recent",
+        closedProjects: [],
+        messagesByChatId: {},
+        projects: [project],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.equal(loaded.projects[0]?.ui.workspaceView, "kanban");
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("workspace view falls back to code when missing or invalid", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  project.ui.workspaceView = "not-a-workspace";
+
+  try {
+    savePersistedState(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: project.id,
+        browserTabsByProject: {},
+        chats: [],
+        chatSort: "recent",
+        closedProjects: [],
+        messagesByChatId: {},
+        projects: [project],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.equal(loaded.projects[0]?.ui.workspaceView, "code");
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

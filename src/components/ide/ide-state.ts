@@ -45,6 +45,7 @@ import {
   normalizeModelSpeed,
   normalizeReasoningEffort,
 } from "./ide-types";
+import { isProjectWorkspaceView } from "./workspaces/registry";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
@@ -539,6 +540,9 @@ const normalizeProject = (
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
       stashItems: normalizeStashItems(rawUi.stashItems),
+      workspaceView: isProjectWorkspaceView(rawUi.workspaceView)
+        ? rawUi.workspaceView
+        : DEFAULT_PROJECT_UI.workspaceView,
     },
     worktree: normalizeProjectWorktree(
       rawProject.worktree ?? rawMetadata.worktree,

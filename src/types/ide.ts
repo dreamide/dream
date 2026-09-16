@@ -189,6 +189,8 @@ export type RightPanelView =
   | "terminal"
   | "stash";
 
+export type ProjectWorkspaceView = "code" | "kanban";
+
 export interface ProjectUiState {
   activeChatId: string | null;
   openChatIds: string[];
@@ -201,6 +203,7 @@ export interface ProjectUiState {
   rightPanelOpen: boolean;
   rightPanelView: RightPanelView;
   stashItems: StashItem[];
+  workspaceView: ProjectWorkspaceView;
 }
 
 export interface PersistedIdeState {

@@ -36,6 +36,7 @@ const createProject = (id, lastUsedAt) => ({
     },
     rightPanelOpen: true,
     rightPanelView: "changes",
+    workspaceView: "code",
   },
   worktree: null,
 });

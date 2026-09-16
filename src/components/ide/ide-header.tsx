@@ -6,6 +6,7 @@ import { ActivityButton } from "./header/activity-button";
 import { ProjectTabs } from "./header/project-tabs";
 import { HeaderUpdateButton } from "./header/update-button";
 import { WindowControls } from "./header/window-controls";
+import { WorkspaceSwitcher } from "./header/workspace-switcher";
 import { useIdeStore } from "./ide-store";
 
 export const IdeHeader = () => {
@@ -38,6 +39,8 @@ export const IdeHeader = () => {
         <ProjectTabs />
 
         <HeaderUpdateButton />
+
+        <WorkspaceSwitcher />
 
         <Button
           aria-label={t("settings")}

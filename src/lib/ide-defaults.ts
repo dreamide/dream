@@ -105,6 +105,7 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,
   rightPanelView: "changes",
   stashItems: [],
+  workspaceView: "code",
 };
 
 export const createEmptyState = (): PersistedIdeState => ({

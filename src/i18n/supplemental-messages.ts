@@ -1,5 +1,11 @@
 export const supplementalMessages = {
   de: {
+    workspace: {
+      kanbanPlaceholder: "Kanban-Board folgt in Kürze",
+      switchWorkspace: "Arbeitsbereich wechseln",
+      workspaceCode: "Code",
+      workspaceKanban: "Kanban",
+    },
     checkpoints: {
       binaryFile: "Binärdatei – kein Diff verfügbar.",
       description:
@@ -513,6 +519,12 @@ export const supplementalMessages = {
     },
   },
   en: {
+    workspace: {
+      kanbanPlaceholder: "Kanban board coming soon",
+      switchWorkspace: "Switch workspace",
+      workspaceCode: "Code",
+      workspaceKanban: "Kanban",
+    },
     checkpoints: {
       binaryFile: "Binary file — diff not available.",
       description:
@@ -1013,6 +1025,12 @@ export const supplementalMessages = {
     },
   },
   es: {
+    workspace: {
+      kanbanPlaceholder: "Tablero Kanban próximamente",
+      switchWorkspace: "Cambiar de espacio de trabajo",
+      workspaceCode: "Código",
+      workspaceKanban: "Kanban",
+    },
     checkpoints: {
       binaryFile: "Archivo binario: diff no disponible.",
       description:
@@ -1521,6 +1539,12 @@ export const supplementalMessages = {
     },
   },
   fr: {
+    workspace: {
+      kanbanPlaceholder: "Tableau Kanban bientôt disponible",
+      switchWorkspace: "Changer d'espace de travail",
+      workspaceCode: "Code",
+      workspaceKanban: "Kanban",
+    },
     checkpoints: {
       binaryFile: "Fichier binaire : diff indisponible.",
       description:
@@ -2030,6 +2054,12 @@ export const supplementalMessages = {
     },
   },
   it: {
+    workspace: {
+      kanbanPlaceholder: "Bacheca Kanban in arrivo",
+      switchWorkspace: "Cambia area di lavoro",
+      workspaceCode: "Codice",
+      workspaceKanban: "Kanban",
+    },
     checkpoints: {
       binaryFile: "File binario: diff non disponibile.",
       description:
@@ -2539,6 +2569,12 @@ export const supplementalMessages = {
     },
   },
   ja: {
+    workspace: {
+      kanbanPlaceholder: "カンバンボードは近日公開",
+      switchWorkspace: "ワークスペースを切り替え",
+      workspaceCode: "コード",
+      workspaceKanban: "カンバン",
+    },
     checkpoints: {
       binaryFile: "バイナリファイル — 差分は表示できません。",
       description:
@@ -3040,6 +3076,12 @@ export const supplementalMessages = {
     },
   },
   ko: {
+    workspace: {
+      kanbanPlaceholder: "칸반 보드 준비 중",
+      switchWorkspace: "워크스페이스 전환",
+      workspaceCode: "코드",
+      workspaceKanban: "칸반",
+    },
     checkpoints: {
       binaryFile: "바이너리 파일 — diff를 표시할 수 없습니다.",
       description:
@@ -3532,6 +3574,12 @@ export const supplementalMessages = {
     },
   },
   pt: {
+    workspace: {
+      kanbanPlaceholder: "Quadro Kanban em breve",
+      switchWorkspace: "Alternar espaço de trabalho",
+      workspaceCode: "Código",
+      workspaceKanban: "Kanban",
+    },
     checkpoints: {
       binaryFile: "Arquivo binário — diff indisponível.",
       description:
@@ -4035,6 +4083,12 @@ export const supplementalMessages = {
     },
   },
   vi: {
+    workspace: {
+      kanbanPlaceholder: "Bảng Kanban sắp ra mắt",
+      switchWorkspace: "Chuyển không gian làm việc",
+      workspaceCode: "Mã",
+      workspaceKanban: "Kanban",
+    },
     checkpoints: {
       binaryFile: "Tệp nhị phân — không có diff.",
       description:
@@ -4533,6 +4587,12 @@ export const supplementalMessages = {
     },
   },
   "zh-Hans": {
+    workspace: {
+      kanbanPlaceholder: "看板即将推出",
+      switchWorkspace: "切换工作区",
+      workspaceCode: "代码",
+      workspaceKanban: "看板",
+    },
     checkpoints: {
       binaryFile: "二进制文件 — 无法显示差异。",
       description: "查看此回复更改的文件，并按需恢复。",
@@ -5012,6 +5072,12 @@ export const supplementalMessages = {
     },
   },
   "zh-Hant": {
+    workspace: {
+      kanbanPlaceholder: "看板即將推出",
+      switchWorkspace: "切換工作區",
+      workspaceCode: "程式碼",
+      workspaceKanban: "看板",
+    },
     checkpoints: {
       binaryFile: "二進位檔案 — 無法顯示差異。",
       description: "檢視此回覆變更的檔案，並視需要還原。",

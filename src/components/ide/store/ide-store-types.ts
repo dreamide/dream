@@ -11,6 +11,7 @@ import type {
   PendingChatSubmit,
   ProjectConfig,
   ProjectGitWorktreeCleanupResponse,
+  ProjectWorkspaceView,
   RightPanelView,
   StashItem,
 } from "@/types/ide";
@@ -184,6 +185,10 @@ export interface IdeState {
   setProjectChatHistoryPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
+  setProjectWorkspaceView: (
+    projectId: string,
+    view: ProjectWorkspaceView,
+  ) => void;
   openProjectFile: (projectId: string, filePath: string) => void;
   setOutputPanelOpen: (open: boolean) => void;
 

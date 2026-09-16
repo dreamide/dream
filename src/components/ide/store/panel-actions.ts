@@ -12,6 +12,7 @@ export const createPanelActions = (
   | "setProjectChatHistoryPanelOpen"
   | "setProjectRightPanelOpen"
   | "setProjectRightPanelView"
+  | "setProjectWorkspaceView"
   | "openProjectFile"
   | "setOutputPanelOpen"
 > => ({
@@ -162,6 +163,47 @@ export const createPanelActions = (
       const projectUpdater = (project: ProjectConfig) => ({
         ...project.ui,
         rightPanelView: view,
+      });
+      const nextState: Partial<IdeState> = {};
+
+      if (shouldUpdateProjects) {
+        nextState.projects = updateProjectUiInList(
+          state.projects,
+          projectId,
+          projectUpdater,
+        );
+      }
+
+      if (shouldUpdateClosedProjects) {
+        nextState.closedProjects = updateProjectUiInList(
+          state.closedProjects,
+          projectId,
+          projectUpdater,
+        );
+      }
+
+      return Object.keys(nextState).length > 0 ? nextState : state;
+    });
+  },
+
+  setProjectWorkspaceView: (projectId, view) => {
+    set((state) => {
+      const shouldUpdateProjects = state.projects.some(
+        (project) =>
+          project.id === projectId && project.ui.workspaceView !== view,
+      );
+      const shouldUpdateClosedProjects = state.closedProjects.some(
+        (project) =>
+          project.id === projectId && project.ui.workspaceView !== view,
+      );
+
+      if (!shouldUpdateProjects && !shouldUpdateClosedProjects) {
+        return state;
+      }
+
+      const projectUpdater = (project: ProjectConfig) => ({
+        ...project.ui,
+        workspaceView: view,
       });
       const nextState: Partial<IdeState> = {};
 
