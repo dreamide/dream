@@ -6,7 +6,7 @@ import {
   Play,
   Trash2,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { memo, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,10 +29,11 @@ import {
   getKanbanStatusDotProps,
   KANBAN_STATUS_LABEL_KEYS,
 } from "./kanban-card-status";
+import { KanbanColumnIcon } from "./kanban-column-icon";
 import { KANBAN_COLUMNS } from "./kanban-columns";
 
 const CARD_SURFACE_CLASSES =
-  "rounded-md border border-surface-300 bg-surface-50 p-2.5 text-left shadow-xs dark:border-surface-700 dark:bg-surface-800";
+  "shrink-0 rounded-md border border-surface-300 bg-background p-3 text-left text-foreground shadow-sm dark:border-surface-700";
 
 export interface KanbanCardItemProps {
   card: KanbanCard;
@@ -61,6 +62,8 @@ const KanbanCardItemImpl = ({
   shouldSuppressClick,
 }: KanbanCardItemProps) => {
   const t = useTranslations("kanban");
+  const format = useFormatter();
+  const createdAt = new Date(card.createdAt);
   const chatId = card.chatId;
   const chatTitle = useIdeStore((s) =>
     chatId
@@ -91,7 +94,7 @@ const KanbanCardItemImpl = ({
     <article
       className={cn(
         CARD_SURFACE_CLASSES,
-        "group/card select-none",
+        "group/card select-none transition-colors hover:border-surface-400 dark:hover:border-surface-600",
         dragging ? "opacity-30" : "cursor-grab",
       )}
       data-kanban-card={card.id}
@@ -104,9 +107,14 @@ const KanbanCardItemImpl = ({
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-medium text-sm">{card.title}</h3>
+          <div className="flex items-start gap-2">
+            <KanbanColumnIcon className="mt-0.5" column={card.column} />
+            <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
+              {card.title}
+            </h3>
+          </div>
           {card.description ? (
-            <p className="mt-1 line-clamp-3 whitespace-pre-line text-muted-foreground text-xs">
+            <p className="mt-2 line-clamp-3 whitespace-pre-line text-muted-foreground text-xs leading-5">
               {card.description}
             </p>
           ) : null}
@@ -187,6 +195,15 @@ const KanbanCardItemImpl = ({
           {chatTitle ? <span className="truncate">· {chatTitle}</span> : null}
         </div>
       ) : null}
+      {Number.isFinite(createdAt.getTime()) ? (
+        <time
+          className="mt-4 block text-muted-foreground text-xs"
+          dateTime={card.createdAt}
+          title={format.dateTime(createdAt, { dateStyle: "long" })}
+        >
+          {format.dateTime(createdAt, { month: "short", day: "numeric" })}
+        </time>
+      ) : null}
     </article>
   );
 };
@@ -197,7 +214,12 @@ KanbanCardItem.displayName = "KanbanCardItem";
 /** Static, subscription-free rendering used for the drag ghost. */
 export const KanbanCardPreview = ({ card }: { card: KanbanCard }) => (
   <div className={cn(CARD_SURFACE_CLASSES, "rotate-1 shadow-lg")}>
-    <h3 className="truncate font-medium text-sm">{card.title}</h3>
+    <div className="flex items-start gap-2">
+      <KanbanColumnIcon className="mt-0.5" column={card.column} />
+      <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
+        {card.title}
+      </h3>
+    </div>
     {card.description ? (
       <p className="mt-1 line-clamp-3 whitespace-pre-line text-muted-foreground text-xs">
         {card.description}
