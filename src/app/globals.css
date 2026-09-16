@@ -927,14 +927,16 @@
   margin-bottom: 0.75rem;
   overflow: hidden;
   border-radius: 0.375rem;
-  background: var(--color-background);
+  background: transparent;
   padding: 0;
 }
 
 [data-streamdown="mermaid-block"] > :first-child {
-  height: 1.75rem;
-  min-height: 1.75rem;
-  padding: 0 0.625rem;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 0.5rem 1rem;
 }
 
 [data-streamdown="mermaid-block"] > :first-child span {
@@ -945,10 +947,10 @@
   > :has(> [data-streamdown="mermaid-block-actions"]) {
   position: absolute;
   top: 0;
-  right: 0.375rem;
+  right: 0.5rem;
   z-index: 10;
   margin-top: 0;
-  height: 1.75rem;
+  height: 2.75rem;
   align-items: center;
 }
 
@@ -979,7 +981,12 @@
 [data-streamdown="mermaid-block"] > :last-child {
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: var(--color-background);
+}
+
+/* Give the pan/zoom viewport room for short diagrams and all three controls. */
+[data-streamdown="mermaid-block"] [data-streamdown="mermaid"] > div {
+  min-height: 15rem;
 }
 
 [data-streamdown="mermaid"] div:has(> button[title="Zoom in"]) {
