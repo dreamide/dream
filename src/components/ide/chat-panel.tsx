@@ -402,6 +402,11 @@ export const ChatPanel = ({
   const messagesLoaded = useIdeStore((s) =>
     Object.hasOwn(s.messagesByChatId, chat.id),
   );
+  const retainChatTranscript = useIdeStore((s) => s.retainChatTranscript);
+  useEffect(
+    () => retainChatTranscript(chat.id),
+    [chat.id, retainChatTranscript],
+  );
   const loadMessagesForChat = useIdeStore((s) => s.loadMessagesForChat);
   const isDraftChat = useIdeStore(
     (s) => s.draftChatIdByProject[project.id] === chat.id,

@@ -151,6 +151,7 @@ export interface IdeState {
   permanentlyDeleteChats: (chatIds: string[]) => void;
   restoreChats: (chatIds: string[]) => void;
   setMessagesForChat: (chatId: string, messages: UIMessage[]) => void;
+  retainChatTranscript: (chatId: string) => () => void;
   loadMessagesForChat: (chatId: string) => Promise<UIMessage[]>;
   persistMessagesForChat: (
     chatId: string,

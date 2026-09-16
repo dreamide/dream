@@ -262,6 +262,14 @@ export const usePromptHistoryNavigation = ({
     KeyboardEventHandler<HTMLTextAreaElement>
   >(
     (event) => {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      if (historyIndexRef.current === -1) {
+        if (event.key === "ArrowDown") return;
+        const textarea = event.currentTarget;
+        if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0)
+          return;
+      }
+
       const history = messages
         .filter((message) => message.role === "user")
         .map((message) =>
@@ -276,12 +284,6 @@ export const usePromptHistoryNavigation = ({
         .filter((text) => text.length > 0);
 
       if (event.key === "ArrowUp") {
-        const textarea = event.currentTarget;
-        if (historyIndexRef.current === -1) {
-          if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0) {
-            return;
-          }
-        }
         if (history.length === 0) {
           return;
         }
