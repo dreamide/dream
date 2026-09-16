@@ -14,6 +14,7 @@ import {
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
+import { toOpenCodeMcpConfig } from "./mcp-servers.js";
 import {
   getProviderSessionMetadata,
   shouldResumeProviderSession,
@@ -126,7 +127,7 @@ const parseOpenCodeModel = (model) => {
   return { modelID, providerID };
 };
 
-const getOpenCodeServerConfig = (codexPermissionMode) => {
+const getOpenCodePermissionConfig = (codexPermissionMode) => {
   if (codexPermissionMode === "full-access") {
     return {
       permission: {
@@ -148,6 +149,15 @@ const getOpenCodeServerConfig = (codexPermissionMode) => {
   }
 
   return {};
+};
+
+export const getOpenCodeServerConfig = (
+  codexPermissionMode,
+  mcpServers = [],
+) => {
+  const config = getOpenCodePermissionConfig(codexPermissionMode);
+  const mcp = toOpenCodeMcpConfig(mcpServers);
+  return Object.keys(mcp).length > 0 ? { ...config, mcp } : config;
 };
 
 const extractOpenCodePartText = (part) => {
@@ -481,6 +491,7 @@ export const streamOpenCodeResponse = ({
   abortSignal,
   agentMode,
   codexPermissionMode,
+  mcpServers = [],
   messages,
   model,
   modelSpeed,
@@ -1066,7 +1077,7 @@ export const streamOpenCodeResponse = ({
 
             const { modelID, providerID } = parseOpenCodeModel(model);
             opencode = await createOpencode({
-              config: getOpenCodeServerConfig(codexPermissionMode),
+              config: getOpenCodeServerConfig(codexPermissionMode, mcpServers),
               hostname: "127.0.0.1",
               port: 0,
               signal: serverAbortController.signal,

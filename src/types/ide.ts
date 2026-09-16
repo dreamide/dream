@@ -112,6 +112,22 @@ export interface ProjectConfig {
   reasoningEffort: ReasoningEffort | null;
   ui: ProjectUiState;
   worktree: ProjectWorktreeInfo | null;
+  mcpServerOverrides: Record<string, boolean>;
+}
+
+export type McpServerTransport = "stdio" | "http" | "sse";
+
+export interface McpServerConfig {
+  id: string;
+  name: string;
+  transport: McpServerTransport;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+  url: string;
+  headers: Record<string, string>;
+  enabled: boolean;
+  createdAt: string;
 }
 
 export interface ProjectIconInfo {
@@ -148,6 +164,7 @@ export interface AppSettings {
   cursorSelectedModels: string[];
   grokSelectedModels: string[];
   locale: AppLocale;
+  mcpServers: McpServerConfig[];
   showReasoningSummaries: boolean;
   shellPath: string;
 }

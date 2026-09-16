@@ -1,10 +1,12 @@
 import {
   Archive,
+  ArrowLeft,
   Monitor,
   Moon,
   Plug,
   RotateCcw,
   RotateCw,
+  Server,
   Sun,
   Trash2,
 } from "lucide-react";
@@ -73,6 +75,9 @@ import {
 
 import {
   formatDeletedDate,
+  MCP_LIST_VIEW,
+  McpServersSection,
+  type McpView,
   ProviderStatusCard,
   SettingsControlRow,
   SettingsGroup,
@@ -166,6 +171,13 @@ export const SettingsDialog = () => {
   const setBaseColor = useUiStore((s) => s.setBaseColor);
   const { setTheme, theme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
+  const [mcpView, setMcpView] = useState<McpView>(MCP_LIST_VIEW);
+
+  useEffect(() => {
+    if (!settingsOpen || settingsSection !== "mcp") {
+      setMcpView(MCP_LIST_VIEW);
+    }
+  }, [settingsOpen, settingsSection]);
   const [terminalShellOptions, setTerminalShellOptions] = useState<
     TerminalShellOption[]
   >([]);
@@ -485,10 +497,22 @@ export const SettingsDialog = () => {
   return (
     <Dialog onOpenChange={setSettingsOpen} open={settingsOpen}>
       <DialogContent className="!flex h-[min(86vh,780px)] w-[95vw] max-w-[1320px] !flex-col gap-0 overflow-hidden p-0 sm:max-w-[1320px]">
-        <DialogHeader className="px-6 py-3.5 text-left">
-          <DialogTitle className="text-base leading-6">
+        <DialogHeader className="flex-row items-center px-6 py-3.5 text-left">
+          <DialogTitle className="w-[14.55rem] shrink-0 text-base leading-6">
             {commonT("settings")}
           </DialogTitle>
+          {settingsSection === "mcp" && mcpView.kind !== "list" ? (
+            <button
+              className="-my-2 rounded-md border border-transparent px-3 py-2 text-left font-medium text-muted-foreground text-sm outline-none transition-colors hover:text-foreground focus-visible:border-ring"
+              onClick={() => setMcpView(MCP_LIST_VIEW)}
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                <ArrowLeft className="size-4" />
+                {settingsT("mcpBack")}
+              </span>
+            </button>
+          ) : null}
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1">
@@ -522,6 +546,21 @@ export const SettingsDialog = () => {
                 <span className="flex items-center gap-2">
                   <Plug className="size-4" />
                   {commonT("providers")}
+                </span>
+              </button>
+              <button
+                className={cn(
+                  "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
+                  settingsSection === "mcp"
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setSettingsSection("mcp")}
+                type="button"
+              >
+                <span className="flex items-center gap-2">
+                  <Server className="size-4" />
+                  {settingsT("mcpServers")}
                 </span>
               </button>
               <button
@@ -1331,6 +1370,10 @@ export const SettingsDialog = () => {
                     </ProviderStatusCard>
                   </div>
                 </div>
+              ) : null}
+
+              {settingsSection === "mcp" ? (
+                <McpServersSection setView={setMcpView} view={mcpView} />
               ) : null}
 
               {settingsSection === "chats" ? (

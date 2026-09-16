@@ -13,6 +13,7 @@ import {
   getLatestUserPrompt,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
+import { toAcpMcpServers } from "./mcp-servers.js";
 
 const MAX_GROK_TEXT_CHARS = 250_000;
 const GROK_TEXT_FLUSH_INTERVAL_MS = 50;
@@ -143,6 +144,7 @@ export const streamGrokResponse = ({
   abortSignal,
   agentMode,
   codexPermissionMode,
+  mcpServers = [],
   messages,
   model,
   projectReferencesPrompt,
@@ -153,6 +155,7 @@ export const streamGrokResponse = ({
   remoteConversationProjectPath,
   responseMessageMetadata,
 }) => {
+  const acpMcpServers = toAcpMcpServers(mcpServers);
   const stream = createUIMessageStream({
     originalMessages: messages,
     onError: (error) =>
@@ -462,7 +465,7 @@ export const streamGrokResponse = ({
           try {
             await connection.request(
               "session/load",
-              { cwd: projectPath, mcpServers: [], sessionId },
+              { cwd: projectPath, mcpServers: acpMcpServers, sessionId },
               60_000,
             );
             if (stopIfAborted()) return;
@@ -477,7 +480,7 @@ export const streamGrokResponse = ({
         if (!sessionId) {
           const session = await connection.request("session/new", {
             cwd: projectPath,
-            mcpServers: [],
+            mcpServers: acpMcpServers,
           });
           if (stopIfAborted()) return;
           sessionId = session?.sessionId;

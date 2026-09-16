@@ -244,3 +244,51 @@ test("chat branch lineage survives a relational persistence round trip", async (
     await rm(directory, { force: true, recursive: true });
   }
 });
+
+test("MCP servers and project overrides survive a persistence round trip", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const server = {
+    args: ["-y", "@modelcontextprotocol/server-github"],
+    command: "npx",
+    createdAt: "2026-07-19T12:00:00.000Z",
+    enabled: true,
+    env: { GITHUB_TOKEN: "token" },
+    headers: {},
+    id: "mcp-github",
+    name: "github",
+    transport: "stdio",
+    url: "",
+  };
+
+  try {
+    savePersistedState(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: "project-one",
+        browserTabsByProject: {},
+        chats: [],
+        chatSort: "recent",
+        closedProjects: [],
+        messagesByChatId: {},
+        projects: [
+          {
+            ...createProject("project-one", "2026-07-19T12:00:00.000Z"),
+            mcpServerOverrides: { "mcp-github": false, junk: "no" },
+          },
+        ],
+        settings: { mcpServers: [server, { id: "invalid" }] },
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.deepEqual(loaded.settings.mcpServers, [server]);
+    assert.deepEqual(loaded.projects[0].mcpServerOverrides, {
+      "mcp-github": false,
+    });
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});

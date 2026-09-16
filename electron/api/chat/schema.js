@@ -1,5 +1,35 @@
 import { z } from "zod";
 
+export const mcpServerConfigSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/),
+    transport: z.enum(["stdio", "http", "sse"]),
+    command: z.string().default(""),
+    args: z.array(z.string()).default([]),
+    env: z.record(z.string(), z.string()).default({}),
+    url: z.string().default(""),
+    headers: z.record(z.string(), z.string()).default({}),
+    enabled: z.boolean().default(true),
+    createdAt: z.string().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.transport === "stdio" && value.command.trim().length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "stdio MCP servers require a command",
+        path: ["command"],
+      });
+    }
+    if (value.transport !== "stdio" && value.url.trim().length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "http/sse MCP servers require a url",
+        path: ["url"],
+      });
+    }
+  });
+
 export const chatRequestBodySchema = z.object({
   permissionMode: z.enum(["standard", "full-access"]).default("full-access"),
   messages: z.array(z.unknown()),
@@ -36,6 +66,7 @@ export const chatRequestBodySchema = z.object({
   checkpointsEnabled: z.boolean().default(true),
   projectId: z.string().min(1).optional(),
   threadId: z.string().min(1).optional(),
+  mcpServers: z.array(mcpServerConfigSchema).default([]),
 });
 
 export const formatProjectReferencesForPrompt = (projectReferences) => {

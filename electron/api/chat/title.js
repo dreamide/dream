@@ -225,6 +225,7 @@ const generateClaudeChatTitle = async ({ model, projectPath, promptText }) => {
       cwd: projectPath,
       persistSession: false,
       permissionMode: "plan",
+      mcpServers: {},
       strictMcpConfig: true,
       ...(usesReasoningModel
         ? { effort: CLAUDE_REASONING_EFFORT_MAP.low }

@@ -73,6 +73,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   cursorSelectedModels: [],
   grokSelectedModels: [],
   locale: "en",
+  mcpServers: [],
   openAiSelectedModels: [],
   openCodeSelectedModels: [],
   showReasoningSummaries: true,
@@ -144,6 +145,7 @@ export const createProjectConfig = (
       stashItems: [],
     },
     worktree: null,
+    mcpServerOverrides: {},
   };
 };
 

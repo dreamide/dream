@@ -256,6 +256,7 @@ export const registerChatRoutes = (app) => {
       remoteConversationModelSpeed,
       remoteConversationProjectPath,
       threadId,
+      mcpServers,
     } = parsed.data;
     const { claudePermissionMode, codexPermissionMode } =
       resolveChatPermissionModes({ agentMode, permissionMode });
@@ -316,6 +317,7 @@ export const registerChatRoutes = (app) => {
           abortSignal: c.req.raw.signal,
           chatId: resolvedChatId,
           codexPermissionMode,
+          mcpServers,
           messages,
           model,
           projectReferencesPrompt,
@@ -340,6 +342,7 @@ export const registerChatRoutes = (app) => {
           abortSignal: c.req.raw.signal,
           agentMode,
           codexPermissionMode,
+          mcpServers,
           messages,
           model,
           modelSpeed,
@@ -385,6 +388,7 @@ export const registerChatRoutes = (app) => {
           abortSignal: c.req.raw.signal,
           agentMode,
           codexPermissionMode,
+          mcpServers,
           messages,
           model,
           projectReferencesPrompt,
@@ -405,6 +409,7 @@ export const registerChatRoutes = (app) => {
       return streamClaudeResponse({
         agentMode,
         claudePermissionMode,
+        mcpServers,
         messages,
         model,
         modelSpeed,

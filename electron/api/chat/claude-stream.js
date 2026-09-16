@@ -20,6 +20,7 @@ import {
   getLatestUserMessage,
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
+import { toClaudeMcpServers } from "./mcp-servers.js";
 import {
   getProviderSessionMetadata,
   shouldResumeProviderSession,
@@ -240,7 +241,10 @@ const isPreloadedClaudeToolSearch = (input) => {
   return false;
 };
 
-const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
+export const createClaudePermissionHandler = (
+  writer,
+  { mode, projectPath },
+) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const attachedInput = keepClaudeAgentAttachedToTurn(toolName, input);
@@ -300,7 +304,14 @@ const createClaudePermissionHandler = (writer, { mode, projectPath }) => {
       };
     }
 
-    if (normalizedToolName !== "askuserquestion" && mode === "accept-edits") {
+    if (
+      normalizedToolName !== "askuserquestion" &&
+      mode === "accept-edits" &&
+      // MCP tools are neither reads nor edits; let them fall through to the
+      // interactive approval prompt instead of hard-denying them. Check the
+      // raw name because normalization strips the `mcp__` separators.
+      !String(toolName ?? "").startsWith("mcp__")
+    ) {
       return {
         behavior: "deny",
         interrupt: false,
@@ -456,6 +467,7 @@ const parseAskUserQuestionApproval = (reason) => {
 export const streamClaudeResponse = async ({
   agentMode,
   claudePermissionMode,
+  mcpServers = [],
   messages,
   model,
   modelSpeed,
@@ -566,8 +578,10 @@ export const streamClaudeResponse = async ({
       // are available directly instead of being discovered via ToolSearch.
       tools: CLAUDE_BUILT_IN_TOOLS,
       allowedTools: CLAUDE_ALLOWED_TOOLS,
-      // Keep strict with no servers so user/global MCP config is not loaded.
-      mcpServers: {},
+      // Only Dream-managed MCP servers are loaded; strict mode keeps the
+      // user's ~/.claude.json and project .mcp.json entries out of scope
+      // (users import those explicitly from Settings > MCP servers).
+      mcpServers: toClaudeMcpServers(mcpServers),
       strictMcpConfig: true,
       // The provider defaults to `settingSources: []`, which isolates the SDK
       // from all filesystem config. Opt in so the user's ~/.claude/settings.json

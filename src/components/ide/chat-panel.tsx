@@ -33,6 +33,10 @@ import {
   getModelOptionsForProvider,
 } from "@/lib/ide-defaults";
 import {
+  MCP_PROVIDER_SUPPORT,
+  resolveEffectiveMcpServers,
+} from "@/lib/mcp-servers";
+import {
   getModelContextWindow,
   getModelReasoningEfforts,
   getModelSpeedTiers,
@@ -1137,6 +1141,9 @@ export const ChatPanel = ({
                 remoteConversationProjectPathForRequest,
               chatId: chat.id,
               checkpointsEnabled: settings.changeCheckpoints,
+              mcpServers: MCP_PROVIDER_SUPPORT[activeProvider]
+                ? resolveEffectiveMcpServers(settings, submittedProject)
+                : [],
             },
           },
         );
@@ -1174,7 +1181,7 @@ export const ChatPanel = ({
       selectedReasoningLabelForMetadata,
       sendMessage,
       setChatTitleGenerating,
-      settings.changeCheckpoints,
+      settings,
       scrollConversationToBottom,
       chat,
       updateChat,

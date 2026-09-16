@@ -9,6 +9,10 @@ import {
   getCodexCliSpawnErrorMessage,
   resolveCodexCliLaunch,
 } from "./codex-cli-launch.js";
+import {
+  getCodexMcpFingerprint,
+  toCodexConfigOverrides,
+} from "./mcp-servers.js";
 
 const MAX_STDERR_CHARS = 20_000;
 
@@ -34,12 +38,17 @@ const getMessageThreadId = (message) => {
   );
 };
 
-const createCodexAppServerClient = async ({ onClosed }) => {
+const createCodexAppServerClient = async ({
+  configOverrideArgs = [],
+  fingerprint = "",
+  onClosed,
+}) => {
   const launch = await resolveCodexCliLaunch();
   const child = spawn(
     launch.command,
     [
       ...launch.argsPrefix,
+      ...configOverrideArgs,
       "--enable",
       "default_mode_request_user_input",
       "app-server",
@@ -278,6 +287,8 @@ const createCodexAppServerClient = async ({ onClosed }) => {
   };
 
   const client = {
+    fingerprint,
+    getActiveThreadCount: () => threadHandlers.size,
     hasThread: (threadId) => knownThreadIds.has(threadId),
     isClosed: () => closed,
     registerThread: (threadId, handler) => {
@@ -339,12 +350,43 @@ const createCodexAppServerClient = async ({ onClosed }) => {
   return client;
 };
 
-export const getCodexAppServerClient = () => {
+/**
+ * Returns the shared `codex app-server` process, starting it on demand.
+ *
+ * MCP servers are passed as `-c mcp_servers.*` argv overrides, so a changed
+ * server set requires a fresh process. The running process is only replaced
+ * while it has no active threads; otherwise the current process is reused and
+ * the new configuration applies once the in-flight Codex turns finish.
+ *
+ * Per-thread `config` overrides on `thread/start` would avoid restarts, but
+ * they hang subsequent turns on codex-cli 0.154.x (openai/codex#45361).
+ */
+export const getCodexAppServerClient = async ({ mcpServers = [] } = {}) => {
+  const fingerprint = getCodexMcpFingerprint(mcpServers);
+  if (sharedClientPromise && !sharedClient) {
+    // A startup is in flight; wait for it before comparing configuration.
+    try {
+      await sharedClientPromise;
+    } catch {
+      // Startup failed; fall through and try again below.
+    }
+  }
   if (sharedClient && !sharedClient.isClosed()) {
-    return Promise.resolve(sharedClient);
+    if (sharedClient.fingerprint === fingerprint) {
+      return sharedClient;
+    }
+    if (sharedClient.getActiveThreadCount() > 0) {
+      console.warn(
+        "[codex] MCP server configuration changed while Codex turns are active; the new configuration applies after they finish.",
+      );
+      return sharedClient;
+    }
+    await stopCodexAppServer();
   }
   if (!sharedClientPromise) {
     sharedClientPromise = createCodexAppServerClient({
+      configOverrideArgs: toCodexConfigOverrides(mcpServers),
+      fingerprint,
       onClosed: (client) => {
         if (sharedClient === client) {
           sharedClient = null;

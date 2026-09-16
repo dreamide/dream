@@ -186,6 +186,7 @@ const runClaudePrompt = async ({ model, prompt, projectPath, system }) => {
       cwd: projectPath,
       persistSession: false,
       permissionMode: "plan",
+      mcpServers: {},
       strictMcpConfig: true,
     }),
     prompt,

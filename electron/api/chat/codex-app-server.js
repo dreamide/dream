@@ -446,6 +446,7 @@ const buildCollabAgentOutput = (item) => {
 export const streamCodexAppServerResponse = ({
   abortSignal,
   codexPermissionMode,
+  mcpServers = [],
   messages,
   model,
   modelSpeed,
@@ -1210,7 +1211,7 @@ export const streamCodexAppServerResponse = ({
           type: "message-metadata",
         });
 
-        void getCodexAppServerClient()
+        void getCodexAppServerClient({ mcpServers })
           .then(async (client) => {
             appServerClient = client;
             if (finished) {
@@ -1307,6 +1308,9 @@ export const streamCodexAppServerResponse = ({
                 approvalPolicy,
                 approvalsReviewer: "user",
                 baseInstructions: systemPrompt,
+                // MCP servers are applied via app-server argv overrides (see
+                // getCodexAppServerClient); per-thread `config` hangs turns on
+                // codex-cli 0.154.x (openai/codex#45361).
                 config: null,
                 cwd: projectPath,
                 ephemeral: true,

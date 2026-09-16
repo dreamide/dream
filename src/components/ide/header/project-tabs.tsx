@@ -174,6 +174,9 @@ export const ProjectTabs = () => {
   const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
+  const mcpServers = useIdeStore((s) => s.settings.mcpServers);
+  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
+  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const accentColor = useUiStore((s) => s.accentColor);
   const accentSparklesPalette = useMemo(
     () => createAccentSparklesPalette(accentColor),
@@ -229,6 +232,24 @@ export const ProjectTabs = () => {
   const handleAddProject = useCallback(() => {
     setActiveProjectId(null);
   }, [setActiveProjectId]);
+
+  const handleToggleMcpServer = useCallback(
+    (projectId: string, serverId: string, enabled: boolean) => {
+      updateProject(projectId, (current) => ({
+        ...current,
+        mcpServerOverrides: {
+          ...current.mcpServerOverrides,
+          [serverId]: enabled,
+        },
+      }));
+    },
+    [updateProject],
+  );
+
+  const handleOpenMcpSettings = useCallback(() => {
+    setSettingsSection("mcp");
+    setSettingsOpen(true);
+  }, [setSettingsOpen, setSettingsSection]);
 
   const handleOpenProjectInEditor = useCallback(
     (
@@ -397,9 +418,16 @@ export const ProjectTabs = () => {
                 closeProject={closeProject}
                 editors={projectOpenInEditors}
                 isMacOs={isMacOs}
+                mcpServers={mcpServers}
                 onOpenInEditor={handleOpenProjectInEditor}
+                onOpenMcpSettings={handleOpenMcpSettings}
+                onToggleMcpServer={handleToggleMcpServer}
                 open={openProjectMenuId === project.id}
                 project={project}
+                projectConfig={
+                  projects.find((candidate) => candidate.id === project.id) ??
+                  null
+                }
                 setOpen={(open) =>
                   setOpenProjectMenuId(open ? project.id : null)
                 }

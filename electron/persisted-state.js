@@ -5,6 +5,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { readMigrationFiles } from "drizzle-orm/migrator";
+import { normalizeMcpServerList } from "./api/chat/mcp-servers.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -224,6 +225,22 @@ function getNestedStringArray(parent, key) {
   }
 
   return strings;
+}
+
+function getNestedBooleanRecord(parent, key) {
+  const value = parent?.[key];
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([recordKey, recordValue]) =>
+        typeof recordKey === "string" &&
+        recordKey.trim() &&
+        typeof recordValue === "boolean",
+    ),
+  );
 }
 
 function getNestedNumberRecord(parent, key) {
@@ -524,6 +541,10 @@ function buildProjectMetadata(project) {
     browser,
     icon,
     lastUsedAt,
+    mcpServerOverrides: getNestedBooleanRecord(
+      isRecord(project.mcpServerOverrides) ? project : metadata,
+      "mcpServerOverrides",
+    ),
     modelSelection,
     runCommand:
       typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
@@ -817,6 +838,12 @@ function saveStateToRelationalDatabase(database, state) {
       settings.showReasoningSummaries ?? true,
       now,
     );
+    writeConfig(
+      database,
+      "settings.mcpServers",
+      normalizeMcpServerList(settings.mcpServers),
+      now,
+    );
 
     const rawProjects = Array.isArray(state.projects) ? state.projects : [];
     const rawClosedProjects = Array.isArray(state.closedProjects)
@@ -1051,6 +1078,10 @@ function loadStateFromRelationalDatabase(database) {
           }
         : null,
       lastUsedAt,
+      mcpServerOverrides: getNestedBooleanRecord(
+        metadata,
+        "mcpServerOverrides",
+      ),
       metadata,
       model: getNestedString(modelSelection, "model", ""),
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
@@ -1285,6 +1316,7 @@ function loadStateFromRelationalDatabase(database) {
       grokSelectedModels: Array.isArray(config["settings.grokSelectedModels"])
         ? config["settings.grokSelectedModels"]
         : [],
+      mcpServers: normalizeMcpServerList(config["settings.mcpServers"]),
       showReasoningSummaries:
         typeof config["settings.showReasoningSummaries"] === "boolean"
           ? config["settings.showReasoningSummaries"]

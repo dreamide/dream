@@ -62,3 +62,31 @@ test("PreToolUse hook passes through foreground Agent calls untouched", async ()
   });
   assert.deepEqual(result, { continue: true });
 });
+
+test("accept-edits mode prompts for MCP tools instead of denying them", async () => {
+  const { createClaudePermissionHandler } = await import("./claude-stream.js");
+  const parts = [];
+  const writer = { write: (part) => parts.push(part) };
+  const handler = createClaudePermissionHandler(writer, {
+    mode: "accept-edits",
+    projectPath: process.cwd(),
+  });
+
+  const denied = await handler("Bash", { command: "ls" }, { toolUseID: "t1" });
+  assert.equal(denied.behavior, "deny");
+
+  // The MCP call waits for interactive approval; only check that the
+  // approval request was emitted rather than an immediate deny.
+  const pending = handler("mcp__github__list_issues", {}, { toolUseID: "t2" });
+  const settled = await Promise.race([
+    pending.then(() => "settled"),
+    new Promise((resolve) => setTimeout(() => resolve("pending"), 20)),
+  ]);
+  assert.equal(settled, "pending");
+  assert.ok(
+    parts.some(
+      (part) =>
+        part.type === "tool-approval-request" && part.toolCallId === "t2",
+    ),
+  );
+});
