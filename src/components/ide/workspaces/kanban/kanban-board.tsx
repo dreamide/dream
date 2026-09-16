@@ -1,6 +1,4 @@
-import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import type { KanbanCard, KanbanColumnId } from "@/types/ide";
 import { useIdeStore } from "../../ide-store";
 import { KanbanCardPreview } from "./kanban-card";
@@ -22,7 +20,6 @@ export interface KanbanBoardProps {
 }
 
 export const KanbanBoard = ({ cards, projectId }: KanbanBoardProps) => {
-  const t = useTranslations("kanban");
   const addKanbanCard = useIdeStore((s) => s.addKanbanCard);
   const updateKanbanCard = useIdeStore((s) => s.updateKanbanCard);
   const deleteKanbanCard = useIdeStore((s) => s.deleteKanbanCard);
@@ -115,14 +112,8 @@ export const KanbanBoard = ({ cards, projectId }: KanbanBoardProps) => {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
-      <div className="flex shrink-0 items-center gap-2">
-        <h2 className="font-semibold text-sm">{t("title")}</h2>
-        <Badge variant="secondary">
-          {t("cardCount", { count: cards.length })}
-        </Badge>
-      </div>
-      <div className="min-h-0 flex-1 overflow-x-auto">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="-m-2 min-h-0 flex-1 overflow-x-auto p-2">
         <div className="mx-auto flex h-full w-max gap-2">
           {KANBAN_COLUMNS.map((column) => (
             <KanbanColumn
