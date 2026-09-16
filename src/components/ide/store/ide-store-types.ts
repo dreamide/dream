@@ -6,6 +6,8 @@ import type {
   BrowserTabState,
   ChatConfig,
   ChatSortOrder,
+  KanbanCard,
+  KanbanColumnId,
   PanelSizes,
   PanelVisibility,
   PendingChatSubmit,
@@ -172,6 +174,28 @@ export interface IdeState {
   executeStashItem: (projectId: string, itemId: string) => string | null;
   queueChatSubmit: (chatId: string, submission: PendingChatSubmit) => boolean;
   takePendingChatSubmit: (chatId: string) => PendingChatSubmit | null;
+
+  // Actions - kanban
+  addKanbanCard: (
+    projectId: string,
+    card: { column?: KanbanColumnId; description?: string; title: string },
+  ) => string | null;
+  updateKanbanCard: (
+    projectId: string,
+    cardId: string,
+    updater: (card: KanbanCard) => KanbanCard,
+  ) => void;
+  deleteKanbanCard: (projectId: string, cardId: string) => void;
+  moveKanbanCard: (
+    projectId: string,
+    cardId: string,
+    column: KanbanColumnId,
+    index: number,
+  ) => void;
+  startKanbanCard: (projectId: string, cardId: string) => string | null;
+  openKanbanCardChat: (projectId: string, cardId: string) => void;
+  unlinkKanbanCardsForChats: (chatIds: string[]) => void;
+  advanceKanbanCardsForChat: (chatId: string) => void;
 
   // Actions - panels
   togglePanel: (panel: keyof PanelVisibility) => void;

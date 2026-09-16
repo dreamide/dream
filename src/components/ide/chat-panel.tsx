@@ -424,6 +424,15 @@ export const ChatPanel = ({
   const pendingChatSubmit = useIdeStore(
     (s) => s.pendingChatSubmitByChatId[chat.id] ?? null,
   );
+  const canSubmitKanbanTask = useIdeStore(
+    (s) =>
+      s.activeProjectId === project.id &&
+      Boolean(
+        s.projects
+          .find((entry) => entry.id === project.id)
+          ?.ui.kanbanCards.some((card) => card.chatId === chat.id),
+      ),
+  );
   const takePendingChatSubmit = useIdeStore((s) => s.takePendingChatSubmit);
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
@@ -1197,7 +1206,12 @@ export const ChatPanel = ({
   handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
-    if (!pendingChatSubmit || !isActive || !messagesLoaded || isProcessing) {
+    if (
+      !pendingChatSubmit ||
+      (!isActive && !canSubmitKanbanTask) ||
+      !messagesLoaded ||
+      isProcessing
+    ) {
       return;
     }
 
@@ -1250,6 +1264,7 @@ export const ChatPanel = ({
       window.cancelAnimationFrame(frame);
     };
   }, [
+    canSubmitKanbanTask,
     chat.id,
     isActive,
     isProcessing,

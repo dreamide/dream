@@ -126,6 +126,47 @@ test("mergePersistedState preserves the project changes diff word-wrap preferenc
   assert.equal(merged.projects[0].ui.changesDiffWordWrap, true);
 });
 
+test("mergePersistedState normalizes kanban cards and drops invalid ones", () => {
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        ui: {
+          kanbanCards: [
+            {
+              chatId: "chat-1",
+              column: "review",
+              createdAt: "2026-08-15T12:00:00.000Z",
+              description: "Details",
+              id: "card-one",
+              title: "Valid",
+              updatedAt: "2026-08-15T12:00:00.000Z",
+            },
+            {
+              column: "bogus",
+              id: "card-two",
+              title: "Bad column",
+              chatId: 42,
+            },
+            { id: "", title: "No id" },
+            { id: "card-one", title: "Duplicate" },
+          ],
+        } as unknown as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  const cards = merged.projects[0].ui.kanbanCards;
+  assert.equal(cards.length, 2);
+  assert.equal(cards[0].id, "card-one");
+  assert.equal(cards[0].column, "review");
+  assert.equal(cards[0].chatId, "chat-1");
+  assert.equal(cards[0].title, "Valid");
+  assert.equal(cards[1].id, "card-two");
+  assert.equal(cards[1].column, "backlog");
+  assert.equal(cards[1].chatId, null);
+  assert.equal(cards[1].description, "");
+});
+
 test("mergePersistedState preserves the project workspace view and falls back to code", () => {
   const merged = mergePersistedState({
     projects: [

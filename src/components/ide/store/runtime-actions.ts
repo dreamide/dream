@@ -1,6 +1,7 @@
 import { getDesktopApi } from "@/lib/electron";
 import { useActivityStore } from "../activity-store";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
+import { advanceKanbanCardsInProjects } from "./kanban-actions";
 
 export const createRuntimeActions = (
   set: IdeStoreSet,
@@ -67,6 +68,7 @@ export const createRuntimeActions = (
       const nextStreamingChatIds = { ...state.streamingChatIds };
       const nextAwaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
       const nextCompletedChatIds = { ...state.completedChatIds };
+      let nextProjects = state.projects;
 
       if (streaming) {
         if (!state.streamingChatIds[chatId])
@@ -81,6 +83,14 @@ export const createRuntimeActions = (
         }
         delete nextStreamingChatIds[chatId];
         delete nextAwaitingAnswerChatIds[chatId];
+
+        // A normally finished agent turn moves any linked Kanban card from
+        // "In progress" to "Review". Waiting/failed/interrupted turns leave
+        // the card where it is (the chat panel records the activity status
+        // before it clears the streaming flag).
+        if (wasStreaming && activity?.status === "finished") {
+          nextProjects = advanceKanbanCardsInProjects(state.projects, chatId);
+        }
 
         const chat = state.chats.find((item) => item.id === chatId);
         const project = chat
@@ -107,6 +117,7 @@ export const createRuntimeActions = (
         awaitingAnswerChatIds: nextAwaitingAnswerChatIds,
         completedChatIds: nextCompletedChatIds,
         streamingChatIds: nextStreamingChatIds,
+        ...(nextProjects !== state.projects ? { projects: nextProjects } : {}),
       };
     }),
 

@@ -29,6 +29,10 @@ const WORKSPACE_COMPONENTS: Record<
  * mounted (hidden with `visibility` rather than unmounted or `display: none`)
  * so streaming chats, terminals, browser webviews, and the code workspace's
  * ResizeObserver-driven layout all survive switching back and forth.
+ *
+ * The Code workspace also mounts when restoring directly into Kanban so its
+ * chat panels can process queued card submissions. Only the selected body is
+ * active, keeping hidden workspace shortcuts and native webviews disabled.
  */
 const ProjectWorkspaceComponent = ({
   active,
@@ -41,7 +45,7 @@ const ProjectWorkspaceComponent = ({
       project.ui.workspaceView,
   );
   const [visitedViews, setVisitedViews] = useState(
-    () => new Set<ProjectWorkspaceView>([workspaceView]),
+    () => new Set<ProjectWorkspaceView>(["code", workspaceView]),
   );
 
   useEffect(() => {

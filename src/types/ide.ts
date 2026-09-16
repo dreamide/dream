@@ -91,6 +91,23 @@ export interface StashItem {
   updatedAt: string;
 }
 
+export type KanbanColumnId =
+  | "backlog"
+  | "ready"
+  | "inProgress"
+  | "review"
+  | "done";
+
+export interface KanbanCard {
+  chatId: string | null;
+  column: KanbanColumnId;
+  createdAt: string;
+  description: string;
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
 export interface PendingChatSubmit {
   files?: FileUIPart[];
   preserveDraft?: boolean;
@@ -198,6 +215,7 @@ export interface ProjectUiState {
   chatHistoryPanelOpen: boolean;
   changesDiffWordWrap: boolean;
   fileEditorWordWrap: boolean;
+  kanbanCards: KanbanCard[];
   multiChat: boolean;
   panelSizes: PanelSizes;
   rightPanelOpen: boolean;

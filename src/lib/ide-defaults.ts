@@ -8,6 +8,8 @@ import type {
   AiProvider,
   AppSettings,
   ChatConfig,
+  KanbanCard,
+  KanbanColumnId,
   ModelSpeed,
   PanelSizes,
   PanelVisibility,
@@ -100,6 +102,7 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
   chatHistoryPanelOpen: false,
   changesDiffWordWrap: false,
   fileEditorWordWrap: false,
+  kanbanCards: [],
   multiChat: false,
   panelSizes: DEFAULT_PANEL_SIZES,
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,
@@ -142,6 +145,7 @@ export const createProjectConfig = (
     runCommand: "pnpm dev",
     ui: {
       ...DEFAULT_PROJECT_UI,
+      kanbanCards: [],
       rightPanelOpen: false,
       stashItems: [],
     },
@@ -225,6 +229,36 @@ export const createStashItem = (
         : project.reasoningEffort,
     references: overrides?.references ?? [],
     text: overrides?.text ?? "",
+    updatedAt: timestamp,
+  };
+};
+
+export const KANBAN_COLUMN_IDS = [
+  "backlog",
+  "ready",
+  "inProgress",
+  "review",
+  "done",
+] as const satisfies readonly KanbanColumnId[];
+
+export const isKanbanColumnId = (value: unknown): value is KanbanColumnId =>
+  typeof value === "string" &&
+  (KANBAN_COLUMN_IDS as readonly string[]).includes(value);
+
+export const createKanbanCard = (
+  overrides?: Partial<
+    Pick<KanbanCard, "chatId" | "column" | "description" | "title">
+  >,
+): KanbanCard => {
+  const timestamp = new Date().toISOString();
+
+  return {
+    chatId: overrides?.chatId ?? null,
+    column: overrides?.column ?? "backlog",
+    createdAt: timestamp,
+    description: overrides?.description ?? "",
+    id: crypto.randomUUID(),
+    title: overrides?.title?.trim() ?? "",
     updatedAt: timestamp,
   };
 };

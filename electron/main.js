@@ -571,7 +571,11 @@ async function createMainWindow() {
 }
 
 ipcMain.handle("projects:pick-directory", pickDirectory);
-ipcMain.handle("state:load", () => loadPersistedState());
+ipcMain.handle("state:load", async () => {
+  // A refreshed renderer must see the writes submitted by the old document.
+  await Promise.all([...pendingStateWrites]);
+  return loadPersistedState();
+});
 ipcMain.handle("state:load-chat-messages", (_event, { chatId } = {}) =>
   loadPersistedChatMessages(chatId),
 );
@@ -592,19 +596,26 @@ ipcMain.on("api:get-session-token", (event) => {
 // cannot delay input-event delivery. The queue coalesces metadata snapshots and
 // per-chat transcript writes independently.
 let stateSaveQueue = null;
+const pendingStateWrites = new Set();
+const trackStateWrite = (write) => {
+  pendingStateWrites.add(write);
+  const settled = () => pendingStateWrites.delete(write);
+  void write.then(settled, settled);
+  return write;
+};
 const getStateSaveQueue = () =>
   (stateSaveQueue ??= createStateSaveQueue({
     databasePath: resolveStateDatabasePath(),
   }));
 
 ipcMain.handle("state:save", (_event, state) =>
-  getStateSaveQueue().save(state),
+  trackStateWrite(getStateSaveQueue().save(state)),
 );
 ipcMain.handle("state:save-chat-messages", (_event, payload) =>
-  getStateSaveQueue().saveChatMessages(payload),
+  trackStateWrite(getStateSaveQueue().saveChatMessages(payload)),
 );
 ipcMain.handle("state:save-active-project", (_event, payload) =>
-  getStateSaveQueue().saveActiveProject(payload),
+  trackStateWrite(getStateSaveQueue().saveActiveProject(payload)),
 );
 
 ipcMain.handle("theme:set", (_event, { theme } = {}) => {

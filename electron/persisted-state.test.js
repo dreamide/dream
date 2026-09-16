@@ -39,6 +39,7 @@ const createProject = (id, lastUsedAt) => ({
     rightPanelOpen: true,
     rightPanelView: "changes",
     stashItems: [],
+    kanbanCards: [],
     workspaceView: "code",
   },
   worktree: null,
@@ -350,6 +351,60 @@ test("workspace view falls back to code when missing or invalid", async () => {
 
     const loaded = loadPersistedState({ databasePath });
     assert.equal(loaded.projects[0]?.ui.workspaceView, "code");
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("kanban cards survive a relational persistence round trip", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  project.ui.workspaceView = "kanban";
+  project.ui.kanbanCards = [
+    {
+      chatId: "chat-1",
+      column: "inProgress",
+      createdAt: timestamp,
+      description: "Add a Kanban board",
+      id: "card-one",
+      title: "Ship kanban",
+      updatedAt: timestamp,
+    },
+    {
+      chatId: null,
+      column: "backlog",
+      createdAt: timestamp,
+      description: "",
+      id: "card-two",
+      title: "Write docs",
+      updatedAt: timestamp,
+    },
+  ];
+
+  try {
+    savePersistedState(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: project.id,
+        browserTabsByProject: {},
+        chats: [],
+        chatSort: "recent",
+        closedProjects: [],
+        messagesByChatId: {},
+        projects: [project],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.deepEqual(
+      loaded.projects[0]?.ui.kanbanCards,
+      project.ui.kanbanCards,
+    );
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

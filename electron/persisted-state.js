@@ -303,6 +303,32 @@ function getNestedStashItems(parent) {
   return items;
 }
 
+function getNestedKanbanCards(parent) {
+  const value = isRecord(parent) ? parent.kanbanCards : null;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenIds = new Set();
+  const cards = [];
+
+  for (const rawCard of value) {
+    if (!isRecord(rawCard) || typeof rawCard.id !== "string") {
+      continue;
+    }
+
+    const id = rawCard.id.trim();
+    if (!id || seenIds.has(id)) {
+      continue;
+    }
+
+    seenIds.add(id);
+    cards.push(rawCard);
+  }
+
+  return cards;
+}
+
 function normalizeSparklesPaletteName(value) {
   if (value === "arctic") {
     return "violet";
@@ -522,6 +548,9 @@ function buildProjectMetadata(project) {
   );
   ui.stashItems = getNestedStashItems(
     Object.hasOwn(projectUi, "stashItems") ? projectUi : ui,
+  );
+  ui.kanbanCards = getNestedKanbanCards(
+    Object.hasOwn(projectUi, "kanbanCards") ? projectUi : ui,
   );
   ui.panelSizes = {
     chatHistoryPanelWidth: getNestedNumber(
@@ -1138,6 +1167,7 @@ function loadStateFromRelationalDatabase(database) {
       ),
       rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
       stashItems: getNestedStashItems(ui),
+      kanbanCards: getNestedKanbanCards(ui),
       workspaceView: getNestedWorkspaceView(ui, "workspaceView", "code"),
     };
     allProjects.push(project);

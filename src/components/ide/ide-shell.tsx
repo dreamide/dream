@@ -121,7 +121,31 @@ export const IdeShell = () => {
       settings: useIdeStore.getState().settings,
     };
     let persistTimer: ReturnType<typeof setTimeout> | null = null;
+    let persistIdleCallback: number | null = null;
+    let persistPending = false;
     let observedStateHydrated = useIdeStore.getState().stateHydrated;
+
+    const cancelScheduledPersist = () => {
+      if (persistTimer !== null) {
+        clearTimeout(persistTimer);
+        persistTimer = null;
+      }
+      if (persistIdleCallback !== null) {
+        cancelIdleCallback(persistIdleCallback);
+        persistIdleCallback = null;
+      }
+    };
+    const flushPendingPersist = () => {
+      cancelScheduledPersist();
+      if (persistPending) {
+        persistPending = false;
+        useIdeStore.getState().persist();
+      }
+    };
+
+    // Reload tears down the document without running React effect cleanup.
+    window.addEventListener("beforeunload", flushPendingPersist);
+    window.addEventListener("pagehide", flushPendingPersist);
 
     const unsub = useIdeStore.subscribe((state) => {
       const next = {
@@ -172,18 +196,24 @@ export const IdeShell = () => {
             return;
           }
 
-          if (persistTimer !== null) clearTimeout(persistTimer);
+          cancelScheduledPersist();
+          persistPending = true;
           persistTimer = setTimeout(() => {
             persistTimer = null;
             // Serializing the full state for IPC blocks the renderer thread;
             // run it during an idle period so it never lands in the middle of
             // a click-driven animation frame. The timeout still guarantees a
             // save within ~2s even if the thread stays busy.
-            const runPersist = () => useIdeStore.getState().persist();
             if (typeof requestIdleCallback === "function") {
-              requestIdleCallback(runPersist, { timeout: 2000 });
+              persistIdleCallback = requestIdleCallback(
+                () => {
+                  persistIdleCallback = null;
+                  flushPendingPersist();
+                },
+                { timeout: 2000 },
+              );
             } else {
-              runPersist();
+              flushPendingPersist();
             }
           }, 300);
         }
@@ -192,11 +222,9 @@ export const IdeShell = () => {
 
     return () => {
       unsub();
-      if (persistTimer !== null) {
-        clearTimeout(persistTimer);
-        // Flush pending persist on unmount.
-        useIdeStore.getState().persist();
-      }
+      window.removeEventListener("beforeunload", flushPendingPersist);
+      window.removeEventListener("pagehide", flushPendingPersist);
+      flushPendingPersist();
     };
   }, []);
 
