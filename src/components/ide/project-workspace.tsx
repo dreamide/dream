@@ -26,7 +26,7 @@ const WORKSPACE_COMPONENTS: Record<
 
 /**
  * Dispatches a project to its selected workspace body. Visited workspaces stay
- * mounted (hidden with `visibility` rather than unmounted or `display: none`)
+ * mounted (hidden with opacity and visibility rather than `display: none`)
  * so streaming chats, terminals, browser webviews, and the code workspace's
  * ResizeObserver-driven layout all survive switching back and forth.
  *
@@ -61,7 +61,7 @@ const ProjectWorkspaceComponent = ({
   return (
     <div className="relative h-full min-h-0 overflow-hidden">
       {(Object.keys(WORKSPACE_COMPONENTS) as ProjectWorkspaceView[])
-        .filter((view) => visitedViews.has(view))
+        .filter((view) => visitedViews.has(view) || view === workspaceView)
         .map((view) => {
           const Body = WORKSPACE_COMPONENTS[view];
           const selected = view === workspaceView;
@@ -70,10 +70,10 @@ const ProjectWorkspaceComponent = ({
             <div
               aria-hidden={!selected}
               className={cn(
-                "absolute inset-0 min-h-0",
+                "absolute inset-0 min-h-0 bg-surface-50 dark:bg-surface-900",
                 selected
-                  ? "visible pointer-events-auto"
-                  : "invisible pointer-events-none",
+                  ? "visible z-10 opacity-100 pointer-events-auto"
+                  : "invisible z-0 opacity-0 pointer-events-none",
               )}
               data-workspace-view={view}
               inert={!selected}
