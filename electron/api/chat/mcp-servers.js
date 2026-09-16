@@ -204,3 +204,22 @@ export const getCodexMcpFingerprint = (servers) =>
       ),
     ),
   );
+
+/**
+ * Quotes an argument for a Windows command line so it survives both cmd.exe
+ * (used when spawning `.cmd` shims with `shell: true`) and the child's
+ * CommandLineToArgv parsing. Backslashes directly before a double quote are
+ * doubled, embedded quotes are escaped, and the whole value is wrapped.
+ */
+export const quoteWindowsShellArg = (value) => {
+  const text = String(value);
+  if (text.length > 0 && !/[\s"]/.test(text)) {
+    return text;
+  }
+  return `"${text.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, "$1$1")}"`;
+};
+
+export const quoteShellArgs = (args, shell) =>
+  shell && process.platform === "win32"
+    ? args.map((arg) => quoteWindowsShellArg(arg))
+    : args;

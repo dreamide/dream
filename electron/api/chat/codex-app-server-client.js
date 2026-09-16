@@ -11,6 +11,7 @@ import {
 } from "./codex-cli-launch.js";
 import {
   getCodexMcpFingerprint,
+  quoteShellArgs,
   toCodexConfigOverrides,
 } from "./mcp-servers.js";
 
@@ -48,7 +49,9 @@ const createCodexAppServerClient = async ({
     launch.command,
     [
       ...launch.argsPrefix,
-      ...configOverrideArgs,
+      // Config overrides contain spaces and quotes; when going through cmd.exe
+      // they must be quoted or the shell splits them into separate arguments.
+      ...quoteShellArgs(configOverrideArgs, launch.shell ?? false),
       "--enable",
       "default_mode_request_user_input",
       "app-server",

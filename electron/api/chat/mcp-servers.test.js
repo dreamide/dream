@@ -146,3 +146,19 @@ test("getCodexMcpFingerprint is stable across ordering", () => {
   );
   assert.equal(getCodexMcpFingerprint([]), "[]");
 });
+
+test("quoteWindowsShellArg preserves spaces, quotes and backslashes", async () => {
+  const { quoteWindowsShellArg } = await import("./mcp-servers.js");
+  assert.equal(quoteWindowsShellArg("-c"), "-c");
+  assert.equal(
+    quoteWindowsShellArg('mcp_servers.x.args=["-y", "pkg"]'),
+    '"mcp_servers.x.args=[\\"-y\\", \\"pkg\\"]"',
+  );
+  assert.equal(
+    quoteWindowsShellArg('mcp_servers.x.command="C:\\bin\\node.exe"'),
+    '"mcp_servers.x.command=\\"C:\\bin\\node.exe\\""',
+  );
+  assert.equal(quoteWindowsShellArg("ends\\"), "ends\\");
+  assert.equal(quoteWindowsShellArg("ends here\\"), '"ends here\\\\"');
+  assert.equal(quoteWindowsShellArg(""), '""');
+});
