@@ -11,10 +11,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { getGoalStepRemovalIds } from "@/lib/goal-graph";
 import type { Goal, GoalStep } from "@/types/goals";
 
 export type GoalDialogState =
   | { mode: "goal"; goal?: Goal }
+  | { mode: "editStep"; goal: Goal; source: GoalStep }
   | { mode: "step" | "branch" | "review"; goal: Goal; source?: GoalStep };
 export interface GoalDialogValue {
   title: string;
@@ -35,25 +37,37 @@ export const GoalDialog = ({
   const t = useTranslations("goals");
   const id = useId();
   const source = dialog.mode === "goal" ? undefined : dialog.source;
+  const excludedDependencies =
+    dialog.mode === "editStep"
+      ? getGoalStepRemovalIds(dialog.goal, dialog.source.id)
+      : new Set<string>();
   const [title, setTitle] = useState(
     dialog.mode === "goal"
       ? (dialog.goal?.title ?? "")
-      : dialog.mode === "review" && source
-        ? t("reviewTitle", { title: source.title })
-        : "",
+      : dialog.mode === "editStep"
+        ? dialog.source.title
+        : dialog.mode === "review" && source
+          ? t("reviewTitle", { title: source.title })
+          : "",
   );
   const [description, setDescription] = useState(
     dialog.mode === "goal"
       ? (dialog.goal?.description ?? "")
-      : dialog.mode === "review"
-        ? t("reviewInstructions")
-        : "",
+      : dialog.mode === "editStep"
+        ? dialog.source.instructions
+        : dialog.mode === "review"
+          ? t("reviewInstructions")
+          : "",
   );
   const [criteria, setCriteria] = useState(
     dialog.mode === "goal" ? (dialog.goal?.criteria ?? "") : "",
   );
   const [dependsOn, setDependsOn] = useState<string[]>(
-    source ? (dialog.mode === "branch" ? source.dependsOn : [source.id]) : [],
+    source
+      ? dialog.mode === "branch" || dialog.mode === "editStep"
+        ? source.dependsOn
+        : [source.id]
+      : [],
   );
   return (
     <Dialog
@@ -83,11 +97,13 @@ export const GoalDialog = ({
                   ? dialog.goal
                     ? "editGoal"
                     : "newGoal"
-                  : dialog.mode === "review"
-                    ? "addReview"
-                    : dialog.mode === "branch"
-                      ? "branch"
-                      : "addStep",
+                  : dialog.mode === "editStep"
+                    ? "editStep"
+                    : dialog.mode === "review"
+                      ? "addReview"
+                      : dialog.mode === "branch"
+                        ? "branch"
+                        : "addStep",
               )}
             </DialogTitle>
           </DialogHeader>
@@ -135,31 +151,47 @@ export const GoalDialog = ({
               <legend className="mb-2 text-sm font-medium">
                 {t("dependencies")}
               </legend>
-              <p className="text-xs text-muted-foreground">
-                {dependsOn.length === 0 ? t("noDependencies") : null}
-              </p>
-              {dialog.goal.steps.map((step) => (
-                <label
-                  key={step.id}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={dependsOn.includes(step.id)}
-                    disabled={
-                      dialog.mode === "review" && step.id === source?.id
-                    }
-                    onChange={(event) =>
-                      setDependsOn((ids) =>
-                        event.target.checked
-                          ? [...ids, step.id]
-                          : ids.filter((id) => id !== step.id),
-                      )
-                    }
-                  />
-                  {step.title}
-                </label>
-              ))}
+              {dialog.goal.steps
+                .filter((step) => !excludedDependencies.has(step.id))
+                .map((step) => (
+                  <label
+                    key={step.id}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={dependsOn.includes(step.id)}
+                      disabled={
+                        (dialog.mode === "review" && step.id === source?.id) ||
+                        (dialog.mode === "editStep" &&
+                          step.id === source?.reviewOf)
+                      }
+                      onChange={(event) =>
+                        setDependsOn((ids) =>
+                          event.target.checked
+                            ? [...ids, step.id]
+                            : ids.filter((id) => id !== step.id),
+                        )
+                      }
+                    />
+                    {step.title}
+                  </label>
+                ))}
+              {dialog.mode === "editStep" ? (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {t("editDependenciesHint")}
+                  </p>
+                  {source?.reviewOf ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("reviewDependencyHint")}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    {t("editStepHint")}
+                  </p>
+                </>
+              ) : null}
             </fieldset>
           )}
           <DialogFooter>
@@ -167,7 +199,12 @@ export const GoalDialog = ({
               {t("cancel")}
             </Button>
             <Button type="submit" disabled={!title.trim()}>
-              {t(dialog.mode === "goal" && dialog.goal ? "save" : "create")}
+              {t(
+                dialog.mode === "editStep" ||
+                  (dialog.mode === "goal" && dialog.goal)
+                  ? "save"
+                  : "create",
+              )}
             </Button>
           </DialogFooter>
         </form>

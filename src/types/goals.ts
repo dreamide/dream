@@ -30,6 +30,7 @@ export interface GoalStep {
 
 export interface Goal {
   id: string;
+  closed?: boolean;
   title: string;
   description: string;
   criteria: string;

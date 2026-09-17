@@ -1,7 +1,13 @@
-import { Check, GitBranch, Pencil, Plus } from "lucide-react";
+import { Check, GitBranch, History, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { isGoalRunCurrent, isGoalStepAccepted } from "@/lib/goal-graph";
 import type { Goal } from "@/types/goals";
 import type { ProjectConfig } from "@/types/ide";
@@ -14,6 +20,7 @@ import {
   type GoalDialogValue,
 } from "./goals/goal-dialog";
 import { GoalInspector } from "./goals/goal-inspector";
+import { GoalTabMenu } from "./goals/goal-tab-menu";
 
 const EMPTY_GOALS: Goal[] = [];
 
@@ -40,7 +47,28 @@ export const GoalsWorkspace = ({
   const [goalId, setGoalId] = useState<string | null>(null);
   const [stepId, setStepId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<GoalDialogState | null>(null);
-  const goal = goals.find((entry) => entry.id === goalId) ?? goals[0];
+  const openGoals = goals.filter((entry) => !entry.closed);
+  const closedGoals = goals.filter((entry) => entry.closed);
+  const goal = openGoals.find((entry) => entry.id === goalId) ?? openGoals[0];
+  const setGoalClosed = (id: string, closed: boolean) => {
+    useIdeStore.getState().updateProject(project.id, (current) => ({
+      ...current,
+      ui: {
+        ...current.ui,
+        goals: current.ui.goals.map((entry) =>
+          entry.id === id ? { ...entry, closed } : entry,
+        ),
+      },
+    }));
+    if (!closed) {
+      setGoalId(id);
+      setStepId(null);
+    } else if (goal?.id === id) {
+      const index = openGoals.findIndex((entry) => entry.id === id);
+      setGoalId(openGoals[index + 1]?.id ?? openGoals[index - 1]?.id ?? null);
+      setStepId(null);
+    }
+  };
   const step =
     goal?.steps.find((entry) => entry.id === stepId) ?? goal?.steps[0];
   const accepted = goal?.steps.filter(isGoalStepAccepted).length ?? 0;
@@ -55,6 +83,12 @@ export const GoalsWorkspace = ({
           setStepId(null);
         }
       }
+    } else if (dialog?.mode === "editStep") {
+      state.updateGoalStep(project.id, dialog.goal.id, dialog.source.id, {
+        title: value.title,
+        instructions: value.description,
+        dependsOn: value.dependsOn,
+      });
     } else if (dialog) {
       const id = state.addGoalStep(project.id, dialog.goal.id, {
         title: value.title,
@@ -76,7 +110,7 @@ export const GoalsWorkspace = ({
           className="flex-1"
           ariaLabel={t("title")}
           activeId={goal?.id ?? null}
-          items={goals.map((entry) => ({
+          items={openGoals.map((entry) => ({
             id: entry.id,
             label: entry.title,
             leading: <GitBranch className="size-3.5 shrink-0" />,
@@ -85,13 +119,30 @@ export const GoalsWorkspace = ({
             setGoalId(id);
             setStepId(null);
           }}
+          renderActions={(item) => (
+            <GoalTabMenu
+              title={item.label}
+              onEdit={() => {
+                const entry = goals.find((entry) => entry.id === item.id);
+                if (entry) setDialog({ mode: "goal", goal: entry });
+              }}
+              onClose={() => setGoalClosed(item.id, true)}
+            />
+          )}
           onReorder={(from, to) => {
             if (goal) setGoalId(goal.id);
             useIdeStore.getState().updateProject(project.id, (current) => ({
               ...current,
               ui: {
                 ...current.ui,
-                goals: moveTabItem(current.ui.goals, from, to),
+                goals: [
+                  ...moveTabItem(
+                    current.ui.goals.filter((entry) => !entry.closed),
+                    from,
+                    to,
+                  ),
+                  ...current.ui.goals.filter((entry) => entry.closed),
+                ],
               },
             }));
           }}
@@ -108,6 +159,32 @@ export const GoalsWorkspace = ({
             </Button>
           }
         />
+        {closedGoals.length ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={t("reopenGoal")}
+                  title={t("reopenGoal")}
+                />
+              }
+            >
+              <History className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {closedGoals.map((entry) => (
+                <DropdownMenuItem
+                  key={entry.id}
+                  onClick={() => setGoalClosed(entry.id, false)}
+                >
+                  {entry.title}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
         {hasCardsToImport ? (
           <Button
             size="sm"
@@ -153,31 +230,7 @@ export const GoalsWorkspace = ({
                   {goal.description}
                 </p>
               ) : null}
-              <details className="mt-2 text-xs text-muted-foreground">
-                <summary className="cursor-pointer">
-                  {t("criteriaLabel")}
-                </summary>
-                <p className="mt-2 whitespace-pre-wrap">
-                  {goal.criteria || t("criteriaPlaceholder")}
-                </p>
-              </details>
             </div>
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              aria-label={t("editGoal")}
-              onClick={() => setDialog({ mode: "goal", goal })}
-            >
-              <Pencil className="size-3.5" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setDialog({ mode: "step", goal })}
-            >
-              <Plus className="size-3.5" />
-              {t("addStep")}
-            </Button>
           </div>
           <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto">
             <GoalCanvas

@@ -4,10 +4,12 @@ export const goalMessages = {
   title: "Goals",
   newGoal: "New goal",
   editGoal: "Edit goal",
+  goalActions: "Actions for {name}",
+  reopenGoal: "Reopen closed goal",
   importCards: "Import Kanban cards",
   emptyTitle: "What do you want to accomplish?",
   emptyDescription:
-    "Start with an outcome. Branch the work, bring in a reviewer, and iterate with feedback as the goal takes shape.",
+    "Start with an outcome. Add parallel steps, review results, and iterate with feedback as the goal takes shape.",
   goalLabel: "Goal",
   titleLabel: "Title",
   descriptionLabel: "Context",
@@ -19,9 +21,12 @@ export const goalMessages = {
   create: "Create",
   cancel: "Cancel",
   addStep: "Add next step",
-  branch: "Branch work",
-  addReview: "Add reviewer",
+  branch: "Add parallel step",
+  addReview: "Add review step",
   stepActions: "Step actions",
+  editStep: "Edit step",
+  editStepHint:
+    "Changes apply to future runs. Existing chats and run history are kept; this step and its dependents will need acceptance again.",
   removeStep: "Remove step",
   removeSteps: "Remove {count} steps",
   removeStepsChatsKept:
@@ -32,7 +37,10 @@ export const goalMessages = {
   stepTitle: "Step title",
   instructions: "Instructions",
   dependencies: "Uses results from",
-  noDependencies: "Independent step",
+  editDependenciesHint:
+    "This step and its dependent steps are excluded to prevent circular dependencies.",
+  reviewDependencyHint:
+    "A review step must use results from the step it reviews.",
   reviewTitle: "Review: {title}",
   reviewInstructions:
     "Inspect the implementation and validate it against the goal's acceptance criteria. Report blocking issues and concrete suggestions. Do not edit files.",

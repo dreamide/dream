@@ -15,6 +15,12 @@ import { updateProjectUiInList } from "./helpers";
 import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 export interface GoalActions {
+  updateGoalStep: (
+    projectId: string,
+    goalId: string,
+    stepId: string,
+    value: { title: string; instructions: string; dependsOn: string[] },
+  ) => void;
   removeGoalStep: (projectId: string, goalId: string, stepId: string) => void;
   addGoal: (
     projectId: string,
@@ -75,6 +81,54 @@ export const createGoalActions = (
     }));
   };
   return {
+    updateGoalStep: (projectId, goalId, stepId, value) => {
+      const title = value.title.trim();
+      const instructions = value.instructions.trim();
+      if (!title) return;
+      changeGoal(projectId, goalId, (goal) => {
+        const step = goal.steps.find((entry) => entry.id === stepId);
+        if (!step) return goal;
+        const affected = getGoalStepRemovalIds(goal, stepId);
+        const dependsOn = [...new Set(value.dependsOn)];
+        if (
+          dependsOn.some(
+            (id) =>
+              affected.has(id) || !goal.steps.some((entry) => entry.id === id),
+          ) ||
+          (step.reviewOf && !dependsOn.includes(step.reviewOf))
+        )
+          return goal;
+        if (
+          step.title === title &&
+          step.instructions === instructions &&
+          step.dependsOn.length === dependsOn.length &&
+          step.dependsOn.every((id) => dependsOn.includes(id))
+        )
+          return goal;
+        const pending = goal.steps.map((entry) => ({
+          ...entry,
+          ...(entry.id === stepId ? { title, instructions, dependsOn } : {}),
+          acceptedRunId: affected.has(entry.id) ? null : entry.acceptedRunId,
+        }));
+        // Persistence and graph layout require dependencies before their consumers.
+        const steps: GoalStep[] = [];
+        const orderedIds = new Set<string>();
+        while (pending.length) {
+          const index = pending.findIndex((entry) =>
+            entry.dependsOn.every((id) => orderedIds.has(id)),
+          );
+          if (index === -1) return goal;
+          const [entry] = pending.splice(index, 1);
+          steps.push(entry);
+          orderedIds.add(entry.id);
+        }
+        return {
+          ...goal,
+          acceptedAt: null,
+          steps,
+        };
+      });
+    },
     removeGoalStep: (projectId, goalId, stepId) => {
       set((state) => {
         const goal = state.projects

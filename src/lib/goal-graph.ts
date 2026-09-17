@@ -64,6 +64,7 @@ export const isGoalRunCurrent = (goal: Goal, step: GoalStep): boolean => {
   const run = latestGoalRun(step);
   return Boolean(
     run &&
+      Object.keys(run.inputRunIds).length === step.dependsOn.length &&
       step.dependsOn.every((id) => {
         const dependency = goal.steps.find((entry) => entry.id === id);
         const input = dependency && latestGoalRun(dependency);
@@ -193,6 +194,7 @@ export const normalizeGoals = (value: unknown): Goal[] =>
         description: string(raw.description),
         criteria: string(raw.criteria),
         createdAt: timestamp(raw.createdAt),
+        closed: raw.closed === true,
         acceptedAt:
           typeof raw.acceptedAt === "string" &&
           steps.length > 0 &&
@@ -270,15 +272,36 @@ export const updateGoalRunInProjects = (
 
 export const layoutGoalSteps = (steps: GoalStep[]) => {
   const depths = new Map<string, number>();
-  const rows = new Map<number, number>();
-  return steps.map((step) => {
+  const columns = new Map<number, GoalStep[]>();
+  for (const step of steps) {
     const depth = Math.max(
       0,
       ...step.dependsOn.map((id) => (depths.get(id) ?? -1) + 1),
     );
     depths.set(step.id, depth);
-    const row = rows.get(depth) ?? 0;
-    rows.set(depth, row + 1);
-    return { step, x: 36 + depth * 300, y: 36 + row * 160 };
-  });
+    const column = columns.get(depth) ?? [];
+    column.push(step);
+    columns.set(depth, column);
+  }
+
+  const rows = new Map<string, number>();
+  const layout: { step: GoalStep; x: number; y: number }[] = [];
+  for (const [depth, column] of [...columns].sort(([a], [b]) => a - b)) {
+    const parentRow = (step: GoalStep) => {
+      const parentRows = step.dependsOn.flatMap((id) => {
+        const row = rows.get(id);
+        return row === undefined ? [] : [row];
+      });
+      return parentRows.length
+        ? parentRows.reduce((sum, row) => sum + row, 0) / parentRows.length
+        : 0;
+    };
+    // Keep sibling branches together and preserve creation order for ties.
+    column.sort((a, b) => parentRow(a) - parentRow(b));
+    column.forEach((step, row) => {
+      rows.set(step.id, row);
+      layout.push({ step, x: 36 + depth * 300, y: 36 + row * 160 });
+    });
+  }
+  return layout;
 };
