@@ -6,12 +6,14 @@ export const useMountedProjectChats = ({
   activeChatId,
   chats,
   openChatIds,
+  pendingChatIds = [],
   projectId,
   streamingChatIds,
 }: {
   activeChatId: string | null;
   chats: ChatConfig[];
   openChatIds: string[];
+  pendingChatIds?: string[];
   projectId: string;
   streamingChatIds: Record<string, boolean>;
 }) => {
@@ -42,7 +44,7 @@ export const useMountedProjectChats = ({
     );
     const nextChats = [] as typeof chats;
 
-    for (const chatId of openChatIds) {
+    for (const chatId of [...openChatIds, ...pendingChatIds]) {
       const openChat = projectChatsById.get(chatId);
       if (!openChat || mountedChatIds.has(openChat.id)) {
         continue;
@@ -91,6 +93,7 @@ export const useMountedProjectChats = ({
     activeChatId,
     chats,
     openChatIds,
+    pendingChatIds,
     projectId,
     recentMountedChatIds,
     streamingChatIds,

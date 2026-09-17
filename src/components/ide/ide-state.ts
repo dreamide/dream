@@ -9,6 +9,7 @@ import type {
   UIMessage,
 } from "ai";
 import { normalizeLocalePreference } from "@/i18n/config";
+import { normalizeGoals } from "@/lib/goal-graph";
 import {
   createChatConfig,
   DEFAULT_PANEL_SIZES,
@@ -526,12 +527,17 @@ const normalizeProject = (
           worktree?: unknown;
         })
       : {};
-  const rawUi =
-    rawProject.ui && typeof rawProject.ui === "object"
+  // Older main processes return only their known UI fields, alongside the full
+  // metadata. Fill missing fields from metadata without overriding explicit
+  // renderer values (including an intentionally empty goals array).
+  const rawUi = {
+    ...(rawMetadata.ui && typeof rawMetadata.ui === "object"
+      ? (rawMetadata.ui as Record<string, unknown>)
+      : {}),
+    ...(rawProject.ui && typeof rawProject.ui === "object"
       ? (rawProject.ui as unknown as Record<string, unknown>)
-      : rawMetadata.ui && typeof rawMetadata.ui === "object"
-        ? (rawMetadata.ui as Record<string, unknown>)
-        : {};
+      : {}),
+  };
   const rawPanelVisibility =
     rawUi.panelVisibility && typeof rawUi.panelVisibility === "object"
       ? (rawUi.panelVisibility as Record<string, unknown>)
@@ -597,6 +603,7 @@ const normalizeProject = (
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
       kanbanCards: normalizeKanbanCards(rawUi.kanbanCards),
+      goals: normalizeGoals(rawUi.goals),
       stashItems: normalizeStashItems(rawUi.stashItems),
       workspaceView: isProjectWorkspaceView(rawUi.workspaceView)
         ? rawUi.workspaceView

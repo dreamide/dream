@@ -96,6 +96,7 @@ export const DEFAULT_PANEL_SIZES: PanelSizes = {
 };
 
 export const DEFAULT_PROJECT_UI: ProjectUiState = {
+  goals: [],
   activeChatId: null,
   openChatIds: [],
   chatColumnWidths: {},

@@ -2,6 +2,7 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { FileUIPart, UIMessage } from "ai";
 import type { AppLocale } from "@/i18n/config";
 import type { SparklesPaletteName } from "@/lib/sparkles-palettes";
+import type { Goal } from "./goals";
 
 export type AiProvider =
   | "openai"
@@ -109,6 +110,7 @@ export interface KanbanCard {
 }
 
 export interface PendingChatSubmit {
+  background?: boolean;
   files?: FileUIPart[];
   preserveDraft?: boolean;
   references: ProjectReference[];
@@ -206,9 +208,10 @@ export type RightPanelView =
   | "terminal"
   | "stash";
 
-export type ProjectWorkspaceView = "code" | "kanban";
+export type ProjectWorkspaceView = "code" | "goals" | "kanban";
 
 export interface ProjectUiState {
+  goals: Goal[];
   activeChatId: string | null;
   openChatIds: string[];
   chatColumnWidths: Record<string, number>;

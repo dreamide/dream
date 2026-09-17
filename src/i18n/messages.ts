@@ -1,4 +1,5 @@
 import type { AppLocale } from "./config";
+import { goalMessages, goalWorkspaceLabels } from "./goal-messages";
 
 type MessageObject = Record<string, unknown>;
 
@@ -51,7 +52,13 @@ export const loadMessages = (locale: AppLocale): Promise<MessageObject> => {
     localeMessageLoaders[locale](),
     import("./supplemental-messages"),
   ]).then(([baseMessages, { supplementalMessages }]) =>
-    mergeMessages(baseMessages.default, supplementalMessages[locale]),
+    mergeMessages(
+      mergeMessages(baseMessages.default, supplementalMessages[locale]),
+      {
+        goals: goalMessages,
+        workspace: { workspaceGoals: goalWorkspaceLabels[locale] },
+      },
+    ),
   );
   messageCache.set(locale, messagesPromise);
   return messagesPromise;

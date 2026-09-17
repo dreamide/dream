@@ -18,6 +18,7 @@ import type {
   StashItem,
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
+import type { GoalActions } from "./goal-actions";
 
 export interface WorktreeInitialChatSeed {
   messageId: string;
@@ -37,7 +38,7 @@ export interface AddProjectTerminalOptions {
   strictCwd?: boolean;
 }
 
-export interface IdeState {
+export interface IdeState extends GoalActions {
   // Persisted state
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];

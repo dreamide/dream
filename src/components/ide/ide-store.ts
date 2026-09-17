@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import { ensureActiveProject, getChatsForProject } from "./ide-state";
 import { getBrowserTabsForProject, resolveActiveBrowserTab } from "./store";
 import { createBrowserActions } from "./store/browser-actions";
+import { createGoalActions } from "./store/goal-actions";
 import {
   createPersistedIdeState,
   loadPersistedIdeState,
@@ -119,6 +120,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Actions: projects ───────────────────────────────────────────────
   ...createProjectActions(set, get),
+  ...createGoalActions(set, get),
 
   // ── Actions: panels ─────────────────────────────────────────────────
   ...createPanelActions(set),

@@ -1,4 +1,5 @@
 import { getDesktopApi } from "@/lib/electron";
+import { updateGoalRunInProjects } from "@/lib/goal-graph";
 import { useActivityStore } from "../activity-store";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
 import { advanceKanbanCardsInProjects } from "./kanban-actions";
@@ -74,6 +75,7 @@ export const createRuntimeActions = (
         if (!state.streamingChatIds[chatId])
           useActivityStore.getState().start(chatId);
         nextStreamingChatIds[chatId] = true;
+        nextProjects = updateGoalRunInProjects(nextProjects, chatId, "running");
         delete nextCompletedChatIds[chatId];
       } else {
         const wasStreaming = Boolean(state.streamingChatIds[chatId]);
@@ -90,6 +92,15 @@ export const createRuntimeActions = (
         // before it clears the streaming flag).
         if (wasStreaming && activity?.status === "finished") {
           nextProjects = advanceKanbanCardsInProjects(state.projects, chatId);
+        }
+        if (wasStreaming) {
+          nextProjects = updateGoalRunInProjects(
+            nextProjects,
+            chatId,
+            activity && activity.status !== "running"
+              ? activity.status
+              : "interrupted",
+          );
         }
 
         const chat = state.chats.find((item) => item.id === chatId);
