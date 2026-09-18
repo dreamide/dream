@@ -184,6 +184,7 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
   const inspector = graph ? (
     selectedNode ? (
       <NodeInspector
+        defaultAgent={projectAgent}
         graph={graph}
         node={selectedNode}
         onChange={(updater) =>

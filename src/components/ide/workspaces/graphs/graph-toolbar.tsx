@@ -117,7 +117,7 @@ export const GraphToolbar = ({
           onClick={onStartRun}
           size="sm"
           type="button"
-          variant="accent"
+          variant="default"
         >
           {starting ? (
             <Spinner className="size-3.5" />

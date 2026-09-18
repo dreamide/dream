@@ -20,6 +20,8 @@ export interface NodeAgentDisplay {
   agentMode: AgentMode;
   /** Null when the model does not expose effort levels. */
   effort: ReasoningEffort | null;
+  /** Effort levels the resolved model supports (empty: none). */
+  efforts: ReasoningEffort[];
   /** True when the model comes from the project default. */
   isDefault: boolean;
   /** Friendly model name, as shown in the chat box. */
@@ -27,6 +29,8 @@ export interface NodeAgentDisplay {
   provider: AiProvider | null;
   /** Null when the model has no speed tiers. */
   speed: ModelSpeed | null;
+  /** Speed tiers the resolved model supports (empty: none). */
+  speedTiers: ModelSpeed[];
 }
 
 /**
@@ -51,10 +55,12 @@ export const describeNodeAgent = (
     return {
       agentMode,
       effort: null,
+      efforts: [],
       isDefault,
       modelLabel: "",
       provider: null,
       speed: null,
+      speedTiers: [],
     };
   }
 
@@ -98,5 +104,14 @@ export const describeNodeAgent = (
         ? wantedSpeed
         : "standard";
 
-  return { agentMode, effort, isDefault, modelLabel, provider, speed };
+  return {
+    agentMode,
+    effort,
+    efforts,
+    isDefault,
+    modelLabel,
+    provider,
+    speed,
+    speedTiers,
+  };
 };

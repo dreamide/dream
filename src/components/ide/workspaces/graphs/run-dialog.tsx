@@ -65,7 +65,7 @@ export const RunDialog = ({
           >
             {t("cancelRun")}
           </Button>
-          <Button onClick={start} type="button" variant="accent">
+          <Button onClick={start} type="button" variant="default">
             <Play className="size-3.5" />
             {t("run")}
           </Button>

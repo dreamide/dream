@@ -78,7 +78,7 @@ const AgentNodeComponent = ({
         "relative w-60 rounded-sm border bg-background px-3 pt-2 pb-1 text-left text-xs transition-colors",
         // Selection is shown by the border; the background never changes.
         selected
-          ? "border-primary text-foreground shadow-sm ring-1 ring-primary"
+          ? "border-foreground text-foreground shadow-sm ring-1 ring-foreground"
           : "border-border text-muted-foreground hover:border-surface-300 hover:text-foreground dark:hover:border-surface-700",
       )}
       data-node-status={data.run.visual}

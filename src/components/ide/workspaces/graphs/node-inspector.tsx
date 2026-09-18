@@ -1,5 +1,7 @@
 import { ChevronRight, Flag, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useMemo } from "react";
+import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -11,23 +13,40 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  getConnectedProviders,
+  getModelOptionsForProvider,
+} from "@/lib/ide-defaults";
 import type {
   AgentGraph,
   GraphNode,
+  GraphNodeAgent,
   GraphNodeType,
 } from "@/types/agent-graphs";
-import type { AgentMode, AiProvider } from "@/types/ide";
+import type { AiProvider, ModelSpeed, ReasoningEffort } from "@/types/ide";
 import { useIdeStore } from "../../ide-store";
-import { ALL_PROVIDERS, getProviderLabel } from "../../ide-types";
+import {
+  getProviderLabel,
+  MODEL_SPEED_OPTIONS,
+  REASONING_EFFORT_OPTIONS,
+} from "../../ide-types";
+import { describeNodeAgent } from "./graph-agent-display";
 
 const INHERIT = "__inherit__";
+const MODEL_VALUE_SEPARATOR = "|";
+const toModelValue = (provider: AiProvider, model: string) =>
+  `${provider}${MODEL_VALUE_SEPARATOR}${model}`;
 
 export interface NodeInspectorProps {
+  /** The project agent a step falls back to when it does not set its own. */
+  defaultAgent: GraphNodeAgent;
   graph: AgentGraph;
   node: GraphNode;
   onChange: (updater: (node: GraphNode) => GraphNode) => void;
@@ -36,6 +55,7 @@ export interface NodeInspectorProps {
 }
 
 export const NodeInspector = ({
+  defaultAgent,
   graph,
   node,
   onChange,
@@ -43,10 +63,55 @@ export const NodeInspector = ({
   onSetEntry,
 }: NodeInspectorProps) => {
   const t = useTranslations("graphs");
-  const provider = node.agent.provider ?? null;
-  const providerModels = useIdeStore((s) =>
-    provider ? s.providerModels[provider].models : null,
+  const allProviderModels = useIdeStore((s) => s.providerModels);
+  const settings = useIdeStore((s) => s.settings);
+  // Same enabled-model list, grouped by provider, as the settings picker.
+  const modelGroups = useMemo(
+    () =>
+      getConnectedProviders(settings)
+        .map((provider) => ({
+          models: getModelOptionsForProvider(
+            provider,
+            settings,
+            allProviderModels[provider].models,
+          ),
+          provider,
+        }))
+        .filter((group) => group.models.length > 0),
+    [allProviderModels, settings],
   );
+  const current = describeNodeAgent(
+    node.agent,
+    defaultAgent,
+    allProviderModels,
+  );
+  const projectDefault = describeNodeAgent({}, defaultAgent, allProviderModels);
+  const modelT = useTranslations("models");
+  // Effort and speed choices depend on the model the step will actually use,
+  // which may come from the project default.
+  const inherited = describeNodeAgent(
+    { ...node.agent, modelSpeed: undefined, reasoningEffort: undefined },
+    defaultAgent,
+    allProviderModels,
+  );
+  const effortOptions = REASONING_EFFORT_OPTIONS.filter((option) =>
+    inherited.efforts.includes(option.value),
+  );
+  const speedOptions = MODEL_SPEED_OPTIONS.filter((option) =>
+    inherited.speedTiers.includes(option.value),
+  );
+  const selectedEffort =
+    node.agent.reasoningEffort &&
+    inherited.efforts.includes(node.agent.reasoningEffort)
+      ? node.agent.reasoningEffort
+      : null;
+  const selectedSpeed =
+    node.agent.modelSpeed &&
+    inherited.speedTiers.includes(node.agent.modelSpeed)
+      ? node.agent.modelSpeed
+      : null;
+  const defaultOptionLabel = (value: string | null) =>
+    value ? `${t("defaultBadge")} (${modelT(value)})` : t("defaultBadge");
   const isEntry = graph.entryNodeId === node.id;
   const setAgent = (patch: Partial<GraphNode["agent"]>) =>
     onChange((current) => {
@@ -154,125 +219,207 @@ export const NodeInspector = ({
             {t("advanced")}
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-3 pt-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label htmlFor={`node-provider-${node.id}`}>
-                  {t("provider")}
-                </Label>
-                <Select
-                  onValueChange={(value) => {
-                    if (value === null) return;
-                    setAgent({
-                      model: undefined,
-                      provider:
-                        value === INHERIT ? undefined : (value as AiProvider),
-                    });
-                  }}
-                  value={provider ?? INHERIT}
+            <div className="space-y-1.5">
+              <Label htmlFor={`node-mode-${node.id}`}>{t("agentMode")}</Label>
+              <Select
+                onValueChange={(value) =>
+                  value !== null &&
+                  setAgent({
+                    agentMode: value === "plan" ? "plan" : undefined,
+                  })
+                }
+                value={node.agent.agentMode === "plan" ? "plan" : "build"}
+              >
+                <SelectTrigger
+                  className="w-full min-w-0"
+                  id={`node-mode-${node.id}`}
                 >
-                  <SelectTrigger
-                    className="w-full min-w-0"
-                    id={`node-provider-${node.id}`}
-                  >
-                    <SelectValue>
-                      {provider
-                        ? getProviderLabel(provider)
-                        : t("inheritProject")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
-                    <SelectItem value={INHERIT}>
-                      {t("inheritProject")}
-                    </SelectItem>
-                    {ALL_PROVIDERS.map((entry) => (
-                      <SelectItem key={entry} value={entry}>
-                        {getProviderLabel(entry)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor={`node-model-${node.id}`}>{t("model")}</Label>
-                {provider && providerModels && providerModels.length > 0 ? (
-                  <Select
-                    onValueChange={(value) =>
-                      value !== null &&
-                      setAgent({
-                        model: value === INHERIT ? undefined : value,
-                      })
-                    }
-                    value={node.agent.model ?? INHERIT}
-                  >
-                    <SelectTrigger
-                      className="w-full min-w-0"
-                      id={`node-model-${node.id}`}
-                    >
-                      <SelectValue>
-                        {providerModels?.find(
-                          (model) => model.id === node.agent.model,
-                        )?.label ??
-                          node.agent.model ??
-                          t("inheritProject")}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent align="start" alignItemWithTrigger={false}>
-                      <SelectItem value={INHERIT}>
-                        {t("inheritProject")}
-                      </SelectItem>
-                      {providerModels.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    disabled={!provider}
-                    id={`node-model-${node.id}`}
-                    onChange={(event) =>
-                      setAgent({ model: event.target.value || undefined })
-                    }
-                    placeholder={t("inheritProject")}
-                    value={node.agent.model ?? ""}
-                  />
-                )}
-              </div>
+                  <SelectValue>
+                    {node.agent.agentMode === "plan"
+                      ? t("agentModePlan")
+                      : t("agentModeBuild")}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent align="start" alignItemWithTrigger={false}>
+                  <SelectItem value="build">{t("agentModeBuild")}</SelectItem>
+                  <SelectItem value="plan">{t("agentModePlan")}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label htmlFor={`node-mode-${node.id}`}>{t("agentMode")}</Label>
-                <Select
-                  onValueChange={(value) =>
-                    value !== null &&
+            <div className="space-y-1.5">
+              <Label htmlFor={`node-model-${node.id}`}>{t("model")}</Label>
+              <Select
+                onValueChange={(value) => {
+                  if (typeof value !== "string") return;
+                  if (value === INHERIT) {
                     setAgent({
-                      agentMode:
-                        value === INHERIT ? undefined : (value as AgentMode),
-                    })
+                      model: undefined,
+                      modelSpeed: undefined,
+                      provider: undefined,
+                      reasoningEffort: undefined,
+                    });
+                    return;
                   }
-                  value={node.agent.agentMode ?? INHERIT}
+                  const separator = value.indexOf(MODEL_VALUE_SEPARATOR);
+                  const nextProvider = value.slice(0, separator) as AiProvider;
+                  const nextModel = value.slice(separator + 1);
+                  setAgent({
+                    model: nextModel,
+                    provider: nextProvider,
+                    // Effort and speed are model-specific; fall back to the
+                    // default until chosen again (unsupported values are
+                    // ignored anyway).
+                    ...(nextProvider !== node.agent.provider
+                      ? { modelSpeed: undefined, reasoningEffort: undefined }
+                      : {}),
+                  });
+                }}
+                value={
+                  node.agent.provider && node.agent.model
+                    ? toModelValue(node.agent.provider, node.agent.model)
+                    : INHERIT
+                }
+              >
+                <SelectTrigger
+                  className="w-full min-w-0"
+                  id={`node-model-${node.id}`}
                 >
-                  <SelectTrigger
-                    className="w-full min-w-0"
-                    id={`node-mode-${node.id}`}
-                  >
-                    <SelectValue>
-                      {node.agent.agentMode === "plan"
-                        ? t("agentModePlan")
-                        : t("agentModeBuild")}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="start" alignItemWithTrigger={false}>
-                    <SelectItem value={INHERIT}>
-                      {t("agentModeBuild")}
-                    </SelectItem>
-                    <SelectItem value="build">{t("agentModeBuild")}</SelectItem>
-                    <SelectItem value="plan">{t("agentModePlan")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <SelectValue>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {current.provider ? (
+                        <ProviderIcon
+                          className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
+                          provider={current.provider}
+                        />
+                      ) : null}
+                      <span className="truncate">
+                        {current.isDefault
+                          ? `${t("defaultBadge")} (${current.modelLabel || t("inheritProject")})`
+                          : current.modelLabel}
+                      </span>
+                    </span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent
+                  align="start"
+                  alignItemWithTrigger={false}
+                  className="min-w-72"
+                >
+                  <SelectItem value={INHERIT}>
+                    {`${t("defaultBadge")} (${projectDefault.modelLabel || t("inheritProject")})`}
+                  </SelectItem>
+                  {modelGroups.map((group) => (
+                    <SelectGroup key={group.provider}>
+                      <SelectLabel>
+                        {getProviderLabel(group.provider)}
+                      </SelectLabel>
+                      {group.models.map((model) => (
+                        <SelectItem
+                          key={model.id}
+                          value={toModelValue(group.provider, model.id)}
+                        >
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <ProviderIcon
+                              className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
+                              provider={group.provider}
+                            />
+                            <span className="truncate">{model.label}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {effortOptions.length > 0 || speedOptions.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {effortOptions.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`node-effort-${node.id}`}>
+                      {t("effort")}
+                    </Label>
+                    <Select
+                      onValueChange={(value) =>
+                        value !== null &&
+                        setAgent({
+                          reasoningEffort:
+                            value === INHERIT
+                              ? undefined
+                              : (value as ReasoningEffort),
+                        })
+                      }
+                      value={selectedEffort ?? INHERIT}
+                    >
+                      <SelectTrigger
+                        className="w-full min-w-0"
+                        id={`node-effort-${node.id}`}
+                      >
+                        <SelectValue>
+                          {selectedEffort
+                            ? modelT(selectedEffort)
+                            : defaultOptionLabel(inherited.effort)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="start" alignItemWithTrigger={false}>
+                        <SelectItem value={INHERIT}>
+                          {defaultOptionLabel(inherited.effort)}
+                        </SelectItem>
+                        {effortOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {modelT(option.value)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                {speedOptions.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor={`node-speed-${node.id}`}>
+                      {t("speed")}
+                    </Label>
+                    <Select
+                      onValueChange={(value) =>
+                        value !== null &&
+                        setAgent({
+                          modelSpeed:
+                            value === INHERIT
+                              ? undefined
+                              : (value as ModelSpeed),
+                        })
+                      }
+                      value={selectedSpeed ?? INHERIT}
+                    >
+                      <SelectTrigger
+                        className="w-full min-w-0"
+                        id={`node-speed-${node.id}`}
+                      >
+                        <SelectValue>
+                          {selectedSpeed
+                            ? modelT(selectedSpeed)
+                            : defaultOptionLabel(inherited.speed)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="start" alignItemWithTrigger={false}>
+                        <SelectItem value={INHERIT}>
+                          {defaultOptionLabel(inherited.speed)}
+                        </SelectItem>
+                        {speedOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {modelT(option.value)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
               </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
                 <Label htmlFor={`node-iterations-${node.id}`}>
                   {t("maxIterations")}
