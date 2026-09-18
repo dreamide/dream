@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { formatModelIdLabel } from "@/lib/models";
 import type { AgentGraph, GraphRun } from "@/types/agent-graphs";
+import { useIdeStore } from "../../ide-store";
 import { getProviderLabel } from "../../ide-types";
 import { GraphCanvas } from "./graph-canvas";
 import { edgeOutcome } from "./graph-conditions";
@@ -22,6 +24,7 @@ export const RunDetail = ({
   onBack: () => void;
 }) => {
   const t = useTranslations("graphs");
+  const providerModels = useIdeStore((s) => s.providerModels);
   const [selection, setSelection] = useState<GraphSelection>(null);
   const executions = useGraphStore(
     (s) => s.executionsByRunId[run.id] ?? EMPTY_EXECUTIONS,
@@ -142,7 +145,12 @@ export const RunDetail = ({
                 </dd>
                 <dt className="text-muted-foreground">{t("model")}</dt>
                 <dd className="break-words">
-                  {node.agent.model ?? t("inheritProject")}
+                  {node.agent.provider && node.agent.model
+                    ? (providerModels[node.agent.provider]?.models.find(
+                        (option) => option.id === node.agent.model,
+                      )?.label ??
+                      formatModelIdLabel(node.agent.provider, node.agent.model))
+                    : (node.agent.model ?? t("inheritProject"))}
                 </dd>
                 <dt className="text-muted-foreground">{t("agentMode")}</dt>
                 <dd>

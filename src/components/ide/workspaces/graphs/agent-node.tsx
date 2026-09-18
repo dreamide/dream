@@ -6,10 +6,13 @@ import {
   useUpdateNodeInternals,
 } from "@xyflow/react";
 import { Ban, Check, Flag, RefreshCw, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { memo, useEffect } from "react";
+import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import type { AiProvider } from "@/types/ide";
 import { tabSurfaceClassName } from "../../tab-styles";
 import { FAILURE_HANDLE_ID, SUCCESS_HANDLE_ID } from "./graph-conditions";
 import type { NodeRunSummary } from "./graph-run-status";
@@ -19,6 +22,8 @@ export interface AgentNodeData extends Record<string, unknown> {
   isEntry: boolean;
   kind: "task" | "decision";
   name: string;
+  /** Null when the step uses the project default. */
+  provider: AiProvider | null;
   run: NodeRunSummary;
 }
 
@@ -44,8 +49,8 @@ const StatusIcon = ({ run }: { run: NodeRunSummary }) => {
 const HANDLE_CLASS_NAME = "!size-2.5 !border-2 !border-background";
 
 /**
- * A step. Tasks have a single exit; decisions have two — ✓ (success) on the
- * bottom left and ✗ (failure) on the bottom right — so routing is just
+ * A step. Tasks have a single exit; decisions have two — success on the
+ * bottom left and failure on the bottom right — so routing is just
  * drawing a line.
  */
 const AgentNodeComponent = ({
@@ -54,6 +59,7 @@ const AgentNodeComponent = ({
   selected,
 }: NodeProps<AgentFlowNode>) => {
   // The exits change when a step switches between task and decision.
+  const t = useTranslations("graphs");
   const updateNodeInternals = useUpdateNodeInternals();
   const kind = data.kind;
   useEffect(() => {
@@ -84,7 +90,15 @@ const AgentNodeComponent = ({
         <StatusIcon run={data.run} />
       </div>
       <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="truncate">{data.agentLabel}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {data.provider ? (
+            <ProviderIcon
+              className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
+              provider={data.provider}
+            />
+          ) : null}
+          <span className="truncate">{data.agentLabel}</span>
+        </span>
         {data.run.count > 0 ? (
           <Badge
             variant="secondary"
@@ -114,9 +128,11 @@ const AgentNodeComponent = ({
         <>
           <div className="-mx-1 mt-1.5 flex border-t border-border pt-0.5 text-[11px] leading-4">
             <span className="flex-1 text-center text-emerald-600 dark:text-emerald-400">
-              ✓
+              {t("success")}
             </span>
-            <span className="flex-1 text-center text-destructive">✗</span>
+            <span className="flex-1 text-center text-destructive">
+              {t("failure")}
+            </span>
           </div>
           <Handle
             className={cn(HANDLE_CLASS_NAME, "!bg-emerald-500")}

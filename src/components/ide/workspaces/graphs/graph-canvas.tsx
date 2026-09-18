@@ -14,7 +14,9 @@ import {
 import { nanoid } from "nanoid";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatModelIdLabel } from "@/lib/models";
 import type { AgentGraph, GraphRun, NodeExecution } from "@/types/agent-graphs";
+import { useIdeStore } from "../../ide-store";
 import { getProviderLabel } from "../../ide-types";
 import { type AgentFlowNode, AgentNode } from "./agent-node";
 import { ConditionEdge, type ConditionFlowEdge } from "./condition-edge";
@@ -83,13 +85,22 @@ const GraphCanvasInner = ({
     [graph.nodes],
   );
 
+  const providerModels = useIdeStore((s) => s.providerModels);
+
   const nodes = useMemo<AgentFlowNode[]>(
     () =>
       graph.nodes.map((node) => {
-        const agentLabel = node.agent.provider
-          ? `${getProviderLabel(node.agent.provider)}${
-              node.agent.model ? ` · ${node.agent.model}` : ""
-            }`
+        const { model, provider } = node.agent;
+        // Same friendly model name the chat box shows.
+        const modelLabel =
+          provider && model
+            ? (providerModels[provider]?.models.find(
+                (option) => option.id === model,
+              )?.label ?? formatModelIdLabel(provider, model))
+            : "";
+        // The provider is shown as an icon, like the chat model picker.
+        const agentLabel = provider
+          ? modelLabel || getProviderLabel(provider)
           : inheritLabel;
         return {
           data: {
@@ -97,6 +108,7 @@ const GraphCanvasInner = ({
             isEntry: graph.entryNodeId === node.id,
             kind: node.type === "task" ? "task" : "decision",
             name: node.name,
+            provider: provider ?? null,
             run: summarizeNodeRun(node.id, run, executions),
           },
           id: node.id,
@@ -105,7 +117,15 @@ const GraphCanvasInner = ({
           type: "agent",
         };
       }),
-    [executions, graph.entryNodeId, graph.nodes, inheritLabel, run, selection],
+    [
+      executions,
+      graph.entryNodeId,
+      graph.nodes,
+      inheritLabel,
+      providerModels,
+      run,
+      selection,
+    ],
   );
 
   const traversedEdgeIds = useMemo(

@@ -5,6 +5,7 @@ import {
   type EdgeProps,
   getBezierPath,
 } from "@xyflow/react";
+import { useTranslations } from "next-intl";
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +13,7 @@ export interface ConditionEdgeData extends Record<string, unknown> {
   highlighted: boolean;
   isBackward: boolean;
   outcome: "success" | "failure";
-  /** Leaves a task (single exit): neutral line, no ✓/✗ badge. */
+  /** Leaves a task (single exit): neutral line, no outcome label. */
   plain: boolean;
   traversed: boolean;
 }
@@ -61,6 +62,7 @@ const ConditionEdgeComponent = ({
         targetY,
       });
 
+  const t = useTranslations("graphs");
   const failure = data?.outcome === "failure";
   const highlighted = Boolean(data?.highlighted);
   const traversed = Boolean(data?.traversed);
@@ -95,7 +97,7 @@ const ConditionEdgeComponent = ({
         <EdgeLabelRenderer>
           <div
             className={cn(
-              "pointer-events-auto absolute flex size-4 items-center justify-center rounded-full border bg-background text-[10px] leading-none shadow-xs",
+              "pointer-events-auto absolute rounded-md border bg-background px-1.5 py-px text-[11px] leading-4 shadow-xs",
               selected ? "border-foreground" : "border-border",
               failure
                 ? "text-destructive"
@@ -105,7 +107,7 @@ const ConditionEdgeComponent = ({
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
           >
-            {failure ? "✗" : "✓"}
+            {failure ? t("failure") : t("success")}
           </div>
         </EdgeLabelRenderer>
       )}

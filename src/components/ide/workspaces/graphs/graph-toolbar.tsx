@@ -36,10 +36,13 @@ export const GraphToolbar = ({
 }: GraphToolbarProps) => {
   const t = useTranslations("graphs");
   const [draftName, setDraftName] = useState<string | null>(null);
-  const errorCount = validation?.errors.length ?? 0;
-  const warningCount = validation?.warnings.length ?? 0;
-  const issueTitle = validation
-    ? [...validation.errors, ...validation.warnings]
+  // An empty workflow is just unfinished, not broken: Run is disabled below,
+  // so don't report it as an error.
+  const issues = graph.nodes.length === 0 ? null : validation;
+  const errorCount = issues?.errors.length ?? 0;
+  const warningCount = issues?.warnings.length ?? 0;
+  const issueTitle = issues
+    ? [...issues.errors, ...issues.warnings]
         .map((issue) => issue.message)
         .join("\n")
     : "";
