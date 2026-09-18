@@ -78,7 +78,7 @@ const AgentNodeComponent = ({
         "relative w-60 rounded-sm border bg-background px-3 pt-2 pb-1 text-left text-xs transition-colors",
         // Selection is shown by the border; the background never changes.
         selected
-          ? "border-foreground text-foreground shadow-sm ring-1 ring-foreground"
+          ? "border-foreground text-foreground shadow-sm"
           : "border-border text-muted-foreground hover:border-surface-300 hover:text-foreground dark:hover:border-surface-700",
       )}
       data-node-status={data.run.visual}
@@ -92,7 +92,9 @@ const AgentNodeComponent = ({
         {data.isEntry ? (
           <Flag className="size-3.5 shrink-0 text-primary" />
         ) : null}
-        <span className="min-w-0 flex-1 truncate font-medium">{data.name}</span>
+        <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
+          {data.name}
+        </span>
         <StatusIcon run={data.run} />
       </div>
       <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
