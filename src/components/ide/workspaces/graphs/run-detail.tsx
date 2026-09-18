@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { AgentGraph, GraphRun } from "@/types/agent-graphs";
 import { getProviderLabel } from "../../ide-types";
-import { formatCondition, GraphCanvas } from "./graph-canvas";
+import { GraphCanvas } from "./graph-canvas";
+import { edgeOutcome } from "./graph-conditions";
 import { type GraphSelection, useGraphStore } from "./graph-store";
 import { ExecutionDetail, ExecutionList } from "./run-history";
 
@@ -108,8 +109,6 @@ export const RunDetail = ({
         <div className="min-w-0 flex-1">
           <GraphCanvas
             readOnly
-            alwaysLabel={t("always")}
-            elseLabel={t("elseHandle")}
             executions={executions}
             graph={graph}
             inheritLabel={t("inheritProject")}
@@ -164,9 +163,10 @@ export const RunDetail = ({
                 {nodeNames.get(edge.sourceNodeId)} →{" "}
                 {nodeNames.get(edge.targetNodeId)}
               </div>
-              <div>{formatCondition(edge.condition, t("always"))}</div>
               <div>
-                {t("priority")}: {edge.priority}
+                {edgeOutcome(edge) === "failure"
+                  ? t("outcomeFailure")
+                  : t("outcomeSuccess")}
               </div>
             </div>
           ) : null}

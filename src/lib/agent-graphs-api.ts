@@ -2,7 +2,6 @@ import type {
   AgentGraph,
   AgentGraphSummary,
   GraphEdge,
-  GraphInput,
   GraphNode,
   GraphNodeAgent,
   GraphRun,
@@ -117,7 +116,6 @@ export const graphsApi = {
     edges: GraphEdge[];
     entryNodeId: string | null;
     graphId: string;
-    inputs?: GraphInput[];
     nodes: GraphNode[];
   }) => post<GraphWithValidation>("/api/graphs/save", input),
 

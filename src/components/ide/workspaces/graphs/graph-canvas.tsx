@@ -13,22 +13,12 @@ import {
 } from "@xyflow/react";
 import { nanoid } from "nanoid";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  AgentGraph,
-  EdgeCondition,
-  GraphRun,
-  NodeExecution,
-} from "@/types/agent-graphs";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { AgentGraph, GraphRun, NodeExecution } from "@/types/agent-graphs";
 import { getProviderLabel } from "../../ide-types";
 import { type AgentFlowNode, AgentNode } from "./agent-node";
 import { ConditionEdge, type ConditionFlowEdge } from "./condition-edge";
-import {
-  conditionForHandle,
-  getBranchOutput,
-  seedConditionForNewEdge,
-  sourceHandleForEdge,
-} from "./graph-conditions";
+import { edgeOutcome, outcomeFromHandle } from "./graph-conditions";
 import { collectTraversedEdgeIds, summarizeNodeRun } from "./graph-run-status";
 import type { GraphSelection, GraphTraversalHighlight } from "./graph-store";
 
@@ -38,37 +28,8 @@ const NODE_TYPES: NodeTypes = { agent: AgentNode };
 const EDGE_TYPES: EdgeTypes = { condition: ConditionEdge };
 const HIGHLIGHT_MS = 1_800;
 
-export const formatCondition = (
-  condition: EdgeCondition | null,
-  alwaysLabel: string,
-): string => {
-  if (!condition) {
-    return alwaysLabel;
-  }
-  const value =
-    typeof condition.value === "string"
-      ? JSON.stringify(condition.value)
-      : String(condition.value ?? "");
-  switch (condition.operator) {
-    case "eq":
-      return `${condition.field} == ${value}`;
-    case "neq":
-      return `${condition.field} != ${value}`;
-    case "exists":
-      return `${condition.field} exists`;
-    case "not_exists":
-      return `${condition.field} missing`;
-    case "contains":
-      return `${condition.field} ∋ ${value}`;
-    default:
-      return condition.field;
-  }
-};
-
 export interface GraphCanvasProps {
   readOnly?: boolean;
-  alwaysLabel: string;
-  elseLabel: string;
   executions: NodeExecution[];
   graph: AgentGraph;
   inheritLabel: string;
@@ -81,8 +42,6 @@ export interface GraphCanvasProps {
 
 const GraphCanvasInner = ({
   readOnly = false,
-  alwaysLabel,
-  elseLabel,
   executions,
   graph,
   inheritLabel,
@@ -114,8 +73,13 @@ const GraphCanvasInner = ({
     () => new Map(graph.nodes.map((node) => [node.id, node.position])),
     [graph.nodes],
   );
-  const outputsById = useMemo(
-    () => new Map(graph.nodes.map((node) => [node.id, node.outputs])),
+  const taskNodeIds = useMemo(
+    () =>
+      new Set(
+        graph.nodes
+          .filter((node) => node.type === "task")
+          .map((node) => node.id),
+      ),
     [graph.nodes],
   );
 
@@ -130,9 +94,8 @@ const GraphCanvasInner = ({
         return {
           data: {
             agentLabel,
-            branchOptions: getBranchOutput(node.outputs)?.options ?? [],
-            elseLabel,
             isEntry: graph.entryNodeId === node.id,
+            kind: node.type === "task" ? "task" : "decision",
             name: node.name,
             run: summarizeNodeRun(node.id, run, executions),
           },
@@ -142,15 +105,7 @@ const GraphCanvasInner = ({
           type: "agent",
         };
       }),
-    [
-      elseLabel,
-      executions,
-      graph.entryNodeId,
-      graph.nodes,
-      inheritLabel,
-      run,
-      selection,
-    ],
+    [executions, graph.entryNodeId, graph.nodes, inheritLabel, run, selection],
   );
 
   const traversedEdgeIds = useMemo(
@@ -167,37 +122,64 @@ const GraphCanvasInner = ({
           data: {
             highlighted: highlightEdgeId === edge.id,
             isBackward: targetY <= sourceY,
-            isFallback: edge.condition === null,
-            label: formatCondition(edge.condition, alwaysLabel),
+            outcome: edgeOutcome(edge),
+            plain: taskNodeIds.has(edge.sourceNodeId),
             traversed: traversedEdgeIds.has(edge.id),
           },
           id: edge.id,
           markerEnd: { type: MarkerType.ArrowClosed },
           selected: selection?.kind === "edge" && selection.id === edge.id,
           source: edge.sourceNodeId,
-          sourceHandle: sourceHandleForEdge(
-            outputsById.get(edge.sourceNodeId),
-            edge.condition,
-          ),
+          sourceHandle: taskNodeIds.has(edge.sourceNodeId)
+            ? "success"
+            : edgeOutcome(edge),
           target: edge.targetNodeId,
           type: "condition",
         };
       }),
     [
-      alwaysLabel,
       graph.edges,
       highlightEdgeId,
-      outputsById,
       positionsById,
       selection,
+      taskNodeIds,
       traversedEdgeIds,
     ],
+  );
+
+  // Clicking B while A is selected arrives as one batch ("select B",
+  // "deselect A"), and switching between a node and an edge arrives as two
+  // callbacks in the same tick. Track the latest selection synchronously so a
+  // trailing "deselect" of the old item never clears the new one.
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const applySelectionChanges = useCallback(
+    (
+      kind: "node" | "edge",
+      selectedId: string | null,
+      deselected: Set<string>,
+    ) => {
+      const current = selectionRef.current;
+      let next = current;
+      if (selectedId) {
+        next = { id: selectedId, kind };
+      } else if (current?.kind === kind && deselected.has(current.id)) {
+        next = null;
+      }
+      if (next !== current) {
+        selectionRef.current = next;
+        onSelectionChange(next);
+      }
+    },
+    [onSelectionChange],
   );
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<AgentFlowNode>[]) => {
       const removed = new Set<string>();
       const moved = new Map<string, { x: number; y: number }>();
+      let selectedId: string | null = null;
+      const deselected = new Set<string>();
       for (const change of changes) {
         if (change.type === "position" && change.position) {
           moved.set(change.id, change.position);
@@ -205,12 +187,13 @@ const GraphCanvasInner = ({
           removed.add(change.id);
         } else if (change.type === "select") {
           if (change.selected) {
-            onSelectionChange({ id: change.id, kind: "node" });
-          } else if (selection?.kind === "node" && selection.id === change.id) {
-            onSelectionChange(null);
+            selectedId = change.id;
+          } else {
+            deselected.add(change.id);
           }
         }
       }
+      applySelectionChanges("node", selectedId, deselected);
       if (readOnly || (removed.size === 0 && moved.size === 0)) {
         return;
       }
@@ -244,23 +227,32 @@ const GraphCanvasInner = ({
         onSelectionChange(null);
       }
     },
-    [onGraphChange, onSelectionChange, selection, readOnly],
+    [
+      applySelectionChanges,
+      onGraphChange,
+      onSelectionChange,
+      selection,
+      readOnly,
+    ],
   );
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange<ConditionFlowEdge>[]) => {
       const removed = new Set<string>();
+      let selectedId: string | null = null;
+      const deselected = new Set<string>();
       for (const change of changes) {
         if (change.type === "remove") {
           removed.add(change.id);
         } else if (change.type === "select") {
           if (change.selected) {
-            onSelectionChange({ id: change.id, kind: "edge" });
-          } else if (selection?.kind === "edge" && selection.id === change.id) {
-            onSelectionChange(null);
+            selectedId = change.id;
+          } else {
+            deselected.add(change.id);
           }
         }
       }
+      applySelectionChanges("edge", selectedId, deselected);
       if (readOnly || removed.size === 0) {
         return;
       }
@@ -272,7 +264,13 @@ const GraphCanvasInner = ({
         onSelectionChange(null);
       }
     },
-    [onGraphChange, onSelectionChange, selection, readOnly],
+    [
+      applySelectionChanges,
+      onGraphChange,
+      onSelectionChange,
+      selection,
+      readOnly,
+    ],
   );
 
   const handleConnect = useCallback(
@@ -281,40 +279,24 @@ const GraphCanvasInner = ({
         return;
       }
       const edgeId = nanoid();
-      onGraphChange((current) => {
-        const hasFallback = current.edges.some(
-          (edge) =>
-            edge.sourceNodeId === connection.source && edge.condition === null,
-        );
-        return {
-          ...current,
-          edges: [
-            ...current.edges,
-            {
-              // A second unconditional edge would be invalid; seed a
-              // condition the user can refine instead.
-              // Dragging from an outcome handle is the whole configuration.
-              condition:
-                conditionForHandle(
-                  current.nodes.find((node) => node.id === connection.source)
-                    ?.outputs,
-                  connection.sourceHandle,
-                ) ??
-                seedConditionForNewEdge(
-                  current,
-                  connection.source,
-                  hasFallback,
-                ),
-              id: edgeId,
-              priority: current.edges.filter(
-                (edge) => edge.sourceNodeId === connection.source,
-              ).length,
-              sourceNodeId: connection.source,
-              targetNodeId: connection.target,
-            },
-          ],
-        };
-      });
+      const outcome = outcomeFromHandle(connection.sourceHandle);
+      // One connection per outcome: a new one replaces the old one.
+      onGraphChange((current) => ({
+        ...current,
+        edges: [
+          ...current.edges.filter(
+            (edge) =>
+              edge.sourceNodeId !== connection.source ||
+              edgeOutcome(edge) !== outcome,
+          ),
+          {
+            id: edgeId,
+            outcome,
+            sourceNodeId: connection.source,
+            targetNodeId: connection.target,
+          },
+        ],
+      }));
       onSelectionChange({ id: edgeId, kind: "edge" });
     },
     [onGraphChange, onSelectionChange, readOnly],

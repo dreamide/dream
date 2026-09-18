@@ -48,13 +48,11 @@ afterEach(async () => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const resultText = (data, stateUpdates, summary = "done") =>
-  `Work log...\n<workflow-result>\n${JSON.stringify({ data, stateUpdates, summary })}\n</workflow-result>`;
-
-const cond = (field, value, operator = "eq") => ({ field, operator, value });
+const resultText = (status = "success", message = "done") =>
+  `Work log...\n<workflow-result>\n${JSON.stringify({ message, status })}\n</workflow-result>`;
 
 /**
- * Builds a graph. `spec.edges` entries: [source, target, condition?, priority?]
+ * Builds a graph. `spec.edges` entries: [source, target, outcome = "success"]
  */
 const buildGraph = ({ nodes, edges, entry, maxIterations = 5 }) => {
   const graph = repository.createGraph({
@@ -62,15 +60,12 @@ const buildGraph = ({ nodes, edges, entry, maxIterations = 5 }) => {
     projectId: PROJECT_ID,
   });
   return repository.saveGraphDefinition(graph.id, {
-    edges: edges.map(
-      ([source, target, condition = null, priority = 0], index) => ({
-        condition,
-        id: `e${index}-${source}-${target}`,
-        priority,
-        sourceNodeId: source,
-        targetNodeId: target,
-      }),
-    ),
+    edges: edges.map(([source, target, outcome = "success"], index) => ({
+      id: `e${index}-${source}-${target}`,
+      outcome,
+      sourceNodeId: source,
+      targetNodeId: target,
+    })),
     entryNodeId: entry ?? nodes[0],
     nodes: nodes.map((name) =>
       typeof name === "string"
@@ -128,9 +123,9 @@ test("linear graph executes A, B, C and completes", async () => {
   });
   const runner = createRunner(
     scriptedExecutor({
-      A: [resultText({ status: "ok" }, { plan: "p" })],
-      B: [resultText({ status: "ok" }, { impl: "i" })],
-      C: [resultText({ status: "ok" })],
+      A: [resultText("success", "planned")],
+      B: [resultText("ok", "built")],
+      C: [resultText("passed")],
     }),
   );
 
@@ -143,7 +138,11 @@ test("linear graph executes A, B, C and completes", async () => {
   const finished = repository.getRun(run.id);
   assert.equal(finished.status, "completed");
   assert.equal(finished.currentNodeId, null);
-  assert.deepEqual(finished.state, { impl: "i", plan: "p" });
+  assert.deepEqual(finished.state.steps, {
+    A: { message: "planned", status: "success" },
+    B: { message: "built", status: "success" },
+    C: { message: "done", status: "success" },
+  });
   assert.deepEqual(executionTrail(run.id), ["A1", "B1", "C1"]);
   assert.deepEqual(
     events.map((event) => event.type),
@@ -169,13 +168,13 @@ test("simple loop A → B → A runs two iterations then exits", async () => {
     nodes: ["A", "B"],
     edges: [
       ["A", "B"],
-      ["B", "A", cond("again", true)],
+      ["B", "A", "failure"],
     ],
   });
   const runner = createRunner(
     scriptedExecutor({
-      A: [resultText({ status: "ok" })],
-      B: [resultText({ again: true }), resultText({ again: false })],
+      A: [resultText()],
+      B: [resultText("failure", "try again"), resultText()],
     }),
   );
 
@@ -198,22 +197,25 @@ test("simple loop A → B → A runs two iterations then exits", async () => {
   assert.equal(repository.getGraph(graph.id).nodes.length, 2);
 });
 
-test("conditional routing chooses B or C based on data", async () => {
+test("routing follows the success or failure edge", async () => {
   const graph = buildGraph({
     nodes: ["A", "B", "C"],
     edges: [
-      ["A", "B", cond("route", "b")],
-      ["A", "C", cond("route", "c")],
+      ["A", "B", "success"],
+      ["A", "C", "failure"],
     ],
   });
 
-  for (const route of ["b", "c"]) {
+  for (const [status, route] of [
+    ["success", "b"],
+    ["FAILED", "c"],
+  ]) {
     events = [];
     const runner = createRunner(
       scriptedExecutor({
-        A: [resultText({ route })],
-        B: [resultText({})],
-        C: [resultText({})],
+        A: [resultText(status)],
+        B: [resultText()],
+        C: [resultText()],
       }),
     );
     const { run, promise } = runner.startRun({
@@ -225,26 +227,26 @@ test("conditional routing chooses B or C based on data", async () => {
   }
 });
 
-test("fallback edge is followed when no condition matches", async () => {
-  const graph = buildGraph({
-    nodes: ["A", "B", "C"],
-    edges: [
-      ["A", "B", cond("status", "failed")],
-      ["A", "C"],
-    ],
-  });
-  const runner = createRunner(
-    scriptedExecutor({
-      A: [resultText({ status: "passed" })],
-      C: [resultText({})],
-    }),
+test("an unconnected outcome ends the run: success completes, failure fails", async () => {
+  const graph = buildGraph({ nodes: ["A", "B"], edges: [["A", "B"]] });
+
+  const failing = createRunner(
+    scriptedExecutor({ A: [resultText("failure", "2 specs are red")] }),
   );
-  const { run, promise } = runner.startRun({
-    graphId: graph.id,
-    projectId: PROJECT_ID,
-  });
-  await promise;
-  assert.deepEqual(executionTrail(run.id), ["A1", "C1"]);
+  const failed = failing.startRun({ graphId: graph.id, projectId: PROJECT_ID });
+  await failed.promise;
+  const failedRun = repository.getRun(failed.run.id);
+  assert.equal(failedRun.status, "failed");
+  assert.match(failedRun.error, /Step "A" failed: 2 specs are red/);
+  assert.deepEqual(executionTrail(failed.run.id), ["A1"]);
+
+  const passing = createRunner(
+    scriptedExecutor({ A: [resultText()], B: [resultText()] }),
+  );
+  const passed = passing.startRun({ graphId: graph.id, projectId: PROJECT_ID });
+  await passed.promise;
+  assert.equal(repository.getRun(passed.run.id).status, "completed");
+  assert.deepEqual(executionTrail(passed.run.id), ["A1", "B1"]);
 });
 
 test("per-node iteration limit stops a self loop", async () => {
@@ -253,7 +255,7 @@ test("per-node iteration limit stops a self loop", async () => {
     edges: [["A", "A"]],
     maxIterations: 3,
   });
-  const runner = createRunner(scriptedExecutor({ A: [resultText({})] }));
+  const runner = createRunner(scriptedExecutor({ A: [resultText()] }));
   const { run, promise } = runner.startRun({
     graphId: graph.id,
     projectId: PROJECT_ID,
@@ -280,9 +282,9 @@ test("global execution limit stops a multi-node cycle", async () => {
   });
   const runner = createRunner(
     scriptedExecutor({
-      A: [resultText({})],
-      B: [resultText({})],
-      C: [resultText({})],
+      A: [resultText()],
+      B: [resultText()],
+      C: [resultText()],
     }),
   );
   const { run, promise } = runner.startRun({
@@ -315,7 +317,7 @@ test("cancelling during B prevents C from executing", async () => {
     bStarted = resolve;
   });
   const executor = scriptedExecutor({
-    A: [resultText({})],
+    A: [resultText()],
     B: [
       async ({ signal }) => {
         bStarted();
@@ -323,10 +325,10 @@ test("cancelling during B prevents C from executing", async () => {
         if (signal.aborted) {
           throw Object.assign(new Error("aborted"), { name: "AbortError" });
         }
-        return resultText({});
+        return resultText();
       },
     ],
-    C: [resultText({})],
+    C: [resultText()],
   });
   const runner = createRunner(executor);
   const { run, promise } = runner.startRun({
@@ -362,7 +364,7 @@ test("a run can be resumed from its persisted currentNodeId", async () => {
 
   // Simulate a run that completed A and crashed before B.
   const executor = scriptedExecutor({
-    A: [resultText({}, { plan: "from A" })],
+    A: [resultText("success", "from A")],
   });
   const failing = createGraphRunner({
     emit: () => {},
@@ -382,12 +384,14 @@ test("a run can be resumed from its persisted currentNodeId", async () => {
   let stored = repository.getRun(run.id);
   assert.equal(stored.status, "failed");
   assert.equal(stored.currentNodeId, "B");
-  assert.deepEqual(stored.state, { plan: "from A" });
+  assert.deepEqual(stored.state.steps, {
+    A: { message: "from A", status: "success" },
+  });
 
   // Reconstruct from stored state only and continue.
   const resumedExecutor = scriptedExecutor({
-    B: [resultText({}, { impl: "from B" })],
-    C: [resultText({})],
+    B: [resultText("success", "from B")],
+    C: [resultText()],
   });
   const runner = createRunner(resumedExecutor);
   const resumed = runner.resumeRun(run.id);
@@ -395,7 +399,7 @@ test("a run can be resumed from its persisted currentNodeId", async () => {
 
   stored = repository.getRun(run.id);
   assert.equal(stored.status, "completed");
-  assert.deepEqual(stored.state, { impl: "from B", plan: "from A" });
+  assert.equal(stored.state.steps.B.message, "from B");
   assert.deepEqual(
     repository
       .listExecutions(run.id)
@@ -410,7 +414,7 @@ test("a run can be resumed from its persisted currentNodeId", async () => {
 test("malformed results get repair turns, then fail the run", async () => {
   const graph = buildGraph({ nodes: ["A", "B"], edges: [["A", "B"]] });
   const executor = scriptedExecutor({
-    A: ["I forgot the block", resultText({ status: "fixed" })],
+    A: ["I forgot the block", resultText("success", "fixed")],
     B: ["nope", "still nope"],
   });
   const runner = createRunner(executor);
@@ -422,7 +426,7 @@ test("malformed results get repair turns, then fail the run", async () => {
 
   const executions = repository.listExecutions(run.id);
   assert.equal(executions[0].status, "completed");
-  assert.equal(executions[0].result.data.status, "fixed");
+  assert.equal(executions[0].result.message, "fixed");
   assert.match(executions[0].outputText, /\[repair turn\]/);
   assert.equal(executions[1].status, "failed");
   assert.match(executions[1].error, /Malformed workflow result/);
@@ -474,7 +478,7 @@ test("startRun rejects invalid graphs and concurrent runs per project", async ()
   const blocking = createRunner({
     execute: async () => {
       await gate;
-      return { text: resultText({}) };
+      return { text: resultText() };
     },
   });
   const first = blocking.startRun({ graphId: graph.id, projectId: PROJECT_ID });
@@ -517,24 +521,23 @@ test("plan → implement → test → review fixture loops and completes", async
     edges: [
       ["plan", "implement"],
       ["implement", "test"],
-      ["test", "implement", cond("status", "failed"), 0],
-      ["test", "plan", cond("failureType", "architecture"), -1],
+      ["test", "implement", "failure"],
       ["test", "review"],
-      ["review", "implement", cond("status", "changes")],
+      ["review", "implement", "failure"],
     ],
   });
   const runner = createRunner(
     scriptedExecutor({
-      plan: [resultText({ status: "ok" }, { plan: "v1" })],
-      implement: [resultText({ status: "ok" })],
+      plan: [resultText("success", "plan v1")],
+      implement: [resultText()],
       test: [
-        resultText({ status: "failed", failureType: "implementation" }),
-        resultText({ status: "passed" }),
-        resultText({ status: "passed" }),
+        resultText("failed", "users.test.ts is red"),
+        resultText("passed"),
+        resultText("passed"),
       ],
       review: [
-        resultText({ status: "changes" }),
-        resultText({ status: "approved" }),
+        resultText("changes", "rename the hook"),
+        resultText("approved"),
       ],
     }),
   );
@@ -566,33 +569,19 @@ test("plan → implement → test → review fixture loops and completes", async
   ]);
 });
 
-// ---------------------------------------------------------------------------
-// Declared outputs
-// ---------------------------------------------------------------------------
-
-const testNode = {
-  id: "T",
-  instructions: "run the tests",
-  maxIterations: 5,
-  name: "Test",
-  outputs: [
-    { key: "status", options: ["passed", "failed"], type: "enum" },
-    { key: "details", saveToState: true, type: "text" },
-  ],
-};
-
-test("declared outputs generate the contract, normalize values and share state", async () => {
+test("steps see the task and what earlier steps reported", async () => {
   const graph = buildGraph({
+    nodes: ["Plan", "Build", "Check"],
     edges: [
-      ["T", "Fix", cond("status", "failed")],
-      ["T", "Done"],
+      ["Plan", "Build"],
+      ["Build", "Check"],
     ],
-    nodes: [testNode, "Fix", "Done"],
   });
   const executor = scriptedExecutor({
-    Done: [resultText({})],
-    Fix: [resultText({})],
-    T: [resultText({ Status: " FAILED ", details: "2 specs red" })],
+    Build: [resultText("success", "added the endpoint")],
+    // Bare JSON with a trailing comma and a status synonym still parses.
+    Check: ['All good. {"status": "Passed", "message": "42 tests green",}'],
+    Plan: [resultText("success", "use cursors")],
   });
   const runner = createRunner(executor);
   const { run, promise } = runner.startRun({
@@ -602,30 +591,23 @@ test("declared outputs generate the contract, normalize values and share state",
   });
   await promise;
 
-  const [first, second] = repository.listExecutions(run.id);
-  assert.match(
-    first.input.prompt,
-    /Task for this workflow run\nShip pagination/,
+  assert.equal(repository.getRun(run.id).status, "completed");
+  assert.equal(executor.calls.length, 3);
+  const checkPrompt = executor.calls[2].prompt;
+  assert.match(checkPrompt, /Task for this workflow run\nShip pagination/);
+  assert.match(checkPrompt, /- Plan \(success\): use cursors/);
+  assert.match(checkPrompt, /Step "Build": success\nadded the endpoint/);
+  assert.match(checkPrompt, /"status": "success" \| "failure"/);
+  assert.equal(
+    repository.listExecutions(run.id)[2].result.message,
+    "42 tests green",
   );
-  assert.match(first.input.prompt, /"status": "passed" \| "failed"/);
-  assert.match(first.input.prompt, /`status` \(required\): exactly one of/);
-  assert.deepEqual(first.result.data, {
-    details: "2 specs red",
-    status: "failed",
-  });
-  assert.equal(second.nodeId, "Fix");
-  assert.deepEqual(repository.getRun(run.id).state.steps, {
-    Test: { details: "2 specs red" },
-  });
 });
 
-test("values outside the declared options get a targeted repair turn", async () => {
-  const graph = buildGraph({ edges: [], nodes: [testNode] });
+test("an unrecognizable status gets a repair turn naming the problem", async () => {
+  const graph = buildGraph({ nodes: ["A"], edges: [] });
   const executor = scriptedExecutor({
-    T: [
-      resultText({ details: "ok", status: "success" }),
-      resultText({ details: "ok", status: "passed" }),
-    ],
+    A: [resultText("maybe"), resultText("success")],
   });
   const runner = createRunner(executor);
   const { run, promise } = runner.startRun({
@@ -635,109 +617,104 @@ test("values outside the declared options get a targeted repair turn", async () 
   await promise;
 
   assert.equal(repository.getRun(run.id).status, "completed");
-  assert.match(executor.calls[1].prompt, /must be one of "passed", "failed"/);
-  assert.equal(
-    repository.listExecutions(run.id)[0].result.data.status,
-    "passed",
+  assert.match(
+    executor.calls[1].prompt,
+    /"status" must be "success" or "failure" \(received "maybe"\)/,
   );
 });
 
-test("a run fails instead of completing when the routing field was never returned", async () => {
-  const graph = buildGraph({
-    edges: [["A", "B", cond("status", "failed")]],
-    nodes: ["A", "B"],
+test("graphs saved with conditions load as success/failure edges", () => {
+  const created = buildGraph({
+    nodes: ["Test", "Plan", "Fix", "Review"],
+    edges: [],
   });
-  const runner = createRunner(
-    scriptedExecutor({ A: [resultText({ outcome: "failed" })] }),
+  const database = getPersistedStateDatabase({ databasePath });
+  const insert = database.prepare(
+    `INSERT INTO agent_graph_edges (id, graph_id, source_node_id, target_node_id, condition, priority)
+     VALUES (?, ?, 'Test', ?, ?, ?)`,
   );
+  insert.run(
+    "arch",
+    created.id,
+    "Plan",
+    JSON.stringify({
+      field: "failureType",
+      operator: "eq",
+      value: "architecture",
+    }),
+    0,
+  );
+  insert.run(
+    "failed",
+    created.id,
+    "Fix",
+    JSON.stringify({ field: "status", operator: "eq", value: "failed" }),
+    1,
+  );
+  insert.run("fallback", created.id, "Review", null, 0);
+
+  const edges = repository.getGraph(created.id).edges;
+  assert.deepEqual(edges.map((edge) => `${edge.id}:${edge.outcome}`).sort(), [
+    "failed:failure",
+    "fallback:success",
+  ]);
+});
+
+test("task steps always continue and need no status", async () => {
+  const graph = buildGraph({
+    nodes: [
+      {
+        id: "Plan",
+        instructions: "plan it",
+        maxIterations: 5,
+        name: "Plan",
+        type: "task",
+      },
+      "Check",
+    ],
+    edges: [["Plan", "Check"]],
+  });
+  assert.equal(repository.getGraph(graph.id).nodes[0].type, "task");
+  assert.equal(repository.getGraph(graph.id).nodes[1].type, "decision");
+
+  const executor = scriptedExecutor({
+    Check: [resultText()],
+    // No result block at all: the response itself becomes the message.
+    Plan: ["1. add the endpoint\n2. test it"],
+  });
+  const runner = createRunner(executor);
   const { run, promise } = runner.startRun({
     graphId: graph.id,
     projectId: PROJECT_ID,
   });
   await promise;
 
-  const finished = repository.getRun(run.id);
-  assert.equal(finished.status, "failed");
-  assert.match(finished.error, /did not return "status"/);
+  assert.equal(repository.getRun(run.id).status, "completed");
+  assert.deepEqual(
+    executor.calls.map((call) => `${call.nodeId}${call.repair ? "*" : ""}`),
+    ["Plan", "Check"],
+  );
+  assert.doesNotMatch(executor.calls[0].prompt, /"status"/);
+  assert.match(executor.calls[1].prompt, /1\. add the endpoint/);
 });
 
-test("validation rejects conditions that do not match declared outputs", () => {
+test("a task cannot have a failure connection", () => {
   const graph = buildGraph({
-    edges: [
-      ["T", "A", cond("state", "failed")],
-      ["T", "B", cond("status", "broken"), 1],
+    nodes: [
+      {
+        id: "Plan",
+        instructions: "",
+        maxIterations: 5,
+        name: "Plan",
+        type: "task",
+      },
+      "B",
     ],
-    nodes: [testNode, "A", "B"],
+    edges: [["Plan", "B", "failure"]],
   });
   const runner = createRunner(scriptedExecutor({}));
   assert.throws(
     () => runner.startRun({ graphId: graph.id, projectId: PROJECT_ID }),
-    (error) => {
-      assert.deepEqual(error.errors.map((entry) => entry.code).sort(), [
-        "condition_unknown_field",
-        "condition_unknown_value",
-      ]);
-      return true;
-    },
-  );
-});
-
-test("run inputs are validated, coerced and usable as placeholders", async () => {
-  const created = buildGraph({
-    edges: [["Plan", "Build"]],
-    nodes: [
-      {
-        id: "Plan",
-        instructions: "Plan {{task}} on {{input.branch}}",
-        maxIterations: 5,
-        name: "Plan",
-        outputs: [{ key: "plan", saveToState: true, type: "text" }],
-      },
-      {
-        id: "Build",
-        instructions: "Follow this plan: {{Plan.plan}} ({{Plan.nope}})",
-        maxIterations: 5,
-        name: "Build",
-      },
-    ],
-  });
-  const graph = repository.saveGraphDefinition(created.id, {
-    edges: created.edges,
-    entryNodeId: created.entryNodeId,
-    inputs: [
-      { key: "branch", label: "Branch", type: "text" },
-      { key: "retries", required: false, type: "number" },
-    ],
-    nodes: created.nodes,
-  });
-  const executor = scriptedExecutor({
-    Build: [resultText({})],
-    Plan: [`Sure. {"summary": "planned", "data": {"plan": "use cursors",},}`],
-  });
-  const runner = createRunner(executor);
-
-  assert.throws(
-    () => runner.startRun({ graphId: graph.id, projectId: PROJECT_ID }),
-    /Run input "Branch" is required/,
-  );
-
-  const { run, promise } = runner.startRun({
-    graphId: graph.id,
-    initialState: { inputs: { branch: "main", retries: "3" }, task: "paging" },
-    projectId: PROJECT_ID,
-  });
-  await promise;
-
-  assert.deepEqual(repository.getRun(run.id).state.inputs, {
-    branch: "main",
-    retries: 3,
-  });
-  assert.match(executor.calls[0].prompt, /Plan paging on main/);
-  assert.match(executor.calls[0].prompt, /## Run inputs\n- Branch: main/);
-  // Bare JSON with trailing commas is salvaged without a repair turn.
-  assert.equal(executor.calls.length, 2);
-  assert.match(
-    executor.calls[1].prompt,
-    /Follow this plan: use cursors \(\(not available yet\)\)/,
+    /is a task and cannot fail/,
   );
 });

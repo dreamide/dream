@@ -10,12 +10,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import type { AgentGraph, GraphValidationResult } from "@/types/agent-graphs";
-import { NODE_PRESET_IDS, type NodePresetId } from "./graph-templates";
+import type {
+  AgentGraph,
+  GraphNodeType,
+  GraphValidationResult,
+} from "@/types/agent-graphs";
+import { NODE_TYPES } from "./graph-templates";
 
 export interface GraphToolbarProps {
   graph: AgentGraph;
-  onAddNode: (presetId: NodePresetId) => void;
+  onAddNode: (type: GraphNodeType) => void;
   onRename: (name: string) => void;
   onStartRun: () => void;
   starting: boolean;
@@ -90,15 +94,15 @@ export const GraphToolbar = ({
             }
           />
           <DropdownMenuContent align="end" className="w-64">
-            {NODE_PRESET_IDS.map((presetId) => (
+            {NODE_TYPES.map((type) => (
               <DropdownMenuItem
                 className="flex-col items-start gap-0"
-                key={presetId}
-                onClick={() => onAddNode(presetId)}
+                key={type}
+                onClick={() => onAddNode(type)}
               >
-                <span>{t(`preset_${presetId}`)}</span>
+                <span>{t(`nodeType_${type}`)}</span>
                 <span className="text-xs text-muted-foreground">
-                  {t(`presetHelp_${presetId}`)}
+                  {t(`nodeTypeHelp_${type}`)}
                 </span>
               </DropdownMenuItem>
             ))}

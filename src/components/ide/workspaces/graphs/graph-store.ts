@@ -4,7 +4,6 @@ import { getDesktopApi } from "@/lib/electron";
 import type {
   AgentGraph,
   AgentGraphSummary,
-  GraphNode,
   GraphNodeAgent,
   GraphRun,
   GraphRunEvent,
@@ -370,7 +369,6 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
         edges: graph.edges,
         entryNodeId: graph.entryNodeId,
         graphId,
-        inputs: graph.inputs ?? [],
         nodes: graph.nodes,
       });
       set((state) => {
@@ -384,18 +382,11 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
           entryNodeId: graph.entryNodeId ?? saved.entryNodeId,
           updatedAt: saved.updatedAt,
         };
-        const countOutputs = (nodes: GraphNode[]) =>
-          nodes.reduce((sum, node) => sum + (node.outputs?.length ?? 0), 0);
-        const roundTripLost =
-          (saved.inputs?.length ?? 0) !== (graph.inputs?.length ?? 0) ||
-          countOutputs(saved.nodes) !== countOutputs(graph.nodes);
         return {
           dirtyGraphIds: { ...state.dirtyGraphIds, [graphId]: stillDirty },
           errorByProject: {
             ...state.errorByProject,
-            [saved.projectId]: roundTripLost
-              ? "The workflow was saved, but the server did not store its inputs/outputs. Restart Dream so the backend picks up the latest code."
-              : null,
+            [saved.projectId]: null,
           },
           graphsById: stillDirty
             ? state.graphsById

@@ -1,15 +1,20 @@
-import { getFieldValue, resolveNextEdge } from "./conditions.js";
 import { emitGraphEvent } from "./events.js";
-import { INPUTS_STATE_KEY, resolveRunInputs } from "./inputs.js";
-import { extractNodeResult, mergeRunState } from "./node-result.js";
-import { mergeSharedOutputs, normalizeResultData } from "./outputs.js";
-import { buildNodePrompt, buildRepairPrompt } from "./prompt.js";
+import { extractNodeResult, extractTaskResult } from "./node-result.js";
+import { edgeOutcome, nodeType, resolveOutcomeEdge } from "./outcomes.js";
+import {
+  buildNodePrompt,
+  buildRepairPrompt,
+  STEPS_STATE_KEY,
+} from "./prompt.js";
 import { validateGraph } from "./validation.js";
 
 /**
  * Graph execution engine — a small sequential state machine.
  *
- *   node → execute → structured result → evaluate edges → next node
+ *   step → execute → { status, message } → follow the ✓ or ✗ edge → next step
+ *
+ * A step without an edge for its outcome ends the run: completed on success,
+ * failed (with the step's message) on failure.
  *
  * Loops are not special-cased: an edge may target any node, including one
  * that already ran. Every visit creates a new execution record.
@@ -48,62 +53,26 @@ const isAbortError = (error) =>
 const errorMessage = (error, fallback) =>
   error instanceof Error && error.message ? error.message : fallback;
 
-/**
- * Extracts the result block and normalizes `data` against the node's declared
- * outputs. Contract violations are reported like a malformed block so they get
- * the same repair turn.
- */
-const parseNodeResult = (text, node) => {
-  const extracted = extractNodeResult(text);
-  if (!extracted.ok) {
-    return extracted;
-  }
-  const { data, errors } = normalizeResultData(node, extracted.result.data);
-  if (errors.length > 0) {
-    return {
-      error: `The "data" object is invalid: ${errors.join(" ")}`,
-      ok: false,
-    };
-  }
-  return { ok: true, result: { ...extracted.result, data } };
-};
-
-/**
- * No edge matched. That legitimately ends a run (e.g. review "approved"), but
- * when none of the fields the conditions test were returned at all, the agent
- * never made the decision — fail loudly instead of completing silently.
- */
-const describeMissingDecision = ({ edges, node, data }) => {
-  const conditions = edges
-    .filter((edge) => edge.sourceNodeId === node.id && edge.condition)
-    .map((edge) => edge.condition);
-  if (conditions.length === 0) {
-    return null;
-  }
-  const fields = [...new Set(conditions.map((condition) => condition.field))];
-  if (fields.some((field) => getFieldValue(data ?? {}, field) !== undefined)) {
-    return null;
-  }
-  return `Node "${node.name}" did not return ${fields
-    .map((field) => `"${field}"`)
-    .join(
-      " or ",
-    )}, which its outgoing edges depend on. Returned data: ${JSON.stringify(data ?? {})}. Declare the node's outputs so the field is always requested.`;
-};
+/** Records the step's latest result so later steps can see it. */
+const recordStepResult = (state, node, result) => ({
+  ...(state ?? {}),
+  [STEPS_STATE_KEY]: {
+    ...(state?.[STEPS_STATE_KEY] ?? {}),
+    [node.name]: { message: result.message, status: result.status },
+  },
+});
 
 const snapshotGraph = (graph, defaultAgent = {}) => ({
   defaultAgent,
   description: graph.description ?? "",
   edges: graph.edges.map((edge) => ({
-    condition: edge.condition ?? null,
     id: edge.id,
-    priority: edge.priority ?? 0,
+    outcome: edgeOutcome(edge),
     sourceNodeId: edge.sourceNodeId,
     targetNodeId: edge.targetNodeId,
   })),
   entryNodeId: graph.entryNodeId,
   graphId: graph.id,
-  inputs: graph.inputs ?? [],
   name: graph.name,
   nodes: graph.nodes.map((node) => ({
     agent: node.agent ?? {},
@@ -111,9 +80,8 @@ const snapshotGraph = (graph, defaultAgent = {}) => ({
     instructions: node.instructions ?? "",
     maxIterations: node.maxIterations ?? 5,
     name: node.name,
-    outputs: node.outputs ?? [],
     position: node.position ?? { x: 80, y: 0 },
-    type: node.type ?? "agent",
+    type: nodeType(node),
   })),
 });
 
@@ -188,7 +156,11 @@ export const createGraphRunner = ({
     const first = await executor.execute({ ...baseInput, prompt });
     let lastText = String(first?.text ?? "");
     let transcript = lastText;
-    let parsed = parseNodeResult(lastText, node);
+    // Tasks cannot fail and need no particular format, so they never need a
+    // repair turn; decisions must produce a recognizable status.
+    const parse =
+      nodeType(node) === "task" ? extractTaskResult : extractNodeResult;
+    let parsed = parse(lastText);
 
     for (let turn = 0; !parsed.ok && turn < MAX_REPAIR_TURNS; turn += 1) {
       if (signal.aborted) {
@@ -204,13 +176,13 @@ export const createGraphRunner = ({
           "## Your previous response",
           lastText.slice(-8_000),
           "",
-          buildRepairPrompt(parsed.error, node),
+          buildRepairPrompt(parsed.error),
         ].join("\n"),
         repair: true,
       });
       lastText = String(repair?.text ?? "");
       transcript = `${transcript}\n\n---\n[repair turn]\n${lastText}`;
-      parsed = parseNodeResult(lastText, node);
+      parsed = parse(lastText);
     }
 
     if (parsed.ok) {
@@ -355,15 +327,12 @@ export const createGraphRunner = ({
       });
 
       // 2. merge state, 3. resolve edge, 4. persist next position
-      const nextState = mergeSharedOutputs(
-        mergeRunState(run.state, outcome.result.stateUpdates),
-        node,
-        outcome.result.data,
-      );
-      const edge = resolveNextEdge({
-        data: outcome.result.data,
+      const nextState = recordStepResult(run.state, node, outcome.result);
+      const edge = resolveOutcomeEdge({
         edges: graph.edges,
         nodeId: node.id,
+        nodesById,
+        status: outcome.result.status,
       });
       run = repository.updateRun(runId, {
         currentNodeId: edge ? edge.targetNodeId : null,
@@ -380,13 +349,11 @@ export const createGraphRunner = ({
       });
 
       if (!edge) {
-        const missingDecision = describeMissingDecision({
-          data: outcome.result.data,
-          edges: graph.edges,
-          node,
-        });
-        if (missingDecision) {
-          finishRun(run, "failed", { error: missingDecision });
+        // Nothing connected to this outcome: the run ends here.
+        if (outcome.result.status === "failure") {
+          finishRun(run, "failed", {
+            error: `Step "${node.name}" failed: ${outcome.result.message || "no details were reported."}`,
+          });
         } else {
           finishRun(run, "completed");
         }
@@ -450,11 +417,6 @@ export const createGraphRunner = ({
       throw new GraphValidationError(errors, warnings);
     }
 
-    const runInputs = resolveRunInputs(graph, initialState?.[INPUTS_STATE_KEY]);
-    if (runInputs.errors.length > 0) {
-      throw new GraphValidationError(runInputs.errors, warnings);
-    }
-
     const active = repository.getActiveRunForProject(projectId);
     if (active) {
       throw new RunConflictError(
@@ -465,10 +427,7 @@ export const createGraphRunner = ({
     const created = repository.createRun({
       graphId,
       graphSnapshot: snapshotGraph(graph, defaultAgent),
-      initialState:
-        Object.keys(runInputs.values).length > 0
-          ? { ...(initialState ?? {}), [INPUTS_STATE_KEY]: runInputs.values }
-          : initialState,
+      initialState,
       maxExecutions,
       projectId,
     });

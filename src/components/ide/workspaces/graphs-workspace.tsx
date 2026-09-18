@@ -2,13 +2,16 @@ import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { AgentGraph, GraphEdge, GraphNode } from "@/types/agent-graphs";
+import type {
+  AgentGraph,
+  GraphNode,
+  GraphNodeType,
+} from "@/types/agent-graphs";
 import type { ProjectConfig } from "@/types/ide";
 import { areProjectsEqualExceptLastUsedAt } from "../ide-state";
 import { useIdeStore } from "../ide-store";
-import { EdgeInspector } from "./graphs/edge-inspector";
 import { GraphCanvas } from "./graphs/graph-canvas";
-import { GraphSettings } from "./graphs/graph-settings";
+import { edgeOutcome } from "./graphs/graph-conditions";
 import { GraphSidebar } from "./graphs/graph-sidebar";
 import {
   ensureGraphEventSubscription,
@@ -16,14 +19,13 @@ import {
   useGraphStore,
 } from "./graphs/graph-store";
 import {
-  createNodeFromPreset,
+  createNode,
   createPlanImplementTestReviewTemplate,
-  type NodePresetId,
 } from "./graphs/graph-templates";
 import { GraphToolbar } from "./graphs/graph-toolbar";
 import { NodeInspector } from "./graphs/node-inspector";
 import { RunDetail } from "./graphs/run-detail";
-import { RunDialog, type RunDialogStart } from "./graphs/run-dialog";
+import { RunDialog } from "./graphs/run-dialog";
 
 export interface GraphsWorkspaceProps {
   active: boolean;
@@ -124,7 +126,7 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
   );
 
   const handleAddNode = useCallback(
-    (presetId: NodePresetId) => {
+    (type: GraphNodeType) => {
       if (!graph) {
         return;
       }
@@ -132,13 +134,11 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
         (max, node) => Math.max(max, node.position.y),
         -180,
       );
-      const node = createNodeFromPreset(
-        presetId,
+      const node = createNode(
+        type,
+        t("newNodeName", { index: graph.nodes.length + 1 }),
         { x: 80, y: maxY + 180 },
-        {
-          blankName: t("newNodeName", { index: graph.nodes.length + 1 }),
-          takenNames: graph.nodes.map((entry) => entry.name),
-        },
+        graph.nodes.map((entry) => entry.name),
       );
       handleGraphChange((current) => ({
         ...current,
@@ -151,7 +151,7 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
   );
 
   const handleStartRun = useCallback(
-    async ({ inputs, task }: RunDialogStart) => {
+    async (task: string) => {
       if (!graph) {
         return;
       }
@@ -166,7 +166,7 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
             reasoningEffort: projectAgent.reasoningEffort,
           },
           graphId: graph.id,
-          initialState: { ...(task ? { task } : {}), inputs },
+          initialState: task ? { task } : undefined,
           projectId,
         });
         if (startedRun) setHistoryOpen(true);
@@ -177,18 +177,9 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
     [graph, projectAgent, projectId, startRun],
   );
 
-  const nodeNames = useMemo(
-    () => new Map((graph?.nodes ?? []).map((node) => [node.id, node.name])),
-    [graph?.nodes],
-  );
-
   const selectedNode: GraphNode | null =
     selection?.kind === "node"
       ? (graph?.nodes.find((node) => node.id === selection.id) ?? null)
-      : null;
-  const selectedEdge: GraphEdge | null =
-    selection?.kind === "edge"
-      ? (graph?.edges.find((edge) => edge.id === selection.id) ?? null)
       : null;
   const inspector = graph ? (
     selectedNode ? (
@@ -196,12 +187,28 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
         graph={graph}
         node={selectedNode}
         onChange={(updater) =>
-          handleGraphChange((current) => ({
-            ...current,
-            nodes: current.nodes.map((node) =>
+          handleGraphChange((current) => {
+            const nodes = current.nodes.map((node) =>
               node.id === selectedNode.id ? updater(node) : node,
-            ),
-          }))
+            );
+            // A task has a single exit: drop its failure connection when a
+            // decision is turned into a task.
+            const becameTask =
+              selectedNode.type !== "task" &&
+              nodes.find((node) => node.id === selectedNode.id)?.type ===
+                "task";
+            return {
+              ...current,
+              edges: becameTask
+                ? current.edges.filter(
+                    (edge) =>
+                      edge.sourceNodeId !== selectedNode.id ||
+                      edgeOutcome(edge) !== "failure",
+                  )
+                : current.edges,
+              nodes,
+            };
+          })
         }
         onDelete={() => {
           handleGraphChange((current) => ({
@@ -227,39 +234,11 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
           }))
         }
       />
-    ) : selectedEdge ? (
-      <EdgeInspector
-        edge={selectedEdge}
-        locked={false}
-        onChange={(updater) =>
-          handleGraphChange((current) => ({
-            ...current,
-            edges: current.edges.map((edge) =>
-              edge.id === selectedEdge.id ? updater(edge) : edge,
-            ),
-          }))
-        }
-        onDelete={() => {
-          handleGraphChange((current) => ({
-            ...current,
-            edges: current.edges.filter((edge) => edge.id !== selectedEdge.id),
-          }));
-          handleSelectionChange(null);
-        }}
-        sourceName={nodeNames.get(selectedEdge.sourceNodeId) ?? ""}
-        sourceOutputs={
-          graph.nodes.find((node) => node.id === selectedEdge.sourceNodeId)
-            ?.outputs ?? []
-        }
-        targetName={nodeNames.get(selectedEdge.targetNodeId) ?? ""}
-      />
     ) : (
-      <GraphSettings
-        graph={graph}
-        onInputsChange={(inputs) =>
-          handleGraphChange((current) => ({ ...current, inputs }))
-        }
-      />
+      <div className="space-y-2 p-3 text-xs leading-5 text-muted-foreground">
+        <p>{t("inspectorHint")}</p>
+        <p>{t("connectHint")}</p>
+      </div>
     )
   ) : null;
 
@@ -340,11 +319,10 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
             />
             <RunDialog
               graphName={graph.name}
-              inputs={graph.inputs ?? []}
               key={runDialogOpen ? "open" : "closed"}
               onOpenChange={setRunDialogOpen}
-              onStart={(start) => {
-                void handleStartRun(start);
+              onStart={(task) => {
+                void handleStartRun(task);
               }}
               open={runDialogOpen}
             />
@@ -359,8 +337,6 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
                     key={graph.id}
                     executions={EMPTY_EXECUTIONS}
                     run={null}
-                    alwaysLabel={t("always")}
-                    elseLabel={t("elseHandle")}
                     graph={graph}
                     inheritLabel={t("inheritProject")}
                     onGraphChange={handleGraphChange}

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPersistedStateDatabase } from "../../persisted-state.js";
+import { nodeType, normalizeEdges } from "./outcomes.js";
 
 /**
  * SQLite persistence for agent graphs, runs and node executions.
@@ -50,7 +51,6 @@ const mapGraph = (row) =>
         description: row.description ?? "",
         entryNodeId: row.entry_node_id ?? null,
         id: row.id,
-        inputs: parseJson(row.inputs, []),
         name: row.name,
         projectId: row.project_id,
         updatedAt: row.updated_at,
@@ -67,7 +67,7 @@ const mapNode = (row) => ({
   outputs: parseJson(row.outputs, []),
   position: { x: row.position_x ?? 0, y: row.position_y ?? 0 },
   sortOrder: row.sort_order ?? 0,
-  type: row.type ?? "agent",
+  type: nodeType({ type: row.type }),
 });
 
 const mapEdge = (row) => ({
@@ -146,10 +146,13 @@ export const createGraphRepository = ({ databasePath } = {}) => {
     if (!graph) {
       return null;
     }
+    // `outputs`/`condition` only exist on graphs saved by earlier versions;
+    // they are folded into success/failure edges here and never sent on.
+    const storedNodes = getNodesForGraph(graphId);
     return {
       ...graph,
-      edges: getEdgesForGraph(graphId),
-      nodes: getNodesForGraph(graphId),
+      edges: normalizeEdges(storedNodes, getEdgesForGraph(graphId)),
+      nodes: storedNodes.map(({ outputs: _outputs, ...node }) => node),
     };
   };
 
@@ -208,10 +211,7 @@ export const createGraphRepository = ({ databasePath } = {}) => {
    * whole graph at once, which keeps the API surface tiny and avoids partial
    * states. Runs retain their own immutable node/edge snapshot.
    */
-  const saveGraphDefinition = (
-    graphId,
-    { entryNodeId, nodes, edges, inputs },
-  ) =>
+  const saveGraphDefinition = (graphId, { entryNodeId, nodes, edges }) =>
     runInTransaction(db(), () => {
       const database = db();
       const existing = mapGraph(
@@ -250,7 +250,7 @@ export const createGraphRepository = ({ databasePath } = {}) => {
       const upsertNode = database.prepare(
         `INSERT INTO agent_graph_nodes
            (id, graph_id, name, type, agent, instructions, max_iterations, position_x, position_y, sort_order, outputs)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]')
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            type = excluded.type,
@@ -267,14 +267,13 @@ export const createGraphRepository = ({ databasePath } = {}) => {
           node.id,
           graphId,
           node.name,
-          node.type ?? "agent",
+          nodeType(node),
           toJson(node.agent ?? {}),
           node.instructions ?? "",
           node.maxIterations ?? DEFAULT_MAX_ITERATIONS,
           Math.round(node.position?.x ?? 0),
           Math.round(node.position?.y ?? 0),
           index,
-          toJson(node.outputs ?? [], "[]"),
         );
       });
 
@@ -289,10 +288,12 @@ export const createGraphRepository = ({ databasePath } = {}) => {
           graphId,
           edge.sourceNodeId,
           edge.targetNodeId,
-          edge.condition === null || edge.condition === undefined
-            ? null
-            : toJson(edge.condition),
-          edge.priority ?? 0,
+          toJson({
+            field: "status",
+            operator: "eq",
+            value: edge.outcome === "failure" ? "failure" : "success",
+          }),
+          0,
         );
       }
 
@@ -302,14 +303,9 @@ export const createGraphRepository = ({ databasePath } = {}) => {
           : (nodes[0]?.id ?? null);
       database
         .prepare(
-          "UPDATE agent_graphs SET entry_node_id = ?, inputs = ?, updated_at = ? WHERE id = ?",
+          "UPDATE agent_graphs SET entry_node_id = ?, updated_at = ? WHERE id = ?",
         )
-        .run(
-          resolvedEntry,
-          toJson(inputs ?? existing.inputs ?? [], "[]"),
-          now(),
-          graphId,
-        );
+        .run(resolvedEntry, now(), graphId);
 
       return getGraph(graphId);
     });

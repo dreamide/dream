@@ -1,43 +1,25 @@
-import { INPUTS_STATE_KEY } from "./inputs.js";
 import { WORKFLOW_RESULT_TAG } from "./node-result.js";
-import {
-  formatOutputsContract,
-  formatOutputsExample,
-  getNodeOutputs,
-} from "./outputs.js";
-import { renderTemplate } from "./template.js";
+import { nodeType } from "./outcomes.js";
 
-const MAX_STATE_CHARS = 12_000;
+const MAX_TASK_CHARS = 12_000;
+const MAX_INCOMING_MESSAGE_CHARS = 8_000;
+const MAX_STEP_MESSAGE_CHARS = 1_500;
 const MAX_HISTORY_ENTRIES = 3;
-const MAX_HISTORY_SUMMARY_CHARS = 1_500;
 
-const formatJson = (value, maxChars) => {
-  let text;
-  try {
-    text = JSON.stringify(value ?? {}, null, 2);
-  } catch {
-    text = "{}";
-  }
-  return text.length > maxChars
-    ? `${text.slice(0, maxChars)}\n… [truncated]`
-    : text;
-};
+/** Shared-state key holding each step's latest `{ status, message }`. */
+export const STEPS_STATE_KEY = "steps";
 
 const truncate = (value, maxChars) => {
   const text = String(value ?? "").trim();
   return text.length > maxChars ? `${text.slice(0, maxChars)}…` : text;
 };
 
-const formatExecution = (execution, label) => {
-  const lines = [`${label} (${execution.status})`];
-  const result = execution.result;
-  if (result?.summary) {
-    lines.push(
-      `Summary: ${truncate(result.summary, MAX_HISTORY_SUMMARY_CHARS)}`,
-    );
-  }
-  if (result?.data && Object.keys(result.data).length > 0) {
-    lines.push(`Data: ${formatJson(result.data, 2_000)}`);
+const formatExecution = (execution, label, maxChars) => {
+  const status = execution.result?.status ?? execution.status;
+  const lines = [`${label}: ${status}`];
+  const message = execution.result?.message ?? execution.result?.summary;
+  if (message) {
+    lines.push(truncate(message, maxChars));
   }
   if (execution.error) {
     lines.push(`Error: ${truncate(execution.error, 500)}`);
@@ -45,29 +27,10 @@ const formatExecution = (execution, label) => {
   return lines.join("\n");
 };
 
-const formatRunInputs = (graph, state) => {
-  const values = state?.[INPUTS_STATE_KEY];
-  if (!values || typeof values !== "object" || Array.isArray(values)) {
-    return [];
-  }
-  const labels = new Map(
-    (graph.inputs ?? []).map((input) => [
-      input.key,
-      input.label?.trim() || input.key,
-    ]),
-  );
-  const lines = Object.entries(values).map(
-    ([key, value]) =>
-      `- ${labels.get(key) ?? key}: ${typeof value === "string" ? value : JSON.stringify(value)}`,
-  );
-  return lines.length > 0 ? ["", "## Run inputs", ...lines] : [];
-};
-
 /**
- * Builds the prompt for one node execution.
- *
- * Keeps context bounded: shared state + summaries of this node's previous
- * executions + the result of the execution that transitioned here.
+ * Builds the prompt for one step. The user only writes the step's
+ * instructions; the task, what earlier steps reported and the (fixed) result
+ * format are added here, identically for every step.
  */
 export const buildNodePrompt = ({
   graph,
@@ -83,18 +46,36 @@ export const buildNodePrompt = ({
     `Workflow: ${graph.name}`,
     graph.description ? `Workflow description: ${graph.description}` : null,
     `Current step: ${node.name}`,
-    ...(typeof state?.task === "string" && state.task.trim()
-      ? ["", "## Task for this workflow run", state.task.trim()]
-      : []),
-    ...formatRunInputs(graph, state),
+  ];
+
+  if (typeof state?.task === "string" && state.task.trim()) {
+    sections.push(
+      "",
+      "## Task for this workflow run",
+      truncate(state.task, MAX_TASK_CHARS),
+    );
+  }
+
+  sections.push(
     "",
     "## Step instructions",
-    renderTemplate(node.instructions, state).trim() ||
-      "(no additional instructions)",
-    "",
-    "## Shared workflow state",
-    formatJson(state, MAX_STATE_CHARS),
-  ];
+    node.instructions?.trim() || "(no additional instructions)",
+  );
+
+  const steps = Object.entries(state?.[STEPS_STATE_KEY] ?? {}).filter(
+    ([name]) => name !== incomingNodeName,
+  );
+  if (steps.length > 0) {
+    sections.push(
+      "",
+      "## What happened so far",
+      "Latest result of each earlier step:",
+      ...steps.map(
+        ([name, entry]) =>
+          `- ${name} (${entry?.status ?? "unknown"}): ${truncate(entry?.message, MAX_STEP_MESSAGE_CHARS)}`,
+      ),
+    );
+  }
 
   if (incomingExecution) {
     sections.push(
@@ -103,6 +84,7 @@ export const buildNodePrompt = ({
       formatExecution(
         incomingExecution,
         `Step "${incomingNodeName ?? incomingExecution.nodeId}"`,
+        MAX_INCOMING_MESSAGE_CHARS,
       ),
     );
   }
@@ -111,17 +93,32 @@ export const buildNodePrompt = ({
   if (history.length > 0) {
     sections.push(
       "",
-      `## Previous executions of this step (${previousExecutions.length} total)`,
+      `## Your previous attempts at this step (${previousExecutions.length} total)`,
       ...history.map((execution) =>
-        formatExecution(execution, `Execution ${execution.iteration}`),
+        formatExecution(
+          execution,
+          `Attempt ${execution.iteration}`,
+          MAX_STEP_MESSAGE_CHARS,
+        ),
       ),
     );
   }
 
-  const hasOutputs = getNodeOutputs(node).some((output) => output?.key);
-  const hasSharedOutputs = getNodeOutputs(node).some(
-    (output) => output?.key && output.saveToState,
-  );
+  if (nodeType(node) === "task") {
+    sections.push(
+      "",
+      "## Required output",
+      "Do the work described above. When finished, end your response with exactly one block in this form:",
+      "",
+      `<${WORKFLOW_RESULT_TAG}>`,
+      '{ "message": "..." }',
+      `</${WORKFLOW_RESULT_TAG}>`,
+      "",
+      "- `message`: everything the next step needs to know about what you did or produced (for a plan: the full plan). Later steps only see this message, not the rest of your response.",
+      "- The block must be valid JSON and the last thing in your response.",
+    );
+    return sections.filter((line) => line !== null).join("\n");
+  }
 
   sections.push(
     "",
@@ -129,42 +126,20 @@ export const buildNodePrompt = ({
     "Do the work described above. When finished, end your response with exactly one block in this form:",
     "",
     `<${WORKFLOW_RESULT_TAG}>`,
-    "{",
-    '  "summary": "one or two sentences describing what you did and the outcome",',
-    hasOutputs
-      ? `  "data": { ${formatOutputsExample(node)} },`
-      : '  "data": { "status": "..." },',
-    '  "stateUpdates": { }',
-    "}",
+    '{ "status": "success" | "failure", "message": "..." }',
     `</${WORKFLOW_RESULT_TAG}>`,
     "",
-    "Rules for the block:",
-    ...(hasOutputs
-      ? [
-          "- `data` decides which workflow edge is followed next. It must contain these fields, spelled exactly as shown:",
-          ...formatOutputsContract(node).map((line) => `  ${line}`),
-        ]
-      : [
-          "- `data` holds the structured metadata that decides which workflow edge is followed next. Populate every field named in the step instructions.",
-        ]),
-    hasSharedOutputs
-      ? "- The `data` fields are passed on to later steps automatically. `stateUpdates` is optional and only needed for extra information later steps should see."
-      : "- `stateUpdates` is optional; keys you include are merged into the shared workflow state for later steps.",
-    "- The block must be valid JSON with no comments and must be the last thing in your response.",
+    '- `status`: "success" when this step achieved its goal (checks passed, work approved, the answer to a yes/no question is yes). "failure" when it did not (checks failed, changes are required, the answer is no).',
+    "- `message`: everything the next step needs to know — what you did, or exactly what is wrong and should be fixed. Later steps only see this message, not the rest of your response.",
+    "- The block must be valid JSON and the last thing in your response.",
   );
 
   return sections.filter((line) => line !== null).join("\n");
 };
 
-/**
- * Follow-up prompt used once when the agent's response had no valid result
- * block. Cheap to retry and by far the most common failure mode.
- */
-export const buildRepairPrompt = (error, node = null) =>
+/** Follow-up prompt used when the response had no usable result block. */
+export const buildRepairPrompt = (error) =>
   [
     `Your previous response could not be processed: ${error}`,
-    ...(getNodeOutputs(node).some((output) => output?.key)
-      ? ["`data` must contain:", ...formatOutputsContract(node)]
-      : []),
-    `Respond again with only the <${WORKFLOW_RESULT_TAG}> block (valid JSON with "summary", "data" and optional "stateUpdates") describing the work you already completed. Do not redo the work.`,
+    `Respond again with only the <${WORKFLOW_RESULT_TAG}> block — { "status": "success" | "failure", "message": "..." } — describing the work you already completed. Do not redo the work.`,
   ].join("\n");

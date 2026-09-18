@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { EDGE_CONDITION_OPERATORS } from "./conditions.js";
-import { OUTPUT_TYPES } from "./outputs.js";
+import { NODE_TYPES, OUTCOMES } from "./outcomes.js";
 
 const identifierSchema = z.string().min(1).max(200);
 
@@ -19,49 +18,21 @@ export const nodeAgentSchema = z
   })
   .default({});
 
-export const edgeConditionSchema = z.object({
-  field: z.string().min(1).max(200),
-  operator: z.enum(EDGE_CONDITION_OPERATORS),
-  value: z.union([z.string(), z.number(), z.boolean()]).optional(),
-});
-
-// Deliberately lenient: the editor autosaves while the user is typing, so
-// semantic checks (valid key, enum options…) live in `validateGraph`.
-export const nodeOutputSchema = z.object({
-  description: z.string().max(500).default(""),
-  key: z.string().max(64).default(""),
-  options: z.array(z.string().max(200)).max(50).default([]),
-  required: z.boolean().default(true),
-  saveToState: z.boolean().default(false),
-  type: z.enum(OUTPUT_TYPES).default("text"),
-});
-
-export const graphInputSchema = z.object({
-  description: z.string().max(500).default(""),
-  key: z.string().max(64).default(""),
-  label: z.string().max(200).default(""),
-  options: z.array(z.string().max(200)).max(50).default([]),
-  required: z.boolean().default(true),
-  type: z.enum(OUTPUT_TYPES).default("text"),
-});
-
 export const graphNodeSchema = z.object({
   agent: nodeAgentSchema,
   id: identifierSchema,
   instructions: z.string().max(50_000).default(""),
   maxIterations: z.number().int().min(1).max(1000).default(5),
   name: z.string().min(1).max(200),
-  outputs: z.array(nodeOutputSchema).max(20).default([]),
   position: z
     .object({ x: z.number().finite(), y: z.number().finite() })
     .default({ x: 0, y: 0 }),
-  type: z.literal("agent").default("agent"),
+  type: z.enum(NODE_TYPES).catch("decision"),
 });
 
 export const graphEdgeSchema = z.object({
-  condition: edgeConditionSchema.nullable().default(null),
   id: identifierSchema,
-  priority: z.number().int().default(0),
+  outcome: z.enum(OUTCOMES).default("success"),
   sourceNodeId: identifierSchema,
   targetNodeId: identifierSchema,
 });
@@ -92,7 +63,6 @@ export const saveGraphRequestSchema = z.object({
   edges: z.array(graphEdgeSchema).max(1_000),
   entryNodeId: identifierSchema.nullable(),
   graphId: identifierSchema,
-  inputs: z.array(graphInputSchema).max(20).optional(),
   nodes: z.array(graphNodeSchema).max(200),
 });
 

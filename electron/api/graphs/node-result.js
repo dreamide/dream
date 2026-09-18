@@ -1,32 +1,26 @@
-import { z } from "zod";
+import { normalizeStatus } from "./outcomes.js";
 
 /**
- * Structured node result contract. Agents must return this in a
- * `<workflow-result>` block (or a fenced ```json block as fallback) at the
- * end of their response. Conditions evaluate against `data`.
+ * Step result contract. Agents end their response with
+ *
+ *   <workflow-result>
+ *   { "status": "success" | "failure", "message": "…" }
+ *   </workflow-result>
+ *
+ * Parsing is deliberately forgiving (fenced/bare JSON, trailing commas,
+ * status synonyms, unclosed tag) because a strict parser only turns good work
+ * into failed runs.
  */
-export const nodeResultSchema = z.object({
-  summary: z.string().default(""),
-  data: z.record(z.string(), z.unknown()).default({}),
-  stateUpdates: z.record(z.string(), z.unknown()).optional(),
-  artifacts: z
-    .array(
-      z.object({
-        kind: z.string().min(1),
-        path: z.string().min(1),
-        description: z.string().optional(),
-      }),
-    )
-    .optional(),
-});
 
 export const WORKFLOW_RESULT_TAG = "workflow-result";
 
+const OPEN_TAG = `<${WORKFLOW_RESULT_TAG}>`;
 const TAG_PATTERN = new RegExp(
   `<${WORKFLOW_RESULT_TAG}>\\s*([\\s\\S]*?)\\s*</${WORKFLOW_RESULT_TAG}>`,
   "gi",
 );
 const FENCE_PATTERN = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+const MAX_SALVAGE_ATTEMPTS = 200;
 
 const lastMatch = (pattern, text) => {
   let result = null;
@@ -40,6 +34,9 @@ const lastMatch = (pattern, text) => {
   }
   return result;
 };
+
+const isRecord = (value) =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const tryParseJson = (candidate) => {
   if (typeof candidate !== "string") {
@@ -65,19 +62,10 @@ const tryParseJson = (candidate) => {
   }
 };
 
-const OPEN_TAG = `<${WORKFLOW_RESULT_TAG}>`;
-const MAX_SALVAGE_ATTEMPTS = 200;
-
 const looksLikeResult = (value) =>
-  typeof value === "object" &&
-  value !== null &&
-  !Array.isArray(value) &&
-  ("data" in value || "summary" in value);
+  isRecord(value) && ("status" in value || "data" in value);
 
-/**
- * Last resort: the last JSON object in free text that looks like a result
- * (bare JSON after prose, unclosed tag, wrong fence…).
- */
+/** Last JSON object in free text that looks like a result. */
 const salvageResultObject = (text) => {
   const end = text.lastIndexOf("}");
   if (end === -1) {
@@ -98,74 +86,93 @@ const salvageResultObject = (text) => {
   return null;
 };
 
-/**
- * Extracts and validates the structured result from raw agent text.
- * Returns `{ ok: true, result }` or `{ ok: false, error }`.
- */
-export const extractNodeResult = (text) => {
-  const source = String(text ?? "");
+const findResultObject = (source) => {
   const candidates = [];
-
   const tagged = lastMatch(TAG_PATTERN, source);
   if (tagged !== null) {
     candidates.push(tagged);
+  } else {
+    const openIndex = source.toLowerCase().lastIndexOf(OPEN_TAG);
+    if (openIndex !== -1) {
+      candidates.push(source.slice(openIndex + OPEN_TAG.length));
+    }
   }
   const fenced = lastMatch(FENCE_PATTERN, source);
   if (fenced !== null) {
     candidates.push(fenced);
   }
-  const openIndex = source.toLowerCase().lastIndexOf(OPEN_TAG);
-  if (tagged === null && openIndex !== -1) {
-    candidates.push(source.slice(openIndex + OPEN_TAG.length));
-  }
   candidates.push(source);
 
-  let sawJson = false;
   for (const candidate of candidates) {
     const parsed = tryParseJson(candidate);
-    if (
-      parsed === null ||
-      typeof parsed !== "object" ||
-      Array.isArray(parsed)
-    ) {
-      continue;
+    if (isRecord(parsed)) {
+      return parsed;
     }
-    sawJson = true;
-    const validated = nodeResultSchema.safeParse(parsed);
-    if (validated.success) {
-      return { ok: true, result: validated.data };
-    }
+  }
+  return salvageResultObject(source);
+};
+
+const toText = (value) =>
+  typeof value === "string"
+    ? value.trim()
+    : value === undefined || value === null
+      ? ""
+      : JSON.stringify(value);
+
+/**
+ * Extracts the step result from raw agent text.
+ * Returns `{ ok: true, result }` or `{ ok: false, error }`.
+ *
+ * `summary` and `data.status` mirror `message`/`status` so stored executions
+ * keep the shape older run records (and the run history view) use.
+ */
+export const extractNodeResult = (text) => {
+  const parsed = findResultObject(String(text ?? ""));
+  if (!parsed) {
     return {
+      error: `No <${WORKFLOW_RESULT_TAG}> block with valid JSON was found in the response.`,
       ok: false,
-      error: `Workflow result did not match the expected schema: ${validated.error.message}`,
     };
   }
 
-  if (!sawJson) {
-    const salvaged = salvageResultObject(source);
-    if (salvaged) {
-      const validated = nodeResultSchema.safeParse(salvaged);
-      if (validated.success) {
-        return { ok: true, result: validated.data };
-      }
-    }
+  const rawStatus = parsed.status ?? parsed.data?.status;
+  const status = normalizeStatus(rawStatus);
+  if (!status) {
+    return {
+      error:
+        rawStatus === undefined
+          ? '"status" is missing.'
+          : `"status" must be "success" or "failure" (received ${JSON.stringify(rawStatus)}).`,
+      ok: false,
+    };
   }
 
+  const message = toText(parsed.message ?? parsed.summary);
   return {
-    ok: false,
-    error: sawJson
-      ? "Workflow result JSON was not an object."
-      : `No <${WORKFLOW_RESULT_TAG}> block with valid JSON was found in the agent response.`,
+    ok: true,
+    result: { data: { status }, message, status, summary: message },
   };
 };
 
+const MAX_FALLBACK_MESSAGE_CHARS = 8_000;
+
 /**
- * Shallow top-level merge of state updates. Nodes should namespace their
- * keys (e.g. `tests`, `plan`) to avoid clobbering each other.
+ * Result of a task step. Tasks always succeed: the message comes from the
+ * result block when there is one, otherwise from the response itself.
  */
-export const mergeRunState = (state, updates) => {
-  if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
-    return { ...(state ?? {}) };
-  }
-  return { ...(state ?? {}), ...updates };
+export const extractTaskResult = (text) => {
+  const source = String(text ?? "");
+  const parsed = findResultObject(source);
+  const message =
+    toText(parsed?.message ?? parsed?.summary) ||
+    source.trim().slice(-MAX_FALLBACK_MESSAGE_CHARS);
+  return {
+    ok: true,
+    result: {
+      data: { status: "success" },
+      message,
+      status: "success",
+      summary: message,
+    },
+  };
 };

@@ -11,15 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { tabSurfaceClassName } from "../../tab-styles";
-import { ELSE_HANDLE_ID, outcomeHandleId } from "./graph-conditions";
+import { FAILURE_HANDLE_ID, SUCCESS_HANDLE_ID } from "./graph-conditions";
 import type { NodeRunSummary } from "./graph-run-status";
 
 export interface AgentNodeData extends Record<string, unknown> {
   agentLabel: string;
-  /** Outcomes of the node's branching output; one source handle each. */
-  branchOptions: string[];
-  elseLabel: string;
   isEntry: boolean;
+  kind: "task" | "decision";
   name: string;
   run: NodeRunSummary;
 }
@@ -43,43 +41,38 @@ const StatusIcon = ({ run }: { run: NodeRunSummary }) => {
   }
 };
 
-const HANDLE_CLASS_NAME =
-  "!size-2.5 !border-2 !border-background !bg-muted-foreground";
+const HANDLE_CLASS_NAME = "!size-2.5 !border-2 !border-background";
 
+/**
+ * A step. Tasks have a single exit; decisions have two — ✓ (success) on the
+ * bottom left and ✗ (failure) on the bottom right — so routing is just
+ * drawing a line.
+ */
 const AgentNodeComponent = ({
   data,
   id,
   selected,
 }: NodeProps<AgentFlowNode>) => {
+  // The exits change when a step switches between task and decision.
   const updateNodeInternals = useUpdateNodeInternals();
-  const handleKey = data.branchOptions.join("\u0000");
-  // biome-ignore lint/correctness/useExhaustiveDependencies: handleKey tracks the rendered handles
+  const kind = data.kind;
   useEffect(() => {
-    updateNodeInternals(id);
-  }, [handleKey, id, updateNodeInternals]);
-
-  const outcomes =
-    data.branchOptions.length > 0
-      ? [
-          ...data.branchOptions.map((option) => ({
-            id: outcomeHandleId(option),
-            label: option,
-          })),
-          { id: ELSE_HANDLE_ID, label: data.elseLabel },
-        ]
-      : [];
+    if (kind) {
+      updateNodeInternals(id);
+    }
+  }, [id, kind, updateNodeInternals]);
 
   return (
     <div
       className={cn(
         tabSurfaceClassName(Boolean(selected)),
-        "relative w-52 px-3 py-2 text-left",
+        "relative w-52 px-3 pt-2 pb-1 text-left",
         !selected && "border-border bg-background dark:bg-background",
       )}
       data-node-status={data.run.visual}
     >
       <Handle
-        className={HANDLE_CLASS_NAME}
+        className={cn(HANDLE_CLASS_NAME, "!bg-muted-foreground")}
         position={Position.Top}
         type="target"
       />
@@ -107,41 +100,39 @@ const AgentNodeComponent = ({
           </Badge>
         ) : null}
       </div>
-      {outcomes.length > 0 ? (
+      {data.kind === "task" ? (
         <>
-          <div className="-mx-1 mt-1.5 flex border-t border-border pt-1">
-            {outcomes.map((outcome) => (
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate px-0.5 text-center text-[10px] leading-4",
-                  outcome.id === ELSE_HANDLE_ID
-                    ? "text-muted-foreground italic"
-                    : "font-mono",
-                )}
-                key={outcome.id}
-                title={outcome.label}
-              >
-                {outcome.label}
-              </span>
-            ))}
-          </div>
-          {outcomes.map((outcome, index) => (
-            <Handle
-              className={HANDLE_CLASS_NAME}
-              id={outcome.id}
-              key={outcome.id}
-              position={Position.Bottom}
-              style={{ left: `${((index + 0.5) / outcomes.length) * 100}%` }}
-              type="source"
-            />
-          ))}
+          <div className="h-1" />
+          <Handle
+            className={cn(HANDLE_CLASS_NAME, "!bg-muted-foreground")}
+            id={SUCCESS_HANDLE_ID}
+            position={Position.Bottom}
+            type="source"
+          />
         </>
       ) : (
-        <Handle
-          className={HANDLE_CLASS_NAME}
-          position={Position.Bottom}
-          type="source"
-        />
+        <>
+          <div className="-mx-1 mt-1.5 flex border-t border-border pt-0.5 text-[11px] leading-4">
+            <span className="flex-1 text-center text-emerald-600 dark:text-emerald-400">
+              ✓
+            </span>
+            <span className="flex-1 text-center text-destructive">✗</span>
+          </div>
+          <Handle
+            className={cn(HANDLE_CLASS_NAME, "!bg-emerald-500")}
+            id={SUCCESS_HANDLE_ID}
+            position={Position.Bottom}
+            style={{ left: "25%" }}
+            type="source"
+          />
+          <Handle
+            className={cn(HANDLE_CLASS_NAME, "!bg-destructive")}
+            id={FAILURE_HANDLE_ID}
+            position={Position.Bottom}
+            style={{ left: "75%" }}
+            type="source"
+          />
+        </>
       )}
     </div>
   );

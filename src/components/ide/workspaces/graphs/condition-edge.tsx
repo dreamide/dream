@@ -11,8 +11,9 @@ import { cn } from "@/lib/utils";
 export interface ConditionEdgeData extends Record<string, unknown> {
   highlighted: boolean;
   isBackward: boolean;
-  isFallback: boolean;
-  label: string;
+  outcome: "success" | "failure";
+  /** Leaves a task (single exit): neutral line, no ✓/✗ badge. */
+  plain: boolean;
   traversed: boolean;
 }
 
@@ -60,6 +61,7 @@ const ConditionEdgeComponent = ({
         targetY,
       });
 
+  const failure = data?.outcome === "failure";
   const highlighted = Boolean(data?.highlighted);
   const traversed = Boolean(data?.traversed);
 
@@ -80,29 +82,33 @@ const ConditionEdgeComponent = ({
               ? "var(--color-foreground)"
               : traversed
                 ? "var(--color-sky-500)"
-                : "var(--color-muted-foreground)",
-          strokeDasharray: data?.isFallback ? undefined : "6 4",
+                : data?.plain
+                  ? "var(--color-muted-foreground)"
+                  : failure
+                    ? "var(--color-destructive)"
+                    : "var(--color-emerald-500)",
+          strokeDasharray: failure ? "6 4" : undefined,
           strokeWidth: highlighted || selected ? 2.5 : traversed ? 2 : 1.5,
         }}
       />
-      <EdgeLabelRenderer>
-        <div
-          className={cn(
-            "pointer-events-auto absolute max-w-40 truncate rounded-md border px-1.5 py-px font-mono text-[11px] leading-4 shadow-xs",
-            selected
-              ? "border-foreground bg-background text-foreground"
-              : data?.isFallback
-                ? "border-border bg-muted text-muted-foreground"
-                : "border-border bg-background text-foreground dark:bg-surface-900",
-          )}
-          style={{
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-          }}
-          title={data?.label}
-        >
-          {data?.label}
-        </div>
-      </EdgeLabelRenderer>
+      {data?.plain ? null : (
+        <EdgeLabelRenderer>
+          <div
+            className={cn(
+              "pointer-events-auto absolute flex size-4 items-center justify-center rounded-full border bg-background text-[10px] leading-none shadow-xs",
+              selected ? "border-foreground" : "border-border",
+              failure
+                ? "text-destructive"
+                : "text-emerald-600 dark:text-emerald-400",
+            )}
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            }}
+          >
+            {failure ? "✗" : "✓"}
+          </div>
+        </EdgeLabelRenderer>
+      )}
     </>
   );
 };
