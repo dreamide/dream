@@ -23,6 +23,12 @@ import type {
 import { getProviderLabel } from "../../ide-types";
 import { type AgentFlowNode, AgentNode } from "./agent-node";
 import { ConditionEdge, type ConditionFlowEdge } from "./condition-edge";
+import {
+  conditionForHandle,
+  getBranchOutput,
+  seedConditionForNewEdge,
+  sourceHandleForEdge,
+} from "./graph-conditions";
 import { collectTraversedEdgeIds, summarizeNodeRun } from "./graph-run-status";
 import type { GraphSelection, GraphTraversalHighlight } from "./graph-store";
 
@@ -60,7 +66,9 @@ export const formatCondition = (
 };
 
 export interface GraphCanvasProps {
+  readOnly?: boolean;
   alwaysLabel: string;
+  elseLabel: string;
   executions: NodeExecution[];
   graph: AgentGraph;
   inheritLabel: string;
@@ -72,7 +80,9 @@ export interface GraphCanvasProps {
 }
 
 const GraphCanvasInner = ({
+  readOnly = false,
   alwaysLabel,
+  elseLabel,
   executions,
   graph,
   inheritLabel,
@@ -104,6 +114,10 @@ const GraphCanvasInner = ({
     () => new Map(graph.nodes.map((node) => [node.id, node.position])),
     [graph.nodes],
   );
+  const outputsById = useMemo(
+    () => new Map(graph.nodes.map((node) => [node.id, node.outputs])),
+    [graph.nodes],
+  );
 
   const nodes = useMemo<AgentFlowNode[]>(
     () =>
@@ -116,6 +130,8 @@ const GraphCanvasInner = ({
         return {
           data: {
             agentLabel,
+            branchOptions: getBranchOutput(node.outputs)?.options ?? [],
+            elseLabel,
             isEntry: graph.entryNodeId === node.id,
             name: node.name,
             run: summarizeNodeRun(node.id, run, executions),
@@ -126,7 +142,15 @@ const GraphCanvasInner = ({
           type: "agent",
         };
       }),
-    [executions, graph.entryNodeId, graph.nodes, inheritLabel, run, selection],
+    [
+      elseLabel,
+      executions,
+      graph.entryNodeId,
+      graph.nodes,
+      inheritLabel,
+      run,
+      selection,
+    ],
   );
 
   const traversedEdgeIds = useMemo(
@@ -151,6 +175,10 @@ const GraphCanvasInner = ({
           markerEnd: { type: MarkerType.ArrowClosed },
           selected: selection?.kind === "edge" && selection.id === edge.id,
           source: edge.sourceNodeId,
+          sourceHandle: sourceHandleForEdge(
+            outputsById.get(edge.sourceNodeId),
+            edge.condition,
+          ),
           target: edge.targetNodeId,
           type: "condition",
         };
@@ -159,6 +187,7 @@ const GraphCanvasInner = ({
       alwaysLabel,
       graph.edges,
       highlightEdgeId,
+      outputsById,
       positionsById,
       selection,
       traversedEdgeIds,
@@ -182,7 +211,7 @@ const GraphCanvasInner = ({
           }
         }
       }
-      if (removed.size === 0 && moved.size === 0) {
+      if (readOnly || (removed.size === 0 && moved.size === 0)) {
         return;
       }
       onGraphChange((current) => {
@@ -215,7 +244,7 @@ const GraphCanvasInner = ({
         onSelectionChange(null);
       }
     },
-    [onGraphChange, onSelectionChange, selection],
+    [onGraphChange, onSelectionChange, selection, readOnly],
   );
 
   const handleEdgesChange = useCallback(
@@ -232,7 +261,7 @@ const GraphCanvasInner = ({
           }
         }
       }
-      if (removed.size === 0) {
+      if (readOnly || removed.size === 0) {
         return;
       }
       onGraphChange((current) => ({
@@ -243,12 +272,12 @@ const GraphCanvasInner = ({
         onSelectionChange(null);
       }
     },
-    [onGraphChange, onSelectionChange, selection],
+    [onGraphChange, onSelectionChange, selection, readOnly],
   );
 
   const handleConnect = useCallback(
     (connection: Connection) => {
-      if (!connection.source || !connection.target) {
+      if (readOnly || !connection.source || !connection.target) {
         return;
       }
       const edgeId = nanoid();
@@ -264,9 +293,18 @@ const GraphCanvasInner = ({
             {
               // A second unconditional edge would be invalid; seed a
               // condition the user can refine instead.
-              condition: hasFallback
-                ? { field: "status", operator: "eq", value: "" }
-                : null,
+              // Dragging from an outcome handle is the whole configuration.
+              condition:
+                conditionForHandle(
+                  current.nodes.find((node) => node.id === connection.source)
+                    ?.outputs,
+                  connection.sourceHandle,
+                ) ??
+                seedConditionForNewEdge(
+                  current,
+                  connection.source,
+                  hasFallback,
+                ),
               id: edgeId,
               priority: current.edges.filter(
                 (edge) => edge.sourceNodeId === connection.source,
@@ -279,13 +317,16 @@ const GraphCanvasInner = ({
       });
       onSelectionChange({ id: edgeId, kind: "edge" });
     },
-    [onGraphChange, onSelectionChange],
+    [onGraphChange, onSelectionChange, readOnly],
   );
 
   return (
     <ReactFlow
       colorMode={resolvedTheme === "dark" ? "dark" : "light"}
-      deleteKeyCode={["Backspace", "Delete"]}
+      deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
+      nodesDraggable={!readOnly}
+      nodesConnectable={!readOnly}
+      edgesReconnectable={!readOnly}
       edgeTypes={EDGE_TYPES}
       edges={edges}
       fitView

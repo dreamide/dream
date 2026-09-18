@@ -2,6 +2,7 @@ import type {
   AgentGraph,
   AgentGraphSummary,
   GraphEdge,
+  GraphInput,
   GraphNode,
   GraphNodeAgent,
   GraphRun,
@@ -103,6 +104,12 @@ export const graphsApi = {
   listRuns: (graphId: string, limit?: number) =>
     post<{ runs: GraphRun[] }>("/api/graph-runs/list", { graphId, limit }),
 
+  listProjectRuns: (projectId: string) =>
+    post<{ runs: GraphRun[] }>("/api/graph-runs/list", {
+      projectId,
+      limit: 200,
+    }),
+
   resumeRun: (runId: string) =>
     post<{ run: GraphRun }>("/api/graph-runs/resume", { runId }),
 
@@ -110,12 +117,14 @@ export const graphsApi = {
     edges: GraphEdge[];
     entryNodeId: string | null;
     graphId: string;
+    inputs?: GraphInput[];
     nodes: GraphNode[];
   }) => post<GraphWithValidation>("/api/graphs/save", input),
 
   startRun: (input: {
     defaultAgent: GraphNodeAgent;
     graphId: string;
+    initialState?: Record<string, unknown>;
     maxExecutions?: number;
     projectId: string;
   }) =>

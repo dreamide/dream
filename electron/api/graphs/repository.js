@@ -50,6 +50,7 @@ const mapGraph = (row) =>
         description: row.description ?? "",
         entryNodeId: row.entry_node_id ?? null,
         id: row.id,
+        inputs: parseJson(row.inputs, []),
         name: row.name,
         projectId: row.project_id,
         updatedAt: row.updated_at,
@@ -63,6 +64,7 @@ const mapNode = (row) => ({
   instructions: row.instructions ?? "",
   maxIterations: row.max_iterations ?? DEFAULT_MAX_ITERATIONS,
   name: row.name,
+  outputs: parseJson(row.outputs, []),
   position: { x: row.position_x ?? 0, y: row.position_y ?? 0 },
   sortOrder: row.sort_order ?? 0,
   type: row.type ?? "agent",
@@ -204,9 +206,12 @@ export const createGraphRepository = ({ databasePath } = {}) => {
   /**
    * Replaces the full node/edge definition of a graph. The editor saves the
    * whole graph at once, which keeps the API surface tiny and avoids partial
-   * states. Node/edge ids are preserved so run history stays linked.
+   * states. Runs retain their own immutable node/edge snapshot.
    */
-  const saveGraphDefinition = (graphId, { entryNodeId, nodes, edges }) =>
+  const saveGraphDefinition = (
+    graphId,
+    { entryNodeId, nodes, edges, inputs },
+  ) =>
     runInTransaction(db(), () => {
       const database = db();
       const existing = mapGraph(
@@ -244,8 +249,8 @@ export const createGraphRepository = ({ databasePath } = {}) => {
 
       const upsertNode = database.prepare(
         `INSERT INTO agent_graph_nodes
-           (id, graph_id, name, type, agent, instructions, max_iterations, position_x, position_y, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (id, graph_id, name, type, agent, instructions, max_iterations, position_x, position_y, sort_order, outputs)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            type = excluded.type,
@@ -254,7 +259,8 @@ export const createGraphRepository = ({ databasePath } = {}) => {
            max_iterations = excluded.max_iterations,
            position_x = excluded.position_x,
            position_y = excluded.position_y,
-           sort_order = excluded.sort_order`,
+           sort_order = excluded.sort_order,
+           outputs = excluded.outputs`,
       );
       nodes.forEach((node, index) => {
         upsertNode.run(
@@ -268,6 +274,7 @@ export const createGraphRepository = ({ databasePath } = {}) => {
           Math.round(node.position?.x ?? 0),
           Math.round(node.position?.y ?? 0),
           index,
+          toJson(node.outputs ?? [], "[]"),
         );
       });
 
@@ -295,9 +302,14 @@ export const createGraphRepository = ({ databasePath } = {}) => {
           : (nodes[0]?.id ?? null);
       database
         .prepare(
-          "UPDATE agent_graphs SET entry_node_id = ?, updated_at = ? WHERE id = ?",
+          "UPDATE agent_graphs SET entry_node_id = ?, inputs = ?, updated_at = ? WHERE id = ?",
         )
-        .run(resolvedEntry, now(), graphId);
+        .run(
+          resolvedEntry,
+          toJson(inputs ?? existing.inputs ?? [], "[]"),
+          now(),
+          graphId,
+        );
 
       return getGraph(graphId);
     });
@@ -315,6 +327,14 @@ export const createGraphRepository = ({ databasePath } = {}) => {
         "SELECT * FROM agent_graph_runs WHERE graph_id = ? ORDER BY created_at DESC, id LIMIT ?",
       )
       .all(graphId, limit)
+      .map(mapRun);
+
+  const listProjectRuns = (projectId, { limit = 200 } = {}) =>
+    db()
+      .prepare(
+        "SELECT * FROM agent_graph_runs WHERE project_id = ? ORDER BY created_at DESC, id LIMIT ?",
+      )
+      .all(projectId, limit)
       .map(mapRun);
 
   const listRunsByStatus = (status) =>
@@ -487,6 +507,7 @@ export const createGraphRepository = ({ databasePath } = {}) => {
     listExecutionsForNode,
     listGraphs,
     listRuns,
+    listProjectRuns,
     listRunsByStatus,
     saveGraphDefinition,
     updateExecution,

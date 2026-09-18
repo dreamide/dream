@@ -1,0 +1,1 @@
+ALTER TABLE `agent_graph_nodes` ADD `outputs` text DEFAULT '[]' NOT NULL;

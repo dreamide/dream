@@ -1,36 +1,23 @@
-import { AlertTriangle, Play, Plus, RotateCcw, Square } from "lucide-react";
+import { AlertTriangle, ChevronDown, Play, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import type {
-  AgentGraph,
-  GraphRun,
-  GraphRunStatus,
-  GraphValidationResult,
-} from "@/types/agent-graphs";
-
-const RUN_STATUS_VARIANT: Record<
-  GraphRunStatus,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  cancelled: "outline",
-  completed: "secondary",
-  failed: "destructive",
-  pending: "outline",
-  running: "default",
-};
+import type { AgentGraph, GraphValidationResult } from "@/types/agent-graphs";
+import { NODE_PRESET_IDS, type NodePresetId } from "./graph-templates";
 
 export interface GraphToolbarProps {
   graph: AgentGraph;
-  onAddNode: () => void;
-  onCancelRun: () => void;
+  onAddNode: (presetId: NodePresetId) => void;
   onRename: (name: string) => void;
-  onResumeRun: () => void;
   onStartRun: () => void;
-  run: GraphRun | null;
   starting: boolean;
   validation: GraphValidationResult | null;
 }
@@ -38,19 +25,13 @@ export interface GraphToolbarProps {
 export const GraphToolbar = ({
   graph,
   onAddNode,
-  onCancelRun,
   onRename,
-  onResumeRun,
   onStartRun,
-  run,
   starting,
   validation,
 }: GraphToolbarProps) => {
   const t = useTranslations("graphs");
   const [draftName, setDraftName] = useState<string | null>(null);
-  const isRunning = run?.status === "running";
-  const canResume =
-    run?.status === "failed" && run.currentNodeId !== null && !isRunning;
   const errorCount = validation?.errors.length ?? 0;
   const warningCount = validation?.warnings.length ?? 0;
   const issueTitle = validation
@@ -98,63 +79,46 @@ export const GraphToolbar = ({
       ) : null}
 
       <div className="ml-auto flex items-center gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button size="sm" type="button" variant="outline">
+                <Plus className="size-3.5" />
+                {t("addNode")}
+                <ChevronDown className="size-3.5" />
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="end" className="w-64">
+            {NODE_PRESET_IDS.map((presetId) => (
+              <DropdownMenuItem
+                className="flex-col items-start gap-0"
+                key={presetId}
+                onClick={() => onAddNode(presetId)}
+              >
+                <span>{t(`preset_${presetId}`)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {t(`presetHelp_${presetId}`)}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button
-          disabled={isRunning}
-          onClick={onAddNode}
+          disabled={starting || errorCount > 0 || graph.nodes.length === 0}
+          onClick={onStartRun}
           size="sm"
           type="button"
-          variant="outline"
+          variant="accent"
         >
-          <Plus className="size-3.5" />
-          {t("addNode")}
+          {starting ? (
+            <Spinner className="size-3.5" />
+          ) : (
+            <Play className="size-3.5" />
+          )}
+          {t("run")}
         </Button>
-
-        {run ? (
-          <Badge variant={RUN_STATUS_VARIANT[run.status]}>
-            {isRunning ? <Spinner className="size-3" /> : null}
-            {t(`runStatus_${run.status}`)}
-          </Badge>
-        ) : null}
-
-        {isRunning ? (
-          <Button
-            onClick={onCancelRun}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <Square className="size-3.5" />
-            {t("cancelRun")}
-          </Button>
-        ) : (
-          <>
-            {canResume ? (
-              <Button
-                onClick={onResumeRun}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <RotateCcw className="size-3.5" />
-                {t("resumeRun")}
-              </Button>
-            ) : null}
-            <Button
-              disabled={starting || errorCount > 0 || graph.nodes.length === 0}
-              onClick={onStartRun}
-              size="sm"
-              type="button"
-              variant="accent"
-            >
-              {starting ? (
-                <Spinner className="size-3.5" />
-              ) : (
-                <Play className="size-3.5" />
-              )}
-              {t("run")}
-            </Button>
-          </>
-        )}
       </div>
     </div>
   );

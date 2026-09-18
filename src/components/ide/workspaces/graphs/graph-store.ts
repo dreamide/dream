@@ -4,6 +4,7 @@ import { getDesktopApi } from "@/lib/electron";
 import type {
   AgentGraph,
   AgentGraphSummary,
+  GraphNode,
   GraphNodeAgent,
   GraphRun,
   GraphRunEvent,
@@ -40,11 +41,11 @@ interface GraphWorkspaceState {
   savingGraphIds: Record<string, boolean>;
   selectionByGraphId: Record<string, GraphSelection>;
 
-  runsByGraphId: Record<string, GraphRun[]>;
+  runsByProject: Record<string, GraphRun[]>;
   runsById: Record<string, GraphRun>;
   executionsByRunId: Record<string, NodeExecution[]>;
-  selectedRunIdByGraphId: Record<string, string | null>;
-  selectedExecutionIdByGraphId: Record<string, string | null>;
+  selectedRunIdByProject: Record<string, string | null>;
+  selectedExecutionIdByRunId: Record<string, string | null>;
   traversalByRunId: Record<string, GraphTraversalHighlight | null>;
 
   loadingProjects: Record<string, boolean>;
@@ -70,13 +71,14 @@ interface GraphWorkspaceState {
   saveGraph: (graphId: string) => Promise<void>;
   setSelection: (graphId: string, selection: GraphSelection) => void;
 
-  loadRuns: (graphId: string) => Promise<void>;
+  loadRuns: (projectId: string) => Promise<void>;
   loadRun: (runId: string) => Promise<void>;
-  selectRun: (graphId: string, runId: string | null) => void;
-  selectExecution: (graphId: string, executionId: string | null) => void;
+  selectRun: (projectId: string, runId: string | null) => void;
+  selectExecution: (runId: string, executionId: string | null) => void;
   startRun: (input: {
     defaultAgent: GraphNodeAgent;
     graphId: string;
+    initialState?: Record<string, unknown>;
     projectId: string;
   }) => Promise<GraphRun | null>;
   cancelRun: (runId: string) => Promise<void>;
@@ -131,12 +133,12 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
   graphsById: {},
   graphsByProject: {},
   loadingProjects: {},
-  runsByGraphId: {},
+  runsByProject: {},
   runsById: {},
   savingGraphIds: {},
-  selectedExecutionIdByGraphId: {},
+  selectedExecutionIdByRunId: {},
   selectedGraphIdByProject: {},
-  selectedRunIdByGraphId: {},
+  selectedRunIdByProject: {},
   selectionByGraphId: {},
   traversalByRunId: {},
   validationByGraphId: {},
@@ -151,17 +153,14 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
       loadingProjects: { ...state.loadingProjects, [projectId]: true },
     }));
     try {
-      const [{ graphs }, { run: activeRun }] = await Promise.all([
-        graphsApi.listGraphs(projectId),
-        graphsApi.getActiveRun(projectId),
-      ]);
+      const { graphs } = await graphsApi.listGraphs(projectId);
       set((state) => {
         const currentSelection = state.selectedGraphIdByProject[projectId];
         const selected =
           currentSelection &&
           graphs.some((graph) => graph.id === currentSelection)
             ? currentSelection
-            : (activeRun?.graphId ?? graphs[0]?.id ?? null);
+            : (graphs[0]?.id ?? null);
         return {
           errorByProject: { ...state.errorByProject, [projectId]: null },
           graphsByProject: { ...state.graphsByProject, [projectId]: graphs },
@@ -174,11 +173,6 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
       const selectedId = get().selectedGraphIdByProject[projectId];
       if (selectedId) {
         await get().loadGraph(selectedId);
-        await get().loadRuns(selectedId);
-      }
-      if (activeRun) {
-        get().selectRun(activeRun.graphId, activeRun.id);
-        await get().loadRun(activeRun.id);
       }
     } catch (error) {
       get().setError(projectId, describeError(error));
@@ -198,7 +192,6 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
     }));
     if (graphId) {
       void get().loadGraph(graphId);
-      void get().loadRuns(graphId);
     }
   },
 
@@ -302,7 +295,6 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
       const next = get().selectedGraphIdByProject[projectId];
       if (next) {
         void get().loadGraph(next);
-        void get().loadRuns(next);
       }
     } catch (error) {
       get().setError(projectId, describeError(error));
@@ -378,17 +370,36 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
         edges: graph.edges,
         entryNodeId: graph.entryNodeId,
         graphId,
+        inputs: graph.inputs ?? [],
         nodes: graph.nodes,
       });
       set((state) => {
         // Keep local edits made while the request was in flight.
         const stillDirty = state.graphsById[graphId] !== graph;
+        // The editor is the source of truth for the definition: never swap
+        // the user's nodes/edges/inputs for the server's echo, or anything
+        // the server fails to round-trip silently vanishes from the form.
+        const merged: AgentGraph = {
+          ...graph,
+          entryNodeId: graph.entryNodeId ?? saved.entryNodeId,
+          updatedAt: saved.updatedAt,
+        };
+        const countOutputs = (nodes: GraphNode[]) =>
+          nodes.reduce((sum, node) => sum + (node.outputs?.length ?? 0), 0);
+        const roundTripLost =
+          (saved.inputs?.length ?? 0) !== (graph.inputs?.length ?? 0) ||
+          countOutputs(saved.nodes) !== countOutputs(graph.nodes);
         return {
           dirtyGraphIds: { ...state.dirtyGraphIds, [graphId]: stillDirty },
-          errorByProject: { ...state.errorByProject, [saved.projectId]: null },
+          errorByProject: {
+            ...state.errorByProject,
+            [saved.projectId]: roundTripLost
+              ? "The workflow was saved, but the server did not store its inputs/outputs. Restart Dream so the backend picks up the latest code."
+              : null,
+          },
           graphsById: stillDirty
             ? state.graphsById
-            : { ...state.graphsById, [graphId]: saved },
+            : { ...state.graphsById, [graphId]: merged },
           graphsByProject: {
             ...state.graphsByProject,
             [saved.projectId]: (
@@ -419,37 +430,18 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
       selectionByGraphId: { ...state.selectionByGraphId, [graphId]: selection },
     })),
 
-  loadRuns: async (graphId) => {
+  loadRuns: async (projectId) => {
     try {
-      const { runs } = await graphsApi.listRuns(graphId, 50);
-      set((state) => {
-        const runsById = { ...state.runsById };
-        for (const run of runs) {
-          runsById[run.id] = run;
-        }
-        const currentSelection = state.selectedRunIdByGraphId[graphId];
-        const selected =
-          currentSelection && runs.some((run) => run.id === currentSelection)
-            ? currentSelection
-            : (runs[0]?.id ?? null);
-        return {
-          runsByGraphId: { ...state.runsByGraphId, [graphId]: runs },
-          runsById,
-          selectedRunIdByGraphId: {
-            ...state.selectedRunIdByGraphId,
-            [graphId]: selected,
-          },
-        };
-      });
-      const selected = get().selectedRunIdByGraphId[graphId];
-      if (selected) {
-        await get().loadRun(selected);
-      }
+      const { runs } = await graphsApi.listProjectRuns(projectId);
+      set((state) => ({
+        runsByProject: { ...state.runsByProject, [projectId]: runs },
+        runsById: {
+          ...state.runsById,
+          ...Object.fromEntries(runs.map((run) => [run.id, run])),
+        },
+      }));
     } catch (error) {
-      const projectId = get().graphsById[graphId]?.projectId;
-      if (projectId) {
-        get().setError(projectId, describeError(error));
-      }
+      get().setError(projectId, describeError(error));
     }
   },
 
@@ -466,10 +458,10 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
             ...state.executionsByRunId,
             [runId]: executions,
           },
-          runsByGraphId: {
-            ...state.runsByGraphId,
-            [run.graphId]: upsertRunInList(
-              state.runsByGraphId[run.graphId] ?? [],
+          runsByProject: {
+            ...state.runsByProject,
+            [run.projectId]: upsertRunInList(
+              state.runsByProject[run.projectId] ?? [],
               run,
             ),
           },
@@ -489,55 +481,54 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
     return request;
   },
 
-  selectRun: (graphId, runId) => {
+  selectRun: (projectId, runId) => {
     set((state) => ({
-      selectedExecutionIdByGraphId: {
-        ...state.selectedExecutionIdByGraphId,
-        [graphId]: null,
-      },
-      selectedRunIdByGraphId: {
-        ...state.selectedRunIdByGraphId,
-        [graphId]: runId,
+      selectedRunIdByProject: {
+        ...state.selectedRunIdByProject,
+        [projectId]: runId,
       },
     }));
-    if (runId) {
-      void get().loadRun(runId);
-    }
+    if (runId) void get().loadRun(runId);
   },
 
-  selectExecution: (graphId, executionId) =>
+  selectExecution: (runId, executionId) =>
     set((state) => ({
-      selectedExecutionIdByGraphId: {
-        ...state.selectedExecutionIdByGraphId,
-        [graphId]: executionId,
+      selectedExecutionIdByRunId: {
+        ...state.selectedExecutionIdByRunId,
+        [runId]: executionId,
       },
     })),
 
-  startRun: async ({ defaultAgent, graphId, projectId }) => {
+  startRun: async ({ defaultAgent, graphId, initialState, projectId }) => {
     if (get().dirtyGraphIds[graphId]) {
       await get().saveGraph(graphId);
+      if (get().dirtyGraphIds[graphId]) return null;
     }
     try {
       const { run } = await graphsApi.startRun({
         defaultAgent,
         graphId,
+        initialState,
         projectId,
       });
       set((state) => ({
         errorByProject: { ...state.errorByProject, [projectId]: null },
         executionsByRunId: { ...state.executionsByRunId, [run.id]: [] },
-        runsByGraphId: {
-          ...state.runsByGraphId,
-          [graphId]: upsertRunInList(state.runsByGraphId[graphId] ?? [], run),
+        runsByProject: {
+          ...state.runsByProject,
+          [projectId]: upsertRunInList(
+            state.runsByProject[projectId] ?? [],
+            run,
+          ),
         },
         runsById: { ...state.runsById, [run.id]: run },
-        selectedExecutionIdByGraphId: {
-          ...state.selectedExecutionIdByGraphId,
-          [graphId]: null,
+        selectedExecutionIdByRunId: {
+          ...state.selectedExecutionIdByRunId,
+          [run.id]: null,
         },
-        selectedRunIdByGraphId: {
-          ...state.selectedRunIdByGraphId,
-          [graphId]: run.id,
+        selectedRunIdByProject: {
+          ...state.selectedRunIdByProject,
+          [projectId]: run.id,
         },
       }));
       return run;
@@ -574,24 +565,12 @@ export const useGraphStore = create<GraphWorkspaceState>((set, get) => ({
   },
 
   handleEvent: (event) => {
-    const { graphId, runId } = event;
+    const { runId } = event;
     if (event.type === "graph.edge.traversed" && event.edgeId) {
       set((state) => ({
         traversalByRunId: {
           ...state.traversalByRunId,
           [runId]: { at: Date.now(), edgeId: event.edgeId as string },
-        },
-      }));
-    }
-    if (event.type === "graph.run.started") {
-      set((state) => ({
-        selectedExecutionIdByGraphId: {
-          ...state.selectedExecutionIdByGraphId,
-          [graphId]: null,
-        },
-        selectedRunIdByGraphId: {
-          ...state.selectedRunIdByGraphId,
-          [graphId]: runId,
         },
       }));
     }

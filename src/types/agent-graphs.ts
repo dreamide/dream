@@ -36,6 +36,38 @@ export interface GraphNodeAgent {
   reasoningEffort?: ReasoningEffort | null;
 }
 
+export type NodeOutputType = "enum" | "text" | "number" | "boolean";
+
+export const NODE_OUTPUT_TYPES: readonly NodeOutputType[] = [
+  "enum",
+  "text",
+  "number",
+  "boolean",
+];
+
+/**
+ * A field the node returns in `data`. Drives the generated prompt contract,
+ * result validation, edge condition dropdowns and automatic state sharing.
+ */
+export interface NodeOutput {
+  description: string;
+  key: string;
+  options: string[];
+  required: boolean;
+  saveToState: boolean;
+  type: NodeOutputType;
+}
+
+/** A value the user fills in when starting a run (`{{input.<key>}}`). */
+export interface GraphInput {
+  description: string;
+  key: string;
+  label: string;
+  options: string[];
+  required: boolean;
+  type: NodeOutputType;
+}
+
 export interface GraphNode {
   agent: GraphNodeAgent;
   graphId?: string;
@@ -43,6 +75,7 @@ export interface GraphNode {
   instructions: string;
   maxIterations: number;
   name: string;
+  outputs: NodeOutput[];
   position: { x: number; y: number };
   sortOrder?: number;
   type: "agent";
@@ -62,6 +95,7 @@ export interface AgentGraphSummary {
   description: string;
   entryNodeId: string | null;
   id: string;
+  inputs?: GraphInput[];
   name: string;
   projectId: string;
   updatedAt: string;
@@ -97,8 +131,11 @@ export interface GraphSnapshot {
   edges: GraphEdge[];
   entryNodeId: string | null;
   graphId: string;
+  inputs?: GraphInput[];
   name: string;
-  nodes: Array<Omit<GraphNode, "position">>;
+  nodes: Array<
+    Omit<GraphNode, "position"> & { position?: GraphNode["position"] }
+  >;
 }
 
 export interface GraphRun {

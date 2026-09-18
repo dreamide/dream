@@ -42,15 +42,10 @@ const getSystemTheme = () =>
     : "light";
 
 const getPreloadThemePreferences = () => {
-  const prefix = "--dream-theme-preferences=";
-  const argument = process.argv.find((value) => value.startsWith(prefix));
-  if (!argument) {
-    return null;
-  }
-
   try {
-    const raw = decodeURIComponent(argument.slice(prefix.length));
-    return JSON.parse(raw);
+    // Read on every load: BrowserWindow arguments retain the original theme
+    // after a reload, even when the saved preferences have since changed.
+    return ipcRenderer.sendSync("theme:get-initial-preferences");
   } catch {
     return null;
   }

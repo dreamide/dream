@@ -1,6 +1,8 @@
-import { resolveNextEdge } from "./conditions.js";
+import { getFieldValue, resolveNextEdge } from "./conditions.js";
 import { emitGraphEvent } from "./events.js";
+import { INPUTS_STATE_KEY, resolveRunInputs } from "./inputs.js";
 import { extractNodeResult, mergeRunState } from "./node-result.js";
+import { mergeSharedOutputs, normalizeResultData } from "./outputs.js";
 import { buildNodePrompt, buildRepairPrompt } from "./prompt.js";
 import { validateGraph } from "./validation.js";
 
@@ -37,11 +39,57 @@ export class RunConflictError extends Error {
   }
 }
 
+/** Follow-up turns granted when the result block is missing or invalid. */
+const MAX_REPAIR_TURNS = 2;
+
 const isAbortError = (error) =>
   error?.name === "AbortError" || error?.code === "ABORT_ERR";
 
 const errorMessage = (error, fallback) =>
   error instanceof Error && error.message ? error.message : fallback;
+
+/**
+ * Extracts the result block and normalizes `data` against the node's declared
+ * outputs. Contract violations are reported like a malformed block so they get
+ * the same repair turn.
+ */
+const parseNodeResult = (text, node) => {
+  const extracted = extractNodeResult(text);
+  if (!extracted.ok) {
+    return extracted;
+  }
+  const { data, errors } = normalizeResultData(node, extracted.result.data);
+  if (errors.length > 0) {
+    return {
+      error: `The "data" object is invalid: ${errors.join(" ")}`,
+      ok: false,
+    };
+  }
+  return { ok: true, result: { ...extracted.result, data } };
+};
+
+/**
+ * No edge matched. That legitimately ends a run (e.g. review "approved"), but
+ * when none of the fields the conditions test were returned at all, the agent
+ * never made the decision — fail loudly instead of completing silently.
+ */
+const describeMissingDecision = ({ edges, node, data }) => {
+  const conditions = edges
+    .filter((edge) => edge.sourceNodeId === node.id && edge.condition)
+    .map((edge) => edge.condition);
+  if (conditions.length === 0) {
+    return null;
+  }
+  const fields = [...new Set(conditions.map((condition) => condition.field))];
+  if (fields.some((field) => getFieldValue(data ?? {}, field) !== undefined)) {
+    return null;
+  }
+  return `Node "${node.name}" did not return ${fields
+    .map((field) => `"${field}"`)
+    .join(
+      " or ",
+    )}, which its outgoing edges depend on. Returned data: ${JSON.stringify(data ?? {})}. Declare the node's outputs so the field is always requested.`;
+};
 
 const snapshotGraph = (graph, defaultAgent = {}) => ({
   defaultAgent,
@@ -55,6 +103,7 @@ const snapshotGraph = (graph, defaultAgent = {}) => ({
   })),
   entryNodeId: graph.entryNodeId,
   graphId: graph.id,
+  inputs: graph.inputs ?? [],
   name: graph.name,
   nodes: graph.nodes.map((node) => ({
     agent: node.agent ?? {},
@@ -62,6 +111,8 @@ const snapshotGraph = (graph, defaultAgent = {}) => ({
     instructions: node.instructions ?? "",
     maxIterations: node.maxIterations ?? 5,
     name: node.name,
+    outputs: node.outputs ?? [],
+    position: node.position ?? { x: 80, y: 0 },
     type: node.type ?? "agent",
   })),
 });
@@ -135,38 +186,37 @@ export const createGraphRunner = ({
     };
 
     const first = await executor.execute({ ...baseInput, prompt });
-    const firstText = String(first?.text ?? "");
-    const extracted = extractNodeResult(firstText);
-    if (extracted.ok) {
-      return { result: extracted.result, text: firstText };
+    let lastText = String(first?.text ?? "");
+    let transcript = lastText;
+    let parsed = parseNodeResult(lastText, node);
+
+    for (let turn = 0; !parsed.ok && turn < MAX_REPAIR_TURNS; turn += 1) {
+      if (signal.aborted) {
+        throw Object.assign(new Error("Run cancelled."), {
+          name: "AbortError",
+        });
+      }
+      const repair = await executor.execute({
+        ...baseInput,
+        prompt: [
+          prompt,
+          "",
+          "## Your previous response",
+          lastText.slice(-8_000),
+          "",
+          buildRepairPrompt(parsed.error, node),
+        ].join("\n"),
+        repair: true,
+      });
+      lastText = String(repair?.text ?? "");
+      transcript = `${transcript}\n\n---\n[repair turn]\n${lastText}`;
+      parsed = parseNodeResult(lastText, node);
     }
 
-    if (signal.aborted) {
-      throw Object.assign(new Error("Run cancelled."), { name: "AbortError" });
+    if (parsed.ok) {
+      return { result: parsed.result, text: transcript };
     }
-
-    const repair = await executor.execute({
-      ...baseInput,
-      prompt: [
-        prompt,
-        "",
-        "## Your previous response",
-        firstText.slice(-8_000),
-        "",
-        buildRepairPrompt(extracted.error),
-      ].join("\n"),
-      repair: true,
-    });
-    const repairText = String(repair?.text ?? "");
-    const repaired = extractNodeResult(repairText);
-    if (repaired.ok) {
-      return {
-        result: repaired.result,
-        text: `${firstText}\n\n---\n[repair turn]\n${repairText}`,
-      };
-    }
-
-    throw new Error(`Malformed workflow result: ${repaired.error}`);
+    throw new Error(`Malformed workflow result: ${parsed.error}`);
   };
 
   // ── Main loop ───────────────────────────────────────────────────────
@@ -305,7 +355,11 @@ export const createGraphRunner = ({
       });
 
       // 2. merge state, 3. resolve edge, 4. persist next position
-      const nextState = mergeRunState(run.state, outcome.result.stateUpdates);
+      const nextState = mergeSharedOutputs(
+        mergeRunState(run.state, outcome.result.stateUpdates),
+        node,
+        outcome.result.data,
+      );
       const edge = resolveNextEdge({
         data: outcome.result.data,
         edges: graph.edges,
@@ -326,7 +380,16 @@ export const createGraphRunner = ({
       });
 
       if (!edge) {
-        finishRun(run, "completed");
+        const missingDecision = describeMissingDecision({
+          data: outcome.result.data,
+          edges: graph.edges,
+          node,
+        });
+        if (missingDecision) {
+          finishRun(run, "failed", { error: missingDecision });
+        } else {
+          finishRun(run, "completed");
+        }
         return;
       }
 
@@ -387,6 +450,11 @@ export const createGraphRunner = ({
       throw new GraphValidationError(errors, warnings);
     }
 
+    const runInputs = resolveRunInputs(graph, initialState?.[INPUTS_STATE_KEY]);
+    if (runInputs.errors.length > 0) {
+      throw new GraphValidationError(runInputs.errors, warnings);
+    }
+
     const active = repository.getActiveRunForProject(projectId);
     if (active) {
       throw new RunConflictError(
@@ -397,7 +465,10 @@ export const createGraphRunner = ({
     const created = repository.createRun({
       graphId,
       graphSnapshot: snapshotGraph(graph, defaultAgent),
-      initialState,
+      initialState:
+        Object.keys(runInputs.values).length > 0
+          ? { ...(initialState ?? {}), [INPUTS_STATE_KEY]: runInputs.values }
+          : initialState,
       maxExecutions,
       projectId,
     });

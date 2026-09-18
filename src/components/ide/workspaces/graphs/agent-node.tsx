@@ -1,14 +1,24 @@
-import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import {
+  Handle,
+  type Node,
+  type NodeProps,
+  Position,
+  useUpdateNodeInternals,
+} from "@xyflow/react";
 import { Ban, Check, Flag, RefreshCw, X } from "lucide-react";
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { tabSurfaceClassName } from "../../tab-styles";
+import { ELSE_HANDLE_ID, outcomeHandleId } from "./graph-conditions";
 import type { NodeRunSummary } from "./graph-run-status";
 
 export interface AgentNodeData extends Record<string, unknown> {
   agentLabel: string;
+  /** Outcomes of the node's branching output; one source handle each. */
+  branchOptions: string[];
+  elseLabel: string;
   isEntry: boolean;
   name: string;
   run: NodeRunSummary;
@@ -33,7 +43,32 @@ const StatusIcon = ({ run }: { run: NodeRunSummary }) => {
   }
 };
 
-const AgentNodeComponent = ({ data, selected }: NodeProps<AgentFlowNode>) => {
+const HANDLE_CLASS_NAME =
+  "!size-2.5 !border-2 !border-background !bg-muted-foreground";
+
+const AgentNodeComponent = ({
+  data,
+  id,
+  selected,
+}: NodeProps<AgentFlowNode>) => {
+  const updateNodeInternals = useUpdateNodeInternals();
+  const handleKey = data.branchOptions.join("\u0000");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: handleKey tracks the rendered handles
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [handleKey, id, updateNodeInternals]);
+
+  const outcomes =
+    data.branchOptions.length > 0
+      ? [
+          ...data.branchOptions.map((option) => ({
+            id: outcomeHandleId(option),
+            label: option,
+          })),
+          { id: ELSE_HANDLE_ID, label: data.elseLabel },
+        ]
+      : [];
+
   return (
     <div
       className={cn(
@@ -44,7 +79,7 @@ const AgentNodeComponent = ({ data, selected }: NodeProps<AgentFlowNode>) => {
       data-node-status={data.run.visual}
     >
       <Handle
-        className="!size-2.5 !border-2 !border-background !bg-muted-foreground"
+        className={HANDLE_CLASS_NAME}
         position={Position.Top}
         type="target"
       />
@@ -72,11 +107,42 @@ const AgentNodeComponent = ({ data, selected }: NodeProps<AgentFlowNode>) => {
           </Badge>
         ) : null}
       </div>
-      <Handle
-        className="!size-2.5 !border-2 !border-background !bg-muted-foreground"
-        position={Position.Bottom}
-        type="source"
-      />
+      {outcomes.length > 0 ? (
+        <>
+          <div className="-mx-1 mt-1.5 flex border-t border-border pt-1">
+            {outcomes.map((outcome) => (
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate px-0.5 text-center text-[10px] leading-4",
+                  outcome.id === ELSE_HANDLE_ID
+                    ? "text-muted-foreground italic"
+                    : "font-mono",
+                )}
+                key={outcome.id}
+                title={outcome.label}
+              >
+                {outcome.label}
+              </span>
+            ))}
+          </div>
+          {outcomes.map((outcome, index) => (
+            <Handle
+              className={HANDLE_CLASS_NAME}
+              id={outcome.id}
+              key={outcome.id}
+              position={Position.Bottom}
+              style={{ left: `${((index + 0.5) / outcomes.length) * 100}%` }}
+              type="source"
+            />
+          ))}
+        </>
+      ) : (
+        <Handle
+          className={HANDLE_CLASS_NAME}
+          position={Position.Bottom}
+          type="source"
+        />
+      )}
     </div>
   );
 };

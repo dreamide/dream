@@ -1,11 +1,14 @@
 import { EDGE_CONDITION_OPERATORS, isFallbackEdge } from "./conditions.js";
+import { getGraphInputs, validateGraphInputs } from "./inputs.js";
+import { validateNodeOutputs } from "./outputs.js";
+import { checkPlaceholder, listPlaceholders } from "./template.js";
 
 /**
  * Validates a graph definition before a run starts.
  *
  * Returns `{ errors, warnings }`. Cycles are intentional and never reported.
  */
-export const validateGraph = ({ entryNodeId, nodes, edges }) => {
+export const validateGraph = ({ entryNodeId, nodes, edges, inputs }) => {
   const errors = [];
   const warnings = [];
   const nodeIds = new Set(nodes.map((node) => node.id));
@@ -20,6 +23,36 @@ export const validateGraph = ({ entryNodeId, nodes, edges }) => {
       code: "missing_entry",
       message: "Graph entry node is not set or does not exist.",
     });
+  }
+
+  const graphInputs = getGraphInputs({ inputs });
+  validateGraphInputs({ errors, inputs: graphInputs });
+
+  const sharingNames = new Set();
+  for (const node of nodes) {
+    if ((node.outputs ?? []).some((output) => output?.saveToState)) {
+      if (sharingNames.has(node.name)) {
+        warnings.push({
+          code: "duplicate_step_name",
+          message: `More than one step is named "${node.name}"; their shared outputs overwrite each other.`,
+          nodeId: node.id,
+        });
+      }
+      sharingNames.add(node.name);
+    }
+    for (const reference of listPlaceholders(node.instructions)) {
+      const problem = checkPlaceholder(reference, {
+        inputs: graphInputs,
+        nodes,
+      });
+      if (problem) {
+        warnings.push({
+          code: "unknown_placeholder",
+          message: `Node "${node.name}" references {{${reference}}}, but ${problem}.`,
+          nodeId: node.id,
+        });
+      }
+    }
   }
 
   for (const node of nodes) {
@@ -80,6 +113,8 @@ export const validateGraph = ({ entryNodeId, nodes, edges }) => {
   for (const node of nodes) {
     const outgoing = outgoingByNode.get(node.id) ?? [];
     const fallbacks = outgoing.filter(isFallbackEdge);
+
+    validateNodeOutputs({ errors, node, outgoing });
 
     if (fallbacks.length > 1) {
       errors.push({

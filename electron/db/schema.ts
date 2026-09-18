@@ -104,6 +104,8 @@ export const agentGraphs = sqliteTable(
     name: text("name").notNull(),
     description: text("description").notNull().default(""),
     entryNodeId: text("entry_node_id"),
+    /** JSON: [{ key, label, type, options, description, required }] */
+    inputs: text("inputs").notNull().default("[]"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -131,6 +133,8 @@ export const agentGraphNodes = sqliteTable(
     positionX: integer("position_x").notNull().default(0),
     positionY: integer("position_y").notNull().default(0),
     sortOrder: integer("sort_order").notNull().default(0),
+    /** JSON: [{ key, type, options, description, required, saveToState }] */
+    outputs: text("outputs").notNull().default("[]"),
   },
   (table) => [
     check("agent_graph_nodes_agent_json", sql`json_valid(${table.agent})`),
@@ -172,9 +176,8 @@ export const agentGraphRuns = sqliteTable(
   "agent_graph_runs",
   {
     id: text("id").primaryKey(),
-    graphId: text("graph_id")
-      .notNull()
-      .references(() => agentGraphs.id, { onDelete: "cascade" }),
+    // Historical source ID; runs survive deletion of the editable workflow.
+    graphId: text("graph_id").notNull(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),

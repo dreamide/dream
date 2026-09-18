@@ -15,7 +15,9 @@ import {
   type EdgeCondition,
   type EdgeConditionOperator,
   type GraphEdge,
+  type NodeOutput,
 } from "@/types/agent-graphs";
+import { defaultValueForOutput } from "./graph-conditions";
 
 type ValueType = "string" | "number" | "boolean";
 
@@ -51,6 +53,8 @@ export interface EdgeInspectorProps {
   onChange: (updater: (edge: GraphEdge) => GraphEdge) => void;
   onDelete: () => void;
   sourceName: string;
+  /** Declared outputs of the source node; drives the field/value dropdowns. */
+  sourceOutputs: NodeOutput[];
   targetName: string;
 }
 
@@ -60,11 +64,27 @@ export const EdgeInspector = ({
   onChange,
   onDelete,
   sourceName,
+  sourceOutputs,
   targetName,
 }: EdgeInspectorProps) => {
   const t = useTranslations("graphs");
   const condition = edge.condition;
-  const valueType = valueTypeOf(condition?.value);
+  const outputs = sourceOutputs.filter((output) => output.key);
+  const selectedOutput =
+    outputs.find((output) => output.key === condition?.field) ?? null;
+  const enumOptions =
+    selectedOutput?.type === "enum" &&
+    (condition?.operator === "eq" || condition?.operator === "neq")
+      ? selectedOutput.options.map((option) => option.trim()).filter(Boolean)
+      : null;
+  const valueType: ValueType =
+    selectedOutput?.type === "number"
+      ? "number"
+      : selectedOutput?.type === "boolean"
+        ? "boolean"
+        : selectedOutput
+          ? "string"
+          : valueTypeOf(condition?.value);
   const needsValue = condition
     ? OPERATOR_NEEDS_VALUE[condition.operator]
     : false;
@@ -73,9 +93,9 @@ export const EdgeInspector = ({
     onChange((current) => ({
       ...current,
       condition: {
-        field: "status",
+        field: outputs[0]?.key ?? "status",
         operator: "eq",
-        value: "",
+        value: outputs[0] ? defaultValueForOutput(outputs[0]) : "",
         ...(current.condition ?? {}),
         ...patch,
       },
@@ -128,24 +148,54 @@ export const EdgeInspector = ({
               <SelectItem value="condition">{t("conditionMatches")}</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
-            {condition ? t("conditionHint") : t("alwaysHint")}
-          </p>
         </div>
 
         {condition ? (
           <>
             <div className="space-y-1.5">
               <Label htmlFor={`edge-field-${edge.id}`}>{t("field")}</Label>
-              <Input
-                className="font-mono text-xs"
-                id={`edge-field-${edge.id}`}
-                onChange={(event) =>
-                  setCondition({ field: event.target.value })
-                }
-                placeholder="status"
-                value={condition.field}
-              />
+              {outputs.length > 0 ? (
+                <Select
+                  onValueChange={(value) => {
+                    const output = outputs.find((entry) => entry.key === value);
+                    if (output) {
+                      setCondition({
+                        field: output.key,
+                        value: defaultValueForOutput(output),
+                      });
+                    }
+                  }}
+                  value={condition.field}
+                >
+                  <SelectTrigger
+                    className="w-full min-w-0 font-mono text-xs"
+                    id={`edge-field-${edge.id}`}
+                  >
+                    <SelectValue>{condition.field}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
+                    {outputs.map((output) => (
+                      <SelectItem key={output.key} value={output.key}>
+                        {output.key}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <>
+                  <Input
+                    className="font-mono text-xs"
+                    id={`edge-field-${edge.id}`}
+                    onChange={(event) =>
+                      setCondition({ field: event.target.value })
+                    }
+                    value={condition.field}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("fieldHelp", { node: sourceName })}
+                  </p>
+                </>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`edge-operator-${edge.id}`}>
@@ -178,10 +228,39 @@ export const EdgeInspector = ({
               </Select>
             </div>
             {needsValue ? (
-              <div className="grid grid-cols-[1fr_auto] gap-2">
+              <div
+                className={
+                  selectedOutput
+                    ? "grid gap-2"
+                    : "grid grid-cols-[1fr_auto] gap-2"
+                }
+              >
                 <div className="space-y-1.5">
                   <Label htmlFor={`edge-value-${edge.id}`}>{t("value")}</Label>
-                  {valueType === "boolean" ? (
+                  {enumOptions ? (
+                    <Select
+                      onValueChange={(value) =>
+                        value !== null && setCondition({ value })
+                      }
+                      value={String(condition.value ?? "")}
+                    >
+                      <SelectTrigger
+                        className="w-full min-w-0 font-mono text-xs"
+                        id={`edge-value-${edge.id}`}
+                      >
+                        <SelectValue>
+                          {String(condition.value ?? "")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent align="start" alignItemWithTrigger={false}>
+                        {enumOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : valueType === "boolean" ? (
                     <Select
                       onValueChange={(value) =>
                         value !== null &&
@@ -216,7 +295,7 @@ export const EdgeInspector = ({
                     />
                   )}
                 </div>
-                <div className="space-y-1.5">
+                <div className={selectedOutput ? "hidden" : "space-y-1.5"}>
                   <Label htmlFor={`edge-value-type-${edge.id}`}>
                     {t("valueType")}
                   </Label>
@@ -273,9 +352,6 @@ export const EdgeInspector = ({
                 type="number"
                 value={edge.priority}
               />
-              <p className="text-xs text-muted-foreground">
-                {t("priorityHint")}
-              </p>
             </div>
           </>
         ) : null}

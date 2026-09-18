@@ -15,6 +15,27 @@
       "when": 1789692638722,
       "tag": "0001_agent_graphs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789706715372,
+      "tag": "0002_independent_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789708587105,
+      "tag": "0003_jazzy_winter_soldier",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789710818422,
+      "tag": "0004_supreme_franklin_storm",
+      "breakpoints": true
     }
   ]
 }

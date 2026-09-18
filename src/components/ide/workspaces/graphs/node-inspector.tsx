@@ -1,7 +1,13 @@
-import { Flag, Trash2 } from "lucide-react";
+import { Braces, Flag, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,62 +17,57 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-  AgentGraph,
-  GraphNode,
-  GraphRun,
-  NodeExecution,
-} from "@/types/agent-graphs";
+import type { AgentGraph, GraphNode } from "@/types/agent-graphs";
 import type { AgentMode, AiProvider } from "@/types/ide";
 import { useIdeStore } from "../../ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "../../ide-types";
-import { ExecutionDetail, ExecutionList } from "./run-history";
+import { listGraphVariables } from "./graph-variables";
+import { OutputsEditor } from "./outputs-editor";
 
 const INHERIT = "__inherit__";
 
 export interface NodeInspectorProps {
-  executions: NodeExecution[];
   graph: AgentGraph;
   node: GraphNode;
   onChange: (updater: (node: GraphNode) => GraphNode) => void;
   onDelete: () => void;
-  onSelectExecution: (executionId: string | null) => void;
   onSetEntry: () => void;
-  run: GraphRun | null;
-  selectedExecutionId: string | null;
 }
 
 export const NodeInspector = ({
-  executions,
   graph,
   node,
   onChange,
   onDelete,
-  onSelectExecution,
   onSetEntry,
-  run,
-  selectedExecutionId,
 }: NodeInspectorProps) => {
   const t = useTranslations("graphs");
   const provider = node.agent.provider ?? null;
   const providerModels = useIdeStore((s) =>
     provider ? s.providerModels[provider].models : null,
   );
-  const nodeExecutions = useMemo(
-    () => executions.filter((execution) => execution.nodeId === node.id),
-    [executions, node.id],
-  );
-  const selectedExecution =
-    nodeExecutions.find((execution) => execution.id === selectedExecutionId) ??
-    null;
-  const nodeNames = useMemo(
-    () => new Map(graph.nodes.map((entry) => [entry.id, entry.name])),
-    [graph.nodes],
-  );
   const isEntry = graph.entryNodeId === node.id;
-  const isLocked = run?.status === "running";
+  const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const variables = listGraphVariables(graph, node.id, t("variableGroupRun"));
+
+  const insertVariable = (reference: string) => {
+    const textarea = instructionsRef.current;
+    const token = `{{${reference}}}`;
+    const start = textarea?.selectionStart ?? node.instructions.length;
+    const end = textarea?.selectionEnd ?? start;
+    onChange((current) => ({
+      ...current,
+      instructions:
+        current.instructions.slice(0, start) +
+        token +
+        current.instructions.slice(end),
+    }));
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
 
   const setAgent = (patch: Partial<GraphNode["agent"]>) =>
     onChange((current) => {
@@ -80,20 +81,12 @@ export const NodeInspector = ({
     });
 
   return (
-    <Tabs className="flex h-full min-h-0 flex-col" defaultValue="definition">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-        <TabsList className="h-8">
-          <TabsTrigger className="text-xs" value="definition">
-            {t("tabDefinition")}
-          </TabsTrigger>
-          <TabsTrigger className="text-xs" value="history">
-            {t("tabHistory")}
-            {nodeExecutions.length > 0 ? ` (${nodeExecutions.length})` : ""}
-          </TabsTrigger>
-        </TabsList>
+        <span className="text-xs font-medium">{t("tabDefinition")}</span>
         <div className="ml-auto flex items-center gap-1">
           <Button
-            disabled={isEntry || isLocked}
+            disabled={isEntry}
             onClick={onSetEntry}
             size="icon-xs"
             title={t("setAsEntry")}
@@ -103,7 +96,6 @@ export const NodeInspector = ({
             <Flag className="size-3.5" />
           </Button>
           <Button
-            disabled={isLocked}
             onClick={onDelete}
             size="icon-xs"
             title={t("deleteNode")}
@@ -115,10 +107,7 @@ export const NodeInspector = ({
         </div>
       </div>
 
-      <TabsContent
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
-        value="definition"
-      >
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         <div className="space-y-1.5">
           <Label htmlFor={`node-name-${node.id}`}>{t("nodeName")}</Label>
           <Input
@@ -261,11 +250,43 @@ export const NodeInspector = ({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor={`node-instructions-${node.id}`}>
-            {t("instructions")}
-          </Label>
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`node-instructions-${node.id}`}>
+              {t("instructions")}
+            </Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    className="ml-auto"
+                    size="xs"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Braces className="size-3" />
+                    {t("insertVariable")}
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-64">
+                {variables.map((variable) => (
+                  <DropdownMenuItem
+                    key={variable.reference}
+                    onClick={() => insertVariable(variable.reference)}
+                  >
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                      {`{{${variable.reference}}}`}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {variable.group}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <Textarea
-            className="min-h-48 font-mono text-xs leading-5"
+            className="min-h-32 font-mono text-xs leading-5"
             id={`node-instructions-${node.id}`}
             onChange={(event) =>
               onChange((current) => ({
@@ -274,40 +295,23 @@ export const NodeInspector = ({
               }))
             }
             placeholder={t("instructionsPlaceholder")}
-            rows={12}
+            ref={instructionsRef}
+            rows={8}
             value={node.instructions}
           />
           <p className="text-xs text-muted-foreground">
-            {t("instructionsHint")}
+            {t("instructionsHelp")}
           </p>
         </div>
-      </TabsContent>
 
-      <TabsContent
-        className="min-h-0 flex-1 overflow-y-auto p-3"
-        value="history"
-      >
-        {!run ? (
-          <p className="text-xs text-muted-foreground">{t("noRunSelected")}</p>
-        ) : (
-          <div className="space-y-3">
-            <ExecutionList
-              executions={nodeExecutions}
-              nodeNames={nodeNames}
-              onSelect={onSelectExecution}
-              selectedExecutionId={selectedExecutionId}
-            />
-            {selectedExecution ? (
-              <div className="border-t border-border pt-3">
-                <ExecutionDetail
-                  execution={selectedExecution}
-                  nodeName={node.name}
-                />
-              </div>
-            ) : null}
-          </div>
-        )}
-      </TabsContent>
-    </Tabs>
+        <OutputsEditor
+          nodeId={node.id}
+          onChange={(outputs) =>
+            onChange((current) => ({ ...current, outputs }))
+          }
+          outputs={node.outputs ?? []}
+        />
+      </div>
+    </div>
   );
 };

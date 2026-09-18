@@ -56,8 +56,46 @@ const tryParseJson = (candidate) => {
   try {
     return JSON.parse(trimmed);
   } catch {
+    // Most common near-miss: trailing commas before a closing brace/bracket.
+    try {
+      return JSON.parse(trimmed.replace(/,\s*([}\]])/g, "$1"));
+    } catch {
+      return null;
+    }
+  }
+};
+
+const OPEN_TAG = `<${WORKFLOW_RESULT_TAG}>`;
+const MAX_SALVAGE_ATTEMPTS = 200;
+
+const looksLikeResult = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  ("data" in value || "summary" in value);
+
+/**
+ * Last resort: the last JSON object in free text that looks like a result
+ * (bare JSON after prose, unclosed tag, wrong fence…).
+ */
+const salvageResultObject = (text) => {
+  const end = text.lastIndexOf("}");
+  if (end === -1) {
     return null;
   }
+  let attempts = 0;
+  for (
+    let start = text.lastIndexOf("{", end);
+    start !== -1 && attempts < MAX_SALVAGE_ATTEMPTS;
+    start = start === 0 ? -1 : text.lastIndexOf("{", start - 1)
+  ) {
+    attempts += 1;
+    const parsed = tryParseJson(text.slice(start, end + 1));
+    if (looksLikeResult(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
 };
 
 /**
@@ -75,6 +113,10 @@ export const extractNodeResult = (text) => {
   const fenced = lastMatch(FENCE_PATTERN, source);
   if (fenced !== null) {
     candidates.push(fenced);
+  }
+  const openIndex = source.toLowerCase().lastIndexOf(OPEN_TAG);
+  if (tagged === null && openIndex !== -1) {
+    candidates.push(source.slice(openIndex + OPEN_TAG.length));
   }
   candidates.push(source);
 
@@ -97,6 +139,16 @@ export const extractNodeResult = (text) => {
       ok: false,
       error: `Workflow result did not match the expected schema: ${validated.error.message}`,
     };
+  }
+
+  if (!sawJson) {
+    const salvaged = salvageResultObject(source);
+    if (salvaged) {
+      const validated = nodeResultSchema.safeParse(salvaged);
+      if (validated.success) {
+        return { ok: true, result: validated.data };
+      }
+    }
   }
 
   return {

@@ -407,7 +407,7 @@ test("a run can be resumed from its persisted currentNodeId", async () => {
   assert.match(resumedExecutor.calls[0].prompt, /Step "A"/);
 });
 
-test("malformed results get one repair turn, then fail the run", async () => {
+test("malformed results get repair turns, then fail the run", async () => {
   const graph = buildGraph({ nodes: ["A", "B"], edges: [["A", "B"]] });
   const executor = scriptedExecutor({
     A: ["I forgot the block", resultText({ status: "fixed" })],
@@ -429,7 +429,7 @@ test("malformed results get one repair turn, then fail the run", async () => {
   assert.equal(repository.getRun(run.id).status, "failed");
   assert.deepEqual(
     executor.calls.map((call) => `${call.nodeId}${call.repair ? "*" : ""}`),
-    ["A", "A*", "B", "B*"],
+    ["A", "A*", "B", "B*", "B*"],
   );
 });
 
@@ -564,4 +564,180 @@ test("plan → implement → test → review fixture loops and completes", async
     "test3",
     "review2",
   ]);
+});
+
+// ---------------------------------------------------------------------------
+// Declared outputs
+// ---------------------------------------------------------------------------
+
+const testNode = {
+  id: "T",
+  instructions: "run the tests",
+  maxIterations: 5,
+  name: "Test",
+  outputs: [
+    { key: "status", options: ["passed", "failed"], type: "enum" },
+    { key: "details", saveToState: true, type: "text" },
+  ],
+};
+
+test("declared outputs generate the contract, normalize values and share state", async () => {
+  const graph = buildGraph({
+    edges: [
+      ["T", "Fix", cond("status", "failed")],
+      ["T", "Done"],
+    ],
+    nodes: [testNode, "Fix", "Done"],
+  });
+  const executor = scriptedExecutor({
+    Done: [resultText({})],
+    Fix: [resultText({})],
+    T: [resultText({ Status: " FAILED ", details: "2 specs red" })],
+  });
+  const runner = createRunner(executor);
+  const { run, promise } = runner.startRun({
+    graphId: graph.id,
+    initialState: { task: "Ship pagination" },
+    projectId: PROJECT_ID,
+  });
+  await promise;
+
+  const [first, second] = repository.listExecutions(run.id);
+  assert.match(
+    first.input.prompt,
+    /Task for this workflow run\nShip pagination/,
+  );
+  assert.match(first.input.prompt, /"status": "passed" \| "failed"/);
+  assert.match(first.input.prompt, /`status` \(required\): exactly one of/);
+  assert.deepEqual(first.result.data, {
+    details: "2 specs red",
+    status: "failed",
+  });
+  assert.equal(second.nodeId, "Fix");
+  assert.deepEqual(repository.getRun(run.id).state.steps, {
+    Test: { details: "2 specs red" },
+  });
+});
+
+test("values outside the declared options get a targeted repair turn", async () => {
+  const graph = buildGraph({ edges: [], nodes: [testNode] });
+  const executor = scriptedExecutor({
+    T: [
+      resultText({ details: "ok", status: "success" }),
+      resultText({ details: "ok", status: "passed" }),
+    ],
+  });
+  const runner = createRunner(executor);
+  const { run, promise } = runner.startRun({
+    graphId: graph.id,
+    projectId: PROJECT_ID,
+  });
+  await promise;
+
+  assert.equal(repository.getRun(run.id).status, "completed");
+  assert.match(executor.calls[1].prompt, /must be one of "passed", "failed"/);
+  assert.equal(
+    repository.listExecutions(run.id)[0].result.data.status,
+    "passed",
+  );
+});
+
+test("a run fails instead of completing when the routing field was never returned", async () => {
+  const graph = buildGraph({
+    edges: [["A", "B", cond("status", "failed")]],
+    nodes: ["A", "B"],
+  });
+  const runner = createRunner(
+    scriptedExecutor({ A: [resultText({ outcome: "failed" })] }),
+  );
+  const { run, promise } = runner.startRun({
+    graphId: graph.id,
+    projectId: PROJECT_ID,
+  });
+  await promise;
+
+  const finished = repository.getRun(run.id);
+  assert.equal(finished.status, "failed");
+  assert.match(finished.error, /did not return "status"/);
+});
+
+test("validation rejects conditions that do not match declared outputs", () => {
+  const graph = buildGraph({
+    edges: [
+      ["T", "A", cond("state", "failed")],
+      ["T", "B", cond("status", "broken"), 1],
+    ],
+    nodes: [testNode, "A", "B"],
+  });
+  const runner = createRunner(scriptedExecutor({}));
+  assert.throws(
+    () => runner.startRun({ graphId: graph.id, projectId: PROJECT_ID }),
+    (error) => {
+      assert.deepEqual(error.errors.map((entry) => entry.code).sort(), [
+        "condition_unknown_field",
+        "condition_unknown_value",
+      ]);
+      return true;
+    },
+  );
+});
+
+test("run inputs are validated, coerced and usable as placeholders", async () => {
+  const created = buildGraph({
+    edges: [["Plan", "Build"]],
+    nodes: [
+      {
+        id: "Plan",
+        instructions: "Plan {{task}} on {{input.branch}}",
+        maxIterations: 5,
+        name: "Plan",
+        outputs: [{ key: "plan", saveToState: true, type: "text" }],
+      },
+      {
+        id: "Build",
+        instructions: "Follow this plan: {{Plan.plan}} ({{Plan.nope}})",
+        maxIterations: 5,
+        name: "Build",
+      },
+    ],
+  });
+  const graph = repository.saveGraphDefinition(created.id, {
+    edges: created.edges,
+    entryNodeId: created.entryNodeId,
+    inputs: [
+      { key: "branch", label: "Branch", type: "text" },
+      { key: "retries", required: false, type: "number" },
+    ],
+    nodes: created.nodes,
+  });
+  const executor = scriptedExecutor({
+    Build: [resultText({})],
+    Plan: [`Sure. {"summary": "planned", "data": {"plan": "use cursors",},}`],
+  });
+  const runner = createRunner(executor);
+
+  assert.throws(
+    () => runner.startRun({ graphId: graph.id, projectId: PROJECT_ID }),
+    /Run input "Branch" is required/,
+  );
+
+  const { run, promise } = runner.startRun({
+    graphId: graph.id,
+    initialState: { inputs: { branch: "main", retries: "3" }, task: "paging" },
+    projectId: PROJECT_ID,
+  });
+  await promise;
+
+  assert.deepEqual(repository.getRun(run.id).state.inputs, {
+    branch: "main",
+    retries: 3,
+  });
+  assert.match(executor.calls[0].prompt, /Plan paging on main/);
+  assert.match(executor.calls[0].prompt, /## Run inputs\n- Branch: main/);
+  // Bare JSON with trailing commas is salvaged without a repair turn.
+  assert.equal(executor.calls.length, 2);
+  assert.match(
+    executor.calls[1].prompt,
+    /Follow this plan: use cursors \(\(not available yet\)\)/,
+  );
 });

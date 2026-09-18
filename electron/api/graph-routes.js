@@ -115,9 +115,15 @@ export const registerGraphRoutes = (app) => {
   );
 
   app.post("/api/graph-runs/list", (c) =>
-    handleGraphRequest(c, listRunsRequestSchema, ({ graphId, limit }) => ({
-      runs: repository().listRuns(graphId, { limit }),
-    })),
+    handleGraphRequest(
+      c,
+      listRunsRequestSchema,
+      ({ graphId, projectId, limit }) => ({
+        runs: projectId
+          ? repository().listProjectRuns(projectId, { limit })
+          : repository().listRuns(graphId, { limit }),
+      }),
+    ),
   );
 
   app.post("/api/graph-runs/active", (c) =>

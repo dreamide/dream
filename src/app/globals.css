@@ -6,6 +6,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Keep delayed text hidden before its reveal, but release the animation's
+   effects afterward so finished words do not retain compositing layers. */
+[data-sd-animate] {
+  animation-fill-mode: backwards;
+}
+
 @keyframes sd-searIn {
   0% {
     color: var(--streaming-sear-start-color);
