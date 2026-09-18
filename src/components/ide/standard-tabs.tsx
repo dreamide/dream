@@ -13,6 +13,8 @@ import { flushSync } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+import { tabSurfaceClassName } from "./tab-styles";
+
 const DEFAULT_TAB_GAP = 8;
 const DEFAULT_TAB_MIN_WIDTH = 144;
 const DEFAULT_TAB_MAX_WIDTH = 220;
@@ -607,9 +609,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
             const tabClasses = cn(
               "flex h-8 w-full select-none items-center gap-2 rounded-sm border px-3 text-xs opacity-100",
               hasRightAdornment && "pr-8",
-              isActive
-                ? "border-surface-300 dark:border-surface-700 dark:border-surface-800 bg-background dark:bg-muted text-foreground"
-                : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground group-hover:bg-muted group-hover:text-foreground",
+              tabSurfaceClassName(isActive),
               interactiveClassName,
               tabClassName,
             );

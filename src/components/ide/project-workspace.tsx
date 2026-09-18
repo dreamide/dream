@@ -4,6 +4,7 @@ import type { ProjectConfig, ProjectWorkspaceView } from "@/types/ide";
 import { areProjectsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { CodeWorkspace } from "./workspaces/code-workspace";
+import { GraphsWorkspace } from "./workspaces/graphs-workspace";
 import { KanbanWorkspace } from "./workspaces/kanban-workspace";
 
 export interface ProjectWorkspaceProps {
@@ -21,6 +22,7 @@ const WORKSPACE_COMPONENTS: Record<
   ComponentType<WorkspaceBodyProps>
 > = {
   code: CodeWorkspace,
+  graphs: GraphsWorkspace,
   kanban: KanbanWorkspace,
 };
 

@@ -263,7 +263,9 @@ function getNestedNumberRecord(parent, key) {
 
 function getNestedWorkspaceView(parent, key, fallback = "code") {
   const value = parent?.[key];
-  return value === "code" || value === "kanban" ? value : fallback;
+  return value === "code" || value === "kanban" || value === "graphs"
+    ? value
+    : fallback;
 }
 
 function getNestedRightPanelView(parent, key, fallback = "changes") {
@@ -1529,6 +1531,10 @@ function getStateDatabase(databasePath = resolveStateDatabasePath()) {
   stateDatabase = database;
   stateDatabasePath = resolvedDatabasePath;
   return database;
+}
+
+export function getPersistedStateDatabase({ databasePath } = {}) {
+  return getStateDatabase(databasePath);
 }
 
 export function savePersistedState(state, { databasePath } = {}) {
