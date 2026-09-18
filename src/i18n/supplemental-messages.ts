@@ -90,8 +90,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -111,8 +109,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -128,17 +124,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "Kanban",
@@ -774,8 +764,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -795,8 +783,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -812,17 +798,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "Kanban",
@@ -1445,8 +1425,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -1466,8 +1444,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -1483,17 +1459,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "Kanban",
@@ -2124,8 +2094,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -2145,8 +2113,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -2162,17 +2128,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "Kanban",
@@ -2804,8 +2764,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -2825,8 +2783,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -2842,17 +2798,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "Kanban",
@@ -3484,8 +3434,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -3505,8 +3453,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -3522,17 +3468,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "カンバン",
@@ -4156,8 +4096,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -4177,8 +4115,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -4194,17 +4130,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "칸반",
@@ -4819,8 +4749,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -4840,8 +4768,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -4857,17 +4783,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "Kanban",
@@ -5493,8 +5413,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -5514,8 +5432,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -5531,17 +5447,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "Kanban",
@@ -6162,8 +6072,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -6183,8 +6091,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -6200,17 +6106,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "看板",
@@ -6812,8 +6712,6 @@ export const supplementalMessages = {
       priority: "Priority",
       instructionsPlaceholder:
         "Describe what this step should do, in plain language.",
-      instructionsHelp:
-        "The step automatically gets the task and the results of earlier steps, and reports success or failure with a message.",
       outputs: "Outputs",
       outputsHelp:
         "What this step reports when it finishes. Edges branch on these values, and shared outputs are passed to later steps.",
@@ -6833,8 +6731,6 @@ export const supplementalMessages = {
       fieldHelp:
         'Tip: declare outputs on "{node}" to pick fields and values from a list.',
       runDialogTitle: "Run {name}",
-      runDialogDescription:
-        "Describe what this run should work on. Every step receives it.",
       runDialogPlaceholder: "e.g. Add pagination to the users table",
       insertVariable: "Insert variable",
       variableGroupRun: "Run",
@@ -6850,17 +6746,11 @@ export const supplementalMessages = {
       advanced: "Advanced",
       outcomeSuccess: "On success",
       outcomeFailure: "On failure",
-      inspectorHint: "Select a step to edit its name and instructions.",
       success: "Success",
       failure: "Failure",
-      connectHint:
-        "Drag from the dot under a step to the step that runs next. Decisions have two dots: Success and Failure. An unconnected Failure stops the run as failed; any other unconnected dot finishes it.",
       nodeType: "Type",
       nodeType_task: "Task",
-      nodeTypeHelp_task: "Does some work, then continues to the next step.",
       nodeType_decision: "Decision",
-      nodeTypeHelp_decision:
-        "Checks something and reports success or failure; each leads to a different step.",
     },
     kanban: {
       title: "看板",

@@ -75,11 +75,11 @@ const AgentNodeComponent = ({
   return (
     <div
       className={cn(
-        "relative w-60 rounded-sm border bg-background px-3 pt-2 pb-1 text-left text-xs transition-colors",
-        // Selection is shown by the border; the background never changes.
+        // Same surface as the kanban card; selection is shown by the border.
+        "relative w-60 rounded-md border bg-background p-3 text-left text-foreground shadow-sm transition-colors",
         selected
-          ? "border-foreground text-foreground shadow-sm"
-          : "border-border text-muted-foreground hover:border-surface-300 hover:text-foreground dark:hover:border-surface-700",
+          ? "border-foreground"
+          : "border-surface-300 hover:border-surface-400 dark:border-surface-700 dark:hover:border-surface-600",
       )}
       data-node-status={data.run.visual}
     >
@@ -92,12 +92,12 @@ const AgentNodeComponent = ({
         {data.isEntry ? (
           <Flag className="size-3.5 shrink-0 text-primary" />
         ) : null}
-        <span className="min-w-0 flex-1 truncate font-semibold text-foreground">
+        <span className="min-w-0 flex-1 truncate font-semibold text-sm leading-5">
           {data.name}
         </span>
         <StatusIcon run={data.run} />
       </div>
-      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="mt-2 flex items-center justify-between gap-2 text-muted-foreground text-xs leading-5">
         <span className="flex min-w-0 items-center gap-1.5">
           {agent.provider ? (
             <ProviderIcon
@@ -133,22 +133,19 @@ const AgentNodeComponent = ({
           </Badge>
         ) : null}
       </div>
-      <div className="mt-0.5 truncate text-[11px] text-muted-foreground/80">
+      <div className="truncate text-muted-foreground text-xs leading-5">
         {settings.join(" · ")}
       </div>
       {data.kind === "task" ? (
-        <>
-          <div className="h-1" />
-          <Handle
-            className={cn(HANDLE_CLASS_NAME, "!bg-muted-foreground")}
-            id={SUCCESS_HANDLE_ID}
-            position={Position.Bottom}
-            type="source"
-          />
-        </>
+        <Handle
+          className={cn(HANDLE_CLASS_NAME, "!bg-muted-foreground")}
+          id={SUCCESS_HANDLE_ID}
+          position={Position.Bottom}
+          type="source"
+        />
       ) : (
         <>
-          <div className="-mx-1 mt-1.5 flex border-t border-border pt-0.5 text-[11px] leading-4">
+          <div className="-mx-3 -mb-1.5 mt-2.5 flex border-surface-200 border-t pt-1 text-[11px] leading-4 dark:border-surface-800">
             <span className="flex-1 text-center text-emerald-600 dark:text-emerald-400">
               {t("success")}
             </span>

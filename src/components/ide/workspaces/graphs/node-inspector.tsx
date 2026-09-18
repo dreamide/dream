@@ -186,9 +186,6 @@ export const NodeInspector = ({
               <SelectItem value="decision">{t("nodeType_decision")}</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
-            {t(`nodeTypeHelp_${node.type}`)}
-          </p>
         </div>
 
         <div className="space-y-1.5">
@@ -208,9 +205,6 @@ export const NodeInspector = ({
             rows={10}
             value={node.instructions}
           />
-          <p className="text-xs text-muted-foreground">
-            {t("instructionsHelp")}
-          </p>
         </div>
 
         <Collapsible>
@@ -335,7 +329,7 @@ export const NodeInspector = ({
             </div>
 
             {effortOptions.length > 0 || speedOptions.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-3">
                 {effortOptions.length > 0 ? (
                   <div className="space-y-1.5">
                     <Label htmlFor={`node-effort-${node.id}`}>

@@ -235,12 +235,7 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
           }))
         }
       />
-    ) : (
-      <div className="space-y-2 p-3 text-xs leading-5 text-muted-foreground">
-        <p>{t("inspectorHint")}</p>
-        <p>{t("connectHint")}</p>
-      </div>
-    )
+    ) : null
   ) : null;
 
   return (

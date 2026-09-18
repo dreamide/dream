@@ -96,17 +96,10 @@ export const GraphToolbar = ({
               </Button>
             }
           />
-          <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuContent align="end" className="w-40">
             {NODE_TYPES.map((type) => (
-              <DropdownMenuItem
-                className="flex-col items-start gap-0"
-                key={type}
-                onClick={() => onAddNode(type)}
-              >
-                <span>{t(`nodeType_${type}`)}</span>
-                <span className="text-xs text-muted-foreground">
-                  {t(`nodeTypeHelp_${type}`)}
-                </span>
+              <DropdownMenuItem key={type} onClick={() => onAddNode(type)}>
+                {t(`nodeType_${type}`)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

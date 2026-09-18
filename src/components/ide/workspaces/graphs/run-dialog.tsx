@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -42,7 +41,6 @@ export const RunDialog = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("runDialogTitle", { name: graphName })}</DialogTitle>
-          <DialogDescription>{t("runDialogDescription")}</DialogDescription>
         </DialogHeader>
         <Textarea
           autoFocus
