@@ -15,11 +15,6 @@ import {
 } from "electron";
 import getPort from "get-port";
 import { stopCodexAppServer } from "./api/chat/codex-app-server-client.js";
-import { subscribeGraphEvents } from "./api/graphs/events.js";
-import {
-  initializeGraphRuntime,
-  shutdownGraphRuntime,
-} from "./api/graphs/runtime.js";
 import {
   configureApplicationMenu,
   toggleWebContentsDevToolsDetached,
@@ -818,11 +813,6 @@ app.whenReady().then(async () => {
   rendererServerManager = await createStartupRendererServerManager();
   await rendererServerManager.start();
 
-  initializeGraphRuntime();
-  subscribeGraphEvents((event) => {
-    sendToRenderer("graph:event", event);
-  });
-
   try {
     installId = ensurePersistedInstallId();
   } catch (error) {
@@ -860,7 +850,6 @@ app.on("before-quit", (event) => {
 
   Promise.resolve()
     .then(async () => {
-      await shutdownGraphRuntime();
       await stopCodexAppServer();
       await processSessionManager.stopAllProcesses();
       await rendererServerManager?.stop();

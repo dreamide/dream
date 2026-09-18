@@ -179,8 +179,6 @@ contextBridge.exposeInMainWorld("dream", {
   onBrowserPageState: (listener) => subscribe("browser:page-state", listener),
   onBrowserStatus: (listener) => subscribe("browser:status", listener),
 
-  onGraphEvent: (listener) => subscribe("graph:event", listener),
-
   detectEditors: () => ipcRenderer.invoke("editors:detect"),
   openInEditor: (payload) => ipcRenderer.invoke("editors:open", payload),
 

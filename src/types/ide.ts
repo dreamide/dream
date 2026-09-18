@@ -2,7 +2,6 @@ import type { FileDiffMetadata } from "@pierre/diffs/react";
 import type { FileUIPart, UIMessage } from "ai";
 import type { AppLocale } from "@/i18n/config";
 import type { SparklesPaletteName } from "@/lib/sparkles-palettes";
-import type { GraphRunEvent } from "./agent-graphs";
 
 export type AiProvider =
   | "openai"
@@ -207,7 +206,7 @@ export type RightPanelView =
   | "terminal"
   | "stash";
 
-export type ProjectWorkspaceView = "code" | "kanban" | "graphs";
+export type ProjectWorkspaceView = "code" | "kanban";
 
 export interface ProjectUiState {
   activeChatId: string | null;
@@ -783,8 +782,6 @@ export interface DesktopApi {
   onBrowserStatus: (
     listener: (event: BrowserStatusEvent) => void,
   ) => () => void;
-
-  onGraphEvent: (listener: (event: GraphRunEvent) => void) => () => void;
 
   detectEditors: () => Promise<DetectedEditor[]>;
   openInEditor: (payload: {

@@ -13,7 +13,6 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { registerChatRoutes } from "./chat-routes.js";
 import { registerCheckpointRoutes } from "./checkpoint-routes.js";
-import { registerGraphRoutes } from "./graph-routes.js";
 import { registerMcpServerRoutes } from "./mcp-server-routes.js";
 import { registerProjectGitRoutes } from "./project-git-routes.js";
 import { registerProviderRoutes } from "./provider-routes.js";
@@ -54,7 +53,6 @@ function createApiApp(apiToken) {
   registerProjectGitRoutes(guardedApp);
   registerCheckpointRoutes(guardedApp);
   registerMcpServerRoutes(guardedApp);
-  registerGraphRoutes(guardedApp);
 
   return guardedApp;
 }

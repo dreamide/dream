@@ -263,9 +263,7 @@ function getNestedNumberRecord(parent, key) {
 
 function getNestedWorkspaceView(parent, key, fallback = "code") {
   const value = parent?.[key];
-  return value === "code" || value === "kanban" || value === "graphs"
-    ? value
-    : fallback;
+  return value === "code" || value === "kanban" ? value : fallback;
 }
 
 function getNestedRightPanelView(parent, key, fallback = "changes") {

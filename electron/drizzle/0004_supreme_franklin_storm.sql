@@ -1,1 +1,0 @@
-ALTER TABLE `agent_graphs` ADD `inputs` text DEFAULT '[]' NOT NULL;
