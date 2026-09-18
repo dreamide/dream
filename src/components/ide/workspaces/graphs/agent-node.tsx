@@ -12,18 +12,15 @@ import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import type { AiProvider } from "@/types/ide";
-import { tabSurfaceClassName } from "../../tab-styles";
+import type { NodeAgentDisplay } from "./graph-agent-display";
 import { FAILURE_HANDLE_ID, SUCCESS_HANDLE_ID } from "./graph-conditions";
 import type { NodeRunSummary } from "./graph-run-status";
 
 export interface AgentNodeData extends Record<string, unknown> {
-  agentLabel: string;
+  agent: NodeAgentDisplay;
   isEntry: boolean;
   kind: "task" | "decision";
   name: string;
-  /** Null when the step uses the project default. */
-  provider: AiProvider | null;
   run: NodeRunSummary;
 }
 
@@ -60,6 +57,13 @@ const AgentNodeComponent = ({
 }: NodeProps<AgentFlowNode>) => {
   // The exits change when a step switches between task and decision.
   const t = useTranslations("graphs");
+  const modelT = useTranslations("models");
+  const { agent } = data;
+  const settings = [
+    agent.agentMode === "plan" ? t("modePlanShort") : t("modeBuildShort"),
+    agent.effort ? modelT(agent.effort) : null,
+    agent.speed ? modelT(agent.speed) : null,
+  ].filter(Boolean);
   const updateNodeInternals = useUpdateNodeInternals();
   const kind = data.kind;
   useEffect(() => {
@@ -71,9 +75,11 @@ const AgentNodeComponent = ({
   return (
     <div
       className={cn(
-        tabSurfaceClassName(Boolean(selected)),
-        "relative w-52 px-3 pt-2 pb-1 text-left",
-        !selected && "border-border bg-background dark:bg-background",
+        "relative w-60 rounded-sm border bg-background px-3 pt-2 pb-1 text-left text-xs transition-colors",
+        // Selection is shown by the border; the background never changes.
+        selected
+          ? "border-primary text-foreground shadow-sm ring-1 ring-primary"
+          : "border-border text-muted-foreground hover:border-surface-300 hover:text-foreground dark:hover:border-surface-700",
       )}
       data-node-status={data.run.visual}
     >
@@ -91,13 +97,24 @@ const AgentNodeComponent = ({
       </div>
       <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="flex min-w-0 items-center gap-1.5">
-          {data.provider ? (
+          {agent.provider ? (
             <ProviderIcon
               className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
-              provider={data.provider}
+              provider={agent.provider}
             />
           ) : null}
-          <span className="truncate">{data.agentLabel}</span>
+          <span className="truncate">
+            {agent.modelLabel || (agent.provider ? null : t("inheritProject"))}
+          </span>
+          {agent.isDefault && agent.provider ? (
+            <Badge
+              className="shrink-0 rounded px-1 py-0 text-[10px] font-normal"
+              title={t("inheritProject")}
+              variant="secondary"
+            >
+              {t("defaultBadge")}
+            </Badge>
+          ) : null}
         </span>
         {data.run.count > 0 ? (
           <Badge
@@ -113,6 +130,9 @@ const AgentNodeComponent = ({
             ↻ {data.run.count}
           </Badge>
         ) : null}
+      </div>
+      <div className="mt-0.5 truncate text-[11px] text-muted-foreground/80">
+        {settings.join(" · ")}
       </div>
       {data.kind === "task" ? (
         <>

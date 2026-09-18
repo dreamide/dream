@@ -338,7 +338,7 @@ const GraphsWorkspaceComponent = ({ project }: GraphsWorkspaceProps) => {
                     executions={EMPTY_EXECUTIONS}
                     run={null}
                     graph={graph}
-                    inheritLabel={t("inheritProject")}
+                    defaultAgent={projectAgent}
                     onGraphChange={handleGraphChange}
                     onSelectionChange={handleSelectionChange}
                     selection={selection}

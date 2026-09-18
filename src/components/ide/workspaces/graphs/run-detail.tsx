@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { formatModelIdLabel } from "@/lib/models";
 import type { AgentGraph, GraphRun } from "@/types/agent-graphs";
 import { useIdeStore } from "../../ide-store";
 import { getProviderLabel } from "../../ide-types";
+import { describeNodeAgent } from "./graph-agent-display";
 import { GraphCanvas } from "./graph-canvas";
 import { edgeOutcome } from "./graph-conditions";
 import { type GraphSelection, useGraphStore } from "./graph-store";
@@ -24,6 +24,7 @@ export const RunDetail = ({
   onBack: () => void;
 }) => {
   const t = useTranslations("graphs");
+  const modelT = useTranslations("models");
   const providerModels = useIdeStore((s) => s.providerModels);
   const [selection, setSelection] = useState<GraphSelection>(null);
   const executions = useGraphStore(
@@ -45,7 +46,6 @@ export const RunDetail = ({
       updatedAt: run.createdAt,
       nodes: run.graphSnapshot.nodes.map((node, index) => ({
         ...node,
-        agent: { ...run.graphSnapshot.defaultAgent, ...node.agent },
         // Earlier snapshots did not store layout. Never consult the live workflow.
         position: node.position ?? { x: 80, y: index * 180 },
       })),
@@ -60,6 +60,13 @@ export const RunDetail = ({
     selection?.kind === "node"
       ? graph.nodes.find((entry) => entry.id === selection.id)
       : null;
+  const nodeAgent = node
+    ? describeNodeAgent(
+        node.agent,
+        run.graphSnapshot.defaultAgent,
+        providerModels,
+      )
+    : null;
   const edge =
     selection?.kind === "edge"
       ? graph.edges.find((entry) => entry.id === selection.id)
@@ -114,7 +121,7 @@ export const RunDetail = ({
             readOnly
             executions={executions}
             graph={graph}
-            inheritLabel={t("inheritProject")}
+            defaultAgent={run.graphSnapshot.defaultAgent}
             onGraphChange={ignoreGraphChange}
             onSelectionChange={(next) => {
               setSelection(next);
@@ -139,18 +146,21 @@ export const RunDetail = ({
               <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
                 <dt className="text-muted-foreground">{t("provider")}</dt>
                 <dd>
-                  {node.agent.provider
-                    ? getProviderLabel(node.agent.provider)
+                  {nodeAgent?.provider
+                    ? getProviderLabel(nodeAgent.provider)
                     : t("inheritProject")}
+                  {nodeAgent?.isDefault ? ` (${t("defaultBadge")})` : ""}
                 </dd>
                 <dt className="text-muted-foreground">{t("model")}</dt>
                 <dd className="break-words">
-                  {node.agent.provider && node.agent.model
-                    ? (providerModels[node.agent.provider]?.models.find(
-                        (option) => option.id === node.agent.model,
-                      )?.label ??
-                      formatModelIdLabel(node.agent.provider, node.agent.model))
-                    : (node.agent.model ?? t("inheritProject"))}
+                  {nodeAgent?.modelLabel || t("inheritProject")}
+                  {[
+                    nodeAgent?.effort ? modelT(nodeAgent.effort) : null,
+                    nodeAgent?.speed ? modelT(nodeAgent.speed) : null,
+                  ]
+                    .filter(Boolean)
+                    .map((part) => ` · ${part}`)
+                    .join("")}
                 </dd>
                 <dt className="text-muted-foreground">{t("agentMode")}</dt>
                 <dd>

@@ -14,12 +14,16 @@ import {
 import { nanoid } from "nanoid";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatModelIdLabel } from "@/lib/models";
-import type { AgentGraph, GraphRun, NodeExecution } from "@/types/agent-graphs";
+import type {
+  AgentGraph,
+  GraphNodeAgent,
+  GraphRun,
+  NodeExecution,
+} from "@/types/agent-graphs";
 import { useIdeStore } from "../../ide-store";
-import { getProviderLabel } from "../../ide-types";
 import { type AgentFlowNode, AgentNode } from "./agent-node";
 import { ConditionEdge, type ConditionFlowEdge } from "./condition-edge";
+import { describeNodeAgent } from "./graph-agent-display";
 import { edgeOutcome, outcomeFromHandle } from "./graph-conditions";
 import { collectTraversedEdgeIds, summarizeNodeRun } from "./graph-run-status";
 import type { GraphSelection, GraphTraversalHighlight } from "./graph-store";
@@ -32,9 +36,10 @@ const HIGHLIGHT_MS = 1_800;
 
 export interface GraphCanvasProps {
   readOnly?: boolean;
+  /** The project agent a step falls back to when it does not set its own. */
+  defaultAgent: GraphNodeAgent;
   executions: NodeExecution[];
   graph: AgentGraph;
-  inheritLabel: string;
   onGraphChange: (updater: (graph: AgentGraph) => AgentGraph) => void;
   onSelectionChange: (selection: GraphSelection) => void;
   run: GraphRun | null;
@@ -44,9 +49,9 @@ export interface GraphCanvasProps {
 
 const GraphCanvasInner = ({
   readOnly = false,
+  defaultAgent,
   executions,
   graph,
-  inheritLabel,
   onGraphChange,
   onSelectionChange,
   run,
@@ -90,25 +95,12 @@ const GraphCanvasInner = ({
   const nodes = useMemo<AgentFlowNode[]>(
     () =>
       graph.nodes.map((node) => {
-        const { model, provider } = node.agent;
-        // Same friendly model name the chat box shows.
-        const modelLabel =
-          provider && model
-            ? (providerModels[provider]?.models.find(
-                (option) => option.id === model,
-              )?.label ?? formatModelIdLabel(provider, model))
-            : "";
-        // The provider is shown as an icon, like the chat model picker.
-        const agentLabel = provider
-          ? modelLabel || getProviderLabel(provider)
-          : inheritLabel;
         return {
           data: {
-            agentLabel,
+            agent: describeNodeAgent(node.agent, defaultAgent, providerModels),
             isEntry: graph.entryNodeId === node.id,
             kind: node.type === "task" ? "task" : "decision",
             name: node.name,
-            provider: provider ?? null,
             run: summarizeNodeRun(node.id, run, executions),
           },
           id: node.id,
@@ -118,10 +110,10 @@ const GraphCanvasInner = ({
         };
       }),
     [
+      defaultAgent,
       executions,
       graph.entryNodeId,
       graph.nodes,
-      inheritLabel,
       providerModels,
       run,
       selection,
