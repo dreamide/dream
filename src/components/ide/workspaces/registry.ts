@@ -1,9 +1,8 @@
-import { Code2, GitBranch, type LucideIcon, SquareKanban } from "lucide-react";
+import { Code2, type LucideIcon, SquareKanban } from "lucide-react";
 import type { ProjectWorkspaceView } from "@/types/ide";
 
 export const PROJECT_WORKSPACE_VIEWS = [
   "code",
-  "goals",
   "kanban",
 ] as const satisfies readonly ProjectWorkspaceView[];
 
@@ -19,7 +18,7 @@ export interface ProjectWorkspaceDescriptor {
   icon: LucideIcon;
   id: ProjectWorkspaceView;
   /** Key inside the `workspace` i18n namespace. */
-  labelKey: "workspaceCode" | "workspaceGoals" | "workspaceKanban";
+  labelKey: "workspaceCode" | "workspaceKanban";
 }
 
 // Intentionally free of component imports so the header switcher can import
@@ -27,7 +26,6 @@ export interface ProjectWorkspaceDescriptor {
 export const PROJECT_WORKSPACE_DESCRIPTORS: readonly ProjectWorkspaceDescriptor[] =
   [
     { icon: Code2, id: "code", labelKey: "workspaceCode" },
-    { icon: GitBranch, id: "goals", labelKey: "workspaceGoals" },
     { icon: SquareKanban, id: "kanban", labelKey: "workspaceKanban" },
   ];
 

@@ -113,15 +113,6 @@ export const createPersistedIdeState = ({
   const activeChatIdByProject = new Map(
     allProjects.map((project) => [project.id, project.ui.activeChatId]),
   );
-  const goalChatIds = new Set(
-    allProjects.flatMap((project) =>
-      (project.ui.goals ?? []).flatMap((goal) =>
-        goal.steps.flatMap((step) =>
-          step.runs.flatMap((run) => (run.chatId ? [run.chatId] : [])),
-        ),
-      ),
-    ),
-  );
   const persistedChats = chats.filter((chat) => {
     if (!knownProjectIds.has(chat.projectId)) {
       return false;
@@ -140,10 +131,7 @@ export const createPersistedIdeState = ({
     // Keep an empty chat only while it is the chat currently open for its
     // project so a freshly created chat survives an app restart. Any other
     // empty draft chats are dropped from persistence.
-    return (
-      activeChatIdByProject.get(chat.projectId) === chat.id ||
-      goalChatIds.has(chat.id)
-    );
+    return activeChatIdByProject.get(chat.projectId) === chat.id;
   });
   // A missing key means the transcript has not been loaded in this renderer.
   // Preserve that distinction so metadata-only saves never erase lazy rows.
@@ -160,26 +148,9 @@ export const createPersistedIdeState = ({
       project.id,
       project.ui,
     );
-    const rawMetadata = (project as ProjectConfig & { metadata?: unknown })
-      .metadata;
-    const metadata =
-      rawMetadata &&
-      typeof rawMetadata === "object" &&
-      !Array.isArray(rawMetadata)
-        ? (rawMetadata as Record<string, unknown>)
-        : {};
-    const metadataUi =
-      metadata.ui &&
-      typeof metadata.ui === "object" &&
-      !Array.isArray(metadata.ui)
-        ? (metadata.ui as Record<string, unknown>)
-        : {};
     return {
       ...project,
       ui,
-      // An already-running Electron save worker may predate the goals field.
-      // Its metadata passthrough preserves new UI data across renderer reloads.
-      metadata: { ...metadata, ui: { ...metadataUi, goals: ui.goals } },
     };
   };
   const persistedProjects = projects.map(sanitizeProjectForPersistence);

@@ -435,7 +435,6 @@ export const createChatActions = (
     });
 
     get().unlinkKanbanCardsForChats([chatId]);
-    get().unlinkGoalRuns?.([chatId]);
 
     if (projectIdNeedingNewChat) {
       get().addChat(projectIdNeedingNewChat);
@@ -523,7 +522,6 @@ export const createChatActions = (
     });
 
     get().unlinkKanbanCardsForChats(chatIds);
-    get().unlinkGoalRuns?.(chatIds);
   },
 
   restoreChats: (chatIds: string[]) => {

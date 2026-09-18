@@ -263,9 +263,7 @@ function getNestedNumberRecord(parent, key) {
 
 function getNestedWorkspaceView(parent, key, fallback = "code") {
   const value = parent?.[key];
-  return value === "code" || value === "goals" || value === "kanban"
-    ? value
-    : fallback;
+  return value === "code" || value === "kanban" ? value : fallback;
 }
 
 function getNestedRightPanelView(parent, key, fallback = "changes") {
@@ -554,11 +552,8 @@ function buildProjectMetadata(project) {
   ui.kanbanCards = getNestedKanbanCards(
     Object.hasOwn(projectUi, "kanbanCards") ? projectUi : ui,
   );
-  ui.goals = Array.isArray(projectUi.goals)
-    ? projectUi.goals
-    : Array.isArray(ui.goals)
-      ? ui.goals
-      : [];
+  // Drop retired feature data carried by older project metadata.
+  delete ui.goals;
   ui.panelSizes = {
     chatHistoryPanelWidth: getNestedNumber(
       projectPanelSizes,
@@ -1175,7 +1170,6 @@ function loadStateFromRelationalDatabase(database) {
       rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
       stashItems: getNestedStashItems(ui),
       kanbanCards: getNestedKanbanCards(ui),
-      goals: Array.isArray(ui.goals) ? ui.goals : [],
       workspaceView: getNestedWorkspaceView(ui, "workspaceView", "code"),
     };
     allProjects.push(project);

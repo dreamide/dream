@@ -424,11 +424,6 @@ export const ChatPanel = ({
   const pendingChatSubmit = useIdeStore(
     (s) => s.pendingChatSubmitByChatId[chat.id] ?? null,
   );
-  const canSubmitBackgroundTask = useIdeStore(
-    (s) =>
-      s.activeProjectId === project.id &&
-      Boolean(s.pendingChatSubmitByChatId[chat.id]?.background),
-  );
   const canSubmitKanbanTask = useIdeStore(
     (s) =>
       s.activeProjectId === project.id &&
@@ -542,7 +537,6 @@ export const ChatPanel = ({
     id: `chat:${chat.id}`,
     messages: chatMessages,
     onError: (error) => {
-      useIdeStore.getState().recordGoalRun(chat.id, "failed", error.message);
       useActivityStore.getState().finish(chat.id, "failed", error.message);
       console.error("[chat error]", error);
 
@@ -565,21 +559,6 @@ export const ChatPanel = ({
     },
     onFinish: ({ message, isAbort, isError, isDisconnect }) => {
       const attention = getActivityAttention([message]);
-      useIdeStore
-        .getState()
-        .recordGoalRun(
-          chat.id,
-          isError
-            ? "failed"
-            : isAbort || isDisconnect
-              ? "interrupted"
-              : attention !== null
-                ? "waiting"
-                : "finished",
-          message.parts
-            .flatMap((part) => (part.type === "text" ? [part.text] : []))
-            .join("\n\n"),
-        );
       if (!isAbort && !isError && !isDisconnect && attention !== null) {
         useActivityStore.getState().attention(chat.id, attention);
       } else {
@@ -1229,7 +1208,7 @@ export const ChatPanel = ({
   useEffect(() => {
     if (
       !pendingChatSubmit ||
-      (!isActive && !canSubmitKanbanTask && !canSubmitBackgroundTask) ||
+      (!isActive && !canSubmitKanbanTask) ||
       !messagesLoaded ||
       isProcessing
     ) {
@@ -1268,19 +1247,9 @@ export const ChatPanel = ({
           nextSubmit.preserveDraft,
         )
         .then((submitted) => {
-          if (!submitted && nextSubmit.background)
-            useIdeStore.getState().recordGoalRun(chat.id, "failed");
           if (!submitted) restoreSubmittedMessage();
         })
         .catch((error) => {
-          if (nextSubmit.background)
-            useIdeStore
-              .getState()
-              .recordGoalRun(
-                chat.id,
-                "failed",
-                error instanceof Error ? error.message : String(error),
-              );
           restoreSubmittedMessage();
           setLocalError(
             error instanceof Error
@@ -1295,7 +1264,6 @@ export const ChatPanel = ({
       window.cancelAnimationFrame(frame);
     };
   }, [
-    canSubmitBackgroundTask,
     canSubmitKanbanTask,
     chat.id,
     isActive,

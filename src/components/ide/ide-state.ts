@@ -9,7 +9,6 @@ import type {
   UIMessage,
 } from "ai";
 import { normalizeLocalePreference } from "@/i18n/config";
-import { normalizeGoals } from "@/lib/goal-graph";
 import {
   createChatConfig,
   DEFAULT_PANEL_SIZES,
@@ -529,7 +528,7 @@ const normalizeProject = (
       : {};
   // Older main processes return only their known UI fields, alongside the full
   // metadata. Fill missing fields from metadata without overriding explicit
-  // renderer values (including an intentionally empty goals array).
+  // renderer values.
   const rawUi = {
     ...(rawMetadata.ui && typeof rawMetadata.ui === "object"
       ? (rawMetadata.ui as Record<string, unknown>)
@@ -603,7 +602,6 @@ const normalizeProject = (
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
       kanbanCards: normalizeKanbanCards(rawUi.kanbanCards),
-      goals: normalizeGoals(rawUi.goals),
       stashItems: normalizeStashItems(rawUi.stashItems),
       workspaceView: isProjectWorkspaceView(rawUi.workspaceView)
         ? rawUi.workspaceView
