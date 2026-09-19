@@ -239,22 +239,23 @@ const PipelineColumnModelBarImpl = ({
             </SelectContent>
           </Select>
 
-          <label
-            className="ml-auto flex h-7 shrink-0 items-center gap-1.5 px-2 font-medium text-muted-foreground text-xs"
-            htmlFor={autoAdvanceId}
-            title={t("autoAdvance")}
-          >
-            <Switch
-              checked={canAutoAdvance && config.autoAdvance}
-              disabled={!canAutoAdvance}
-              id={autoAdvanceId}
-              onCheckedChange={(checked) =>
-                update((current) => ({ ...current, autoAdvance: checked }))
-              }
-              size="sm"
-            />
-            {t("gateAuto")}
-          </label>
+          {canAutoAdvance ? (
+            <label
+              className="ml-auto flex h-7 shrink-0 items-center gap-1.5 px-2 font-medium text-muted-foreground text-xs"
+              htmlFor={autoAdvanceId}
+              title={t("autoAdvance")}
+            >
+              <Switch
+                checked={config.autoAdvance}
+                id={autoAdvanceId}
+                onCheckedChange={(checked) =>
+                  update((current) => ({ ...current, autoAdvance: checked }))
+                }
+                size="sm"
+              />
+              {t("gateAuto")}
+            </label>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-1">
