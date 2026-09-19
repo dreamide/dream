@@ -809,7 +809,7 @@ export const WriteFileChip = ({
         <div
           className={cn(
             "flex shrink-0 items-center gap-2",
-            expanded && "ml-auto",
+            expanded || isApprovalRequested ? "ml-auto" : "hidden",
           )}
         >
           {showFileDetails && writeDiffStats ? (
