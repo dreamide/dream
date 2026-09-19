@@ -1,6 +1,6 @@
 import { Bot, MapIcon, Shield, ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { memo, useMemo } from "react";
+import { memo, useId, useMemo } from "react";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import {
   Select,
@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   getConnectedProviders,
   getModelOptionsForProvider,
@@ -132,6 +133,9 @@ const PipelineColumnModelBarImpl = ({
       )
     : undefined;
   const AgentModeIcon = getAgentModeIcon(config.agentMode);
+  const autoAdvanceId = useId();
+  // Merge is the last step, so there is nothing to advance to.
+  const canAutoAdvance = step !== "merge";
   const reasoningEfforts = selectedModel
     ? getOptionReasoningEfforts(
         selectedModelOption,
@@ -184,44 +188,6 @@ const PipelineColumnModelBarImpl = ({
           flush with the column, which must not clip so the shadow shows. */}
       <div className="flex flex-col overflow-hidden rounded-lg border border-surface-300 bg-surface-50 px-2 py-1.5 shadow-md dark:border-surface-700 dark:bg-surface-900">
         <div className="flex items-center gap-1">
-          <Select
-            onValueChange={(value) => {
-              if (value === "standard" || value === "full-access") {
-                update((current) => ({ ...current, permissionMode: value }));
-              }
-            }}
-            value={config.permissionMode}
-          >
-            <SelectTrigger
-              className={cn(TRIGGER_CLASSES, "shrink-0")}
-              showChevron={false}
-              title={chatT("permissions")}
-            >
-              {config.permissionMode === "full-access" ? (
-                <ShieldAlert className="size-3.5 shrink-0" />
-              ) : (
-                <Shield className="size-3.5 shrink-0" />
-              )}
-            </SelectTrigger>
-            <SelectContent className="text-xs" side="top">
-              <SelectGroup>
-                <SelectLabel>{chatT("permissions")}</SelectLabel>
-                <SelectItem className="text-xs" value="standard">
-                  <span className="flex items-center gap-1.5">
-                    <Shield className={ITEM_ICON_CLASSES} />
-                    <span>{chatT("standardPermissions")}</span>
-                  </span>
-                </SelectItem>
-                <SelectItem className="text-xs" value="full-access">
-                  <span className="flex items-center gap-1.5">
-                    <ShieldAlert className={ITEM_ICON_CLASSES} />
-                    <span>{chatT("fullAccess")}</span>
-                  </span>
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-
           <Select onValueChange={handleModelChange} value={selectedModelValue}>
             <SelectTrigger
               className={cn(TRIGGER_CLASSES, "min-w-0 shrink")}
@@ -272,9 +238,64 @@ const PipelineColumnModelBarImpl = ({
               </SelectGroup>
             </SelectContent>
           </Select>
+
+          <label
+            className="ml-auto flex h-7 shrink-0 items-center gap-1.5 px-2 font-medium text-muted-foreground text-xs"
+            htmlFor={autoAdvanceId}
+            title={t("autoAdvance")}
+          >
+            <Switch
+              checked={canAutoAdvance && config.autoAdvance}
+              disabled={!canAutoAdvance}
+              id={autoAdvanceId}
+              onCheckedChange={(checked) =>
+                update((current) => ({ ...current, autoAdvance: checked }))
+              }
+              size="sm"
+            />
+            {t("gateAuto")}
+          </label>
         </div>
 
         <div className="flex items-center gap-1">
+          <Select
+            onValueChange={(value) => {
+              if (value === "standard" || value === "full-access") {
+                update((current) => ({ ...current, permissionMode: value }));
+              }
+            }}
+            value={config.permissionMode}
+          >
+            <SelectTrigger
+              className={cn(TRIGGER_CLASSES, "shrink-0")}
+              showChevron={false}
+              title={chatT("permissions")}
+            >
+              {config.permissionMode === "full-access" ? (
+                <ShieldAlert className="size-3.5 shrink-0" />
+              ) : (
+                <Shield className="size-3.5 shrink-0" />
+              )}
+            </SelectTrigger>
+            <SelectContent className="text-xs" side="top">
+              <SelectGroup>
+                <SelectLabel>{chatT("permissions")}</SelectLabel>
+                <SelectItem className="text-xs" value="standard">
+                  <span className="flex items-center gap-1.5">
+                    <Shield className={ITEM_ICON_CLASSES} />
+                    <span>{chatT("standardPermissions")}</span>
+                  </span>
+                </SelectItem>
+                <SelectItem className="text-xs" value="full-access">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldAlert className={ITEM_ICON_CLASSES} />
+                    <span>{chatT("fullAccess")}</span>
+                  </span>
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
           <Select
             onValueChange={(value) => {
               if (value === "plan" || value === "build") {

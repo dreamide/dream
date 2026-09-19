@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -82,7 +80,6 @@ export const PipelineSettingsDialog = ({
           <DialogTitle className="text-base leading-6">
             {t("stepSettingsTitle")}
           </DialogTitle>
-          <DialogDescription>{t("stepSettingsDescription")}</DialogDescription>
         </DialogHeader>
 
         <Tabs
@@ -98,32 +95,6 @@ export const PipelineSettingsDialog = ({
             ))}
           </TabsList>
         </Tabs>
-
-        {stepConfig.permissionMode === "standard" ||
-        stepConfig.agentMode === "plan" ? (
-          <p className="text-muted-foreground text-xs leading-5">
-            {t("permissionHint")}
-          </p>
-        ) : null}
-
-        <div className="flex items-start justify-between gap-4 rounded-md border border-surface-300 p-3 dark:border-surface-700">
-          <div className="space-y-1">
-            <Label htmlFor="pipeline-auto-advance">{t("autoAdvance")}</Label>
-            <p className="text-muted-foreground text-xs leading-5">
-              {step === "merge"
-                ? t("autoAdvanceMergeHint")
-                : t("autoAdvanceHint")}
-            </p>
-          </div>
-          <Switch
-            checked={step === "merge" ? false : stepConfig.autoAdvance}
-            disabled={step === "merge"}
-            id="pipeline-auto-advance"
-            onCheckedChange={(checked) =>
-              update((current) => ({ ...current, autoAdvance: checked }))
-            }
-          />
-        </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
