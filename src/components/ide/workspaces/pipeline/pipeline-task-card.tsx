@@ -371,6 +371,20 @@ const PipelineTaskCardImpl = ({
             )}
             {primaryAction.label}
           </Button>
+        ) : status === "starting" ? (
+          // The action itself settles quickly; the step chat then takes a
+          // moment to spin up, so keep showing progress until it is running.
+          <Button
+            aria-busy
+            className="ml-auto h-7 gap-1.5 px-2 text-xs"
+            disabled
+            size="sm"
+            type="button"
+            variant="default"
+          >
+            <Spinner className="size-3.5" />
+            {t(PIPELINE_STATUS_LABEL_KEYS.starting)}
+          </Button>
         ) : null}
       </div>
     </article>
