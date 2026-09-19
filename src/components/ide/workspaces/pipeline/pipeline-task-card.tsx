@@ -26,6 +26,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Spinner } from "@/components/ui/spinner";
 import { StatusDot } from "@/components/ui/status-dot";
 import {
   getEarlierPipelineRunSteps,
@@ -49,6 +50,8 @@ export interface PipelineTaskCardProps {
   /** Position among backlog tasks; `null` outside the backlog. */
   backlogIndex: number | null;
   backlogSize: number;
+  /** An action on this task is in flight; the primary button shows a spinner. */
+  busy: boolean;
   /** Why the last action on this task failed, if it did. */
   error: string | null;
   onAdvance: (taskId: string) => void;
@@ -67,6 +70,7 @@ export interface PipelineTaskCardProps {
 const PipelineTaskCardImpl = ({
   backlogIndex,
   backlogSize,
+  busy,
   error,
   onAdvance,
   onComplete,
@@ -351,14 +355,20 @@ const PipelineTaskCardImpl = ({
         ) : null}
         {primaryAction ? (
           <Button
+            aria-busy={busy}
             className="ml-auto h-7 gap-1.5 px-2 text-xs"
+            disabled={busy}
             onClick={primaryAction.run}
             onDoubleClick={(event) => event.stopPropagation()}
             size="sm"
             type="button"
             variant={needsRetry ? "outline" : "default"}
           >
-            <primaryAction.icon className="size-3.5" />
+            {busy ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <primaryAction.icon className="size-3.5" />
+            )}
             {primaryAction.label}
           </Button>
         ) : null}

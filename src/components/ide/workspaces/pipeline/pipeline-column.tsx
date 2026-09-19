@@ -21,8 +21,9 @@ export const PIPELINE_COLUMN_SURFACE_CLASSES = "rounded-lg text-foreground";
 export interface PipelineColumnProps
   extends Omit<
     PipelineTaskCardProps,
-    "backlogIndex" | "backlogSize" | "error" | "task"
+    "backlogIndex" | "backlogSize" | "busy" | "error" | "task"
   > {
+  busyTaskIds: Record<string, true>;
   /** `null` for the backlog, which runs no agent. */
   config: PipelineStepConfig | null;
   errorsByTaskId: Record<string, string>;
@@ -34,6 +35,7 @@ export interface PipelineColumnProps
 }
 
 const PipelineColumnImpl = ({
+  busyTaskIds,
   config,
   errorsByTaskId,
   onAddTask,
@@ -95,6 +97,7 @@ const PipelineColumnImpl = ({
             {...cardHandlers}
             backlogIndex={isBacklog ? index : null}
             backlogSize={tasks.length}
+            busy={Boolean(busyTaskIds[task.id])}
             error={errorsByTaskId[task.id] ?? null}
             key={task.id}
             task={task}

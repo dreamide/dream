@@ -77,6 +77,8 @@ export const PipelineBoard = ({
   const [errorsByTaskId, setErrorsByTaskId] = useState<Record<string, string>>(
     {},
   );
+  // Tasks with a step action in flight (e.g. creating the worktree).
+  const [busyTaskIds, setBusyTaskIds] = useState<Record<string, true>>({});
 
   const tasksByStep = useMemo(() => {
     const groups: Record<PipelineStepId, PipelineTask[]> = {
@@ -114,10 +116,19 @@ export const PipelineBoard = ({
   const runTaskAction = useCallback(
     (taskId: string, action: () => Promise<unknown>) => {
       setTaskError(taskId, null);
-      action().catch((error: unknown) => {
-        const message = error instanceof Error ? error.message.trim() : "";
-        setTaskError(taskId, message || t("worktreeError"));
-      });
+      setBusyTaskIds((current) => ({ ...current, [taskId]: true }));
+      action()
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message.trim() : "";
+          setTaskError(taskId, message || t("worktreeError"));
+        })
+        .finally(() => {
+          setBusyTaskIds((current) => {
+            const next = { ...current };
+            delete next[taskId];
+            return next;
+          });
+        });
     },
     [setTaskError, t],
   );
@@ -245,6 +256,7 @@ export const PipelineBoard = ({
         <div className="mx-auto flex h-full w-full min-w-[calc(5*18rem+4*0.5rem)] max-w-[1920px] gap-2">
           {PIPELINE_STEPS.map((step) => (
             <PipelineColumn
+              busyTaskIds={busyTaskIds}
               config={step.id === "backlog" ? null : config[step.id]}
               errorsByTaskId={errorsByTaskId}
               key={step.id}
