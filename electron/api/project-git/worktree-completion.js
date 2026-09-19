@@ -516,6 +516,43 @@ const pathExists = async (targetPath) => {
   }
 };
 
+const WORKTREE_DELETE_FAILURE_PATTERN =
+  /failed to delete|permission denied|access is denied|directory not empty|device or resource busy|being used by another process/i;
+
+const isWorktreeDeleteFailure = (message) =>
+  WORKTREE_DELETE_FAILURE_PATTERN.test(message);
+
+/**
+ * On Windows a directory cannot be deleted while any process holds a handle
+ * inside it. Agent processes that ran in the worktree are the usual holders, so
+ * release the idle one, then delete with retries to ride out handles that are
+ * still closing (exited CLIs, antivirus, the search indexer).
+ */
+const deleteLockedWorktreeDirectory = async (targetPath, gitMessage) => {
+  try {
+    const { stopIdleCodexAppServer } = await import(
+      "../chat/codex-app-server-client.js"
+    );
+    await stopIdleCodexAppServer();
+  } catch {
+    // Releasing the agent process is best effort.
+  }
+
+  try {
+    await fs.rm(targetPath, {
+      force: true,
+      maxRetries: 8,
+      recursive: true,
+      retryDelay: 250,
+    });
+  } catch {
+    throw new Error(
+      `${gitMessage}
+Another program is still using this folder. Close any terminal, editor, or file explorer window open inside it and retry.`,
+    );
+  }
+};
+
 export const cleanupProjectGitWorktree = async (
   projectPath,
   { deleteBranch = false, force = false, worktreePath = "" } = {},
@@ -553,7 +590,13 @@ export const cleanupProjectGitWorktree = async (
 
   if (!removeResult.ok) {
     if (await pathExists(targetPath)) {
-      throw new Error(getGitCommandErrorMessage(removeResult.error));
+      const message = getGitCommandErrorMessage(removeResult.error);
+      // Git only reaches the delete stage after its own safety checks pass, so
+      // finishing the deletion ourselves cannot discard work it would refuse to.
+      if (!isWorktreeDeleteFailure(message)) {
+        throw new Error(message);
+      }
+      await deleteLockedWorktreeDirectory(targetPath, message);
     }
 
     await runGitCommand(commandCwd, ["worktree", "prune"]);

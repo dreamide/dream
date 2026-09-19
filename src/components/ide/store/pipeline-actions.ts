@@ -6,6 +6,7 @@ import {
 import {
   createDefaultPipelineConfig,
   getNextPipelineStep,
+  getPipelineReviewVerdict,
   getPipelineStepPrompt,
   PIPELINE_STEP_IDS,
   renderPipelinePrompt,
@@ -826,6 +827,14 @@ export const createPipelineActions = (
         createDefaultPipelineConfig()[run.step];
       // Merging is always an explicit user action.
       if (!config.autoAdvance || !getNextPipelineStep(task.step)) {
+        return;
+      }
+      // A review only passes itself along on an explicit APPROVE; requested
+      // changes (or no verdict at all) wait for the user to decide.
+      if (
+        run.step === "review" &&
+        getPipelineReviewVerdict(run.output) !== "approve"
+      ) {
         return;
       }
 

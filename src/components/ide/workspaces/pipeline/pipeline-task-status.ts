@@ -1,4 +1,5 @@
 import type { StatusDotColor } from "@/components/ui/status-dot";
+import { getPipelineReviewVerdict } from "@/lib/pipeline-defaults";
 import type { PipelineStepRun, PipelineTask } from "@/types/ide";
 import type { ChatActivity } from "../../activity-store";
 
@@ -8,6 +9,7 @@ export type PipelineTaskStatus =
   | "running"
   | "waiting"
   | "awaitingApproval"
+  | "changesRequested"
   | "failed"
   | "interrupted"
   | "missing"
@@ -31,7 +33,10 @@ export const getPipelineTaskStatus = ({
   activityEntry: ChatActivity | undefined;
   awaitingAnswer: boolean;
   chatExists: boolean;
-  currentRun: Pick<PipelineStepRun, "chatId" | "finishedAt"> | null;
+  currentRun:
+    | (Pick<PipelineStepRun, "chatId" | "finishedAt"> &
+        Partial<Pick<PipelineStepRun, "output" | "step">>)
+    | null;
   pendingSubmit: boolean;
   streaming: boolean;
   task: Pick<PipelineTask, "completion" | "step" | "worktreeProjectId">;
@@ -63,7 +68,11 @@ export const getPipelineTaskStatus = ({
   }
 
   if (currentRun.finishedAt) {
-    return "awaitingApproval";
+    // The reviewer asked for changes, so this is not simply ready to approve.
+    return currentRun.step === "review" &&
+      getPipelineReviewVerdict(currentRun.output) === "changes"
+      ? "changesRequested"
+      : "awaitingApproval";
   }
 
   if (!currentRun.chatId || !chatExists) {
@@ -87,6 +96,7 @@ export const getPipelineTaskStatus = ({
 export const isPipelineTaskSettled = (status: PipelineTaskStatus): boolean =>
   status === "waiting" ||
   status === "awaitingApproval" ||
+  status === "changesRequested" ||
   status === "failed" ||
   status === "interrupted" ||
   status === "missing";
@@ -107,6 +117,7 @@ export const getPipelineStatusDotProps = (
     case "waiting":
       return { color: "amber", pulse: true };
     case "awaitingApproval":
+    case "changesRequested":
       return { color: "amber", pulse: false };
     case "done":
       return { color: "green", pulse: false };
@@ -123,6 +134,7 @@ export const getPipelineStatusDotProps = (
 
 export const PIPELINE_STATUS_LABEL_KEYS = {
   awaitingApproval: "statusAwaitingApproval",
+  changesRequested: "statusChangesRequested",
   done: "statusDone",
   failed: "statusFailed",
   idle: "statusIdle",

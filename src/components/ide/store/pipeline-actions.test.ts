@@ -312,6 +312,53 @@ test("build auto-advances to review when the agent finishes normally", async () 
   assert.match(prompt, /The plan/);
 });
 
+const runToReview = async (
+  store: ReturnType<typeof createTestStore>["store"],
+  projectId: string,
+  taskId: string,
+) => {
+  store.getState().setPipelineStepConfig(projectId, "review", (current) => ({
+    ...current,
+    autoAdvance: true,
+  }));
+  const planChatId = await store
+    .getState()
+    .startPipelineTask(projectId, taskId);
+  assert.ok(planChatId);
+  finishTurn(store, planChatId, "The plan");
+  const buildChatId = await store
+    .getState()
+    .advancePipelineTask(projectId, taskId);
+  assert.ok(buildChatId);
+  finishTurn(store, buildChatId, "Built it");
+  await flushMicrotasks();
+  const reviewChatId = getCurrentPipelineRun(getTask(store))?.chatId;
+  assert.ok(reviewChatId);
+  return reviewChatId;
+};
+
+test("an auto-advancing review holds the task when changes are requested", async () => {
+  const { project, store } = createTestStore();
+  const taskId = addTask(store, project.id);
+  const reviewChatId = await runToReview(store, project.id, taskId);
+
+  finishTurn(store, reviewChatId, "CHANGES REQUESTED\n1. Bug at foo.ts:3");
+  await flushMicrotasks();
+
+  assert.equal(getTask(store).step, "review");
+});
+
+test("an auto-advancing review moves on only with an explicit APPROVE", async () => {
+  const { project, store } = createTestStore();
+  const taskId = addTask(store, project.id);
+  const reviewChatId = await runToReview(store, project.id, taskId);
+
+  finishTurn(store, reviewChatId, "APPROVE\n1. Nit at foo.ts:3");
+  await flushMicrotasks();
+
+  assert.equal(getTask(store).step, "merge");
+});
+
 test("waiting, failed, and interrupted turns never advance a task", async () => {
   const { project, store } = createTestStore();
   const taskId = addTask(store, project.id);

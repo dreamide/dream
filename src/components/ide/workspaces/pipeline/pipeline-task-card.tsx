@@ -144,8 +144,11 @@ const PipelineTaskCardImpl = ({
   const needsRetry =
     status === "failed" || status === "interrupted" || status === "missing";
   // Approving needs something to hand to the next step.
+  const changesRequested = status === "changesRequested";
   const canApprove =
-    (status === "awaitingApproval" || status === "waiting") &&
+    (status === "awaitingApproval" ||
+      status === "waiting" ||
+      changesRequested) &&
     (Boolean(currentRun?.output) || chatExists);
 
   const primaryAction =
@@ -157,27 +160,37 @@ const PipelineTaskCardImpl = ({
             label: t("reopenWorktree"),
             run: () => onReopenWorktree(task.id),
           }
-        : needsRetry
+        : changesRequested
           ? {
-              icon: RotateCcw,
-              label: t("retryStep"),
-              run: () => onRetry(task.id),
+              // The reviewer's findings go back to the builder; approving
+              // anyway stays available from the menu.
+              icon: Undo2,
+              label: t("sendBackTo", {
+                step: t(PIPELINE_STEP_LABEL_KEYS.build),
+              }),
+              run: () => onSendBack(task, "build"),
             }
-          : canApprove && nextStep
+          : needsRetry
             ? {
-                icon: ChevronsRight,
-                label: t("approveAdvance", {
-                  step: t(PIPELINE_STEP_LABEL_KEYS[nextStep]),
-                }),
-                run: () => onAdvance(task.id),
+                icon: RotateCcw,
+                label: t("retryStep"),
+                run: () => onRetry(task.id),
               }
-            : canApprove && task.step === "merge"
+            : canApprove && nextStep
               ? {
-                  icon: Check,
-                  label: t("complete"),
-                  run: () => onComplete(task),
+                  icon: ChevronsRight,
+                  label: t("approveAdvance", {
+                    step: t(PIPELINE_STEP_LABEL_KEYS[nextStep]),
+                  }),
+                  run: () => onAdvance(task.id),
                 }
-              : null;
+              : canApprove && task.step === "merge"
+                ? {
+                    icon: Check,
+                    label: t("complete"),
+                    run: () => onComplete(task),
+                  }
+                : null;
 
   // Completing is also offered from the menu, so a task can skip the merge
   // agent (or a failed one) and go straight to merge / PR.
@@ -250,6 +263,14 @@ const PipelineTaskCardImpl = ({
                   ))}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
+            ) : null}
+            {changesRequested && canApprove && nextStep ? (
+              <DropdownMenuItem onClick={() => onAdvance(task.id)}>
+                <ChevronsRight className="size-4" />
+                {t("approveAdvance", {
+                  step: t(PIPELINE_STEP_LABEL_KEYS[nextStep]),
+                })}
+              </DropdownMenuItem>
             ) : null}
             {sendBackTargets.length > 0 && !task.completion ? (
               <DropdownMenuSub>

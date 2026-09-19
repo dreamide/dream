@@ -232,3 +232,42 @@ export const renderPipelinePrompt = ({
 
   return text.replace(/\n{3,}/g, "\n\n").trim();
 };
+
+export type PipelineReviewVerdict = "approve" | "changes";
+
+// Markdown decoration and an optional "Verdict:" label before the verdict.
+const VERDICT_LINE_PREFIX_PATTERN = /^[\s>#*_`-]*(?:verdict\b[\s*_`:–—-]*)?/i;
+const LEADING_CHANGES_PATTERN = /^CHANGES?[\s_-]+REQUESTED\b/i;
+// Approval must be shouted as the prompt asks, so prose like "Approve of the
+// naming" in a finding can never wave a task through.
+const LEADING_APPROVE_PATTERN = /^APPROVED?\b/;
+const ANY_CHANGES_PATTERN = /\bCHANGES?[\s_-]+REQUESTED\b/i;
+const SHOUTED_APPROVE_PATTERN = /\bAPPROVED?\b/;
+
+/**
+ * Reads the verdict the review prompt asks for. A line that leads with the
+ * verdict wins over words that merely appear in the findings; `null` means the
+ * reviewer gave no recognizable verdict.
+ */
+export const getPipelineReviewVerdict = (
+  output: string | null | undefined,
+): PipelineReviewVerdict | null => {
+  if (!output?.trim()) {
+    return null;
+  }
+
+  for (const line of output.split(/\r?\n/)) {
+    const lead = line.replace(VERDICT_LINE_PREFIX_PATTERN, "");
+    if (LEADING_CHANGES_PATTERN.test(lead)) {
+      return "changes";
+    }
+    if (LEADING_APPROVE_PATTERN.test(lead)) {
+      return "approve";
+    }
+  }
+
+  if (ANY_CHANGES_PATTERN.test(output)) {
+    return "changes";
+  }
+  return SHOUTED_APPROVE_PATTERN.test(output) ? "approve" : null;
+};

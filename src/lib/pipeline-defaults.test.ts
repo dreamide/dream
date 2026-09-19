@@ -5,6 +5,7 @@ import {
   DEFAULT_PIPELINE_PROMPTS,
   getEarlierPipelineRunSteps,
   getNextPipelineStep,
+  getPipelineReviewVerdict,
   getPipelineStepPrompt,
   PIPELINE_PROMPT_VARIABLES,
   PIPELINE_RUN_STEP_IDS,
@@ -120,5 +121,40 @@ test("missing git details fall back to readable wording", () => {
       template: "{{branch}} -> {{baseRef}}",
     }),
     "the current branch -> the base branch",
+  );
+});
+
+test("reads the review verdict line", () => {
+  assert.equal(
+    getPipelineReviewVerdict("Looks good.\n\nAPPROVE\n1. nit at a.ts:3"),
+    "approve",
+  );
+  assert.equal(
+    getPipelineReviewVerdict(
+      "**Verdict: CHANGES REQUESTED**\n1. bug at a.ts:3",
+    ),
+    "changes",
+  );
+  assert.equal(
+    getPipelineReviewVerdict("## Verdict\nCHANGES_REQUESTED"),
+    "changes",
+  );
+});
+
+test("requested changes win over an approve mentioned in the findings", () => {
+  assert.equal(
+    getPipelineReviewVerdict(
+      "I cannot APPROVE this yet.\nOverall: changes requested before merge.",
+    ),
+    "changes",
+  );
+});
+
+test("gives no verdict when the reviewer did not state one", () => {
+  assert.equal(getPipelineReviewVerdict(null), null);
+  assert.equal(getPipelineReviewVerdict("   "), null);
+  assert.equal(
+    getPipelineReviewVerdict("Approve of the naming overall."),
+    null,
   );
 });

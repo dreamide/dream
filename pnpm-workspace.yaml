@@ -9,6 +9,11 @@ allowBuilds:
   node-pty: true
   sharp: false
 
+# pnpm's cache of post-install results held a broken snapshot of electron
+# (cli.js recorded as deleted), which every install then restored and broke
+# `pnpm dev`. Build scripts run fresh instead of trusting that cache.
+sideEffectsCache: false
+
 supportedArchitectures:
   os:
     - current

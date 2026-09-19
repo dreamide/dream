@@ -16,7 +16,8 @@ import {
   type PipelineTaskCardProps,
 } from "./pipeline-task-card";
 
-export const PIPELINE_COLUMN_SURFACE_CLASSES = "rounded-lg text-foreground";
+export const PIPELINE_COLUMN_SURFACE_CLASSES =
+  "rounded-lg bg-surface-100/60 text-foreground dark:bg-surface-800/30";
 
 export interface PipelineColumnProps
   extends Omit<
