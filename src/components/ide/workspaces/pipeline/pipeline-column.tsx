@@ -8,6 +8,7 @@ import type {
   PipelineStepConfig,
   PipelineTask,
 } from "@/types/ide";
+import { PipelineColumnModelBar } from "./pipeline-column-model-bar";
 import { PipelineStepIcon } from "./pipeline-step-icon";
 import type { PipelineStepDescriptor } from "./pipeline-steps";
 import {
@@ -16,7 +17,7 @@ import {
 } from "./pipeline-task-card";
 
 export const PIPELINE_COLUMN_SURFACE_CLASSES =
-  "overflow-hidden rounded-lg bg-surface-100/60 text-foreground dark:bg-surface-800/30";
+  "rounded-lg bg-surface-100/60 text-foreground dark:bg-surface-800/30";
 
 export interface PipelineColumnProps
   extends Omit<
@@ -28,6 +29,7 @@ export interface PipelineColumnProps
   errorsByTaskId: Record<string, string>;
   onAddTask: () => void;
   onConfigureStep: (step: PipelineRunStepId) => void;
+  projectId: string;
   step: PipelineStepDescriptor;
   tasks: PipelineTask[];
 }
@@ -37,6 +39,7 @@ const PipelineColumnImpl = ({
   errorsByTaskId,
   onAddTask,
   onConfigureStep,
+  projectId,
   step,
   tasks,
   ...cardHandlers
@@ -49,7 +52,7 @@ const PipelineColumnImpl = ({
       aria-label={t(step.labelKey)}
       className={cn(
         PIPELINE_COLUMN_SURFACE_CLASSES,
-        "flex w-72 shrink-0 flex-col",
+        "flex min-w-72 flex-1 basis-0 flex-col",
       )}
       data-pipeline-step={step.id}
     >
@@ -119,6 +122,13 @@ const PipelineColumnImpl = ({
           </Button>
         ) : null}
       </div>
+      {config && !isBacklog ? (
+        <PipelineColumnModelBar
+          config={config}
+          projectId={projectId}
+          step={step.id as PipelineRunStepId}
+        />
+      ) : null}
     </section>
   );
 };

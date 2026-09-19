@@ -1,6 +1,5 @@
 import { useTranslations } from "next-intl";
-import { useMemo, useRef, useState } from "react";
-import { ProviderIcon } from "@/components/ai-elements/provider-icons";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,58 +10,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  getConnectedProviders,
-  getModelOptionsForProvider,
-  resolveModelSpeedForModel,
-  resolveReasoningEffortForModel,
-} from "@/lib/ide-defaults";
-import { getModelReasoningEfforts, getModelSpeedTiers } from "@/lib/models";
 import {
   DEFAULT_PIPELINE_PROMPTS,
   PIPELINE_PROMPT_VARIABLES,
   PIPELINE_RUN_STEP_IDS,
 } from "@/lib/pipeline-defaults";
 import type {
-  AgentMode,
-  AiProvider,
-  ChatPermissionMode,
   PipelineConfig,
   PipelineRunStepId,
   PipelineStepConfig,
 } from "@/types/ide";
 import { useIdeStore } from "../../ide-store";
-import { AGENT_MODE_OPTIONS } from "../../ide-types";
 import { PipelineStepIcon } from "./pipeline-step-icon";
 import { PIPELINE_STEP_LABEL_KEYS } from "./pipeline-steps";
-
-const INHERIT_MODEL = "__inherit__";
-const DEFAULT_EFFORT = "__default__";
-const MODEL_VALUE_SEPARATOR = "::";
 
 export interface PipelineSettingsDialogProps {
   config: PipelineConfig;
   initialStep: PipelineRunStepId;
   onClose: () => void;
   projectId: string;
-}
-
-interface StepModelOption {
-  id: string;
-  label: string;
-  provider: AiProvider;
-  value: string;
 }
 
 export const PipelineSettingsDialog = ({
@@ -72,11 +41,7 @@ export const PipelineSettingsDialog = ({
   projectId,
 }: PipelineSettingsDialogProps) => {
   const t = useTranslations("pipeline");
-  const chatT = useTranslations("chat");
-  const modelT = useTranslations("models");
   const commonT = useTranslations("common");
-  const settings = useIdeStore((s) => s.settings);
-  const providerModels = useIdeStore((s) => s.providerModels);
   const setPipelineStepConfig = useIdeStore((s) => s.setPipelineStepConfig);
   const resetPipelineStepConfig = useIdeStore((s) => s.resetPipelineStepConfig);
   const [step, setStep] = useState<PipelineRunStepId>(initialStep);
@@ -86,71 +51,9 @@ export const PipelineSettingsDialog = ({
   const promptValue = stepConfig.prompt ?? DEFAULT_PIPELINE_PROMPTS[step];
   const isDefaultPrompt = stepConfig.prompt === null;
 
-  const modelOptions = useMemo<StepModelOption[]>(
-    () =>
-      getConnectedProviders(settings).flatMap((provider) =>
-        getModelOptionsForProvider(
-          provider,
-          settings,
-          providerModels[provider].models,
-        ).map((model) => ({
-          id: model.id,
-          label: model.label,
-          provider,
-          value: `${provider}${MODEL_VALUE_SEPARATOR}${model.id}`,
-        })),
-      ),
-    [providerModels, settings],
-  );
-
   const update = (
     updater: (current: PipelineStepConfig) => PipelineStepConfig,
   ) => setPipelineStepConfig(projectId, step, updater);
-
-  const selectedModel = stepConfig.model;
-  const selectedModelValue = selectedModel
-    ? `${selectedModel.provider}${MODEL_VALUE_SEPARATOR}${selectedModel.model}`
-    : INHERIT_MODEL;
-  const selectedModelOption = modelOptions.find(
-    (option) => option.value === selectedModelValue,
-  );
-  const reasoningEfforts = selectedModel
-    ? getModelReasoningEfforts(selectedModel.provider, selectedModel.model)
-    : [];
-  const speedTiers = selectedModel
-    ? getModelSpeedTiers(selectedModel.provider, selectedModel.model)
-    : [];
-
-  const handleModelChange = (value: unknown) => {
-    if (typeof value !== "string") {
-      return;
-    }
-    if (value === INHERIT_MODEL) {
-      update((current) => ({ ...current, model: null }));
-      return;
-    }
-
-    const option = modelOptions.find((entry) => entry.value === value);
-    if (!option) {
-      return;
-    }
-
-    update((current) => ({
-      ...current,
-      model: {
-        model: option.id,
-        modelSpeed: resolveModelSpeedForModel(
-          current.model?.modelSpeed,
-          getModelSpeedTiers(option.provider, option.id),
-        ),
-        provider: option.provider,
-        reasoningEffort: resolveReasoningEffortForModel(
-          current.model?.reasoningEffort,
-          getModelReasoningEfforts(option.provider, option.id),
-        ),
-      },
-    }));
-  };
 
   const insertVariable = (variable: string) => {
     const token = `{{${variable}}}`;
@@ -195,203 +98,6 @@ export const PipelineSettingsDialog = ({
             ))}
           </TabsList>
         </Tabs>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>{chatT("model")}</Label>
-            <Select
-              onValueChange={handleModelChange}
-              value={selectedModelValue}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {selectedModel ? (
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <ProviderIcon
-                        className="size-3.5 shrink-0"
-                        provider={selectedModel.provider}
-                      />
-                      <span className="truncate">
-                        {selectedModelOption?.label ?? selectedModel.model}
-                      </span>
-                    </span>
-                  ) : (
-                    t("inheritModel")
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value={INHERIT_MODEL}>
-                    {t("inheritModel")}
-                  </SelectItem>
-                  {modelOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      <span className="flex items-center gap-1.5">
-                        <ProviderIcon
-                          className="size-3.5 shrink-0"
-                          provider={option.provider}
-                        />
-                        <span className="truncate">{option.label}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>{modelT("reasoning")}</Label>
-              <Select
-                disabled={reasoningEfforts.length === 0}
-                onValueChange={(value) => {
-                  if (typeof value !== "string" || !selectedModel) {
-                    return;
-                  }
-                  update((current) =>
-                    current.model
-                      ? {
-                          ...current,
-                          model: {
-                            ...current.model,
-                            reasoningEffort: resolveReasoningEffortForModel(
-                              value === DEFAULT_EFFORT ? "medium" : value,
-                              reasoningEfforts,
-                            ),
-                          },
-                        }
-                      : current,
-                  );
-                }}
-                value={selectedModel?.reasoningEffort ?? DEFAULT_EFFORT}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {reasoningEfforts.length === 0
-                      ? "—"
-                      : modelT(selectedModel?.reasoningEffort ?? "medium")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {reasoningEfforts.map((effort) => (
-                      <SelectItem
-                        key={effort}
-                        value={effort === "medium" ? DEFAULT_EFFORT : effort}
-                      >
-                        {modelT(effort)}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t("speedLabel")}</Label>
-              <Select
-                disabled={speedTiers.length < 2}
-                onValueChange={(value) => {
-                  if (typeof value !== "string") {
-                    return;
-                  }
-                  update((current) =>
-                    current.model
-                      ? {
-                          ...current,
-                          model: {
-                            ...current.model,
-                            modelSpeed: resolveModelSpeedForModel(
-                              value,
-                              speedTiers,
-                            ),
-                          },
-                        }
-                      : current,
-                  );
-                }}
-                value={selectedModel?.modelSpeed ?? "standard"}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {modelT(selectedModel?.modelSpeed ?? "standard")}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {speedTiers.map((speed) => (
-                      <SelectItem key={speed} value={speed}>
-                        {modelT(speed)}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{chatT("agentMode")}</Label>
-            <Select
-              onValueChange={(value) => {
-                if (value === "plan" || value === "build") {
-                  update((current) => ({
-                    ...current,
-                    agentMode: value as AgentMode,
-                  }));
-                }
-              }}
-              value={stepConfig.agentMode}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>{chatT(stepConfig.agentMode)}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {AGENT_MODE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {chatT(option.value)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>{chatT("permissions")}</Label>
-            <Select
-              onValueChange={(value) => {
-                if (value === "standard" || value === "full-access") {
-                  update((current) => ({
-                    ...current,
-                    permissionMode: value as ChatPermissionMode,
-                  }));
-                }
-              }}
-              value={stepConfig.permissionMode}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {stepConfig.permissionMode === "standard"
-                    ? chatT("standardPermissions")
-                    : chatT("fullAccess")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="standard">
-                    {chatT("standardPermissions")}
-                  </SelectItem>
-                  <SelectItem value="full-access">
-                    {chatT("fullAccess")}
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
 
         {stepConfig.permissionMode === "standard" ||
         stepConfig.agentMode === "plan" ? (

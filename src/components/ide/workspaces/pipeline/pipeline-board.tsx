@@ -240,7 +240,9 @@ export const PipelineBoard = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="-m-2 min-h-0 flex-1 overflow-x-auto p-2">
-        <div className="mx-auto flex h-full w-max gap-2">
+        {/* Columns share the width up to 1920px; below five 18rem columns
+            (plus gaps) the board scrolls instead of squeezing them. */}
+        <div className="mx-auto flex h-full w-full min-w-[calc(5*18rem+4*0.5rem)] max-w-[1920px] gap-2">
           {PIPELINE_STEPS.map((step) => (
             <PipelineColumn
               config={step.id === "backlog" ? null : config[step.id]}
@@ -258,6 +260,7 @@ export const PipelineBoard = ({
               onRetry={handleRetry}
               onSendBack={handleSendBack}
               onStart={handleStart}
+              projectId={projectId}
               step={step}
               tasks={tasksByStep[step.id]}
             />
