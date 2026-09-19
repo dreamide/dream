@@ -220,3 +220,52 @@ test("purgeWorktreeProject falls back when the activation target is missing", ()
   assert.equal(state.activeProjectId, parent.id);
   assert.equal(state.projectGitRefreshKeys[parent.id], undefined);
 });
+
+test("createWorktreeProject can open the worktree without taking focus", async () => {
+  const { parent, store } = createTestStore();
+  store.setState({ activeProjectId: parent.id });
+  const backgroundPath = "/workspace/background-worktree";
+  stubFetch(() =>
+    Response.json({
+      baseRef: "main",
+      branch: "pipeline/task",
+      mainWorktreePath: parent.path,
+      path: backgroundPath,
+      repoRoot: parent.path,
+    }),
+  );
+
+  try {
+    const created = await store.getState().createWorktreeProject(parent.id, {
+      activate: false,
+      branchName: "pipeline/task",
+    });
+
+    const state = store.getState();
+    assert.ok(created?.projectId);
+    assert.equal(hasProjectPath(state, backgroundPath), true);
+    assert.equal(state.activeProjectId, parent.id);
+    assert.equal(
+      state.projects.find((project) => project.id === created.projectId)
+        ?.worktree?.branch,
+      "pipeline/task",
+    );
+
+    // The default still switches to the new worktree.
+    stubFetch(() =>
+      Response.json({
+        baseRef: "main",
+        branch: "feature-two",
+        mainWorktreePath: parent.path,
+        path: "/workspace/foreground-worktree",
+        repoRoot: parent.path,
+      }),
+    );
+    const foreground = await store
+      .getState()
+      .createWorktreeProject(parent.id, { branchName: "feature-two" });
+    assert.equal(store.getState().activeProjectId, foreground?.projectId);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

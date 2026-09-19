@@ -3,17 +3,17 @@ import {
   type ModelOption,
   normalizeModelSpeed,
 } from "@/lib/models";
+import { createDefaultPipelineConfig } from "@/lib/pipeline-defaults";
 import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
 import type {
   AiProvider,
   AppSettings,
   ChatConfig,
-  KanbanCard,
-  KanbanColumnId,
   ModelSpeed,
   PanelSizes,
   PanelVisibility,
   PersistedIdeState,
+  PipelineTask,
   ProjectConfig,
   ProjectUiState,
   ReasoningEffort,
@@ -102,9 +102,10 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
   chatHistoryPanelOpen: false,
   changesDiffWordWrap: false,
   fileEditorWordWrap: false,
-  kanbanCards: [],
   multiChat: false,
   panelSizes: DEFAULT_PANEL_SIZES,
+  pipelineConfig: createDefaultPipelineConfig(),
+  pipelineTasks: [],
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,
   rightPanelView: "changes",
   stashItems: [],
@@ -145,7 +146,8 @@ export const createProjectConfig = (
     runCommand: "pnpm dev",
     ui: {
       ...DEFAULT_PROJECT_UI,
-      kanbanCards: [],
+      pipelineConfig: createDefaultPipelineConfig(),
+      pipelineTasks: [],
       rightPanelOpen: false,
       stashItems: [],
     },
@@ -233,33 +235,24 @@ export const createStashItem = (
   };
 };
 
-export const KANBAN_COLUMN_IDS = [
-  "backlog",
-  "ready",
-  "inProgress",
-  "review",
-  "done",
-] as const satisfies readonly KanbanColumnId[];
-
-export const isKanbanColumnId = (value: unknown): value is KanbanColumnId =>
-  typeof value === "string" &&
-  (KANBAN_COLUMN_IDS as readonly string[]).includes(value);
-
-export const createKanbanCard = (
-  overrides?: Partial<
-    Pick<KanbanCard, "chatId" | "column" | "description" | "title">
-  >,
-): KanbanCard => {
+export const createPipelineTask = (
+  overrides?: Partial<Pick<PipelineTask, "description" | "title">>,
+): PipelineTask => {
   const timestamp = new Date().toISOString();
 
   return {
-    chatId: overrides?.chatId ?? null,
-    column: overrides?.column ?? "backlog",
+    baseRef: null,
+    branch: null,
+    completion: null,
     createdAt: timestamp,
     description: overrides?.description ?? "",
     id: crypto.randomUUID(),
+    runs: [],
+    step: "backlog",
     title: overrides?.title?.trim() ?? "",
     updatedAt: timestamp,
+    worktreePath: null,
+    worktreeProjectId: null,
   };
 };
 

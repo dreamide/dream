@@ -97,6 +97,7 @@ import {
   scheduleProjectPanelRefresh,
 } from "./project-panel-refresh";
 import { ProjectBranchFooter } from "./project-status-bar";
+import { findPipelineTaskByChatId } from "./store/pipeline-actions";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
@@ -424,14 +425,11 @@ export const ChatPanel = ({
   const pendingChatSubmit = useIdeStore(
     (s) => s.pendingChatSubmitByChatId[chat.id] ?? null,
   );
-  const canSubmitKanbanTask = useIdeStore(
-    (s) =>
-      s.activeProjectId === project.id &&
-      Boolean(
-        s.projects
-          .find((entry) => entry.id === project.id)
-          ?.ui.kanbanCards.some((card) => card.chatId === chat.id),
-      ),
+  // Pipeline step chats submit their queued prompt even when neither the chat
+  // nor its project is in view: the task lives in the parent project while
+  // the step chat may run in a background worktree project.
+  const canSubmitPipelineStep = useIdeStore(
+    (s) => findPipelineTaskByChatId(s.projects, chat.id) !== null,
   );
   const takePendingChatSubmit = useIdeStore((s) => s.takePendingChatSubmit);
   const gitRefreshKey = useIdeStore(
@@ -1208,7 +1206,7 @@ export const ChatPanel = ({
   useEffect(() => {
     if (
       !pendingChatSubmit ||
-      (!isActive && !canSubmitKanbanTask) ||
+      (!isActive && !canSubmitPipelineStep) ||
       !messagesLoaded ||
       isProcessing
     ) {
@@ -1264,7 +1262,7 @@ export const ChatPanel = ({
       window.cancelAnimationFrame(frame);
     };
   }, [
-    canSubmitKanbanTask,
+    canSubmitPipelineStep,
     chat.id,
     isActive,
     isProcessing,

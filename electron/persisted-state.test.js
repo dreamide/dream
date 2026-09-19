@@ -39,7 +39,8 @@ const createProject = (id, lastUsedAt) => ({
     rightPanelOpen: true,
     rightPanelView: "changes",
     stashItems: [],
-    kanbanCards: [],
+    pipelineConfig: {},
+    pipelineTasks: [],
     workspaceView: "code",
   },
   worktree: null,
@@ -300,7 +301,7 @@ test("workspace view survives a relational persistence round trip", async () => 
   const databasePath = path.join(directory, "state.db");
   const timestamp = "2026-08-15T12:00:00.000Z";
   const project = createProject("project-one", timestamp);
-  project.ui.workspaceView = "kanban";
+  project.ui.workspaceView = "pipeline";
 
   try {
     savePersistedState(
@@ -319,7 +320,7 @@ test("workspace view survives a relational persistence round trip", async () => 
     );
 
     const loaded = loadPersistedState({ databasePath });
-    assert.equal(loaded.projects[0]?.ui.workspaceView, "kanban");
+    assert.equal(loaded.projects[0]?.ui.workspaceView, "pipeline");
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
@@ -357,12 +358,90 @@ test("workspace view falls back to code when missing or invalid", async () => {
   }
 });
 
-test("kanban cards survive a relational persistence round trip", async () => {
+const saveProject = (project, databasePath) =>
+  savePersistedState(
+    {
+      activeBrowserTabIdByProject: {},
+      activeProjectId: project.id,
+      browserTabsByProject: {},
+      chats: [],
+      chatSort: "recent",
+      closedProjects: [],
+      messagesByChatId: {},
+      projects: [project],
+      settings: {},
+    },
+    { databasePath },
+  );
+
+test("pipeline tasks and step config survive a relational persistence round trip", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  project.ui.workspaceView = "pipeline";
+  project.ui.pipelineConfig = {
+    build: {
+      agentMode: "build",
+      autoAdvance: false,
+      model: null,
+      permissionMode: "full-access",
+      prompt: "Custom build prompt",
+    },
+  };
+  project.ui.pipelineTasks = [
+    {
+      baseRef: "main",
+      branch: "pipeline/ship-it",
+      completion: null,
+      createdAt: timestamp,
+      description: "Add a pipeline",
+      id: "task-one",
+      runs: [
+        {
+          chatId: "chat-1",
+          feedback: null,
+          finishedAt: timestamp,
+          id: "run-1",
+          output: "The plan",
+          startedAt: timestamp,
+          step: "plan",
+        },
+      ],
+      step: "plan",
+      title: "Ship pipeline",
+      updatedAt: timestamp,
+      worktreePath: "/workspace/ship-it",
+      worktreeProjectId: "project-worktree",
+    },
+    { id: "task-one", title: "Duplicate" },
+    { title: "No id" },
+  ];
+
+  try {
+    saveProject(project, databasePath);
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.deepEqual(loaded.projects[0]?.ui.pipelineTasks, [
+      project.ui.pipelineTasks[0],
+    ]);
+    assert.deepEqual(
+      loaded.projects[0]?.ui.pipelineConfig,
+      project.ui.pipelineConfig,
+    );
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("legacy kanban cards and view migrate to the pipeline", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
   const timestamp = "2026-08-15T12:00:00.000Z";
   const project = createProject("project-one", timestamp);
   project.ui.workspaceView = "kanban";
+  delete project.ui.pipelineTasks;
   project.ui.kanbanCards = [
     {
       chatId: "chat-1",
@@ -375,36 +454,53 @@ test("kanban cards survive a relational persistence round trip", async () => {
     },
     {
       chatId: null,
-      column: "backlog",
+      column: "ready",
       createdAt: timestamp,
       description: "",
       id: "card-two",
       title: "Write docs",
       updatedAt: timestamp,
     },
+    {
+      chatId: "chat-3",
+      column: "done",
+      createdAt: timestamp,
+      description: "",
+      id: "card-three",
+      title: "Shipped",
+      updatedAt: timestamp,
+    },
   ];
 
   try {
-    savePersistedState(
-      {
-        activeBrowserTabIdByProject: {},
-        activeProjectId: project.id,
-        browserTabsByProject: {},
-        chats: [],
-        chatSort: "recent",
-        closedProjects: [],
-        messagesByChatId: {},
-        projects: [project],
-        settings: {},
-      },
-      { databasePath },
-    );
+    saveProject(project, databasePath);
 
     const loaded = loadPersistedState({ databasePath });
+    const ui = loaded.projects[0]?.ui;
+    assert.equal(ui?.workspaceView, "pipeline");
+    assert.equal(Object.hasOwn(ui ?? {}, "kanbanCards"), false);
     assert.deepEqual(
-      loaded.projects[0]?.ui.kanbanCards,
-      project.ui.kanbanCards,
+      ui?.pipelineTasks.map((task) => [task.id, task.step]),
+      [
+        ["card-one", "build"],
+        ["card-two", "backlog"],
+        ["card-three", "merge"],
+      ],
     );
+    assert.deepEqual(ui?.pipelineTasks[0]?.runs, [
+      {
+        chatId: "chat-1",
+        feedback: null,
+        finishedAt: null,
+        id: "legacy-card-one",
+        output: null,
+        startedAt: timestamp,
+        step: "build",
+      },
+    ]);
+    assert.deepEqual(ui?.pipelineTasks[1]?.runs, []);
+    assert.equal(ui?.pipelineTasks[2]?.completion?.kind, "legacy");
+    assert.equal(ui?.pipelineTasks[2]?.runs[0]?.finishedAt, timestamp);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

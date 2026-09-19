@@ -127,7 +127,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   ...createSettingsActions(set, get),
 
   // ── Actions: runtime ────────────────────────────────────────────────
-  ...createRuntimeActions(set),
+  ...createRuntimeActions(set, get),
   ...createBrowserActions(set, get),
   ...createTerminalActions(set, get),
 

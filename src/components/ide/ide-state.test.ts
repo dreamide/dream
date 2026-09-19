@@ -126,53 +126,143 @@ test("mergePersistedState preserves the project changes diff word-wrap preferenc
   assert.equal(merged.projects[0].ui.changesDiffWordWrap, true);
 });
 
-test("mergePersistedState normalizes kanban cards and drops invalid ones", () => {
+test("mergePersistedState normalizes pipeline tasks and drops invalid ones", () => {
   const merged = mergePersistedState({
     projects: [
       createPersistedProject({
         ui: {
-          kanbanCards: [
+          pipelineTasks: [
             {
-              chatId: "chat-1",
-              column: "review",
+              branch: "pipeline/valid",
               createdAt: "2026-08-15T12:00:00.000Z",
               description: "Details",
-              id: "card-one",
+              id: "task-one",
+              runs: [
+                {
+                  chatId: "chat-1",
+                  finishedAt: "2026-08-15T13:00:00.000Z",
+                  id: "run-1",
+                  output: "The plan",
+                  startedAt: "2026-08-15T12:00:00.000Z",
+                  step: "plan",
+                },
+                { id: "run-2", step: "bogus" },
+                { id: "run-1", step: "build" },
+              ],
+              step: "plan",
               title: "Valid",
               updatedAt: "2026-08-15T12:00:00.000Z",
             },
-            {
-              column: "bogus",
-              id: "card-two",
-              title: "Bad column",
-              chatId: 42,
-            },
+            { id: "task-two", step: "bogus", title: "Bad step", runs: 42 },
             { id: "", title: "No id" },
-            { id: "card-one", title: "Duplicate" },
+            { id: "task-one", title: "Duplicate" },
           ],
         } as unknown as ProjectConfig["ui"],
       }),
     ],
   });
 
-  const cards = merged.projects[0].ui.kanbanCards;
-  assert.equal(cards.length, 2);
-  assert.equal(cards[0].id, "card-one");
-  assert.equal(cards[0].column, "review");
-  assert.equal(cards[0].chatId, "chat-1");
-  assert.equal(cards[0].title, "Valid");
-  assert.equal(cards[1].id, "card-two");
-  assert.equal(cards[1].column, "backlog");
-  assert.equal(cards[1].chatId, null);
-  assert.equal(cards[1].description, "");
+  const tasks = merged.projects[0].ui.pipelineTasks;
+  assert.equal(tasks.length, 2);
+  assert.equal(tasks[0].id, "task-one");
+  assert.equal(tasks[0].step, "plan");
+  assert.equal(tasks[0].branch, "pipeline/valid");
+  assert.equal(tasks[0].runs.length, 1);
+  assert.equal(tasks[0].runs[0].output, "The plan");
+  assert.equal(tasks[0].runs[0].feedback, null);
+  assert.equal(tasks[0].completion, null);
+  assert.equal(tasks[1].id, "task-two");
+  assert.equal(tasks[1].step, "backlog");
+  assert.deepEqual(tasks[1].runs, []);
+  assert.equal(tasks[1].worktreeProjectId, null);
 });
 
-test("mergePersistedState preserves the project workspace view and falls back to code", () => {
+test("mergePersistedState migrates legacy kanban cards into pipeline tasks", () => {
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const legacyCard = (id: string, column: string, chatId: string | null) => ({
+    chatId,
+    column,
+    createdAt: timestamp,
+    description: "",
+    id,
+    title: id,
+    updatedAt: timestamp,
+  });
   const merged = mergePersistedState({
     projects: [
       createPersistedProject({
+        ui: {
+          kanbanCards: [
+            legacyCard("backlog", "backlog", null),
+            legacyCard("ready", "ready", "chat-ignored"),
+            legacyCard("progress", "inProgress", "chat-progress"),
+            legacyCard("review", "review", "chat-review"),
+            legacyCard("done", "done", "chat-done"),
+          ],
+        } as unknown as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  const tasks = merged.projects[0].ui.pipelineTasks;
+  assert.deepEqual(
+    tasks.map((task) => task.step),
+    ["backlog", "backlog", "build", "review", "merge"],
+  );
+  assert.deepEqual(tasks[1].runs, []);
+  assert.equal(tasks[2].runs[0].chatId, "chat-progress");
+  assert.equal(tasks[2].runs[0].step, "build");
+  assert.equal(tasks[2].runs[0].finishedAt, null);
+  assert.equal(tasks[3].runs[0].finishedAt, timestamp);
+  assert.equal(tasks[4].completion?.kind, "legacy");
+  assert.ok(tasks.every((task) => task.worktreeProjectId === null));
+});
+
+test("mergePersistedState fills pipeline step config gaps from defaults", () => {
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        ui: {
+          pipelineConfig: {
+            build: {
+              autoAdvance: false,
+              model: {
+                model: "opus",
+                provider: "anthropic",
+                reasoningEffort: "high",
+              },
+              prompt: "Custom build prompt",
+            },
+            plan: { agentMode: "bogus", model: { model: "" }, prompt: "  " },
+          },
+        } as unknown as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  const config = merged.projects[0].ui.pipelineConfig;
+  assert.equal(config.build.autoAdvance, false);
+  assert.equal(config.build.agentMode, "build");
+  assert.equal(config.build.prompt, "Custom build prompt");
+  assert.equal(config.build.model?.model, "opus");
+  assert.equal(config.build.model?.modelSpeed, "standard");
+  assert.equal(config.plan.agentMode, "plan");
+  assert.equal(config.plan.model, null);
+  assert.equal(config.plan.prompt, null);
+  assert.equal(config.review.permissionMode, "standard");
+  assert.equal(config.merge.autoAdvance, false);
+});
+
+test("mergePersistedState upgrades the kanban workspace view and falls back to code", () => {
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        id: "project-pipeline",
+        ui: { workspaceView: "pipeline" } as ProjectConfig["ui"],
+      }),
+      createPersistedProject({
         id: "project-kanban",
-        ui: { workspaceView: "kanban" } as ProjectConfig["ui"],
+        ui: { workspaceView: "kanban" } as unknown as ProjectConfig["ui"],
       }),
       createPersistedProject({
         id: "project-invalid",
@@ -185,9 +275,10 @@ test("mergePersistedState preserves the project workspace view and falls back to
     ],
   });
 
-  assert.equal(merged.projects[0].ui.workspaceView, "kanban");
-  assert.equal(merged.projects[1].ui.workspaceView, "code");
+  assert.equal(merged.projects[0].ui.workspaceView, "pipeline");
+  assert.equal(merged.projects[1].ui.workspaceView, "pipeline");
   assert.equal(merged.projects[2].ui.workspaceView, "code");
+  assert.equal(merged.projects[3].ui.workspaceView, "code");
 });
 
 test("mergePersistedState preserves stash items and drops invalid ones", () => {

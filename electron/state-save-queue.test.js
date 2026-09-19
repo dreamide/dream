@@ -36,7 +36,7 @@ const createProject = (id, lastUsedAt) => ({
     },
     rightPanelOpen: true,
     rightPanelView: "changes",
-    kanbanCards: [],
+    pipelineTasks: [],
     workspaceView: "code",
   },
   worktree: null,

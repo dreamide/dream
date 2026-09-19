@@ -18,7 +18,6 @@ import {
   DEFAULT_SETTINGS,
   getDefaultModelSelection,
   getPreferredDefaultModel,
-  isKanbanColumnId,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
 import {
@@ -33,7 +32,6 @@ import type {
   BrowserTabState,
   ChatConfig,
   ChatPermissionMode,
-  KanbanCard,
   PersistedIdeState,
   ProjectConfig,
   ProjectReference,
@@ -47,7 +45,11 @@ import {
   normalizeModelSpeed,
   normalizeReasoningEffort,
 } from "./ide-types";
-import { isProjectWorkspaceView } from "./workspaces/registry";
+import {
+  normalizePipelineConfig,
+  normalizePipelineTasks,
+} from "./pipeline-state";
+import { normalizeProjectWorkspaceView } from "./workspaces/registry";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
@@ -196,61 +198,6 @@ const normalizeStashItems = (value: unknown): StashItem[] => {
   }
 
   return items;
-};
-
-const normalizeKanbanCard = (value: unknown): KanbanCard | null => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const card = value as Partial<KanbanCard>;
-  const id = typeof card.id === "string" ? card.id.trim() : "";
-  if (!id) {
-    return null;
-  }
-
-  const createdAt =
-    typeof card.createdAt === "string" && card.createdAt.trim().length > 0
-      ? card.createdAt
-      : new Date().toISOString();
-  const updatedAt =
-    typeof card.updatedAt === "string" && card.updatedAt.trim().length > 0
-      ? card.updatedAt
-      : createdAt;
-
-  return {
-    chatId:
-      typeof card.chatId === "string" && card.chatId.trim().length > 0
-        ? card.chatId
-        : null,
-    column: isKanbanColumnId(card.column) ? card.column : "backlog",
-    createdAt,
-    description: typeof card.description === "string" ? card.description : "",
-    id,
-    title: typeof card.title === "string" ? card.title : "",
-    updatedAt,
-  };
-};
-
-const normalizeKanbanCards = (value: unknown): KanbanCard[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const seenIds = new Set<string>();
-  const cards: KanbanCard[] = [];
-
-  for (const rawCard of value) {
-    const card = normalizeKanbanCard(rawCard);
-    if (!card || seenIds.has(card.id)) {
-      continue;
-    }
-
-    seenIds.add(card.id);
-    cards.push(card);
-  }
-
-  return cards;
 };
 
 const normalizeBrowserTab = (value: unknown): BrowserTabState | null => {
@@ -601,11 +548,15 @@ const normalizeProject = (
       rightPanelView: isRightPanelView(rawUi.rightPanelView)
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
-      kanbanCards: normalizeKanbanCards(rawUi.kanbanCards),
+      pipelineConfig: normalizePipelineConfig(rawUi.pipelineConfig),
+      pipelineTasks: normalizePipelineTasks(
+        rawUi.pipelineTasks,
+        (rawUi as { kanbanCards?: unknown }).kanbanCards,
+      ),
       stashItems: normalizeStashItems(rawUi.stashItems),
-      workspaceView: isProjectWorkspaceView(rawUi.workspaceView)
-        ? rawUi.workspaceView
-        : DEFAULT_PROJECT_UI.workspaceView,
+      workspaceView:
+        normalizeProjectWorkspaceView(rawUi.workspaceView) ??
+        DEFAULT_PROJECT_UI.workspaceView,
     },
     worktree: normalizeProjectWorktree(
       rawProject.worktree ?? rawMetadata.worktree,
