@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -51,6 +53,9 @@ export const WorkspaceSwitcher = () => {
         align="end"
         className="w-44 [-webkit-app-region:no-drag]"
       >
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("workspaces")}</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuRadioGroup
           onValueChange={(value) => {
             if (activeProjectId && isProjectWorkspaceView(value)) {

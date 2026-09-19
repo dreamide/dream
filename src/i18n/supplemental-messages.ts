@@ -4,6 +4,7 @@ export const supplementalMessages = {
       switchWorkspace: "Arbeitsbereich wechseln",
       workspaceCode: "Code",
       workspacePipeline: "Pipeline",
+      workspaces: "Arbeitsbereiche",
     },
     pipeline: {
       columnBacklog: "Backlog",
@@ -588,6 +589,7 @@ export const supplementalMessages = {
       switchWorkspace: "Switch workspace",
       workspaceCode: "Code",
       workspacePipeline: "Pipeline",
+      workspaces: "Workspaces",
     },
     pipeline: {
       columnBacklog: "Backlog",
@@ -1158,6 +1160,7 @@ export const supplementalMessages = {
       switchWorkspace: "Cambiar de espacio de trabajo",
       workspaceCode: "Código",
       workspacePipeline: "Pipeline",
+      workspaces: "Espacios de trabajo",
     },
     pipeline: {
       columnBacklog: "Pendientes",
@@ -1736,6 +1739,7 @@ export const supplementalMessages = {
       switchWorkspace: "Changer d'espace de travail",
       workspaceCode: "Code",
       workspacePipeline: "Pipeline",
+      workspaces: "Espaces de travail",
     },
     pipeline: {
       columnBacklog: "Backlog",
@@ -2315,6 +2319,7 @@ export const supplementalMessages = {
       switchWorkspace: "Cambia area di lavoro",
       workspaceCode: "Codice",
       workspacePipeline: "Pipeline",
+      workspaces: "Aree di lavoro",
     },
     pipeline: {
       columnBacklog: "Backlog",
@@ -2894,6 +2899,7 @@ export const supplementalMessages = {
       switchWorkspace: "ワークスペースを切り替え",
       workspaceCode: "コード",
       workspacePipeline: "パイプライン",
+      workspaces: "ワークスペース",
     },
     pipeline: {
       columnBacklog: "バックログ",
@@ -3465,6 +3471,7 @@ export const supplementalMessages = {
       switchWorkspace: "워크스페이스 전환",
       workspaceCode: "코드",
       workspacePipeline: "파이프라인",
+      workspaces: "워크스페이스",
     },
     pipeline: {
       columnBacklog: "백로그",
@@ -4027,6 +4034,7 @@ export const supplementalMessages = {
       switchWorkspace: "Alternar espaço de trabalho",
       workspaceCode: "Código",
       workspacePipeline: "Pipeline",
+      workspaces: "Espaços de trabalho",
     },
     pipeline: {
       columnBacklog: "Backlog",
@@ -4600,6 +4608,7 @@ export const supplementalMessages = {
       switchWorkspace: "Chuyển không gian làm việc",
       workspaceCode: "Mã",
       workspacePipeline: "Pipeline",
+      workspaces: "Không gian làm việc",
     },
     pipeline: {
       columnBacklog: "Tồn đọng",
@@ -5168,6 +5177,7 @@ export const supplementalMessages = {
       switchWorkspace: "切换工作区",
       workspaceCode: "代码",
       workspacePipeline: "流水线",
+      workspaces: "工作区",
     },
     pipeline: {
       columnBacklog: "待办",
@@ -5717,6 +5727,7 @@ export const supplementalMessages = {
       switchWorkspace: "切換工作區",
       workspaceCode: "程式碼",
       workspacePipeline: "管線",
+      workspaces: "工作區",
     },
     pipeline: {
       columnBacklog: "待辦",
