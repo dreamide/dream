@@ -113,7 +113,7 @@ export const PipelineSettingsDialog = ({
             </Button>
           </div>
           <Textarea
-            className="max-h-72 min-h-40 font-mono text-xs leading-5"
+            className="max-h-[60vh] min-h-80 text-sm leading-5"
             id="pipeline-step-prompt"
             onChange={(event) => {
               const value = event.target.value;
@@ -124,7 +124,7 @@ export const PipelineSettingsDialog = ({
               }));
             }}
             ref={promptRef}
-            rows={10}
+            rows={16}
             value={promptValue}
           />
           <div className="flex flex-wrap items-center gap-1">

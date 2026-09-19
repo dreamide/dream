@@ -973,7 +973,15 @@ export const ChatPanel = ({
         (item) => item.id === project.id,
       );
 
-      if (!submittedProject || state.activeProjectId !== submittedProject.id) {
+      // Pipeline step chats run in a background worktree project while the
+      // board's project stays active, so they are exempt from the focus check.
+      const isPipelineStepChat =
+        findPipelineTaskByChatId(state.projects, chat.id) !== null;
+
+      if (
+        !submittedProject ||
+        (state.activeProjectId !== submittedProject.id && !isPipelineStepChat)
+      ) {
         const message = chatT("notInActiveProject");
         setLocalError(message);
         throw new Error(message);

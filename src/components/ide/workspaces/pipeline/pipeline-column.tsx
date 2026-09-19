@@ -16,8 +16,7 @@ import {
   type PipelineTaskCardProps,
 } from "./pipeline-task-card";
 
-export const PIPELINE_COLUMN_SURFACE_CLASSES =
-  "rounded-lg bg-surface-100/60 text-foreground dark:bg-surface-800/30";
+export const PIPELINE_COLUMN_SURFACE_CLASSES = "rounded-lg text-foreground";
 
 export interface PipelineColumnProps
   extends Omit<
@@ -64,14 +63,6 @@ const PipelineColumnImpl = ({
         <span className="text-muted-foreground text-sm tabular-nums">
           {tasks.length}
         </span>
-        {config ? (
-          <span
-            className="rounded-sm bg-surface-200/70 px-1.5 py-0.5 text-[10px] text-muted-foreground uppercase tracking-wide dark:bg-surface-700/60"
-            title={t("autoAdvanceHint")}
-          >
-            {config.autoAdvance ? t("gateAuto") : t("gateManual")}
-          </span>
-        ) : null}
         {isBacklog ? (
           <Button
             aria-label={t("addTask")}
