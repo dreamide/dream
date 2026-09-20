@@ -12,10 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  createMcpServer,
-  type McpServerInput,
-} from "@/lib/mcp-servers";
+import { createMcpServer, type McpServerInput } from "@/lib/mcp-servers";
 import type { McpServerConfig } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
 import { McpImportPanel } from "./mcp-import-panel";
@@ -164,9 +161,6 @@ export const McpServersSection = ({
                   {settingsT("mcpEnabled")}
                 </TableHead>
                 <TableHead>{settingsT("mcpName")}</TableHead>
-                <TableHead className="w-24">
-                  {settingsT("mcpTransport")}
-                </TableHead>
                 <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
@@ -188,11 +182,13 @@ export const McpServersSection = ({
                       }
                     />
                   </TableCell>
-                  <TableCell className="font-medium font-mono text-sm">
-                    {server.name}
-                  </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{server.transport}</Badge>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium font-mono text-sm">
+                        {server.name}
+                      </span>
+                      <Badge variant="outline">{server.transport}</Badge>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
