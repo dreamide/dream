@@ -11,7 +11,7 @@ import {
 import type { IdeState } from "./store/ide-store-types";
 import { createPanelActions } from "./store/panel-actions";
 import { createProjectActions } from "./store/project-actions";
-import { DEFAULT_PROVIDER_MODELS } from "./store/provider-model-state";
+import { readCachedProviderModels } from "./store/provider-model-cache";
 import { createRuntimeActions } from "./store/runtime-actions";
 import { createSettingsActions } from "./store/settings-actions";
 import { createTerminalActions } from "./store/terminal-actions";
@@ -68,7 +68,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   settingsOpen: false,
   settingsSection: "appearance",
   modelSearchQuery: "",
-  providerModels: DEFAULT_PROVIDER_MODELS,
+  // Seeded from the last session so pickers are complete before the first
+  // fetch returns; `refreshProviderModels` still runs on startup.
+  providerModels: readCachedProviderModels(),
 
   // ── Getters ─────────────────────────────────────────────────────────
   getActiveProject: () => {

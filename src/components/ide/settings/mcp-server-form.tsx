@@ -176,7 +176,6 @@ export const McpServerForm = ({
   return (
     <form className="max-w-2xl space-y-4" onSubmit={handleSubmit}>
       <McpSubviewHeader
-        description={settingsT("mcpSecretsNote")}
         title={
           target === "new"
             ? settingsT("mcpAddServer")

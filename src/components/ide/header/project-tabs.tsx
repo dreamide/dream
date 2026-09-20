@@ -233,19 +233,6 @@ export const ProjectTabs = () => {
     setActiveProjectId(null);
   }, [setActiveProjectId]);
 
-  const handleToggleMcpServer = useCallback(
-    (projectId: string, serverId: string, enabled: boolean) => {
-      updateProject(projectId, (current) => ({
-        ...current,
-        mcpServerOverrides: {
-          ...current.mcpServerOverrides,
-          [serverId]: enabled,
-        },
-      }));
-    },
-    [updateProject],
-  );
-
   const handleOpenMcpSettings = useCallback(() => {
     setSettingsSection("mcp");
     setSettingsOpen(true);
@@ -276,7 +263,10 @@ export const ProjectTabs = () => {
   }, []);
 
   const handleEditSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
+    (
+      event: FormEvent<HTMLFormElement>,
+      mcpServerOverrides: Record<string, boolean>,
+    ) => {
       event.preventDefault();
 
       const nextName = editValue.trim();
@@ -287,6 +277,10 @@ export const ProjectTabs = () => {
       updateProject(editTarget.id, (current) => ({
         ...current,
         name: nextName,
+        mcpServerOverrides: {
+          ...current.mcpServerOverrides,
+          ...mcpServerOverrides,
+        },
       }));
 
       closeEditDialog();
@@ -418,16 +412,9 @@ export const ProjectTabs = () => {
                 closeProject={closeProject}
                 editors={projectOpenInEditors}
                 isMacOs={isMacOs}
-                mcpServers={mcpServers}
                 onOpenInEditor={handleOpenProjectInEditor}
-                onOpenMcpSettings={handleOpenMcpSettings}
-                onToggleMcpServer={handleToggleMcpServer}
                 open={openProjectMenuId === project.id}
                 project={project}
-                projectConfig={
-                  projects.find((candidate) => candidate.id === project.id) ??
-                  null
-                }
                 setOpen={(open) =>
                   setOpenProjectMenuId(open ? project.id : null)
                 }
@@ -451,6 +438,15 @@ export const ProjectTabs = () => {
       </div>
 
       <ProjectEditDialog
+        key={editTarget?.id ?? "closed"}
+        mcpServers={mcpServers}
+        projectConfig={
+          projects.find((project) => project.id === editTarget?.id) ?? null
+        }
+        onOpenMcpSettings={() => {
+          closeEditDialog();
+          handleOpenMcpSettings();
+        }}
         onClose={closeEditDialog}
         onSubmit={handleEditSubmit}
         onValueChange={setEditValue}

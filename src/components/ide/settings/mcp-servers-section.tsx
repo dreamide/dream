@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/table";
 import {
   createMcpServer,
-  describeMcpServerTarget,
   type McpServerInput,
 } from "@/lib/mcp-servers";
 import type { McpServerConfig } from "@/types/ide";
@@ -168,7 +167,6 @@ export const McpServersSection = ({
                 <TableHead className="w-24">
                   {settingsT("mcpTransport")}
                 </TableHead>
-                <TableHead>{settingsT("mcpTarget")}</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
@@ -195,14 +193,6 @@ export const McpServersSection = ({
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{server.transport}</Badge>
-                  </TableCell>
-                  <TableCell className="max-w-0">
-                    <span
-                      className="block truncate font-mono text-muted-foreground text-xs"
-                      title={describeMcpServerTarget(server)}
-                    >
-                      {describeMcpServerTarget(server)}
-                    </span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
