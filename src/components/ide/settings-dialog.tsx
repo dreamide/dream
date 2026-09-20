@@ -1,9 +1,9 @@
 import {
   Archive,
   ArrowLeft,
+  Bot,
   Monitor,
   Moon,
-  Plug,
   RotateCcw,
   RotateCw,
   Server,
@@ -544,7 +544,7 @@ export const SettingsDialog = () => {
                 type="button"
               >
                 <span className="flex items-center gap-2">
-                  <Plug className="size-4" />
+                  <Bot className="size-4" />
                   {commonT("providers")}
                 </span>
               </button>
@@ -588,6 +588,188 @@ export const SettingsDialog = () => {
             <div className="space-y-4 p-3">
               {settingsSection === "appearance" ? (
                 <div className="space-y-4">
+                  <SettingsGroup label={settingsT("models")}>
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={settingsT(
+                        "defaultModelForNewChatsDescription",
+                      )}
+                      label={settingsT("defaultModelForNewChats")}
+                    >
+                      <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                        <Select
+                          onValueChange={(value) => {
+                            const defaultModel = value ?? "";
+                            const capabilities = getDefaultModelCapabilities(
+                              getDefaultModelEntry(defaultModel),
+                            );
+
+                            setSettings((previous) => ({
+                              ...previous,
+                              defaultModel,
+                              defaultModelSpeed: resolveModelSpeedForModel(
+                                previous.defaultModelSpeed,
+                                capabilities.speedTiers,
+                              ),
+                              defaultReasoningEffort:
+                                resolveReasoningEffortForModel(
+                                  previous.defaultReasoningEffort,
+                                  capabilities.reasoningEfforts,
+                                ),
+                            }));
+                          }}
+                          value={selectedDefaultModel}
+                        >
+                          <SelectTrigger
+                            className="w-full"
+                            disabled={groupedDefaultModelOptions.length === 0}
+                            id="default-model"
+                          >
+                            <SelectValue
+                              placeholder={settingsT("enableModelFirst")}
+                            >
+                              {selectedDefaultModelOption?.label}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="min-w-72">
+                            {groupedDefaultModelOptions.map((group) => (
+                              <SelectGroup key={group.provider}>
+                                {groupedDefaultModelOptions.length > 1 ? (
+                                  <SelectLabel>
+                                    {getProviderLabel(group.provider)}
+                                  </SelectLabel>
+                                ) : null}
+                                {group.models.map((model) => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {defaultReasoningEffortOptions.length > 0 &&
+                        selectedDefaultReasoningEffort ? (
+                          <Select
+                            onValueChange={(value) =>
+                              setSettings((previous) => ({
+                                ...previous,
+                                defaultReasoningEffort:
+                                  value === "medium"
+                                    ? null
+                                    : (value as ReasoningEffort),
+                              }))
+                            }
+                            value={selectedDefaultReasoningEffort}
+                          >
+                            <SelectTrigger
+                              aria-label={settingsT("effort")}
+                              className="w-full sm:w-32"
+                            >
+                              <SelectValue>
+                                {selectedDefaultReasoningLabel}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>{settingsT("effort")}</SelectLabel>
+                                {defaultReasoningEffortOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {modelT(option.value)}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+
+                        {defaultModelSpeedOptions.length > 0 ? (
+                          <Select
+                            onValueChange={(value) =>
+                              setSettings((previous) => ({
+                                ...previous,
+                                defaultModelSpeed: value as ModelSpeed,
+                              }))
+                            }
+                            value={selectedDefaultModelSpeed}
+                          >
+                            <SelectTrigger
+                              aria-label={settingsT("speed")}
+                              className="w-full sm:w-32"
+                            >
+                              <SelectValue>
+                                {selectedDefaultModelSpeedLabel}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>{settingsT("speed")}</SelectLabel>
+                                {defaultModelSpeedOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {modelT(option.value)}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        ) : null}
+                      </div>
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem] md:justify-end"
+                      description={settingsT(
+                        "defaultModelForCommitsDescription",
+                      )}
+                      label={settingsT("defaultModelForCommits")}
+                    >
+                      <Select
+                        onValueChange={(value) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            defaultGitGenerationModel: value ?? "",
+                          }))
+                        }
+                        value={selectedGitGenerationModel}
+                      >
+                        <SelectTrigger
+                          className="w-full md:w-72"
+                          disabled={groupedDefaultModelOptions.length === 0}
+                          id="default-git-generation-model"
+                        >
+                          <SelectValue
+                            placeholder={settingsT("enableModelFirst")}
+                          >
+                            {selectedGitGenerationModelOption?.label}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="min-w-72">
+                          {groupedDefaultModelOptions.map((group) => (
+                            <SelectGroup key={group.provider}>
+                              {groupedDefaultModelOptions.length > 1 ? (
+                                <SelectLabel>
+                                  {getProviderLabel(group.provider)}
+                                </SelectLabel>
+                              ) : null}
+                              {group.models.map((model) => (
+                                <SelectItem key={model.id} value={model.id}>
+                                  {model.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsControlRow>
+                  </SettingsGroup>
+
                   <SettingsControlRow
                     controlClassName="md:w-[34rem]"
                     description={localeT("description")}
@@ -800,188 +982,6 @@ export const SettingsDialog = () => {
                         }))
                       }
                     />
-                  </SettingsGroup>
-
-                  <SettingsGroup label={settingsT("models")}>
-                    <SettingsControlRow
-                      controlClassName="md:w-[34rem]"
-                      description={settingsT(
-                        "defaultModelForNewChatsDescription",
-                      )}
-                      label={settingsT("defaultModelForNewChats")}
-                    >
-                      <div className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                        <Select
-                          onValueChange={(value) => {
-                            const defaultModel = value ?? "";
-                            const capabilities = getDefaultModelCapabilities(
-                              getDefaultModelEntry(defaultModel),
-                            );
-
-                            setSettings((previous) => ({
-                              ...previous,
-                              defaultModel,
-                              defaultModelSpeed: resolveModelSpeedForModel(
-                                previous.defaultModelSpeed,
-                                capabilities.speedTiers,
-                              ),
-                              defaultReasoningEffort:
-                                resolveReasoningEffortForModel(
-                                  previous.defaultReasoningEffort,
-                                  capabilities.reasoningEfforts,
-                                ),
-                            }));
-                          }}
-                          value={selectedDefaultModel}
-                        >
-                          <SelectTrigger
-                            className="w-full"
-                            disabled={groupedDefaultModelOptions.length === 0}
-                            id="default-model"
-                          >
-                            <SelectValue
-                              placeholder={settingsT("enableModelFirst")}
-                            >
-                              {selectedDefaultModelOption?.label}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="min-w-72">
-                            {groupedDefaultModelOptions.map((group) => (
-                              <SelectGroup key={group.provider}>
-                                {groupedDefaultModelOptions.length > 1 ? (
-                                  <SelectLabel>
-                                    {getProviderLabel(group.provider)}
-                                  </SelectLabel>
-                                ) : null}
-                                {group.models.map((model) => (
-                                  <SelectItem key={model.id} value={model.id}>
-                                    {model.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            ))}
-                          </SelectContent>
-                        </Select>
-
-                        {defaultReasoningEffortOptions.length > 0 &&
-                        selectedDefaultReasoningEffort ? (
-                          <Select
-                            onValueChange={(value) =>
-                              setSettings((previous) => ({
-                                ...previous,
-                                defaultReasoningEffort:
-                                  value === "medium"
-                                    ? null
-                                    : (value as ReasoningEffort),
-                              }))
-                            }
-                            value={selectedDefaultReasoningEffort}
-                          >
-                            <SelectTrigger
-                              aria-label={settingsT("effort")}
-                              className="w-full sm:w-32"
-                            >
-                              <SelectValue>
-                                {selectedDefaultReasoningLabel}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectLabel>{settingsT("effort")}</SelectLabel>
-                                {defaultReasoningEffortOptions.map((option) => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {modelT(option.value)}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        ) : null}
-
-                        {defaultModelSpeedOptions.length > 0 ? (
-                          <Select
-                            onValueChange={(value) =>
-                              setSettings((previous) => ({
-                                ...previous,
-                                defaultModelSpeed: value as ModelSpeed,
-                              }))
-                            }
-                            value={selectedDefaultModelSpeed}
-                          >
-                            <SelectTrigger
-                              aria-label={settingsT("speed")}
-                              className="w-full sm:w-32"
-                            >
-                              <SelectValue>
-                                {selectedDefaultModelSpeedLabel}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectLabel>{settingsT("speed")}</SelectLabel>
-                                {defaultModelSpeedOptions.map((option) => (
-                                  <SelectItem
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {modelT(option.value)}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        ) : null}
-                      </div>
-                    </SettingsControlRow>
-
-                    <SettingsControlRow
-                      controlClassName="md:w-[34rem] md:justify-end"
-                      description={settingsT(
-                        "defaultModelForCommitsDescription",
-                      )}
-                      label={settingsT("defaultModelForCommits")}
-                    >
-                      <Select
-                        onValueChange={(value) =>
-                          setSettings((previous) => ({
-                            ...previous,
-                            defaultGitGenerationModel: value ?? "",
-                          }))
-                        }
-                        value={selectedGitGenerationModel}
-                      >
-                        <SelectTrigger
-                          className="w-full md:w-72"
-                          disabled={groupedDefaultModelOptions.length === 0}
-                          id="default-git-generation-model"
-                        >
-                          <SelectValue
-                            placeholder={settingsT("enableModelFirst")}
-                          >
-                            {selectedGitGenerationModelOption?.label}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="min-w-72">
-                          {groupedDefaultModelOptions.map((group) => (
-                            <SelectGroup key={group.provider}>
-                              {groupedDefaultModelOptions.length > 1 ? (
-                                <SelectLabel>
-                                  {getProviderLabel(group.provider)}
-                                </SelectLabel>
-                              ) : null}
-                              {group.models.map((model) => (
-                                <SelectItem key={model.id} value={model.id}>
-                                  {model.label}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </SettingsControlRow>
                   </SettingsGroup>
                 </div>
               ) : null}

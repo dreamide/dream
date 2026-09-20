@@ -141,7 +141,9 @@ export const createProjectLifecycleActions = (
     });
   },
 
-  addProject: (path: string) => {
+  addProject: (path: string, addOptions?: { activate?: boolean }) => {
+    // Background reopen (e.g. a pipeline task's worktree) keeps focus put.
+    const activate = addOptions?.activate !== false;
     set((state) => {
       const pathKey = normalizeProjectPathKey(path);
       const lastUsedAt = new Date().toISOString();
@@ -173,7 +175,7 @@ export const createProjectLifecycleActions = (
           nextActiveChatId = nextChat.id;
         }
         return {
-          activeProjectId: openProject.id,
+          ...(activate ? { activeProjectId: openProject.id } : {}),
           chats: nextChats,
           messagesByChatId: nextMessagesByChatId,
           projects: updateProjectUiInList(
@@ -214,7 +216,7 @@ export const createProjectLifecycleActions = (
         }
 
         return {
-          activeProjectId: reopenedProject.id,
+          ...(activate ? { activeProjectId: reopenedProject.id } : {}),
           closedProjects: state.closedProjects.filter(
             (project) =>
               normalizeProjectPathKey(project.path) !== pathKey &&
@@ -241,7 +243,7 @@ export const createProjectLifecycleActions = (
       const nextChat = createChatConfig(nextProject);
 
       return {
-        activeProjectId: nextProject.id,
+        ...(activate ? { activeProjectId: nextProject.id } : {}),
         draftChatIdByProject: {
           ...state.draftChatIdByProject,
           [nextProject.id]: nextChat.id,
@@ -270,11 +272,14 @@ export const createProjectLifecycleActions = (
   createWorktreeProject: async (
     parentProjectId: string,
     options: {
+      /** `false` creates the worktree project without switching to it. */
+      activate?: boolean;
       baseRef?: string | null;
       branchName: string;
       initialChatSeed?: import("./ide-store-types").WorktreeInitialChatSeed;
     },
   ) => {
+    const activate = options.activate !== false;
     const parentProject = get().projects.find(
       (project) => project.id === parentProjectId,
     );
@@ -323,7 +328,7 @@ export const createProjectLifecycleActions = (
         }
         createdChatId = nextChat?.id ?? existingProject.ui.activeChatId;
         return {
-          activeProjectId: existingProject.id,
+          ...(activate ? { activeProjectId: existingProject.id } : {}),
           chats: nextChat ? [...state.chats, nextChat] : state.chats,
           messagesByChatId: nextChat
             ? {
@@ -383,7 +388,7 @@ export const createProjectLifecycleActions = (
         }
         createdChatId = nextChat?.id ?? reopenedProject.ui.activeChatId;
         return {
-          activeProjectId: closedProject.id,
+          ...(activate ? { activeProjectId: closedProject.id } : {}),
           chats: nextChat ? [...state.chats, nextChat] : state.chats,
           closedProjects: state.closedProjects.filter(
             (project) => project.id !== closedProject.id,
@@ -414,7 +419,6 @@ export const createProjectLifecycleActions = (
       const nextProject = {
         ...createProjectConfig(payload.path, state.settings),
         browserUrl: parentProject.browserUrl,
-        mcpServerOverrides: { ...parentProject.mcpServerOverrides },
         model: parentProject.model,
         modelSpeed: parentProject.modelSpeed,
         name: `${parentProject.name} / ${payload.branch}`,
@@ -444,7 +448,7 @@ export const createProjectLifecycleActions = (
       createdChatId = nextChat.id;
 
       return {
-        activeProjectId: nextProject.id,
+        ...(activate ? { activeProjectId: nextProject.id } : {}),
         draftChatIdByProject: {
           ...state.draftChatIdByProject,
           [nextProject.id]: options.initialChatSeed ? null : nextChat.id,
@@ -502,6 +506,21 @@ export const createProjectLifecycleActions = (
     }
 
     requestProjectCheckpointCleanup(worktreePath);
+
+    // Pipeline tasks keep their step outputs but lose the purged chats.
+    const purgedState = get();
+    const purgedProjectIds = new Set(
+      [...purgedState.projects, ...purgedState.closedProjects]
+        .filter(
+          (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
+        )
+        .map((item) => item.id),
+    );
+    get().unlinkPipelineRunsForChats?.(
+      purgedState.chats
+        .filter((chat) => purgedProjectIds.has(chat.projectId))
+        .map((chat) => chat.id),
+    );
 
     set((current) => {
       const removedProjectIds = new Set(

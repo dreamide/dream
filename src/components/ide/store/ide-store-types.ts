@@ -6,11 +6,12 @@ import type {
   BrowserTabState,
   ChatConfig,
   ChatSortOrder,
-  KanbanCard,
-  KanbanColumnId,
   PanelSizes,
   PanelVisibility,
   PendingChatSubmit,
+  PipelineRunStepId,
+  PipelineStepConfig,
+  PipelineTaskCompletion,
   ProjectConfig,
   ProjectGitWorktreeCleanupResponse,
   ProjectWorkspaceView,
@@ -101,10 +102,11 @@ export interface IdeState {
   // Actions - projects
   setProjects: (projects: ProjectConfig[]) => void;
   setActiveProjectId: (id: string | null) => void;
-  addProject: (path: string) => void;
+  addProject: (path: string, options?: { activate?: boolean }) => void;
   createWorktreeProject: (
     parentProjectId: string,
     options: {
+      activate?: boolean;
       baseRef?: string | null;
       branchName: string;
       initialChatSeed?: WorktreeInitialChatSeed;
@@ -175,27 +177,66 @@ export interface IdeState {
   queueChatSubmit: (chatId: string, submission: PendingChatSubmit) => boolean;
   takePendingChatSubmit: (chatId: string) => PendingChatSubmit | null;
 
-  // Actions - kanban
-  addKanbanCard: (
+  // Actions - pipeline
+  addPipelineTask: (
     projectId: string,
-    card: { column?: KanbanColumnId; description?: string; title: string },
+    task: { description?: string; title: string },
   ) => string | null;
-  updateKanbanCard: (
+  updatePipelineTask: (
     projectId: string,
-    cardId: string,
-    updater: (card: KanbanCard) => KanbanCard,
+    taskId: string,
+    updates: { description?: string; title?: string },
   ) => void;
-  deleteKanbanCard: (projectId: string, cardId: string) => void;
-  moveKanbanCard: (
+  deletePipelineTask: (projectId: string, taskId: string) => void;
+  movePipelineTaskInBacklog: (
     projectId: string,
-    cardId: string,
-    column: KanbanColumnId,
+    taskId: string,
     index: number,
   ) => void;
-  startKanbanCard: (projectId: string, cardId: string) => string | null;
-  openKanbanCardChat: (projectId: string, cardId: string) => void;
-  unlinkKanbanCardsForChats: (chatIds: string[]) => void;
-  advanceKanbanCardsForChat: (chatId: string) => void;
+  /** Backlog -> Plan. Resolves to the step chat id. */
+  startPipelineTask: (
+    projectId: string,
+    taskId: string,
+  ) => Promise<string | null>;
+  /** Approves the current step and runs the next one. */
+  advancePipelineTask: (
+    projectId: string,
+    taskId: string,
+  ) => Promise<string | null>;
+  sendPipelineTaskBack: (
+    projectId: string,
+    taskId: string,
+    toStep: PipelineRunStepId,
+    note?: string,
+  ) => Promise<string | null>;
+  retryPipelineStep: (
+    projectId: string,
+    taskId: string,
+  ) => Promise<string | null>;
+  completePipelineTask: (
+    projectId: string,
+    taskId: string,
+    completion: PipelineTaskCompletion,
+  ) => void;
+  openPipelineStepChat: (
+    projectId: string,
+    taskId: string,
+    runId?: string,
+  ) => void;
+  /** Reopens a task's closed worktree project in the background. */
+  reopenPipelineWorktree: (
+    projectId: string,
+    taskId: string,
+  ) => Promise<boolean>;
+  unlinkPipelineRunsForChats: (chatIds: string[]) => void;
+  setPipelineStepConfig: (
+    projectId: string,
+    step: PipelineRunStepId,
+    updater: (config: PipelineStepConfig) => PipelineStepConfig,
+  ) => void;
+  resetPipelineStepConfig: (projectId: string, step: PipelineRunStepId) => void;
+  isPipelineChat: (chatId: string) => boolean;
+  maybeAutoAdvancePipelineForChat: (chatId: string) => void;
 
   // Actions - panels
   togglePanel: (panel: keyof PanelVisibility) => void;

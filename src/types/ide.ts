@@ -91,21 +91,63 @@ export interface StashItem {
   updatedAt: string;
 }
 
-export type KanbanColumnId =
-  | "backlog"
-  | "ready"
-  | "inProgress"
-  | "review"
-  | "done";
+export type PipelineStepId = "backlog" | "plan" | "build" | "review" | "merge";
+/** Steps that run an agent chat. Backlog is a holding area only. */
+export type PipelineRunStepId = Exclude<PipelineStepId, "backlog">;
 
-export interface KanbanCard {
+export interface PipelineStepModel {
+  model: string;
+  modelSpeed: ModelSpeed;
+  provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
+}
+
+export interface PipelineStepConfig {
+  agentMode: AgentMode;
+  /** Advance to the next step when the agent turn finishes normally. */
+  autoAdvance: boolean;
+  /** `null` inherits the host project's model selection. */
+  model: PipelineStepModel | null;
+  permissionMode: ChatPermissionMode;
+  /** `null` uses the built-in default template for the step. */
+  prompt: string | null;
+}
+
+export type PipelineConfig = Record<PipelineRunStepId, PipelineStepConfig>;
+
+export interface PipelineStepRun {
+  /** `null` once the chat has been deleted or purged. */
   chatId: string | null;
-  column: KanbanColumnId;
+  /** Send-back note or findings that started this run. */
+  feedback: string | null;
+  finishedAt: string | null;
+  id: string;
+  /** Final agent output, snapshotted for handoff to later steps. */
+  output: string | null;
+  startedAt: string;
+  step: PipelineRunStepId;
+}
+
+export interface PipelineTaskCompletion {
+  at: string;
+  kind: "merged" | "pr" | "removed" | "legacy";
+  mergeCommit: string | null;
+  prUrl: string | null;
+}
+
+export interface PipelineTask {
+  baseRef: string | null;
+  branch: string | null;
+  completion: PipelineTaskCompletion | null;
   createdAt: string;
   description: string;
   id: string;
+  runs: PipelineStepRun[];
+  step: PipelineStepId;
   title: string;
   updatedAt: string;
+  worktreePath: string | null;
+  worktreeProjectId: string | null;
 }
 
 export interface PendingChatSubmit {
@@ -129,7 +171,6 @@ export interface ProjectConfig {
   reasoningEffort: ReasoningEffort | null;
   ui: ProjectUiState;
   worktree: ProjectWorktreeInfo | null;
-  mcpServerOverrides: Record<string, boolean>;
 }
 
 export type McpServerTransport = "stdio" | "http" | "sse";
@@ -206,7 +247,7 @@ export type RightPanelView =
   | "terminal"
   | "stash";
 
-export type ProjectWorkspaceView = "code" | "kanban";
+export type ProjectWorkspaceView = "code" | "pipeline";
 
 export interface ProjectUiState {
   activeChatId: string | null;
@@ -215,9 +256,10 @@ export interface ProjectUiState {
   chatHistoryPanelOpen: boolean;
   changesDiffWordWrap: boolean;
   fileEditorWordWrap: boolean;
-  kanbanCards: KanbanCard[];
   multiChat: boolean;
   panelSizes: PanelSizes;
+  pipelineConfig: PipelineConfig;
+  pipelineTasks: PipelineTask[];
   rightPanelOpen: boolean;
   rightPanelView: RightPanelView;
   stashItems: StashItem[];

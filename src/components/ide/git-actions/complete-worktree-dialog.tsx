@@ -218,11 +218,20 @@ const InfoLine = ({
   </div>
 );
 
+export interface WorktreeCompletionResult {
+  action: WorktreeCompletionAction;
+  mergeCommit: string | null;
+  prUrl: string | null;
+}
+
 export const CompleteWorktreeDialog = ({
+  onCompleted,
   onOpenChange,
   open,
   project,
 }: {
+  /** Called once when the dialog closes after the chosen action succeeded. */
+  onCompleted?: (result: WorktreeCompletionResult) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   project: WorktreeProject;
@@ -484,10 +493,26 @@ export const CompleteWorktreeDialog = ({
     worktreeT,
   ]);
 
+  const notifyCompleted = useCallback(() => {
+    onCompleted?.({
+      action,
+      mergeCommit: mergeResult?.mergeCommit ?? null,
+      prUrl,
+    });
+  }, [action, mergeResult, onCompleted, prUrl]);
+
   const finish = useCallback(() => {
     onOpenChange(false);
+    // Report before the purge deletes the worktree project and its chats.
+    notifyCompleted();
     purgeWorktreeProject(project.path, { activateProjectId: parentProjectId });
-  }, [onOpenChange, parentProjectId, project.path, purgeWorktreeProject]);
+  }, [
+    notifyCompleted,
+    onOpenChange,
+    parentProjectId,
+    project.path,
+    purgeWorktreeProject,
+  ]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -502,9 +527,13 @@ export const CompleteWorktreeDialog = ({
         finish();
         return;
       }
+      // The action succeeded but the worktree was kept (cleanup failed).
+      if (phase === "done") {
+        notifyCompleted();
+      }
       onOpenChange(false);
     },
-    [cleanupResult, finish, onOpenChange, phase],
+    [cleanupResult, finish, notifyCompleted, onOpenChange, phase],
   );
 
   const handlePrimary = useCallback(() => {
@@ -705,7 +734,7 @@ export const CompleteWorktreeDialog = ({
               {cleanupError ? (
                 <>
                   <Button
-                    onClick={() => onOpenChange(false)}
+                    onClick={() => handleOpenChange(false)}
                     type="button"
                     variant="ghost"
                   >

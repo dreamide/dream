@@ -1,10 +1,12 @@
 import { getDesktopApi } from "@/lib/electron";
 import { useActivityStore } from "../activity-store";
-import type { IdeState, IdeStoreSet } from "./ide-store-types";
-import { advanceKanbanCardsInProjects } from "./kanban-actions";
+import { extractStepOutput } from "../workspaces/pipeline/pipeline-output";
+import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import { finishPipelineRunInProjects } from "./pipeline-actions";
 
 export const createRuntimeActions = (
   set: IdeStoreSet,
+  get?: IdeStoreGet,
 ): Pick<
   IdeState,
   | "setTerminalStatus"
@@ -63,7 +65,9 @@ export const createRuntimeActions = (
     });
   },
 
-  setChatStreaming: (chatId, streaming) =>
+  setChatStreaming: (chatId, streaming) => {
+    let finishedNormally = false;
+
     set((state) => {
       const nextStreamingChatIds = { ...state.streamingChatIds };
       const nextAwaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
@@ -84,12 +88,18 @@ export const createRuntimeActions = (
         delete nextStreamingChatIds[chatId];
         delete nextAwaitingAnswerChatIds[chatId];
 
-        // A normally finished agent turn moves any linked Kanban card from
-        // "In progress" to "Review". Waiting/failed/interrupted turns leave
-        // the card where it is (the chat panel records the activity status
-        // before it clears the streaming flag).
+        // A normally finished agent turn completes the linked pipeline run
+        // and snapshots its output for handoff. Waiting/failed/interrupted
+        // turns leave the run open (the chat panel records the activity
+        // status and the final messages before it clears the streaming flag).
         if (wasStreaming && activity?.status === "finished") {
-          nextProjects = advanceKanbanCardsInProjects(state.projects, chatId);
+          finishedNormally = true;
+          nextProjects = finishPipelineRunInProjects(
+            state.projects,
+            chatId,
+            extractStepOutput(state.messagesByChatId?.[chatId] ?? []),
+            new Date().toISOString(),
+          );
         }
 
         const chat = state.chats.find((item) => item.id === chatId);
@@ -119,7 +129,14 @@ export const createRuntimeActions = (
         streamingChatIds: nextStreamingChatIds,
         ...(nextProjects !== state.projects ? { projects: nextProjects } : {}),
       };
-    }),
+    });
+
+    // Auto-advance runs outside the reducer because it starts the next
+    // step's chat.
+    if (finishedNormally && get) {
+      queueMicrotask(() => get().maybeAutoAdvancePipelineForChat?.(chatId));
+    }
+  },
 
   setChatAwaitingAnswer: (chatId, awaiting) =>
     set((state) => {

@@ -174,9 +174,6 @@ export const ProjectTabs = () => {
   const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
-  const mcpServers = useIdeStore((s) => s.settings.mcpServers);
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const accentColor = useUiStore((s) => s.accentColor);
   const accentSparklesPalette = useMemo(
     () => createAccentSparklesPalette(accentColor),
@@ -232,24 +229,6 @@ export const ProjectTabs = () => {
   const handleAddProject = useCallback(() => {
     setActiveProjectId(null);
   }, [setActiveProjectId]);
-
-  const handleToggleMcpServer = useCallback(
-    (projectId: string, serverId: string, enabled: boolean) => {
-      updateProject(projectId, (current) => ({
-        ...current,
-        mcpServerOverrides: {
-          ...current.mcpServerOverrides,
-          [serverId]: enabled,
-        },
-      }));
-    },
-    [updateProject],
-  );
-
-  const handleOpenMcpSettings = useCallback(() => {
-    setSettingsSection("mcp");
-    setSettingsOpen(true);
-  }, [setSettingsOpen, setSettingsSection]);
 
   const handleOpenProjectInEditor = useCallback(
     (
@@ -412,22 +391,20 @@ export const ProjectTabs = () => {
             interactiveClassName="[-webkit-app-region:no-drag]"
             items={projectTabItems}
             onActivate={setActiveProjectId}
+            onDoubleClick={(project) => {
+              setOpenProjectMenuId(null);
+              setEditTarget({ id: project.id, name: project.label });
+              setEditValue(project.label);
+            }}
             onReorder={handleProjectReorder}
             renderActions={(project) => (
               <ProjectActionsMenu
                 closeProject={closeProject}
                 editors={projectOpenInEditors}
                 isMacOs={isMacOs}
-                mcpServers={mcpServers}
                 onOpenInEditor={handleOpenProjectInEditor}
-                onOpenMcpSettings={handleOpenMcpSettings}
-                onToggleMcpServer={handleToggleMcpServer}
                 open={openProjectMenuId === project.id}
                 project={project}
-                projectConfig={
-                  projects.find((candidate) => candidate.id === project.id) ??
-                  null
-                }
                 setOpen={(open) =>
                   setOpenProjectMenuId(open ? project.id : null)
                 }
@@ -451,6 +428,7 @@ export const ProjectTabs = () => {
       </div>
 
       <ProjectEditDialog
+        key={editTarget?.id ?? "closed"}
         onClose={closeEditDialog}
         onSubmit={handleEditSubmit}
         onValueChange={setEditValue}

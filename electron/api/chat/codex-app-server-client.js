@@ -425,3 +425,19 @@ export const stopCodexAppServer = async () => {
     // A failed startup has no remaining process to stop.
   }
 };
+
+/**
+ * Stops the shared process when no Codex turn is running, so it releases any
+ * directory handles it still holds (it restarts on demand). Returns whether a
+ * process was stopped.
+ */
+export const stopIdleCodexAppServer = async () => {
+  if (!sharedClient || sharedClient.isClosed()) {
+    return false;
+  }
+  if (sharedClient.getActiveThreadCount() > 0) {
+    return false;
+  }
+  await stopCodexAppServer();
+  return true;
+};

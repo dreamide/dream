@@ -1,9 +1,9 @@
-import { Code2, type LucideIcon, SquareKanban } from "lucide-react";
+import { Code2, type LucideIcon, Workflow } from "lucide-react";
 import type { ProjectWorkspaceView } from "@/types/ide";
 
 export const PROJECT_WORKSPACE_VIEWS = [
   "code",
-  "kanban",
+  "pipeline",
 ] as const satisfies readonly ProjectWorkspaceView[];
 
 export const DEFAULT_PROJECT_WORKSPACE_VIEW: ProjectWorkspaceView = "code";
@@ -14,11 +14,24 @@ export const isProjectWorkspaceView = (
   typeof value === "string" &&
   (PROJECT_WORKSPACE_VIEWS as readonly string[]).includes(value);
 
+/**
+ * Validates a persisted workspace view, upgrading the retired "kanban" view to
+ * its replacement. Returns `null` for anything unrecognized.
+ */
+export const normalizeProjectWorkspaceView = (
+  value: unknown,
+): ProjectWorkspaceView | null => {
+  if (value === "kanban") {
+    return "pipeline";
+  }
+  return isProjectWorkspaceView(value) ? value : null;
+};
+
 export interface ProjectWorkspaceDescriptor {
   icon: LucideIcon;
   id: ProjectWorkspaceView;
   /** Key inside the `workspace` i18n namespace. */
-  labelKey: "workspaceCode" | "workspaceKanban";
+  labelKey: "workspaceCode" | "workspacePipeline";
 }
 
 // Intentionally free of component imports so the header switcher can import
@@ -26,7 +39,7 @@ export interface ProjectWorkspaceDescriptor {
 export const PROJECT_WORKSPACE_DESCRIPTORS: readonly ProjectWorkspaceDescriptor[] =
   [
     { icon: Code2, id: "code", labelKey: "workspaceCode" },
-    { icon: SquareKanban, id: "kanban", labelKey: "workspaceKanban" },
+    { icon: Workflow, id: "pipeline", labelKey: "workspacePipeline" },
   ];
 
 export const getProjectWorkspaceDescriptor = (view: ProjectWorkspaceView) =>

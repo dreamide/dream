@@ -31,6 +31,7 @@ export const NextStepSelector = <Value extends string>({
       const checked = option.value === value;
       const optionId = `${idPrefix}-${option.value}`;
       return (
+        // biome-ignore lint/a11y/useKeyWithClickEvents: keyboard selection is handled by the radio item inside the row
         <label
           className={cn(
             "flex h-12 items-center gap-2 px-3 text-sm transition-colors",
@@ -43,6 +44,14 @@ export const NextStepSelector = <Value extends string>({
           )}
           htmlFor={optionId}
           key={option.value}
+          // Select from the row itself rather than relying on the label
+          // forwarding the click to the visually hidden radio input.
+          onClick={(event) => {
+            event.preventDefault();
+            if (!option.disabled && !checked) {
+              onValueChange(option.value);
+            }
+          }}
         >
           <RadioGroupItem
             className="sr-only"

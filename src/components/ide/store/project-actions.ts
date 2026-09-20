@@ -1,6 +1,6 @@
 import { createChatActions } from "./chat-actions";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { createKanbanActions } from "./kanban-actions";
+import { createPipelineActions } from "./pipeline-actions";
 import { createProjectLifecycleActions } from "./project-lifecycle-actions";
 import { createStashActions } from "./stash-actions";
 
@@ -37,17 +37,25 @@ export const createProjectActions = (
   | "executeStashItem"
   | "takePendingChatSubmit"
   | "queueChatSubmit"
-  | "addKanbanCard"
-  | "updateKanbanCard"
-  | "deleteKanbanCard"
-  | "moveKanbanCard"
-  | "startKanbanCard"
-  | "openKanbanCardChat"
-  | "unlinkKanbanCardsForChats"
-  | "advanceKanbanCardsForChat"
+  | "addPipelineTask"
+  | "updatePipelineTask"
+  | "deletePipelineTask"
+  | "movePipelineTaskInBacklog"
+  | "startPipelineTask"
+  | "advancePipelineTask"
+  | "sendPipelineTaskBack"
+  | "retryPipelineStep"
+  | "completePipelineTask"
+  | "openPipelineStepChat"
+  | "reopenPipelineWorktree"
+  | "unlinkPipelineRunsForChats"
+  | "setPipelineStepConfig"
+  | "resetPipelineStepConfig"
+  | "isPipelineChat"
+  | "maybeAutoAdvancePipelineForChat"
 > => ({
   ...createProjectLifecycleActions(set, get),
   ...createChatActions(set, get),
   ...createStashActions(set, get),
-  ...createKanbanActions(set, get),
+  ...createPipelineActions(set, get),
 });

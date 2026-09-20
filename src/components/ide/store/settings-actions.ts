@@ -1,5 +1,6 @@
 import type { ProviderModelsResponse } from "../ide-types";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import { writeCachedProviderModels } from "./provider-model-cache";
 import {
   areSettingsSelectionsEqual,
   getProviderModelsErrorState,
@@ -112,6 +113,7 @@ export const createSettingsActions = (
         );
 
         set({ providerModels });
+        writeCachedProviderModels(providerModels);
 
         // Reconcile selected models
         set((state) => {

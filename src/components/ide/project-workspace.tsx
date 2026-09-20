@@ -4,7 +4,7 @@ import type { ProjectConfig, ProjectWorkspaceView } from "@/types/ide";
 import { areProjectsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { CodeWorkspace } from "./workspaces/code-workspace";
-import { KanbanWorkspace } from "./workspaces/kanban-workspace";
+import { PipelineWorkspace } from "./workspaces/pipeline-workspace";
 
 export interface ProjectWorkspaceProps {
   active: boolean;
@@ -21,7 +21,7 @@ const WORKSPACE_COMPONENTS: Record<
   ComponentType<WorkspaceBodyProps>
 > = {
   code: CodeWorkspace,
-  kanban: KanbanWorkspace,
+  pipeline: PipelineWorkspace,
 };
 
 /**
@@ -30,7 +30,7 @@ const WORKSPACE_COMPONENTS: Record<
  * so streaming chats, terminals, browser webviews, and the code workspace's
  * ResizeObserver-driven layout all survive switching back and forth.
  *
- * The Code workspace also mounts when restoring directly into Kanban so its
+ * The Code workspace also mounts when restoring directly into Pipeline so its
  * chat panels can process queued card submissions. Only the selected body is
  * active, keeping hidden workspace shortcuts and native webviews disabled.
  */

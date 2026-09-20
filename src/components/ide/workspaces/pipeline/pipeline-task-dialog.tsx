@@ -12,29 +12,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-export interface KanbanCardDialogValue {
+export interface PipelineTaskDialogValue {
   description: string;
   title: string;
 }
 
-export interface KanbanCardDialogProps {
-  initialValue: KanbanCardDialogValue | null;
+export interface PipelineTaskDialogProps {
+  initialValue: PipelineTaskDialogValue | null;
   mode: "create" | "edit";
   onClose: () => void;
-  onSubmit: (value: KanbanCardDialogValue) => void;
+  onSubmit: (value: PipelineTaskDialogValue) => void;
 }
 
 /**
  * Mount this only while open (keyed by the card being edited) so the local
  * form state initialises from `initialValue` without effects.
  */
-export const KanbanCardDialog = ({
+export const PipelineTaskDialog = ({
   initialValue,
   mode,
   onClose,
   onSubmit,
-}: KanbanCardDialogProps) => {
-  const t = useTranslations("kanban");
+}: PipelineTaskDialogProps) => {
+  const t = useTranslations("pipeline");
   const commonT = useTranslations("common");
   const [title, setTitle] = useState(initialValue?.title ?? "");
   const [description, setDescription] = useState(
@@ -69,25 +69,25 @@ export const KanbanCardDialog = ({
         >
           <DialogHeader>
             <DialogTitle className="text-base leading-6">
-              {mode === "create" ? t("newCard") : t("editCard")}
+              {mode === "create" ? t("newTask") : t("editTask")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="kanban-card-title">{t("titleLabel")}</Label>
+            <Label htmlFor="pipeline-task-title">{t("titleLabel")}</Label>
             <Input
               autoFocus
-              id="kanban-card-title"
+              id="pipeline-task-title"
               onChange={(event) => setTitle(event.target.value)}
               placeholder={t("titlePlaceholder")}
               value={title}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="kanban-card-description">
+            <Label htmlFor="pipeline-task-description">
               {t("descriptionLabel")}
             </Label>
             <Textarea
-              id="kanban-card-description"
+              id="pipeline-task-description"
               onChange={(event) => setDescription(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {

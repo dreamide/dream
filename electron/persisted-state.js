@@ -227,22 +227,6 @@ function getNestedStringArray(parent, key) {
   return strings;
 }
 
-function getNestedBooleanRecord(parent, key) {
-  const value = parent?.[key];
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      ([recordKey, recordValue]) =>
-        typeof recordKey === "string" &&
-        recordKey.trim() &&
-        typeof recordValue === "boolean",
-    ),
-  );
-}
-
 function getNestedNumberRecord(parent, key) {
   const value = parent?.[key];
   if (!isRecord(value)) {
@@ -263,7 +247,11 @@ function getNestedNumberRecord(parent, key) {
 
 function getNestedWorkspaceView(parent, key, fallback = "code") {
   const value = parent?.[key];
-  return value === "code" || value === "kanban" ? value : fallback;
+  // "kanban" is the retired name of the pipeline workspace.
+  if (value === "kanban") {
+    return "pipeline";
+  }
+  return value === "code" || value === "pipeline" ? value : fallback;
 }
 
 function getNestedRightPanelView(parent, key, fallback = "changes") {
@@ -303,30 +291,102 @@ function getNestedStashItems(parent) {
   return items;
 }
 
-function getNestedKanbanCards(parent) {
-  const value = isRecord(parent) ? parent.kanbanCards : null;
-  if (!Array.isArray(value)) {
+function nonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+/**
+ * Upgrades a card from the retired Kanban board into a pipeline task. Legacy
+ * cards keep running in the parent project (no worktree).
+ *
+ * Keep in sync with `migrateKanbanCard` in
+ * `src/components/ide/pipeline-state.ts`.
+ */
+function migrateKanbanCard(card) {
+  if (!isRecord(card)) {
+    return null;
+  }
+
+  const createdAt = nonEmptyString(card.createdAt) ?? new Date().toISOString();
+  const updatedAt = nonEmptyString(card.updatedAt) ?? createdAt;
+  const chatId = nonEmptyString(card.chatId);
+  const step =
+    card.column === "inProgress"
+      ? "build"
+      : card.column === "review"
+        ? "review"
+        : card.column === "done"
+          ? "merge"
+          : "backlog";
+  const finished = step === "review" || step === "merge";
+
+  return {
+    baseRef: null,
+    branch: null,
+    completion:
+      step === "merge"
+        ? { at: updatedAt, kind: "legacy", mergeCommit: null, prUrl: null }
+        : null,
+    createdAt,
+    description: typeof card.description === "string" ? card.description : "",
+    id: card.id,
+    runs:
+      chatId && step !== "backlog"
+        ? [
+            {
+              chatId,
+              feedback: null,
+              finishedAt: finished ? updatedAt : null,
+              id: `legacy-${String(card.id)}`,
+              output: null,
+              startedAt: createdAt,
+              step: "build",
+            },
+          ]
+        : [],
+    step,
+    title: typeof card.title === "string" ? card.title : "",
+    updatedAt,
+    worktreePath: null,
+    worktreeProjectId: null,
+  };
+}
+
+function getNestedPipelineTasks(parent) {
+  const record = isRecord(parent) ? parent : null;
+  const value = Array.isArray(record?.pipelineTasks)
+    ? record.pipelineTasks
+    : Array.isArray(record?.kanbanCards)
+      ? record.kanbanCards.map(migrateKanbanCard)
+      : null;
+  if (!value) {
     return [];
   }
 
   const seenIds = new Set();
-  const cards = [];
+  const tasks = [];
 
-  for (const rawCard of value) {
-    if (!isRecord(rawCard) || typeof rawCard.id !== "string") {
+  for (const rawTask of value) {
+    if (!isRecord(rawTask) || typeof rawTask.id !== "string") {
       continue;
     }
 
-    const id = rawCard.id.trim();
+    const id = rawTask.id.trim();
     if (!id || seenIds.has(id)) {
       continue;
     }
 
     seenIds.add(id);
-    cards.push(rawCard);
+    tasks.push(rawTask);
   }
 
-  return cards;
+  return tasks;
+}
+
+/** Pass-through; the renderer validates and fills defaults per step. */
+function getNestedPipelineConfig(parent) {
+  const value = isRecord(parent) ? parent.pipelineConfig : null;
+  return isRecord(value) ? value : {};
 }
 
 function normalizeSparklesPaletteName(value) {
@@ -454,7 +514,8 @@ function writeConfig(database, key, value, updatedAt) {
 }
 
 function buildProjectMetadata(project) {
-  const metadata = getMetadataObject(project.metadata);
+  const metadata = { ...getMetadataObject(project.metadata) };
+  delete metadata.mcpServerOverrides;
   const worktree = getNestedWorktree(project, "worktree");
   const projectIcon = isRecord(project.icon)
     ? project.icon
@@ -549,11 +610,20 @@ function buildProjectMetadata(project) {
   ui.stashItems = getNestedStashItems(
     Object.hasOwn(projectUi, "stashItems") ? projectUi : ui,
   );
-  ui.kanbanCards = getNestedKanbanCards(
-    Object.hasOwn(projectUi, "kanbanCards") ? projectUi : ui,
+  // Falls back to the stored metadata, which may still hold legacy
+  // `kanbanCards`; those are migrated into pipeline tasks here.
+  ui.pipelineTasks = getNestedPipelineTasks(
+    Object.hasOwn(projectUi, "pipelineTasks") ||
+      Object.hasOwn(projectUi, "kanbanCards")
+      ? projectUi
+      : ui,
+  );
+  ui.pipelineConfig = getNestedPipelineConfig(
+    Object.hasOwn(projectUi, "pipelineConfig") ? projectUi : ui,
   );
   // Drop retired feature data carried by older project metadata.
   delete ui.goals;
+  delete ui.kanbanCards;
   ui.panelSizes = {
     chatHistoryPanelWidth: getNestedNumber(
       projectPanelSizes,
@@ -582,10 +652,6 @@ function buildProjectMetadata(project) {
     browser,
     icon,
     lastUsedAt,
-    mcpServerOverrides: getNestedBooleanRecord(
-      isRecord(project.mcpServerOverrides) ? project : metadata,
-      "mcpServerOverrides",
-    ),
     modelSelection,
     runCommand:
       typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
@@ -1096,6 +1162,7 @@ function loadStateFromRelationalDatabase(database) {
   const allProjects = [];
   for (const row of projectRows) {
     const metadata = getMetadataObject(row.metadata);
+    delete metadata.mcpServerOverrides;
     const icon = getNestedRecord(metadata, "icon");
     const iconPath = getNestedString(icon, "path", "");
     const modelSelection = getNestedRecord(metadata, "modelSelection");
@@ -1119,10 +1186,6 @@ function loadStateFromRelationalDatabase(database) {
           }
         : null,
       lastUsedAt,
-      mcpServerOverrides: getNestedBooleanRecord(
-        metadata,
-        "mcpServerOverrides",
-      ),
       metadata,
       model: getNestedString(modelSelection, "model", ""),
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
@@ -1169,7 +1232,8 @@ function loadStateFromRelationalDatabase(database) {
       ),
       rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
       stashItems: getNestedStashItems(ui),
-      kanbanCards: getNestedKanbanCards(ui),
+      pipelineConfig: getNestedPipelineConfig(ui),
+      pipelineTasks: getNestedPipelineTasks(ui),
       workspaceView: getNestedWorkspaceView(ui, "workspaceView", "code"),
     };
     allProjects.push(project);

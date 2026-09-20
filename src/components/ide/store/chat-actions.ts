@@ -434,7 +434,7 @@ export const createChatActions = (
       };
     });
 
-    get().unlinkKanbanCardsForChats([chatId]);
+    get().unlinkPipelineRunsForChats([chatId]);
 
     if (projectIdNeedingNewChat) {
       get().addChat(projectIdNeedingNewChat);
@@ -521,7 +521,7 @@ export const createChatActions = (
       };
     });
 
-    get().unlinkKanbanCardsForChats(chatIds);
+    get().unlinkPipelineRunsForChats(chatIds);
   },
 
   restoreChats: (chatIds: string[]) => {

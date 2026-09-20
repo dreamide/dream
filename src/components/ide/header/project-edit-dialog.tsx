@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 export type ProjectEditTarget = {
   id: string;
   name: string;
@@ -31,7 +30,6 @@ export const ProjectEditDialog = ({
 }) => {
   const commonT = useTranslations("common");
   const projectsT = useTranslations("projects");
-
   return (
     <Dialog
       onOpenChange={(open) => {
@@ -41,8 +39,8 @@ export const ProjectEditDialog = ({
       }}
       open={target !== null}
     >
-      <DialogContent className="sm:max-w-sm">
-        <form className="space-y-4" onSubmit={onSubmit}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl sm:p-8">
+        <form className="space-y-6" onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle className="text-base leading-6">
               {projectsT("editProject")}
