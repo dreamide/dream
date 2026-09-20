@@ -3,7 +3,6 @@ import type {
   AppSettings,
   McpServerConfig,
   McpServerTransport,
-  ProjectConfig,
 } from "@/types/ide";
 
 export const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -138,16 +137,7 @@ export const createMcpServer = (input: McpServerInput): McpServerConfig => ({
 
 export const resolveEffectiveMcpServers = (
   settings: Pick<AppSettings, "mcpServers">,
-  project: Pick<ProjectConfig, "mcpServerOverrides"> | null | undefined,
-): McpServerConfig[] =>
-  settings.mcpServers.filter(
-    (server) => project?.mcpServerOverrides?.[server.id] ?? server.enabled,
-  );
-
-export const isMcpServerEnabledForProject = (
-  server: McpServerConfig,
-  project: Pick<ProjectConfig, "mcpServerOverrides"> | null | undefined,
-): boolean => project?.mcpServerOverrides?.[server.id] ?? server.enabled;
+): McpServerConfig[] => settings.mcpServers.filter((server) => server.enabled);
 
 export const parseArgsLines = (text: string): string[] =>
   text

@@ -1162,7 +1162,7 @@ export const ChatPanel = ({
               chatId: chat.id,
               checkpointsEnabled: settings.changeCheckpoints,
               mcpServers: MCP_PROVIDER_SUPPORT[activeProvider]
-                ? resolveEffectiveMcpServers(settings, submittedProject)
+                ? resolveEffectiveMcpServers(settings)
                 : [],
             },
           },

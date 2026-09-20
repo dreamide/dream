@@ -419,7 +419,6 @@ export const createProjectLifecycleActions = (
       const nextProject = {
         ...createProjectConfig(payload.path, state.settings),
         browserUrl: parentProject.browserUrl,
-        mcpServerOverrides: { ...parentProject.mcpServerOverrides },
         model: parentProject.model,
         modelSpeed: parentProject.modelSpeed,
         name: `${parentProject.name} / ${payload.branch}`,

@@ -227,22 +227,6 @@ function getNestedStringArray(parent, key) {
   return strings;
 }
 
-function getNestedBooleanRecord(parent, key) {
-  const value = parent?.[key];
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      ([recordKey, recordValue]) =>
-        typeof recordKey === "string" &&
-        recordKey.trim() &&
-        typeof recordValue === "boolean",
-    ),
-  );
-}
-
 function getNestedNumberRecord(parent, key) {
   const value = parent?.[key];
   if (!isRecord(value)) {
@@ -530,7 +514,8 @@ function writeConfig(database, key, value, updatedAt) {
 }
 
 function buildProjectMetadata(project) {
-  const metadata = getMetadataObject(project.metadata);
+  const metadata = { ...getMetadataObject(project.metadata) };
+  delete metadata.mcpServerOverrides;
   const worktree = getNestedWorktree(project, "worktree");
   const projectIcon = isRecord(project.icon)
     ? project.icon
@@ -667,10 +652,6 @@ function buildProjectMetadata(project) {
     browser,
     icon,
     lastUsedAt,
-    mcpServerOverrides: getNestedBooleanRecord(
-      isRecord(project.mcpServerOverrides) ? project : metadata,
-      "mcpServerOverrides",
-    ),
     modelSelection,
     runCommand:
       typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
@@ -1181,6 +1162,7 @@ function loadStateFromRelationalDatabase(database) {
   const allProjects = [];
   for (const row of projectRows) {
     const metadata = getMetadataObject(row.metadata);
+    delete metadata.mcpServerOverrides;
     const icon = getNestedRecord(metadata, "icon");
     const iconPath = getNestedString(icon, "path", "");
     const modelSelection = getNestedRecord(metadata, "modelSelection");
@@ -1204,10 +1186,6 @@ function loadStateFromRelationalDatabase(database) {
           }
         : null,
       lastUsedAt,
-      mcpServerOverrides: getNestedBooleanRecord(
-        metadata,
-        "mcpServerOverrides",
-      ),
       metadata,
       model: getNestedString(modelSelection, "model", ""),
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),

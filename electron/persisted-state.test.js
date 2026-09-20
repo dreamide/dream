@@ -287,9 +287,7 @@ test("MCP servers and project overrides survive a persistence round trip", async
 
     const loaded = loadPersistedState({ databasePath });
     assert.deepEqual(loaded.settings.mcpServers, [server]);
-    assert.deepEqual(loaded.projects[0].mcpServerOverrides, {
-      "mcp-github": false,
-    });
+    assert.equal(loaded.projects[0].mcpServerOverrides, undefined);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

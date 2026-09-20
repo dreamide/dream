@@ -116,25 +116,16 @@ test("normalizeBooleanRecord keeps only boolean values", () => {
   assert.deepEqual(normalizeBooleanRecord([true]), {});
 });
 
-test("resolveEffectiveMcpServers applies project overrides", () => {
+test("resolveEffectiveMcpServers uses global enabled settings", () => {
   const settings = {
     mcpServers: [
       createServer({ enabled: true, id: "on" }),
       createServer({ enabled: false, id: "off" }),
-      createServer({ enabled: true, id: "forced-off" }),
-      createServer({ enabled: false, id: "forced-on" }),
     ],
   };
-  const project = {
-    mcpServerOverrides: { "forced-off": false, "forced-on": true },
-  };
   assert.deepEqual(
-    resolveEffectiveMcpServers(settings, project).map((server) => server.id),
-    ["on", "forced-on"],
-  );
-  assert.deepEqual(
-    resolveEffectiveMcpServers(settings, null).map((server) => server.id),
-    ["on", "forced-off"],
+    resolveEffectiveMcpServers(settings).map((server) => server.id),
+    ["on"],
   );
 });
 

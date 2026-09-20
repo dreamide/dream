@@ -152,7 +152,6 @@ export const createProjectConfig = (
       stashItems: [],
     },
     worktree: null,
-    mcpServerOverrides: {},
   };
 };
 

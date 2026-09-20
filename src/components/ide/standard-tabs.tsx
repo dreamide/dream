@@ -53,6 +53,7 @@ type StandardTabsProps<TItem extends StandardTabItem> = {
   minWidth?: number;
   onActivate: (id: string) => void;
   onClose?: (id: string) => void;
+  onDoubleClick?: (item: TItem) => void;
   onRename?: (id: string, label: string) => void;
   onReorder?: (fromIndex: number, toIndex: number) => void;
   renameOnDoubleClick?: boolean;
@@ -113,6 +114,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   minWidth = DEFAULT_TAB_MIN_WIDTH,
   onActivate,
   onClose,
+  onDoubleClick,
   onRename,
   onReorder,
   renameOnDoubleClick = false,
@@ -659,6 +661,12 @@ export const StandardTabs = <TItem extends StandardTabItem>({
                   }
                 }}
                 onDoubleClick={(event) => {
+                  if (onDoubleClick) {
+                    event.preventDefault();
+                    onDoubleClick(item);
+                    return;
+                  }
+
                   if (!renameOnDoubleClick || !onRename) {
                     return;
                   }

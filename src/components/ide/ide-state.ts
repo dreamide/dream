@@ -20,10 +20,7 @@ import {
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
 } from "@/lib/ide-defaults";
-import {
-  normalizeBooleanRecord,
-  normalizeMcpServerList,
-} from "@/lib/mcp-servers";
+import { normalizeMcpServerList } from "@/lib/mcp-servers";
 import { normalizeSparklesPaletteName } from "@/lib/sparkles-palettes";
 import type {
   AgentMode,
@@ -468,7 +465,6 @@ const normalizeProject = (
     rawProject.metadata && typeof rawProject.metadata === "object"
       ? (rawProject.metadata as {
           icon?: unknown;
-          mcpServerOverrides?: unknown;
           ui?: unknown;
           worktree?: unknown;
         })
@@ -560,9 +556,6 @@ const normalizeProject = (
     },
     worktree: normalizeProjectWorktree(
       rawProject.worktree ?? rawMetadata.worktree,
-    ),
-    mcpServerOverrides: normalizeBooleanRecord(
-      rawProject.mcpServerOverrides ?? rawMetadata.mcpServerOverrides,
     ),
   };
 };

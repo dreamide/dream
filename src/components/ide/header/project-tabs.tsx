@@ -174,9 +174,6 @@ export const ProjectTabs = () => {
   const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
-  const mcpServers = useIdeStore((s) => s.settings.mcpServers);
-  const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
-  const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const accentColor = useUiStore((s) => s.accentColor);
   const accentSparklesPalette = useMemo(
     () => createAccentSparklesPalette(accentColor),
@@ -233,11 +230,6 @@ export const ProjectTabs = () => {
     setActiveProjectId(null);
   }, [setActiveProjectId]);
 
-  const handleOpenMcpSettings = useCallback(() => {
-    setSettingsSection("mcp");
-    setSettingsOpen(true);
-  }, [setSettingsOpen, setSettingsSection]);
-
   const handleOpenProjectInEditor = useCallback(
     (
       project: {
@@ -263,10 +255,7 @@ export const ProjectTabs = () => {
   }, []);
 
   const handleEditSubmit = useCallback(
-    (
-      event: FormEvent<HTMLFormElement>,
-      mcpServerOverrides: Record<string, boolean>,
-    ) => {
+    (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
       const nextName = editValue.trim();
@@ -277,10 +266,6 @@ export const ProjectTabs = () => {
       updateProject(editTarget.id, (current) => ({
         ...current,
         name: nextName,
-        mcpServerOverrides: {
-          ...current.mcpServerOverrides,
-          ...mcpServerOverrides,
-        },
       }));
 
       closeEditDialog();
@@ -406,6 +391,11 @@ export const ProjectTabs = () => {
             interactiveClassName="[-webkit-app-region:no-drag]"
             items={projectTabItems}
             onActivate={setActiveProjectId}
+            onDoubleClick={(project) => {
+              setOpenProjectMenuId(null);
+              setEditTarget({ id: project.id, name: project.label });
+              setEditValue(project.label);
+            }}
             onReorder={handleProjectReorder}
             renderActions={(project) => (
               <ProjectActionsMenu
@@ -439,14 +429,6 @@ export const ProjectTabs = () => {
 
       <ProjectEditDialog
         key={editTarget?.id ?? "closed"}
-        mcpServers={mcpServers}
-        projectConfig={
-          projects.find((project) => project.id === editTarget?.id) ?? null
-        }
-        onOpenMcpSettings={() => {
-          closeEditDialog();
-          handleOpenMcpSettings();
-        }}
         onClose={closeEditDialog}
         onSubmit={handleEditSubmit}
         onValueChange={setEditValue}

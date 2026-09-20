@@ -171,7 +171,6 @@ export interface ProjectConfig {
   reasoningEffort: ReasoningEffort | null;
   ui: ProjectUiState;
   worktree: ProjectWorktreeInfo | null;
-  mcpServerOverrides: Record<string, boolean>;
 }
 
 export type McpServerTransport = "stdio" | "http" | "sse";
