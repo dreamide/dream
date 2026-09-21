@@ -37,6 +37,7 @@ const normalizeTaskRun = (value: unknown): TaskStepRun | null => {
 
   return {
     chatId: asNonEmptyString(run.chatId),
+    commitError: asNonEmptyString(run.commitError),
     feedback: asNonEmptyString(run.feedback),
     finishedAt: asNonEmptyString(run.finishedAt),
     id,

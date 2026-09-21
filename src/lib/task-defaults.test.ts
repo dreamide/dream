@@ -17,6 +17,7 @@ const run = (
   output: string | null,
 ): TaskStepRun => ({
   chatId: null,
+  commitError: null,
   feedback: null,
   finishedAt: "now",
   id: `${step}-${output}`,

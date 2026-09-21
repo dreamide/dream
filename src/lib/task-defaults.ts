@@ -66,7 +66,7 @@ Explore the repository and produce a concrete implementation plan: the files to 
 
 {{feedback}}
 
-Run the project's tests and lint, commit your work, and finish with a summary of what changed and anything you could not verify.`,
+Run the project's tests and lint. Do NOT run \`git commit\`: the app commits your work when you finish, and tells you if the commit is rejected. Finish with a summary of what changed and anything you could not verify.`,
   review: `You are the review step of a task pipeline. Review the changes on branch {{branch}} against {{baseRef}} for this task. Do not edit files.
 
 # {{task.title}}
@@ -79,7 +79,7 @@ Run the project's tests and lint, commit your work, and finish with a summary of
 {{previous.output}}
 
 End with a verdict line, either APPROVE or CHANGES REQUESTED, followed by numbered findings that reference file:line.`,
-  merge: `You are the final (ship) step of a task pipeline, getting the work ready to hand over. Prepare branch {{branch}} for merging into {{baseRef}}: commit any outstanding work, bring in the latest {{baseRef}}, resolve conflicts, and re-run the project's checks. Do NOT merge into {{baseRef}} and do NOT push.
+  merge: `You are the final (ship) step of a task pipeline, getting the work ready to hand over. Prepare branch {{branch}} for merging into {{baseRef}}: bring in the latest {{baseRef}} with \`git merge --no-commit {{baseRef}}\` (do not rebase), resolve any conflicts and stage the resolved files with \`git add\`, and re-run the project's checks. Do NOT run \`git commit\`: the app commits your work, and concludes the merge, when you finish. Do NOT merge into {{baseRef}} and do NOT push.
 
 # {{task.title}}
 

@@ -75,6 +75,20 @@ test("a finished run awaits approval even after its chat is deleted", () => {
   );
 });
 
+test("a finished run whose commit was rejected is failed, not ready to approve", () => {
+  const currentRun = {
+    chatId: "chat-1",
+    commitError: "pre-commit: lint failed",
+    finishedAt: "now",
+  };
+  assert.equal(getTaskStatus({ ...base, currentRun }), "failed");
+  // While the agent is fixing it, the card shows that instead.
+  assert.equal(
+    getTaskStatus({ ...base, currentRun, streaming: true }),
+    "running",
+  );
+});
+
 test("an unfinished run reflects the recorded activity", () => {
   assert.equal(
     getTaskStatus({ ...base, activityEntry: activity("failed") }),

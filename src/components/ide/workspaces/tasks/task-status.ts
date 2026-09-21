@@ -35,7 +35,7 @@ export const getTaskStatus = ({
   chatExists: boolean;
   currentRun:
     | (Pick<TaskStepRun, "chatId" | "finishedAt"> &
-        Partial<Pick<TaskStepRun, "output" | "step">>)
+        Partial<Pick<TaskStepRun, "commitError" | "output" | "step">>)
     | null;
   pendingSubmit: boolean;
   streaming: boolean;
@@ -65,6 +65,12 @@ export const getTaskStatus = ({
 
   if (pendingSubmit) {
     return "starting";
+  }
+
+  // The agent finished, but git rejected the app's commit of its work: the
+  // task cannot move on until that is fixed (retry hands it back to the agent).
+  if (currentRun.commitError) {
+    return "failed";
   }
 
   if (currentRun.finishedAt) {

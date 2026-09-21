@@ -98,6 +98,17 @@ export const projectGitCommitMessageRequestSchema = z.object({
     .default("openai"),
 });
 
+/** The app committing a task step's work (see `commitTaskStepWork`). */
+export const projectGitTaskCommitRequestSchema = z.object({
+  /** Used when no message can be generated, e.g. the task title. */
+  fallbackMessage: nullableTrimmedStringSchema,
+  model: nullableTrimmedStringSchema,
+  projectPath: z.string().min(1),
+  provider: z
+    .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
+    .default("openai"),
+});
+
 export const projectGitPushRequestSchema = z.object({
   commitMessage: nullableTrimmedStringSchema,
   customInstructions: nullableTrimmedStringSchema,

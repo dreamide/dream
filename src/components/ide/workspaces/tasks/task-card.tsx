@@ -389,6 +389,14 @@ const TaskCardImpl = ({
         <p className="mt-2 break-words text-destructive text-xs leading-5">
           {error}
         </p>
+      ) : currentRun?.commitError ? (
+        // Hook output can be long; it scrolls rather than stretching the card.
+        <div className="mt-2 text-destructive text-xs leading-5">
+          <p className="font-medium">{t("commitRejected")}</p>
+          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-4">
+            {currentRun.commitError}
+          </pre>
+        </div>
       ) : null}
       {task.branch ? (
         <div

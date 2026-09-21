@@ -1,6 +1,7 @@
 import {
   createChatConfig,
   createTask,
+  getDefaultGitGenerationModelSelection,
   getDefaultModelSelection,
 } from "@/lib/ide-defaults";
 import {
@@ -27,6 +28,27 @@ import { updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 type ProjectLists = Pick<IdeState, "closedProjects" | "projects">;
+
+/**
+ * Steps whose work the app commits when the agent finishes, instead of asking
+ * the agent to. Users commonly tell agents to ask before `git commit`, which
+ * would stall an unattended pipeline; and a commit the app makes either
+ * happens or fails visibly.
+ */
+const COMMIT_STEPS: ReadonlySet<TaskRunStepId> = new Set(["build", "merge"]);
+const COMMIT_ERROR_MAX_CHARS = 4000;
+const NL2 = "\n\n";
+
+/** Used when no commit message can be generated from the diff. */
+const getTaskCommitMessage = (task: Task, run: TaskStepRun): string => {
+  const title = task.title.trim();
+  if (run.step === "merge") {
+    return `Prepare to ship: ${title}`;
+  }
+  const isFirstBuild =
+    task.runs.find((entry) => entry.step === "build")?.id === run.id;
+  return isFirstBuild ? title : `Address review: ${title}`;
+};
 
 const STEP_TITLE_PREFIX: Record<TaskRunStepId, string> = {
   build: "Build",
@@ -466,6 +488,7 @@ export const createTaskActions = (
     const timestamp = new Date().toISOString();
     const run: TaskStepRun = {
       chatId,
+      commitError: null,
       feedback,
       finishedAt: null,
       id: crypto.randomUUID(),
@@ -557,6 +580,72 @@ export const createTaskActions = (
     return settled;
   };
 
+  /**
+   * Commits the current run's work when its step is one the app commits for
+   * (see `COMMIT_STEPS`). Throws when git rejects the commit, after recording
+   * why on the run, so the task holds at this step and the card explains it.
+   *
+   * Only tasks with their own worktree are committed: a legacy task runs in
+   * the user's own checkout, where `git add -A` would sweep up their work.
+   */
+  const commitCurrentRun = async (
+    projectId: string,
+    taskId: string,
+  ): Promise<void> => {
+    const found = findTask(projectId, taskId);
+    const run = found ? getCurrentTaskRun(found.task) : null;
+    if (!found || !run || !COMMIT_STEPS.has(run.step)) {
+      return;
+    }
+
+    const state = get();
+    const hostProject = found.task.worktreeProjectId
+      ? findProjectById(state, found.task.worktreeProjectId)
+      : undefined;
+    if (!hostProject?.worktree) {
+      return;
+    }
+
+    const setCommitError = (commitError: string | null) =>
+      set((current) => ({
+        tasks: replaceTask(current.tasks, taskId, (task) => ({
+          ...task,
+          runs: task.runs.map((entry) =>
+            entry.id === run.id && entry.commitError !== commitError
+              ? { ...entry, commitError }
+              : entry,
+          ),
+        })),
+      }));
+
+    try {
+      const response = await fetch("/api/project-git-task-commit", {
+        body: JSON.stringify({
+          fallbackMessage: getTaskCommitMessage(found.task, run),
+          projectPath: hostProject.path,
+          ...getDefaultGitGenerationModelSelection(state.settings),
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error((await response.text()).trim());
+      }
+    } catch (error) {
+      const message =
+        (error instanceof Error ? error.message.trim() : "") ||
+        "The work could not be committed.";
+      setCommitError(message.slice(0, COMMIT_ERROR_MAX_CHARS));
+      throw new Error(message);
+    }
+
+    setCommitError(null);
+    // The Changes panel of the worktree shows a clean tree again.
+    if (get().projects.some((entry) => entry.id === hostProject.id)) {
+      get().bumpProjectGitRefreshKey?.(hostProject.id);
+    }
+  };
+
   const isRunBusy = (run: TaskStepRun | null) => {
     if (!run?.chatId) {
       return false;
@@ -566,6 +655,35 @@ export const createTaskActions = (
       state.streamingChatIds[run.chatId] ||
         state.pendingChatSubmitByChatId[run.chatId],
     );
+  };
+
+  const advance = async (
+    projectId: string,
+    taskId: string,
+    { alreadyCommitted = false } = {},
+  ): Promise<string | null> => {
+    const found = findTask(projectId, taskId);
+    if (!found || found.task.completion) {
+      return null;
+    }
+
+    const nextStep = getNextTaskStep(found.task.step);
+    if (!nextStep || isRunBusy(getCurrentTaskRun(found.task))) {
+      return null;
+    }
+
+    // The next step works from the branch, so the work must be on it: this
+    // also covers approving a run that never finished normally. A rejected
+    // commit throws, and the task stays where it is.
+    if (!alreadyCommitted) {
+      await commitCurrentRun(projectId, taskId);
+    }
+    const previousRun = await settleCurrentRun(projectId, taskId);
+    // The task may have moved while git or the transcript was loading.
+    if (findTask(projectId, taskId)?.task.step !== found.task.step) {
+      return null;
+    }
+    return runStep(projectId, taskId, nextStep, { previousRun });
   };
 
   return {
@@ -685,24 +803,7 @@ export const createTaskActions = (
       return runStep(projectId, taskId, "plan");
     },
 
-    advanceTask: async (projectId, taskId) => {
-      const found = findTask(projectId, taskId);
-      if (!found || found.task.completion) {
-        return null;
-      }
-
-      const nextStep = getNextTaskStep(found.task.step);
-      if (!nextStep || isRunBusy(getCurrentTaskRun(found.task))) {
-        return null;
-      }
-
-      const previousRun = await settleCurrentRun(projectId, taskId);
-      // The task may have moved while the transcript was loading.
-      if (findTask(projectId, taskId)?.task.step !== found.task.step) {
-        return null;
-      }
-      return runStep(projectId, taskId, nextStep, { previousRun });
-    },
+    advanceTask: (projectId, taskId) => advance(projectId, taskId),
 
     sendTaskBack: async (projectId, taskId, toStep, note) => {
       const found = findTask(projectId, taskId);
@@ -747,6 +848,18 @@ export const createTaskActions = (
       const currentRun = getCurrentTaskRun(task);
       if (isRunBusy(currentRun)) {
         return null;
+      }
+
+      if (currentRun?.commitError) {
+        // The work is done but git rejected it: the same agent fixes that,
+        // with its context intact, rather than a fresh one starting over.
+        return runStep(projectId, taskId, task.step as TaskRunStepId, {
+          feedback: [
+            "The app could not commit your work. Fix the cause, and do not commit yourself. Git reported:",
+            currentRun.commitError,
+          ].join(NL2),
+          reuseChatId: currentRun.chatId,
+        });
       }
 
       // Hand the retry the same input the failed attempt received.
@@ -865,26 +978,57 @@ export const createTaskActions = (
       }
 
       const { run, task } = match;
-      const currentRun = getCurrentTaskRun(task);
-      if (currentRun?.id !== run.id || !run.finishedAt) {
+      const isStillCurrent = () => {
+        const latest = findTask(task.projectId, task.id)?.task;
+        return (
+          latest !== undefined &&
+          !latest.completion &&
+          getCurrentTaskRun(latest)?.id === run.id
+        );
+      };
+      if (!isStillCurrent() || !run.finishedAt) {
         return;
       }
 
-      const config = get().taskConfig[run.step];
-      // Merging is always an explicit user action.
-      if (!config.autoAdvance || !getNextTaskStep(task.step)) {
-        return;
-      }
-      // A review only passes itself along on an explicit APPROVE; requested
-      // changes (or no verdict at all) wait for the user to decide.
-      if (
-        run.step === "review" &&
-        getTaskReviewVerdict(run.output) !== "approve"
-      ) {
-        return;
-      }
+      void (async () => {
+        // The turn finished normally, so its work is committed whether or not
+        // the task moves on by itself. A rejected commit is recorded on the
+        // run and holds the task here.
+        try {
+          await commitCurrentRun(task.projectId, task.id);
+        } catch {
+          // Already recorded on the run, which is what the card shows.
+          return;
+        }
+        // The user may have moved the task while git was working.
+        if (!isStillCurrent()) {
+          return;
+        }
 
-      void get().advanceTask(task.projectId, task.id);
+        const config = get().taskConfig[run.step];
+        // Merging is always an explicit user action.
+        if (!config.autoAdvance || !getNextTaskStep(task.step)) {
+          return;
+        }
+        // A review only passes itself along on an explicit APPROVE; requested
+        // changes (or no verdict at all) wait for the user to decide.
+        if (
+          run.step === "review" &&
+          getTaskReviewVerdict(
+            findTask(task.projectId, task.id)?.task.runs.find(
+              (entry) => entry.id === run.id,
+            )?.output ?? run.output,
+          ) !== "approve"
+        ) {
+          return;
+        }
+
+        await advance(task.projectId, task.id, { alreadyCommitted: true });
+      })().catch((error: unknown) => {
+        // Nothing here is expected to throw: a rejected commit is handled
+        // above, and the step actions report through their return value.
+        console.error("[tasks] auto-advance failed:", error);
+      });
     },
   };
 };

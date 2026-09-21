@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { UIMessage } from "ai";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import {
   createProjectConfig,
@@ -32,9 +32,32 @@ interface WorktreeRequest {
   branchName: string;
 }
 
+interface CommitRequest {
+  model?: string;
+  provider?: string;
+  fallbackMessage: string;
+  projectPath: string;
+}
+
 const createTestStore = () => {
   const worktreeRequests: WorktreeRequest[] = [];
-  const harness = { failWorktree: null as string | null };
+  const commitRequests: CommitRequest[] = [];
+  const harness = {
+    /** Git's output when the app's commit should be rejected. */
+    failCommit: null as string | null,
+    failWorktree: null as string | null,
+  };
+  // The app commits a step's work through the API server.
+  vi.stubGlobal("fetch", async (url: string, init?: { body?: string }) => {
+    assert.equal(url, "/api/project-git-task-commit");
+    commitRequests.push(JSON.parse(init?.body ?? "{}") as CommitRequest);
+    const rejection = harness.failCommit;
+    return {
+      json: async () => ({ committed: true }),
+      ok: rejection === null,
+      text: async () => rejection ?? "",
+    };
+  });
   const project = createProjectConfig("/workspace/source", DEFAULT_SETTINGS);
   const worktree = createProjectConfig("/workspace/worktree", DEFAULT_SETTINGS);
   const store = createStore<IdeState>(
@@ -50,6 +73,7 @@ const createTestStore = () => {
         draftChatIdByProject: {},
         messagesByChatId: {},
         pendingChatSubmitByChatId: {},
+        projectGitRefreshKeys: {},
         tasks: [],
         tasksProjectId: null,
         projects: [project, worktree],
@@ -114,7 +138,14 @@ const createTestStore = () => {
       store.getState().messagesByChatId[chatId] ?? [],
   } as Partial<IdeState>);
 
-  return { harness, project, store, worktree, worktreeRequests };
+  return {
+    commitRequests,
+    harness,
+    project,
+    store,
+    worktree,
+    worktreeRequests,
+  };
 };
 
 type TestStore = ReturnType<typeof createTestStore>["store"];
@@ -156,7 +187,7 @@ const finishTurn = (store: TestStore, chatId: string, output: string) => {
 };
 
 const flushMicrotasks = async () => {
-  for (let index = 0; index < 5; index += 1) {
+  for (let index = 0; index < 50; index += 1) {
     await Promise.resolve();
   }
 };
@@ -1003,6 +1034,7 @@ test("opening a step chat of a closed project reopens it in Code", async () => {
       runs: [
         {
           chatId: null,
+          commitError: null,
           feedback: null,
           finishedAt: "2026-08-15T12:00:00.000Z",
           id: "run-old",
@@ -1039,4 +1071,128 @@ test("reordering one project's backlog leaves other projects' tasks in place", (
     store.getState().tasks.map((task) => task.id),
     [second, foreign, first],
   );
+});
+
+/** Runs a task to a finished build turn; `output` is the builder's summary. */
+const runToFinishedBuild = async (
+  store: TestStore,
+  projectId: string,
+  taskId: string,
+) => {
+  const planChatId = await store.getState().startTask(projectId, taskId);
+  assert.ok(planChatId);
+  finishTurn(store, planChatId, "The plan");
+  const buildChatId = await store.getState().advanceTask(projectId, taskId);
+  assert.ok(buildChatId);
+  finishTurn(store, buildChatId, "Built it");
+  await flushMicrotasks();
+  return buildChatId;
+};
+
+test("the app commits a finished build in the task's worktree, then advances", async () => {
+  const { commitRequests, project, store } = createTestStore();
+  const taskId = addTask(store, project.id);
+  await runToFinishedBuild(store, project.id, taskId);
+
+  const task = getTask(store);
+  // Planning changes no files, so only the build was committed — once.
+  assert.deepEqual(commitRequests, [
+    {
+      fallbackMessage: "Task",
+      model: commitRequests[0]?.model,
+      projectPath: task.worktreePath,
+      provider: commitRequests[0]?.provider,
+    },
+  ]);
+  assert.equal(task.step, "review");
+  assert.equal(task.runs[1]?.commitError, null);
+});
+
+test("a build is committed even when it does not advance by itself", async () => {
+  const { commitRequests, project, store } = createTestStore();
+  store.getState().setTaskStepConfig("build", (config) => ({
+    ...config,
+    autoAdvance: false,
+  }));
+  const taskId = addTask(store, project.id);
+  await runToFinishedBuild(store, project.id, taskId);
+
+  assert.equal(commitRequests.length, 1);
+  assert.equal(getTask(store).step, "build");
+
+  // Approving commits again, which is a no-op for git, and moves on.
+  assert.ok(await store.getState().advanceTask(project.id, taskId));
+  assert.equal(commitRequests.length, 2);
+  assert.equal(getTask(store).step, "review");
+});
+
+test("a rejected commit holds the task and goes back to the same agent", async () => {
+  const { commitRequests, harness, project, store } = createTestStore();
+  const taskId = addTask(store, project.id);
+  harness.failCommit = "pre-commit: lint failed in Slider.jsx";
+  const buildChatId = await runToFinishedBuild(store, project.id, taskId);
+
+  let task = getTask(store);
+  assert.equal(task.step, "build");
+  assert.equal(task.runs[1]?.commitError, harness.failCommit);
+  assert.ok(task.runs[1]?.finishedAt);
+
+  // Approving cannot skip the commit either.
+  await assert.rejects(
+    store.getState().advanceTask(project.id, taskId),
+    /lint failed in Slider\.jsx/,
+  );
+  assert.equal(getTask(store).step, "build");
+
+  // Retrying continues in the builder's chat, with git's output as feedback.
+  const retryChatId = await store.getState().retryTaskStep(project.id, taskId);
+  assert.equal(retryChatId, buildChatId);
+  const prompt =
+    store.getState().pendingChatSubmitByChatId[buildChatId]?.text ?? "";
+  assert.match(prompt, /could not commit your work/);
+  assert.match(prompt, /lint failed in Slider\.jsx/);
+
+  harness.failCommit = null;
+  finishTurn(store, buildChatId, "Fixed the lint error");
+  await flushMicrotasks();
+
+  task = getTask(store);
+  assert.equal(task.step, "review");
+  assert.equal(task.runs[2]?.step, "build");
+  assert.equal(task.runs[2]?.commitError, null);
+  assert.equal(commitRequests.at(-1)?.fallbackMessage, "Address review: Task");
+});
+
+test("tasks without their own worktree are never committed by the app", async () => {
+  const { commitRequests, project, store } = createTestStore();
+  const taskId = addTask(store, project.id);
+  // A task migrated from the old board runs in the user's own checkout, where
+  // staging everything would sweep up their unrelated work.
+  store.setState({
+    tasks: store.getState().tasks.map((task) => ({
+      ...task,
+      runs: [
+        {
+          chatId: null,
+          commitError: null,
+          feedback: null,
+          finishedAt: "2026-08-15T12:00:00.000Z",
+          id: "run-plan",
+          output: "The plan",
+          startedAt: "2026-08-15T12:00:00.000Z",
+          step: "plan" as const,
+        },
+      ],
+      step: "plan" as const,
+    })),
+  });
+
+  const buildChatId = await store.getState().advanceTask(project.id, taskId);
+  assert.ok(buildChatId);
+  finishTurn(store, buildChatId, "Built it");
+  await flushMicrotasks();
+
+  assert.equal(getTask(store).worktreeProjectId, null);
+  assert.equal(getTask(store).step, "review");
+  assert.deepEqual(commitRequests, []);
 });

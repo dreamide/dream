@@ -118,6 +118,11 @@ export type TaskConfig = Record<TaskRunStepId, TaskStepConfig>;
 export interface TaskStepRun {
   /** `null` once the chat has been deleted or purged. */
   chatId: string | null;
+  /**
+   * Why the app could not commit this run's work (e.g. a pre-commit hook's
+   * output). The task holds at this step until a commit succeeds.
+   */
+  commitError: string | null;
   /** Send-back note or findings that started this run. */
   feedback: string | null;
   finishedAt: string | null;

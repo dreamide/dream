@@ -4,6 +4,7 @@ import {
   checkoutProjectGitBranch,
   cleanupProjectGitWorktree,
   commitProjectGitChanges,
+  commitTaskStepWork,
   compareProjectGitWorktree,
   createProjectGitWorktree,
   createProjectPullRequest,
@@ -39,6 +40,7 @@ import {
   projectGitRemoveWorktreeRequestSchema,
   projectGitRevertFileRequestSchema,
   projectGitStatusRequestSchema,
+  projectGitTaskCommitRequestSchema,
   projectGitWorktreeCleanupRequestSchema,
   projectGitWorktreeCompareDiffRequestSchema,
   projectGitWorktreeCompareRequestSchema,
@@ -527,6 +529,43 @@ export const registerProjectGitRoutes = (app) => {
     try {
       await ensureProjectDirectory(projectPath);
       return c.json(await commitProjectGitChanges(projectPath, options));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to commit changes.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-task-commit", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitTaskCommitRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { fallbackMessage, model, projectPath, provider } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(
+        await commitTaskStepWork(projectPath, {
+          fallbackMessage,
+          // Same options as the message warmed after each agent turn, so this
+          // is normally served from the cache.
+          generateMessage: () =>
+            generateProjectGitCommitMessage(projectPath, {
+              model: model ?? "",
+              provider,
+              throwOnError: true,
+            }),
+        }),
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to commit changes.";
