@@ -553,9 +553,57 @@ Another program is still using this folder. Close any terminal, editor, or file 
   }
 };
 
+const deleteMergedBranch = async (commandCwd, branch) => {
+  // `-d`, never `-D`: git refuses when the branch holds unmerged work.
+  const result = await runGitCommand(commandCwd, ["branch", "-d", branch], {
+    allowFailure: true,
+  });
+  return {
+    branchDeleted: result.ok,
+    branchDeleteError: result.ok
+      ? null
+      : getGitCommandErrorMessage(result.error),
+  };
+};
+
+const finishCleanupOfForgottenWorktree = async ({
+  branch,
+  commandCwd,
+  deleteBranch,
+  targetPath,
+}) => {
+  await runGitCommand(commandCwd, ["worktree", "prune"]);
+  // An empty leftover folder is removed; one with files in it is not ours to
+  // delete, since git is not vouching for what they are.
+  try {
+    await fs.rmdir(targetPath);
+  } catch {
+    // Not empty, or already gone.
+  }
+
+  const branchExists = await hasGitRef(commandCwd, `refs/heads/${branch}`);
+  const deletion =
+    deleteBranch && branchExists
+      ? await deleteMergedBranch(commandCwd, branch)
+      : { branchDeleted: false, branchDeleteError: null };
+
+  return {
+    branch: branchExists ? branch : null,
+    ...deletion,
+    path: targetPath,
+    pruned: true,
+    removed: true,
+  };
+};
+
 export const cleanupProjectGitWorktree = async (
   projectPath,
-  { deleteBranch = false, force = false, worktreePath = "" } = {},
+  {
+    branch: knownBranch = null,
+    deleteBranch = false,
+    force = false,
+    worktreePath = "",
+  } = {},
 ) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
@@ -568,7 +616,18 @@ export const cleanupProjectGitWorktree = async (
     (worktree) => path.resolve(worktree.path) === targetPath,
   );
   if (!entry) {
-    throw new Error("Worktree was not found for this repository.");
+    // Git no longer knows the worktree (it was removed by hand, or its
+    // registration was pruned). What is left to clean up is the branch the
+    // caller names, and the folder if nothing is in it.
+    if (!knownBranch) {
+      throw new Error("Worktree was not found for this repository.");
+    }
+    return finishCleanupOfForgottenWorktree({
+      branch: knownBranch,
+      commandCwd: worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot,
+      deleteBranch,
+      targetPath,
+    });
   }
 
   if (

@@ -25,7 +25,12 @@ import type {
 import { normalizeProjectPathKey } from "../ide-state";
 import { extractStepOutput } from "../workspaces/tasks/task-output";
 import { updateProjectUiInList } from ".";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type {
+  IdeState,
+  IdeStoreGet,
+  IdeStoreSet,
+  MissingTaskWorktree,
+} from "./ide-store-types";
 
 type ProjectLists = Pick<IdeState, "closedProjects" | "projects">;
 
@@ -351,6 +356,7 @@ export const createTaskActions = (
   | "completeTask"
   | "openTaskStepChat"
   | "reopenTaskWorktree"
+  | "checkTaskWorktree"
   | "recreateTaskWorktree"
   | "unlinkTaskRunsForChats"
   | "setTaskStepConfig"
@@ -602,20 +608,66 @@ export const createTaskActions = (
     return settled;
   };
 
-  const setWorktreeMissing = (taskId: string, missing: boolean) =>
+  /** `null` clears the flag: the worktree is usable (again). */
+  const setWorktreeMissing = (
+    taskId: string,
+    missing: MissingTaskWorktree | null,
+  ) =>
     set((state) => {
       const current = state.missingTaskWorktrees ?? {};
-      if (Boolean(current[taskId]) === missing) {
+      const existing = current[taskId];
+      if (
+        (missing === null && !existing) ||
+        (missing !== null && existing?.branchExists === missing.branchExists)
+      ) {
         return state;
       }
       const next = { ...current };
       if (missing) {
-        next[taskId] = true;
+        next[taskId] = missing;
       } else {
         delete next[taskId];
       }
       return { missingTaskWorktrees: next };
     });
+
+  /**
+   * Whether the task's worktree is a usable checkout, from the disk. Records
+   * the answer, including whether the branch survives: that decides between
+   * offering to recreate the worktree and offering to mark the task done.
+   */
+  const checkWorktreeOnDisk = async (
+    projectId: string,
+    taskId: string,
+  ): Promise<boolean> => {
+    const found = findTask(projectId, taskId);
+    if (!found?.task.worktreeProjectId) {
+      return true;
+    }
+
+    const { project: owner, task } = found;
+    const { worktreeProjectId } = found.task;
+    if (!task.branch || !task.worktreePath) {
+      setWorktreeMissing(taskId, { branchExists: false });
+      return false;
+    }
+
+    const status = await postTaskWorktree<{
+      branchExists: boolean;
+      isCheckout: boolean;
+    }>("check", owner.path, task);
+    // A checkout the app has no project record for cannot be reopened either,
+    // but recreating adopts it (the server leaves a healthy checkout alone).
+    const hasRecord = findProjectById(get(), worktreeProjectId) !== undefined;
+    const usable = status.isCheckout && hasRecord;
+    setWorktreeMissing(
+      taskId,
+      usable
+        ? null
+        : { branchExists: status.branchExists || status.isCheckout },
+    );
+    return usable;
+  };
 
   const postTaskWorktree = async <Result>(
     action: "check" | "recreate",
@@ -692,8 +744,16 @@ export const createTaskActions = (
       if (response.status === WORKTREE_MISSING_STATUS) {
         // Not a rejected commit: the checkout itself is gone, which no agent
         // can fix. The card offers to recreate it instead of retrying.
-        setWorktreeMissing(taskId, true);
-        throw new WorktreeMissingError((await response.text()).trim());
+        // The commit route only says the checkout is gone; the branch is
+        // looked up so the card offers the right way out.
+        const message = (await response.text()).trim();
+        await checkWorktreeOnDisk(projectId, taskId).catch(() =>
+          setWorktreeMissing(taskId, { branchExists: true }),
+        );
+        if (!get().missingTaskWorktrees?.[taskId]) {
+          setWorktreeMissing(taskId, { branchExists: true });
+        }
+        throw new WorktreeMissingError(message);
       }
       if (!response.ok) {
         throw new Error((await response.text()).trim());
@@ -1002,29 +1062,32 @@ export const createTaskActions = (
         return true;
       }
 
-      const closedProject = get().closedProjects.find(
-        (entry) => entry.id === task.worktreeProjectId,
-      );
-      const owner = findProjectById(get(), projectId);
       // Reopening a project whose folder is gone would only fail later, in
-      // the middle of a step. No record at all means the worktree was removed.
-      const isCheckout =
-        closedProject && owner && task.branch && task.worktreePath
-          ? (
-              await postTaskWorktree<{ isCheckout: boolean }>(
-                "check",
-                owner.path,
-                task,
-              )
-            ).isCheckout
-          : false;
-      if (!closedProject || !isCheckout) {
-        setWorktreeMissing(taskId, true);
+      // the middle of a step.
+      if (!(await checkWorktreeOnDisk(projectId, taskId))) {
         return false;
       }
 
+      const closedProject = get().closedProjects.find(
+        (entry) => entry.id === task.worktreeProjectId,
+      );
+      if (!closedProject) {
+        return false;
+      }
       get().addProject(closedProject.path, { activate: false });
       return isOpen();
+    },
+
+    checkTaskWorktree: async (projectId, taskId) => {
+      const task = findTask(projectId, taskId)?.task;
+      if (
+        !task?.worktreeProjectId ||
+        task.completion ||
+        get().projects.some((entry) => entry.id === task.worktreeProjectId)
+      ) {
+        return true;
+      }
+      return checkWorktreeOnDisk(projectId, taskId);
     },
 
     recreateTaskWorktree: async (projectId, taskId) => {
@@ -1086,7 +1149,7 @@ export const createTaskActions = (
           worktreeProjectId: worktreeProject.id,
         })),
       }));
-      setWorktreeMissing(taskId, false);
+      setWorktreeMissing(taskId, null);
     },
 
     unlinkTaskRunsForChats: (chatIds) => {

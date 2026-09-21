@@ -295,6 +295,80 @@ gitTest(
 );
 
 gitTest(
+  "cleanup of a worktree git has forgotten still deletes its merged branch",
+  async () => {
+    const repoPath = await createGitRepo();
+    const worktreePath = await createWorktree(repoPath, "feature/forgotten");
+    await commitFile(worktreePath, "src/f.ts", "f", "Add f");
+    const app = createApp();
+    assert.equal((await merge(app, worktreePath)).status, 200);
+    // Removed by hand: the folder is emptied and git's registration pruned.
+    await fs.rm(worktreePath, { force: true, recursive: true });
+    await fs.mkdir(worktreePath);
+    await git(repoPath, ["worktree", "prune"]);
+
+    // Without the branch name there is nothing to go on, as before.
+    const unnamed = await cleanup(app, repoPath, worktreePath, {
+      deleteBranch: true,
+    });
+    assert.equal(unnamed.status, 400);
+    assert.match(await unnamed.text(), /worktree was not found/i);
+
+    const payload = await expectJson(
+      await cleanup(app, repoPath, worktreePath, {
+        branch: "feature/forgotten",
+        deleteBranch: true,
+      }),
+    );
+    assert.equal(payload.removed, true);
+    assert.equal(payload.branchDeleted, true);
+    assert.equal(payload.branchDeleteError, null);
+    await assert.rejects(fs.access(worktreePath));
+    await assert.rejects(
+      git(repoPath, [
+        "show-ref",
+        "--verify",
+        "--quiet",
+        "refs/heads/feature/forgotten",
+      ]),
+    );
+  },
+);
+
+gitTest(
+  "cleanup of a forgotten worktree never deletes unmerged work or leftover files",
+  async () => {
+    const repoPath = await createGitRepo();
+    const worktreePath = await createWorktree(repoPath, "feature/kept");
+    await commitFile(worktreePath, "src/k.ts", "k", "Add k");
+    await fs.rm(worktreePath, { force: true, recursive: true });
+    await fs.mkdir(worktreePath);
+    await fs.writeFile(`${worktreePath}/notes.txt`, "mine");
+    await git(repoPath, ["worktree", "prune"]);
+
+    const payload = await expectJson(
+      await cleanup(createApp(), repoPath, worktreePath, {
+        branch: "feature/kept",
+        deleteBranch: true,
+      }),
+    );
+    assert.equal(payload.branchDeleted, false);
+    assert.ok(payload.branchDeleteError);
+    // The folder still holds a file, so it stays.
+    await fs.access(`${worktreePath}/notes.txt`);
+    assert.equal(
+      await git(repoPath, [
+        "show-ref",
+        "--verify",
+        "--quiet",
+        "refs/heads/feature/kept",
+      ]),
+      "",
+    );
+  },
+);
+
+gitTest(
   "cleanup keeps an unmerged branch and reports the delete failure",
   async () => {
     const repoPath = await createGitRepo();

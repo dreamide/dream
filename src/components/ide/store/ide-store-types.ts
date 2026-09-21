@@ -22,6 +22,15 @@ import type {
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
 
+export interface MissingTaskWorktree {
+  /**
+   * Whether the task's branch still exists. With it the worktree can be
+   * recreated; without it there is nothing left to bring back, which usually
+   * means the work was merged and cleaned up outside the Tasks workspace.
+   */
+  branchExists: boolean;
+}
+
 export interface WorktreeInitialChatSeed {
   messageId: string;
   messages: UIMessage[];
@@ -62,7 +71,7 @@ export interface IdeState {
    * is re-detected by the next reopen or commit, and the disk may have changed
    * by the next launch anyway.
    */
-  missingTaskWorktrees: Record<string, true>;
+  missingTaskWorktrees: Record<string, MissingTaskWorktree>;
   awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
@@ -229,6 +238,12 @@ export interface IdeState {
   openTaskStepChat: (projectId: string, taskId: string, runId?: string) => void;
   /** Reopens a task's closed worktree project in the background. */
   reopenTaskWorktree: (projectId: string, taskId: string) => Promise<boolean>;
+  /**
+   * Looks at the disk for a task whose worktree project is not open, so the
+   * card can say "worktree missing" by itself instead of offering a Reopen
+   * that cannot work. Returns whether the worktree is usable.
+   */
+  checkTaskWorktree: (projectId: string, taskId: string) => Promise<boolean>;
   /**
    * Checks the task's branch out again where its worktree used to be, and
    * opens it in the background. Throws when that is not possible (the branch

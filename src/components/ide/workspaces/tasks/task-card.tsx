@@ -8,6 +8,7 @@ import {
   FilePenLine,
   FolderOpen,
   FolderSync,
+  FolderX,
   GitBranch,
   MessageSquare,
   Play,
@@ -16,7 +17,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,9 +38,11 @@ import { useActivityStore } from "../../activity-store";
 import { ProjectTabIcon } from "../../header/project-tab-icon";
 import { useIdeStore } from "../../ide-store";
 import { getCurrentTaskRun } from "../../store/task-actions";
+import { TaskDeliveryBadge, useTaskDelivery } from "./task-delivery";
 import {
   getTaskStatus,
   getTaskStatusDotProps,
+  getTaskStatusLabelKey,
   isTaskSettled,
   TASK_STATUS_LABEL_KEYS,
 } from "./task-status";
@@ -60,6 +63,8 @@ export interface TaskCardProps {
   onAdvance: (entry: TaskEntry) => void;
   onComplete: (entry: TaskEntry) => void;
   onDelete: (entry: TaskEntry) => void;
+  /** Throws the task's work away: the worktree, optionally the branch. */
+  onDiscard: (entry: TaskEntry) => void;
   onEdit: (entry: TaskEntry) => void;
   onMoveInBacklog: (entry: TaskEntry, index: number) => void;
   onOpenChat: (entry: TaskEntry, runId?: string) => void;
@@ -83,6 +88,7 @@ const TaskCardImpl = ({
   onAdvance,
   onComplete,
   onDelete,
+  onDiscard,
   onEdit,
   onMoveInBacklog,
   onMarkDone,
@@ -132,9 +138,24 @@ const TaskCardImpl = ({
       !task.worktreeProjectId ||
       s.projects.some((project) => project.id === task.worktreeProjectId),
   );
-  const worktreeMissing = useIdeStore((s) =>
-    Boolean(s.missingTaskWorktrees[task.id]),
+  const missingWorktree = useIdeStore(
+    (s) => s.missingTaskWorktrees[task.id] ?? null,
   );
+  const worktreeMissing = missingWorktree !== null;
+  const checkTaskWorktree = useIdeStore((s) => s.checkTaskWorktree);
+  // A closed worktree may be gone from disk. Looking once saves offering a
+  // Reopen that cannot work; failures to look just leave the card as it is.
+  useEffect(() => {
+    if (!worktreeOpen && !task.completion) {
+      void checkTaskWorktree(entry.projectId, task.id).catch(() => {});
+    }
+  }, [
+    checkTaskWorktree,
+    entry.projectId,
+    task.completion,
+    task.id,
+    worktreeOpen,
+  ]);
   const activityEntry = useActivityStore((s) =>
     chatId ? s.entries[chatId] : undefined,
   );
@@ -149,6 +170,15 @@ const TaskCardImpl = ({
     task,
     worktreeMissing,
     worktreeOpen,
+  });
+  // "Done" means merged locally; whether it was pushed is a separate fact.
+  const mergedCommit =
+    task.completion?.kind === "merged" ? task.completion.mergeCommit : null;
+  const delivery = useTaskDelivery({
+    branch: task.baseRef,
+    commit: mergedCommit,
+    enabled: mergedCommit !== null,
+    projectPath: project.path,
   });
   const dot = getTaskStatusDotProps(status);
   const settled = isTaskSettled(status);
@@ -173,12 +203,20 @@ const TaskCardImpl = ({
     status === "idle" && task.step === "backlog"
       ? { icon: Play, label: t("start"), run: () => onStart(entry) }
       : status === "worktreeMissing"
-        ? {
-            // The branch usually outlives the folder, so the work comes back.
-            icon: FolderSync,
-            label: t("recreateWorktree"),
-            run: () => onRecreateWorktree(entry),
-          }
+        ? missingWorktree?.branchExists
+          ? {
+              // The branch outlived the folder, so the work comes back.
+              icon: FolderSync,
+              label: t("recreateWorktree"),
+              run: () => onRecreateWorktree(entry),
+            }
+          : {
+              // Branch and worktree are both gone: nothing can be recreated.
+              // That is what a task merged and cleaned up by hand looks like.
+              icon: Check,
+              label: t("markDone"),
+              run: () => onMarkDone(entry),
+            }
         : status === "worktreeClosed"
           ? {
               icon: FolderOpen,
@@ -389,6 +427,14 @@ const TaskCardImpl = ({
               <FilePenLine className="size-4" />
               {t("edit")}
             </DropdownMenuItem>
+            {settled && task.worktreeProjectId && !task.completion ? (
+              // Shipping never discards; throwing the work away is its own,
+              // clearly destructive, action.
+              <DropdownMenuItem onClick={() => onDiscard(entry)}>
+                <FolderX className="size-4" />
+                {t("discardWork")}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               disabled={!canDelete}
@@ -408,8 +454,13 @@ const TaskCardImpl = ({
             color={dot.color}
             pulse={dot.pulse}
           />
-          <span className="truncate">{t(TASK_STATUS_LABEL_KEYS[status])}</span>
+          <span className="truncate">
+            {t(getTaskStatusLabelKey(status, task.step))}
+          </span>
         </div>
+      ) : null}
+      {delivery?.branchExists && delivery.pushed !== null ? (
+        <TaskDeliveryBadge status={delivery} />
       ) : null}
       {error ? (
         <p className="mt-2 break-words text-destructive text-xs leading-5">

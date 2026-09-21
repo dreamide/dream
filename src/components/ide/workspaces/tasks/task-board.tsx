@@ -32,7 +32,13 @@ type TaskDialogState =
   | { mode: "edit"; entry: TaskEntry }
   | { mode: "sendBack"; entry: TaskEntry; toStep: TaskRunStepId }
   | { mode: "settings"; step: TaskRunStepId }
-  | { mode: "complete"; entry: TaskEntry; project: WorktreeProject };
+  | {
+      mode: "complete";
+      /** Discarding uses the plain worktree dialog; shipping the task one. */
+      discard: boolean;
+      entry: TaskEntry;
+      project: WorktreeProject;
+    };
 
 const COMPLETION_KINDS: Record<
   WorktreeCompletionAction,
@@ -240,6 +246,7 @@ export const TaskBoard = ({
       if (worktreeProject?.worktree) {
         // Merge, open a PR, or discard — then the worktree is cleaned up.
         setDialog({
+          discard: false,
           entry,
           mode: "complete",
           project: worktreeProject as WorktreeProject,
@@ -263,11 +270,35 @@ export const TaskBoard = ({
     [completeTask, setTaskError, t],
   );
 
+  const handleDiscard = useCallback(
+    (entry: TaskEntry) => {
+      setTaskError(entry.key, null);
+      const worktreeProject = useIdeStore
+        .getState()
+        .projects.find(
+          (project) => project.id === entry.task.worktreeProjectId,
+        );
+      if (!worktreeProject?.worktree) {
+        setTaskError(entry.key, t("worktreeMissing"));
+        return;
+      }
+      setDialog({
+        discard: true,
+        entry,
+        mode: "complete",
+        project: worktreeProject as WorktreeProject,
+      });
+    },
+    [setTaskError, t],
+  );
+
   const handleWorktreeCompleted = useCallback(
     (entry: TaskEntry, result: WorktreeCompletionResult) =>
       completeTask(entry.projectId, entry.task.id, {
         at: new Date().toISOString(),
-        kind: COMPLETION_KINDS[result.action],
+        // Finishing a task whose work was already on the base branch only
+        // removes the worktree, but the outcome is still "merged".
+        kind: result.alreadyMerged ? "merged" : COMPLETION_KINDS[result.action],
         mergeCommit: result.mergeCommit,
         prUrl: result.prUrl,
       }),
@@ -338,6 +369,7 @@ export const TaskBoard = ({
               onComplete={handleComplete}
               onConfigureStep={handleConfigureStep}
               onDelete={handleDelete}
+              onDiscard={handleDiscard}
               onEdit={handleEdit}
               onMoveInBacklog={handleMoveInBacklog}
               onMarkDone={handleMarkDone}
@@ -409,6 +441,7 @@ export const TaskBoard = ({
           }}
           open
           project={dialog.project}
+          task={dialog.discard ? undefined : { title: dialog.entry.task.title }}
         />
       ) : null}
     </div>

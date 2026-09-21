@@ -164,3 +164,15 @@ export const TASK_STATUS_LABEL_KEYS = {
   worktreeClosed: "statusWorktreeClosed",
   worktreeMissing: "statusWorktreeMissing",
 } as const satisfies Record<TaskStatus, string>;
+
+/**
+ * The label for `status` on a task at `step`. The last step has nothing to
+ * approve into: once its agent is done, the task is ready to be finalized.
+ */
+export const getTaskStatusLabelKey = (
+  status: TaskStatus,
+  step: Task["step"],
+) =>
+  status === "awaitingApproval" && step === "merge"
+    ? "statusReadyToFinalize"
+    : TASK_STATUS_LABEL_KEYS[status];

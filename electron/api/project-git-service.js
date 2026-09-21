@@ -4,5 +4,6 @@ export * from "./project-git/files.js";
 export * from "./project-git/icons.js";
 export * from "./project-git/schemas.js";
 export * from "./project-git/task-commit.js";
+export * from "./project-git/task-delivery.js";
 export * from "./project-git/task-worktree.js";
 export * from "./project-git/worktree-completion.js";

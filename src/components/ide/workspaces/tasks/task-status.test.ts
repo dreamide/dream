@@ -4,6 +4,7 @@ import type { ChatActivity } from "../../activity-store";
 import {
   getTaskStatus,
   getTaskStatusDotProps,
+  getTaskStatusLabelKey,
   isTaskSettled,
 } from "./task-status";
 
@@ -110,6 +111,18 @@ test("a missing worktree outranks whatever the step chat reports", () => {
     getTaskStatusDotProps("worktreeMissing").className,
     "bg-destructive",
   );
+});
+
+test("the last step is ready to finalize, since there is nothing to approve into", () => {
+  assert.equal(
+    getTaskStatusLabelKey("awaitingApproval", "merge"),
+    "statusReadyToFinalize",
+  );
+  assert.equal(
+    getTaskStatusLabelKey("awaitingApproval", "build"),
+    "statusAwaitingApproval",
+  );
+  assert.equal(getTaskStatusLabelKey("failed", "merge"), "statusFailed");
 });
 
 test("an unfinished run reflects the recorded activity", () => {

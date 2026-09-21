@@ -118,6 +118,17 @@ export const projectGitTaskWorktreeRequestSchema = z.object({
   worktreePath: z.string().trim().min(1),
 });
 
+/**
+ * Whether a finished task's work has reached the remote. Read-only: the Tasks
+ * workspace reports this and never pushes.
+ */
+export const projectGitTaskDeliveryRequestSchema = z.object({
+  branch: z.string().trim().min(1),
+  /** The commit the task landed as, if known. */
+  commit: nullableTrimmedStringSchema,
+  projectPath: z.string().min(1),
+});
+
 export const projectGitPushRequestSchema = z.object({
   commitMessage: nullableTrimmedStringSchema,
   customInstructions: nullableTrimmedStringSchema,
@@ -185,6 +196,11 @@ export const projectGitWorktreeMergeRequestSchema = z.object({
 });
 
 export const projectGitWorktreeCleanupRequestSchema = z.object({
+  /**
+   * The worktree's branch as the app knows it. Lets the branch still be
+   * deleted when git has already forgotten the worktree itself.
+   */
+  branch: nullableTrimmedStringSchema,
   deleteBranch: z.boolean().default(false),
   force: z.boolean().default(false),
   projectPath: z.string().min(1),

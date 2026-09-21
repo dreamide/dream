@@ -49,6 +49,7 @@ export const createProjectActions = (
   | "completeTask"
   | "openTaskStepChat"
   | "reopenTaskWorktree"
+  | "checkTaskWorktree"
   | "recreateTaskWorktree"
   | "unlinkTaskRunsForChats"
   | "setTaskStepConfig"

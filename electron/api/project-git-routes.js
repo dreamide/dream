@@ -16,6 +16,7 @@ import {
   getProjectGitFileAtHead,
   getProjectGitPushPreview,
   getProjectGitWorktreeCompareDiff,
+  getTaskDeliveryStatus,
   getTaskWorktreeStatus,
   listProjectDirectory,
   listProjectFiles,
@@ -42,6 +43,7 @@ import {
   projectGitRevertFileRequestSchema,
   projectGitStatusRequestSchema,
   projectGitTaskCommitRequestSchema,
+  projectGitTaskDeliveryRequestSchema,
   projectGitTaskWorktreeRequestSchema,
   projectGitWorktreeCleanupRequestSchema,
   projectGitWorktreeCompareDiffRequestSchema,
@@ -576,6 +578,33 @@ export const registerProjectGitRoutes = (app) => {
       // 410 Gone: the worktree itself is missing, which the renderer handles
       // differently from a commit that git rejected.
       return c.text(message, error?.code === TASK_WORKTREE_MISSING ? 410 : 400);
+    }
+  });
+
+  app.post("/api/project-git-task-delivery", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitTaskDeliveryRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { branch, commit, projectPath } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(
+        await getTaskDeliveryStatus(projectPath, { branch, commit }),
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to reach the remote.";
+      return c.text(message, 400);
     }
   });
 

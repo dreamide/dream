@@ -55,6 +55,8 @@ const createTestStore = () => {
     /** Git's output when the app's commit should be rejected. */
     failCommit: null as string | null,
     failWorktree: null as string | null,
+    /** Whether the task's branch still exists in the repository. */
+    branchExists: true,
     /** Whether the task's worktree folder is still a git checkout. */
     worktreeOnDisk: true,
   };
@@ -76,7 +78,10 @@ const createTestStore = () => {
                 path: request.worktreePath,
                 repoRoot: "/workspace/source",
               }
-            : { branchExists: true, isCheckout: harness.worktreeOnDisk },
+            : {
+                branchExists: harness.branchExists,
+                isCheckout: harness.worktreeOnDisk,
+              },
         ok: true,
         status: 200,
         text: async () => "",
@@ -1275,7 +1280,9 @@ test("a missing worktree is not a rejected commit: nothing goes back to the agen
   // The agent cannot fix a missing checkout, so no commit error is recorded
   // for a retry to hand back; the card offers to recreate the worktree.
   assert.equal(task.runs[1]?.commitError, null);
-  assert.deepEqual(store.getState().missingTaskWorktrees, { [taskId]: true });
+  assert.deepEqual(store.getState().missingTaskWorktrees, {
+    [taskId]: { branchExists: true },
+  });
   await assert.rejects(
     store.getState().advanceTask(project.id, taskId),
     /no longer a git checkout/,
@@ -1302,7 +1309,9 @@ test("reopening checks the disk first, and recreating brings the worktree back",
       .getState()
       .closedProjects.some((entry) => entry.id === worktreeProjectId),
   );
-  assert.deepEqual(store.getState().missingTaskWorktrees, { [taskId]: true });
+  assert.deepEqual(store.getState().missingTaskWorktrees, {
+    [taskId]: { branchExists: true },
+  });
 
   await store.getState().recreateTaskWorktree(project.id, taskId);
 
@@ -1328,7 +1337,7 @@ test("recreating a worktree the app has no record of registers it for the task",
   // The worktree project was purged (e.g. removed from Code), but the task
   // still names its branch and folder.
   store.setState({
-    missingTaskWorktrees: { [taskId]: true },
+    missingTaskWorktrees: { [taskId]: { branchExists: true } },
     tasks: store.getState().tasks.map((task) => ({
       ...task,
       baseRef: "main",
@@ -1354,4 +1363,49 @@ test("recreating a worktree the app has no record of registers it for the task",
   assert.deepEqual(state.missingTaskWorktrees, {});
   // Code's active tab did not move.
   assert.equal(state.activeProjectId, project.id);
+});
+
+test("a closed worktree is checked on disk: gone with its branch means mark as done", async () => {
+  const { harness, project, store } = createTestStore();
+  const taskId = addTask(store, project.id);
+  await runToFinishedBuild(store, project.id, taskId);
+  const worktreeProjectId = getTask(store).worktreeProjectId;
+  assert.ok(worktreeProjectId);
+
+  // Open worktrees are left alone: no request, nothing flagged.
+  assert.equal(
+    await store.getState().checkTaskWorktree(project.id, taskId),
+    true,
+  );
+  assert.deepEqual(store.getState().missingTaskWorktrees, {});
+
+  closeProjectInStore(store, worktreeProjectId);
+  assert.equal(
+    await store.getState().checkTaskWorktree(project.id, taskId),
+    true,
+  );
+  assert.deepEqual(store.getState().missingTaskWorktrees, {});
+
+  // Merged and cleaned up by hand: neither folder nor branch is left.
+  harness.worktreeOnDisk = false;
+  harness.branchExists = false;
+  assert.equal(
+    await store.getState().checkTaskWorktree(project.id, taskId),
+    false,
+  );
+  assert.deepEqual(store.getState().missingTaskWorktrees, {
+    [taskId]: { branchExists: false },
+  });
+
+  // Finished tasks are never checked.
+  store.getState().completeTask(project.id, taskId, {
+    at: new Date().toISOString(),
+    kind: "removed",
+    mergeCommit: null,
+    prUrl: null,
+  });
+  assert.equal(
+    await store.getState().checkTaskWorktree(project.id, taskId),
+    true,
+  );
 });
