@@ -1,5 +1,6 @@
 import {
   ArrowDown,
+  ArrowRight,
   ArrowUp,
   Check,
   ChevronsRight,
@@ -210,7 +211,7 @@ const TaskCardImpl = ({
                   }
                 : canApprove && task.step === "merge"
                   ? {
-                      icon: Check,
+                      icon: ArrowRight,
                       label: t("complete"),
                       run: () => onComplete(entry),
                     }
@@ -348,7 +349,7 @@ const TaskCardImpl = ({
             !primaryIsComplete &&
             (task.step === "review" || task.step === "merge") ? (
               <DropdownMenuItem onClick={() => onComplete(entry)}>
-                <Check className="size-4" />
+                <ArrowRight className="size-4" />
                 {t("complete")}
               </DropdownMenuItem>
             ) : null}
