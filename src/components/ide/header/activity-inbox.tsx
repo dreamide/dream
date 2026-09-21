@@ -31,7 +31,11 @@ export function ActivityInbox() {
       new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "narrow" }),
     [locale],
   );
-  const open = useActivityStore((s) => s.open);
+  // The inbox belongs to the Code workspace: it lists chats, and opening one
+  // leaves Tasks. It stays shut there without forgetting that it was open, so
+  // returning to Code restores it.
+  const inCode = useIdeStore((s) => s.appView === "code");
+  const open = useActivityStore((s) => s.open) && inCode;
   const [now, setNow] = useState(() => new Date());
   const [width, setWidth] = useState(340);
   const widthRef = useRef(width);

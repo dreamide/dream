@@ -41,7 +41,7 @@ export const TasksScopeSwitcher = () => {
   );
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1 pl-1 [-webkit-app-region:drag]">
+    <div className="flex min-w-0 flex-1 items-center gap-1 pl-2 [-webkit-app-region:drag]">
       <div className="flex shrink-0 items-center gap-2 px-2 font-medium text-sm">
         <CircleCheckBig className="size-4 text-muted-foreground" />
         {t("title")}

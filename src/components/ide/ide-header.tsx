@@ -37,10 +37,17 @@ export const IdeHeader = () => {
           )}
         />
 
-        <ActivityButton />
-        {/* Each workspace owns the titlebar's navigation: project tabs belong
-            to Code, so Tasks swaps in its own project filter. */}
-        {tasksSelected ? <TasksScopeSwitcher /> : <ProjectTabs />}
+        {/* Each workspace owns the titlebar's navigation. Chat activity and
+            project tabs lead into Code, so Tasks shows neither and swaps in
+            its own project filter. */}
+        {tasksSelected ? (
+          <TasksScopeSwitcher />
+        ) : (
+          <>
+            <ActivityButton />
+            <ProjectTabs />
+          </>
+        )}
 
         <HeaderUpdateButton />
 
