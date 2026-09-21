@@ -8,7 +8,6 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
-import type { AiProvider } from "@/types/ide";
 import { ChipAnimateProvider } from "../assistant-message/shared";
 import { AssistantMessagePart } from "../assistant-message-part";
 import {
@@ -36,15 +35,10 @@ export type EditTarget = {
   name: string;
 };
 
-export const PROVIDER_LABELS: Record<AiProvider, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  opencode: "OpenCode",
-  cursor: "Cursor",
-  grok: "Grok Build",
-};
-
-export const CHAT_STREAM_UPDATE_THROTTLE_MS = 50;
+export {
+  CHAT_STREAM_UPDATE_THROTTLE_MS,
+  PROVIDER_LABELS,
+} from "./chat-constants";
 
 export const CHAT_CONTENT_BOTTOM_PADDING_PX = 88;
 

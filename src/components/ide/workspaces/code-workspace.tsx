@@ -49,10 +49,6 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const chats = useIdeStore(
     useShallow((s) => s.chats.filter((chat) => chat.projectId === projectId)),
   );
-  const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
-  const pendingChatIds = useIdeStore(
-    useShallow((s) => Object.keys(s.pendingChatSubmitByChatId)),
-  );
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds[projectId] ?? EMPTY_TERMINAL_SESSION_IDS,
@@ -112,12 +108,10 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   // ── Derived values ──────────────────────────────────────────────────
   const middleVisible = true;
   const mountedChats = useMountedProjectChats({
-    pendingChatIds,
     activeChatId,
     chats,
     openChatIds,
     projectId,
-    streamingChatIds,
   });
   const historyHasUnseenChats = chats.some(
     (chat) =>

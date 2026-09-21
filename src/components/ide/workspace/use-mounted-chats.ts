@@ -2,20 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import type { ChatConfig } from "@/types/ide";
 import { CHAT_KEEP_ALIVE_LIMIT } from "./constants";
 
+/**
+ * The chat panels a project keeps mounted: the open ones, plus a few recent
+ * ones so switching back is instant. Purely a rendering concern — a chat keeps
+ * streaming in the chat runtime whether or not its panel is mounted.
+ */
 export const useMountedProjectChats = ({
   activeChatId,
   chats,
   openChatIds,
-  pendingChatIds = [],
   projectId,
-  streamingChatIds,
 }: {
   activeChatId: string | null;
   chats: ChatConfig[];
   openChatIds: string[];
-  pendingChatIds?: string[];
   projectId: string;
-  streamingChatIds: Record<string, boolean>;
 }) => {
   const [recentMountedChatIds, setRecentMountedChatIds] = useState<string[]>(
     [],
@@ -44,7 +45,7 @@ export const useMountedProjectChats = ({
     );
     const nextChats = [] as typeof chats;
 
-    for (const chatId of [...openChatIds, ...pendingChatIds]) {
+    for (const chatId of openChatIds) {
       const openChat = projectChatsById.get(chatId);
       if (!openChat || mountedChatIds.has(openChat.id)) {
         continue;
@@ -60,15 +61,6 @@ export const useMountedProjectChats = ({
         mountedChatIds.add(activeMountedChat.id);
         nextChats.push(activeMountedChat);
       }
-    }
-
-    for (const chat of projectChats) {
-      if (!streamingChatIds[chat.id] || mountedChatIds.has(chat.id)) {
-        continue;
-      }
-
-      mountedChatIds.add(chat.id);
-      nextChats.push(chat);
     }
 
     for (const chatId of recentMountedChatIds) {
@@ -89,13 +81,5 @@ export const useMountedProjectChats = ({
     }
 
     return nextChats;
-  }, [
-    activeChatId,
-    chats,
-    openChatIds,
-    pendingChatIds,
-    projectId,
-    recentMountedChatIds,
-    streamingChatIds,
-  ]);
+  }, [activeChatId, chats, openChatIds, projectId, recentMountedChatIds]);
 };

@@ -11,6 +11,7 @@ import {
 } from "@/lib/ide-defaults";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
+import { ChatRuntimeHost } from "./chat/chat-runtime-host";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { ActivityInbox } from "./header/activity-inbox";
 import { IdeHeader } from "./ide-header";
@@ -523,6 +524,7 @@ export const IdeShell = () => {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-surface-50 dark:bg-surface-900 text-foreground">
       {!appReady && <AppLoadingScreen />}
+      <ChatRuntimeHost />
       <IdeHeader />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -534,9 +536,10 @@ export const IdeShell = () => {
                 // Keep the outgoing surface painted while React prepares the
                 // incoming workspace, then reveal and activate it atomically.
                 const selected = project.id === renderedActiveProjectId;
-                // Project workspaces stay mounted beneath Tasks so their
-                // chat panels keep processing queued task submissions, but
-                // only the visible surface owns shortcuts and native webviews.
+                // Project workspaces stay mounted beneath Tasks so switching
+                // back is instant, but only the visible surface owns shortcuts
+                // and native webviews. (Chats run in the chat runtime, not in
+                // these panels.)
                 const active = selected && !tasksSelected;
 
                 return (

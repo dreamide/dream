@@ -3,96 +3,40 @@ import type { Dispatch, KeyboardEventHandler, SetStateAction } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import { scrollElementToChatBottom } from "../chat";
-import { mergeChatMessageHistories } from "../chat-message-history";
+import {
+  flushChatSession,
+  getChatSession,
+  retainChatSession,
+} from "./chat-runtime";
 
 const CHAT_AUTO_SCROLL_MIN_INTERVAL_MS = 100;
 
-export const useChatMessageSync = ({
+/**
+ * The runtime session behind a chat panel. The panel only watches it: the
+ * session keeps streaming and saving after the panel unmounts.
+ */
+export const useChatSession = ({
   chatId,
-  chatMessages,
   isActive,
-  messages,
-  persistMessagesForChat,
-  setMessages,
 }: {
   chatId: string;
-  chatMessages: UIMessage[];
   isActive: boolean;
-  messages: UIMessage[];
-  persistMessagesForChat: (
-    chatId: string,
-    messages?: UIMessage[],
-  ) => Promise<void>;
-  setMessages: Dispatch<SetStateAction<UIMessage[]>>;
 }) => {
-  const messagesRef = useRef(chatMessages);
-  const isActiveRef = useRef(isActive);
-  const lastFlushedMessagesRef = useRef(chatMessages);
+  const session = getChatSession(chatId);
 
+  // Releasing saves the latest messages, as does leaving the foreground.
+  useEffect(() => retainChatSession(chatId), [chatId]);
+
+  const wasActiveRef = useRef(isActive);
   useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  // Store changes happen on lazy load and completed turns, not on each stream
-  // tick. Merge only when that source changes so streaming does not repeatedly
-  // walk and stringify the full transcript.
-  useEffect(() => {
-    setMessages((currentMessages) => {
-      const mergedMessages = mergeChatMessageHistories(
-        chatMessages,
-        currentMessages,
-      );
-      if (mergedMessages === chatMessages) {
-        lastFlushedMessagesRef.current = chatMessages;
-      }
-      return mergedMessages;
-    });
-  }, [chatMessages, setMessages]);
-
-  const flushLatestMessages = useCallback(() => {
-    const latestMessages = messagesRef.current;
-    if (
-      latestMessages.length === 0 ||
-      latestMessages === lastFlushedMessagesRef.current
-    ) {
-      return;
-    }
-
-    lastFlushedMessagesRef.current = latestMessages;
-    void persistMessagesForChat(chatId, latestMessages);
-  }, [chatId, persistMessagesForChat]);
-
-  useEffect(() => {
-    const wasActive = isActiveRef.current;
-    isActiveRef.current = isActive;
+    const wasActive = wasActiveRef.current;
+    wasActiveRef.current = isActive;
     if (wasActive && !isActive) {
-      flushLatestMessages();
+      flushChatSession(chatId);
     }
-  }, [flushLatestMessages, isActive]);
+  }, [chatId, isActive]);
 
-  useEffect(() => {
-    const flushActiveChat = () => {
-      if (isActiveRef.current) {
-        flushLatestMessages();
-      }
-    };
-
-    window.addEventListener("blur", flushActiveChat);
-    window.addEventListener("pagehide", flushActiveChat);
-    window.addEventListener("beforeunload", flushActiveChat);
-
-    return () => {
-      window.removeEventListener("blur", flushActiveChat);
-      window.removeEventListener("pagehide", flushActiveChat);
-      window.removeEventListener("beforeunload", flushActiveChat);
-    };
-  }, [flushLatestMessages]);
-
-  useEffect(() => {
-    return () => {
-      flushLatestMessages();
-    };
-  }, [flushLatestMessages]);
+  return session.chat;
 };
 
 export const useChatAutoScroll = ({

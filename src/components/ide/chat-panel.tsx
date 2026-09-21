@@ -1,9 +1,5 @@
 import { useChat } from "@ai-sdk/react";
-import {
-  DefaultChatTransport,
-  type LanguageModelUsage,
-  type UIMessage,
-} from "ai";
+import type { LanguageModelUsage, UIMessage } from "ai";
 import { useTranslations } from "next-intl";
 import {
   type CSSProperties,
@@ -27,80 +23,49 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { getUsageReasoningTokens } from "@/lib/ai-usage";
-import {
-  getConnectedProviders,
-  getDefaultGitGenerationModelSelection,
-  getModelOptionsForProvider,
-} from "@/lib/ide-defaults";
-import {
-  MCP_PROVIDER_SUPPORT,
-  resolveEffectiveMcpServers,
-} from "@/lib/mcp-servers";
-import {
-  getModelContextWindow,
-  getModelReasoningEfforts,
-  getModelSpeedTiers,
-} from "@/lib/models";
-import type {
-  ChatConfig,
-  ChatTitleResponse,
-  ProjectConfig,
-  ProjectReference,
-} from "@/types/ide";
-import { getActivityAttention } from "./activity-status";
-import { useActivityStore } from "./activity-store";
-import {
-  getChipToolKind,
-  getToolName,
-  isToolLikePart,
-  normalizeToolName,
-  type ToolLikePart,
-} from "./assistant-message-tools";
+import { getModelContextWindow } from "@/lib/models";
+import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import {
   CHAT_CONTENT_BOTTOM_PADDING_PX,
   CHAT_STREAM_UPDATE_THROTTLE_MS,
   ChatMessage,
   type ChatMessageMetadata,
   type EditTarget,
-  PROVIDER_LABELS,
   type ToolApprovalResponder,
 } from "./chat";
-import { ChatComposer, type ChatPanelModelOption } from "./chat/chat-composer";
+import { ChatComposer } from "./chat/chat-composer";
 import { ChatErrorBanner } from "./chat/chat-error-banner";
+import {
+  getChatModelOptions,
+  resolveChatModelSelection,
+} from "./chat/chat-model-selection";
 import { ChatPanelHeader } from "./chat/chat-panel-header";
 import {
   useChatAutoScroll,
-  useChatMessageSync,
+  useChatSession,
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
+import {
+  dismissChatError,
+  respondToToolApproval,
+  setChatError,
+  submitChatPrompt,
+  takeChatDraftRestore,
+  useChatRuntimeStore,
+} from "./chat/chat-runtime";
 import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { estimateMessages } from "./chat/message-token-estimate";
-import { projectMessagesForRequest } from "./chat/request-context";
 import { getLatestChatTodoSummary } from "./chat/todo-list";
 import {
   CHAT_TRANSCRIPT_WINDOW_SIZE,
   getTranscriptWindow,
 } from "./chat/transcript-window";
-import { mergeChatMessageHistories } from "./chat-message-history";
-import { warmProjectCommitMessage } from "./git-commit-message-cache";
-import { chatIsAwaitingAnswer } from "./header/project-tab-status";
 import { useIdeStore } from "./ide-store";
-import {
-  MODEL_SPEED_OPTIONS,
-  normalizeModelSpeed,
-  normalizeReasoningEffort,
-  REASONING_EFFORT_OPTIONS,
-} from "./ide-types";
-import {
-  flushProjectPanelRefresh,
-  scheduleProjectPanelRefresh,
-} from "./project-panel-refresh";
+import { MODEL_SPEED_OPTIONS, REASONING_EFFORT_OPTIONS } from "./ide-types";
 import { ProjectBranchFooter } from "./project-status-bar";
-import { findTaskByChatId } from "./store/task-actions";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
-const EMPTY_MESSAGES: UIMessage[] = [];
 const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
   backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND,
 };
@@ -158,216 +123,6 @@ const getLatestAssistantMetadata = (messages: UIMessage[]) => {
   return undefined;
 };
 
-const formatProjectReferencesForPrompt = (references: ProjectReference[]) =>
-  references
-    .map((reference) => `- ${reference.kind}: ${reference.path}`)
-    .join("\n");
-
-const getAskUserQuestionApprovalPayload = (reason?: string) => {
-  if (!reason) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(reason);
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      !("answers" in parsed) ||
-      !parsed.answers ||
-      typeof parsed.answers !== "object"
-    ) {
-      return null;
-    }
-
-    return parsed as { answers: Record<string, unknown> };
-  } catch {
-    return null;
-  }
-};
-
-const getAskUserQuestionApprovalId = (part: UIMessage["parts"][number]) => {
-  if (!isToolLikePart(part)) {
-    return null;
-  }
-
-  return (
-    part.approval?.id ??
-    (typeof part.toolCallId === "string"
-      ? `anthropic:${part.toolCallId}`
-      : null)
-  );
-};
-
-const isAskUserQuestionPart = (
-  part: UIMessage["parts"][number],
-): part is ToolLikePart =>
-  isToolLikePart(part) &&
-  normalizeToolName(getToolName(part)) === "ask-user-question";
-
-const getAskUserQuestionPayloadFromPart = (
-  part: UIMessage["parts"][number],
-) => {
-  if (!isAskUserQuestionPart(part)) {
-    return null;
-  }
-
-  const outputPayload =
-    part.output &&
-    typeof part.output === "object" &&
-    !Array.isArray(part.output)
-      ? (part.output as { answers?: unknown })
-      : null;
-
-  if (
-    outputPayload?.answers &&
-    typeof outputPayload.answers === "object" &&
-    !Array.isArray(outputPayload.answers)
-  ) {
-    return { answers: outputPayload.answers as Record<string, unknown> };
-  }
-
-  return getAskUserQuestionApprovalPayload(part.approval?.reason);
-};
-
-const preserveAskUserQuestionAnswers = (
-  messages: UIMessage[],
-  sourceMessages: UIMessage[],
-) => {
-  const answersByApprovalId = new Map<
-    string,
-    { answers: Record<string, unknown>; reason?: string }
-  >();
-
-  for (const message of sourceMessages) {
-    for (const part of message.parts) {
-      const approvalId = getAskUserQuestionApprovalId(part);
-      const payload = getAskUserQuestionPayloadFromPart(part);
-      if (approvalId && payload) {
-        answersByApprovalId.set(approvalId, {
-          ...payload,
-          reason: isToolLikePart(part) ? part.approval?.reason : undefined,
-        });
-      }
-    }
-  }
-
-  if (answersByApprovalId.size === 0) {
-    return messages;
-  }
-
-  let changed = false;
-  const nextMessages = messages.map((message) => {
-    if (message.role !== "assistant") {
-      return message;
-    }
-
-    let partsChanged = false;
-    const nextParts = message.parts.map((part) => {
-      if (!isAskUserQuestionPart(part)) {
-        return part;
-      }
-
-      const approvalId = getAskUserQuestionApprovalId(part);
-      const payload = approvalId ? answersByApprovalId.get(approvalId) : null;
-      if (!approvalId || !payload) {
-        return part;
-      }
-
-      const updatedInput =
-        part.input &&
-        typeof part.input === "object" &&
-        !Array.isArray(part.input)
-          ? { ...part.input, answers: payload.answers }
-          : part.input;
-
-      changed = true;
-      partsChanged = true;
-      return {
-        ...part,
-        approval: {
-          ...(part.approval ?? { id: approvalId }),
-          approved: true,
-          ...(payload.reason ? { reason: payload.reason } : {}),
-        },
-        input: updatedInput,
-        output: { answers: payload.answers },
-        state: "output-available",
-      } as UIMessage["parts"][number];
-    });
-
-    return partsChanged ? { ...message, parts: nextParts } : message;
-  });
-
-  return changed ? nextMessages : messages;
-};
-
-const addAskUserQuestionAnswerToMessages = (
-  messages: UIMessage[],
-  response: Parameters<ToolApprovalResponder>[0],
-) => {
-  if (!response.approved) {
-    return messages;
-  }
-
-  const approvalPayload = getAskUserQuestionApprovalPayload(response.reason);
-  if (!approvalPayload) {
-    return messages;
-  }
-
-  let changed = false;
-  const nextMessages = messages.map((message) => {
-    if (message.role !== "assistant") {
-      return message;
-    }
-
-    let partsChanged = false;
-    const nextParts = message.parts.map((part) => {
-      if (
-        !isToolLikePart(part) ||
-        normalizeToolName(getToolName(part)) !== "ask-user-question"
-      ) {
-        return part;
-      }
-
-      const approvalId = getAskUserQuestionApprovalId(part);
-      if (approvalId !== response.id) {
-        return part;
-      }
-
-      changed = true;
-      partsChanged = true;
-      const updatedInput =
-        part.input &&
-        typeof part.input === "object" &&
-        !Array.isArray(part.input)
-          ? { ...part.input, ...approvalPayload }
-          : part.input;
-
-      return {
-        ...part,
-        approval: {
-          ...(part.approval ?? { id: response.id }),
-          approved: true,
-          reason: response.reason,
-        },
-        input: updatedInput,
-        output: approvalPayload,
-        state: "output-available",
-      } as UIMessage["parts"][number];
-    });
-
-    return !partsChanged
-      ? message
-      : {
-          ...message,
-          parts: nextParts,
-        };
-  });
-
-  return changed ? nextMessages : messages;
-};
-
 export const ChatPanel = ({
   canCloseChat = false,
   isActive,
@@ -397,16 +152,8 @@ export const ChatPanel = ({
   const promptDomId = `chat-prompt-${chat.id}`;
   const promptInputDomId = `chat-prompt-input-${chat.id}`;
   const settings = useIdeStore((s) => s.settings);
-  const chatMessages = useIdeStore(
-    (s) => s.messagesByChatId[chat.id] ?? EMPTY_MESSAGES,
-  );
   const messagesLoaded = useIdeStore((s) =>
     Object.hasOwn(s.messagesByChatId, chat.id),
-  );
-  const retainChatTranscript = useIdeStore((s) => s.retainChatTranscript);
-  useEffect(
-    () => retainChatTranscript(chat.id),
-    [chat.id, retainChatTranscript],
   );
   const loadMessagesForChat = useIdeStore((s) => s.loadMessagesForChat);
   const isDraftChat = useIdeStore(
@@ -416,22 +163,19 @@ export const ChatPanel = ({
     (s) => !!s.titleGeneratingChatIds[chat.id],
   );
   const providerModels = useIdeStore((s) => s.providerModels);
-  const persistMessagesForChat = useIdeStore((s) => s.persistMessagesForChat);
-  const setChatTitleGenerating = useIdeStore((s) => s.setChatTitleGenerating);
-  const setChatAwaitingAnswer = useIdeStore((s) => s.setChatAwaitingAnswer);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
   const addProjectTerminal = useIdeStore((s) => s.addProjectTerminal);
-  const pendingChatSubmit = useIdeStore(
-    (s) => s.pendingChatSubmitByChatId[chat.id] ?? null,
+  const localError = useChatRuntimeStore(
+    (s) => s.errorByChatId[chat.id] ?? null,
   );
-  // Task step chats submit their queued prompt even when neither the chat
-  // nor its project is in view: the task lives in the parent project while
-  // the step chat may run in a background worktree project.
-  const canSubmitTaskStep = useIdeStore(
-    (s) => findTaskByChatId(s.tasks, chat.id) !== null,
+  const draftRestore = useChatRuntimeStore(
+    (s) => s.draftRestoreByChatId[chat.id],
   );
-  const takePendingChatSubmit = useIdeStore((s) => s.takePendingChatSubmit);
+  const setLocalError = useCallback(
+    (message: string | null) => setChatError(chat.id, message),
+    [chat.id],
+  );
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -442,38 +186,24 @@ export const ChatPanel = ({
       detail: "summary",
     },
   );
-  const autoApproveClaudeWrites =
-    chat.permissionMode === "full-access" || chat.agentMode === "build";
-  const connectedProviders = getConnectedProviders(settings);
-  const gitGenerationModelSelection = useMemo(
-    () => getDefaultGitGenerationModelSelection(settings),
-    [settings],
+  const allModelOptions = useMemo(
+    () => getChatModelOptions(settings, providerModels),
+    [providerModels, settings],
   );
-  const allModelOptions = useMemo<ChatPanelModelOption[]>(() => {
-    return connectedProviders.flatMap((provider) =>
-      getModelOptionsForProvider(
-        provider,
-        settings,
-        providerModels[provider].models,
-      ).map((model) => ({
-        contextWindow: model.contextWindow,
-        id: model.id,
-        label: model.label,
-        provider,
-        reasoningEfforts: model.reasoningEfforts ?? [],
-        speedTiers: model.speedTiers ?? [],
-      })),
-    );
-  }, [connectedProviders, providerModels, settings]);
-
-  const selectedModelOption =
-    allModelOptions.find(
-      (option) => option.provider === chat.provider && option.id === chat.model,
-    ) ?? allModelOptions[0];
-  const selectedProvider = selectedModelOption?.provider ?? chat.provider;
+  const {
+    availableModelSpeedTiers,
+    availableReasoningEfforts,
+    selectedModel,
+    selectedModelOption,
+    selectedModelSpeed,
+    selectedProvider,
+    selectedReasoningEffort,
+  } = useMemo(
+    () => resolveChatModelSelection(chat, allModelOptions),
+    [allModelOptions, chat],
+  );
   const isProviderInstalled =
     providerModels[selectedProvider]?.installed ?? false;
-  const [localError, setLocalError] = useState<string | null>(null);
   const [promptText, setPromptText] = useState("");
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
@@ -488,8 +218,6 @@ export const ChatPanel = ({
   } | null>(null);
   const previousMessageCountRef = useRef(0);
   const restoredTranscriptWindowSizeRef = useRef(CHAT_TRANSCRIPT_WINDOW_SIZE);
-  const refreshedWriteEventsRef = useRef(new Set<string>());
-  const pendingAssistantMetadataRef = useRef<ChatMessageMetadata | null>(null);
 
   useEffect(() => {
     if (!messagesLoaded) {
@@ -497,326 +225,44 @@ export const ChatPanel = ({
         setLocalError(chatT("unexpectedError"));
       });
     }
-  }, [chat.id, chatT, loadMessagesForChat, messagesLoaded]);
+  }, [chat.id, chatT, loadMessagesForChat, messagesLoaded, setLocalError]);
 
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: "/api/chat",
-        prepareSendMessagesRequest: ({
-          body,
-          id,
-          messageId,
-          messages: requestMessages,
-          trigger,
-        }) => ({
-          body: {
-            ...body,
-            id,
-            messageId,
-            messages: projectMessagesForRequest(requestMessages),
-            trigger,
-          },
-        }),
-      }),
-    [],
-  );
+  // A queued message that could not be sent comes back to the draft.
+  useEffect(() => {
+    if (draftRestore === undefined) {
+      return;
+    }
+    const text = takeChatDraftRestore(chat.id);
+    if (text) {
+      setPromptText((current) => [current, text].filter(Boolean).join("\n\n"));
+    }
+  }, [chat.id, draftRestore]);
 
-  const {
-    messages,
-    sendMessage,
-    setMessages,
-    status,
-    stop,
-    addToolApprovalResponse: addAiSdkToolApprovalResponse,
-    clearError,
-  } = useChat({
+  const sessionChat = useChatSession({ chatId: chat.id, isActive });
+  const { messages, status, stop } = useChat({
+    chat: sessionChat,
     experimental_throttle: CHAT_STREAM_UPDATE_THROTTLE_MS,
-    id: `chat:${chat.id}`,
-    messages: chatMessages,
-    onError: (error) => {
-      useActivityStore.getState().finish(chat.id, "failed", error.message);
-      console.error("[chat error]", error);
-
-      // The server-side onError already enriches the message, so
-      // error.message should be descriptive. Guard against edge cases
-      // where only the generic class name "Error" comes through.
-      const msg = error.message;
-      if (msg && msg !== "Error") {
-        setLocalError(msg);
-        return;
-      }
-
-      // Fallback: try cause chain
-      if (error.cause instanceof Error && error.cause.message) {
-        setLocalError(error.cause.message);
-        return;
-      }
-
-      setLocalError(chatT("unexpectedError"));
-    },
-    onFinish: ({ message, isAbort, isError, isDisconnect }) => {
-      const attention = getActivityAttention([message]);
-      if (!isAbort && !isError && !isDisconnect && attention !== null) {
-        useActivityStore.getState().attention(chat.id, attention);
-      } else {
-        useActivityStore
-          .getState()
-          .finish(
-            chat.id,
-            isError
-              ? "failed"
-              : isAbort || isDisconnect
-                ? "interrupted"
-                : "finished",
-          );
-      }
-      const metadata = message.metadata as ChatMessageMetadata | undefined;
-      const pendingMetadata = pendingAssistantMetadataRef.current;
-      pendingAssistantMetadataRef.current = null;
-      const completedAt = new Date().toISOString();
-      const messageMetadata =
-        (message.metadata as Record<string, unknown> | undefined) ?? {};
-      const finalAssistantMessage: UIMessage = {
-        ...message,
-        metadata: {
-          ...messageMetadata,
-          ...(pendingMetadata ?? {}),
-          ...(metadata?.usage ? { usage: metadata.usage } : {}),
-          completedAt:
-            typeof metadata?.completedAt === "string" && metadata.completedAt
-              ? metadata.completedAt
-              : completedAt,
-          createdAt:
-            typeof metadata?.createdAt === "string" && metadata.createdAt
-              ? metadata.createdAt
-              : pendingMetadata?.createdAt || completedAt,
-          startedAt:
-            typeof metadata?.startedAt === "string" && metadata.startedAt
-              ? metadata.startedAt
-              : pendingMetadata?.startedAt ||
-                pendingMetadata?.createdAt ||
-                (typeof metadata?.createdAt === "string" && metadata.createdAt
-                  ? metadata.createdAt
-                  : completedAt),
-        },
-      };
-
-      const finalMessagesWithQuestionAnswers = preserveAskUserQuestionAnswers(
-        [finalAssistantMessage],
-        latestMessagesRef.current,
-      );
-      const nextMessages = mergeChatMessageHistories(
-        latestMessagesRef.current,
-        finalMessagesWithQuestionAnswers,
-      );
-      latestMessagesRef.current = nextMessages;
-      setMessages(nextMessages);
-      void persistMessagesForChat(chat.id, nextMessages);
-
-      const remoteConversationId = metadata?.remoteConversationId?.trim();
-
-      if (!remoteConversationId) {
-        return;
-      }
-
-      updateChat(chat.id, (current) => ({
-        ...current,
-        remoteConversationId,
-        remoteConversationModel:
-          metadata?.remoteConversationModel ?? current.model,
-        remoteConversationModelSpeed: normalizeModelSpeed(
-          metadata?.remoteConversationModelSpeed ?? current.modelSpeed,
-        ),
-        remoteConversationProjectPath:
-          metadata?.remoteConversationProjectPath ?? project.path,
-      }));
-    },
-    transport,
   });
-  const latestMessagesRef = useRef<UIMessage[]>(messages);
-
-  useEffect(() => {
-    latestMessagesRef.current = messages;
-  }, [messages]);
-
-  useEffect(() => {
-    const awaiting = chatIsAwaitingAnswer(messages);
-    setChatAwaitingAnswer(chat.id, awaiting);
-    useActivityStore
-      .getState()
-      .attention(chat.id, getActivityAttention(messages));
-  }, [chat.id, messages, setChatAwaitingAnswer]);
-
-  useEffect(
-    () => () => setChatAwaitingAnswer(chat.id, false),
-    [chat.id, setChatAwaitingAnswer],
-  );
 
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
-    (response) => {
-      const messagesWithApprovalAnswer = addAskUserQuestionAnswerToMessages(
-        latestMessagesRef.current,
-        response,
-      );
-      if (messagesWithApprovalAnswer !== latestMessagesRef.current) {
-        latestMessagesRef.current = messagesWithApprovalAnswer;
-        setMessages(messagesWithApprovalAnswer);
-        void persistMessagesForChat(chat.id, messagesWithApprovalAnswer);
-      }
-
-      if (!response.id.startsWith("anthropic:")) {
-        void Promise.resolve(
-          addAiSdkToolApprovalResponse({
-            approved: response.approved,
-            id: response.id,
-            reason: response.reason,
-          }),
-        ).catch((error: unknown) => {
-          console.debug("[tool approval ai-sdk response]", error);
-        });
-      }
-
-      void fetch("/api/tool-approval-response", {
-        body: JSON.stringify({
-          approved: response.approved,
-          id: response.id,
-          reason: response.reason ?? null,
-          scope: response.scope ?? "once",
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      }).catch((error) => {
-        console.error("[tool approval response]", error);
-      });
-    },
-    [
-      addAiSdkToolApprovalResponse,
-      chat.id,
-      persistMessagesForChat,
-      setMessages,
-    ],
+    (response) => respondToToolApproval(chat.id, response),
+    [chat.id],
   );
 
-  useChatMessageSync({
-    chatId: chat.id,
-    chatMessages,
-    isActive,
-    messages,
-    persistMessagesForChat,
-    setMessages,
-  });
-
-  // Only the live tail can gain new write results. Avoid walking the entire
-  // transcript on every stream update, then coalesce bursts across every chat
-  // in the project before refreshing Git and the file tree.
-  const latestStreamMessage = messages.at(-1);
-  useEffect(() => {
-    if (latestStreamMessage?.role !== "assistant") {
-      return;
-    }
-
-    let shouldRefreshProjectPanels = false;
-    for (
-      let partIndex = 0;
-      partIndex < latestStreamMessage.parts.length;
-      partIndex++
-    ) {
-      const part = latestStreamMessage.parts[partIndex];
-      if (getChipToolKind(part) !== "write") {
-        continue;
-      }
-
-      const partRecord = part as Record<string, unknown>;
-      if (partRecord.state !== "output-available") {
-        continue;
-      }
-
-      const writeRefreshKey = `${chat.id}:${latestStreamMessage.id}:${partIndex}`;
-      if (!refreshedWriteEventsRef.current.has(writeRefreshKey)) {
-        refreshedWriteEventsRef.current.add(writeRefreshKey);
-        shouldRefreshProjectPanels = true;
-      }
-    }
-
-    if (shouldRefreshProjectPanels) {
-      scheduleProjectPanelRefresh(project.id);
-    }
-  }, [chat.id, latestStreamMessage, project.id]);
-
-  // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
-  useEffect(() => {
-    if (!autoApproveClaudeWrites) {
-      return;
-    }
-    for (const message of messages) {
-      if (message.role !== "assistant") continue;
-      for (const part of message.parts) {
-        if (
-          typeof part.type === "string" &&
-          part.type === "tool-writeFile" &&
-          "approval" in part &&
-          part.approval &&
-          typeof part.approval === "object" &&
-          "id" in part.approval &&
-          !("approved" in part.approval) &&
-          "state" in part &&
-          part.state === "approval-requested"
-        ) {
-          addToolApprovalResponse({
-            id: part.approval.id as string,
-            approved: true,
-          });
-        }
-      }
-    }
-  }, [messages, autoApproveClaudeWrites, addToolApprovalResponse]);
-
-  const selectedModel = selectedModelOption?.id ?? "";
   const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
   const selectedModelValue = selectedModelOption?.id;
-  const availableModelSpeedTiers = selectedModelOption?.speedTiers?.length
-    ? selectedModelOption.speedTiers
-    : getModelSpeedTiers(selectedProvider, selectedModel);
   const speedOptions = MODEL_SPEED_OPTIONS.filter((option) =>
     availableModelSpeedTiers.includes(option.value),
   );
-  const normalizedChatModelSpeed = normalizeModelSpeed(chat.modelSpeed);
-  const selectedModelSpeed =
-    availableModelSpeedTiers.length === 0
-      ? "standard"
-      : availableModelSpeedTiers.includes(normalizedChatModelSpeed)
-        ? normalizedChatModelSpeed
-        : "standard";
   const selectedModelSpeedLabel = modelT(selectedModelSpeed);
-  const selectedModelSpeedLabelForMetadata =
-    availableModelSpeedTiers.length > 0 ? selectedModelSpeedLabel : undefined;
-  const availableReasoningEfforts = selectedModelOption?.reasoningEfforts
-    ?.length
-    ? selectedModelOption.reasoningEfforts
-    : getModelReasoningEfforts(selectedProvider, selectedModel);
   const reasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter((option) =>
     availableReasoningEfforts.includes(option.value),
   );
-  const normalizedChatReasoningEffort = normalizeReasoningEffort(
-    chat.reasoningEffort,
-  );
-  const selectedReasoningEffort =
-    availableReasoningEfforts.length === 0
-      ? null
-      : normalizedChatReasoningEffort &&
-          availableReasoningEfforts.includes(normalizedChatReasoningEffort)
-        ? normalizedChatReasoningEffort
-        : availableReasoningEfforts.includes("medium")
-          ? "medium"
-          : availableReasoningEfforts[0];
   const selectedReasoningEffortForControl = selectedReasoningEffort ?? "medium";
   const selectedReasoningLabel =
     selectedReasoningEffort === null
       ? modelT("reasoning")
       : modelT(selectedReasoningEffort);
-  const selectedReasoningLabelForMetadata =
-    selectedReasoningEffort !== null ? selectedReasoningLabel : undefined;
 
   const latestAssistantMetadata = useMemo(
     () => getLatestAssistantMetadata(messages),
@@ -884,10 +330,12 @@ export const ChatPanel = ({
     claudeSessionProjectPath,
     isProcessing,
     project.id,
+    setLocalError,
   ]);
-  const handleBranchError = useCallback((message: string) => {
-    setLocalError(message);
-  }, []);
+  const handleBranchError = useCallback(
+    (message: string) => setLocalError(message),
+    [setLocalError],
+  );
   const continueChat = useMemo<ContinueChatPopoverContext>(
     () => ({
       chat,
@@ -959,324 +407,25 @@ export const ChatPanel = ({
   }, [isActive, onActivateChat]);
 
   const handleSubmit = useCallback(
-    async (prompt: PromptInputMessage, preserveDraft = false) => {
-      if (isProcessing) {
-        throw new Error(chatT("alreadyStreaming"));
-      }
-
+    async (prompt: PromptInputMessage) => {
       handleActivateChat();
-      setLocalError(null);
-      clearError();
 
-      const state = useIdeStore.getState();
-      const submittedProject = state.projects.find(
-        (item) => item.id === project.id,
-      );
-
-      // Task step chats run in a background worktree project while the
-      // board's project stays active, so they are exempt from the focus check.
-      const isTaskStepChat = findTaskByChatId(state.tasks, chat.id) !== null;
-
-      if (
-        !submittedProject ||
-        (state.activeProjectId !== submittedProject.id && !isTaskStepChat)
-      ) {
-        const message = chatT("notInActiveProject");
-        setLocalError(message);
-        throw new Error(message);
-      }
-
-      const submittedProjectPath = submittedProject.path;
-
-      const activeOption =
-        allModelOptions.find(
-          (option) =>
-            option.provider === chat.provider && option.id === chat.model,
-        ) ?? allModelOptions[0];
-      const activeProvider = activeOption?.provider ?? selectedProvider;
-      const activeModel = activeOption?.id ?? "";
-      const activeProviderInstalled =
-        providerModels[activeProvider]?.installed ?? false;
-
-      if (!activeProviderInstalled) {
-        setLocalError(
-          chatT("providerCliUnavailable", {
-            provider: PROVIDER_LABELS[activeProvider],
-          }),
-        );
+      // The runtime validates and sends; this panel only owns the draft.
+      if (!submitChatPrompt(chat.id, prompt)) {
         return;
       }
 
-      if (!activeModel) {
-        setLocalError(chatT("enableModelFirst"));
-        return;
-      }
-
-      const projectReferences = prompt.references ?? [];
-      if (
-        !prompt.text.trim() &&
-        prompt.files.length === 0 &&
-        projectReferences.length === 0
-      ) {
-        return;
-      }
-
-      const submittedChatId = chat.id;
-      const shouldGenerateTitle =
-        chatMessages.length === 0 && chat.title === "New chat";
-      const titleBeforeGeneration = chat.title;
-      const projectReferencesPrompt =
-        projectReferences.length > 0
-          ? formatProjectReferencesForPrompt(projectReferences)
-          : "";
-      const remoteConversationIdForRequest = chat.remoteConversationId;
-      const remoteConversationModelForRequest = chat.remoteConversationModel;
-      const remoteConversationModelSpeedForRequest =
-        chat.remoteConversationModelSpeed;
-      const remoteConversationProjectPathForRequest =
-        chat.remoteConversationProjectPath;
-
-      const submittedAt = new Date().toISOString();
-      pendingAssistantMetadataRef.current = {
-        createdAt: submittedAt,
-        model: activeModel,
-        modelLabel: activeOption?.label ?? activeModel,
-        modelSpeed: selectedModelSpeed,
-        ...(selectedModelSpeedLabelForMetadata
-          ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
-          : {}),
-        ...(selectedReasoningEffort
-          ? { reasoningEffort: selectedReasoningEffort }
-          : {}),
-        ...(selectedReasoningLabelForMetadata
-          ? { reasoningLabel: selectedReasoningLabelForMetadata }
-          : {}),
-        startedAt: submittedAt,
-      };
       resetPromptHistory();
-
-      if (!preserveDraft) setPromptText("");
-      useIdeStore.getState().setChatStreaming(submittedChatId, true);
-      if (shouldGenerateTitle) {
-        setChatTitleGenerating(submittedChatId, true);
-        void fetch("/api/chat-title", {
-          body: JSON.stringify({
-            fallbackModel: activeModel,
-            projectPath: submittedProjectPath,
-            promptText:
-              prompt.text ||
-              `Referenced project paths:\n${projectReferencesPrompt}`,
-            provider: activeProvider,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        })
-          .then(async (response) => {
-            if (!response.ok) {
-              return "";
-            }
-            const payload = (await response.json()) as ChatTitleResponse;
-            return payload.title.trim();
-          })
-          .then((generatedTitle) => {
-            if (!generatedTitle) {
-              return;
-            }
-            updateChat(submittedChatId, (current) =>
-              current.title === titleBeforeGeneration
-                ? { ...current, title: generatedTitle }
-                : current,
-            );
-          })
-          .catch(() => {
-            // Keep the default title when background title generation fails.
-          })
-          .finally(() => {
-            useIdeStore
-              .getState()
-              .setChatTitleGenerating(submittedChatId, false);
-          });
-      }
-      const finishStreaming = () => {
-        useIdeStore.getState().setChatStreaming(submittedChatId, false);
-        flushProjectPanelRefresh(submittedProject.id);
-        void warmProjectCommitMessage({
-          model: gitGenerationModelSelection.model,
-          projectPath: submittedProjectPath,
-          provider: gitGenerationModelSelection.provider,
-          refreshToken:
-            useIdeStore.getState().projectGitRefreshKeys[submittedProject.id] ??
-            0,
-        });
-      };
-
-      try {
-        const sendPromise = sendMessage(
-          {
-            files: prompt.files,
-            metadata: {
-              createdAt: new Date().toISOString(),
-              model: activeModel,
-              modelLabel: activeOption?.label ?? activeModel,
-              modelSpeed: selectedModelSpeed,
-              ...(selectedModelSpeedLabelForMetadata
-                ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
-                : {}),
-              projectReferences,
-              ...(selectedReasoningEffort
-                ? { reasoningEffort: selectedReasoningEffort }
-                : {}),
-              ...(selectedReasoningLabelForMetadata
-                ? { reasoningLabel: selectedReasoningLabelForMetadata }
-                : {}),
-            },
-            text: prompt.text,
-          },
-          {
-            body: {
-              model: activeModel,
-              modelLabel: activeOption?.label ?? activeModel,
-              projectReferences,
-              projectId: submittedProject.id,
-              projectPath: submittedProjectPath,
-              permissionMode: chat.permissionMode,
-              provider: activeProvider,
-              agentMode: chat.agentMode,
-              modelSpeed: selectedModelSpeed,
-              ...(selectedModelSpeedLabelForMetadata
-                ? { modelSpeedLabel: selectedModelSpeedLabelForMetadata }
-                : {}),
-              ...(selectedReasoningEffort
-                ? { reasoningEffort: selectedReasoningEffort }
-                : {}),
-              ...(selectedReasoningLabelForMetadata
-                ? { reasoningLabel: selectedReasoningLabelForMetadata }
-                : {}),
-              remoteConversationId: remoteConversationIdForRequest,
-              remoteConversationModel: remoteConversationModelForRequest,
-              remoteConversationModelSpeed:
-                remoteConversationModelSpeedForRequest,
-              remoteConversationProjectPath:
-                remoteConversationProjectPathForRequest,
-              chatId: chat.id,
-              checkpointsEnabled: settings.changeCheckpoints,
-              mcpServers: MCP_PROVIDER_SUPPORT[activeProvider]
-                ? resolveEffectiveMcpServers(settings)
-                : [],
-            },
-          },
-        );
-        scrollConversationToBottom();
-        void sendPromise.finally(finishStreaming).catch(() => {});
-        return true;
-      } catch (error) {
-        useActivityStore
-          .getState()
-          .finish(
-            submittedChatId,
-            "failed",
-            error instanceof Error ? error.message : "",
-          );
-        finishStreaming();
-        throw error;
-      }
+      setPromptText("");
+      scrollConversationToBottom();
     },
     [
-      allModelOptions,
-      chatT,
-      clearError,
-      chatMessages,
-      isProcessing,
+      chat.id,
       handleActivateChat,
-      gitGenerationModelSelection.model,
-      gitGenerationModelSelection.provider,
-      providerModels,
-      project.id,
       resetPromptHistory,
-      selectedProvider,
-      selectedModelSpeed,
-      selectedModelSpeedLabelForMetadata,
-      selectedReasoningEffort,
-      selectedReasoningLabelForMetadata,
-      sendMessage,
-      setChatTitleGenerating,
-      settings,
       scrollConversationToBottom,
-      chat,
-      updateChat,
     ],
   );
-
-  const handleSubmitRef = useRef(handleSubmit);
-  handleSubmitRef.current = handleSubmit;
-
-  useEffect(() => {
-    if (
-      !pendingChatSubmit ||
-      (!isActive && !canSubmitTaskStep) ||
-      !messagesLoaded ||
-      isProcessing
-    ) {
-      return;
-    }
-
-    let cancelled = false;
-    const frame = window.requestAnimationFrame(() => {
-      if (cancelled) {
-        return;
-      }
-
-      const nextSubmit = takePendingChatSubmit(chat.id);
-      if (
-        !nextSubmit ||
-        (!nextSubmit.text.trim() &&
-          nextSubmit.references.length === 0 &&
-          !nextSubmit.files?.length)
-      ) {
-        return;
-      }
-
-      const restoreSubmittedMessage = () => {
-        if (nextSubmit.preserveDraft)
-          setPromptText((current) =>
-            [current, nextSubmit.text].filter(Boolean).join("\n\n"),
-          );
-      };
-      void handleSubmitRef
-        .current(
-          {
-            files: nextSubmit.files ?? [],
-            references: nextSubmit.references,
-            text: nextSubmit.text,
-          },
-          nextSubmit.preserveDraft,
-        )
-        .then((submitted) => {
-          if (!submitted) restoreSubmittedMessage();
-        })
-        .catch((error) => {
-          restoreSubmittedMessage();
-          setLocalError(
-            error instanceof Error
-              ? error.message
-              : "Unable to send the message.",
-          );
-        });
-    });
-
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-    };
-  }, [
-    canSubmitTaskStep,
-    chat.id,
-    isActive,
-    isProcessing,
-    messagesLoaded,
-    pendingChatSubmit,
-    takePendingChatSubmit,
-  ]);
 
   const closeEditDialog = useCallback(() => {
     setEditTarget(null);
@@ -1430,10 +579,7 @@ export const ChatPanel = ({
         {localError ? (
           <ChatErrorBanner
             error={localError}
-            onDismiss={() => {
-              setLocalError(null);
-              clearError();
-            }}
+            onDismiss={() => dismissChatError(chat.id)}
           />
         ) : null}
 
@@ -1499,9 +645,7 @@ export const ChatPanel = ({
             }));
           }}
           onStop={stop}
-          onSubmit={async (prompt) => {
-            await handleSubmit(prompt);
-          }}
+          onSubmit={handleSubmit}
           promptDomId={promptDomId}
           promptInputDomId={promptInputDomId}
           promptText={promptText}
