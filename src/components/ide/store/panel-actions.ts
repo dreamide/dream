@@ -12,7 +12,8 @@ export const createPanelActions = (
   | "setProjectChatHistoryPanelOpen"
   | "setProjectRightPanelOpen"
   | "setProjectRightPanelView"
-  | "setProjectWorkspaceView"
+  | "setAppView"
+  | "setTasksProjectId"
   | "openProjectFile"
   | "setOutputPanelOpen"
 > => ({
@@ -186,46 +187,9 @@ export const createPanelActions = (
     });
   },
 
-  setProjectWorkspaceView: (projectId, view) => {
-    set((state) => {
-      const shouldUpdateProjects = state.projects.some(
-        (project) =>
-          project.id === projectId && project.ui.workspaceView !== view,
-      );
-      const shouldUpdateClosedProjects = state.closedProjects.some(
-        (project) =>
-          project.id === projectId && project.ui.workspaceView !== view,
-      );
+  setAppView: (appView) => set({ appView }),
 
-      if (!shouldUpdateProjects && !shouldUpdateClosedProjects) {
-        return state;
-      }
-
-      const projectUpdater = (project: ProjectConfig) => ({
-        ...project.ui,
-        workspaceView: view,
-      });
-      const nextState: Partial<IdeState> = {};
-
-      if (shouldUpdateProjects) {
-        nextState.projects = updateProjectUiInList(
-          state.projects,
-          projectId,
-          projectUpdater,
-        );
-      }
-
-      if (shouldUpdateClosedProjects) {
-        nextState.closedProjects = updateProjectUiInList(
-          state.closedProjects,
-          projectId,
-          projectUpdater,
-        );
-      }
-
-      return Object.keys(nextState).length > 0 ? nextState : state;
-    });
-  },
+  setTasksProjectId: (tasksProjectId) => set({ tasksProjectId }),
 
   openProjectFile: (projectId, filePath) => {
     const normalizedProjectId =

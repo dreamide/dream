@@ -1,47 +1,45 @@
-import { Code2, type LucideIcon, Workflow } from "lucide-react";
-import type { ProjectWorkspaceView } from "@/types/ide";
+import { CircleCheckBig, Code2, type LucideIcon } from "lucide-react";
+import type { AppView } from "@/types/ide";
 
-export const PROJECT_WORKSPACE_VIEWS = [
+export const APP_VIEWS = [
   "code",
-  "pipeline",
-] as const satisfies readonly ProjectWorkspaceView[];
+  "tasks",
+] as const satisfies readonly AppView[];
 
-export const DEFAULT_PROJECT_WORKSPACE_VIEW: ProjectWorkspaceView = "code";
+export const DEFAULT_APP_VIEW: AppView = "code";
 
-export const isProjectWorkspaceView = (
-  value: unknown,
-): value is ProjectWorkspaceView =>
-  typeof value === "string" &&
-  (PROJECT_WORKSPACE_VIEWS as readonly string[]).includes(value);
+export const isAppView = (value: unknown): value is AppView =>
+  typeof value === "string" && (APP_VIEWS as readonly string[]).includes(value);
 
 /**
- * Validates a persisted workspace view, upgrading the retired "kanban" view to
- * its replacement. Returns `null` for anything unrecognized.
+ * Validates a saved app view. The Tasks workspace was called "pipeline" when
+ * the app-level view was introduced, so that value is upgraded.
  */
-export const normalizeProjectWorkspaceView = (
-  value: unknown,
-): ProjectWorkspaceView | null => {
-  if (value === "kanban") {
-    return "pipeline";
+export const normalizeAppView = (value: unknown): AppView | null => {
+  if (value === "pipeline") {
+    return "tasks";
   }
-  return isProjectWorkspaceView(value) ? value : null;
+  return isAppView(value) ? value : null;
 };
 
-export interface ProjectWorkspaceDescriptor {
+/**
+ * Reads the retired per-project `ui.workspaceView`, which is only consulted to
+ * seed the app-level view on first load after the upgrade. "pipeline" and,
+ * before it, "kanban" are the Tasks workspace's former names.
+ */
+export const isLegacyTasksWorkspaceView = (value: unknown): boolean =>
+  value === "pipeline" || value === "kanban";
+
+export interface AppViewDescriptor {
   icon: LucideIcon;
-  id: ProjectWorkspaceView;
+  id: AppView;
   /** Key inside the `workspace` i18n namespace. */
-  labelKey: "workspaceCode" | "workspacePipeline";
+  labelKey: "workspaceCode" | "workspaceTasks";
 }
 
 // Intentionally free of component imports so the header switcher can import
 // this without pulling in the full workspace body trees.
-export const PROJECT_WORKSPACE_DESCRIPTORS: readonly ProjectWorkspaceDescriptor[] =
-  [
-    { icon: Code2, id: "code", labelKey: "workspaceCode" },
-    { icon: Workflow, id: "pipeline", labelKey: "workspacePipeline" },
-  ];
-
-export const getProjectWorkspaceDescriptor = (view: ProjectWorkspaceView) =>
-  PROJECT_WORKSPACE_DESCRIPTORS.find((descriptor) => descriptor.id === view) ??
-  PROJECT_WORKSPACE_DESCRIPTORS[0];
+export const APP_VIEW_DESCRIPTORS: readonly AppViewDescriptor[] = [
+  { icon: Code2, id: "code", labelKey: "workspaceCode" },
+  { icon: CircleCheckBig, id: "tasks", labelKey: "workspaceTasks" },
+];

@@ -11,28 +11,28 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { PipelineRunStepId } from "@/types/ide";
-import { PIPELINE_STEP_LABEL_KEYS } from "./pipeline-steps";
+import type { TaskRunStepId } from "@/types/ide";
+import { TASK_STEP_LABEL_KEYS } from "./task-steps";
 
-export interface PipelineSendBackDialogProps {
+export interface TaskSendBackDialogProps {
   /** Output of the step sending the task back; always passed along. */
   findings: string | null;
   onClose: () => void;
   onSubmit: (note: string) => void;
-  toStep: PipelineRunStepId;
+  toStep: TaskRunStepId;
 }
 
 /** Mount only while open so the note starts empty each time. */
-export const PipelineSendBackDialog = ({
+export const TaskSendBackDialog = ({
   findings,
   onClose,
   onSubmit,
   toStep,
-}: PipelineSendBackDialogProps) => {
-  const t = useTranslations("pipeline");
+}: TaskSendBackDialogProps) => {
+  const t = useTranslations("tasks");
   const commonT = useTranslations("common");
   const [note, setNote] = useState("");
-  const stepLabel = t(PIPELINE_STEP_LABEL_KEYS[toStep]);
+  const stepLabel = t(TASK_STEP_LABEL_KEYS[toStep]);
 
   return (
     <Dialog
@@ -66,10 +66,10 @@ export const PipelineSendBackDialog = ({
             </div>
           ) : null}
           <div className="space-y-2">
-            <Label htmlFor="pipeline-send-back-note">{t("sendBackNote")}</Label>
+            <Label htmlFor="task-send-back-note">{t("sendBackNote")}</Label>
             <Textarea
               autoFocus
-              id="pipeline-send-back-note"
+              id="task-send-back-note"
               onChange={(event) => setNote(event.target.value)}
               placeholder={t("sendBackNotePlaceholder")}
               rows={4}

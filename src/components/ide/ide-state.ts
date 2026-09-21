@@ -22,6 +22,7 @@ import {
 } from "@/lib/ide-defaults";
 import { normalizeMcpServerList } from "@/lib/mcp-servers";
 import { normalizeSparklesPaletteName } from "@/lib/sparkles-palettes";
+import { createDefaultTaskConfig } from "@/lib/task-defaults";
 import type {
   AgentMode,
   AiProvider,
@@ -42,14 +43,18 @@ import {
   normalizeModelSpeed,
   normalizeReasoningEffort,
 } from "./ide-types";
+import { normalizeTaskConfig, normalizeTasks } from "./task-state";
 import {
-  normalizePipelineConfig,
-  normalizePipelineTasks,
-} from "./pipeline-state";
-import { normalizeProjectWorkspaceView } from "./workspaces/registry";
+  DEFAULT_APP_VIEW,
+  isLegacyTasksWorkspaceView,
+  normalizeAppView,
+} from "./workspaces/registry";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
+  appView: DEFAULT_APP_VIEW,
+  tasksProjectId: null,
+  taskConfig: createDefaultTaskConfig(),
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -544,15 +549,11 @@ const normalizeProject = (
       rightPanelView: isRightPanelView(rawUi.rightPanelView)
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
-      pipelineConfig: normalizePipelineConfig(rawUi.pipelineConfig),
-      pipelineTasks: normalizePipelineTasks(
-        rawUi.pipelineTasks,
+      tasks: normalizeTasks(
+        rawUi.tasks ?? (rawUi as { pipelineTasks?: unknown }).pipelineTasks,
         (rawUi as { kanbanCards?: unknown }).kanbanCards,
       ),
       stashItems: normalizeStashItems(rawUi.stashItems),
-      workspaceView:
-        normalizeProjectWorkspaceView(rawUi.workspaceView) ??
-        DEFAULT_PROJECT_UI.workspaceView,
     },
     worktree: normalizeProjectWorktree(
       rawProject.worktree ?? rawMetadata.worktree,
@@ -723,6 +724,69 @@ export const sanitizeProjectUiForChats = (
     openChatIds: nextOpenChatIds,
     chatColumnWidths,
   };
+};
+
+/**
+ * The workspace view used to be stored per project. When no app-level view has
+ * been saved yet, carry over the active project's choice so an upgrade reopens
+ * on the surface the user left.
+ */
+const getLegacyAppView = (
+  rawProjects: unknown,
+  activeProjectId: string | null,
+): PersistedIdeState["appView"] => {
+  if (!activeProjectId || !Array.isArray(rawProjects)) {
+    return DEFAULT_APP_VIEW;
+  }
+
+  const rawActiveProject = rawProjects.find(
+    (project): project is { ui?: { workspaceView?: unknown } } =>
+      Boolean(project) &&
+      typeof project === "object" &&
+      (project as { id?: unknown }).id === activeProjectId,
+  );
+
+  return isLegacyTasksWorkspaceView(rawActiveProject?.ui?.workspaceView)
+    ? "tasks"
+    : DEFAULT_APP_VIEW;
+};
+
+/**
+ * Step settings used to be stored whole on every project, as `ui.taskConfig`
+ * (`ui.pipelineConfig` when the Tasks workspace was called the pipeline). They
+ * are one app-wide config now. So customized prompts are not lost on upgrade,
+ * the app-wide config starts from the first project that changed anything,
+ * preferring the active one.
+ */
+const getLegacyTaskConfig = (
+  state: Partial<PersistedIdeState>,
+  activeProjectId: string | null,
+): PersistedIdeState["taskConfig"] => {
+  const defaults = normalizeTaskConfig(null);
+  const rawProjects = [state.projects, state.closedProjects]
+    .flatMap((list) => (Array.isArray(list) ? list : []))
+    .filter(
+      (project): project is ProjectConfig =>
+        Boolean(project) && typeof project === "object",
+    )
+    .sort(
+      (a, b) =>
+        Number(b.id === activeProjectId) - Number(a.id === activeProjectId),
+    );
+
+  for (const project of rawProjects) {
+    const rawUi = (project.ui ?? {}) as {
+      pipelineConfig?: unknown;
+      taskConfig?: unknown;
+    };
+    const config = normalizeTaskConfig(
+      rawUi.taskConfig ?? rawUi.pipelineConfig,
+    );
+    if (JSON.stringify(config) !== JSON.stringify(defaults)) {
+      return config;
+    }
+  }
+  return defaults;
 };
 
 export const mergePersistedState = (
@@ -1002,9 +1066,24 @@ export const mergePersistedState = (
     browserTabsByProject,
   );
 
+  const activeProjectId =
+    typeof state.activeProjectId === "string" ? state.activeProjectId : null;
+
   return {
-    activeProjectId:
-      typeof state.activeProjectId === "string" ? state.activeProjectId : null,
+    activeProjectId,
+    appView:
+      normalizeAppView(state.appView) ??
+      getLegacyAppView(state.projects, activeProjectId),
+    taskConfig:
+      state.taskConfig && typeof state.taskConfig === "object"
+        ? normalizeTaskConfig(state.taskConfig)
+        : getLegacyTaskConfig(state, activeProjectId),
+    // A project that has since been closed or removed just shows everything.
+    tasksProjectId:
+      typeof state.tasksProjectId === "string" &&
+      projectsWithUi.some((project) => project.id === state.tasksProjectId)
+        ? state.tasksProjectId
+        : null,
     activeBrowserTabIdByProject,
     browserTabsByProject,
     chats,

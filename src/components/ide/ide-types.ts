@@ -4,7 +4,6 @@ import type {
   AiProvider,
   AppSettings,
   ModelSpeed,
-  ProjectWorkspaceView,
   ReasoningEffort,
   RightPanelView,
 } from "@/types/ide";
@@ -13,7 +12,7 @@ export type SettingsSection = "appearance" | "providers" | "mcp" | "chats";
 
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";
-export type { ProjectWorkspaceView, RightPanelView };
+export type { RightPanelView };
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>
   `${PROJECT_TERMINAL_SESSION_PREFIX}${projectId}:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

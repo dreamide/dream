@@ -1,6 +1,7 @@
 import type { UIMessage } from "ai";
 import { getDesktopApi } from "@/lib/electron";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import { createDefaultTaskConfig } from "@/lib/task-defaults";
 import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
 import {
   ensureActiveProject,
@@ -11,6 +12,9 @@ import type { IdeState } from "./ide-store-types";
 
 const createEmptyPersistedState = (): PersistedIdeState => ({
   activeProjectId: null,
+  appView: "code",
+  tasksProjectId: null,
+  taskConfig: createDefaultTaskConfig(),
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -89,17 +93,23 @@ export const loadPersistedChatMessages = async (
 export const createPersistedIdeState = ({
   activeBrowserTabIdByProject,
   activeProjectId,
+  appView,
   browserTabsByProject,
   chats,
   chatSort,
   closedProjects,
   messagesByChatId,
+  tasksProjectId,
   projects,
   settings,
+  taskConfig,
 }: Pick<
   IdeState,
   | "activeBrowserTabIdByProject"
   | "activeProjectId"
+  | "appView"
+  | "tasksProjectId"
+  | "taskConfig"
   | "browserTabsByProject"
   | "chats"
   | "chatSort"
@@ -176,6 +186,9 @@ export const createPersistedIdeState = ({
 
   return {
     activeProjectId: ensureActiveProject(projects, activeProjectId),
+    appView,
+    tasksProjectId,
+    taskConfig,
     activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,
     browserTabsByProject: persistedBrowserTabsByProject,
     chats: persistedChats,

@@ -1,0 +1,131 @@
+import { ChevronDown, CircleCheckBig, Layers } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ProjectTabIcon } from "../../header/project-tab-icon";
+import { useIdeStore } from "../../ide-store";
+import { getTaskProjects, selectTaskEntries } from "../../store/task-actions";
+
+const ALL_PROJECTS = "__all__";
+
+/**
+ * The Tasks workspace's titlebar content. It replaces the project tabs —
+ * those navigate the Code workspace — with the Tasks workspace's own project filter,
+ * which never touches the active project.
+ */
+export const TasksScopeSwitcher = () => {
+  const t = useTranslations("tasks");
+  const projects = useIdeStore((s) => s.projects);
+  const tasksProjectId = useIdeStore((s) => s.tasksProjectId);
+  const setTasksProjectId = useIdeStore((s) => s.setTasksProjectId);
+
+  const options = useMemo(() => getTaskProjects(projects), [projects]);
+  const { scopeProject } = useMemo(
+    () => selectTaskEntries(projects, tasksProjectId),
+    [tasksProjectId, projects],
+  );
+  const totalTasks = useMemo(
+    () =>
+      projects.reduce((total, project) => total + project.ui.tasks.length, 0),
+    [projects],
+  );
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1 pl-1 [-webkit-app-region:drag]">
+      <div className="flex shrink-0 items-center gap-2 px-2 font-medium text-sm">
+        <CircleCheckBig className="size-4 text-muted-foreground" />
+        {t("title")}
+      </div>
+      <span aria-hidden className="text-muted-foreground/50 text-sm">
+        /
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              aria-label={t("scopeLabel")}
+              className="h-8 min-w-0 max-w-64 gap-1.5 px-2 text-sm [-webkit-app-region:no-drag]"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+              title={t("scopeLabel")}
+              type="button"
+              variant="ghost"
+            />
+          }
+        >
+          {scopeProject ? (
+            <ProjectTabIcon
+              icon={scopeProject.icon}
+              projectName={scopeProject.name}
+              projectPath={scopeProject.path}
+            />
+          ) : (
+            <Layers className="size-4 text-muted-foreground" />
+          )}
+          <span className="truncate">
+            {scopeProject?.name ?? t("scopeAll")}
+          </span>
+          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="start"
+          className="w-64 [-webkit-app-region:no-drag]"
+        >
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>{t("scopeLabel")}</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuRadioGroup
+            onValueChange={(value) => {
+              setTasksProjectId(
+                typeof value === "string" && value !== ALL_PROJECTS
+                  ? value
+                  : null,
+              );
+            }}
+            value={scopeProject?.id ?? ALL_PROJECTS}
+          >
+            <DropdownMenuRadioItem closeOnClick={true} value={ALL_PROJECTS}>
+              <Layers className="size-4" />
+              <span className="truncate">{t("scopeAll")}</span>
+              <span className="ml-auto pl-2 text-muted-foreground text-xs tabular-nums">
+                {totalTasks}
+              </span>
+            </DropdownMenuRadioItem>
+            {options.length > 0 ? <DropdownMenuSeparator /> : null}
+            {options.map((project) => (
+              <DropdownMenuRadioItem
+                closeOnClick={true}
+                key={project.id}
+                value={project.id}
+              >
+                <ProjectTabIcon
+                  icon={project.icon}
+                  projectName={project.name}
+                  projectPath={project.path}
+                />
+                <span className="truncate">
+                  {project.name}
+                  {project.worktree ? ` · ${project.worktree.branch}` : ""}
+                </span>
+                <span className="ml-auto pl-2 text-muted-foreground text-xs tabular-nums">
+                  {project.ui.tasks.length}
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+};

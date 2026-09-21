@@ -91,6 +91,8 @@ export function ActivityInbox() {
     const store = useIdeStore.getState();
     store.setActiveProjectId(chat.projectId);
     store.setActiveChatId(chat.projectId, chat.id);
+    // Chats live in the Code workspace; leave Tasks to show this one.
+    store.setAppView("code");
   };
 
   return (

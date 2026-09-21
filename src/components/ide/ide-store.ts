@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import { createDefaultTaskConfig } from "@/lib/task-defaults";
 import { ensureActiveProject, getChatsForProject } from "./ide-state";
 import { getBrowserTabsForProject, resolveActiveBrowserTab } from "./store";
 import { createBrowserActions } from "./store/browser-actions";
@@ -31,6 +32,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   projects: [],
   closedProjects: [],
   activeProjectId: null,
+  appView: "code",
+  tasksProjectId: null,
+  taskConfig: createDefaultTaskConfig(),
   chats: [],
   chatSort: "recent",
   settings: DEFAULT_SETTINGS,
@@ -162,6 +166,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       projects: loaded.projects,
       closedProjects: loaded.closedProjects,
       activeProjectId: nextActiveProjectId,
+      appView: loaded.appView,
+      tasksProjectId: loaded.tasksProjectId,
+      taskConfig: loaded.taskConfig,
       activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
       browserTabsByProject: loaded.browserTabsByProject,
       chats: loaded.chats,
@@ -180,19 +187,25 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     const {
       activeProjectId,
       activeBrowserTabIdByProject,
+      appView,
       browserTabsByProject,
       chatSort,
       chats,
       closedProjects,
+      tasksProjectId,
       projects,
       settings,
       stateHydrated,
+      taskConfig,
     } = get();
     if (!stateHydrated) return;
 
     const nextState = createPersistedIdeState({
       activeBrowserTabIdByProject,
       activeProjectId,
+      appView,
+      tasksProjectId,
+      taskConfig,
       browserTabsByProject,
       chats,
       chatSort,

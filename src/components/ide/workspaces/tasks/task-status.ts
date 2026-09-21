@@ -1,9 +1,9 @@
 import type { StatusDotColor } from "@/components/ui/status-dot";
-import { getPipelineReviewVerdict } from "@/lib/pipeline-defaults";
-import type { PipelineStepRun, PipelineTask } from "@/types/ide";
+import { getTaskReviewVerdict } from "@/lib/task-defaults";
+import type { Task, TaskStepRun } from "@/types/ide";
 import type { ChatActivity } from "../../activity-store";
 
-export type PipelineTaskStatus =
+export type TaskStatus =
   | "idle"
   | "starting"
   | "running"
@@ -20,7 +20,7 @@ export type PipelineTaskStatus =
  * Status is derived from the step chat rather than stored, so it can never
  * disagree with what the agent actually did.
  */
-export const getPipelineTaskStatus = ({
+export const getTaskStatus = ({
   activityEntry,
   awaitingAnswer,
   chatExists,
@@ -34,15 +34,15 @@ export const getPipelineTaskStatus = ({
   awaitingAnswer: boolean;
   chatExists: boolean;
   currentRun:
-    | (Pick<PipelineStepRun, "chatId" | "finishedAt"> &
-        Partial<Pick<PipelineStepRun, "output" | "step">>)
+    | (Pick<TaskStepRun, "chatId" | "finishedAt"> &
+        Partial<Pick<TaskStepRun, "output" | "step">>)
     | null;
   pendingSubmit: boolean;
   streaming: boolean;
-  task: Pick<PipelineTask, "completion" | "step" | "worktreeProjectId">;
+  task: Pick<Task, "completion" | "step" | "worktreeProjectId">;
   /** Whether the task's worktree project is open (true when it has none). */
   worktreeOpen: boolean;
-}): PipelineTaskStatus => {
+}): TaskStatus => {
   if (task.completion) {
     return "done";
   }
@@ -70,7 +70,7 @@ export const getPipelineTaskStatus = ({
   if (currentRun.finishedAt) {
     // The reviewer asked for changes, so this is not simply ready to approve.
     return currentRun.step === "review" &&
-      getPipelineReviewVerdict(currentRun.output) === "changes"
+      getTaskReviewVerdict(currentRun.output) === "changes"
       ? "changesRequested"
       : "awaitingApproval";
   }
@@ -93,7 +93,7 @@ export const getPipelineTaskStatus = ({
 };
 
 /** The agent is not working, so the user may approve, send back or retry. */
-export const isPipelineTaskSettled = (status: PipelineTaskStatus): boolean =>
+export const isTaskSettled = (status: TaskStatus): boolean =>
   status === "waiting" ||
   status === "awaitingApproval" ||
   status === "changesRequested" ||
@@ -101,15 +101,15 @@ export const isPipelineTaskSettled = (status: PipelineTaskStatus): boolean =>
   status === "interrupted" ||
   status === "missing";
 
-export interface PipelineStatusDotProps {
+export interface TaskStatusDotProps {
   className?: string;
   color: StatusDotColor;
   pulse: boolean;
 }
 
-export const getPipelineStatusDotProps = (
-  status: PipelineTaskStatus,
-): PipelineStatusDotProps => {
+export const getTaskStatusDotProps = (
+  status: TaskStatus,
+): TaskStatusDotProps => {
   switch (status) {
     case "starting":
     case "running":
@@ -132,7 +132,7 @@ export const getPipelineStatusDotProps = (
   }
 };
 
-export const PIPELINE_STATUS_LABEL_KEYS = {
+export const TASK_STATUS_LABEL_KEYS = {
   awaitingApproval: "statusAwaitingApproval",
   changesRequested: "statusChangesRequested",
   done: "statusDone",
@@ -144,4 +144,4 @@ export const PIPELINE_STATUS_LABEL_KEYS = {
   starting: "statusStarting",
   waiting: "statusWaiting",
   worktreeClosed: "statusWorktreeClosed",
-} as const satisfies Record<PipelineTaskStatus, string>;
+} as const satisfies Record<TaskStatus, string>;

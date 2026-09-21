@@ -3,8 +3,8 @@ import {
   type ModelOption,
   normalizeModelSpeed,
 } from "@/lib/models";
-import { createDefaultPipelineConfig } from "@/lib/pipeline-defaults";
 import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
+import { createDefaultTaskConfig } from "@/lib/task-defaults";
 import type {
   AiProvider,
   AppSettings,
@@ -13,11 +13,11 @@ import type {
   PanelSizes,
   PanelVisibility,
   PersistedIdeState,
-  PipelineTask,
   ProjectConfig,
   ProjectUiState,
   ReasoningEffort,
   StashItem,
+  Task,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
@@ -104,16 +104,17 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
   fileEditorWordWrap: false,
   multiChat: false,
   panelSizes: DEFAULT_PANEL_SIZES,
-  pipelineConfig: createDefaultPipelineConfig(),
-  pipelineTasks: [],
+  tasks: [],
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,
   rightPanelView: "changes",
   stashItems: [],
-  workspaceView: "code",
 };
 
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
+  appView: "code",
+  tasksProjectId: null,
+  taskConfig: createDefaultTaskConfig(),
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -146,8 +147,7 @@ export const createProjectConfig = (
     runCommand: "pnpm dev",
     ui: {
       ...DEFAULT_PROJECT_UI,
-      pipelineConfig: createDefaultPipelineConfig(),
-      pipelineTasks: [],
+      tasks: [],
       rightPanelOpen: false,
       stashItems: [],
     },
@@ -234,9 +234,9 @@ export const createStashItem = (
   };
 };
 
-export const createPipelineTask = (
-  overrides?: Partial<Pick<PipelineTask, "description" | "title">>,
-): PipelineTask => {
+export const createTask = (
+  overrides?: Partial<Pick<Task, "description" | "title">>,
+): Task => {
   const timestamp = new Date().toISOString();
 
   return {

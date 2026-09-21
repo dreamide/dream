@@ -1,59 +1,53 @@
 import type {
-  PipelineConfig,
-  PipelineRunStepId,
-  PipelineStepConfig,
-  PipelineStepId,
-  PipelineStepRun,
-  PipelineTask,
+  Task,
+  TaskConfig,
+  TaskRunStepId,
+  TaskStepConfig,
+  TaskStepId,
+  TaskStepRun,
 } from "@/types/ide";
 
-export const PIPELINE_STEP_IDS = [
+export const TASK_STEP_IDS = [
   "backlog",
   "plan",
   "build",
   "review",
   "merge",
-] as const satisfies readonly PipelineStepId[];
+] as const satisfies readonly TaskStepId[];
 
-export const PIPELINE_RUN_STEP_IDS = [
+export const TASK_RUN_STEP_IDS = [
   "plan",
   "build",
   "review",
   "merge",
-] as const satisfies readonly PipelineRunStepId[];
+] as const satisfies readonly TaskRunStepId[];
 
-export const isPipelineStepId = (value: unknown): value is PipelineStepId =>
+export const isTaskStepId = (value: unknown): value is TaskStepId =>
   typeof value === "string" &&
-  (PIPELINE_STEP_IDS as readonly string[]).includes(value);
+  (TASK_STEP_IDS as readonly string[]).includes(value);
 
-export const isPipelineRunStepId = (
-  value: unknown,
-): value is PipelineRunStepId =>
+export const isTaskRunStepId = (value: unknown): value is TaskRunStepId =>
   typeof value === "string" &&
-  (PIPELINE_RUN_STEP_IDS as readonly string[]).includes(value);
+  (TASK_RUN_STEP_IDS as readonly string[]).includes(value);
 
 /** The step after `step`, or `null` when `step` is the last one. */
-export const getNextPipelineStep = (
-  step: PipelineStepId,
-): PipelineRunStepId | null => {
-  const index = PIPELINE_STEP_IDS.indexOf(step);
-  const next = PIPELINE_STEP_IDS[index + 1];
+export const getNextTaskStep = (step: TaskStepId): TaskRunStepId | null => {
+  const index = TASK_STEP_IDS.indexOf(step);
+  const next = TASK_STEP_IDS[index + 1];
   return next && next !== "backlog" ? next : null;
 };
 
-/** Run steps strictly before `step`, in pipeline order. */
-export const getEarlierPipelineRunSteps = (
-  step: PipelineStepId,
-): PipelineRunStepId[] => {
-  const index = PIPELINE_STEP_IDS.indexOf(step);
-  return PIPELINE_RUN_STEP_IDS.filter(
-    (entry) => PIPELINE_STEP_IDS.indexOf(entry) < index,
+/** Run steps strictly before `step`, in step order. */
+export const getEarlierTaskRunSteps = (step: TaskStepId): TaskRunStepId[] => {
+  const index = TASK_STEP_IDS.indexOf(step);
+  return TASK_RUN_STEP_IDS.filter(
+    (entry) => TASK_STEP_IDS.indexOf(entry) < index,
   );
 };
 
-export const PIPELINE_OUTPUT_MAX_CHARS = 24_000;
+export const TASK_OUTPUT_MAX_CHARS = 24_000;
 
-export const DEFAULT_PIPELINE_PROMPTS: Record<PipelineRunStepId, string> = {
+export const DEFAULT_TASK_PROMPTS: Record<TaskRunStepId, string> = {
   plan: `You are the planning step of a task pipeline.
 
 # {{task.title}}
@@ -95,7 +89,7 @@ End with a verdict line, either APPROVE or CHANGES REQUESTED, followed by number
 Finish with a short readiness summary.`,
 };
 
-export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
+export const DEFAULT_TASK_CONFIG: TaskConfig = {
   plan: {
     agentMode: "plan",
     autoAdvance: false,
@@ -126,22 +120,22 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
   },
 };
 
-export const createDefaultPipelineConfig = (): PipelineConfig => ({
-  plan: { ...DEFAULT_PIPELINE_CONFIG.plan },
-  build: { ...DEFAULT_PIPELINE_CONFIG.build },
-  review: { ...DEFAULT_PIPELINE_CONFIG.review },
-  merge: { ...DEFAULT_PIPELINE_CONFIG.merge },
+export const createDefaultTaskConfig = (): TaskConfig => ({
+  plan: { ...DEFAULT_TASK_CONFIG.plan },
+  build: { ...DEFAULT_TASK_CONFIG.build },
+  review: { ...DEFAULT_TASK_CONFIG.review },
+  merge: { ...DEFAULT_TASK_CONFIG.merge },
 });
 
-export const getPipelineStepPrompt = (
-  step: PipelineRunStepId,
-  config: Pick<PipelineStepConfig, "prompt">,
+export const getTaskStepPrompt = (
+  step: TaskRunStepId,
+  config: Pick<TaskStepConfig, "prompt">,
 ): string => {
   const custom = config.prompt?.trim();
-  return custom ? (config.prompt ?? "") : DEFAULT_PIPELINE_PROMPTS[step];
+  return custom ? (config.prompt ?? "") : DEFAULT_TASK_PROMPTS[step];
 };
 
-export const PIPELINE_PROMPT_VARIABLES = [
+export const TASK_PROMPT_VARIABLES = [
   "task.title",
   "task.description",
   "previous.step",
@@ -153,13 +147,10 @@ export const PIPELINE_PROMPT_VARIABLES = [
   "baseRef",
 ] as const;
 
-export type PipelinePromptVariable = (typeof PIPELINE_PROMPT_VARIABLES)[number];
+export type TaskPromptVariable = (typeof TASK_PROMPT_VARIABLES)[number];
 
 /** Latest run of `step` that produced output. */
-const getLatestOutput = (
-  runs: PipelineStepRun[],
-  step: PipelineRunStepId,
-): string => {
+const getLatestOutput = (runs: TaskStepRun[], step: TaskRunStepId): string => {
   for (let index = runs.length - 1; index >= 0; index -= 1) {
     const run = runs[index];
     if (run?.step === step && run.output) {
@@ -169,14 +160,11 @@ const getLatestOutput = (
   return "";
 };
 
-export interface RenderPipelinePromptInput {
+export interface RenderTaskPromptInput {
   feedback?: string | null;
   /** The run handing off to this step, if any. */
-  previousRun?: Pick<PipelineStepRun, "output" | "step"> | null;
-  task: Pick<
-    PipelineTask,
-    "baseRef" | "branch" | "description" | "runs" | "title"
-  >;
+  previousRun?: Pick<TaskStepRun, "output" | "step"> | null;
+  task: Pick<Task, "baseRef" | "branch" | "description" | "runs" | "title">;
   template: string;
 }
 
@@ -186,15 +174,15 @@ export interface RenderPipelinePromptInput {
  * previous step produced output, a handoff block is appended so the context
  * is never silently dropped by a custom prompt.
  */
-export const renderPipelinePrompt = ({
+export const renderTaskPrompt = ({
   feedback,
   previousRun,
   task,
   template,
-}: RenderPipelinePromptInput): string => {
+}: RenderTaskPromptInput): string => {
   const previousOutput = previousRun?.output?.trim() ?? "";
   const feedbackText = feedback?.trim() ?? "";
-  const values: Record<PipelinePromptVariable, string> = {
+  const values: Record<TaskPromptVariable, string> = {
     baseRef: task.baseRef ?? "the base branch",
     branch: task.branch ?? "the current branch",
     feedback: feedbackText ? `## Feedback to address\n${feedbackText}` : "",
@@ -212,7 +200,7 @@ export const renderPipelinePrompt = ({
     (_match, name: string) => {
       usedVariables.add(name);
       return Object.hasOwn(values, name)
-        ? values[name as PipelinePromptVariable]
+        ? values[name as TaskPromptVariable]
         : "";
     },
   );
@@ -233,7 +221,7 @@ export const renderPipelinePrompt = ({
   return text.replace(/\n{3,}/g, "\n\n").trim();
 };
 
-export type PipelineReviewVerdict = "approve" | "changes";
+export type TaskReviewVerdict = "approve" | "changes";
 
 // Markdown decoration and an optional "Verdict:" label before the verdict.
 const VERDICT_LINE_PREFIX_PATTERN = /^[\s>#*_`-]*(?:verdict\b[\s*_`:–—-]*)?/i;
@@ -249,9 +237,9 @@ const SHOUTED_APPROVE_PATTERN = /\bAPPROVED?\b/;
  * verdict wins over words that merely appear in the findings; `null` means the
  * reviewer gave no recognizable verdict.
  */
-export const getPipelineReviewVerdict = (
+export const getTaskReviewVerdict = (
   output: string | null | undefined,
-): PipelineReviewVerdict | null => {
+): TaskReviewVerdict | null => {
   if (!output?.trim()) {
     return null;
   }

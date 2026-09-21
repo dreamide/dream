@@ -1,19 +1,19 @@
 import { ALL_PROVIDERS } from "@/lib/ide-defaults";
 import { normalizeModelSpeed } from "@/lib/models";
 import {
-  createDefaultPipelineConfig,
-  isPipelineRunStepId,
-  isPipelineStepId,
-  PIPELINE_OUTPUT_MAX_CHARS,
-  PIPELINE_RUN_STEP_IDS,
-} from "@/lib/pipeline-defaults";
+  createDefaultTaskConfig,
+  isTaskRunStepId,
+  isTaskStepId,
+  TASK_OUTPUT_MAX_CHARS,
+  TASK_RUN_STEP_IDS,
+} from "@/lib/task-defaults";
 import type {
   AiProvider,
-  PipelineConfig,
-  PipelineStepConfig,
-  PipelineStepRun,
-  PipelineTask,
-  PipelineTaskCompletion,
+  Task,
+  TaskCompletion,
+  TaskConfig,
+  TaskStepConfig,
+  TaskStepRun,
 } from "@/types/ide";
 import { normalizeReasoningEffort } from "./ide-types";
 
@@ -24,14 +24,14 @@ const isProvider = (value: unknown): value is AiProvider =>
   typeof value === "string" &&
   (ALL_PROVIDERS as readonly string[]).includes(value);
 
-const normalizePipelineRun = (value: unknown): PipelineStepRun | null => {
+const normalizeTaskRun = (value: unknown): TaskStepRun | null => {
   if (!value || typeof value !== "object") {
     return null;
   }
 
-  const run = value as Partial<PipelineStepRun>;
+  const run = value as Partial<TaskStepRun>;
   const id = asNonEmptyString(run.id)?.trim();
-  if (!id || !isPipelineRunStepId(run.step)) {
+  if (!id || !isTaskRunStepId(run.step)) {
     return null;
   }
 
@@ -41,20 +41,18 @@ const normalizePipelineRun = (value: unknown): PipelineStepRun | null => {
     finishedAt: asNonEmptyString(run.finishedAt),
     id,
     output:
-      asNonEmptyString(run.output)?.slice(0, PIPELINE_OUTPUT_MAX_CHARS) ?? null,
+      asNonEmptyString(run.output)?.slice(0, TASK_OUTPUT_MAX_CHARS) ?? null,
     startedAt: asNonEmptyString(run.startedAt) ?? new Date().toISOString(),
     step: run.step,
   };
 };
 
-const normalizePipelineCompletion = (
-  value: unknown,
-): PipelineTaskCompletion | null => {
+const normalizeTaskCompletion = (value: unknown): TaskCompletion | null => {
   if (!value || typeof value !== "object") {
     return null;
   }
 
-  const completion = value as Partial<PipelineTaskCompletion>;
+  const completion = value as Partial<TaskCompletion>;
   const kind = completion.kind;
   if (
     kind !== "merged" &&
@@ -73,12 +71,12 @@ const normalizePipelineCompletion = (
   };
 };
 
-const normalizePipelineTask = (value: unknown): PipelineTask | null => {
+const normalizeTask = (value: unknown): Task | null => {
   if (!value || typeof value !== "object") {
     return null;
   }
 
-  const task = value as Partial<PipelineTask>;
+  const task = value as Partial<Task>;
   const id = asNonEmptyString(task.id)?.trim();
   if (!id) {
     return null;
@@ -87,9 +85,9 @@ const normalizePipelineTask = (value: unknown): PipelineTask | null => {
   const createdAt =
     asNonEmptyString(task.createdAt) ?? new Date().toISOString();
   const seenRunIds = new Set<string>();
-  const runs: PipelineStepRun[] = [];
+  const runs: TaskStepRun[] = [];
   for (const rawRun of Array.isArray(task.runs) ? task.runs : []) {
-    const run = normalizePipelineRun(rawRun);
+    const run = normalizeTaskRun(rawRun);
     if (run && !seenRunIds.has(run.id)) {
       seenRunIds.add(run.id);
       runs.push(run);
@@ -99,12 +97,12 @@ const normalizePipelineTask = (value: unknown): PipelineTask | null => {
   return {
     baseRef: asNonEmptyString(task.baseRef),
     branch: asNonEmptyString(task.branch),
-    completion: normalizePipelineCompletion(task.completion),
+    completion: normalizeTaskCompletion(task.completion),
     createdAt,
     description: typeof task.description === "string" ? task.description : "",
     id,
     runs,
-    step: isPipelineStepId(task.step) ? task.step : "backlog",
+    step: isTaskStepId(task.step) ? task.step : "backlog",
     title: typeof task.title === "string" ? task.title : "",
     updatedAt: asNonEmptyString(task.updatedAt) ?? createdAt,
     worktreePath: asNonEmptyString(task.worktreePath),
@@ -114,7 +112,7 @@ const normalizePipelineTask = (value: unknown): PipelineTask | null => {
 
 /**
  * Upgrades a card from the retired Kanban board. Legacy cards had a single
- * chat and free-form columns; they map onto the closest pipeline step and keep
+ * chat and free-form columns; they map onto the closest task step and keep
  * running in the parent project (no worktree).
  *
  * Keep in sync with `migrateKanbanCard` in `electron/persisted-state.js`.
@@ -167,10 +165,10 @@ export const migrateKanbanCard = (value: unknown): unknown => {
   };
 };
 
-export const normalizePipelineTasks = (
+export const normalizeTasks = (
   value: unknown,
   legacyKanbanCards?: unknown,
-): PipelineTask[] => {
+): Task[] => {
   const source = Array.isArray(value)
     ? value
     : Array.isArray(legacyKanbanCards)
@@ -178,10 +176,10 @@ export const normalizePipelineTasks = (
       : [];
 
   const seenIds = new Set<string>();
-  const tasks: PipelineTask[] = [];
+  const tasks: Task[] = [];
 
   for (const rawTask of source) {
-    const task = normalizePipelineTask(rawTask);
+    const task = normalizeTask(rawTask);
     if (!task || seenIds.has(task.id)) {
       continue;
     }
@@ -193,15 +191,15 @@ export const normalizePipelineTasks = (
   return tasks;
 };
 
-const normalizePipelineStepConfig = (
+const normalizeTaskStepConfig = (
   value: unknown,
-  fallback: PipelineStepConfig,
-): PipelineStepConfig => {
+  fallback: TaskStepConfig,
+): TaskStepConfig => {
   if (!value || typeof value !== "object") {
     return fallback;
   }
 
-  const config = value as Partial<PipelineStepConfig>;
+  const config = value as Partial<TaskStepConfig>;
   const rawModel =
     config.model && typeof config.model === "object" ? config.model : null;
   const modelId = rawModel ? asNonEmptyString(rawModel.model) : null;
@@ -233,15 +231,15 @@ const normalizePipelineStepConfig = (
   };
 };
 
-export const normalizePipelineConfig = (value: unknown): PipelineConfig => {
-  const config = createDefaultPipelineConfig();
+export const normalizeTaskConfig = (value: unknown): TaskConfig => {
+  const config = createDefaultTaskConfig();
   if (!value || typeof value !== "object") {
     return config;
   }
 
   const raw = value as Record<string, unknown>;
-  for (const step of PIPELINE_RUN_STEP_IDS) {
-    config[step] = normalizePipelineStepConfig(raw[step], config[step]);
+  for (const step of TASK_RUN_STEP_IDS) {
+    config[step] = normalizeTaskStepConfig(raw[step], config[step]);
   }
   return config;
 };

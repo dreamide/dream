@@ -126,14 +126,14 @@ test("mergePersistedState preserves the project changes diff word-wrap preferenc
   assert.equal(merged.projects[0].ui.changesDiffWordWrap, true);
 });
 
-test("mergePersistedState normalizes pipeline tasks and drops invalid ones", () => {
+test("mergePersistedState normalizes tasks and drops invalid ones", () => {
   const merged = mergePersistedState({
     projects: [
       createPersistedProject({
         ui: {
-          pipelineTasks: [
+          tasks: [
             {
-              branch: "pipeline/valid",
+              branch: "task/valid",
               createdAt: "2026-08-15T12:00:00.000Z",
               description: "Details",
               id: "task-one",
@@ -162,11 +162,11 @@ test("mergePersistedState normalizes pipeline tasks and drops invalid ones", () 
     ],
   });
 
-  const tasks = merged.projects[0].ui.pipelineTasks;
+  const tasks = merged.projects[0].ui.tasks;
   assert.equal(tasks.length, 2);
   assert.equal(tasks[0].id, "task-one");
   assert.equal(tasks[0].step, "plan");
-  assert.equal(tasks[0].branch, "pipeline/valid");
+  assert.equal(tasks[0].branch, "task/valid");
   assert.equal(tasks[0].runs.length, 1);
   assert.equal(tasks[0].runs[0].output, "The plan");
   assert.equal(tasks[0].runs[0].feedback, null);
@@ -177,7 +177,42 @@ test("mergePersistedState normalizes pipeline tasks and drops invalid ones", () 
   assert.equal(tasks[1].worktreeProjectId, null);
 });
 
-test("mergePersistedState migrates legacy kanban cards into pipeline tasks", () => {
+test("mergePersistedState reads tasks saved under the old pipeline keys", () => {
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const merged = mergePersistedState({
+    projects: [
+      createPersistedProject({
+        id: "project-one",
+        ui: {
+          pipelineConfig: { build: { autoAdvance: false } },
+          pipelineTasks: [
+            {
+              createdAt: timestamp,
+              description: "",
+              id: "task-one",
+              runs: [],
+              step: "backlog",
+              title: "Ship it",
+              updatedAt: timestamp,
+            },
+          ],
+        } as unknown as ProjectConfig["ui"],
+      }),
+    ],
+  });
+
+  const ui = merged.projects[0].ui;
+  assert.deepEqual(
+    ui.tasks.map((task) => task.id),
+    ["task-one"],
+  );
+  assert.equal("pipelineTasks" in ui, false);
+  // Step settings are app-wide now; the project's copy seeds them once.
+  assert.equal("taskConfig" in ui, false);
+  assert.equal(merged.taskConfig.build.autoAdvance, false);
+});
+
+test("mergePersistedState migrates legacy kanban cards into tasks", () => {
   const timestamp = "2026-08-15T12:00:00.000Z";
   const legacyCard = (id: string, column: string, chatId: string | null) => ({
     chatId,
@@ -204,7 +239,7 @@ test("mergePersistedState migrates legacy kanban cards into pipeline tasks", () 
     ],
   });
 
-  const tasks = merged.projects[0].ui.pipelineTasks;
+  const tasks = merged.projects[0].ui.tasks;
   assert.deepEqual(
     tasks.map((task) => task.step),
     ["backlog", "backlog", "build", "review", "merge"],
@@ -218,29 +253,65 @@ test("mergePersistedState migrates legacy kanban cards into pipeline tasks", () 
   assert.ok(tasks.every((task) => task.worktreeProjectId === null));
 });
 
-test("mergePersistedState fills pipeline step config gaps from defaults", () => {
-  const merged = mergePersistedState({
-    projects: [
-      createPersistedProject({
-        ui: {
-          pipelineConfig: {
-            build: {
-              autoAdvance: false,
-              model: {
-                model: "opus",
-                provider: "anthropic",
-                reasoningEffort: "high",
-              },
-              prompt: "Custom build prompt",
-            },
-            plan: { agentMode: "bogus", model: { model: "" }, prompt: "  " },
-          },
-        } as unknown as ProjectConfig["ui"],
-      }),
-    ],
+test("mergePersistedState seeds the app-wide step config from legacy project configs", () => {
+  const legacyProject = (id: string, ui: Record<string, unknown>) =>
+    createPersistedProject({ id, ui: ui as unknown as ProjectConfig["ui"] });
+  const untouched = legacyProject("project-untouched", { taskConfig: {} });
+  const customized = legacyProject("project-customized", {
+    taskConfig: { plan: { prompt: "Customized plan" } },
+  });
+  // Saved when the workspace was still called the pipeline.
+  const older = legacyProject("project-older", {
+    pipelineConfig: { plan: { prompt: "Older plan" } },
   });
 
-  const config = merged.projects[0].ui.pipelineConfig;
+  // The first project that changed anything wins...
+  assert.equal(
+    mergePersistedState({ projects: [untouched, customized, older] }).taskConfig
+      .plan.prompt,
+    "Customized plan",
+  );
+  // ...unless the active project has customizations of its own.
+  assert.equal(
+    mergePersistedState({
+      activeProjectId: "project-older",
+      projects: [untouched, customized, older],
+    }).taskConfig.plan.prompt,
+    "Older plan",
+  );
+  // Nothing customized anywhere: built-in defaults.
+  assert.equal(
+    mergePersistedState({ projects: [untouched] }).taskConfig.plan.prompt,
+    null,
+  );
+  // Once an app-wide config is saved, project leftovers are ignored.
+  assert.equal(
+    mergePersistedState({
+      projects: [customized],
+      taskConfig: { plan: { prompt: "Saved app-wide" } },
+    } as unknown as Parameters<typeof mergePersistedState>[0]).taskConfig.plan
+      .prompt,
+    "Saved app-wide",
+  );
+});
+
+test("mergePersistedState fills task step config gaps from defaults", () => {
+  const merged = mergePersistedState({
+    taskConfig: {
+      build: {
+        autoAdvance: false,
+        model: {
+          model: "opus",
+          provider: "anthropic",
+          reasoningEffort: "high",
+        },
+        prompt: "Custom build prompt",
+      },
+      plan: { agentMode: "bogus", model: { model: "" }, prompt: "  " },
+    },
+  } as unknown as Parameters<typeof mergePersistedState>[0]);
+
+  const config = merged.taskConfig;
   assert.equal(config.build.autoAdvance, false);
   assert.equal(config.build.agentMode, "build");
   assert.equal(config.build.prompt, "Custom build prompt");
@@ -253,32 +324,94 @@ test("mergePersistedState fills pipeline step config gaps from defaults", () => 
   assert.equal(config.merge.autoAdvance, false);
 });
 
-test("mergePersistedState upgrades the kanban workspace view and falls back to code", () => {
+const createLegacyWorkspaceViewProjects = () => [
+  createPersistedProject({
+    id: "project-pipeline",
+    ui: { workspaceView: "pipeline" } as unknown as ProjectConfig["ui"],
+  }),
+  createPersistedProject({
+    id: "project-kanban",
+    ui: { workspaceView: "kanban" } as unknown as ProjectConfig["ui"],
+  }),
+  createPersistedProject({
+    id: "project-code",
+    ui: { workspaceView: "code" } as unknown as ProjectConfig["ui"],
+  }),
+  createPersistedProject({
+    id: "project-missing",
+    ui: {} as ProjectConfig["ui"],
+  }),
+];
+
+test("mergePersistedState seeds the app view from the active project's legacy workspace view", () => {
+  const appViewFor = (activeProjectId: string | null) =>
+    mergePersistedState({
+      activeProjectId,
+      projects: createLegacyWorkspaceViewProjects(),
+    }).appView;
+
+  // "pipeline" and, before it, "kanban" are the Tasks workspace's old names.
+  assert.equal(appViewFor("project-pipeline"), "tasks");
+  assert.equal(appViewFor("project-kanban"), "tasks");
+  assert.equal(appViewFor("project-code"), "code");
+  assert.equal(appViewFor("project-missing"), "code");
+  // Only the active project's choice carries over.
+  assert.equal(appViewFor(null), "code");
+
   const merged = mergePersistedState({
-    projects: [
-      createPersistedProject({
-        id: "project-pipeline",
-        ui: { workspaceView: "pipeline" } as ProjectConfig["ui"],
-      }),
-      createPersistedProject({
-        id: "project-kanban",
-        ui: { workspaceView: "kanban" } as unknown as ProjectConfig["ui"],
-      }),
-      createPersistedProject({
-        id: "project-invalid",
-        ui: { workspaceView: "bogus" } as unknown as ProjectConfig["ui"],
-      }),
-      createPersistedProject({
-        id: "project-missing",
-        ui: {} as ProjectConfig["ui"],
-      }),
-    ],
+    activeProjectId: "project-pipeline",
+    projects: createLegacyWorkspaceViewProjects(),
+  });
+  assert.equal("workspaceView" in merged.projects[0].ui, false);
+});
+
+test("mergePersistedState prefers a saved app view over the legacy workspace view", () => {
+  const merged = mergePersistedState({
+    activeProjectId: "project-pipeline",
+    appView: "code",
+    projects: createLegacyWorkspaceViewProjects(),
   });
 
-  assert.equal(merged.projects[0].ui.workspaceView, "pipeline");
-  assert.equal(merged.projects[1].ui.workspaceView, "pipeline");
-  assert.equal(merged.projects[2].ui.workspaceView, "code");
-  assert.equal(merged.projects[3].ui.workspaceView, "code");
+  assert.equal(merged.appView, "code");
+});
+
+test("mergePersistedState validates the app view and Tasks project filter", () => {
+  const projects = [createPersistedProject({ id: "project-one" })];
+  const closedProjects = [createPersistedProject({ id: "project-closed" })];
+
+  const saved = mergePersistedState({
+    appView: "tasks",
+    tasksProjectId: "project-one",
+    projects,
+  });
+  assert.equal(saved.appView, "tasks");
+  // The view was briefly saved under the workspace's old name.
+  assert.equal(
+    mergePersistedState({
+      appView: "pipeline",
+    } as unknown as Parameters<typeof mergePersistedState>[0]).appView,
+    "tasks",
+  );
+  assert.equal(saved.tasksProjectId, "project-one");
+
+  // Only an open project can be filtered to; anything else shows everything.
+  for (const tasksProjectId of ["project-closed", "project-gone", 42]) {
+    const merged = mergePersistedState({
+      closedProjects,
+      tasksProjectId,
+      projects,
+    } as unknown as Parameters<typeof mergePersistedState>[0]);
+    assert.equal(merged.tasksProjectId, null);
+  }
+
+  const invalid = mergePersistedState({
+    appView: "bogus",
+  } as unknown as Parameters<typeof mergePersistedState>[0]);
+  assert.equal(invalid.appView, "code");
+
+  const missing = mergePersistedState({});
+  assert.equal(missing.appView, "code");
+  assert.equal(missing.tasksProjectId, null);
 });
 
 test("mergePersistedState preserves stash items and drops invalid ones", () => {

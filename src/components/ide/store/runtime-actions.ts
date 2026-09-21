@@ -1,8 +1,8 @@
 import { getDesktopApi } from "@/lib/electron";
 import { useActivityStore } from "../activity-store";
-import { extractStepOutput } from "../workspaces/pipeline/pipeline-output";
+import { extractStepOutput } from "../workspaces/tasks/task-output";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { finishPipelineRunInProjects } from "./pipeline-actions";
+import { finishTaskRunInProjects } from "./task-actions";
 
 export const createRuntimeActions = (
   set: IdeStoreSet,
@@ -88,13 +88,13 @@ export const createRuntimeActions = (
         delete nextStreamingChatIds[chatId];
         delete nextAwaitingAnswerChatIds[chatId];
 
-        // A normally finished agent turn completes the linked pipeline run
+        // A normally finished agent turn completes the linked task run
         // and snapshots its output for handoff. Waiting/failed/interrupted
         // turns leave the run open (the chat panel records the activity
         // status and the final messages before it clears the streaming flag).
         if (wasStreaming && activity?.status === "finished") {
           finishedNormally = true;
-          nextProjects = finishPipelineRunInProjects(
+          nextProjects = finishTaskRunInProjects(
             state.projects,
             chatId,
             extractStepOutput(state.messagesByChatId?.[chatId] ?? []),
@@ -134,7 +134,7 @@ export const createRuntimeActions = (
     // Auto-advance runs outside the reducer because it starts the next
     // step's chat.
     if (finishedNormally && get) {
-      queueMicrotask(() => get().maybeAutoAdvancePipelineForChat?.(chatId));
+      queueMicrotask(() => get().maybeAutoAdvanceTaskForChat?.(chatId));
     }
   },
 

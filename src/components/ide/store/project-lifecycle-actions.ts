@@ -142,7 +142,7 @@ export const createProjectLifecycleActions = (
   },
 
   addProject: (path: string, addOptions?: { activate?: boolean }) => {
-    // Background reopen (e.g. a pipeline task's worktree) keeps focus put.
+    // Background reopen (e.g. a task's worktree) keeps focus put.
     const activate = addOptions?.activate !== false;
     set((state) => {
       const pathKey = normalizeProjectPathKey(path);
@@ -507,7 +507,7 @@ export const createProjectLifecycleActions = (
 
     requestProjectCheckpointCleanup(worktreePath);
 
-    // Pipeline tasks keep their step outputs but lose the purged chats.
+    // Task tasks keep their step outputs but lose the purged chats.
     const purgedState = get();
     const purgedProjectIds = new Set(
       [...purgedState.projects, ...purgedState.closedProjects]
@@ -516,7 +516,7 @@ export const createProjectLifecycleActions = (
         )
         .map((item) => item.id),
     );
-    get().unlinkPipelineRunsForChats?.(
+    get().unlinkTaskRunsForChats?.(
       purgedState.chats
         .filter((chat) => purgedProjectIds.has(chat.projectId))
         .map((chat) => chat.id),

@@ -91,31 +91,31 @@ export interface StashItem {
   updatedAt: string;
 }
 
-export type PipelineStepId = "backlog" | "plan" | "build" | "review" | "merge";
+export type TaskStepId = "backlog" | "plan" | "build" | "review" | "merge";
 /** Steps that run an agent chat. Backlog is a holding area only. */
-export type PipelineRunStepId = Exclude<PipelineStepId, "backlog">;
+export type TaskRunStepId = Exclude<TaskStepId, "backlog">;
 
-export interface PipelineStepModel {
+export interface TaskStepModel {
   model: string;
   modelSpeed: ModelSpeed;
   provider: AiProvider;
   reasoningEffort: ReasoningEffort | null;
 }
 
-export interface PipelineStepConfig {
+export interface TaskStepConfig {
   agentMode: AgentMode;
   /** Advance to the next step when the agent turn finishes normally. */
   autoAdvance: boolean;
   /** `null` inherits the host project's model selection. */
-  model: PipelineStepModel | null;
+  model: TaskStepModel | null;
   permissionMode: ChatPermissionMode;
   /** `null` uses the built-in default template for the step. */
   prompt: string | null;
 }
 
-export type PipelineConfig = Record<PipelineRunStepId, PipelineStepConfig>;
+export type TaskConfig = Record<TaskRunStepId, TaskStepConfig>;
 
-export interface PipelineStepRun {
+export interface TaskStepRun {
   /** `null` once the chat has been deleted or purged. */
   chatId: string | null;
   /** Send-back note or findings that started this run. */
@@ -125,25 +125,25 @@ export interface PipelineStepRun {
   /** Final agent output, snapshotted for handoff to later steps. */
   output: string | null;
   startedAt: string;
-  step: PipelineRunStepId;
+  step: TaskRunStepId;
 }
 
-export interface PipelineTaskCompletion {
+export interface TaskCompletion {
   at: string;
   kind: "merged" | "pr" | "removed" | "legacy";
   mergeCommit: string | null;
   prUrl: string | null;
 }
 
-export interface PipelineTask {
+export interface Task {
   baseRef: string | null;
   branch: string | null;
-  completion: PipelineTaskCompletion | null;
+  completion: TaskCompletion | null;
   createdAt: string;
   description: string;
   id: string;
-  runs: PipelineStepRun[];
-  step: PipelineStepId;
+  runs: TaskStepRun[];
+  step: TaskStepId;
   title: string;
   updatedAt: string;
   worktreePath: string | null;
@@ -247,7 +247,17 @@ export type RightPanelView =
   | "terminal"
   | "stash";
 
-export type ProjectWorkspaceView = "code" | "pipeline";
+/** Top-level surface shown by the shell; not owned by any project. */
+export type AppView = "code" | "tasks";
+
+/** A task paired with the project that owns it. */
+export interface TaskEntry {
+  /** `${projectId}:${taskId}` — unique across projects. */
+  key: string;
+  project: ProjectConfig;
+  projectId: string;
+  task: Task;
+}
 
 export interface ProjectUiState {
   activeChatId: string | null;
@@ -258,18 +268,28 @@ export interface ProjectUiState {
   fileEditorWordWrap: boolean;
   multiChat: boolean;
   panelSizes: PanelSizes;
-  pipelineConfig: PipelineConfig;
-  pipelineTasks: PipelineTask[];
+  tasks: Task[];
   rightPanelOpen: boolean;
   rightPanelView: RightPanelView;
   stashItems: StashItem[];
-  workspaceView: ProjectWorkspaceView;
 }
 
 export interface PersistedIdeState {
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
+  appView: AppView;
+  /**
+   * The project the Tasks workspace is filtered to, or `null` for every open
+   * project. Owned by the Tasks workspace: independent of `activeProjectId`.
+   */
+  tasksProjectId: string | null;
+  /**
+   * Step settings (prompt, model, permissions, auto-advance). One set for the
+   * whole app: there is deliberately no per-project layer, so what the Tasks
+   * workspace shows is always what runs.
+   */
+  taskConfig: TaskConfig;
   activeBrowserTabIdByProject: Record<string, string | null>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
   settings: AppSettings;

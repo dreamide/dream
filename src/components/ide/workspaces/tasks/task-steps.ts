@@ -1,19 +1,19 @@
-import type { PipelineStepId } from "@/types/ide";
+import type { TaskStepId } from "@/types/ide";
 
-export type PipelineStepLabelKey =
+export type TaskStepLabelKey =
   | "columnBacklog"
   | "columnPlan"
   | "columnBuild"
   | "columnReview"
   | "columnMerge";
 
-export interface PipelineStepDescriptor {
-  id: PipelineStepId;
-  /** Key inside the `pipeline` i18n namespace. */
-  labelKey: PipelineStepLabelKey;
+export interface TaskStepDescriptor {
+  id: TaskStepId;
+  /** Key inside the `tasks` i18n namespace. */
+  labelKey: TaskStepLabelKey;
 }
 
-export const PIPELINE_STEPS: readonly PipelineStepDescriptor[] = [
+export const TASK_STEPS: readonly TaskStepDescriptor[] = [
   { id: "backlog", labelKey: "columnBacklog" },
   { id: "plan", labelKey: "columnPlan" },
   { id: "build", labelKey: "columnBuild" },
@@ -21,10 +21,10 @@ export const PIPELINE_STEPS: readonly PipelineStepDescriptor[] = [
   { id: "merge", labelKey: "columnMerge" },
 ];
 
-export const PIPELINE_STEP_LABEL_KEYS = {
+export const TASK_STEP_LABEL_KEYS = {
   backlog: "columnBacklog",
   build: "columnBuild",
   merge: "columnMerge",
   plan: "columnPlan",
   review: "columnReview",
-} as const satisfies Record<PipelineStepId, PipelineStepLabelKey>;
+} as const satisfies Record<TaskStepId, TaskStepLabelKey>;

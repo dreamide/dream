@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { PIPELINE_OUTPUT_MAX_CHARS } from "@/lib/pipeline-defaults";
+import { TASK_OUTPUT_MAX_CHARS } from "@/lib/task-defaults";
 import {
   getToolName,
   isToolLikePart,
@@ -8,13 +8,13 @@ import {
 
 const cap = (text: string): string => {
   const trimmed = text.trim();
-  return trimmed.length > PIPELINE_OUTPUT_MAX_CHARS
-    ? `${trimmed.slice(0, PIPELINE_OUTPUT_MAX_CHARS)}\n\n[truncated]`
+  return trimmed.length > TASK_OUTPUT_MAX_CHARS
+    ? `${trimmed.slice(0, TASK_OUTPUT_MAX_CHARS)}\n\n[truncated]`
     : trimmed;
 };
 
 /**
- * The text a pipeline step hands to the next step: the last assistant
+ * The text a task step hands to the next step: the last assistant
  * message's text. When the agent submitted a plan through ExitPlanMode, that
  * plan wins, because plan-mode agents often put the whole plan in the tool
  * call and only a short remark in the text.

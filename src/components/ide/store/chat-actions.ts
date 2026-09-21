@@ -434,7 +434,7 @@ export const createChatActions = (
       };
     });
 
-    get().unlinkPipelineRunsForChats([chatId]);
+    get().unlinkTaskRunsForChats([chatId]);
 
     if (projectIdNeedingNewChat) {
       get().addChat(projectIdNeedingNewChat);
@@ -521,7 +521,7 @@ export const createChatActions = (
       };
     });
 
-    get().unlinkPipelineRunsForChats(chatIds);
+    get().unlinkTaskRunsForChats(chatIds);
   },
 
   restoreChats: (chatIds: string[]) => {

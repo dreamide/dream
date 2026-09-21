@@ -1,91 +1,32 @@
-import { type ComponentType, memo, useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
-import type { ProjectConfig, ProjectWorkspaceView } from "@/types/ide";
+import { memo } from "react";
+import type { ProjectConfig } from "@/types/ide";
 import { areProjectsEqualExceptLastUsedAt } from "./ide-state";
-import { useIdeStore } from "./ide-store";
 import { CodeWorkspace } from "./workspaces/code-workspace";
-import { PipelineWorkspace } from "./workspaces/pipeline-workspace";
 
 export interface ProjectWorkspaceProps {
   active: boolean;
   project: ProjectConfig;
 }
 
-interface WorkspaceBodyProps {
-  active: boolean;
-  project: ProjectConfig;
-}
-
-const WORKSPACE_COMPONENTS: Record<
-  ProjectWorkspaceView,
-  ComponentType<WorkspaceBodyProps>
-> = {
-  code: CodeWorkspace,
-  pipeline: PipelineWorkspace,
-};
-
 /**
- * Dispatches a project to its selected workspace body. Visited workspaces stay
- * mounted (hidden with opacity and visibility rather than `display: none`)
- * so streaming chats, terminals, browser webviews, and the code workspace's
- * ResizeObserver-driven layout all survive switching back and forth.
- *
- * The Code workspace also mounts when restoring directly into Pipeline so its
- * chat panels can process queued card submissions. Only the selected body is
- * active, keeping hidden workspace shortcuts and native webviews disabled.
+ * A project's own surface. App-level views such as Tasks are mounted by
+ * the shell above every project, so this always stays mounted underneath them:
+ * streaming chats, terminals, browser webviews, and the ResizeObserver-driven
+ * layout survive, and chat panels keep processing queued task submissions.
+ * `active` is false while another surface is on top, which keeps this
+ * workspace's shortcuts and native webviews disabled.
  */
 const ProjectWorkspaceComponent = ({
   active,
   project,
-}: ProjectWorkspaceProps) => {
-  const projectId = project.id;
-  const workspaceView = useIdeStore(
-    (s) =>
-      s.projects.find((item) => item.id === projectId)?.ui.workspaceView ??
-      project.ui.workspaceView,
-  );
-  const [visitedViews, setVisitedViews] = useState(
-    () => new Set<ProjectWorkspaceView>(["code", workspaceView]),
-  );
-
-  useEffect(() => {
-    setVisitedViews((views) => {
-      if (views.has(workspaceView)) {
-        return views;
-      }
-
-      return new Set([...views, workspaceView]);
-    });
-  }, [workspaceView]);
-
-  return (
-    <div className="relative h-full min-h-0 overflow-hidden">
-      {(Object.keys(WORKSPACE_COMPONENTS) as ProjectWorkspaceView[])
-        .filter((view) => visitedViews.has(view) || view === workspaceView)
-        .map((view) => {
-          const Body = WORKSPACE_COMPONENTS[view];
-          const selected = view === workspaceView;
-
-          return (
-            <div
-              aria-hidden={!selected}
-              className={cn(
-                "absolute inset-0 min-h-0 bg-surface-50 dark:bg-surface-900",
-                selected
-                  ? "visible z-10 opacity-100 pointer-events-auto"
-                  : "invisible z-0 opacity-0 pointer-events-none",
-              )}
-              data-workspace-view={view}
-              inert={!selected}
-              key={view}
-            >
-              <Body active={active && selected} project={project} />
-            </div>
-          );
-        })}
-    </div>
-  );
-};
+}: ProjectWorkspaceProps) => (
+  <div
+    className="relative h-full min-h-0 overflow-hidden bg-surface-50 dark:bg-surface-900"
+    data-workspace-view="code"
+  >
+    <CodeWorkspace active={active} project={project} />
+  </div>
+);
 
 export const ProjectWorkspace = memo(
   ProjectWorkspaceComponent,

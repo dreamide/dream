@@ -97,7 +97,7 @@ import {
   scheduleProjectPanelRefresh,
 } from "./project-panel-refresh";
 import { ProjectBranchFooter } from "./project-status-bar";
-import { findPipelineTaskByChatId } from "./store/pipeline-actions";
+import { findTaskByChatId } from "./store/task-actions";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const EMPTY_MESSAGES: UIMessage[] = [];
@@ -425,11 +425,11 @@ export const ChatPanel = ({
   const pendingChatSubmit = useIdeStore(
     (s) => s.pendingChatSubmitByChatId[chat.id] ?? null,
   );
-  // Pipeline step chats submit their queued prompt even when neither the chat
+  // Task step chats submit their queued prompt even when neither the chat
   // nor its project is in view: the task lives in the parent project while
   // the step chat may run in a background worktree project.
-  const canSubmitPipelineStep = useIdeStore(
-    (s) => findPipelineTaskByChatId(s.projects, chat.id) !== null,
+  const canSubmitTaskStep = useIdeStore(
+    (s) => findTaskByChatId(s.projects, chat.id) !== null,
   );
   const takePendingChatSubmit = useIdeStore((s) => s.takePendingChatSubmit);
   const gitRefreshKey = useIdeStore(
@@ -973,14 +973,13 @@ export const ChatPanel = ({
         (item) => item.id === project.id,
       );
 
-      // Pipeline step chats run in a background worktree project while the
+      // Task step chats run in a background worktree project while the
       // board's project stays active, so they are exempt from the focus check.
-      const isPipelineStepChat =
-        findPipelineTaskByChatId(state.projects, chat.id) !== null;
+      const isTaskStepChat = findTaskByChatId(state.projects, chat.id) !== null;
 
       if (
         !submittedProject ||
-        (state.activeProjectId !== submittedProject.id && !isPipelineStepChat)
+        (state.activeProjectId !== submittedProject.id && !isTaskStepChat)
       ) {
         const message = chatT("notInActiveProject");
         setLocalError(message);
@@ -1214,7 +1213,7 @@ export const ChatPanel = ({
   useEffect(() => {
     if (
       !pendingChatSubmit ||
-      (!isActive && !canSubmitPipelineStep) ||
+      (!isActive && !canSubmitTaskStep) ||
       !messagesLoaded ||
       isProcessing
     ) {
@@ -1270,7 +1269,7 @@ export const ChatPanel = ({
       window.cancelAnimationFrame(frame);
     };
   }, [
-    canSubmitPipelineStep,
+    canSubmitTaskStep,
     chat.id,
     isActive,
     isProcessing,

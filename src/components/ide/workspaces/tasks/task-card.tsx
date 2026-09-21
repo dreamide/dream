@@ -28,49 +28,52 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusDot } from "@/components/ui/status-dot";
-import {
-  getEarlierPipelineRunSteps,
-  getNextPipelineStep,
-} from "@/lib/pipeline-defaults";
+import { getEarlierTaskRunSteps, getNextTaskStep } from "@/lib/task-defaults";
 import { cn } from "@/lib/utils";
-import type { PipelineRunStepId, PipelineTask } from "@/types/ide";
+import type { TaskEntry, TaskRunStepId } from "@/types/ide";
 import { useActivityStore } from "../../activity-store";
+import { ProjectTabIcon } from "../../header/project-tab-icon";
 import { useIdeStore } from "../../ide-store";
-import { getCurrentPipelineRun } from "../../store/pipeline-actions";
-import { PipelineStepIcon } from "./pipeline-step-icon";
-import { PIPELINE_STEP_LABEL_KEYS } from "./pipeline-steps";
+import { getCurrentTaskRun } from "../../store/task-actions";
 import {
-  getPipelineStatusDotProps,
-  getPipelineTaskStatus,
-  isPipelineTaskSettled,
-  PIPELINE_STATUS_LABEL_KEYS,
-} from "./pipeline-task-status";
+  getTaskStatus,
+  getTaskStatusDotProps,
+  isTaskSettled,
+  TASK_STATUS_LABEL_KEYS,
+} from "./task-status";
+import { TaskStepIcon } from "./task-step-icon";
+import { TASK_STEP_LABEL_KEYS } from "./task-steps";
 
-export interface PipelineTaskCardProps {
-  /** Position among backlog tasks; `null` outside the backlog. */
+export interface TaskCardProps {
+  /** Position among its project's backlog tasks; `null` outside the backlog. */
   backlogIndex: number | null;
+  /** How many backlog tasks the owning project has. */
   backlogSize: number;
   /** An action on this task is in flight; the primary button shows a spinner. */
   busy: boolean;
+  /** The task with the project that owns it; handlers receive it back. */
+  entry: TaskEntry;
   /** Why the last action on this task failed, if it did. */
   error: string | null;
-  onAdvance: (taskId: string) => void;
-  onComplete: (task: PipelineTask) => void;
-  onDelete: (taskId: string) => void;
-  onEdit: (task: PipelineTask) => void;
-  onMoveInBacklog: (taskId: string, index: number) => void;
-  onOpenChat: (taskId: string, runId?: string) => void;
-  onReopenWorktree: (taskId: string) => void;
-  onRetry: (taskId: string) => void;
-  onSendBack: (task: PipelineTask, toStep: PipelineRunStepId) => void;
-  onStart: (taskId: string) => void;
-  task: PipelineTask;
+  onAdvance: (entry: TaskEntry) => void;
+  onComplete: (entry: TaskEntry) => void;
+  onDelete: (entry: TaskEntry) => void;
+  onEdit: (entry: TaskEntry) => void;
+  onMoveInBacklog: (entry: TaskEntry, index: number) => void;
+  onOpenChat: (entry: TaskEntry, runId?: string) => void;
+  onReopenWorktree: (entry: TaskEntry) => void;
+  onRetry: (entry: TaskEntry) => void;
+  onSendBack: (entry: TaskEntry, toStep: TaskRunStepId) => void;
+  onStart: (entry: TaskEntry) => void;
+  /** Names the owning project on the card; set when several are in view. */
+  showProject: boolean;
 }
 
-const PipelineTaskCardImpl = ({
+const TaskCardImpl = ({
   backlogIndex,
   backlogSize,
   busy,
+  entry,
   error,
   onAdvance,
   onComplete,
@@ -82,12 +85,13 @@ const PipelineTaskCardImpl = ({
   onRetry,
   onSendBack,
   onStart,
-  task,
-}: PipelineTaskCardProps) => {
-  const t = useTranslations("pipeline");
+  showProject,
+}: TaskCardProps) => {
+  const t = useTranslations("tasks");
   const format = useFormatter();
+  const { project, task } = entry;
   const createdAt = new Date(task.createdAt);
-  const currentRun = getCurrentPipelineRun(task);
+  const currentRun = getCurrentTaskRun(task);
   const chatId = currentRun?.chatId ?? null;
 
   const chatExists = useIdeStore((s) =>
@@ -125,7 +129,7 @@ const PipelineTaskCardImpl = ({
     chatId ? s.entries[chatId] : undefined,
   );
 
-  const status = getPipelineTaskStatus({
+  const status = getTaskStatus({
     activityEntry,
     awaitingAnswer,
     chatExists,
@@ -135,12 +139,12 @@ const PipelineTaskCardImpl = ({
     task,
     worktreeOpen,
   });
-  const dot = getPipelineStatusDotProps(status);
-  const settled = isPipelineTaskSettled(status);
+  const dot = getTaskStatusDotProps(status);
+  const settled = isTaskSettled(status);
   const liveRunIds = new Set(liveRunIdsKey ? liveRunIdsKey.split(",") : []);
   const liveRuns = task.runs.filter((run) => liveRunIds.has(run.id));
-  const nextStep = getNextPipelineStep(task.step);
-  const sendBackTargets = settled ? getEarlierPipelineRunSteps(task.step) : [];
+  const nextStep = getNextTaskStep(task.step);
+  const sendBackTargets = settled ? getEarlierTaskRunSteps(task.step) : [];
   const needsRetry =
     status === "failed" || status === "interrupted" || status === "missing";
   // Approving needs something to hand to the next step.
@@ -153,12 +157,12 @@ const PipelineTaskCardImpl = ({
 
   const primaryAction =
     status === "idle" && task.step === "backlog"
-      ? { icon: Play, label: t("start"), run: () => onStart(task.id) }
+      ? { icon: Play, label: t("start"), run: () => onStart(entry) }
       : status === "worktreeClosed"
         ? {
             icon: FolderOpen,
             label: t("reopenWorktree"),
-            run: () => onReopenWorktree(task.id),
+            run: () => onReopenWorktree(entry),
           }
         : changesRequested
           ? {
@@ -166,29 +170,29 @@ const PipelineTaskCardImpl = ({
               // anyway stays available from the menu.
               icon: Undo2,
               label: t("sendBackTo", {
-                step: t(PIPELINE_STEP_LABEL_KEYS.build),
+                step: t(TASK_STEP_LABEL_KEYS.build),
               }),
-              run: () => onSendBack(task, "build"),
+              run: () => onSendBack(entry, "build"),
             }
           : needsRetry
             ? {
                 icon: RotateCcw,
                 label: t("retryStep"),
-                run: () => onRetry(task.id),
+                run: () => onRetry(entry),
               }
             : canApprove && nextStep
               ? {
                   icon: ChevronsRight,
                   label: t("approveAdvance", {
-                    step: t(PIPELINE_STEP_LABEL_KEYS[nextStep]),
+                    step: t(TASK_STEP_LABEL_KEYS[nextStep]),
                   }),
-                  run: () => onAdvance(task.id),
+                  run: () => onAdvance(entry),
                 }
               : canApprove && task.step === "merge"
                 ? {
                     icon: Check,
                     label: t("complete"),
-                    run: () => onComplete(task),
+                    run: () => onComplete(entry),
                   }
                 : null;
 
@@ -202,13 +206,27 @@ const PipelineTaskCardImpl = ({
         "group/card shrink-0 select-none rounded-md border border-surface-300 bg-background p-3 text-left text-foreground shadow-sm transition-colors hover:border-surface-400 dark:border-surface-700 dark:hover:border-surface-600",
         status === "done" && "opacity-60",
       )}
-      data-pipeline-task={task.id}
-      onDoubleClick={() => onEdit(task)}
+      data-task={task.id}
+      data-project-id={entry.projectId}
+      onDoubleClick={() => onEdit(entry)}
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
+          {showProject ? (
+            <div
+              className="mb-1.5 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs"
+              title={project.path}
+            >
+              <ProjectTabIcon
+                icon={project.icon}
+                projectName={project.name}
+                projectPath={project.path}
+              />
+              <span className="truncate">{project.name}</span>
+            </div>
+          ) : null}
           <div className="flex items-start gap-2">
-            <PipelineStepIcon className="mt-0.5" step={task.step} />
+            <TaskStepIcon className="mt-0.5" step={task.step} />
             <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
               {task.title}
             </h3>
@@ -236,7 +254,7 @@ const PipelineTaskCardImpl = ({
           <DropdownMenuContent align="end" className="w-52">
             {liveRuns.length === 1 ? (
               <DropdownMenuItem
-                onClick={() => onOpenChat(task.id, liveRuns[0]?.id)}
+                onClick={() => onOpenChat(entry, liveRuns[0]?.id)}
               >
                 <MessageSquare className="size-4" />
                 {t("openChat")}
@@ -252,10 +270,10 @@ const PipelineTaskCardImpl = ({
                   {liveRuns.map((run, index) => (
                     <DropdownMenuItem
                       key={run.id}
-                      onClick={() => onOpenChat(task.id, run.id)}
+                      onClick={() => onOpenChat(entry, run.id)}
                     >
-                      <PipelineStepIcon step={run.step} />
-                      {t(PIPELINE_STEP_LABEL_KEYS[run.step])}
+                      <TaskStepIcon step={run.step} />
+                      {t(TASK_STEP_LABEL_KEYS[run.step])}
                       <span className="ml-auto text-muted-foreground text-xs tabular-nums">
                         #{index + 1}
                       </span>
@@ -265,10 +283,10 @@ const PipelineTaskCardImpl = ({
               </DropdownMenuSub>
             ) : null}
             {changesRequested && canApprove && nextStep ? (
-              <DropdownMenuItem onClick={() => onAdvance(task.id)}>
+              <DropdownMenuItem onClick={() => onAdvance(entry)}>
                 <ChevronsRight className="size-4" />
                 {t("approveAdvance", {
-                  step: t(PIPELINE_STEP_LABEL_KEYS[nextStep]),
+                  step: t(TASK_STEP_LABEL_KEYS[nextStep]),
                 })}
               </DropdownMenuItem>
             ) : null}
@@ -282,10 +300,10 @@ const PipelineTaskCardImpl = ({
                   {sendBackTargets.map((step) => (
                     <DropdownMenuItem
                       key={step}
-                      onClick={() => onSendBack(task, step)}
+                      onClick={() => onSendBack(entry, step)}
                     >
-                      <PipelineStepIcon step={step} />
-                      {t(PIPELINE_STEP_LABEL_KEYS[step])}
+                      <TaskStepIcon step={step} />
+                      {t(TASK_STEP_LABEL_KEYS[step])}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuSubContent>
@@ -294,13 +312,13 @@ const PipelineTaskCardImpl = ({
             {settled &&
             !primaryIsComplete &&
             (task.step === "review" || task.step === "merge") ? (
-              <DropdownMenuItem onClick={() => onComplete(task)}>
+              <DropdownMenuItem onClick={() => onComplete(entry)}>
                 <Check className="size-4" />
                 {t("complete")}
               </DropdownMenuItem>
             ) : null}
             {settled && !needsRetry && !task.completion ? (
-              <DropdownMenuItem onClick={() => onRetry(task.id)}>
+              <DropdownMenuItem onClick={() => onRetry(entry)}>
                 <RotateCcw className="size-4" />
                 {t("retryStep")}
               </DropdownMenuItem>
@@ -309,28 +327,28 @@ const PipelineTaskCardImpl = ({
               <>
                 <DropdownMenuItem
                   disabled={backlogIndex === 0}
-                  onClick={() => onMoveInBacklog(task.id, backlogIndex - 1)}
+                  onClick={() => onMoveInBacklog(entry, backlogIndex - 1)}
                 >
                   <ArrowUp className="size-4" />
                   {t("moveUp")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   disabled={backlogIndex === backlogSize - 1}
-                  onClick={() => onMoveInBacklog(task.id, backlogIndex + 1)}
+                  onClick={() => onMoveInBacklog(entry, backlogIndex + 1)}
                 >
                   <ArrowDown className="size-4" />
                   {t("moveDown")}
                 </DropdownMenuItem>
               </>
             ) : null}
-            <DropdownMenuItem onClick={() => onEdit(task)}>
+            <DropdownMenuItem onClick={() => onEdit(entry)}>
               <FilePenLine className="size-4" />
               {t("edit")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() => onDelete(task.id)}
+              onClick={() => onDelete(entry)}
             >
               <Trash2 className="size-4" />
               {t("delete")}
@@ -345,9 +363,7 @@ const PipelineTaskCardImpl = ({
             color={dot.color}
             pulse={dot.pulse}
           />
-          <span className="truncate">
-            {t(PIPELINE_STATUS_LABEL_KEYS[status])}
-          </span>
+          <span className="truncate">{t(TASK_STATUS_LABEL_KEYS[status])}</span>
         </div>
       ) : null}
       {error ? (
@@ -404,7 +420,7 @@ const PipelineTaskCardImpl = ({
             variant="default"
           >
             <Spinner className="size-3.5" />
-            {t(PIPELINE_STATUS_LABEL_KEYS.starting)}
+            {t(TASK_STATUS_LABEL_KEYS.starting)}
           </Button>
         ) : null}
       </div>
@@ -412,5 +428,28 @@ const PipelineTaskCardImpl = ({
   );
 };
 
-export const PipelineTaskCard = memo(PipelineTaskCardImpl);
-PipelineTaskCard.displayName = "PipelineTaskCard";
+/**
+ * Entries are rebuilt whenever any project changes, and a project object is
+ * replaced on every UI tweak. Only what the card renders counts: the task
+ * itself plus its owner's id, name, path and icon. An entry that matches on
+ * those is interchangeable, so handlers may safely keep receiving the old one.
+ */
+const isSameEntry = (previous: TaskEntry, next: TaskEntry) =>
+  previous.task === next.task &&
+  previous.projectId === next.projectId &&
+  previous.project.name === next.project.name &&
+  previous.project.path === next.project.path &&
+  previous.project.icon === next.project.icon;
+
+export const TaskCard = memo(TaskCardImpl, (previous, next) => {
+  const keys = Object.keys(next) as (keyof TaskCardProps)[];
+  return (
+    keys.length === Object.keys(previous).length &&
+    keys.every((key) =>
+      key === "entry"
+        ? isSameEntry(previous.entry, next.entry)
+        : Object.is(previous[key], next[key]),
+    )
+  );
+});
+TaskCard.displayName = "TaskCard";

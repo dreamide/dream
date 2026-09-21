@@ -1,77 +1,42 @@
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  SegmentedToggle,
+  type SegmentedToggleOption,
+} from "@/components/ui/segmented-toggle";
+import type { AppView } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
-import {
-  DEFAULT_PROJECT_WORKSPACE_VIEW,
-  getProjectWorkspaceDescriptor,
-  isProjectWorkspaceView,
-  PROJECT_WORKSPACE_DESCRIPTORS,
-} from "../workspaces/registry";
+import { APP_VIEW_DESCRIPTORS } from "../workspaces/registry";
 
+/**
+ * One-click switch between the app-level workspaces. Works with or without an
+ * active project.
+ */
 export const WorkspaceSwitcher = () => {
   const t = useTranslations("workspace");
-  const activeProjectId = useIdeStore((s) => s.activeProjectId);
-  const workspaceView = useIdeStore(
-    (s) =>
-      s.projects.find((project) => project.id === s.activeProjectId)?.ui
-        .workspaceView ?? DEFAULT_PROJECT_WORKSPACE_VIEW,
+  const appView = useIdeStore((s) => s.appView);
+  const setAppView = useIdeStore((s) => s.setAppView);
+  const options = useMemo(
+    (): SegmentedToggleOption<AppView>[] =>
+      APP_VIEW_DESCRIPTORS.map(({ icon, id, labelKey }) => ({
+        icon,
+        label: t(labelKey),
+        value: id,
+      })),
+    [t],
   );
-  const setProjectWorkspaceView = useIdeStore((s) => s.setProjectWorkspaceView);
-  const CurrentIcon = getProjectWorkspaceDescriptor(workspaceView).icon;
-  const label = t("switchWorkspace");
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <Button
-            aria-label={label}
-            className="size-8 text-muted-foreground hover:text-foreground data-[state=open]:text-foreground [-webkit-app-region:no-drag]"
-            disabled={!activeProjectId}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-            }}
-            size="icon"
-            title={label}
-            type="button"
-            variant="ghost"
-          />
-        }
-      >
-        <CurrentIcon className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-44 [-webkit-app-region:no-drag]"
-      >
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>{t("workspaces")}</DropdownMenuLabel>
-        </DropdownMenuGroup>
-        <DropdownMenuRadioGroup
-          onValueChange={(value) => {
-            if (activeProjectId && isProjectWorkspaceView(value)) {
-              setProjectWorkspaceView(activeProjectId, value);
-            }
-          }}
-          value={workspaceView}
-        >
-          {PROJECT_WORKSPACE_DESCRIPTORS.map(({ icon: Icon, id, labelKey }) => (
-            <DropdownMenuRadioItem closeOnClick={true} key={id} value={id}>
-              <Icon className="size-4" />
-              {t(labelKey)}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <SegmentedToggle
+      aria-label={t("switchWorkspace")}
+      className="[-webkit-app-region:no-drag]"
+      onPointerDown={(event) => {
+        // Keep the titlebar from treating the press as a window drag.
+        event.stopPropagation();
+      }}
+      onValueChange={setAppView}
+      options={options}
+      value={appView}
+    />
   );
 };

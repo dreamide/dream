@@ -13,6 +13,9 @@ const appRoot = path.resolve(__dirname, "..");
 
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
+  appView: "code",
+  tasksProjectId: null,
+  taskConfig: null,
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -245,13 +248,26 @@ function getNestedNumberRecord(parent, key) {
   );
 }
 
-function getNestedWorkspaceView(parent, key, fallback = "code") {
-  const value = parent?.[key];
-  // "kanban" is the retired name of the pipeline workspace.
-  if (value === "kanban") {
-    return "pipeline";
+// The Tasks workspace was called "pipeline" (and "kanban" before that). Those
+// names survive in saved data: as view values, and as the `pipelineTasks` /
+// `pipelineConfig` / `pipelineProjectId` keys read as fallbacks below.
+//
+// The workspace view used to live per project in `metadata.ui.workspaceView`.
+// It is now the app-level `appView` config key; the legacy value only seeds it
+// on the first load.
+function isLegacyTasksWorkspaceView(value) {
+  return value === "pipeline" || value === "kanban";
+}
+
+function getAppView(value, fallback = "code") {
+  if (value === "pipeline") {
+    return "tasks";
   }
-  return value === "code" || value === "pipeline" ? value : fallback;
+  return value === "code" || value === "tasks" ? value : fallback;
+}
+
+function getTasksProjectId(value) {
+  return typeof value === "string" && value ? value : null;
 }
 
 function getNestedRightPanelView(parent, key, fallback = "changes") {
@@ -296,11 +312,11 @@ function nonEmptyString(value) {
 }
 
 /**
- * Upgrades a card from the retired Kanban board into a pipeline task. Legacy
+ * Upgrades a card from the retired Kanban board into a task. Legacy
  * cards keep running in the parent project (no worktree).
  *
  * Keep in sync with `migrateKanbanCard` in
- * `src/components/ide/pipeline-state.ts`.
+ * `src/components/ide/task-state.ts`.
  */
 function migrateKanbanCard(card) {
   if (!isRecord(card)) {
@@ -352,13 +368,15 @@ function migrateKanbanCard(card) {
   };
 }
 
-function getNestedPipelineTasks(parent) {
+function getNestedTasks(parent) {
   const record = isRecord(parent) ? parent : null;
-  const value = Array.isArray(record?.pipelineTasks)
-    ? record.pipelineTasks
-    : Array.isArray(record?.kanbanCards)
-      ? record.kanbanCards.map(migrateKanbanCard)
-      : null;
+  const value = Array.isArray(record?.tasks)
+    ? record.tasks
+    : Array.isArray(record?.pipelineTasks)
+      ? record.pipelineTasks
+      : Array.isArray(record?.kanbanCards)
+        ? record.kanbanCards.map(migrateKanbanCard)
+        : null;
   if (!value) {
     return [];
   }
@@ -383,9 +401,15 @@ function getNestedPipelineTasks(parent) {
   return tasks;
 }
 
-/** Pass-through; the renderer validates and fills defaults per step. */
-function getNestedPipelineConfig(parent) {
-  const value = isRecord(parent) ? parent.pipelineConfig : null;
+/**
+ * A project's legacy step settings, passed through so the renderer can seed the
+ * app-wide config from them once. Empty after that config has been saved.
+ */
+function getNestedTaskConfig(parent) {
+  const record = isRecord(parent) ? parent : null;
+  const value = isRecord(record?.taskConfig)
+    ? record.taskConfig
+    : record?.pipelineConfig;
   return isRecord(value) ? value : {};
 }
 
@@ -513,7 +537,10 @@ function writeConfig(database, key, value, updatedAt) {
     .run(key, toJson(value), updatedAt);
 }
 
-function buildProjectMetadata(project) {
+function buildProjectMetadata(
+  project,
+  { retireProjectTaskConfig = false } = {},
+) {
   const metadata = { ...getMetadataObject(project.metadata) };
   delete metadata.mcpServerOverrides;
   const worktree = getNestedWorktree(project, "worktree");
@@ -597,11 +624,6 @@ function buildProjectMetadata(project) {
     "rightPanelView",
     getNestedRightPanelView(ui, "rightPanelView", "changes"),
   );
-  ui.workspaceView = getNestedWorkspaceView(
-    projectUi,
-    "workspaceView",
-    getNestedWorkspaceView(ui, "workspaceView", "code"),
-  );
   ui.chatHistoryPanelOpen = getNestedBoolean(
     projectUi,
     "chatHistoryPanelOpen",
@@ -611,19 +633,29 @@ function buildProjectMetadata(project) {
     Object.hasOwn(projectUi, "stashItems") ? projectUi : ui,
   );
   // Falls back to the stored metadata, which may still hold legacy
-  // `kanbanCards`; those are migrated into pipeline tasks here.
-  ui.pipelineTasks = getNestedPipelineTasks(
-    Object.hasOwn(projectUi, "pipelineTasks") ||
+  // `pipelineTasks` or `kanbanCards`; those are migrated into tasks here.
+  ui.tasks = getNestedTasks(
+    Object.hasOwn(projectUi, "tasks") ||
+      Object.hasOwn(projectUi, "pipelineTasks") ||
       Object.hasOwn(projectUi, "kanbanCards")
       ? projectUi
       : ui,
   );
-  ui.pipelineConfig = getNestedPipelineConfig(
-    Object.hasOwn(projectUi, "pipelineConfig") ? projectUi : ui,
-  );
-  // Drop retired feature data carried by older project metadata.
+  // Step settings used to be stored on every project. They are a single
+  // app-level `taskConfig` config key now, and the per-project copies are only
+  // retired by a save that writes that key, so they survive until the app-wide
+  // config has been seeded from them.
+  if (retireProjectTaskConfig) {
+    delete ui.pipelineConfig;
+    delete ui.taskConfig;
+  }
+  // Drop retired feature data carried by older project metadata. The workspace
+  // view moved to the app-level `appView` config key, which is written in the
+  // same save.
   delete ui.goals;
   delete ui.kanbanCards;
+  delete ui.pipelineTasks;
+  delete ui.workspaceView;
   ui.panelSizes = {
     chatHistoryPanelWidth: getNestedNumber(
       projectPanelSizes,
@@ -839,6 +871,16 @@ function saveStateToRelationalDatabase(database, state) {
       now,
     );
     writeConfig(database, "chatSort", state.chatSort ?? "recent", now);
+    writeConfig(database, "appView", getAppView(state.appView), now);
+    writeConfig(
+      database,
+      "tasksProjectId",
+      getTasksProjectId(state.tasksProjectId),
+      now,
+    );
+    if (isRecord(state.taskConfig)) {
+      writeConfig(database, "taskConfig", state.taskConfig, now);
+    }
     writeConfig(
       database,
       "browserTabsByProject",
@@ -1023,7 +1065,9 @@ function saveStateToRelationalDatabase(database, state) {
 
     projectsToPersist.forEach(({ project, status }, index) => {
       const projectPath = typeof project.path === "string" ? project.path : "";
-      const metadata = buildProjectMetadata(project);
+      const metadata = buildProjectMetadata(project, {
+        retireProjectTaskConfig: isRecord(state.taskConfig),
+      });
 
       insertProject.run(
         project.id,
@@ -1160,6 +1204,7 @@ function loadStateFromRelationalDatabase(database) {
   const projects = [];
   const closedProjects = [];
   const allProjects = [];
+  const legacyTasksProjectIds = new Set();
   for (const row of projectRows) {
     const metadata = getMetadataObject(row.metadata);
     delete metadata.mcpServerOverrides;
@@ -1232,10 +1277,12 @@ function loadStateFromRelationalDatabase(database) {
       ),
       rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
       stashItems: getNestedStashItems(ui),
-      pipelineConfig: getNestedPipelineConfig(ui),
-      pipelineTasks: getNestedPipelineTasks(ui),
-      workspaceView: getNestedWorkspaceView(ui, "workspaceView", "code"),
+      taskConfig: getNestedTaskConfig(ui),
+      tasks: getNestedTasks(ui),
     };
+    if (isLegacyTasksWorkspaceView(ui.workspaceView)) {
+      legacyTasksProjectIds.add(project.id);
+    }
     allProjects.push(project);
 
     if (row.status === "closed") {
@@ -1351,6 +1398,18 @@ function loadStateFromRelationalDatabase(database) {
     typeof config.activeProjectId === "string" ? config.activeProjectId : null;
   return {
     activeProjectId,
+    appView: getAppView(
+      config.appView,
+      activeProjectId && legacyTasksProjectIds.has(activeProjectId)
+        ? "tasks"
+        : "code",
+    ),
+    tasksProjectId: getTasksProjectId(
+      config.tasksProjectId ?? config.pipelineProjectId,
+    ),
+    // Absent until first saved; the renderer then seeds it from the legacy
+    // per-project configs passed through on each project's `ui.taskConfig`.
+    taskConfig: isRecord(config.taskConfig) ? config.taskConfig : null,
     activeBrowserTabIdByProject: isRecord(config.activeBrowserTabIdByProject)
       ? config.activeBrowserTabIdByProject
       : {},

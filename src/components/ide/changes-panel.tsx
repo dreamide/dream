@@ -20,9 +20,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  SegmentedToggle,
+  type SegmentedToggleOption,
+} from "@/components/ui/segmented-toggle";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
-import { cn } from "@/lib/utils";
 import type {
   ProjectGitDiffResponse,
   ProjectGitStatusEntry,
@@ -538,6 +541,13 @@ const ChangesPanelImpl = ({
     },
     [projectId],
   );
+  const diffViewOptions = useMemo(
+    (): SegmentedToggleOption<DiffViewMode>[] => [
+      { icon: Rows3, label: panelsT("unifiedDiff"), value: "unified" },
+      { icon: Columns2, label: panelsT("splitDiff"), value: "split" },
+    ],
+    [panelsT],
+  );
 
   const handleRefreshChanges = useCallback(() => {
     if (!projectId) {
@@ -730,36 +740,13 @@ const ChangesPanelImpl = ({
           </div>
         </div>
 
-        <div className="flex overflow-hidden rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-0.5">
-          <button
-            aria-label={panelsT("unifiedDiff")}
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
-              diffViewMode === "unified"
-                ? "bg-muted text-foreground shadow-sm"
-                : "hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
-            )}
-            onClick={() => handleSetDiffViewMode("unified")}
-            title={panelsT("unifiedDiff")}
-            type="button"
-          >
-            <Rows3 className="size-3.5" />
-          </button>
-          <button
-            aria-label={panelsT("splitDiff")}
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors",
-              diffViewMode === "split"
-                ? "bg-muted text-foreground shadow-sm"
-                : "hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
-            )}
-            onClick={() => handleSetDiffViewMode("split")}
-            title={panelsT("splitDiff")}
-            type="button"
-          >
-            <Columns2 className="size-3.5" />
-          </button>
-        </div>
+        <SegmentedToggle
+          aria-label={`${panelsT("unifiedDiff")} / ${panelsT("splitDiff")}`}
+          onValueChange={handleSetDiffViewMode}
+          options={diffViewOptions}
+          size="sm"
+          value={diffViewMode}
+        />
 
         <Button
           aria-label={expandAllTitle}

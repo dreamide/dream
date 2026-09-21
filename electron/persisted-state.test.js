@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "vitest";
 import {
   closePersistedStateDatabase,
+  getPersistedStateDatabase,
   loadPersistedChatMessages,
   loadPersistedState,
   savePersistedActiveProject,
@@ -39,9 +40,7 @@ const createProject = (id, lastUsedAt) => ({
     rightPanelOpen: true,
     rightPanelView: "changes",
     stashItems: [],
-    pipelineConfig: {},
-    pipelineTasks: [],
-    workspaceView: "code",
+    tasks: [],
   },
   worktree: null,
 });
@@ -294,69 +293,140 @@ test("MCP servers and project overrides survive a persistence round trip", async
   }
 });
 
-test("workspace view survives a relational persistence round trip", async () => {
+const createState = (project, overrides = {}) => ({
+  activeBrowserTabIdByProject: {},
+  activeProjectId: project.id,
+  browserTabsByProject: {},
+  chats: [],
+  chatSort: "recent",
+  closedProjects: [],
+  messagesByChatId: {},
+  projects: [project],
+  settings: {},
+  ...overrides,
+});
+
+/**
+ * Rewinds a saved database to the pre-`appView` shape: the view lived in each
+ * project's `metadata.ui.workspaceView` and no app-level key existed.
+ */
+const downgradeToLegacyWorkspaceView = (databasePath, projectId, view) => {
+  const database = getPersistedStateDatabase({ databasePath });
+  const row = database
+    .prepare("SELECT metadata FROM projects WHERE id = ?")
+    .get(projectId);
+  const metadata = JSON.parse(row.metadata);
+  metadata.ui = { ...metadata.ui, workspaceView: view };
+  database
+    .prepare("UPDATE projects SET metadata = ? WHERE id = ?")
+    .run(JSON.stringify(metadata), projectId);
+  database
+    .prepare("DELETE FROM config WHERE key IN ('appView', 'tasksProjectId')")
+    .run();
+};
+
+test("app view and Tasks project filter survive a relational persistence round trip", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
-  const timestamp = "2026-08-15T12:00:00.000Z";
-  const project = createProject("project-one", timestamp);
-  project.ui.workspaceView = "pipeline";
+  const project = createProject("project-one", "2026-08-15T12:00:00.000Z");
 
   try {
     savePersistedState(
-      {
-        activeBrowserTabIdByProject: {},
-        activeProjectId: project.id,
-        browserTabsByProject: {},
-        chats: [],
-        chatSort: "recent",
-        closedProjects: [],
-        messagesByChatId: {},
-        projects: [project],
-        settings: {},
-      },
+      createState(project, {
+        appView: "tasks",
+        tasksProjectId: project.id,
+      }),
       { databasePath },
     );
 
     const loaded = loadPersistedState({ databasePath });
-    assert.equal(loaded.projects[0]?.ui.workspaceView, "pipeline");
+    assert.equal(loaded.appView, "tasks");
+    assert.equal(loaded.tasksProjectId, project.id);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
   }
 });
 
-test("workspace view falls back to code when missing or invalid", async () => {
+test("app view and Tasks project filter fall back when missing or invalid", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
-  const timestamp = "2026-08-15T12:00:00.000Z";
-  const project = createProject("project-one", timestamp);
-  project.ui.workspaceView = "not-a-workspace";
+  const project = createProject("project-one", "2026-08-15T12:00:00.000Z");
 
   try {
     savePersistedState(
-      {
-        activeBrowserTabIdByProject: {},
-        activeProjectId: project.id,
-        browserTabsByProject: {},
-        chats: [],
-        chatSort: "recent",
-        closedProjects: [],
-        messagesByChatId: {},
-        projects: [project],
-        settings: {},
-      },
+      createState(project, {
+        appView: "not-a-view",
+        tasksProjectId: 42,
+      }),
       { databasePath },
     );
 
     const loaded = loadPersistedState({ databasePath });
-    assert.equal(loaded.projects[0]?.ui.workspaceView, "code");
+    assert.equal(loaded.appView, "code");
+    assert.equal(loaded.tasksProjectId, null);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
   }
 });
 
-const saveProject = (project, databasePath) =>
+test("the active project's legacy workspace view seeds the app view once", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const active = createProject("project-active", timestamp);
+  const other = createProject("project-other", timestamp);
+
+  try {
+    for (const [activeView, otherView, expected] of [
+      ["pipeline", "code", "tasks"],
+      // "kanban" is the Tasks workspace's retired name.
+      ["kanban", "code", "tasks"],
+      // Only the active project's choice carries over.
+      ["code", "pipeline", "code"],
+      ["not-a-workspace", "code", "code"],
+    ]) {
+      savePersistedState(createState(active, { projects: [active, other] }), {
+        databasePath,
+      });
+      downgradeToLegacyWorkspaceView(databasePath, active.id, activeView);
+      downgradeToLegacyWorkspaceView(databasePath, other.id, otherView);
+
+      const loaded = loadPersistedState({ databasePath });
+      assert.equal(loaded.appView, expected, `${activeView}/${otherView}`);
+      assert.equal(loaded.tasksProjectId, null);
+      assert.equal(
+        Object.hasOwn(loaded.projects[0].ui, "workspaceView"),
+        false,
+      );
+    }
+
+    // Saving writes the app-level key and retires the per-project one, so a
+    // later switch back to Code is not overridden by the stale legacy value.
+    savePersistedState(createState(active, { projects: [active, other] }), {
+      databasePath,
+    });
+    downgradeToLegacyWorkspaceView(databasePath, active.id, "pipeline");
+    const upgraded = loadPersistedState({ databasePath });
+    savePersistedState({ ...upgraded, appView: "code" }, { databasePath });
+
+    const database = getPersistedStateDatabase({ databasePath });
+    const { metadata } = database
+      .prepare("SELECT metadata FROM projects WHERE id = ?")
+      .get(active.id);
+    assert.equal(
+      Object.hasOwn(JSON.parse(metadata).ui, "workspaceView"),
+      false,
+    );
+    assert.equal(loadPersistedState({ databasePath }).appView, "code");
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+const saveProject = (project, databasePath, overrides = {}) =>
   savePersistedState(
     {
       activeBrowserTabIdByProject: {},
@@ -368,17 +438,18 @@ const saveProject = (project, databasePath) =>
       messagesByChatId: {},
       projects: [project],
       settings: {},
+      ...overrides,
     },
     { databasePath },
   );
 
-test("pipeline tasks and step config survive a relational persistence round trip", async () => {
+test("tasks and step config survive a relational persistence round trip", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
   const timestamp = "2026-08-15T12:00:00.000Z";
   const project = createProject("project-one", timestamp);
-  project.ui.workspaceView = "pipeline";
-  project.ui.pipelineConfig = {
+  // One app-wide config, saved beside the projects rather than on them.
+  const taskConfig = {
     build: {
       agentMode: "build",
       autoAdvance: false,
@@ -387,13 +458,13 @@ test("pipeline tasks and step config survive a relational persistence round trip
       prompt: "Custom build prompt",
     },
   };
-  project.ui.pipelineTasks = [
+  project.ui.tasks = [
     {
       baseRef: "main",
-      branch: "pipeline/ship-it",
+      branch: "task/ship-it",
       completion: null,
       createdAt: timestamp,
-      description: "Add a pipeline",
+      description: "Add a task board",
       id: "task-one",
       runs: [
         {
@@ -407,7 +478,7 @@ test("pipeline tasks and step config survive a relational persistence round trip
         },
       ],
       step: "plan",
-      title: "Ship pipeline",
+      title: "Ship tasks",
       updatedAt: timestamp,
       worktreePath: "/workspace/ship-it",
       worktreeProjectId: "project-worktree",
@@ -417,15 +488,93 @@ test("pipeline tasks and step config survive a relational persistence round trip
   ];
 
   try {
-    saveProject(project, databasePath);
+    saveProject(project, databasePath, { taskConfig });
 
     const loaded = loadPersistedState({ databasePath });
-    assert.deepEqual(loaded.projects[0]?.ui.pipelineTasks, [
-      project.ui.pipelineTasks[0],
-    ]);
+    assert.deepEqual(loaded.projects[0]?.ui.tasks, [project.ui.tasks[0]]);
+    assert.deepEqual(loaded.taskConfig, taskConfig);
+    assert.deepEqual(loaded.projects[0]?.ui.taskConfig, {});
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("data saved under the workspace's old pipeline name still loads", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  const task = {
+    branch: "pipeline/ship-it",
+    completion: null,
+    createdAt: timestamp,
+    description: "",
+    id: "task-one",
+    runs: [],
+    step: "backlog",
+    title: "Ship it",
+    updatedAt: timestamp,
+  };
+  const stepConfig = { plan: { autoAdvance: true } };
+
+  try {
+    saveProject(project, databasePath);
+
+    // Rewind to the pre-rename shape: `pipeline*` keys everywhere.
+    const database = getPersistedStateDatabase({ databasePath });
+    const row = database
+      .prepare("SELECT metadata FROM projects WHERE id = ?")
+      .get(project.id);
+    const metadata = JSON.parse(row.metadata);
+    delete metadata.ui.tasks;
+    delete metadata.ui.taskConfig;
+    metadata.ui.pipelineTasks = [task];
+    metadata.ui.pipelineConfig = stepConfig;
+    database
+      .prepare("UPDATE projects SET metadata = ? WHERE id = ?")
+      .run(JSON.stringify(metadata), project.id);
+    database
+      .prepare("DELETE FROM config WHERE key IN ('appView', 'tasksProjectId')")
+      .run();
+    const insertConfig = database.prepare(
+      "INSERT INTO config (key, value, updated_at) VALUES (?, ?, ?)",
+    );
+    insertConfig.run("appView", JSON.stringify("pipeline"), timestamp);
+    insertConfig.run(
+      "pipelineProjectId",
+      JSON.stringify(project.id),
+      timestamp,
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.equal(loaded.appView, "tasks");
+    assert.equal(loaded.tasksProjectId, project.id);
+    assert.deepEqual(loaded.projects[0]?.ui.tasks, [task]);
+    // Legacy per-project step settings are passed through for the renderer to
+    // seed the app-wide config from; none has been saved yet.
+    assert.deepEqual(loaded.projects[0]?.ui.taskConfig, stepConfig);
+    assert.equal(loaded.taskConfig, null);
+
+    // The next save moves the data to the new keys and drops the old ones.
+    savePersistedState({ ...loaded, taskConfig: stepConfig }, { databasePath });
+    const saved = JSON.parse(
+      database
+        .prepare("SELECT metadata FROM projects WHERE id = ?")
+        .get(project.id).metadata,
+    ).ui;
+    assert.deepEqual(saved.tasks, [task]);
+    assert.equal(Object.hasOwn(saved, "pipelineTasks"), false);
+    // Step settings moved to the app level and left the project.
+    assert.equal(Object.hasOwn(saved, "pipelineConfig"), false);
+    assert.equal(Object.hasOwn(saved, "taskConfig"), false);
     assert.deepEqual(
-      loaded.projects[0]?.ui.pipelineConfig,
-      project.ui.pipelineConfig,
+      loadPersistedState({ databasePath }).taskConfig,
+      stepConfig,
+    );
+    assert.deepEqual(
+      loadPersistedState({ databasePath }).projects[0]?.ui.tasks,
+      [task],
     );
   } finally {
     closePersistedStateDatabase();
@@ -433,13 +582,12 @@ test("pipeline tasks and step config survive a relational persistence round trip
   }
 });
 
-test("legacy kanban cards and view migrate to the pipeline", async () => {
+test("legacy kanban cards migrate to tasks", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
   const timestamp = "2026-08-15T12:00:00.000Z";
   const project = createProject("project-one", timestamp);
-  project.ui.workspaceView = "kanban";
-  delete project.ui.pipelineTasks;
+  delete project.ui.tasks;
   project.ui.kanbanCards = [
     {
       chatId: "chat-1",
@@ -475,17 +623,16 @@ test("legacy kanban cards and view migrate to the pipeline", async () => {
 
     const loaded = loadPersistedState({ databasePath });
     const ui = loaded.projects[0]?.ui;
-    assert.equal(ui?.workspaceView, "pipeline");
     assert.equal(Object.hasOwn(ui ?? {}, "kanbanCards"), false);
     assert.deepEqual(
-      ui?.pipelineTasks.map((task) => [task.id, task.step]),
+      ui?.tasks.map((task) => [task.id, task.step]),
       [
         ["card-one", "build"],
         ["card-two", "backlog"],
         ["card-three", "merge"],
       ],
     );
-    assert.deepEqual(ui?.pipelineTasks[0]?.runs, [
+    assert.deepEqual(ui?.tasks[0]?.runs, [
       {
         chatId: "chat-1",
         feedback: null,
@@ -496,9 +643,9 @@ test("legacy kanban cards and view migrate to the pipeline", async () => {
         step: "build",
       },
     ]);
-    assert.deepEqual(ui?.pipelineTasks[1]?.runs, []);
-    assert.equal(ui?.pipelineTasks[2]?.completion?.kind, "legacy");
-    assert.equal(ui?.pipelineTasks[2]?.runs[0]?.finishedAt, timestamp);
+    assert.deepEqual(ui?.tasks[1]?.runs, []);
+    assert.equal(ui?.tasks[2]?.completion?.kind, "legacy");
+    assert.equal(ui?.tasks[2]?.runs[0]?.finishedAt, timestamp);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

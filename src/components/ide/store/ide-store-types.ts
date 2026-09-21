@@ -3,20 +3,21 @@ import type { StoreApi } from "zustand";
 import type {
   AiProvider,
   AppSettings,
+  AppView,
   BrowserTabState,
   ChatConfig,
   ChatSortOrder,
   PanelSizes,
   PanelVisibility,
   PendingChatSubmit,
-  PipelineRunStepId,
-  PipelineStepConfig,
-  PipelineTaskCompletion,
   ProjectConfig,
   ProjectGitWorktreeCleanupResponse,
-  ProjectWorkspaceView,
   RightPanelView,
   StashItem,
+  TaskCompletion,
+  TaskConfig,
+  TaskRunStepId,
+  TaskStepConfig,
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
 
@@ -43,6 +44,9 @@ export interface IdeState {
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
+  appView: AppView;
+  tasksProjectId: string | null;
+  taskConfig: TaskConfig;
   chats: ChatConfig[];
   chatSort: ChatSortOrder;
   settings: AppSettings;
@@ -177,66 +181,48 @@ export interface IdeState {
   queueChatSubmit: (chatId: string, submission: PendingChatSubmit) => boolean;
   takePendingChatSubmit: (chatId: string) => PendingChatSubmit | null;
 
-  // Actions - pipeline
-  addPipelineTask: (
+  // Actions - tasks
+  addTask: (
     projectId: string,
     task: { description?: string; title: string },
   ) => string | null;
-  updatePipelineTask: (
+  updateTask: (
     projectId: string,
     taskId: string,
     updates: { description?: string; title?: string },
   ) => void;
-  deletePipelineTask: (projectId: string, taskId: string) => void;
-  movePipelineTaskInBacklog: (
-    projectId: string,
-    taskId: string,
-    index: number,
-  ) => void;
+  deleteTask: (projectId: string, taskId: string) => void;
+  moveTaskInBacklog: (projectId: string, taskId: string, index: number) => void;
   /** Backlog -> Plan. Resolves to the step chat id. */
-  startPipelineTask: (
-    projectId: string,
-    taskId: string,
-  ) => Promise<string | null>;
+  startTask: (projectId: string, taskId: string) => Promise<string | null>;
   /** Approves the current step and runs the next one. */
-  advancePipelineTask: (
+  advanceTask: (projectId: string, taskId: string) => Promise<string | null>;
+  sendTaskBack: (
     projectId: string,
     taskId: string,
-  ) => Promise<string | null>;
-  sendPipelineTaskBack: (
-    projectId: string,
-    taskId: string,
-    toStep: PipelineRunStepId,
+    toStep: TaskRunStepId,
     note?: string,
   ) => Promise<string | null>;
-  retryPipelineStep: (
+  retryTaskStep: (projectId: string, taskId: string) => Promise<string | null>;
+  completeTask: (
     projectId: string,
     taskId: string,
-  ) => Promise<string | null>;
-  completePipelineTask: (
-    projectId: string,
-    taskId: string,
-    completion: PipelineTaskCompletion,
+    completion: TaskCompletion,
   ) => void;
-  openPipelineStepChat: (
-    projectId: string,
-    taskId: string,
-    runId?: string,
-  ) => void;
+  openTaskStepChat: (projectId: string, taskId: string, runId?: string) => void;
   /** Reopens a task's closed worktree project in the background. */
-  reopenPipelineWorktree: (
-    projectId: string,
-    taskId: string,
-  ) => Promise<boolean>;
-  unlinkPipelineRunsForChats: (chatIds: string[]) => void;
-  setPipelineStepConfig: (
-    projectId: string,
-    step: PipelineRunStepId,
-    updater: (config: PipelineStepConfig) => PipelineStepConfig,
+  reopenTaskWorktree: (projectId: string, taskId: string) => Promise<boolean>;
+  unlinkTaskRunsForChats: (chatIds: string[]) => void;
+  /**
+   * Edits a step's settings. There is one config for the whole app — no
+   * per-project layer — so the Tasks workspace always shows what runs.
+   */
+  setTaskStepConfig: (
+    step: TaskRunStepId,
+    updater: (config: TaskStepConfig) => TaskStepConfig,
   ) => void;
-  resetPipelineStepConfig: (projectId: string, step: PipelineRunStepId) => void;
-  isPipelineChat: (chatId: string) => boolean;
-  maybeAutoAdvancePipelineForChat: (chatId: string) => void;
+  isTaskChat: (chatId: string) => boolean;
+  maybeAutoAdvanceTaskForChat: (chatId: string) => void;
 
   // Actions - panels
   togglePanel: (panel: keyof PanelVisibility) => void;
@@ -250,10 +236,8 @@ export interface IdeState {
   setProjectChatHistoryPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
-  setProjectWorkspaceView: (
-    projectId: string,
-    view: ProjectWorkspaceView,
-  ) => void;
+  setAppView: (view: AppView) => void;
+  setTasksProjectId: (projectId: string | null) => void;
   openProjectFile: (projectId: string, filePath: string) => void;
   setOutputPanelOpen: (open: boolean) => void;
 

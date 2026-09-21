@@ -1,21 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { PipelineStepRun } from "@/types/ide";
+import type { TaskStepRun } from "@/types/ide";
 import {
-  DEFAULT_PIPELINE_PROMPTS,
-  getEarlierPipelineRunSteps,
-  getNextPipelineStep,
-  getPipelineReviewVerdict,
-  getPipelineStepPrompt,
-  PIPELINE_PROMPT_VARIABLES,
-  PIPELINE_RUN_STEP_IDS,
-  renderPipelinePrompt,
-} from "./pipeline-defaults";
+  DEFAULT_TASK_PROMPTS,
+  getEarlierTaskRunSteps,
+  getNextTaskStep,
+  getTaskReviewVerdict,
+  getTaskStepPrompt,
+  renderTaskPrompt,
+  TASK_PROMPT_VARIABLES,
+  TASK_RUN_STEP_IDS,
+} from "./task-defaults";
 
 const run = (
-  step: PipelineStepRun["step"],
+  step: TaskStepRun["step"],
   output: string | null,
-): PipelineStepRun => ({
+): TaskStepRun => ({
   chatId: null,
   feedback: null,
   finishedAt: "now",
@@ -27,29 +27,27 @@ const run = (
 
 const task = {
   baseRef: "main",
-  branch: "pipeline/task",
+  branch: "task/task",
   description: "Do the thing",
-  runs: [] as PipelineStepRun[],
+  runs: [] as TaskStepRun[],
   title: "Task",
 };
 
 test("steps advance down the line and merge is last", () => {
-  assert.equal(getNextPipelineStep("backlog"), "plan");
-  assert.equal(getNextPipelineStep("plan"), "build");
-  assert.equal(getNextPipelineStep("review"), "merge");
-  assert.equal(getNextPipelineStep("merge"), null);
-  assert.deepEqual(getEarlierPipelineRunSteps("review"), ["plan", "build"]);
-  assert.deepEqual(getEarlierPipelineRunSteps("plan"), []);
+  assert.equal(getNextTaskStep("backlog"), "plan");
+  assert.equal(getNextTaskStep("plan"), "build");
+  assert.equal(getNextTaskStep("review"), "merge");
+  assert.equal(getNextTaskStep("merge"), null);
+  assert.deepEqual(getEarlierTaskRunSteps("review"), ["plan", "build"]);
+  assert.deepEqual(getEarlierTaskRunSteps("plan"), []);
 });
 
 test("default prompts only use known variables", () => {
-  for (const step of PIPELINE_RUN_STEP_IDS) {
-    const used = [
-      ...DEFAULT_PIPELINE_PROMPTS[step].matchAll(/\{\{([\w.]+)\}\}/g),
-    ];
+  for (const step of TASK_RUN_STEP_IDS) {
+    const used = [...DEFAULT_TASK_PROMPTS[step].matchAll(/\{\{([\w.]+)\}\}/g)];
     for (const match of used) {
       assert.ok(
-        (PIPELINE_PROMPT_VARIABLES as readonly string[]).includes(
+        (TASK_PROMPT_VARIABLES as readonly string[]).includes(
           match[1] as string,
         ),
         `${step}: ${match[1]}`,
@@ -60,23 +58,23 @@ test("default prompts only use known variables", () => {
 
 test("a blank custom prompt falls back to the default", () => {
   assert.equal(
-    getPipelineStepPrompt("plan", { prompt: "  " }),
-    DEFAULT_PIPELINE_PROMPTS.plan,
+    getTaskStepPrompt("plan", { prompt: "  " }),
+    DEFAULT_TASK_PROMPTS.plan,
   );
-  assert.equal(getPipelineStepPrompt("plan", { prompt: "Mine" }), "Mine");
+  assert.equal(getTaskStepPrompt("plan", { prompt: "Mine" }), "Mine");
 });
 
 test("renders task, branch, and step outputs", () => {
   const planRun = run("plan", "The plan");
   const buildRun = run("build", "Built it");
-  const text = renderPipelinePrompt({
+  const text = renderTaskPrompt({
     previousRun: buildRun,
     task: { ...task, runs: [planRun, buildRun] },
-    template: DEFAULT_PIPELINE_PROMPTS.review,
+    template: DEFAULT_TASK_PROMPTS.review,
   });
 
   assert.match(text, /# Task/);
-  assert.match(text, /pipeline\/task against main/);
+  assert.match(text, /task\/task against main/);
   assert.match(text, /The plan/);
   assert.match(text, /Built it/);
   assert.doesNotMatch(text, /\{\{/);
@@ -84,7 +82,7 @@ test("renders task, branch, and step outputs", () => {
 });
 
 test("the latest output of a step wins", () => {
-  const text = renderPipelinePrompt({
+  const text = renderTaskPrompt({
     task: { ...task, runs: [run("plan", "Old plan"), run("plan", "New plan")] },
     template: "{{plan.output}}",
   });
@@ -93,7 +91,7 @@ test("the latest output of a step wins", () => {
 
 test("unknown and empty variables render as nothing", () => {
   assert.equal(
-    renderPipelinePrompt({
+    renderTaskPrompt({
       task,
       template: "A {{nope}} B\n\n\n\n{{review.output}}\n\n\nC",
     }),
@@ -102,7 +100,7 @@ test("unknown and empty variables render as nothing", () => {
 });
 
 test("a custom prompt that drops the handoff still receives it", () => {
-  const text = renderPipelinePrompt({
+  const text = renderTaskPrompt({
     feedback: "Fix the bug",
     previousRun: run("review", "CHANGES REQUESTED"),
     task,
@@ -116,7 +114,7 @@ test("a custom prompt that drops the handoff still receives it", () => {
 
 test("missing git details fall back to readable wording", () => {
   assert.equal(
-    renderPipelinePrompt({
+    renderTaskPrompt({
       task: { ...task, baseRef: null, branch: null },
       template: "{{branch}} -> {{baseRef}}",
     }),
@@ -126,24 +124,22 @@ test("missing git details fall back to readable wording", () => {
 
 test("reads the review verdict line", () => {
   assert.equal(
-    getPipelineReviewVerdict("Looks good.\n\nAPPROVE\n1. nit at a.ts:3"),
+    getTaskReviewVerdict("Looks good.\n\nAPPROVE\n1. nit at a.ts:3"),
     "approve",
   );
   assert.equal(
-    getPipelineReviewVerdict(
-      "**Verdict: CHANGES REQUESTED**\n1. bug at a.ts:3",
-    ),
+    getTaskReviewVerdict("**Verdict: CHANGES REQUESTED**\n1. bug at a.ts:3"),
     "changes",
   );
   assert.equal(
-    getPipelineReviewVerdict("## Verdict\nCHANGES_REQUESTED"),
+    getTaskReviewVerdict("## Verdict\nCHANGES_REQUESTED"),
     "changes",
   );
 });
 
 test("requested changes win over an approve mentioned in the findings", () => {
   assert.equal(
-    getPipelineReviewVerdict(
+    getTaskReviewVerdict(
       "I cannot APPROVE this yet.\nOverall: changes requested before merge.",
     ),
     "changes",
@@ -151,10 +147,7 @@ test("requested changes win over an approve mentioned in the findings", () => {
 });
 
 test("gives no verdict when the reviewer did not state one", () => {
-  assert.equal(getPipelineReviewVerdict(null), null);
-  assert.equal(getPipelineReviewVerdict("   "), null);
-  assert.equal(
-    getPipelineReviewVerdict("Approve of the naming overall."),
-    null,
-  );
+  assert.equal(getTaskReviewVerdict(null), null);
+  assert.equal(getTaskReviewVerdict("   "), null);
+  assert.equal(getTaskReviewVerdict("Approve of the naming overall."), null);
 });

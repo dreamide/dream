@@ -1,8 +1,8 @@
 import { createChatActions } from "./chat-actions";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { createPipelineActions } from "./pipeline-actions";
 import { createProjectLifecycleActions } from "./project-lifecycle-actions";
 import { createStashActions } from "./stash-actions";
+import { createTaskActions } from "./task-actions";
 
 export const createProjectActions = (
   set: IdeStoreSet,
@@ -37,25 +37,24 @@ export const createProjectActions = (
   | "executeStashItem"
   | "takePendingChatSubmit"
   | "queueChatSubmit"
-  | "addPipelineTask"
-  | "updatePipelineTask"
-  | "deletePipelineTask"
-  | "movePipelineTaskInBacklog"
-  | "startPipelineTask"
-  | "advancePipelineTask"
-  | "sendPipelineTaskBack"
-  | "retryPipelineStep"
-  | "completePipelineTask"
-  | "openPipelineStepChat"
-  | "reopenPipelineWorktree"
-  | "unlinkPipelineRunsForChats"
-  | "setPipelineStepConfig"
-  | "resetPipelineStepConfig"
-  | "isPipelineChat"
-  | "maybeAutoAdvancePipelineForChat"
+  | "addTask"
+  | "updateTask"
+  | "deleteTask"
+  | "moveTaskInBacklog"
+  | "startTask"
+  | "advanceTask"
+  | "sendTaskBack"
+  | "retryTaskStep"
+  | "completeTask"
+  | "openTaskStepChat"
+  | "reopenTaskWorktree"
+  | "unlinkTaskRunsForChats"
+  | "setTaskStepConfig"
+  | "isTaskChat"
+  | "maybeAutoAdvanceTaskForChat"
 > => ({
   ...createProjectLifecycleActions(set, get),
   ...createChatActions(set, get),
   ...createStashActions(set, get),
-  ...createPipelineActions(set, get),
+  ...createTaskActions(set, get),
 });

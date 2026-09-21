@@ -36,8 +36,7 @@ const createProject = (id, lastUsedAt) => ({
     },
     rightPanelOpen: true,
     rightPanelView: "changes",
-    pipelineTasks: [],
-    workspaceView: "code",
+    tasks: [],
   },
   worktree: null,
 });

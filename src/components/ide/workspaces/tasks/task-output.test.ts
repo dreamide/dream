@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import type { UIMessage } from "ai";
 import { test } from "vitest";
-import { PIPELINE_OUTPUT_MAX_CHARS } from "@/lib/pipeline-defaults";
-import { extractStepOutput } from "./pipeline-output";
+import { TASK_OUTPUT_MAX_CHARS } from "@/lib/task-defaults";
+import { extractStepOutput } from "./task-output";
 
 const message = (role: UIMessage["role"], parts: unknown[]): UIMessage =>
   ({ id: crypto.randomUUID(), parts, role }) as UIMessage;
@@ -54,9 +54,9 @@ test("prefers a plan submitted through ExitPlanMode", () => {
 test("caps very long output", () => {
   const output = extractStepOutput([
     message("assistant", [
-      { text: "x".repeat(PIPELINE_OUTPUT_MAX_CHARS + 500), type: "text" },
+      { text: "x".repeat(TASK_OUTPUT_MAX_CHARS + 500), type: "text" },
     ]),
   ]);
-  assert.ok(output.length < PIPELINE_OUTPUT_MAX_CHARS + 50);
+  assert.ok(output.length < TASK_OUTPUT_MAX_CHARS + 50);
   assert.match(output, /\[truncated\]$/);
 });

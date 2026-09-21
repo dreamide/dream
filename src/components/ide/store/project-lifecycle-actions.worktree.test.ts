@@ -228,7 +228,7 @@ test("createWorktreeProject can open the worktree without taking focus", async (
   stubFetch(() =>
     Response.json({
       baseRef: "main",
-      branch: "pipeline/task",
+      branch: "task/task",
       mainWorktreePath: parent.path,
       path: backgroundPath,
       repoRoot: parent.path,
@@ -238,7 +238,7 @@ test("createWorktreeProject can open the worktree without taking focus", async (
   try {
     const created = await store.getState().createWorktreeProject(parent.id, {
       activate: false,
-      branchName: "pipeline/task",
+      branchName: "task/task",
     });
 
     const state = store.getState();
@@ -248,7 +248,7 @@ test("createWorktreeProject can open the worktree without taking focus", async (
     assert.equal(
       state.projects.find((project) => project.id === created.projectId)
         ?.worktree?.branch,
-      "pipeline/task",
+      "task/task",
     );
 
     // The default still switches to the new worktree.

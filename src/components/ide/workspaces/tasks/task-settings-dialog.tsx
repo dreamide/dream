@@ -12,46 +12,38 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  DEFAULT_PIPELINE_PROMPTS,
-  PIPELINE_PROMPT_VARIABLES,
-  PIPELINE_RUN_STEP_IDS,
-} from "@/lib/pipeline-defaults";
-import type {
-  PipelineConfig,
-  PipelineRunStepId,
-  PipelineStepConfig,
-} from "@/types/ide";
+  DEFAULT_TASK_PROMPTS,
+  TASK_PROMPT_VARIABLES,
+  TASK_RUN_STEP_IDS,
+} from "@/lib/task-defaults";
+import type { TaskConfig, TaskRunStepId, TaskStepConfig } from "@/types/ide";
 import { useIdeStore } from "../../ide-store";
-import { PipelineStepIcon } from "./pipeline-step-icon";
-import { PIPELINE_STEP_LABEL_KEYS } from "./pipeline-steps";
+import { TaskStepIcon } from "./task-step-icon";
+import { TASK_STEP_LABEL_KEYS } from "./task-steps";
 
-export interface PipelineSettingsDialogProps {
-  config: PipelineConfig;
-  initialStep: PipelineRunStepId;
+export interface TaskSettingsDialogProps {
+  config: TaskConfig;
+  initialStep: TaskRunStepId;
   onClose: () => void;
-  projectId: string;
 }
 
-export const PipelineSettingsDialog = ({
+export const TaskSettingsDialog = ({
   config,
   initialStep,
   onClose,
-  projectId,
-}: PipelineSettingsDialogProps) => {
-  const t = useTranslations("pipeline");
+}: TaskSettingsDialogProps) => {
+  const t = useTranslations("tasks");
   const commonT = useTranslations("common");
-  const setPipelineStepConfig = useIdeStore((s) => s.setPipelineStepConfig);
-  const resetPipelineStepConfig = useIdeStore((s) => s.resetPipelineStepConfig);
-  const [step, setStep] = useState<PipelineRunStepId>(initialStep);
+  const setTaskStepConfig = useIdeStore((s) => s.setTaskStepConfig);
+  const [step, setStep] = useState<TaskRunStepId>(initialStep);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const stepConfig = config[step];
-  const promptValue = stepConfig.prompt ?? DEFAULT_PIPELINE_PROMPTS[step];
+  const promptValue = stepConfig.prompt ?? DEFAULT_TASK_PROMPTS[step];
   const isDefaultPrompt = stepConfig.prompt === null;
 
-  const update = (
-    updater: (current: PipelineStepConfig) => PipelineStepConfig,
-  ) => setPipelineStepConfig(projectId, step, updater);
+  const update = (updater: (current: TaskStepConfig) => TaskStepConfig) =>
+    setTaskStepConfig(step, updater);
 
   const insertVariable = (variable: string) => {
     const token = `{{${variable}}}`;
@@ -83,14 +75,14 @@ export const PipelineSettingsDialog = ({
         </DialogHeader>
 
         <Tabs
-          onValueChange={(value) => setStep(value as PipelineRunStepId)}
+          onValueChange={(value) => setStep(value as TaskRunStepId)}
           value={step}
         >
           <TabsList>
-            {PIPELINE_RUN_STEP_IDS.map((id) => (
+            {TASK_RUN_STEP_IDS.map((id) => (
               <TabsTrigger className="gap-1.5" key={id} value={id}>
-                <PipelineStepIcon step={id} />
-                {t(PIPELINE_STEP_LABEL_KEYS[id])}
+                <TaskStepIcon step={id} />
+                {t(TASK_STEP_LABEL_KEYS[id])}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -98,7 +90,7 @@ export const PipelineSettingsDialog = ({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="pipeline-step-prompt">{t("promptLabel")}</Label>
+            <Label htmlFor="task-step-prompt">{t("promptLabel")}</Label>
             <Button
               className="h-6 px-2 text-xs"
               disabled={isDefaultPrompt}
@@ -114,13 +106,13 @@ export const PipelineSettingsDialog = ({
           </div>
           <Textarea
             className="max-h-[60vh] min-h-80 text-sm leading-5"
-            id="pipeline-step-prompt"
+            id="task-step-prompt"
             onChange={(event) => {
               const value = event.target.value;
               update((current) => ({
                 ...current,
                 // Storing `null` keeps the step on future default prompts.
-                prompt: value === DEFAULT_PIPELINE_PROMPTS[step] ? null : value,
+                prompt: value === DEFAULT_TASK_PROMPTS[step] ? null : value,
               }));
             }}
             ref={promptRef}
@@ -131,7 +123,7 @@ export const PipelineSettingsDialog = ({
             <span className="mr-1 text-muted-foreground text-xs">
               {t("promptVariables")}
             </span>
-            {PIPELINE_PROMPT_VARIABLES.map((variable) => (
+            {TASK_PROMPT_VARIABLES.map((variable) => (
               <button
                 className="rounded-sm bg-surface-200/70 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground dark:bg-surface-700/60"
                 key={variable}
@@ -145,13 +137,6 @@ export const PipelineSettingsDialog = ({
         </div>
 
         <DialogFooter>
-          <Button
-            onClick={() => resetPipelineStepConfig(projectId, step)}
-            type="button"
-            variant="outline"
-          >
-            {t("resetStep")}
-          </Button>
           <Button onClick={onClose} type="button">
             {commonT("close")}
           </Button>

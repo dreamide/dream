@@ -6,7 +6,7 @@ import {
   SearchCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PipelineStepId } from "@/types/ide";
+import type { TaskStepId } from "@/types/ide";
 
 const STEP_ICONS = {
   backlog: { icon: CircleDashed, color: "text-muted-foreground/70" },
@@ -19,11 +19,11 @@ const STEP_ICONS = {
   merge: { icon: GitMerge, color: "text-indigo-500 dark:text-indigo-400" },
 } as const;
 
-export const PipelineStepIcon = ({
+export const TaskStepIcon = ({
   step,
   className,
 }: {
-  step: PipelineStepId;
+  step: TaskStepId;
   className?: string;
 }) => {
   const { icon: Icon, color } = STEP_ICONS[step];

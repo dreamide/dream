@@ -1,45 +1,44 @@
 import {
   createChatConfig,
-  createPipelineTask,
+  createTask,
   getDefaultModelSelection,
 } from "@/lib/ide-defaults";
 import {
-  createDefaultPipelineConfig,
-  getNextPipelineStep,
-  getPipelineReviewVerdict,
-  getPipelineStepPrompt,
-  PIPELINE_STEP_IDS,
-  renderPipelinePrompt,
-} from "@/lib/pipeline-defaults";
+  getNextTaskStep,
+  getTaskReviewVerdict,
+  getTaskStepPrompt,
+  renderTaskPrompt,
+  TASK_STEP_IDS,
+} from "@/lib/task-defaults";
 import type {
   AppSettings,
   ChatConfig,
-  PipelineRunStepId,
-  PipelineStepConfig,
-  PipelineStepModel,
-  PipelineStepRun,
-  PipelineTask,
   ProjectConfig,
+  Task,
+  TaskEntry,
+  TaskRunStepId,
+  TaskStepConfig,
+  TaskStepModel,
+  TaskStepRun,
 } from "@/types/ide";
-import { extractStepOutput } from "../workspaces/pipeline/pipeline-output";
+import { extractStepOutput } from "../workspaces/tasks/task-output";
 import { updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
-const STEP_TITLE_PREFIX: Record<PipelineRunStepId, string> = {
+const STEP_TITLE_PREFIX: Record<TaskRunStepId, string> = {
   build: "Build",
   merge: "Merge",
   plan: "Plan",
   review: "Review",
 };
 
-const getProjectPipelineTasks = (
-  project: { ui: { pipelineTasks?: PipelineTask[] } } | undefined,
-) => project?.ui.pipelineTasks ?? [];
+const getProjectTasks = (project: { ui: { tasks?: Task[] } } | undefined) =>
+  project?.ui.tasks ?? [];
 
 /** The run driving the task's current step, if that step has started. */
-export const getCurrentPipelineRun = (
-  task: Pick<PipelineTask, "runs" | "step">,
-): PipelineStepRun | null => {
+export const getCurrentTaskRun = (
+  task: Pick<Task, "runs" | "step">,
+): TaskStepRun | null => {
   for (let index = task.runs.length - 1; index >= 0; index -= 1) {
     const run = task.runs[index];
     if (run?.step === task.step) {
@@ -49,22 +48,22 @@ export const getCurrentPipelineRun = (
   return null;
 };
 
-export interface PipelineTaskMatch {
+export interface TaskMatch {
   project: ProjectConfig;
-  run: PipelineStepRun;
-  task: PipelineTask;
+  run: TaskStepRun;
+  task: Task;
 }
 
 /**
  * Finds the task owning `chatId`. Tasks live in the parent project while their
  * step chats may belong to a worktree project, so every project is scanned.
  */
-export const findPipelineTaskByChatId = (
+export const findTaskByChatId = (
   projects: ProjectConfig[],
   chatId: string,
-): PipelineTaskMatch | null => {
+): TaskMatch | null => {
   for (const project of projects) {
-    for (const task of getProjectPipelineTasks(project)) {
+    for (const task of getProjectTasks(project)) {
       const run = task.runs.find((entry) => entry.chatId === chatId);
       if (run) {
         return { project, run, task };
@@ -74,15 +73,59 @@ export const findPipelineTaskByChatId = (
   return null;
 };
 
+/**
+ * Projects worth offering in the Tasks workspace's own project filter. Worktrees the
+ * Tasks workspace created are projects too, but their tasks live on the parent, so a
+ * worktree is only listed when it holds tasks of its own.
+ */
+export const getTaskProjects = (projects: ProjectConfig[]): ProjectConfig[] =>
+  projects.filter(
+    (project) => !project.worktree || getProjectTasks(project).length > 0,
+  );
+
+export interface TaskSelection {
+  entries: TaskEntry[];
+  /**
+   * The project the board is filtered to, or `null` when it spans every open
+   * project (nothing selected, or the selected project is no longer open).
+   */
+  scopeProject: ProjectConfig | null;
+}
+
+/**
+ * Pairs every visible task with its owning project. The filter belongs to the
+ * Tasks workspace and is deliberately independent of the active project
+ * tab. Order follows the project list and then each project's own task order,
+ * so a project's backlog keeps its relative order when several are shown.
+ */
+export const selectTaskEntries = (
+  projects: ProjectConfig[],
+  tasksProjectId: string | null,
+): TaskSelection => {
+  const scopeProject =
+    projects.find((project) => project.id === tasksProjectId) ?? null;
+  const entries = (scopeProject ? [scopeProject] : projects).flatMap(
+    (project) =>
+      getProjectTasks(project).map((task) => ({
+        key: `${project.id}:${task.id}`,
+        project,
+        projectId: project.id,
+        task,
+      })),
+  );
+
+  return { entries, scopeProject };
+};
+
 const replaceTaskInProjects = (
   projects: ProjectConfig[],
   projectId: string,
   taskId: string,
-  updater: (task: PipelineTask) => PipelineTask,
+  updater: (task: Task) => Task,
 ): ProjectConfig[] =>
   updateProjectUiInList(projects, projectId, (entry) => ({
     ...entry.ui,
-    pipelineTasks: getProjectPipelineTasks(entry).map((task) =>
+    tasks: getProjectTasks(entry).map((task) =>
       task.id === taskId ? updater(task) : task,
     ),
   }));
@@ -93,18 +136,18 @@ const replaceTaskInProjects = (
  * (e.g. a revised plan) refreshes the output. Returns the same reference when
  * nothing changes.
  */
-export const finishPipelineRunInProjects = (
+export const finishTaskRunInProjects = (
   projects: ProjectConfig[],
   chatId: string,
   output: string,
   at: string,
 ): ProjectConfig[] => {
-  const match = findPipelineTaskByChatId(projects, chatId);
+  const match = findTaskByChatId(projects, chatId);
   if (!match || match.task.completion) {
     return projects;
   }
 
-  const currentRun = getCurrentPipelineRun(match.task);
+  const currentRun = getCurrentTaskRun(match.task);
   if (currentRun?.id !== match.run.id) {
     return projects;
   }
@@ -125,15 +168,15 @@ export const finishPipelineRunInProjects = (
   );
 };
 
-const unlinkPipelineRunsInProjects = (
+const unlinkTaskRunsInProjects = (
   projects: ProjectConfig[],
   chatIds: Set<string>,
   timestamp: string,
 ): ProjectConfig[] => {
   let changed = false;
   const next = projects.map((project) => {
-    const tasks = getProjectPipelineTasks(project);
-    const isLinked = (run: PipelineStepRun) =>
+    const tasks = getProjectTasks(project);
+    const isLinked = (run: TaskStepRun) =>
       run.chatId !== null && chatIds.has(run.chatId);
     if (!tasks.some((task) => task.runs.some(isLinked))) {
       return project;
@@ -144,7 +187,7 @@ const unlinkPipelineRunsInProjects = (
       ...project,
       ui: {
         ...project.ui,
-        pipelineTasks: tasks.map((task) =>
+        tasks: tasks.map((task) =>
           task.runs.some(isLinked)
             ? {
                 ...task,
@@ -167,11 +210,11 @@ const unlinkPipelineRunsInProjects = (
  * Model settings for a step chat: the step's own model when configured,
  * otherwise the same default selection a manually created chat would get.
  */
-export const resolvePipelineStepAgent = (
-  config: Pick<PipelineStepConfig, "model">,
+export const resolveTaskStepAgent = (
+  config: Pick<TaskStepConfig, "model">,
   hostProject: ProjectConfig,
   settings: AppSettings,
-): PipelineStepModel => {
+): TaskStepModel => {
   if (config.model?.model) {
     return config.model;
   }
@@ -187,10 +230,8 @@ export const resolvePipelineStepAgent = (
       };
 };
 
-/** Branch for a task's worktree, e.g. `pipeline/fix-login-1a2b3c`. */
-export const getPipelineBranchName = (
-  task: Pick<PipelineTask, "id" | "title">,
-): string => {
+/** Branch for a task's worktree, e.g. `task/fix-login-1a2b3c`. */
+export const getTaskBranchName = (task: Pick<Task, "id" | "title">): string => {
   const slug =
     task.title
       .trim()
@@ -199,7 +240,7 @@ export const getPipelineBranchName = (
       .replace(/^-+|-+$/g, "")
       .slice(0, 40)
       .replace(/-+$/g, "") || "task";
-  return `pipeline/${slug}-${task.id.replace(/[^a-z0-9]/gi, "").slice(0, 6)}`;
+  return `task/${slug}-${task.id.replace(/[^a-z0-9]/gi, "").slice(0, 6)}`;
 };
 
 const isLiveChat = (chats: ChatConfig[], chatId: string | null) =>
@@ -209,38 +250,35 @@ const isLiveChat = (chats: ChatConfig[], chatId: string | null) =>
 interface RunStepOptions {
   feedback?: string | null;
   /** The run handing off to this step. */
-  previousRun?: PipelineStepRun | null;
+  previousRun?: TaskStepRun | null;
   /** Continue in this existing step chat instead of creating a new one. */
   reuseChatId?: string | null;
 }
 
-export const createPipelineActions = (
+export const createTaskActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
 ): Pick<
   IdeState,
-  | "addPipelineTask"
-  | "updatePipelineTask"
-  | "deletePipelineTask"
-  | "movePipelineTaskInBacklog"
-  | "startPipelineTask"
-  | "advancePipelineTask"
-  | "sendPipelineTaskBack"
-  | "retryPipelineStep"
-  | "completePipelineTask"
-  | "openPipelineStepChat"
-  | "reopenPipelineWorktree"
-  | "unlinkPipelineRunsForChats"
-  | "setPipelineStepConfig"
-  | "resetPipelineStepConfig"
-  | "isPipelineChat"
-  | "maybeAutoAdvancePipelineForChat"
+  | "addTask"
+  | "updateTask"
+  | "deleteTask"
+  | "moveTaskInBacklog"
+  | "startTask"
+  | "advanceTask"
+  | "sendTaskBack"
+  | "retryTaskStep"
+  | "completeTask"
+  | "openTaskStepChat"
+  | "reopenTaskWorktree"
+  | "unlinkTaskRunsForChats"
+  | "setTaskStepConfig"
+  | "isTaskChat"
+  | "maybeAutoAdvanceTaskForChat"
 > => {
   const findTask = (projectId: string, taskId: string) => {
     const project = get().projects.find((entry) => entry.id === projectId);
-    const task = getProjectPipelineTasks(project).find(
-      (entry) => entry.id === taskId,
-    );
+    const task = getProjectTasks(project).find((entry) => entry.id === taskId);
     return project && task ? { project, task } : null;
   };
 
@@ -268,7 +306,7 @@ export const createPipelineActions = (
 
     const created = await get().createWorktreeProject(projectId, {
       activate: false,
-      branchName: getPipelineBranchName(task),
+      branchName: getTaskBranchName(task),
     });
     if (!created) {
       throw new Error("The worktree could not be created.");
@@ -301,7 +339,7 @@ export const createPipelineActions = (
   const runStep = (
     projectId: string,
     taskId: string,
-    step: PipelineRunStepId,
+    step: TaskRunStepId,
     options: RunStepOptions = {},
   ): string | null => {
     const state = get();
@@ -324,8 +362,7 @@ export const createPipelineActions = (
       return null;
     }
 
-    const config =
-      project.ui.pipelineConfig?.[step] ?? createDefaultPipelineConfig()[step];
+    const config = state.taskConfig[step];
     const feedback = options.feedback?.trim() || null;
     const reuseChatId =
       options.reuseChatId &&
@@ -352,11 +389,7 @@ export const createPipelineActions = (
         .filter(Boolean)
         .join("\n\n");
     } else {
-      const agent = resolvePipelineStepAgent(
-        config,
-        hostProject,
-        state.settings,
-      );
+      const agent = resolveTaskStepAgent(config, hostProject, state.settings);
       nextChat = createChatConfig(hostProject, {
         ...agent,
         agentMode: config.agentMode,
@@ -364,16 +397,16 @@ export const createPipelineActions = (
         title: `${STEP_TITLE_PREFIX[step]}: ${title}`,
       });
       chatId = nextChat.id;
-      text = renderPipelinePrompt({
+      text = renderTaskPrompt({
         feedback,
         previousRun: options.previousRun ?? null,
         task,
-        template: getPipelineStepPrompt(step, config),
+        template: getTaskStepPrompt(step, config),
       });
     }
 
     const timestamp = new Date().toISOString();
-    const run: PipelineStepRun = {
+    const run: TaskStepRun = {
       chatId,
       feedback,
       finishedAt: null,
@@ -437,9 +470,9 @@ export const createPipelineActions = (
   const settleCurrentRun = async (
     projectId: string,
     taskId: string,
-  ): Promise<PipelineStepRun | null> => {
+  ): Promise<TaskStepRun | null> => {
     const found = findTask(projectId, taskId);
-    const currentRun = found ? getCurrentPipelineRun(found.task) : null;
+    const currentRun = found ? getCurrentTaskRun(found.task) : null;
     if (!found || !currentRun) {
       return null;
     }
@@ -456,7 +489,7 @@ export const createPipelineActions = (
       }
     }
 
-    const settled: PipelineStepRun = {
+    const settled: TaskStepRun = {
       ...currentRun,
       finishedAt: currentRun.finishedAt ?? new Date().toISOString(),
       output,
@@ -475,7 +508,7 @@ export const createPipelineActions = (
     return settled;
   };
 
-  const isRunBusy = (run: PipelineStepRun | null) => {
+  const isRunBusy = (run: TaskStepRun | null) => {
     if (!run?.chatId) {
       return false;
     }
@@ -487,7 +520,7 @@ export const createPipelineActions = (
   };
 
   return {
-    addPipelineTask: (projectId, input) => {
+    addTask: (projectId, input) => {
       const state = get();
       const project = state.projects.find((entry) => entry.id === projectId);
       const title = input.title.trim();
@@ -495,7 +528,7 @@ export const createPipelineActions = (
         return null;
       }
 
-      const task = createPipelineTask({
+      const task = createTask({
         description: input.description?.trim() ?? "",
         title,
       });
@@ -503,14 +536,14 @@ export const createPipelineActions = (
       set({
         projects: updateProjectUiInList(state.projects, projectId, (entry) => ({
           ...entry.ui,
-          pipelineTasks: [...getProjectPipelineTasks(entry), task],
+          tasks: [...getProjectTasks(entry), task],
         })),
       });
 
       return task.id;
     },
 
-    updatePipelineTask: (projectId, taskId, updates) => {
+    updateTask: (projectId, taskId, updates) => {
       if (!findTask(projectId, taskId)) {
         return;
       }
@@ -530,7 +563,7 @@ export const createPipelineActions = (
       }));
     },
 
-    deletePipelineTask: (projectId, taskId) => {
+    deleteTask: (projectId, taskId) => {
       if (!findTask(projectId, taskId)) {
         return;
       }
@@ -538,20 +571,18 @@ export const createPipelineActions = (
       set((state) => ({
         projects: updateProjectUiInList(state.projects, projectId, (entry) => ({
           ...entry.ui,
-          pipelineTasks: getProjectPipelineTasks(entry).filter(
-            (task) => task.id !== taskId,
-          ),
+          tasks: getProjectTasks(entry).filter((task) => task.id !== taskId),
         })),
       }));
     },
 
-    movePipelineTaskInBacklog: (projectId, taskId, index) => {
+    moveTaskInBacklog: (projectId, taskId, index) => {
       const found = findTask(projectId, taskId);
       if (!found || found.task.step !== "backlog") {
         return;
       }
 
-      const tasks = getProjectPipelineTasks(found.project);
+      const tasks = getProjectTasks(found.project);
       const backlog = tasks.filter((task) => task.step === "backlog");
       const from = backlog.findIndex((task) => task.id === taskId);
       const to = Math.max(
@@ -571,18 +602,18 @@ export const createPipelineActions = (
       // Refill the backlog slots in order; other steps keep their positions.
       let cursor = 0;
       const next = tasks.map((task) =>
-        task.step === "backlog" ? (reordered[cursor++] as PipelineTask) : task,
+        task.step === "backlog" ? (reordered[cursor++] as Task) : task,
       );
 
       set((state) => ({
         projects: updateProjectUiInList(state.projects, projectId, (entry) => ({
           ...entry.ui,
-          pipelineTasks: next,
+          tasks: next,
         })),
       }));
     },
 
-    startPipelineTask: async (projectId, taskId) => {
+    startTask: async (projectId, taskId) => {
       const found = findTask(projectId, taskId);
       if (!found || found.task.step !== "backlog") {
         return null;
@@ -596,14 +627,14 @@ export const createPipelineActions = (
       return runStep(projectId, taskId, "plan");
     },
 
-    advancePipelineTask: async (projectId, taskId) => {
+    advanceTask: async (projectId, taskId) => {
       const found = findTask(projectId, taskId);
       if (!found || found.task.completion) {
         return null;
       }
 
-      const nextStep = getNextPipelineStep(found.task.step);
-      if (!nextStep || isRunBusy(getCurrentPipelineRun(found.task))) {
+      const nextStep = getNextTaskStep(found.task.step);
+      if (!nextStep || isRunBusy(getCurrentTaskRun(found.task))) {
         return null;
       }
 
@@ -615,20 +646,17 @@ export const createPipelineActions = (
       return runStep(projectId, taskId, nextStep, { previousRun });
     },
 
-    sendPipelineTaskBack: async (projectId, taskId, toStep, note) => {
+    sendTaskBack: async (projectId, taskId, toStep, note) => {
       const found = findTask(projectId, taskId);
       if (!found || found.task.completion) {
         return null;
       }
 
       const { task } = found;
-      if (
-        PIPELINE_STEP_IDS.indexOf(toStep) >=
-        PIPELINE_STEP_IDS.indexOf(task.step)
-      ) {
+      if (TASK_STEP_IDS.indexOf(toStep) >= TASK_STEP_IDS.indexOf(task.step)) {
         return null;
       }
-      if (isRunBusy(getCurrentPipelineRun(task))) {
+      if (isRunBusy(getCurrentTaskRun(task))) {
         return null;
       }
 
@@ -651,14 +679,14 @@ export const createPipelineActions = (
       });
     },
 
-    retryPipelineStep: async (projectId, taskId) => {
+    retryTaskStep: async (projectId, taskId) => {
       const found = findTask(projectId, taskId);
       if (!found || found.task.completion || found.task.step === "backlog") {
         return null;
       }
 
       const { task } = found;
-      const currentRun = getCurrentPipelineRun(task);
+      const currentRun = getCurrentTaskRun(task);
       if (isRunBusy(currentRun)) {
         return null;
       }
@@ -668,13 +696,13 @@ export const createPipelineActions = (
       const previousRun =
         currentIndex > 0 ? (task.runs[currentIndex - 1] ?? null) : null;
 
-      return runStep(projectId, taskId, task.step as PipelineRunStepId, {
+      return runStep(projectId, taskId, task.step as TaskRunStepId, {
         feedback: currentRun?.feedback ?? null,
         previousRun,
       });
     },
 
-    completePipelineTask: (projectId, taskId, completion) => {
+    completeTask: (projectId, taskId, completion) => {
       if (!findTask(projectId, taskId)) {
         return;
       }
@@ -694,7 +722,7 @@ export const createPipelineActions = (
       }));
     },
 
-    openPipelineStepChat: (projectId, taskId, runId) => {
+    openTaskStepChat: (projectId, taskId, runId) => {
       const found = findTask(projectId, taskId);
       if (!found) {
         return;
@@ -720,10 +748,10 @@ export const createPipelineActions = (
         get().setActiveProjectId(chat.projectId);
       }
       get().setActiveChatId(chat.projectId, chat.id);
-      get().setProjectWorkspaceView(chat.projectId, "code");
+      get().setAppView("code");
     },
 
-    reopenPipelineWorktree: async (projectId, taskId) => {
+    reopenTaskWorktree: async (projectId, taskId) => {
       const task = findTask(projectId, taskId)?.task;
       if (!task?.worktreeProjectId) {
         return false;
@@ -739,7 +767,7 @@ export const createPipelineActions = (
         (entry) => entry.id === task.worktreeProjectId,
       );
       if (!closedProject) {
-        // The worktree was removed outside the pipeline.
+        // The worktree was removed outside the Tasks workspace.
         return false;
       }
 
@@ -747,7 +775,7 @@ export const createPipelineActions = (
       return isOpen();
     },
 
-    unlinkPipelineRunsForChats: (chatIds) => {
+    unlinkTaskRunsForChats: (chatIds) => {
       const ids = new Set(chatIds);
       if (ids.size === 0) {
         return;
@@ -755,12 +783,12 @@ export const createPipelineActions = (
 
       set((state) => {
         const timestamp = new Date().toISOString();
-        const projects = unlinkPipelineRunsInProjects(
+        const projects = unlinkTaskRunsInProjects(
           state.projects,
           ids,
           timestamp,
         );
-        const closedProjects = unlinkPipelineRunsInProjects(
+        const closedProjects = unlinkTaskRunsInProjects(
           state.closedProjects,
           ids,
           timestamp,
@@ -776,69 +804,44 @@ export const createPipelineActions = (
       });
     },
 
-    setPipelineStepConfig: (projectId, step, updater) => {
-      set((state) => {
-        if (!state.projects.some((entry) => entry.id === projectId)) {
-          return state;
-        }
-
-        return {
-          projects: updateProjectUiInList(
-            state.projects,
-            projectId,
-            (entry) => {
-              const config =
-                entry.ui.pipelineConfig ?? createDefaultPipelineConfig();
-              return {
-                ...entry.ui,
-                pipelineConfig: { ...config, [step]: updater(config[step]) },
-              };
-            },
-          ),
-        };
-      });
+    setTaskStepConfig: (step, updater) => {
+      set((state) => ({
+        taskConfig: {
+          ...state.taskConfig,
+          [step]: updater(state.taskConfig[step]),
+        },
+      }));
     },
 
-    resetPipelineStepConfig: (projectId, step) => {
-      get().setPipelineStepConfig(
-        projectId,
-        step,
-        () => createDefaultPipelineConfig()[step],
-      );
-    },
+    isTaskChat: (chatId) => findTaskByChatId(get().projects, chatId) !== null,
 
-    isPipelineChat: (chatId) =>
-      findPipelineTaskByChatId(get().projects, chatId) !== null,
-
-    maybeAutoAdvancePipelineForChat: (chatId) => {
-      const match = findPipelineTaskByChatId(get().projects, chatId);
+    maybeAutoAdvanceTaskForChat: (chatId) => {
+      const match = findTaskByChatId(get().projects, chatId);
       if (!match || match.task.completion) {
         return;
       }
 
       const { project, run, task } = match;
-      const currentRun = getCurrentPipelineRun(task);
+      const currentRun = getCurrentTaskRun(task);
       if (currentRun?.id !== run.id || !run.finishedAt) {
         return;
       }
 
-      const config =
-        project.ui.pipelineConfig?.[run.step] ??
-        createDefaultPipelineConfig()[run.step];
+      const config = get().taskConfig[run.step];
       // Merging is always an explicit user action.
-      if (!config.autoAdvance || !getNextPipelineStep(task.step)) {
+      if (!config.autoAdvance || !getNextTaskStep(task.step)) {
         return;
       }
       // A review only passes itself along on an explicit APPROVE; requested
       // changes (or no verdict at all) wait for the user to decide.
       if (
         run.step === "review" &&
-        getPipelineReviewVerdict(run.output) !== "approve"
+        getTaskReviewVerdict(run.output) !== "approve"
       ) {
         return;
       }
 
-      void get().advancePipelineTask(project.id, task.id);
+      void get().advanceTask(project.id, task.id);
     },
   };
 };

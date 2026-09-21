@@ -14,6 +14,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   getConnectedProviders,
+  getDefaultModelSelection,
   getModelOptionsForProvider,
   resolveModelSpeedForModel,
   resolveReasoningEffortForModel,
@@ -24,13 +25,13 @@ import type {
   AgentMode,
   AiProvider,
   ModelSpeed,
-  PipelineRunStepId,
-  PipelineStepConfig,
   ReasoningEffort,
+  TaskRunStepId,
+  TaskStepConfig,
 } from "@/types/ide";
 import { useIdeStore } from "../../ide-store";
 import { AGENT_MODE_OPTIONS } from "../../ide-types";
-import { resolvePipelineStepAgent } from "../../store/pipeline-actions";
+import { resolveTaskStepAgent } from "../../store/task-actions";
 
 const getAgentModeIcon = (mode: AgentMode) => (mode === "plan" ? MapIcon : Bot);
 
@@ -71,27 +72,33 @@ const getOptionSpeedTiers = (
     ? option.speedTiers
     : getModelSpeedTiers(provider, modelId);
 
-export interface PipelineColumnModelBarProps {
-  config: PipelineStepConfig;
-  projectId: string;
-  step: PipelineRunStepId;
+export interface TaskColumnModelBarProps {
+  config: TaskStepConfig;
+  /**
+   * Only used to preview the model an inheriting step would run with: the
+   * project the board is filtered to, or `null` across all projects.
+   */
+  hostProjectId: string | null;
+  step: TaskRunStepId;
 }
 
-const PipelineColumnModelBarImpl = ({
+const TaskColumnModelBarImpl = ({
   config,
-  projectId,
+  hostProjectId,
   step,
-}: PipelineColumnModelBarProps) => {
-  const t = useTranslations("pipeline");
+}: TaskColumnModelBarProps) => {
+  const t = useTranslations("tasks");
   const chatT = useTranslations("chat");
   const modelT = useTranslations("models");
   const settingsT = useTranslations("settings");
   const settings = useIdeStore((s) => s.settings);
   const providerModels = useIdeStore((s) => s.providerModels);
   const hostProject = useIdeStore((s) =>
-    s.projects.find((project) => project.id === projectId),
+    hostProjectId
+      ? s.projects.find((project) => project.id === hostProjectId)
+      : undefined,
   );
-  const setPipelineStepConfig = useIdeStore((s) => s.setPipelineStepConfig);
+  const setTaskStepConfig = useIdeStore((s) => s.setTaskStepConfig);
 
   const modelOptions = useMemo<StepModelOption[]>(
     () =>
@@ -112,16 +119,20 @@ const PipelineColumnModelBarImpl = ({
     [providerModels, settings],
   );
 
-  const update = (
-    updater: (current: PipelineStepConfig) => PipelineStepConfig,
-  ) => setPipelineStepConfig(projectId, step, updater);
+  const update = (updater: (current: TaskStepConfig) => TaskStepConfig) =>
+    setTaskStepConfig(step, updater);
 
-  // An inheriting step still shows the model it will actually run with.
+  // An inheriting step still shows the model it will run with. Across all
+  // projects there is no single host, so preview the default selection — which
+  // is what `resolveTaskStepAgent` picks first for any project anyway.
+  const defaultSelection = getDefaultModelSelection(settings);
   const selectedModel = config.model?.model
     ? config.model
     : hostProject
-      ? resolvePipelineStepAgent(config, hostProject, settings)
-      : null;
+      ? resolveTaskStepAgent(config, hostProject, settings)
+      : defaultSelection.model
+        ? defaultSelection
+        : null;
   const selectedModelValue = config.model?.model
     ? `${config.model.provider}${MODEL_VALUE_SEPARATOR}${config.model.model}`
     : INHERIT_MODEL;
@@ -432,5 +443,5 @@ const PipelineColumnModelBarImpl = ({
   );
 };
 
-export const PipelineColumnModelBar = memo(PipelineColumnModelBarImpl);
-PipelineColumnModelBar.displayName = "PipelineColumnModelBar";
+export const TaskColumnModelBar = memo(TaskColumnModelBarImpl);
+TaskColumnModelBar.displayName = "TaskColumnModelBar";
