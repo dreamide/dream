@@ -16,7 +16,11 @@ import {
 import { useIdeStore } from "../../ide-store";
 import { getCurrentTaskRun } from "../../store/task-actions";
 import { TaskColumn } from "./task-column";
-import { TaskDialog, type TaskDialogValue } from "./task-dialog";
+import {
+  TaskDialog,
+  type TaskDialogValue,
+  type TaskProjectOption,
+} from "./task-dialog";
 import { TaskSendBackDialog } from "./task-send-back-dialog";
 import { TaskSettingsDialog } from "./task-settings-dialog";
 import { TASK_STEPS } from "./task-steps";
@@ -42,8 +46,10 @@ const COMPLETION_KINDS: Record<
 export interface TaskBoardProps {
   /** Tasks in view, each tagged with the project that owns it. */
   entries: TaskEntry[];
-  /** Projects a new task can be filed under. */
+  /** Open projects a new task can be filed under. */
   projects: ProjectConfig[];
+  /** Closed projects it can also go to; chosen ones load in the background. */
+  recentProjects: ProjectConfig[];
   /**
    * The project the board is filtered to, or `null` when it spans all of them.
    * Step settings are app-wide, so they are the same either way.
@@ -62,10 +68,12 @@ export interface TaskBoardProps {
 export const TaskBoard = ({
   entries,
   projects,
+  recentProjects,
   scopeProject,
 }: TaskBoardProps) => {
   const t = useTranslations("tasks");
   const addTask = useIdeStore((s) => s.addTask);
+  const addTaskToProjectPath = useIdeStore((s) => s.addTaskToProjectPath);
   const updateTask = useIdeStore((s) => s.updateTask);
   const deleteTask = useIdeStore((s) => s.deleteTask);
   const moveTaskInBacklog = useIdeStore((s) => s.moveTaskInBacklog);
@@ -247,25 +255,48 @@ export const TaskBoard = ({
 
   const handleTaskDialogSubmit = useCallback(
     (value: TaskDialogValue) => {
-      const { projectId, ...fields } = value;
+      const { projectPath, ...fields } = value;
       if (dialog?.mode === "create") {
-        if (projectId) {
-          addTask(projectId, fields);
+        if (scopeProject) {
+          addTask(scopeProject.id, fields);
+        } else if (projectPath) {
+          // The project may be closed, or a folder the app has never seen;
+          // it is loaded in the background without leaving Tasks.
+          addTaskToProjectPath(projectPath, fields);
         }
       } else if (dialog?.mode === "edit") {
         updateTask(dialog.entry.projectId, dialog.entry.task.id, fields);
       }
       setDialog(null);
     },
-    [addTask, dialog, updateTask],
+    [addTask, addTaskToProjectPath, dialog, scopeProject, updateTask],
   );
 
-  // With one project in view new tasks go to it. Across all projects the
-  // dialog asks, and nothing is preselected unless there is only one choice:
-  // a wrong default files the task under the wrong repository.
-  const createProjectId =
-    scopeProject?.id ??
-    (projects.length === 1 ? (projects[0]?.id ?? null) : null);
+  // Tasks does not depend on what Code has open: a task can go to any open or
+  // recent project, or to a folder picked with Browse.
+  const projectOptions = useMemo(
+    (): TaskProjectOption[] => [
+      ...projects.map((project) => ({
+        icon: project.icon,
+        name: project.name,
+        path: project.path,
+        recent: false,
+        worktreeBranch: project.worktree?.branch ?? null,
+      })),
+      ...recentProjects.map((project) => ({
+        icon: project.icon,
+        name: project.name,
+        path: project.path,
+        recent: true,
+        worktreeBranch: null,
+      })),
+    ],
+    [projects, recentProjects],
+  );
+  // Nothing is preselected unless there is only one choice: a wrong default
+  // files the task under the wrong repository.
+  const createProjectPath =
+    projectOptions.length === 1 ? (projectOptions[0]?.path ?? null) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -276,7 +307,6 @@ export const TaskBoard = ({
           {TASK_STEPS.map((step) => (
             <TaskColumn
               busyKeys={busyKeys}
-              canAddTask={projects.length > 0}
               config={step.id === "backlog" ? null : taskConfig[step.id]}
               entries={entriesByStep[step.id]}
               errorsByKey={errorsByKey}
@@ -306,10 +336,10 @@ export const TaskBoard = ({
             dialog.mode === "edit"
               ? {
                   description: dialog.entry.task.description,
-                  projectId: dialog.entry.projectId,
+                  projectPath: null,
                   title: dialog.entry.task.title,
                 }
-              : { description: "", projectId: createProjectId, title: "" }
+              : { description: "", projectPath: createProjectPath, title: "" }
           }
           key={dialog.mode === "edit" ? dialog.entry.key : "create"}
           mode={dialog.mode}
@@ -317,7 +347,9 @@ export const TaskBoard = ({
           onSubmit={handleTaskDialogSubmit}
           // A task never changes project, so only creation across all
           // projects needs to ask where it belongs.
-          projects={dialog.mode === "create" && !scopeProject ? projects : null}
+          projectOptions={
+            dialog.mode === "create" && !scopeProject ? projectOptions : null
+          }
         />
       ) : null}
       {dialog?.mode === "sendBack" ? (

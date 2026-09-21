@@ -13,12 +13,14 @@ import { useActivityStore } from "../activity-store";
 import { createChatActions } from "./chat-actions";
 import type { IdeState } from "./ide-store-types";
 import { createPanelActions } from "./panel-actions";
+import { createProjectLifecycleActions } from "./project-lifecycle-actions";
 import { createRuntimeActions } from "./runtime-actions";
 import { createStashActions } from "./stash-actions";
 import {
   createTaskActions,
   finishTaskRunInProjects,
   getCurrentTaskRun,
+  getRecentTaskProjects,
   getTaskProjects,
   resolveTaskStepAgent,
   selectTaskEntries,
@@ -806,5 +808,106 @@ test("the project filter lists worktrees only when they hold tasks", () => {
   assert.deepEqual(
     getTaskProjects(withWorktree()).map((entry) => entry.id),
     [project.id, worktree.id],
+  );
+});
+
+/** Uses the real `addProject`, which is what reopens and registers projects. */
+const createTestStoreWithRealProjects = () => {
+  const context = createTestStore();
+  context.store.setState({
+    addProject: createProjectLifecycleActions(
+      context.store.setState,
+      context.store.getState,
+    ).addProject,
+  });
+  return context;
+};
+
+test("a task can be filed under a recent project without leaving Tasks", () => {
+  const { project, store } = createTestStoreWithRealProjects();
+  const recent = createProjectConfig("/workspace/recent", DEFAULT_SETTINGS);
+  store.setState({
+    appView: "tasks",
+    closedProjects: [recent],
+  });
+
+  const taskId = store
+    .getState()
+    .addTaskToProjectPath(recent.path, { title: "From Tasks" });
+  assert.ok(taskId);
+
+  const state = store.getState();
+  // The project is loaded, keeping its identity, with the task on it...
+  const reopened = state.projects.find((entry) => entry.id === recent.id);
+  assert.deepEqual(
+    reopened?.ui.tasks.map((task) => task.id),
+    [taskId],
+  );
+  assert.equal(state.closedProjects.length, 0);
+  // ...but neither the workspace nor Code's active tab moved.
+  assert.equal(state.appView, "tasks");
+  assert.equal(state.activeProjectId, project.id);
+});
+
+test("a task can be filed under a folder the app has never seen", () => {
+  const { project, store } = createTestStoreWithRealProjects();
+  const openBefore = store.getState().projects.length;
+
+  const taskId = store
+    .getState()
+    .addTaskToProjectPath("/workspace/brand-new", { title: "New repo" });
+  assert.ok(taskId);
+
+  const state = store.getState();
+  assert.equal(state.projects.length, openBefore + 1);
+  const created = state.projects.find(
+    (entry) => entry.path === "/workspace/brand-new",
+  );
+  assert.equal(created?.name, "brand-new");
+  assert.deepEqual(
+    created?.ui.tasks.map((task) => task.id),
+    [taskId],
+  );
+  assert.equal(state.activeProjectId, project.id);
+});
+
+test("filing under an already open project reuses it", () => {
+  const { project, store } = createTestStoreWithRealProjects();
+  const openBefore = store.getState().projects.length;
+
+  // Same folder, different spelling: no duplicate project is created.
+  const taskId = store
+    .getState()
+    .addTaskToProjectPath(`${project.path}/`, { title: "Again" });
+  assert.ok(taskId);
+  assert.equal(store.getState().projects.length, openBefore);
+  assert.deepEqual(
+    getTasks(store).map((task) => task.id),
+    [taskId],
+  );
+
+  assert.equal(
+    store.getState().addTaskToProjectPath("  ", { title: "x" }),
+    null,
+  );
+});
+
+test("recent task projects are closed non-worktrees, newest first", () => {
+  const closed = (path: string, lastUsedAt: string | null) => ({
+    ...createProjectConfig(path, DEFAULT_SETTINGS),
+    lastUsedAt,
+  });
+  const older = closed("/workspace/older", "2026-01-01T00:00:00.000Z");
+  const newer = closed("/workspace/newer", "2026-06-01T00:00:00.000Z");
+  const never = closed("/workspace/never", null);
+  const worktree = asWorktree(
+    closed("/workspace/worktree-closed", "2026-09-01T00:00:00.000Z"),
+  );
+
+  assert.deepEqual(
+    getRecentTaskProjects([older, worktree, never, newer]).map(
+      (entry) => entry.path,
+    ),
+    ["/workspace/newer", "/workspace/older", "/workspace/never"],
   );
 });

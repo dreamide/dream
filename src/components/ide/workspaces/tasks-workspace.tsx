@@ -1,6 +1,10 @@
 import { memo, useMemo } from "react";
 import { useIdeStore } from "../ide-store";
-import { getTaskProjects, selectTaskEntries } from "../store/task-actions";
+import {
+  getRecentTaskProjects,
+  getTaskProjects,
+  selectTaskEntries,
+} from "../store/task-actions";
 import { TaskBoard } from "./tasks/task-board";
 
 export interface TasksWorkspaceProps {
@@ -9,12 +13,14 @@ export interface TasksWorkspaceProps {
 
 /**
  * The app-level Tasks surface. Tasks stay stored on their projects; this
- * gathers them for the Tasks workspace's own project filter (chosen in the titlebar,
- * independent of the Code workspace's active project) and hands the board
- * project-tagged entries.
+ * gathers them for the Tasks workspace's own project filter (chosen in the
+ * titlebar, independent of the Code workspace's active project) and hands the
+ * board project-tagged entries. New tasks can go to recent projects as well as
+ * open ones, so nothing here requires a trip to Code first.
  */
 const TasksWorkspaceComponent = (_props: TasksWorkspaceProps) => {
   const projects = useIdeStore((s) => s.projects);
+  const closedProjects = useIdeStore((s) => s.closedProjects);
   const tasksProjectId = useIdeStore((s) => s.tasksProjectId);
 
   const { entries, scopeProject } = useMemo(
@@ -22,6 +28,10 @@ const TasksWorkspaceComponent = (_props: TasksWorkspaceProps) => {
     [tasksProjectId, projects],
   );
   const taskProjects = useMemo(() => getTaskProjects(projects), [projects]);
+  const recentProjects = useMemo(
+    () => getRecentTaskProjects(closedProjects),
+    [closedProjects],
+  );
 
   return (
     <div
@@ -32,6 +42,7 @@ const TasksWorkspaceComponent = (_props: TasksWorkspaceProps) => {
       <TaskBoard
         entries={entries}
         projects={taskProjects}
+        recentProjects={recentProjects}
         scopeProject={scopeProject}
       />
     </div>

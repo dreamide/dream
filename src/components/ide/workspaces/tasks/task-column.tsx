@@ -18,8 +18,6 @@ export interface TaskColumnProps
     "backlogIndex" | "backlogSize" | "busy" | "entry" | "error"
   > {
   busyKeys: Record<string, true>;
-  /** False when no project is open to file a new task under. */
-  canAddTask: boolean;
   /** The step's app-wide settings; `null` for the backlog, which runs no agent. */
   config: TaskStepConfig | null;
   entries: TaskEntry[];
@@ -33,7 +31,6 @@ export interface TaskColumnProps
 
 const TaskColumnImpl = ({
   busyKeys,
-  canAddTask,
   config,
   entries,
   errorsByKey,
@@ -79,7 +76,6 @@ const TaskColumnImpl = ({
           <Button
             aria-label={t("addTask")}
             className="ml-auto size-6 shrink-0 text-muted-foreground hover:text-foreground"
-            disabled={!canAddTask}
             onClick={onAddTask}
             size="icon-xs"
             title={t("addTask")}
@@ -119,7 +115,6 @@ const TaskColumnImpl = ({
         {isBacklog ? (
           <Button
             className="shrink-0 justify-start text-muted-foreground/70 hover:text-foreground"
-            disabled={!canAddTask}
             onClick={onAddTask}
             size="sm"
             type="button"

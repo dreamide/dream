@@ -1,5 +1,6 @@
+import { Folder, FolderOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,19 +14,37 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getDesktopApi } from "@/lib/electron";
 import type { ProjectConfig } from "@/types/ide";
 import { ProjectTabIcon } from "../../header/project-tab-icon";
+import { normalizeProjectPathKey } from "../../ide-state";
 
 export interface TaskDialogValue {
   description: string;
-  /** The project the task belongs to; `null` only when none is open. */
-  projectId: string | null;
+  /**
+   * Where the task belongs, as a folder path: the project may be open in Code,
+   * merely recent, or a folder the app has never seen. `null` only in edit
+   * mode, where the owner is already settled.
+   */
+  projectPath: string | null;
   title: string;
+}
+
+/** A project the task can be filed under; it does not have to be open. */
+export interface TaskProjectOption {
+  icon: ProjectConfig["icon"];
+  name: string;
+  path: string;
+  /** Closed in Code; choosing it loads it in the background. */
+  recent: boolean;
+  worktreeBranch: string | null;
 }
 
 export interface TaskDialogProps {
@@ -35,21 +54,26 @@ export interface TaskDialogProps {
   onSubmit: (value: TaskDialogValue) => void;
   /**
    * Projects to choose the owner from. `null` hides the picker because the
-   * owner is already settled: one project is in view, or the task exists.
+   * owner is already settled: the board is filtered to one project, or the
+   * task exists.
    */
-  projects: ProjectConfig[] | null;
+  projectOptions: TaskProjectOption[] | null;
 }
 
-const ProjectOption = ({ project }: { project: ProjectConfig }) => (
+const getFolderName = (path: string) =>
+  path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+
+const ProjectOptionLabel = ({ option }: { option: TaskProjectOption }) => (
   <span className="flex min-w-0 items-center gap-2">
     <ProjectTabIcon
-      icon={project.icon}
-      projectName={project.name}
-      projectPath={project.path}
+      fallback={<Folder className="size-4 text-muted-foreground" />}
+      icon={option.icon}
+      projectName={option.name}
+      projectPath={option.path}
     />
     <span className="truncate">
-      {project.name}
-      {project.worktree ? ` · ${project.worktree.branch}` : ""}
+      {option.name}
+      {option.worktreeBranch ? ` · ${option.worktreeBranch}` : ""}
     </span>
   </span>
 );
@@ -63,7 +87,7 @@ export const TaskDialog = ({
   mode,
   onClose,
   onSubmit,
-  projects,
+  projectOptions,
 }: TaskDialogProps) => {
   const t = useTranslations("tasks");
   const commonT = useTranslations("common");
@@ -71,11 +95,28 @@ export const TaskDialog = ({
   const [description, setDescription] = useState(
     initialValue?.description ?? "",
   );
-  const [projectId, setProjectId] = useState(initialValue?.projectId ?? null);
-  const selectedProject =
-    projects?.find((project) => project.id === projectId) ?? null;
+  const [projectPath, setProjectPath] = useState(
+    initialValue?.projectPath ?? null,
+  );
+  // A folder picked with Browse that is not a known project yet. It is only
+  // registered when the task is created, so cancelling leaves no trace.
+  const [browsedOption, setBrowsedOption] = useState<TaskProjectOption | null>(
+    null,
+  );
+
+  const { openOptions, recentOptions, options } = useMemo(() => {
+    const known = projectOptions ?? [];
+    return {
+      openOptions: known.filter((option) => !option.recent),
+      options: browsedOption ? [browsedOption, ...known] : known,
+      recentOptions: known.filter((option) => option.recent),
+    };
+  }, [browsedOption, projectOptions]);
+  const selectedOption =
+    options.find((option) => option.path === projectPath) ?? null;
   const canSubmit =
-    title.trim().length > 0 && (projects === null || selectedProject !== null);
+    title.trim().length > 0 &&
+    (projectOptions === null || selectedOption !== null);
 
   const submit = () => {
     if (!canSubmit) {
@@ -84,9 +125,36 @@ export const TaskDialog = ({
 
     onSubmit({
       description: description.trim(),
-      projectId,
+      projectPath: selectedOption?.path ?? null,
       title: title.trim(),
     });
+  };
+
+  const browse = async () => {
+    const pickedPath = await getDesktopApi()?.pickProjectDirectory();
+    if (!pickedPath) {
+      return;
+    }
+
+    // Reuse the known project when the folder is already open or recent.
+    const pickedKey = normalizeProjectPathKey(pickedPath);
+    const known = (projectOptions ?? []).find(
+      (option) => normalizeProjectPathKey(option.path) === pickedKey,
+    );
+    if (known) {
+      setBrowsedOption(null);
+      setProjectPath(known.path);
+      return;
+    }
+
+    setBrowsedOption({
+      icon: null,
+      name: getFolderName(pickedPath),
+      path: pickedPath,
+      recent: false,
+      worktreeBranch: null,
+    });
+    setProjectPath(pickedPath);
   };
 
   return (
@@ -111,30 +179,71 @@ export const TaskDialog = ({
               {mode === "create" ? t("newTask") : t("editTask")}
             </DialogTitle>
           </DialogHeader>
-          {projects ? (
+          {projectOptions ? (
             <div className="space-y-2">
               <Label htmlFor="task-project">{t("taskProject")}</Label>
-              <Select
-                onValueChange={(value) =>
-                  setProjectId(typeof value === "string" ? value : null)
-                }
-                value={selectedProject?.id ?? null}
-              >
-                <SelectTrigger className="w-full" id="task-project">
-                  <SelectValue placeholder={t("selectProject")}>
-                    {selectedProject ? (
-                      <ProjectOption project={selectedProject} />
+              <div className="flex items-center gap-2">
+                <Select
+                  onValueChange={(value) =>
+                    setProjectPath(typeof value === "string" ? value : null)
+                  }
+                  value={selectedOption?.path ?? null}
+                >
+                  <SelectTrigger className="min-w-0 flex-1" id="task-project">
+                    <SelectValue placeholder={t("selectProject")}>
+                      {selectedOption ? (
+                        <ProjectOptionLabel option={selectedOption} />
+                      ) : null}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {browsedOption ? (
+                      <SelectGroup>
+                        <SelectItem value={browsedOption.path}>
+                          <ProjectOptionLabel option={browsedOption} />
+                        </SelectItem>
+                      </SelectGroup>
                     ) : null}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      <ProjectOption project={project} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {openOptions.length > 0 ? (
+                      <SelectGroup>
+                        <SelectLabel>{t("projectsOpen")}</SelectLabel>
+                        {openOptions.map((option) => (
+                          <SelectItem key={option.path} value={option.path}>
+                            <ProjectOptionLabel option={option} />
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ) : null}
+                    {recentOptions.length > 0 ? (
+                      <SelectGroup>
+                        <SelectLabel>{t("projectsRecent")}</SelectLabel>
+                        {recentOptions.map((option) => (
+                          <SelectItem key={option.path} value={option.path}>
+                            <ProjectOptionLabel option={option} />
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ) : null}
+                  </SelectContent>
+                </Select>
+                <Button
+                  className="shrink-0"
+                  onClick={() => void browse()}
+                  type="button"
+                  variant="outline"
+                >
+                  <FolderOpen className="size-4" />
+                  {t("browseProject")}
+                </Button>
+              </div>
+              {selectedOption ? (
+                <p
+                  className="truncate text-muted-foreground text-xs"
+                  title={selectedOption.path}
+                >
+                  {selectedOption.path}
+                </p>
+              ) : null}
             </div>
           ) : null}
           <div className="space-y-2">

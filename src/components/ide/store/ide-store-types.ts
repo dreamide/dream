@@ -186,6 +186,14 @@ export interface IdeState {
     projectId: string,
     task: { description?: string; title: string },
   ) => string | null;
+  /**
+   * Files a task under the project at `path`, which need not be open: a recent
+   * project is reopened, and an unknown folder registered, in the background.
+   */
+  addTaskToProjectPath: (
+    path: string,
+    task: { description?: string; title: string },
+  ) => string | null;
   updateTask: (
     projectId: string,
     taskId: string,

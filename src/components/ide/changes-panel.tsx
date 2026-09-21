@@ -744,7 +744,6 @@ const ChangesPanelImpl = ({
           aria-label={`${panelsT("unifiedDiff")} / ${panelsT("splitDiff")}`}
           onValueChange={handleSetDiffViewMode}
           options={diffViewOptions}
-          size="sm"
           value={diffViewMode}
         />
 

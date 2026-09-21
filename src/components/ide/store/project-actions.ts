@@ -38,6 +38,7 @@ export const createProjectActions = (
   | "takePendingChatSubmit"
   | "queueChatSubmit"
   | "addTask"
+  | "addTaskToProjectPath"
   | "updateTask"
   | "deleteTask"
   | "moveTaskInBacklog"

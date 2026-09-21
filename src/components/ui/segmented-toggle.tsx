@@ -15,14 +15,13 @@ export interface SegmentedToggleProps<Value extends string>
   "aria-label": string;
   onValueChange: (value: Value) => void;
   options: readonly SegmentedToggleOption<Value>[];
-  size?: "default" | "sm";
   value: Value;
 }
 
-const SIZE_CLASSES = {
-  default: { icon: "size-4", item: "h-7 w-9" },
-  sm: { icon: "size-3.5", item: "h-7 w-7" },
-} as const;
+// One size everywhere, so the control is recognisably the same component
+// wherever it appears.
+const ITEM_CLASSES = "h-7 w-7";
+const ICON_CLASSES = "size-3.5";
 
 /**
  * A bordered, icon-only single-choice switch. The options share one recessed
@@ -34,11 +33,9 @@ export const SegmentedToggle = <Value extends string>({
   className,
   onValueChange,
   options,
-  size = "default",
   value,
   ...props
 }: SegmentedToggleProps<Value>) => {
-  const sizeClasses = SIZE_CLASSES[size];
   const selectedIndex = Math.max(
     0,
     options.findIndex((option) => option.value === value),
@@ -77,7 +74,7 @@ export const SegmentedToggle = <Value extends string>({
             aria-label={option.label}
             className={cn(
               "relative z-10 flex items-center justify-center rounded-sm outline-none transition-colors duration-200 focus-visible:ring-[3px] focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500",
-              sizeClasses.item,
+              ITEM_CLASSES,
               selected
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -92,7 +89,7 @@ export const SegmentedToggle = <Value extends string>({
             title={option.label}
             type="button"
           >
-            <Icon className={sizeClasses.icon} />
+            <Icon className={ICON_CLASSES} />
           </button>
         );
       })}

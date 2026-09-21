@@ -7,6 +7,9 @@ export const supplementalMessages = {
       workspaces: "Arbeitsbereiche",
     },
     tasks: {
+      projectsOpen: "Geöffnet",
+      projectsRecent: "Zuletzt verwendet",
+      browseProject: "Durchsuchen…",
       scopeAll: "Alle Projekte",
       scopeLabel: "Nach Projekt filtern",
       taskProject: "Projekt",
@@ -597,6 +600,9 @@ export const supplementalMessages = {
       workspaces: "Workspaces",
     },
     tasks: {
+      projectsOpen: "Open",
+      projectsRecent: "Recent",
+      browseProject: "Browse…",
       scopeAll: "All projects",
       scopeLabel: "Filter by project",
       taskProject: "Project",
@@ -1173,6 +1179,9 @@ export const supplementalMessages = {
       workspaces: "Espacios de trabajo",
     },
     tasks: {
+      projectsOpen: "Abiertos",
+      projectsRecent: "Recientes",
+      browseProject: "Examinar…",
       scopeAll: "Todos los proyectos",
       scopeLabel: "Filtrar por proyecto",
       taskProject: "Proyecto",
@@ -1757,6 +1766,9 @@ export const supplementalMessages = {
       workspaces: "Espaces de travail",
     },
     tasks: {
+      projectsOpen: "Ouverts",
+      projectsRecent: "Récents",
+      browseProject: "Parcourir…",
       scopeAll: "Tous les projets",
       scopeLabel: "Filtrer par projet",
       taskProject: "Projet",
@@ -2342,6 +2354,9 @@ export const supplementalMessages = {
       workspaces: "Aree di lavoro",
     },
     tasks: {
+      projectsOpen: "Aperti",
+      projectsRecent: "Recenti",
+      browseProject: "Sfoglia…",
       scopeAll: "Tutti i progetti",
       scopeLabel: "Filtra per progetto",
       taskProject: "Progetto",
@@ -2927,6 +2942,9 @@ export const supplementalMessages = {
       workspaces: "ワークスペース",
     },
     tasks: {
+      projectsOpen: "開いているプロジェクト",
+      projectsRecent: "最近使ったプロジェクト",
+      browseProject: "参照…",
       scopeAll: "すべてのプロジェクト",
       scopeLabel: "プロジェクトで絞り込む",
       taskProject: "プロジェクト",
@@ -3504,6 +3522,9 @@ export const supplementalMessages = {
       workspaces: "워크스페이스",
     },
     tasks: {
+      projectsOpen: "열린 프로젝트",
+      projectsRecent: "최근 프로젝트",
+      browseProject: "찾아보기…",
       scopeAll: "모든 프로젝트",
       scopeLabel: "프로젝트별 필터",
       taskProject: "프로젝트",
@@ -4072,6 +4093,9 @@ export const supplementalMessages = {
       workspaces: "Espaços de trabalho",
     },
     tasks: {
+      projectsOpen: "Abertos",
+      projectsRecent: "Recentes",
+      browseProject: "Procurar…",
       scopeAll: "Todos os projetos",
       scopeLabel: "Filtrar por projeto",
       taskProject: "Projeto",
@@ -4651,6 +4675,9 @@ export const supplementalMessages = {
       workspaces: "Không gian làm việc",
     },
     tasks: {
+      projectsOpen: "Đang mở",
+      projectsRecent: "Gần đây",
+      browseProject: "Duyệt…",
       scopeAll: "Tất cả dự án",
       scopeLabel: "Lọc theo dự án",
       taskProject: "Dự án",
@@ -5225,6 +5252,9 @@ export const supplementalMessages = {
       workspaces: "工作区",
     },
     tasks: {
+      projectsOpen: "已打开",
+      projectsRecent: "最近使用",
+      browseProject: "浏览…",
       scopeAll: "所有项目",
       scopeLabel: "按项目筛选",
       taskProject: "项目",
@@ -5780,6 +5810,9 @@ export const supplementalMessages = {
       workspaces: "工作區",
     },
     tasks: {
+      projectsOpen: "已開啟",
+      projectsRecent: "最近使用",
+      browseProject: "瀏覽…",
       scopeAll: "所有專案",
       scopeLabel: "依專案篩選",
       taskProject: "專案",

@@ -21,6 +21,7 @@ import type {
   TaskStepModel,
   TaskStepRun,
 } from "@/types/ide";
+import { normalizeProjectPathKey } from "../ide-state";
 import { extractStepOutput } from "../workspaces/tasks/task-output";
 import { updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
@@ -82,6 +83,28 @@ export const getTaskProjects = (projects: ProjectConfig[]): ProjectConfig[] =>
   projects.filter(
     (project) => !project.worktree || getProjectTasks(project).length > 0,
   );
+
+const RECENT_TASK_PROJECT_LIMIT = 20;
+
+/**
+ * Closed projects a new task can still be filed under, most recently used
+ * first. The Tasks workspace does not depend on what Code has open: picking
+ * one of these loads it in the background (see `addTaskToProjectPath`).
+ * Worktrees are left out — a closed one may no longer exist on disk.
+ */
+export const getRecentTaskProjects = (
+  closedProjects: ProjectConfig[],
+): ProjectConfig[] =>
+  closedProjects
+    .filter((project) => !project.worktree)
+    .map((project, index) => ({
+      index,
+      project,
+      usedAt: Date.parse(project.lastUsedAt ?? "") || 0,
+    }))
+    .sort((a, b) => b.usedAt - a.usedAt || b.index - a.index)
+    .slice(0, RECENT_TASK_PROJECT_LIMIT)
+    .map(({ project }) => project);
 
 export interface TaskSelection {
   entries: TaskEntry[];
@@ -261,6 +284,7 @@ export const createTaskActions = (
 ): Pick<
   IdeState,
   | "addTask"
+  | "addTaskToProjectPath"
   | "updateTask"
   | "deleteTask"
   | "moveTaskInBacklog"
@@ -541,6 +565,29 @@ export const createTaskActions = (
       });
 
       return task.id;
+    },
+
+    addTaskToProjectPath: (path, task) => {
+      const projectPath = path.trim();
+      if (!projectPath) {
+        return null;
+      }
+
+      const findOpenProject = () => {
+        const pathKey = normalizeProjectPathKey(projectPath);
+        return get().projects.find(
+          (entry) => normalizeProjectPathKey(entry.path) === pathKey,
+        );
+      };
+      // Reopens a recent project, or registers a folder the app has not seen,
+      // without activating it: the user stays in Tasks and Code's active tab
+      // does not change.
+      if (!findOpenProject()) {
+        get().addProject(projectPath, { activate: false });
+      }
+
+      const project = findOpenProject();
+      return project ? get().addTask(project.id, task) : null;
     },
 
     updateTask: (projectId, taskId, updates) => {
