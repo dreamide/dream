@@ -79,7 +79,7 @@ Run the project's tests and lint, commit your work, and finish with a summary of
 {{previous.output}}
 
 End with a verdict line, either APPROVE or CHANGES REQUESTED, followed by numbered findings that reference file:line.`,
-  merge: `You are the merge-preparation step of a task pipeline. Prepare branch {{branch}} for merging into {{baseRef}}: commit any outstanding work, bring in the latest {{baseRef}}, resolve conflicts, and re-run the project's checks. Do NOT merge into {{baseRef}} and do NOT push.
+  merge: `You are the final (ship) step of a task pipeline, getting the work ready to hand over. Prepare branch {{branch}} for merging into {{baseRef}}: commit any outstanding work, bring in the latest {{baseRef}}, resolve conflicts, and re-run the project's checks. Do NOT merge into {{baseRef}} and do NOT push.
 
 # {{task.title}}
 

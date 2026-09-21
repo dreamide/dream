@@ -78,9 +78,11 @@ export const TaskSettingsDialog = ({
           onValueChange={(value) => setStep(value as TaskRunStepId)}
           value={step}
         >
-          <TabsList>
+          {/* The steps are this dialog's main navigation, so they span its
+              width instead of sitting as a compact pill. */}
+          <TabsList className="w-full group-data-horizontal/tabs:h-10">
             {TASK_RUN_STEP_IDS.map((id) => (
-              <TabsTrigger className="gap-1.5" key={id} value={id}>
+              <TabsTrigger className="gap-2 text-sm" key={id} value={id}>
                 <TaskStepIcon step={id} />
                 {t(TASK_STEP_LABEL_KEYS[id])}
               </TabsTrigger>

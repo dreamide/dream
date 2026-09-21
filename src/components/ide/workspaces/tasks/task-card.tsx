@@ -145,6 +145,7 @@ const TaskCardImpl = ({
   const canDelete = !busy && status !== "starting" && status !== "running";
   const liveRunIds = new Set(liveRunIdsKey ? liveRunIdsKey.split(",") : []);
   const liveRuns = task.runs.filter((run) => liveRunIds.has(run.id));
+  const latestLiveRun = liveRuns.at(-1) ?? null;
   const nextStep = getNextTaskStep(task.step);
   const sendBackTargets = settled ? getEarlierTaskRunSteps(task.step) : [];
   const needsRetry =
@@ -230,7 +231,22 @@ const TaskCardImpl = ({
           <div className="flex items-start gap-2">
             <TaskStepIcon className="mt-0.5" step={task.step} />
             <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
-              {task.title}
+              {latestLiveRun ? (
+                // Runs are stored oldest first, so the last live one is the
+                // chat the task was most recently working in.
+                <button
+                  className="cursor-pointer text-left hover:underline focus-visible:underline focus-visible:outline-none"
+                  onClick={() => onOpenChat(entry, latestLiveRun.id)}
+                  // The card's double-click opens the edit dialog.
+                  onDoubleClick={(event) => event.stopPropagation()}
+                  title={t("openChat")}
+                  type="button"
+                >
+                  {task.title}
+                </button>
+              ) : (
+                task.title
+              )}
             </h3>
           </div>
           {task.description ? (

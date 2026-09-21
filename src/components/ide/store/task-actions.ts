@@ -28,7 +28,8 @@ import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 const STEP_TITLE_PREFIX: Record<TaskRunStepId, string> = {
   build: "Build",
-  merge: "Merge",
+  // The id stays `merge` so saved tasks need no migration.
+  merge: "Ship",
   plan: "Plan",
   review: "Review",
 };
