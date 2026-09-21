@@ -84,6 +84,7 @@ export const TaskBoard = ({
   const completeTask = useIdeStore((s) => s.completeTask);
   const openTaskStepChat = useIdeStore((s) => s.openTaskStepChat);
   const reopenTaskWorktree = useIdeStore((s) => s.reopenTaskWorktree);
+  const recreateTaskWorktree = useIdeStore((s) => s.recreateTaskWorktree);
   const taskConfig = useIdeStore((s) => s.taskConfig);
   const [dialog, setDialog] = useState<TaskDialogState | null>(null);
   // Keyed by `entry.key`, the task id.
@@ -199,6 +200,26 @@ export const TaskBoard = ({
         }
       }),
     [reopenTaskWorktree, runTaskAction, t],
+  );
+  const handleRecreateWorktree = useCallback(
+    (entry: TaskEntry) =>
+      runTaskAction(entry.key, () =>
+        recreateTaskWorktree(entry.projectId, entry.task.id),
+      ),
+    [recreateTaskWorktree, runTaskAction],
+  );
+  const handleMarkDone = useCallback(
+    (entry: TaskEntry) => {
+      setTaskError(entry.key, null);
+      // Nothing is left to merge or clean up: the worktree is already gone.
+      completeTask(entry.projectId, entry.task.id, {
+        at: new Date().toISOString(),
+        kind: "removed",
+        mergeCommit: null,
+        prUrl: null,
+      });
+    },
+    [completeTask, setTaskError],
   );
   const handleOpenChat = useCallback(
     (entry: TaskEntry, runId?: string) =>
@@ -319,7 +340,9 @@ export const TaskBoard = ({
               onDelete={handleDelete}
               onEdit={handleEdit}
               onMoveInBacklog={handleMoveInBacklog}
+              onMarkDone={handleMarkDone}
               onOpenChat={handleOpenChat}
+              onRecreateWorktree={handleRecreateWorktree}
               onReopenWorktree={handleReopenWorktree}
               onRetry={handleRetry}
               onSendBack={handleSendBack}

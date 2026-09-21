@@ -16,6 +16,7 @@ import {
   getProjectGitFileAtHead,
   getProjectGitPushPreview,
   getProjectGitWorktreeCompareDiff,
+  getTaskWorktreeStatus,
   listProjectDirectory,
   listProjectFiles,
   listProjectGitBranches,
@@ -41,6 +42,7 @@ import {
   projectGitRevertFileRequestSchema,
   projectGitStatusRequestSchema,
   projectGitTaskCommitRequestSchema,
+  projectGitTaskWorktreeRequestSchema,
   projectGitWorktreeCleanupRequestSchema,
   projectGitWorktreeCompareDiffRequestSchema,
   projectGitWorktreeCompareRequestSchema,
@@ -48,9 +50,11 @@ import {
   projectGitWorktreesRequestSchema,
   projectIconRequestSchema,
   pushProjectGitChanges,
+  recreateTaskWorktree,
   removeProjectGitWorktree,
   resolveProjectPath,
   revertProjectGitFile,
+  TASK_WORKTREE_MISSING,
 } from "./project-git-service.js";
 
 const PROJECT_FILE_PREVIEW_MAX_BYTES = 1024 * 1024;
@@ -569,6 +573,39 @@ export const registerProjectGitRoutes = (app) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to commit changes.";
+      // 410 Gone: the worktree itself is missing, which the renderer handles
+      // differently from a commit that git rejected.
+      return c.text(message, error?.code === TASK_WORKTREE_MISSING ? 410 : 400);
+    }
+  });
+
+  app.post("/api/project-git-task-worktree", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitTaskWorktreeRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { action, projectPath, ...worktree } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(
+        action === "recreate"
+          ? await recreateTaskWorktree(projectPath, worktree)
+          : await getTaskWorktreeStatus(projectPath, worktree),
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to restore the task's worktree.";
       return c.text(message, 400);
     }
   });

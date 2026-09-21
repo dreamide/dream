@@ -14,6 +14,7 @@ export type TaskStatus =
   | "interrupted"
   | "missing"
   | "worktreeClosed"
+  | "worktreeMissing"
   | "done";
 
 /**
@@ -28,6 +29,7 @@ export const getTaskStatus = ({
   pendingSubmit,
   streaming,
   task,
+  worktreeMissing = false,
   worktreeOpen,
 }: {
   activityEntry: ChatActivity | undefined;
@@ -40,6 +42,11 @@ export const getTaskStatus = ({
   pendingSubmit: boolean;
   streaming: boolean;
   task: Pick<Task, "completion" | "step" | "worktreeProjectId">;
+  /**
+   * The worktree was found missing on disk. No agent can fix that, so it
+   * outranks everything the step chat reports.
+   */
+  worktreeMissing?: boolean;
   /** Whether the task's worktree project is open (true when it has none). */
   worktreeOpen: boolean;
 }): TaskStatus => {
@@ -49,6 +56,10 @@ export const getTaskStatus = ({
 
   if (task.step === "backlog" || !currentRun) {
     return "idle";
+  }
+
+  if (task.worktreeProjectId && worktreeMissing) {
+    return "worktreeMissing";
   }
 
   if (task.worktreeProjectId && !worktreeOpen) {
@@ -128,6 +139,7 @@ export const getTaskStatusDotProps = (
     case "done":
       return { color: "green", pulse: false };
     case "failed":
+    case "worktreeMissing":
       return { className: "bg-destructive", color: "green", pulse: false };
     default:
       return {
@@ -150,4 +162,5 @@ export const TASK_STATUS_LABEL_KEYS = {
   starting: "statusStarting",
   waiting: "statusWaiting",
   worktreeClosed: "statusWorktreeClosed",
+  worktreeMissing: "statusWorktreeMissing",
 } as const satisfies Record<TaskStatus, string>;

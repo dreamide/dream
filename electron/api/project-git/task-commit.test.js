@@ -132,6 +132,19 @@ test("refuses to record unresolved conflicts as resolved", async () => {
   assert.match(git(cwd, "status", "--porcelain"), /^UU app\.txt/);
 });
 
+test("a worktree that is no longer a git checkout gets a short, clear error", async () => {
+  const cwd = mkdtempSync(path.join(tmpdir(), "dream-task-commit-"));
+  repos.push(cwd);
+  writeFileSync(path.join(cwd, "app.txt"), "orphaned");
+
+  await assert.rejects(
+    commitTaskStepWork(cwd, { fallbackMessage: "Add a slider" }),
+    (error) =>
+      /no longer a git checkout/.test(error.message) &&
+      error.message.length < 300,
+  );
+});
+
 test("refuses to commit in the middle of a rebase", async () => {
   const cwd = createRepo();
   git(cwd, "checkout", "-q", "-b", "task/slider");

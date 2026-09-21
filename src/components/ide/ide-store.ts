@@ -44,6 +44,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},
+  missingTaskWorktrees: {},
   awaitingAnswerChatIds: {},
   completedChatIds: {},
   titleGeneratingChatIds: {},

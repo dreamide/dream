@@ -57,6 +57,12 @@ export interface IdeState {
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
+  /**
+   * Tasks (by id) whose worktree was found missing on disk. Not persisted: it
+   * is re-detected by the next reopen or commit, and the disk may have changed
+   * by the next launch anyway.
+   */
+  missingTaskWorktrees: Record<string, true>;
   awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
@@ -223,6 +229,12 @@ export interface IdeState {
   openTaskStepChat: (projectId: string, taskId: string, runId?: string) => void;
   /** Reopens a task's closed worktree project in the background. */
   reopenTaskWorktree: (projectId: string, taskId: string) => Promise<boolean>;
+  /**
+   * Checks the task's branch out again where its worktree used to be, and
+   * opens it in the background. Throws when that is not possible (the branch
+   * is gone too, or the folder holds other files).
+   */
+  recreateTaskWorktree: (projectId: string, taskId: string) => Promise<void>;
   unlinkTaskRunsForChats: (chatIds: string[]) => void;
   /**
    * Edits a step's settings. There is one config for the whole app — no

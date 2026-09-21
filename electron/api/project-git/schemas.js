@@ -109,6 +109,15 @@ export const projectGitTaskCommitRequestSchema = z.object({
     .default("openai"),
 });
 
+/** Checking on, or bringing back, the worktree a task runs in. */
+export const projectGitTaskWorktreeRequestSchema = z.object({
+  action: z.enum(["check", "recreate"]),
+  branch: z.string().trim().min(1),
+  /** The project that owns the task, i.e. the repository's own checkout. */
+  projectPath: z.string().min(1),
+  worktreePath: z.string().trim().min(1),
+});
+
 export const projectGitPushRequestSchema = z.object({
   commitMessage: nullableTrimmedStringSchema,
   customInstructions: nullableTrimmedStringSchema,

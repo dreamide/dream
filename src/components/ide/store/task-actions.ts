@@ -36,7 +36,28 @@ type ProjectLists = Pick<IdeState, "closedProjects" | "projects">;
  * happens or fails visibly.
  */
 const COMMIT_STEPS: ReadonlySet<TaskRunStepId> = new Set(["build", "merge"]);
-const COMMIT_ERROR_MAX_CHARS = 4000;
+/** HTTP 410 from the commit route: the worktree is gone (see the server). */
+const WORKTREE_MISSING_STATUS = 410;
+
+class WorktreeMissingError extends Error {}
+
+const COMMIT_ERROR_MAX_CHARS = 2000;
+const COMMIT_ERROR_MAX_LINES = 20;
+
+/**
+ * Git's reason for rejecting a commit, without the noise: a failed command
+ * can append its whole usage text, which buries the one line that matters.
+ */
+export const summarizeCommitError = (message: string): string => {
+  const lines = message.split(/\r?\n/);
+  const usageIndex = lines.findIndex((line) => /^usage: /i.test(line.trim()));
+  return (usageIndex > 0 ? lines.slice(0, usageIndex) : lines)
+    .slice(0, COMMIT_ERROR_MAX_LINES)
+    .join("\n")
+    .trim()
+    .slice(0, COMMIT_ERROR_MAX_CHARS);
+};
+
 const NL2 = "\n\n";
 
 /** Used when no commit message can be generated from the diff. */
@@ -330,6 +351,7 @@ export const createTaskActions = (
   | "completeTask"
   | "openTaskStepChat"
   | "reopenTaskWorktree"
+  | "recreateTaskWorktree"
   | "unlinkTaskRunsForChats"
   | "setTaskStepConfig"
   | "isTaskChat"
@@ -580,6 +602,45 @@ export const createTaskActions = (
     return settled;
   };
 
+  const setWorktreeMissing = (taskId: string, missing: boolean) =>
+    set((state) => {
+      const current = state.missingTaskWorktrees ?? {};
+      if (Boolean(current[taskId]) === missing) {
+        return state;
+      }
+      const next = { ...current };
+      if (missing) {
+        next[taskId] = true;
+      } else {
+        delete next[taskId];
+      }
+      return { missingTaskWorktrees: next };
+    });
+
+  const postTaskWorktree = async <Result>(
+    action: "check" | "recreate",
+    projectPath: string,
+    task: Task,
+  ): Promise<Result> => {
+    const response = await fetch("/api/project-git-task-worktree", {
+      body: JSON.stringify({
+        action,
+        branch: task.branch,
+        projectPath,
+        worktreePath: task.worktreePath,
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(
+        (await response.text()).trim() ||
+          "The task's worktree could not be checked.",
+      );
+    }
+    return (await response.json()) as Result;
+  };
+
   /**
    * Commits the current run's work when its step is one the app commits for
    * (see `COMMIT_STEPS`). Throws when git rejects the commit, after recording
@@ -628,14 +689,23 @@ export const createTaskActions = (
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
+      if (response.status === WORKTREE_MISSING_STATUS) {
+        // Not a rejected commit: the checkout itself is gone, which no agent
+        // can fix. The card offers to recreate it instead of retrying.
+        setWorktreeMissing(taskId, true);
+        throw new WorktreeMissingError((await response.text()).trim());
+      }
       if (!response.ok) {
         throw new Error((await response.text()).trim());
       }
     } catch (error) {
+      if (error instanceof WorktreeMissingError) {
+        throw error;
+      }
       const message =
-        (error instanceof Error ? error.message.trim() : "") ||
+        summarizeCommitError(error instanceof Error ? error.message : "") ||
         "The work could not be committed.";
-      setCommitError(message.slice(0, COMMIT_ERROR_MAX_CHARS));
+      setCommitError(message);
       throw new Error(message);
     }
 
@@ -935,13 +1005,88 @@ export const createTaskActions = (
       const closedProject = get().closedProjects.find(
         (entry) => entry.id === task.worktreeProjectId,
       );
-      if (!closedProject) {
-        // The worktree was removed outside the Tasks workspace.
+      const owner = findProjectById(get(), projectId);
+      // Reopening a project whose folder is gone would only fail later, in
+      // the middle of a step. No record at all means the worktree was removed.
+      const isCheckout =
+        closedProject && owner && task.branch && task.worktreePath
+          ? (
+              await postTaskWorktree<{ isCheckout: boolean }>(
+                "check",
+                owner.path,
+                task,
+              )
+            ).isCheckout
+          : false;
+      if (!closedProject || !isCheckout) {
+        setWorktreeMissing(taskId, true);
         return false;
       }
 
       get().addProject(closedProject.path, { activate: false });
       return isOpen();
+    },
+
+    recreateTaskWorktree: async (projectId, taskId) => {
+      const found = findTask(projectId, taskId);
+      if (!found) {
+        return;
+      }
+
+      const { task } = found;
+      if (!task.branch || !task.worktreePath) {
+        throw new Error("This task has no worktree to recreate.");
+      }
+      // Git runs in the repository's own checkout, so it must be loaded.
+      const owner = ensureProjectOpen(projectId);
+      if (!owner) {
+        throw new Error("The project could not be opened.");
+      }
+
+      const created = await postTaskWorktree<{
+        branch: string;
+        mainWorktreePath: string;
+        path: string;
+        repoRoot: string;
+      }>("recreate", owner.path, task);
+
+      // Open the worktree's project again, keeping its identity (and so its
+      // chats) when the app still has a record of it.
+      get().addProject(created.path, { activate: false });
+      const pathKey = normalizeProjectPathKey(created.path);
+      const worktreeProject = get().projects.find(
+        (entry) => normalizeProjectPathKey(entry.path) === pathKey,
+      );
+      if (!worktreeProject) {
+        throw new Error("The recreated worktree could not be opened.");
+      }
+
+      set((state) => ({
+        projects: state.projects.map((entry) =>
+          entry.id === worktreeProject.id && !entry.worktree
+            ? {
+                ...entry,
+                // A brand-new record: mark it as this task's managed worktree.
+                worktree: {
+                  baseRef: task.baseRef,
+                  branch: created.branch,
+                  createdAt: new Date().toISOString(),
+                  kind: "worktree" as const,
+                  mainWorktreePath: created.mainWorktreePath,
+                  managed: true,
+                  parentProjectId: projectId,
+                  repoRoot: created.repoRoot,
+                },
+              }
+            : entry,
+        ),
+        tasks: replaceTask(state.tasks, taskId, (entry) => ({
+          ...entry,
+          worktreePath: created.path,
+          worktreeProjectId: worktreeProject.id,
+        })),
+      }));
+      setWorktreeMissing(taskId, false);
     },
 
     unlinkTaskRunsForChats: (chatIds) => {

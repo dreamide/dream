@@ -6,6 +6,7 @@ import {
   Ellipsis,
   FilePenLine,
   FolderOpen,
+  FolderSync,
   GitBranch,
   MessageSquare,
   Play,
@@ -61,6 +62,9 @@ export interface TaskCardProps {
   onEdit: (entry: TaskEntry) => void;
   onMoveInBacklog: (entry: TaskEntry, index: number) => void;
   onOpenChat: (entry: TaskEntry, runId?: string) => void;
+  /** Ends a task whose worktree is gone, e.g. because it was merged by hand. */
+  onMarkDone: (entry: TaskEntry) => void;
+  onRecreateWorktree: (entry: TaskEntry) => void;
   onReopenWorktree: (entry: TaskEntry) => void;
   onRetry: (entry: TaskEntry) => void;
   onSendBack: (entry: TaskEntry, toStep: TaskRunStepId) => void;
@@ -80,7 +84,9 @@ const TaskCardImpl = ({
   onDelete,
   onEdit,
   onMoveInBacklog,
+  onMarkDone,
   onOpenChat,
+  onRecreateWorktree,
   onReopenWorktree,
   onRetry,
   onSendBack,
@@ -125,6 +131,9 @@ const TaskCardImpl = ({
       !task.worktreeProjectId ||
       s.projects.some((project) => project.id === task.worktreeProjectId),
   );
+  const worktreeMissing = useIdeStore((s) =>
+    Boolean(s.missingTaskWorktrees[task.id]),
+  );
   const activityEntry = useActivityStore((s) =>
     chatId ? s.entries[chatId] : undefined,
   );
@@ -137,6 +146,7 @@ const TaskCardImpl = ({
     pendingSubmit,
     streaming,
     task,
+    worktreeMissing,
     worktreeOpen,
   });
   const dot = getTaskStatusDotProps(status);
@@ -161,43 +171,50 @@ const TaskCardImpl = ({
   const primaryAction =
     status === "idle" && task.step === "backlog"
       ? { icon: Play, label: t("start"), run: () => onStart(entry) }
-      : status === "worktreeClosed"
+      : status === "worktreeMissing"
         ? {
-            icon: FolderOpen,
-            label: t("reopenWorktree"),
-            run: () => onReopenWorktree(entry),
+            // The branch usually outlives the folder, so the work comes back.
+            icon: FolderSync,
+            label: t("recreateWorktree"),
+            run: () => onRecreateWorktree(entry),
           }
-        : changesRequested
+        : status === "worktreeClosed"
           ? {
-              // The reviewer's findings go back to the builder; approving
-              // anyway stays available from the menu.
-              icon: Undo2,
-              label: t("sendBackTo", {
-                step: t(TASK_STEP_LABEL_KEYS.build),
-              }),
-              run: () => onSendBack(entry, "build"),
+              icon: FolderOpen,
+              label: t("reopenWorktree"),
+              run: () => onReopenWorktree(entry),
             }
-          : needsRetry
+          : changesRequested
             ? {
-                icon: RotateCcw,
-                label: t("retryStep"),
-                run: () => onRetry(entry),
+                // The reviewer's findings go back to the builder; approving
+                // anyway stays available from the menu.
+                icon: Undo2,
+                label: t("sendBackTo", {
+                  step: t(TASK_STEP_LABEL_KEYS.build),
+                }),
+                run: () => onSendBack(entry, "build"),
               }
-            : canApprove && nextStep
+            : needsRetry
               ? {
-                  icon: ChevronsRight,
-                  label: t("approveAdvance", {
-                    step: t(TASK_STEP_LABEL_KEYS[nextStep]),
-                  }),
-                  run: () => onAdvance(entry),
+                  icon: RotateCcw,
+                  label: t("retryStep"),
+                  run: () => onRetry(entry),
                 }
-              : canApprove && task.step === "merge"
+              : canApprove && nextStep
                 ? {
-                    icon: Check,
-                    label: t("complete"),
-                    run: () => onComplete(entry),
+                    icon: ChevronsRight,
+                    label: t("approveAdvance", {
+                      step: t(TASK_STEP_LABEL_KEYS[nextStep]),
+                    }),
+                    run: () => onAdvance(entry),
                   }
-                : null;
+                : canApprove && task.step === "merge"
+                  ? {
+                      icon: Check,
+                      label: t("complete"),
+                      run: () => onComplete(entry),
+                    }
+                  : null;
 
   // Completing is also offered from the menu, so a task can skip the merge
   // agent (or a failed one) and go straight to merge / PR.
@@ -358,6 +375,14 @@ const TaskCardImpl = ({
                   {t("moveDown")}
                 </DropdownMenuItem>
               </>
+            ) : null}
+            {status === "worktreeMissing" ? (
+              // Often the work was merged by hand and the worktree removed
+              // with it; then the task is simply finished.
+              <DropdownMenuItem onClick={() => onMarkDone(entry)}>
+                <Check className="size-4" />
+                {t("markDone")}
+              </DropdownMenuItem>
             ) : null}
             <DropdownMenuItem onClick={() => onEdit(entry)}>
               <FilePenLine className="size-4" />

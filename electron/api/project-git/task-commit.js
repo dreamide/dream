@@ -1,6 +1,10 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { runGitCommand } from "./core.js";
+import {
+  createTaskWorktreeMissingError,
+  isGitCheckout,
+} from "./task-worktree.js";
 
 const MAX_SUBJECT_LENGTH = 120;
 
@@ -60,6 +64,13 @@ export const commitTaskStepWork = async (
   projectPath,
   { fallbackMessage = "", generateMessage = null } = {},
 ) => {
+  if (!(await isGitCheckout(projectPath))) {
+    // Without this, the first git command fails with a page of usage text.
+    // It is also a different kind of failure: the agent cannot fix it, so the
+    // caller offers to recreate the worktree instead of retrying the step.
+    throw createTaskWorktreeMissingError(projectPath);
+  }
+
   if (await isRebaseInProgress(projectPath)) {
     throw new Error(
       "A rebase is still in progress. Finish it with `git rebase --continue`, or abort it with `git rebase --abort`.",

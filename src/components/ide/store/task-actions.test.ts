@@ -25,11 +25,19 @@ import {
   getTaskScopeProjects,
   resolveTaskStepAgent,
   selectTaskEntries,
+  summarizeCommitError,
 } from "./task-actions";
 
 interface WorktreeRequest {
   activate?: boolean;
   branchName: string;
+}
+
+interface WorktreeApiRequest {
+  action: "check" | "recreate";
+  branch: string;
+  projectPath: string;
+  worktreePath: string;
 }
 
 interface CommitRequest {
@@ -42,19 +50,54 @@ interface CommitRequest {
 const createTestStore = () => {
   const worktreeRequests: WorktreeRequest[] = [];
   const commitRequests: CommitRequest[] = [];
+  const worktreeRequests2: WorktreeApiRequest[] = [];
   const harness = {
     /** Git's output when the app's commit should be rejected. */
     failCommit: null as string | null,
     failWorktree: null as string | null,
+    /** Whether the task's worktree folder is still a git checkout. */
+    worktreeOnDisk: true,
   };
   // The app commits a step's work through the API server.
   vi.stubGlobal("fetch", async (url: string, init?: { body?: string }) => {
+    const body = JSON.parse(init?.body ?? "{}");
+    if (url === "/api/project-git-task-worktree") {
+      const request = body as WorktreeApiRequest;
+      worktreeRequests2.push(request);
+      if (request.action === "recreate") {
+        harness.worktreeOnDisk = true;
+      }
+      return {
+        json: async () =>
+          request.action === "recreate"
+            ? {
+                branch: request.branch,
+                mainWorktreePath: "/workspace/source",
+                path: request.worktreePath,
+                repoRoot: "/workspace/source",
+              }
+            : { branchExists: true, isCheckout: harness.worktreeOnDisk },
+        ok: true,
+        status: 200,
+        text: async () => "",
+      };
+    }
+
     assert.equal(url, "/api/project-git-task-commit");
-    commitRequests.push(JSON.parse(init?.body ?? "{}") as CommitRequest);
+    commitRequests.push(body as CommitRequest);
+    if (!harness.worktreeOnDisk) {
+      return {
+        json: async () => ({}),
+        ok: false,
+        status: 410,
+        text: async () => "This task's worktree is no longer a git checkout",
+      };
+    }
     const rejection = harness.failCommit;
     return {
       json: async () => ({ committed: true }),
       ok: rejection === null,
+      status: rejection === null ? 200 : 400,
       text: async () => rejection ?? "",
     };
   });
@@ -72,6 +115,7 @@ const createTestStore = () => {
         completedChatIds: {},
         draftChatIdByProject: {},
         messagesByChatId: {},
+        missingTaskWorktrees: {},
         pendingChatSubmitByChatId: {},
         projectGitRefreshKeys: {},
         tasks: [],
@@ -140,6 +184,7 @@ const createTestStore = () => {
 
   return {
     commitRequests,
+    worktreeApiRequests: worktreeRequests2,
     harness,
     project,
     store,
@@ -1195,4 +1240,118 @@ test("tasks without their own worktree are never committed by the app", async ()
   assert.equal(getTask(store).worktreeProjectId, null);
   assert.equal(getTask(store).step, "review");
   assert.deepEqual(commitRequests, []);
+});
+
+test("a rejected commit keeps git's reason and drops its usage text", () => {
+  const dump = [
+    "warning: Not a git repository. Use --no-index to compare two paths",
+    "usage: git diff --no-index [<options>] <path> <path>",
+    "",
+    "Diff output format options",
+    "    -p, --patch           generate patch",
+  ].join("\n");
+  assert.equal(
+    summarizeCommitError(dump),
+    "warning: Not a git repository. Use --no-index to compare two paths",
+  );
+
+  // Hook output is kept as it is, up to a sensible length.
+  const hook = "pre-commit: lint failed\n  Slider.jsx:3 unused import";
+  assert.equal(summarizeCommitError(hook), hook);
+  const long = Array.from({ length: 80 }, (_, index) => `line ${index}`).join(
+    "\n",
+  );
+  assert.equal(summarizeCommitError(long).split("\n").length, 20);
+});
+
+test("a missing worktree is not a rejected commit: nothing goes back to the agent", async () => {
+  const { harness, project, store } = createTestStore();
+  const taskId = addTask(store, project.id);
+  harness.worktreeOnDisk = false;
+  await runToFinishedBuild(store, project.id, taskId);
+
+  const task = getTask(store);
+  assert.equal(task.step, "build");
+  // The agent cannot fix a missing checkout, so no commit error is recorded
+  // for a retry to hand back; the card offers to recreate the worktree.
+  assert.equal(task.runs[1]?.commitError, null);
+  assert.deepEqual(store.getState().missingTaskWorktrees, { [taskId]: true });
+  await assert.rejects(
+    store.getState().advanceTask(project.id, taskId),
+    /no longer a git checkout/,
+  );
+  assert.equal(getTask(store).step, "build");
+});
+
+test("reopening checks the disk first, and recreating brings the worktree back", async () => {
+  const { harness, project, store, worktreeApiRequests } = createTestStore();
+  const taskId = addTask(store, project.id);
+  await runToFinishedBuild(store, project.id, taskId);
+  const worktreeProjectId = getTask(store).worktreeProjectId;
+  assert.ok(worktreeProjectId);
+  closeProjectInStore(store, worktreeProjectId);
+
+  harness.worktreeOnDisk = false;
+  assert.equal(
+    await store.getState().reopenTaskWorktree(project.id, taskId),
+    false,
+  );
+  // Still closed: opening a project whose folder is gone helps nobody.
+  assert.ok(
+    store
+      .getState()
+      .closedProjects.some((entry) => entry.id === worktreeProjectId),
+  );
+  assert.deepEqual(store.getState().missingTaskWorktrees, { [taskId]: true });
+
+  await store.getState().recreateTaskWorktree(project.id, taskId);
+
+  const task = getTask(store);
+  assert.deepEqual(worktreeApiRequests.at(-1), {
+    action: "recreate",
+    branch: task.branch,
+    projectPath: project.path,
+    worktreePath: task.worktreePath,
+  });
+  // The same project record is reopened, so its step chats are still linked.
+  assert.equal(task.worktreeProjectId, worktreeProjectId);
+  assert.ok(
+    store.getState().projects.some((entry) => entry.id === worktreeProjectId),
+  );
+  assert.deepEqual(store.getState().missingTaskWorktrees, {});
+});
+
+test("recreating a worktree the app has no record of registers it for the task", async () => {
+  const { project, store } = createTestStoreWithRealProjects();
+  const taskId = addTask(store, project.id);
+  const openBefore = store.getState().projects.length;
+  // The worktree project was purged (e.g. removed from Code), but the task
+  // still names its branch and folder.
+  store.setState({
+    missingTaskWorktrees: { [taskId]: true },
+    tasks: store.getState().tasks.map((task) => ({
+      ...task,
+      baseRef: "main",
+      branch: "task/task-abc123",
+      step: "build" as const,
+      worktreePath: "/workspace/worktrees/task-abc123",
+      worktreeProjectId: "purged-project",
+    })),
+  });
+
+  await store.getState().recreateTaskWorktree(project.id, taskId);
+
+  const state = store.getState();
+  const task = getTask(store);
+  assert.equal(state.projects.length, openBefore + 1);
+  const created = state.projects.find(
+    (entry) => entry.id === task.worktreeProjectId,
+  );
+  assert.equal(created?.path, "/workspace/worktrees/task-abc123");
+  assert.equal(created?.worktree?.branch, "task/task-abc123");
+  assert.equal(created?.worktree?.parentProjectId, project.id);
+  assert.equal(created?.worktree?.managed, true);
+  assert.deepEqual(state.missingTaskWorktrees, {});
+  // Code's active tab did not move.
+  assert.equal(state.activeProjectId, project.id);
 });

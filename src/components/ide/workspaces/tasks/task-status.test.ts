@@ -89,6 +89,29 @@ test("a finished run whose commit was rejected is failed, not ready to approve",
   );
 });
 
+test("a missing worktree outranks whatever the step chat reports", () => {
+  const withWorktree = {
+    ...base,
+    task: { ...base.task, worktreeProjectId: "worktree-project" },
+    worktreeMissing: true,
+  };
+  assert.equal(getTaskStatus(withWorktree), "worktreeMissing");
+  assert.equal(
+    getTaskStatus({
+      ...withWorktree,
+      currentRun: { chatId: "chat-1", finishedAt: "now" },
+      worktreeOpen: false,
+    }),
+    "worktreeMissing",
+  );
+  // Neither approve nor retry makes sense until the worktree is back.
+  assert.equal(isTaskSettled("worktreeMissing"), false);
+  assert.equal(
+    getTaskStatusDotProps("worktreeMissing").className,
+    "bg-destructive",
+  );
+});
+
 test("an unfinished run reflects the recorded activity", () => {
   assert.equal(
     getTaskStatus({ ...base, activityEntry: activity("failed") }),
