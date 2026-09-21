@@ -26,6 +26,8 @@ import { extractStepOutput } from "../workspaces/tasks/task-output";
 import { updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
+type ProjectLists = Pick<IdeState, "closedProjects" | "projects">;
+
 const STEP_TITLE_PREFIX: Record<TaskRunStepId, string> = {
   build: "Build",
   // The id stays `merge` so saved tasks need no migration.
@@ -34,8 +36,16 @@ const STEP_TITLE_PREFIX: Record<TaskRunStepId, string> = {
   review: "Review",
 };
 
-const getProjectTasks = (project: { ui: { tasks?: Task[] } } | undefined) =>
-  project?.ui.tasks ?? [];
+/**
+ * A task's owner may be open in Code or closed: the Tasks workspace does not
+ * depend on which, so lookups span both lists.
+ */
+const findProjectById = (
+  state: ProjectLists,
+  projectId: string,
+): ProjectConfig | undefined =>
+  state.projects.find((entry) => entry.id === projectId) ??
+  state.closedProjects.find((entry) => entry.id === projectId);
 
 /** The run driving the task's current step, if that step has started. */
 export const getCurrentTaskRun = (
@@ -51,46 +61,67 @@ export const getCurrentTaskRun = (
 };
 
 export interface TaskMatch {
-  project: ProjectConfig;
   run: TaskStepRun;
   task: Task;
 }
 
 /**
- * Finds the task owning `chatId`. Tasks live in the parent project while their
- * step chats may belong to a worktree project, so every project is scanned.
+ * Finds the task owning `chatId`, through its latest run in that chat. A task
+ * sent back to an earlier step continues in that step's chat, so several runs
+ * can share one chat; only the newest is the one the agent is working on.
  */
 export const findTaskByChatId = (
-  projects: ProjectConfig[],
+  tasks: Task[],
   chatId: string,
 ): TaskMatch | null => {
-  for (const project of projects) {
-    for (const task of getProjectTasks(project)) {
-      const run = task.runs.find((entry) => entry.chatId === chatId);
-      if (run) {
-        return { project, run, task };
-      }
+  for (const task of tasks) {
+    const run = task.runs.findLast((entry) => entry.chatId === chatId);
+    if (run) {
+      return { run, task };
     }
   }
   return null;
 };
 
+const getTaskOwnerIds = (tasks: Task[]): Set<string> =>
+  new Set(tasks.map((task) => task.projectId));
+
 /**
- * Projects worth offering in the Tasks workspace's own project filter. Worktrees the
- * Tasks workspace created are projects too, but their tasks live on the parent, so a
- * worktree is only listed when it holds tasks of its own.
+ * Open projects a new task can be filed under. Worktrees the Tasks workspace
+ * created are projects too, but their tasks live on the parent, so a worktree
+ * is only listed when it holds tasks of its own.
  */
-export const getTaskProjects = (projects: ProjectConfig[]): ProjectConfig[] =>
-  projects.filter(
-    (project) => !project.worktree || getProjectTasks(project).length > 0,
+export const getTaskProjects = (
+  projects: ProjectConfig[],
+  tasks: Task[],
+): ProjectConfig[] => {
+  const ownerIds = getTaskOwnerIds(tasks);
+  return projects.filter(
+    (project) => !project.worktree || ownerIds.has(project.id),
   );
+};
+
+/**
+ * Projects offered in the Tasks workspace's own project filter: the open ones
+ * (see `getTaskProjects`), then closed projects that still own tasks.
+ */
+export const getTaskScopeProjects = (
+  projects: ProjectConfig[],
+  closedProjects: ProjectConfig[],
+  tasks: Task[],
+): ProjectConfig[] => {
+  const ownerIds = getTaskOwnerIds(tasks);
+  return [
+    ...getTaskProjects(projects, tasks),
+    ...closedProjects.filter((project) => ownerIds.has(project.id)),
+  ];
+};
 
 const RECENT_TASK_PROJECT_LIMIT = 20;
 
 /**
  * Closed projects a new task can still be filed under, most recently used
- * first. The Tasks workspace does not depend on what Code has open: picking
- * one of these loads it in the background (see `addTaskToProjectPath`).
+ * first. Filing a task does not open the project; starting it does.
  * Worktrees are left out — a closed one may no longer exist on disk.
  */
 export const getRecentTaskProjects = (
@@ -110,49 +141,47 @@ export const getRecentTaskProjects = (
 export interface TaskSelection {
   entries: TaskEntry[];
   /**
-   * The project the board is filtered to, or `null` when it spans every open
-   * project (nothing selected, or the selected project is no longer open).
+   * The project the board is filtered to, or `null` when it spans every
+   * project (nothing selected, or the selected project no longer exists).
    */
   scopeProject: ProjectConfig | null;
 }
 
 /**
- * Pairs every visible task with its owning project. The filter belongs to the
- * Tasks workspace and is deliberately independent of the active project
- * tab. Order follows the project list and then each project's own task order,
- * so a project's backlog keeps its relative order when several are shown.
+ * Pairs every visible task with its owning project, open or closed. The filter
+ * belongs to the Tasks workspace and is deliberately independent of the active
+ * project tab. Order follows the project lists (open, then closed) and then the
+ * task list, so a project's backlog keeps its relative order when several
+ * projects are shown.
  */
 export const selectTaskEntries = (
-  projects: ProjectConfig[],
+  { closedProjects, projects }: ProjectLists,
+  tasks: Task[],
   tasksProjectId: string | null,
 ): TaskSelection => {
+  const allProjects = [...projects, ...closedProjects];
   const scopeProject =
-    projects.find((project) => project.id === tasksProjectId) ?? null;
-  const entries = (scopeProject ? [scopeProject] : projects).flatMap(
+    allProjects.find((project) => project.id === tasksProjectId) ?? null;
+  const entries = (scopeProject ? [scopeProject] : allProjects).flatMap(
     (project) =>
-      getProjectTasks(project).map((task) => ({
-        key: `${project.id}:${task.id}`,
-        project,
-        projectId: project.id,
-        task,
-      })),
+      tasks
+        .filter((task) => task.projectId === project.id)
+        .map((task) => ({
+          key: task.id,
+          project,
+          projectId: project.id,
+          task,
+        })),
   );
 
   return { entries, scopeProject };
 };
 
-const replaceTaskInProjects = (
-  projects: ProjectConfig[],
-  projectId: string,
+const replaceTask = (
+  tasks: Task[],
   taskId: string,
   updater: (task: Task) => Task,
-): ProjectConfig[] =>
-  updateProjectUiInList(projects, projectId, (entry) => ({
-    ...entry.ui,
-    tasks: getProjectTasks(entry).map((task) =>
-      task.id === taskId ? updater(task) : task,
-    ),
-  }));
+): Task[] => tasks.map((task) => (task.id === taskId ? updater(task) : task));
 
 /**
  * Records a normally finished agent turn on the run linked to `chatId`, when
@@ -160,74 +189,57 @@ const replaceTaskInProjects = (
  * (e.g. a revised plan) refreshes the output. Returns the same reference when
  * nothing changes.
  */
-export const finishTaskRunInProjects = (
-  projects: ProjectConfig[],
+export const finishTaskRun = (
+  tasks: Task[],
   chatId: string,
   output: string,
   at: string,
-): ProjectConfig[] => {
-  const match = findTaskByChatId(projects, chatId);
+): Task[] => {
+  const match = findTaskByChatId(tasks, chatId);
   if (!match || match.task.completion) {
-    return projects;
+    return tasks;
   }
 
   const currentRun = getCurrentTaskRun(match.task);
   if (currentRun?.id !== match.run.id) {
-    return projects;
+    return tasks;
   }
 
-  return replaceTaskInProjects(
-    projects,
-    match.project.id,
-    match.task.id,
-    (task) => ({
-      ...task,
-      runs: task.runs.map((run) =>
-        run.id === currentRun.id
-          ? { ...run, finishedAt: at, output: output || run.output }
-          : run,
-      ),
-      updatedAt: at,
-    }),
-  );
+  return replaceTask(tasks, match.task.id, (task) => ({
+    ...task,
+    runs: task.runs.map((run) =>
+      run.id === currentRun.id
+        ? { ...run, finishedAt: at, output: output || run.output }
+        : run,
+    ),
+    updatedAt: at,
+  }));
 };
 
-const unlinkTaskRunsInProjects = (
-  projects: ProjectConfig[],
+/** Returns the same reference when no run is linked to `chatIds`. */
+const unlinkTaskRuns = (
+  tasks: Task[],
   chatIds: Set<string>,
   timestamp: string,
-): ProjectConfig[] => {
-  let changed = false;
-  const next = projects.map((project) => {
-    const tasks = getProjectTasks(project);
-    const isLinked = (run: TaskStepRun) =>
-      run.chatId !== null && chatIds.has(run.chatId);
-    if (!tasks.some((task) => task.runs.some(isLinked))) {
-      return project;
-    }
+): Task[] => {
+  const isLinked = (run: TaskStepRun) =>
+    run.chatId !== null && chatIds.has(run.chatId);
+  if (!tasks.some((task) => task.runs.some(isLinked))) {
+    return tasks;
+  }
 
-    changed = true;
-    return {
-      ...project,
-      ui: {
-        ...project.ui,
-        tasks: tasks.map((task) =>
-          task.runs.some(isLinked)
-            ? {
-                ...task,
-                // The output snapshot is kept so later steps can still use it.
-                runs: task.runs.map((run) =>
-                  isLinked(run) ? { ...run, chatId: null } : run,
-                ),
-                updatedAt: timestamp,
-              }
-            : task,
-        ),
-      },
-    };
-  });
-
-  return changed ? next : projects;
+  return tasks.map((task) =>
+    task.runs.some(isLinked)
+      ? {
+          ...task,
+          // The output snapshot is kept so later steps can still use it.
+          runs: task.runs.map((run) =>
+            isLinked(run) ? { ...run, chatId: null } : run,
+          ),
+          updatedAt: timestamp,
+        }
+      : task,
+  );
 };
 
 /**
@@ -302,9 +314,29 @@ export const createTaskActions = (
   | "maybeAutoAdvanceTaskForChat"
 > => {
   const findTask = (projectId: string, taskId: string) => {
-    const project = get().projects.find((entry) => entry.id === projectId);
-    const task = getProjectTasks(project).find((entry) => entry.id === taskId);
+    const state = get();
+    const task = state.tasks.find(
+      (entry) => entry.id === taskId && entry.projectId === projectId,
+    );
+    const project = task ? findProjectById(state, projectId) : undefined;
     return project && task ? { project, task } : null;
+  };
+
+  /**
+   * Running a task needs its project loaded; filing or viewing one does not.
+   * A closed project is reopened in the background, so the user stays in Tasks
+   * and Code's active tab does not change.
+   */
+  const ensureProjectOpen = (projectId: string): ProjectConfig | null => {
+    const findOpen = () =>
+      get().projects.find((entry) => entry.id === projectId) ?? null;
+    const closedProject = get().closedProjects.find(
+      (entry) => entry.id === projectId,
+    );
+    if (!findOpen() && closedProject) {
+      get().addProject(closedProject.path, { activate: false });
+    }
+    return findOpen();
   };
 
   /**
@@ -329,6 +361,10 @@ export const createTaskActions = (
       return;
     }
 
+    if (!ensureProjectOpen(projectId)) {
+      throw new Error("The project could not be opened.");
+    }
+
     const created = await get().createWorktreeProject(projectId, {
       activate: false,
       branchName: getTaskBranchName(task),
@@ -341,18 +377,13 @@ export const createTaskActions = (
       (entry) => entry.id === created.projectId,
     );
     set((state) => ({
-      projects: replaceTaskInProjects(
-        state.projects,
-        projectId,
-        taskId,
-        (entry) => ({
-          ...entry,
-          baseRef: worktreeProject?.worktree?.baseRef ?? null,
-          branch: worktreeProject?.worktree?.branch ?? null,
-          worktreePath: worktreeProject?.path ?? null,
-          worktreeProjectId: created.projectId,
-        }),
-      ),
+      tasks: replaceTask(state.tasks, taskId, (entry) => ({
+        ...entry,
+        baseRef: worktreeProject?.worktree?.baseRef ?? null,
+        branch: worktreeProject?.worktree?.branch ?? null,
+        worktreePath: worktreeProject?.path ?? null,
+        worktreeProjectId: created.projectId,
+      })),
     }));
   };
 
@@ -367,25 +398,27 @@ export const createTaskActions = (
     step: TaskRunStepId,
     options: RunStepOptions = {},
   ): string | null => {
-    const state = get();
     const found = findTask(projectId, taskId);
     if (!found || found.task.completion) {
       return null;
     }
 
-    const { project, task } = found;
+    const { task } = found;
     const title = task.title.trim();
     if (!title) {
       return null;
     }
 
+    // A closed worktree must be reopened by the user first (it may be gone
+    // from disk); a task that runs in its own project just loads it.
     const hostProject = task.worktreeProjectId
-      ? state.projects.find((entry) => entry.id === task.worktreeProjectId)
-      : project;
+      ? get().projects.find((entry) => entry.id === task.worktreeProjectId)
+      : ensureProjectOpen(projectId);
     if (!hostProject) {
-      // The task's worktree project is closed; it must be reopened first.
       return null;
     }
+
+    const state = get();
 
     const config = state.taskConfig[step];
     const feedback = options.feedback?.trim() || null;
@@ -471,17 +504,13 @@ export const createTaskActions = (
           ...current.pendingChatSubmitByChatId,
           [chatId]: { references: [], text },
         },
-        projects: replaceTaskInProjects(
-          withChat,
-          projectId,
-          taskId,
-          (entry) => ({
-            ...entry,
-            runs: [...entry.runs, run],
-            step,
-            updatedAt: timestamp,
-          }),
-        ),
+        projects: withChat,
+        tasks: replaceTask(current.tasks, taskId, (entry) => ({
+          ...entry,
+          runs: [...entry.runs, run],
+          step,
+          updatedAt: timestamp,
+        })),
       };
     });
 
@@ -520,15 +549,10 @@ export const createTaskActions = (
       output,
     };
     set((state) => ({
-      projects: replaceTaskInProjects(
-        state.projects,
-        projectId,
-        taskId,
-        (task) => ({
-          ...task,
-          runs: task.runs.map((run) => (run.id === settled.id ? settled : run)),
-        }),
-      ),
+      tasks: replaceTask(state.tasks, taskId, (task) => ({
+        ...task,
+        runs: task.runs.map((run) => (run.id === settled.id ? settled : run)),
+      })),
     }));
     return settled;
   };
@@ -546,24 +570,16 @@ export const createTaskActions = (
 
   return {
     addTask: (projectId, input) => {
-      const state = get();
-      const project = state.projects.find((entry) => entry.id === projectId);
       const title = input.title.trim();
-      if (!project || !title) {
+      if (!findProjectById(get(), projectId) || !title) {
         return null;
       }
 
-      const task = createTask({
+      const task = createTask(projectId, {
         description: input.description?.trim() ?? "",
         title,
       });
-
-      set({
-        projects: updateProjectUiInList(state.projects, projectId, (entry) => ({
-          ...entry.ui,
-          tasks: [...getProjectTasks(entry), task],
-        })),
-      });
+      set((state) => ({ tasks: [...state.tasks, task] }));
 
       return task.id;
     },
@@ -574,20 +590,21 @@ export const createTaskActions = (
         return null;
       }
 
-      const findOpenProject = () => {
+      const findProject = () => {
         const pathKey = normalizeProjectPathKey(projectPath);
-        return get().projects.find(
+        const state = get();
+        return [...state.projects, ...state.closedProjects].find(
           (entry) => normalizeProjectPathKey(entry.path) === pathKey,
         );
       };
-      // Reopens a recent project, or registers a folder the app has not seen,
-      // without activating it: the user stays in Tasks and Code's active tab
-      // does not change.
-      if (!findOpenProject()) {
+      // A known project takes the task as it is, open or closed. A folder the
+      // app has not seen is registered first, without activating it: the user
+      // stays in Tasks and Code's active tab does not change.
+      if (!findProject()) {
         get().addProject(projectPath, { activate: false });
       }
 
-      const project = findOpenProject();
+      const project = findProject();
       return project ? get().addTask(project.id, task) : null;
     },
 
@@ -597,17 +614,12 @@ export const createTaskActions = (
       }
 
       set((state) => ({
-        projects: replaceTaskInProjects(
-          state.projects,
-          projectId,
-          taskId,
-          (task) => ({
-            ...task,
-            description: updates.description ?? task.description,
-            title: updates.title?.trim() || task.title,
-            updatedAt: new Date().toISOString(),
-          }),
-        ),
+        tasks: replaceTask(state.tasks, taskId, (task) => ({
+          ...task,
+          description: updates.description ?? task.description,
+          title: updates.title?.trim() || task.title,
+          updatedAt: new Date().toISOString(),
+        })),
       }));
     },
 
@@ -617,10 +629,7 @@ export const createTaskActions = (
       }
 
       set((state) => ({
-        projects: updateProjectUiInList(state.projects, projectId, (entry) => ({
-          ...entry.ui,
-          tasks: getProjectTasks(entry).filter((task) => task.id !== taskId),
-        })),
+        tasks: state.tasks.filter((task) => task.id !== taskId),
       }));
     },
 
@@ -630,8 +639,11 @@ export const createTaskActions = (
         return;
       }
 
-      const tasks = getProjectTasks(found.project);
-      const backlog = tasks.filter((task) => task.step === "backlog");
+      // The backlog is ordered per project: only this project's backlog
+      // slots in the app-wide list are refilled.
+      const isProjectBacklog = (task: Task) =>
+        task.projectId === projectId && task.step === "backlog";
+      const backlog = get().tasks.filter(isProjectBacklog);
       const from = backlog.findIndex((task) => task.id === taskId);
       const to = Math.max(
         0,
@@ -647,18 +659,16 @@ export const createTaskActions = (
       const reordered = [...backlog];
       reordered.splice(from, 1);
       reordered.splice(to, 0, found.task);
-      // Refill the backlog slots in order; other steps keep their positions.
-      let cursor = 0;
-      const next = tasks.map((task) =>
-        task.step === "backlog" ? (reordered[cursor++] as Task) : task,
-      );
-
-      set((state) => ({
-        projects: updateProjectUiInList(state.projects, projectId, (entry) => ({
-          ...entry.ui,
-          tasks: next,
-        })),
-      }));
+      // Refill the backlog slots in order; everything else keeps its position.
+      const reorderedIds = new Set(reordered.map((task) => task.id));
+      set((state) => {
+        let cursor = 0;
+        return {
+          tasks: state.tasks.map((task) =>
+            reorderedIds.has(task.id) ? (reordered[cursor++] ?? task) : task,
+          ),
+        };
+      });
     },
 
     startTask: async (projectId, taskId) => {
@@ -756,17 +766,12 @@ export const createTaskActions = (
       }
 
       set((state) => ({
-        projects: replaceTaskInProjects(
-          state.projects,
-          projectId,
-          taskId,
-          (task) => ({
-            ...task,
-            completion,
-            step: "merge",
-            updatedAt: completion.at,
-          }),
-        ),
+        tasks: replaceTask(state.tasks, taskId, (task) => ({
+          ...task,
+          completion,
+          step: "merge",
+          updatedAt: completion.at,
+        })),
       }));
     },
 
@@ -785,14 +790,17 @@ export const createTaskActions = (
       const chat = state.chats.find(
         (entry) => entry.id === run?.chatId && entry.deletedAt === null,
       );
-      if (
-        !chat ||
-        !state.projects.some((entry) => entry.id === chat.projectId)
-      ) {
+      const chatProject = chat
+        ? findProjectById(state, chat.projectId)
+        : undefined;
+      if (!chat || !chatProject) {
         return;
       }
 
-      if (state.activeProjectId !== chat.projectId) {
+      if (!state.projects.some((entry) => entry.id === chat.projectId)) {
+        // Opening a chat leads into Code, so a closed project is reopened.
+        get().addProject(chatProject.path);
+      } else if (state.activeProjectId !== chat.projectId) {
         get().setActiveProjectId(chat.projectId);
       }
       get().setActiveChatId(chat.projectId, chat.id);
@@ -830,25 +838,12 @@ export const createTaskActions = (
       }
 
       set((state) => {
-        const timestamp = new Date().toISOString();
-        const projects = unlinkTaskRunsInProjects(
-          state.projects,
+        const tasks = unlinkTaskRuns(
+          state.tasks,
           ids,
-          timestamp,
+          new Date().toISOString(),
         );
-        const closedProjects = unlinkTaskRunsInProjects(
-          state.closedProjects,
-          ids,
-          timestamp,
-        );
-        if (
-          projects === state.projects &&
-          closedProjects === state.closedProjects
-        ) {
-          return state;
-        }
-
-        return { closedProjects, projects };
+        return tasks === state.tasks ? state : { tasks };
       });
     },
 
@@ -861,15 +856,15 @@ export const createTaskActions = (
       }));
     },
 
-    isTaskChat: (chatId) => findTaskByChatId(get().projects, chatId) !== null,
+    isTaskChat: (chatId) => findTaskByChatId(get().tasks, chatId) !== null,
 
     maybeAutoAdvanceTaskForChat: (chatId) => {
-      const match = findTaskByChatId(get().projects, chatId);
+      const match = findTaskByChatId(get().tasks, chatId);
       if (!match || match.task.completion) {
         return;
       }
 
-      const { project, run, task } = match;
+      const { run, task } = match;
       const currentRun = getCurrentTaskRun(task);
       if (currentRun?.id !== run.id || !run.finishedAt) {
         return;
@@ -889,7 +884,7 @@ export const createTaskActions = (
         return;
       }
 
-      void get().advanceTask(project.id, task.id);
+      void get().advanceTask(task.projectId, task.id);
     },
   };
 };

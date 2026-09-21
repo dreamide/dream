@@ -429,7 +429,7 @@ export const ChatPanel = ({
   // nor its project is in view: the task lives in the parent project while
   // the step chat may run in a background worktree project.
   const canSubmitTaskStep = useIdeStore(
-    (s) => findTaskByChatId(s.projects, chat.id) !== null,
+    (s) => findTaskByChatId(s.tasks, chat.id) !== null,
   );
   const takePendingChatSubmit = useIdeStore((s) => s.takePendingChatSubmit);
   const gitRefreshKey = useIdeStore(
@@ -975,7 +975,7 @@ export const ChatPanel = ({
 
       // Task step chats run in a background worktree project while the
       // board's project stays active, so they are exempt from the focus check.
-      const isTaskStepChat = findTaskByChatId(state.projects, chat.id) !== null;
+      const isTaskStepChat = findTaskByChatId(state.tasks, chat.id) !== null;
 
       if (
         !submittedProject ||

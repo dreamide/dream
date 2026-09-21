@@ -16,6 +16,7 @@ const DEFAULT_PERSISTED_STATE = {
   appView: "code",
   tasksProjectId: null,
   taskConfig: null,
+  tasks: [],
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -401,6 +402,171 @@ function getNestedTasks(parent) {
   return tasks;
 }
 
+const LEGACY_PROJECT_TASK_KEYS = ["tasks", "pipelineTasks", "kanbanCards"];
+
+/**
+ * Tasks used to be stored on their project, under `metadata.ui`. Returns the
+ * ones `project` still carries, or `null` when it carries none at all (which
+ * is different from carrying an empty list).
+ */
+function getLegacyProjectTasks(project) {
+  const sources = [
+    isRecord(project?.ui) ? project.ui : null,
+    getNestedRecord(getMetadataObject(project?.metadata), "ui"),
+  ];
+  const source = sources.find(
+    (candidate) =>
+      candidate &&
+      LEGACY_PROJECT_TASK_KEYS.some((key) => Object.hasOwn(candidate, key)),
+  );
+  return source ? getNestedTasks(source) : null;
+}
+
+/**
+ * Appends tasks still stored on their projects to the app-wide list. A task
+ * already in the list under the same project was migrated before; an id that
+ * clashes with another project's task (ids used to be unique per project only)
+ * gets a new one.
+ */
+function appendLegacyProjectTasks(tasks, projects) {
+  const projectIdByTaskId = new Map(
+    tasks.map((task) => [task.id, task.projectId]),
+  );
+
+  for (const project of projects) {
+    for (const legacyTask of getLegacyProjectTasks(project) ?? []) {
+      const existingProjectId = projectIdByTaskId.get(legacyTask.id);
+      if (existingProjectId === project.id) {
+        continue;
+      }
+
+      const id = existingProjectId === undefined ? legacyTask.id : randomUUID();
+      projectIdByTaskId.set(id, project.id);
+      tasks.push({ ...legacyTask, id, projectId: project.id });
+    }
+  }
+
+  return tasks;
+}
+
+/**
+ * The tasks a save should write, or `null` to leave the table alone: a state
+ * from before tasks were app-wide whose projects carry no tasks either says
+ * nothing about them, and must not wipe the table.
+ */
+function getTasksToPersist(state, projects) {
+  if (Array.isArray(state.tasks)) {
+    return state.tasks;
+  }
+
+  return projects.some((project) => getLegacyProjectTasks(project) !== null)
+    ? appendLegacyProjectTasks([], projects)
+    : null;
+}
+
+const TASK_COLUMN_KEYS = new Set([
+  "createdAt",
+  "id",
+  "projectId",
+  "step",
+  "title",
+  "updatedAt",
+]);
+
+function saveTasksToRelationalDatabase(database, tasks, knownProjectIds, now) {
+  const existingCreatedAt = new Map(
+    database
+      .prepare("SELECT id, created_at FROM tasks")
+      .all()
+      .map((row) => [row.id, row.created_at]),
+  );
+  const insertTask = database.prepare(
+    `
+      INSERT INTO tasks (
+        id,
+        project_id,
+        step,
+        title,
+        sort_order,
+        payload,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        project_id = excluded.project_id,
+        step = excluded.step,
+        title = excluded.title,
+        sort_order = excluded.sort_order,
+        payload = excluded.payload,
+        updated_at = excluded.updated_at
+    `,
+  );
+  const persistedTaskIds = [];
+
+  for (const task of tasks) {
+    if (
+      !isRecord(task) ||
+      typeof task.id !== "string" ||
+      !task.id.trim() ||
+      persistedTaskIds.includes(task.id) ||
+      // A task never outlives its project.
+      !knownProjectIds.has(task.projectId)
+    ) {
+      continue;
+    }
+
+    const createdAt =
+      nonEmptyString(task.createdAt) ?? existingCreatedAt.get(task.id) ?? now;
+    insertTask.run(
+      task.id,
+      task.projectId,
+      nonEmptyString(task.step) ?? "backlog",
+      typeof task.title === "string" ? task.title : "",
+      persistedTaskIds.length,
+      toJson(
+        Object.fromEntries(
+          Object.entries(task).filter(([key]) => !TASK_COLUMN_KEYS.has(key)),
+        ),
+      ),
+      createdAt,
+      nonEmptyString(task.updatedAt) ?? createdAt,
+    );
+    persistedTaskIds.push(task.id);
+  }
+
+  if (persistedTaskIds.length === 0) {
+    database.prepare("DELETE FROM tasks").run();
+  } else {
+    database
+      .prepare(
+        `DELETE FROM tasks WHERE id NOT IN (${persistedTaskIds
+          .map(() => "?")
+          .join(", ")})`,
+      )
+      .run(...persistedTaskIds);
+  }
+}
+
+function loadTasksFromRelationalDatabase(database) {
+  if (!tableExists(database, "tasks")) {
+    return [];
+  }
+
+  return database
+    .prepare("SELECT * FROM tasks ORDER BY sort_order, created_at, id")
+    .all()
+    .map((row) => ({
+      ...getMetadataObject(row.payload),
+      createdAt: row.created_at,
+      id: row.id,
+      projectId: row.project_id,
+      step: row.step,
+      title: row.title,
+      updatedAt: row.updated_at,
+    }));
+}
+
 /**
  * A project's legacy step settings, passed through so the renderer can seed the
  * app-wide config from them once. Empty after that config has been saved.
@@ -632,15 +798,9 @@ function buildProjectMetadata(
   ui.stashItems = getNestedStashItems(
     Object.hasOwn(projectUi, "stashItems") ? projectUi : ui,
   );
-  // Falls back to the stored metadata, which may still hold legacy
-  // `pipelineTasks` or `kanbanCards`; those are migrated into tasks here.
-  ui.tasks = getNestedTasks(
-    Object.hasOwn(projectUi, "tasks") ||
-      Object.hasOwn(projectUi, "pipelineTasks") ||
-      Object.hasOwn(projectUi, "kanbanCards")
-      ? projectUi
-      : ui,
-  );
+  // Tasks moved to their own table, which is written in the same save (see
+  // `getTasksToPersist`), so the per-project copies are retired here.
+  delete ui.tasks;
   // Step settings used to be stored on every project. They are a single
   // app-level `taskConfig` config key now, and the per-project copies are only
   // retired by a save that writes that key, so they survive until the app-wide
@@ -1087,6 +1247,19 @@ function saveStateToRelationalDatabase(database, state) {
     const knownProjectIds = new Set(
       projectsToPersist.map(({ project }) => project.id),
     );
+    const tasksToPersist = getTasksToPersist(
+      state,
+      projectsToPersist.map(({ project }) => project),
+    );
+    if (tasksToPersist) {
+      saveTasksToRelationalDatabase(
+        database,
+        tasksToPersist,
+        knownProjectIds,
+        now,
+      );
+    }
+
     const chats = Array.isArray(state.chats) ? state.chats : [];
     const messagesByChatId = isRecord(state.messagesByChatId)
       ? state.messagesByChatId
@@ -1278,7 +1451,6 @@ function loadStateFromRelationalDatabase(database) {
       rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
       stashItems: getNestedStashItems(ui),
       taskConfig: getNestedTaskConfig(ui),
-      tasks: getNestedTasks(ui),
     };
     if (isLegacyTasksWorkspaceView(ui.workspaceView)) {
       legacyTasksProjectIds.add(project.id);
@@ -1394,10 +1566,24 @@ function loadStateFromRelationalDatabase(database) {
     };
   }
 
+  // Tasks still stored on their projects are folded into the app-wide list;
+  // the next save writes them to the table and retires the copies.
+  const tasks = appendLegacyProjectTasks(
+    loadTasksFromRelationalDatabase(database),
+    allProjects,
+  );
+  for (const project of allProjects) {
+    const metadataUi = getNestedRecord(project.metadata, "ui");
+    for (const key of LEGACY_PROJECT_TASK_KEYS) {
+      delete metadataUi[key];
+    }
+  }
+
   const activeProjectId =
     typeof config.activeProjectId === "string" ? config.activeProjectId : null;
   return {
     activeProjectId,
+    tasks,
     appView: getAppView(
       config.appView,
       activeProjectId && legacyTasksProjectIds.has(activeProjectId)

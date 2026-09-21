@@ -42,7 +42,7 @@ export interface TaskProjectOption {
   icon: ProjectConfig["icon"];
   name: string;
   path: string;
-  /** Closed in Code; choosing it loads it in the background. */
+  /** Closed in Code. It stays closed until one of its tasks is started. */
   recent: boolean;
   worktreeBranch: string | null;
 }

@@ -85,3 +85,29 @@ export const chatMessages = sqliteTable(
     index("idx_chat_messages_chat_order").on(table.chatId, table.sortOrder),
   ],
 );
+
+/**
+ * Tasks are app-wide rather than part of a project's metadata, so the Tasks
+ * workspace can show them without the project being loaded. Everything that is
+ * not needed to order or place a task lives in `payload`.
+ */
+export const tasks = sqliteTable(
+  "tasks",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    step: text("step").notNull().default("backlog"),
+    title: text("title").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    payload: text("payload").notNull().default("{}"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    check("tasks_payload_json", sql`json_valid(${table.payload})`),
+    index("idx_tasks_order").on(table.sortOrder),
+    index("idx_tasks_project").on(table.projectId),
+  ],
+);

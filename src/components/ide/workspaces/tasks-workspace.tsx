@@ -23,11 +23,17 @@ const TasksWorkspaceComponent = (_props: TasksWorkspaceProps) => {
   const closedProjects = useIdeStore((s) => s.closedProjects);
   const tasksProjectId = useIdeStore((s) => s.tasksProjectId);
 
+  const tasks = useIdeStore((s) => s.tasks);
+
   const { entries, scopeProject } = useMemo(
-    () => selectTaskEntries(projects, tasksProjectId),
-    [tasksProjectId, projects],
+    () =>
+      selectTaskEntries({ closedProjects, projects }, tasks, tasksProjectId),
+    [closedProjects, projects, tasks, tasksProjectId],
   );
-  const taskProjects = useMemo(() => getTaskProjects(projects), [projects]);
+  const taskProjects = useMemo(
+    () => getTaskProjects(projects, tasks),
+    [projects, tasks],
+  );
   const recentProjects = useMemo(
     () => getRecentTaskProjects(closedProjects),
     [closedProjects],

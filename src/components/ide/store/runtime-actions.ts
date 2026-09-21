@@ -2,7 +2,7 @@ import { getDesktopApi } from "@/lib/electron";
 import { useActivityStore } from "../activity-store";
 import { extractStepOutput } from "../workspaces/tasks/task-output";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { finishTaskRunInProjects } from "./task-actions";
+import { finishTaskRun } from "./task-actions";
 
 export const createRuntimeActions = (
   set: IdeStoreSet,
@@ -72,7 +72,7 @@ export const createRuntimeActions = (
       const nextStreamingChatIds = { ...state.streamingChatIds };
       const nextAwaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
       const nextCompletedChatIds = { ...state.completedChatIds };
-      let nextProjects = state.projects;
+      let nextTasks = state.tasks;
 
       if (streaming) {
         if (!state.streamingChatIds[chatId])
@@ -94,8 +94,8 @@ export const createRuntimeActions = (
         // status and the final messages before it clears the streaming flag).
         if (wasStreaming && activity?.status === "finished") {
           finishedNormally = true;
-          nextProjects = finishTaskRunInProjects(
-            state.projects,
+          nextTasks = finishTaskRun(
+            state.tasks ?? [],
             chatId,
             extractStepOutput(state.messagesByChatId?.[chatId] ?? []),
             new Date().toISOString(),
@@ -127,7 +127,7 @@ export const createRuntimeActions = (
         awaitingAnswerChatIds: nextAwaitingAnswerChatIds,
         completedChatIds: nextCompletedChatIds,
         streamingChatIds: nextStreamingChatIds,
-        ...(nextProjects !== state.projects ? { projects: nextProjects } : {}),
+        ...(nextTasks !== state.tasks ? { tasks: nextTasks } : {}),
       };
     });
 

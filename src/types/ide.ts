@@ -141,7 +141,13 @@ export interface Task {
   completion: TaskCompletion | null;
   createdAt: string;
   description: string;
+  /** Unique across the whole app, not just within the owning project. */
   id: string;
+  /**
+   * The project the task belongs to, open or closed. A task never changes
+   * project, and is removed together with it.
+   */
+  projectId: string;
   runs: TaskStepRun[];
   step: TaskStepId;
   title: string;
@@ -252,7 +258,7 @@ export type AppView = "code" | "tasks";
 
 /** A task paired with the project that owns it. */
 export interface TaskEntry {
-  /** `${projectId}:${taskId}` — unique across projects. */
+  /** The task id, which is unique across projects. */
   key: string;
   project: ProjectConfig;
   projectId: string;
@@ -268,7 +274,6 @@ export interface ProjectUiState {
   fileEditorWordWrap: boolean;
   multiChat: boolean;
   panelSizes: PanelSizes;
-  tasks: Task[];
   rightPanelOpen: boolean;
   rightPanelView: RightPanelView;
   stashItems: StashItem[];
@@ -280,7 +285,13 @@ export interface PersistedIdeState {
   activeProjectId: string | null;
   appView: AppView;
   /**
-   * The project the Tasks workspace is filtered to, or `null` for every open
+   * Every task in the app, in board order. Tasks are their own list rather
+   * than part of a project record, so the Tasks workspace shows them whether
+   * or not the owning project is open in Code.
+   */
+  tasks: Task[];
+  /**
+   * The project the Tasks workspace is filtered to, or `null` for every
    * project. Owned by the Tasks workspace: independent of `activeProjectId`.
    */
   tasksProjectId: string | null;

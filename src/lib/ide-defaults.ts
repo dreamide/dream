@@ -104,7 +104,6 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
   fileEditorWordWrap: false,
   multiChat: false,
   panelSizes: DEFAULT_PANEL_SIZES,
-  tasks: [],
   rightPanelOpen: DEFAULT_PANEL_VISIBILITY.right,
   rightPanelView: "changes",
   stashItems: [],
@@ -113,6 +112,7 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
   appView: "code",
+  tasks: [],
   tasksProjectId: null,
   taskConfig: createDefaultTaskConfig(),
   activeBrowserTabIdByProject: {},
@@ -147,7 +147,6 @@ export const createProjectConfig = (
     runCommand: "pnpm dev",
     ui: {
       ...DEFAULT_PROJECT_UI,
-      tasks: [],
       rightPanelOpen: false,
       stashItems: [],
     },
@@ -235,6 +234,7 @@ export const createStashItem = (
 };
 
 export const createTask = (
+  projectId: string,
   overrides?: Partial<Pick<Task, "description" | "title">>,
 ): Task => {
   const timestamp = new Date().toISOString();
@@ -246,6 +246,7 @@ export const createTask = (
     createdAt: timestamp,
     description: overrides?.description ?? "",
     id: crypto.randomUUID(),
+    projectId,
     runs: [],
     step: "backlog",
     title: overrides?.title?.trim() ?? "",

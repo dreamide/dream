@@ -125,6 +125,7 @@ export const IdeShell = () => {
       activeBrowserTabIdByProject:
         useIdeStore.getState().activeBrowserTabIdByProject,
       appView: useIdeStore.getState().appView,
+      tasks: useIdeStore.getState().tasks,
       tasksProjectId: useIdeStore.getState().tasksProjectId,
       taskConfig: useIdeStore.getState().taskConfig,
       browserTabsByProject: useIdeStore.getState().browserTabsByProject,
@@ -166,6 +167,7 @@ export const IdeShell = () => {
         activeProjectId: state.activeProjectId,
         activeBrowserTabIdByProject: state.activeBrowserTabIdByProject,
         appView: state.appView,
+        tasks: state.tasks,
         tasksProjectId: state.tasksProjectId,
         taskConfig: state.taskConfig,
         browserTabsByProject: state.browserTabsByProject,
@@ -192,6 +194,7 @@ export const IdeShell = () => {
         next.settings !== prev.settings ||
         next.chatSort !== prev.chatSort ||
         next.appView !== prev.appView ||
+        next.tasks !== prev.tasks ||
         next.tasksProjectId !== prev.tasksProjectId ||
         next.taskConfig !== prev.taskConfig
       ) {
@@ -207,6 +210,7 @@ export const IdeShell = () => {
           // Opening a step chat from Tasks switches project *and* view;
           // the active-project fast path would drop the view change.
           next.appView === prev.appView &&
+          next.tasks === prev.tasks &&
           next.tasksProjectId === prev.tasksProjectId &&
           next.taskConfig === prev.taskConfig &&
           areProjectListsEqualExceptLastUsedAt(prev.projects, next.projects);

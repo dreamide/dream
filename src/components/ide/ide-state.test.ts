@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { UIMessage } from "ai";
 import { test } from "vitest";
-import type { ChatConfig, ProjectConfig } from "@/types/ide";
+import type { ChatConfig, PersistedIdeState, ProjectConfig } from "@/types/ide";
 import {
   areProjectListsEqualExceptLastUsedAt,
   areProjectsEqualExceptLastUsedAt,
@@ -162,8 +162,11 @@ test("mergePersistedState normalizes tasks and drops invalid ones", () => {
     ],
   });
 
-  const tasks = merged.projects[0].ui.tasks;
+  // Tasks stored on a project move to the app-wide list, tagged with it.
+  const tasks = merged.tasks;
+  assert.equal("tasks" in merged.projects[0].ui, false);
   assert.equal(tasks.length, 2);
+  assert.ok(tasks.every((task) => task.projectId === merged.projects[0].id));
   assert.equal(tasks[0].id, "task-one");
   assert.equal(tasks[0].step, "plan");
   assert.equal(tasks[0].branch, "task/valid");
@@ -175,6 +178,52 @@ test("mergePersistedState normalizes tasks and drops invalid ones", () => {
   assert.equal(tasks[1].step, "backlog");
   assert.deepEqual(tasks[1].runs, []);
   assert.equal(tasks[1].worktreeProjectId, null);
+});
+
+test("mergePersistedState keeps app-wide tasks of open and closed projects only", () => {
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const task = (id: string, projectId: string) => ({
+    createdAt: timestamp,
+    description: "",
+    id,
+    projectId,
+    runs: [],
+    step: "backlog",
+    title: id,
+    updatedAt: timestamp,
+  });
+  const merged = mergePersistedState({
+    closedProjects: [
+      createPersistedProject({ id: "project-closed", path: "/closed" }),
+    ],
+    projects: [
+      createPersistedProject({
+        id: "project-open",
+        path: "/open",
+        // Already in the app-wide list: not added a second time.
+        ui: {
+          tasks: [task("task-open", "project-open")],
+        } as unknown as ProjectConfig["ui"],
+      }),
+    ],
+    tasks: [
+      task("task-closed", "project-closed"),
+      task("task-open", "project-open"),
+      task("task-orphan", "project-gone"),
+      { id: "task-unowned", title: "No project" },
+    ] as unknown as PersistedIdeState["tasks"],
+    tasksProjectId: "project-closed",
+  });
+
+  assert.deepEqual(
+    merged.tasks.map((entry) => [entry.id, entry.projectId]),
+    [
+      ["task-closed", "project-closed"],
+      ["task-open", "project-open"],
+    ],
+  );
+  // A closed project can stay the Tasks filter: its tasks are still shown.
+  assert.equal(merged.tasksProjectId, "project-closed");
 });
 
 test("mergePersistedState reads tasks saved under the old pipeline keys", () => {
@@ -203,8 +252,8 @@ test("mergePersistedState reads tasks saved under the old pipeline keys", () => 
 
   const ui = merged.projects[0].ui;
   assert.deepEqual(
-    ui.tasks.map((task) => task.id),
-    ["task-one"],
+    merged.tasks.map((task) => [task.id, task.projectId]),
+    [["task-one", "project-one"]],
   );
   assert.equal("pipelineTasks" in ui, false);
   // Step settings are app-wide now; the project's copy seeds them once.
@@ -239,7 +288,7 @@ test("mergePersistedState migrates legacy kanban cards into tasks", () => {
     ],
   });
 
-  const tasks = merged.projects[0].ui.tasks;
+  const tasks = merged.tasks;
   assert.deepEqual(
     tasks.map((task) => task.step),
     ["backlog", "backlog", "build", "review", "merge"],

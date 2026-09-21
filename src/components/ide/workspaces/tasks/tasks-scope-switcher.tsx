@@ -14,7 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProjectTabIcon } from "../../header/project-tab-icon";
 import { useIdeStore } from "../../ide-store";
-import { getTaskProjects, selectTaskEntries } from "../../store/task-actions";
+import {
+  getTaskScopeProjects,
+  selectTaskEntries,
+} from "../../store/task-actions";
 
 const ALL_PROJECTS = "__all__";
 
@@ -26,19 +29,34 @@ const ALL_PROJECTS = "__all__";
 export const TasksScopeSwitcher = () => {
   const t = useTranslations("tasks");
   const projects = useIdeStore((s) => s.projects);
+  const closedProjects = useIdeStore((s) => s.closedProjects);
+  const tasks = useIdeStore((s) => s.tasks);
   const tasksProjectId = useIdeStore((s) => s.tasksProjectId);
   const setTasksProjectId = useIdeStore((s) => s.setTasksProjectId);
 
-  const options = useMemo(() => getTaskProjects(projects), [projects]);
-  const { scopeProject } = useMemo(
-    () => selectTaskEntries(projects, tasksProjectId),
-    [tasksProjectId, projects],
+  // Closed projects that still own tasks are listed too: the filter follows
+  // the tasks, not what Code has open.
+  const options = useMemo(
+    () => getTaskScopeProjects(projects, closedProjects, tasks),
+    [closedProjects, projects, tasks],
   );
-  const totalTasks = useMemo(
-    () =>
-      projects.reduce((total, project) => total + project.ui.tasks.length, 0),
-    [projects],
+  // Counts cover every project, whatever the filter is set to.
+  const { entries } = useMemo(
+    () => selectTaskEntries({ closedProjects, projects }, tasks, null),
+    [closedProjects, projects, tasks],
   );
+  const scopeProject =
+    [...projects, ...closedProjects].find(
+      (project) => project.id === tasksProjectId,
+    ) ?? null;
+  const taskCountByProject = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of entries) {
+      counts.set(entry.projectId, (counts.get(entry.projectId) ?? 0) + 1);
+    }
+    return counts;
+  }, [entries]);
+  const totalTasks = entries.length;
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-1 pl-2 [-webkit-app-region:drag]">
@@ -119,7 +137,7 @@ export const TasksScopeSwitcher = () => {
                   {project.worktree ? ` · ${project.worktree.branch}` : ""}
                 </span>
                 <span className="ml-auto pl-2 text-muted-foreground text-xs tabular-nums">
-                  {project.ui.tasks.length}
+                  {taskCountByProject.get(project.id) ?? 0}
                 </span>
               </DropdownMenuRadioItem>
             ))}

@@ -43,7 +43,11 @@ import {
   normalizeModelSpeed,
   normalizeReasoningEffort,
 } from "./ide-types";
-import { normalizeTaskConfig, normalizeTasks } from "./task-state";
+import {
+  type LegacyProjectTasks,
+  normalizeTaskConfig,
+  normalizeTasks,
+} from "./task-state";
 import {
   DEFAULT_APP_VIEW,
   isLegacyTasksWorkspaceView,
@@ -53,6 +57,7 @@ import {
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
   appView: DEFAULT_APP_VIEW,
+  tasks: [],
   tasksProjectId: null,
   taskConfig: createDefaultTaskConfig(),
   activeBrowserTabIdByProject: {},
@@ -549,10 +554,6 @@ const normalizeProject = (
       rightPanelView: isRightPanelView(rawUi.rightPanelView)
         ? rawUi.rightPanelView
         : DEFAULT_PROJECT_UI.rightPanelView,
-      tasks: normalizeTasks(
-        rawUi.tasks ?? (rawUi as { pipelineTasks?: unknown }).pipelineTasks,
-        (rawUi as { kanbanCards?: unknown }).kanbanCards,
-      ),
       stashItems: normalizeStashItems(rawUi.stashItems),
     },
     worktree: normalizeProjectWorktree(
@@ -788,6 +789,51 @@ const getLegacyTaskConfig = (
   }
   return defaults;
 };
+
+/**
+ * Tasks used to be stored on their project, as `ui.tasks` (`ui.pipelineTasks`
+ * when the Tasks workspace was called the pipeline, `ui.kanbanCards` before
+ * that). They are one app-wide list now; these are folded into it on load.
+ */
+const getLegacyProjectTasks = (
+  state: Partial<PersistedIdeState>,
+): LegacyProjectTasks[] =>
+  [state.projects, state.closedProjects]
+    .flatMap((list) => (Array.isArray(list) ? list : []))
+    .flatMap((project) => {
+      if (!project || typeof project !== "object") {
+        return [];
+      }
+
+      const raw = project as { id?: unknown; metadata?: unknown; ui?: unknown };
+      const metadataUi =
+        raw.metadata && typeof raw.metadata === "object"
+          ? (raw.metadata as { ui?: unknown }).ui
+          : null;
+      const projectId = typeof raw.id === "string" ? raw.id : "";
+      if (!projectId) {
+        return [];
+      }
+
+      return [raw.ui, metadataUi].flatMap((rawUi) => {
+        if (!rawUi || typeof rawUi !== "object") {
+          return [];
+        }
+
+        const ui = rawUi as {
+          kanbanCards?: unknown;
+          pipelineTasks?: unknown;
+          tasks?: unknown;
+        };
+        return [
+          {
+            kanbanCards: ui.kanbanCards,
+            projectId,
+            tasks: ui.tasks ?? ui.pipelineTasks,
+          },
+        ];
+      });
+    });
 
 export const mergePersistedState = (
   state: Partial<PersistedIdeState> | null | undefined,
@@ -1078,10 +1124,16 @@ export const mergePersistedState = (
       state.taskConfig && typeof state.taskConfig === "object"
         ? normalizeTaskConfig(state.taskConfig)
         : getLegacyTaskConfig(state, activeProjectId),
-    // A project that has since been closed or removed just shows everything.
+    tasks: normalizeTasks(
+      state.tasks,
+      knownProjectIds,
+      getLegacyProjectTasks(state),
+    ),
+    // Closed projects keep their tasks on the board, so they can stay the
+    // filter; a removed project just shows everything.
     tasksProjectId:
       typeof state.tasksProjectId === "string" &&
-      projectsWithUi.some((project) => project.id === state.tasksProjectId)
+      knownProjectIds.has(state.tasksProjectId)
         ? state.tasksProjectId
         : null,
     activeBrowserTabIdByProject,

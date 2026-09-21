@@ -490,10 +490,138 @@ test("tasks and step config survive a relational persistence round trip", async 
   try {
     saveProject(project, databasePath, { taskConfig });
 
+    // A state from before tasks were app-wide still carries them on the
+    // project; saving it moves them to the tasks table.
     const loaded = loadPersistedState({ databasePath });
-    assert.deepEqual(loaded.projects[0]?.ui.tasks, [project.ui.tasks[0]]);
+    assert.deepEqual(loaded.tasks, [
+      { ...project.ui.tasks[0], projectId: project.id },
+    ]);
+    assert.equal(Object.hasOwn(loaded.projects[0]?.ui ?? {}, "tasks"), false);
+    const database = getPersistedStateDatabase({ databasePath });
+    assert.equal(
+      Object.hasOwn(
+        JSON.parse(
+          database
+            .prepare("SELECT metadata FROM projects WHERE id = ?")
+            .get(project.id).metadata,
+        ).ui,
+        "tasks",
+      ),
+      false,
+    );
     assert.deepEqual(loaded.taskConfig, taskConfig);
     assert.deepEqual(loaded.projects[0]?.ui.taskConfig, {});
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+const createStoredTask = (id, projectId, timestamp, overrides = {}) => ({
+  baseRef: null,
+  branch: null,
+  completion: null,
+  createdAt: timestamp,
+  description: "",
+  id,
+  projectId,
+  runs: [],
+  step: "backlog",
+  title: id,
+  updatedAt: timestamp,
+  worktreePath: null,
+  worktreeProjectId: null,
+  ...overrides,
+});
+
+test("app-wide tasks keep their order and belong to open or closed projects", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const openProject = createProject("project-open", timestamp);
+  const closedProject = createProject("project-closed", timestamp);
+  delete openProject.ui.tasks;
+  delete closedProject.ui.tasks;
+  const tasks = [
+    createStoredTask("task-b", closedProject.id, timestamp),
+    createStoredTask("task-a", openProject.id, timestamp, { step: "build" }),
+    createStoredTask("task-c", closedProject.id, timestamp),
+  ];
+  const state = {
+    activeProjectId: openProject.id,
+    chats: [],
+    closedProjects: [closedProject],
+    messagesByChatId: {},
+    projects: [openProject],
+    settings: {},
+    tasks: [
+      ...tasks,
+      createStoredTask("task-a", openProject.id, timestamp, {
+        title: "Duplicate id",
+      }),
+      createStoredTask("task-orphan", "project-gone", timestamp),
+    ],
+  };
+
+  try {
+    savePersistedState(state, { databasePath });
+    assert.deepEqual(loadPersistedState({ databasePath }).tasks, tasks);
+
+    // Reordering and deleting are both just the next snapshot.
+    const reordered = [tasks[2], tasks[0]];
+    savePersistedState({ ...state, tasks: reordered }, { databasePath });
+    assert.deepEqual(loadPersistedState({ databasePath }).tasks, reordered);
+
+    // A state that says nothing about tasks leaves them alone.
+    const { tasks: _tasks, ...stateWithoutTasks } = state;
+    savePersistedState(stateWithoutTasks, { databasePath });
+    assert.deepEqual(loadPersistedState({ databasePath }).tasks, reordered);
+
+    // A removed project takes its tasks with it.
+    savePersistedState(
+      { ...state, closedProjects: [], tasks: [...reordered, tasks[1]] },
+      { databasePath },
+    );
+    assert.deepEqual(loadPersistedState({ databasePath }).tasks, [tasks[1]]);
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("tasks stored on several projects merge into one list without id clashes", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const first = createProject("project-one", timestamp);
+  const second = createProject("project-two", timestamp);
+  // Task ids used to be unique only within a project.
+  first.ui.tasks = [{ id: "task-one", step: "backlog", title: "First" }];
+  second.ui.tasks = [{ id: "task-one", step: "backlog", title: "Second" }];
+
+  try {
+    savePersistedState(
+      {
+        activeProjectId: first.id,
+        chats: [],
+        closedProjects: [second],
+        messagesByChatId: {},
+        projects: [first],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath }).tasks;
+    assert.deepEqual(
+      loaded.map((task) => [task.title, task.projectId]),
+      [
+        ["First", first.id],
+        ["Second", second.id],
+      ],
+    );
+    assert.equal(loaded[0]?.id, "task-one");
+    assert.notEqual(loaded[1]?.id, "task-one");
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
@@ -550,7 +678,8 @@ test("data saved under the workspace's old pipeline name still loads", async () 
     const loaded = loadPersistedState({ databasePath });
     assert.equal(loaded.appView, "tasks");
     assert.equal(loaded.tasksProjectId, project.id);
-    assert.deepEqual(loaded.projects[0]?.ui.tasks, [task]);
+    const migratedTask = { ...task, projectId: project.id };
+    assert.deepEqual(loaded.tasks, [migratedTask]);
     // Legacy per-project step settings are passed through for the renderer to
     // seed the app-wide config from; none has been saved yet.
     assert.deepEqual(loaded.projects[0]?.ui.taskConfig, stepConfig);
@@ -563,8 +692,16 @@ test("data saved under the workspace's old pipeline name still loads", async () 
         .prepare("SELECT metadata FROM projects WHERE id = ?")
         .get(project.id).metadata,
     ).ui;
-    assert.deepEqual(saved.tasks, [task]);
+    // Tasks left the project for their own table.
+    assert.equal(Object.hasOwn(saved, "tasks"), false);
     assert.equal(Object.hasOwn(saved, "pipelineTasks"), false);
+    assert.deepEqual(
+      database
+        .prepare("SELECT id, project_id FROM tasks")
+        .all()
+        .map((row) => [row.id, row.project_id]),
+      [[task.id, project.id]],
+    );
     // Step settings moved to the app level and left the project.
     assert.equal(Object.hasOwn(saved, "pipelineConfig"), false);
     assert.equal(Object.hasOwn(saved, "taskConfig"), false);
@@ -572,10 +709,9 @@ test("data saved under the workspace's old pipeline name still loads", async () 
       loadPersistedState({ databasePath }).taskConfig,
       stepConfig,
     );
-    assert.deepEqual(
-      loadPersistedState({ databasePath }).projects[0]?.ui.tasks,
-      [task],
-    );
+    assert.deepEqual(loadPersistedState({ databasePath }).tasks, [
+      migratedTask,
+    ]);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
@@ -623,16 +759,21 @@ test("legacy kanban cards migrate to tasks", async () => {
 
     const loaded = loadPersistedState({ databasePath });
     const ui = loaded.projects[0]?.ui;
+    const tasks = loaded.tasks;
     assert.equal(Object.hasOwn(ui ?? {}, "kanbanCards"), false);
     assert.deepEqual(
-      ui?.tasks.map((task) => [task.id, task.step]),
+      tasks.map((task) => task.projectId),
+      [project.id, project.id, project.id],
+    );
+    assert.deepEqual(
+      tasks.map((task) => [task.id, task.step]),
       [
         ["card-one", "build"],
         ["card-two", "backlog"],
         ["card-three", "merge"],
       ],
     );
-    assert.deepEqual(ui?.tasks[0]?.runs, [
+    assert.deepEqual(tasks[0]?.runs, [
       {
         chatId: "chat-1",
         feedback: null,
@@ -643,9 +784,9 @@ test("legacy kanban cards migrate to tasks", async () => {
         step: "build",
       },
     ]);
-    assert.deepEqual(ui?.tasks[1]?.runs, []);
-    assert.equal(ui?.tasks[2]?.completion?.kind, "legacy");
-    assert.equal(ui?.tasks[2]?.runs[0]?.finishedAt, timestamp);
+    assert.deepEqual(tasks[1]?.runs, []);
+    assert.equal(tasks[2]?.completion?.kind, "legacy");
+    assert.equal(tasks[2]?.runs[0]?.finishedAt, timestamp);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

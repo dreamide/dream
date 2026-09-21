@@ -555,6 +555,11 @@ export const createProjectLifecycleActions = (
         projects: current.projects.filter(
           (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
         ),
+        // Tasks filed under the purged project go with it. Tasks that merely
+        // ran in this worktree belong to its parent and stay.
+        tasks: (current.tasks ?? []).filter(
+          (task) => !removedProjectIds.has(task.projectId),
+        ),
       };
     });
 

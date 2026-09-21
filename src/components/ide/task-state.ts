@@ -71,14 +71,22 @@ const normalizeTaskCompletion = (value: unknown): TaskCompletion | null => {
   };
 };
 
-const normalizeTask = (value: unknown): Task | null => {
+/**
+ * `ownerProjectId` is the project a legacy task was stored on; tasks in the
+ * app-wide list carry their own `projectId`.
+ */
+const normalizeTask = (
+  value: unknown,
+  ownerProjectId?: string,
+): Task | null => {
   if (!value || typeof value !== "object") {
     return null;
   }
 
   const task = value as Partial<Task>;
   const id = asNonEmptyString(task.id)?.trim();
-  if (!id) {
+  const projectId = ownerProjectId ?? asNonEmptyString(task.projectId)?.trim();
+  if (!id || !projectId) {
     return null;
   }
 
@@ -101,6 +109,7 @@ const normalizeTask = (value: unknown): Task | null => {
     createdAt,
     description: typeof task.description === "string" ? task.description : "",
     id,
+    projectId,
     runs,
     step: isTaskStepId(task.step) ? task.step : "backlog",
     title: typeof task.title === "string" ? task.title : "",
@@ -165,27 +174,48 @@ export const migrateKanbanCard = (value: unknown): unknown => {
   };
 };
 
+/** Tasks as they used to be stored: on their project's `ui`. */
+export interface LegacyProjectTasks {
+  kanbanCards?: unknown;
+  projectId: string;
+  tasks: unknown;
+}
+
+/**
+ * Builds the app-wide task list. `value` is that list as persisted; `legacy`
+ * holds tasks still stored on their projects, which are appended so an upgrade
+ * loses nothing. Tasks of unknown (removed) projects are dropped.
+ */
 export const normalizeTasks = (
   value: unknown,
-  legacyKanbanCards?: unknown,
+  knownProjectIds: ReadonlySet<string>,
+  legacy: LegacyProjectTasks[] = [],
 ): Task[] => {
-  const source = Array.isArray(value)
-    ? value
-    : Array.isArray(legacyKanbanCards)
-      ? legacyKanbanCards.map(migrateKanbanCard)
-      : [];
-
   const seenIds = new Set<string>();
   const tasks: Task[] = [];
-
-  for (const rawTask of source) {
-    const task = normalizeTask(rawTask);
-    if (!task || seenIds.has(task.id)) {
-      continue;
+  const add = (rawTask: unknown, ownerProjectId?: string) => {
+    const task = normalizeTask(rawTask, ownerProjectId);
+    if (!task || seenIds.has(task.id) || !knownProjectIds.has(task.projectId)) {
+      return;
     }
 
     seenIds.add(task.id);
     tasks.push(task);
+  };
+
+  for (const rawTask of Array.isArray(value) ? value : []) {
+    add(rawTask);
+  }
+
+  for (const entry of legacy) {
+    const source = Array.isArray(entry.tasks)
+      ? entry.tasks
+      : Array.isArray(entry.kanbanCards)
+        ? entry.kanbanCards.map(migrateKanbanCard)
+        : [];
+    for (const rawTask of source) {
+      add(rawTask, entry.projectId);
+    }
   }
 
   return tasks;

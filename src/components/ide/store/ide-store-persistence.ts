@@ -13,6 +13,7 @@ import type { IdeState } from "./ide-store-types";
 const createEmptyPersistedState = (): PersistedIdeState => ({
   activeProjectId: null,
   appView: "code",
+  tasks: [],
   tasksProjectId: null,
   taskConfig: createDefaultTaskConfig(),
   activeBrowserTabIdByProject: {},
@@ -99,6 +100,7 @@ export const createPersistedIdeState = ({
   chatSort,
   closedProjects,
   messagesByChatId,
+  tasks,
   tasksProjectId,
   projects,
   settings,
@@ -108,6 +110,7 @@ export const createPersistedIdeState = ({
   | "activeBrowserTabIdByProject"
   | "activeProjectId"
   | "appView"
+  | "tasks"
   | "tasksProjectId"
   | "taskConfig"
   | "browserTabsByProject"
@@ -187,6 +190,8 @@ export const createPersistedIdeState = ({
   return {
     activeProjectId: ensureActiveProject(projects, activeProjectId),
     appView,
+    // A task never outlives its project.
+    tasks: tasks.filter((task) => knownProjectIds.has(task.projectId)),
     tasksProjectId,
     taskConfig,
     activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,

@@ -18,10 +18,11 @@ import { createRuntimeActions } from "./runtime-actions";
 import { createStashActions } from "./stash-actions";
 import {
   createTaskActions,
-  finishTaskRunInProjects,
+  finishTaskRun,
   getCurrentTaskRun,
   getRecentTaskProjects,
   getTaskProjects,
+  getTaskScopeProjects,
   resolveTaskStepAgent,
   selectTaskEntries,
 } from "./task-actions";
@@ -49,6 +50,7 @@ const createTestStore = () => {
         draftChatIdByProject: {},
         messagesByChatId: {},
         pendingChatSubmitByChatId: {},
+        tasks: [],
         tasksProjectId: null,
         projects: [project, worktree],
         settings: DEFAULT_SETTINGS,
@@ -117,8 +119,14 @@ const createTestStore = () => {
 
 type TestStore = ReturnType<typeof createTestStore>["store"];
 
-const getTasks = (store: TestStore): Task[] =>
-  store.getState().projects[0]?.ui.tasks ?? [];
+/** The source project's tasks, in app-wide order. */
+const getTasks = (store: TestStore): Task[] => {
+  const { projects, tasks } = store.getState();
+  return tasks.filter((task) => task.projectId === projects[0]?.id);
+};
+
+const getTaskById = (store: TestStore, taskId: string): Task | undefined =>
+  store.getState().tasks.find((task) => task.id === taskId);
 
 const getTask = (store: TestStore): Task => {
   const task = getTasks(store)[0];
@@ -411,6 +419,19 @@ test("sending a task back reuses the step chat and carries the findings", async 
   assert.match(prompt, /foo\.ts:3 is wrong/);
   assert.match(prompt, /Also add a test/);
   assert.equal(store.getState().chats.length, 3);
+
+  // The second build run shares the first one's chat. Finishing it must
+  // complete *that* run and auto-advance again, not match the older run.
+  finishTurn(store, buildChatId, "Fixed foo.ts and added a test");
+  await flushMicrotasks();
+  const advanced = getTask(store);
+  const secondBuild = advanced.runs[3];
+  assert.equal(secondBuild?.step, "build");
+  assert.ok(secondBuild?.finishedAt);
+  assert.equal(secondBuild?.output, "Fixed foo.ts and added a test");
+  assert.equal(advanced.runs[1]?.output, "Built it");
+  assert.equal(advanced.step, "review");
+  assert.equal(advanced.runs.length, 5);
 });
 
 test("retrying a step starts a fresh chat with the same handoff", async () => {
@@ -437,21 +458,11 @@ test("step chats run in the task's worktree project without stealing focus", asy
   const { project, store, worktree } = createTestStore();
   const taskId = addTask(store, project.id);
   store.setState({
-    projects: store.getState().projects.map((entry) =>
-      entry.id === project.id
-        ? {
-            ...entry,
-            ui: {
-              ...entry.ui,
-              tasks: entry.ui.tasks.map((task) => ({
-                ...task,
-                branch: "task/task",
-                worktreeProjectId: worktree.id,
-              })),
-            },
-          }
-        : entry,
-    ),
+    tasks: store.getState().tasks.map((task) => ({
+      ...task,
+      branch: "task/task",
+      worktreeProjectId: worktree.id,
+    })),
   });
 
   const chatId = await store.getState().startTask(project.id, taskId);
@@ -572,20 +583,10 @@ test("a task whose worktree project is closed cannot run steps", async () => {
   const { project, store } = createTestStore();
   const taskId = addTask(store, project.id);
   store.setState({
-    projects: store.getState().projects.map((entry) =>
-      entry.id === project.id
-        ? {
-            ...entry,
-            ui: {
-              ...entry.ui,
-              tasks: entry.ui.tasks.map((task) => ({
-                ...task,
-                worktreeProjectId: "closed-project",
-              })),
-            },
-          }
-        : entry,
-    ),
+    tasks: store.getState().tasks.map((task) => ({
+      ...task,
+      worktreeProjectId: "closed-project",
+    })),
   });
 
   assert.equal(await store.getState().startTask(project.id, taskId), null);
@@ -703,13 +704,11 @@ test("resolveTaskStepAgent prefers the step model over defaults", () => {
   );
 });
 
-test("finishTaskRunInProjects returns the same reference when nothing changes", () => {
-  const { project } = createTestStore();
-  const projects = [project];
-  assert.equal(
-    finishTaskRunInProjects(projects, "unknown", "", "now"),
-    projects,
-  );
+test("finishTaskRun returns the same reference when nothing changes", () => {
+  const { project, store } = createTestStore();
+  addTask(store, project.id);
+  const { tasks } = store.getState();
+  assert.equal(finishTaskRun(tasks, "unknown", "", "now"), tasks);
 });
 
 const asWorktree = (project: ProjectConfig): ProjectConfig => ({
@@ -731,9 +730,10 @@ test("selects task entries for one project or all of them", () => {
   const first = addTask(store, project.id);
   const second = addTask(store, project.id);
   const third = addTask(store, other.id);
-  const { projects } = store.getState();
+  const { projects, tasks } = store.getState();
+  const lists = { closedProjects: [], projects };
 
-  const scoped = selectTaskEntries(projects, other.id);
+  const scoped = selectTaskEntries(lists, tasks, other.id);
   assert.equal(scoped.scopeProject?.id, other.id);
   assert.deepEqual(
     scoped.entries.map((entry) => [entry.projectId, entry.task.id]),
@@ -741,7 +741,7 @@ test("selects task entries for one project or all of them", () => {
   );
 
   // Across projects, each project's tasks stay together and in their order.
-  const all = selectTaskEntries(projects, null);
+  const all = selectTaskEntries(lists, tasks, null);
   assert.equal(all.scopeProject, null);
   assert.deepEqual(
     all.entries.map((entry) => [entry.projectId, entry.task.id]),
@@ -752,7 +752,8 @@ test("selects task entries for one project or all of them", () => {
     ],
   );
   assert.equal(all.entries[0]?.project, projects[0]);
-  assert.equal(all.entries[0]?.key, `${project.id}:${first}`);
+  // Task ids are unique across the app, so they key the cards.
+  assert.equal(all.entries[0]?.key, first);
   assert.equal(new Set(all.entries.map((entry) => entry.key)).size, 3);
 });
 
@@ -765,25 +766,29 @@ test("the Tasks workspace's project filter ignores the active project", () => {
   // Switching Code's project tab must not move the Tasks workspace.
   for (const activeProjectId of [project.id, other.id, null]) {
     store.setState({ activeProjectId });
-    const { tasksProjectId, projects } = store.getState();
+    const { closedProjects, projects, tasks, tasksProjectId } =
+      store.getState();
     assert.deepEqual(
-      selectTaskEntries(projects, tasksProjectId).entries.map(
-        (entry) => entry.task.id,
-      ),
+      selectTaskEntries(
+        { closedProjects, projects },
+        tasks,
+        tasksProjectId,
+      ).entries.map((entry) => entry.task.id),
       [otherTask],
     );
   }
   assert.equal(store.getState().activeProjectId, null);
 });
 
-test("a filter pointing at a project that is no longer open shows everything", () => {
+test("a filter pointing at a project that no longer exists shows everything", () => {
   const { project, store, worktree: other } = createTestStore();
   addTask(store, project.id);
   addTask(store, other.id);
 
   const selection = selectTaskEntries(
-    store.getState().projects,
-    "closed-project",
+    { closedProjects: [], projects: store.getState().projects },
+    store.getState().tasks,
+    "removed-project",
   );
   assert.equal(selection.scopeProject, null);
   assert.equal(selection.entries.length, 2);
@@ -800,13 +805,17 @@ test("the project filter lists worktrees only when they hold tasks", () => {
       );
 
   assert.deepEqual(
-    getTaskProjects(withWorktree()).map((entry) => entry.id),
+    getTaskProjects(withWorktree(), store.getState().tasks).map(
+      (entry) => entry.id,
+    ),
     [project.id],
   );
 
   addTask(store, worktree.id);
   assert.deepEqual(
-    getTaskProjects(withWorktree()).map((entry) => entry.id),
+    getTaskProjects(withWorktree(), store.getState().tasks).map(
+      (entry) => entry.id,
+    ),
     [project.id, worktree.id],
   );
 });
@@ -837,14 +846,16 @@ test("a task can be filed under a recent project without leaving Tasks", () => {
   assert.ok(taskId);
 
   const state = store.getState();
-  // The project is loaded, keeping its identity, with the task on it...
-  const reopened = state.projects.find((entry) => entry.id === recent.id);
+  // The task belongs to the project without the project being loaded...
   assert.deepEqual(
-    reopened?.ui.tasks.map((task) => task.id),
-    [taskId],
+    state.tasks.map((task) => [task.id, task.projectId]),
+    [[taskId, recent.id]],
   );
-  assert.equal(state.closedProjects.length, 0);
-  // ...but neither the workspace nor Code's active tab moved.
+  assert.deepEqual(
+    state.closedProjects.map((entry) => entry.id),
+    [recent.id],
+  );
+  // ...and neither the workspace nor Code's active tab moved.
   assert.equal(state.appView, "tasks");
   assert.equal(state.activeProjectId, project.id);
 });
@@ -865,8 +876,8 @@ test("a task can be filed under a folder the app has never seen", () => {
   );
   assert.equal(created?.name, "brand-new");
   assert.deepEqual(
-    created?.ui.tasks.map((task) => task.id),
-    [taskId],
+    state.tasks.map((task) => [task.id, task.projectId]),
+    [[taskId, created?.id]],
   );
   assert.equal(state.activeProjectId, project.id);
 });
@@ -909,5 +920,123 @@ test("recent task projects are closed non-worktrees, newest first", () => {
       (entry) => entry.path,
     ),
     ["/workspace/newer", "/workspace/older", "/workspace/never"],
+  );
+});
+
+/** Moves a project from Code's tabs to the recent list, as closing a tab does. */
+const closeProjectInStore = (store: TestStore, projectId: string) => {
+  const state = store.getState();
+  const closing = state.projects.find((entry) => entry.id === projectId);
+  assert.ok(closing);
+  store.setState({
+    activeProjectId:
+      state.activeProjectId === projectId ? null : state.activeProjectId,
+    closedProjects: [...state.closedProjects, closing],
+    projects: state.projects.filter((entry) => entry.id !== projectId),
+  });
+};
+
+test("closing a project in Code keeps its tasks on the board", () => {
+  const { project, store, worktree: other } = createTestStore();
+  const taskId = addTask(store, project.id);
+  addTask(store, other.id);
+  store.getState().setTasksProjectId(project.id);
+  closeProjectInStore(store, project.id);
+
+  const { closedProjects, projects, tasks, tasksProjectId } = store.getState();
+  const selection = selectTaskEntries(
+    { closedProjects, projects },
+    tasks,
+    tasksProjectId,
+  );
+  // The closed project stays the filter, and its task is still listed.
+  assert.equal(selection.scopeProject?.id, project.id);
+  assert.deepEqual(
+    selection.entries.map((entry) => entry.task.id),
+    [taskId],
+  );
+  // Open projects come first in the filter; closed ones only with tasks.
+  assert.deepEqual(
+    getTaskScopeProjects(projects, closedProjects, tasks).map(
+      (entry) => entry.id,
+    ),
+    [other.id, project.id],
+  );
+  assert.deepEqual(
+    getTaskScopeProjects(projects, closedProjects, []).map((entry) => entry.id),
+    [other.id],
+  );
+
+  // Tasks of a closed project can still be edited, reordered and deleted.
+  store.getState().updateTask(project.id, taskId, { title: "Renamed" });
+  assert.equal(getTaskById(store, taskId)?.title, "Renamed");
+  store.getState().deleteTask(project.id, taskId);
+  assert.equal(getTaskById(store, taskId), undefined);
+});
+
+test("starting a task of a closed project loads it in the background", async () => {
+  const { project, store, worktree: other } = createTestStore();
+  const taskId = addTask(store, project.id);
+  closeProjectInStore(store, project.id);
+  store.setState({ activeProjectId: other.id, appView: "tasks" });
+
+  const chatId = await store.getState().startTask(project.id, taskId);
+  assert.ok(chatId);
+
+  const state = store.getState();
+  assert.ok(state.projects.some((entry) => entry.id === project.id));
+  assert.equal(state.closedProjects.length, 0);
+  assert.equal(getTaskById(store, taskId)?.step, "plan");
+  // The user stays where they were.
+  assert.equal(state.activeProjectId, other.id);
+  assert.equal(state.appView, "tasks");
+});
+
+test("opening a step chat of a closed project reopens it in Code", async () => {
+  const { project, store } = createTestStoreWithRealProjects();
+  const taskId = addTask(store, project.id);
+  // A task with runs stays in its own project (no worktree), like tasks
+  // migrated from the old board.
+  store.setState({
+    tasks: store.getState().tasks.map((task) => ({
+      ...task,
+      runs: [
+        {
+          chatId: null,
+          feedback: null,
+          finishedAt: "2026-08-15T12:00:00.000Z",
+          id: "run-old",
+          output: "Earlier work",
+          startedAt: "2026-08-15T12:00:00.000Z",
+          step: "plan" as const,
+        },
+      ],
+      step: "plan" as const,
+    })),
+  });
+  const chatId = await store.getState().retryTaskStep(project.id, taskId);
+  assert.ok(chatId);
+  closeProjectInStore(store, project.id);
+  store.setState({ appView: "tasks" });
+
+  store.getState().openTaskStepChat(project.id, taskId);
+
+  const state = store.getState();
+  assert.equal(state.activeProjectId, project.id);
+  assert.ok(state.projects.some((entry) => entry.id === project.id));
+  assert.equal(state.appView, "code");
+});
+
+test("reordering one project's backlog leaves other projects' tasks in place", () => {
+  const { project, store, worktree: other } = createTestStore();
+  const first = addTask(store, project.id);
+  const foreign = addTask(store, other.id);
+  const second = addTask(store, project.id);
+
+  store.getState().moveTaskInBacklog(project.id, second, 0);
+
+  assert.deepEqual(
+    store.getState().tasks.map((task) => task.id),
+    [second, foreign, first],
   );
 });

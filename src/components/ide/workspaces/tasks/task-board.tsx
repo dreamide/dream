@@ -48,7 +48,7 @@ export interface TaskBoardProps {
   entries: TaskEntry[];
   /** Open projects a new task can be filed under. */
   projects: ProjectConfig[];
-  /** Closed projects it can also go to; chosen ones load in the background. */
+  /** Closed projects it can also go to; filing a task does not open them. */
   recentProjects: ProjectConfig[];
   /**
    * The project the board is filtered to, or `null` when it spans all of them.
@@ -86,7 +86,7 @@ export const TaskBoard = ({
   const reopenTaskWorktree = useIdeStore((s) => s.reopenTaskWorktree);
   const taskConfig = useIdeStore((s) => s.taskConfig);
   const [dialog, setDialog] = useState<TaskDialogState | null>(null);
-  // Keyed by `entry.key`: task ids are only unique within a project.
+  // Keyed by `entry.key`, the task id.
   const [errorsByKey, setErrorsByKey] = useState<Record<string, string>>({});
   // Tasks with a step action in flight (e.g. creating the worktree).
   const [busyKeys, setBusyKeys] = useState<Record<string, true>>({});
@@ -260,8 +260,9 @@ export const TaskBoard = ({
         if (scopeProject) {
           addTask(scopeProject.id, fields);
         } else if (projectPath) {
-          // The project may be closed, or a folder the app has never seen;
-          // it is loaded in the background without leaving Tasks.
+          // The project may be closed, which is fine: only running a task
+          // loads its project. A folder the app has never seen is registered
+          // in the background, without leaving Tasks.
           addTaskToProjectPath(projectPath, fields);
         }
       } else if (dialog?.mode === "edit") {

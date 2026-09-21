@@ -14,6 +14,7 @@ import type {
   ProjectGitWorktreeCleanupResponse,
   RightPanelView,
   StashItem,
+  Task,
   TaskCompletion,
   TaskConfig,
   TaskRunStepId,
@@ -45,6 +46,7 @@ export interface IdeState {
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
   appView: AppView;
+  tasks: Task[];
   tasksProjectId: string | null;
   taskConfig: TaskConfig;
   chats: ChatConfig[];
@@ -187,8 +189,9 @@ export interface IdeState {
     task: { description?: string; title: string },
   ) => string | null;
   /**
-   * Files a task under the project at `path`, which need not be open: a recent
-   * project is reopened, and an unknown folder registered, in the background.
+   * Files a task under the project at `path`, which need not be open: a closed
+   * project stays closed until one of its tasks runs, and an unknown folder is
+   * registered in the background.
    */
   addTaskToProjectPath: (
     path: string,
