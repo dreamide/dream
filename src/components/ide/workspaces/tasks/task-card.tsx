@@ -141,6 +141,8 @@ const TaskCardImpl = ({
   });
   const dot = getTaskStatusDotProps(status);
   const settled = isTaskSettled(status);
+  // Deleting mid-run would orphan a live agent still editing the worktree.
+  const canDelete = !busy && status !== "starting" && status !== "running";
   const liveRunIds = new Set(liveRunIdsKey ? liveRunIdsKey.split(",") : []);
   const liveRuns = task.runs.filter((run) => liveRunIds.has(run.id));
   const nextStep = getNextTaskStep(task.step);
@@ -347,8 +349,9 @@ const TaskCardImpl = ({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
+              disabled={!canDelete}
               onClick={() => onDelete(entry)}
+              variant="destructive"
             >
               <Trash2 className="size-4" />
               {t("delete")}
