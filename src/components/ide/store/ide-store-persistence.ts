@@ -142,6 +142,14 @@ export const createPersistedIdeState = ({
       return true;
     }
 
+    // A task's runs point at their step chats, and a task chat is never its
+    // project's open chat, so the empty-draft rule below would drop one that
+    // came up empty and leave the task pointing at nothing. Step chats go
+    // only with their task.
+    if (chat.taskId !== null) {
+      return true;
+    }
+
     const messageCount =
       messagesByChatId[chat.id]?.length ?? chat.messageCount ?? 0;
     if (messageCount > 0) {

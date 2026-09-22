@@ -159,7 +159,7 @@ const TaskChatPaneBody = ({
       >
         {/* The header spans the panel's full width. */}
         <div className="shrink-0 border-surface-300 border-b bg-background dark:border-surface-700">
-          <div className="flex items-center gap-2 px-3 py-1.5">
+          <div className="flex min-h-[50px] items-center gap-2 px-3 py-2">
             <div className="flex min-h-7 min-w-0 flex-1 items-center gap-1.5">
               <TaskStepIcon step={task.step} />
               <h2 className="truncate font-medium text-sm">{task.title}</h2>

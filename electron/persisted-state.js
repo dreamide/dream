@@ -1227,6 +1227,32 @@ function saveStateToRelationalDatabase(database, state) {
       }
     }
 
+    // A chat can move to another project: removing a task's worktree hands
+    // its step chats to the task's own project. `chats.project_id` cascades,
+    // so the stored row must follow before its old project is deleted below,
+    // or the delete takes the chat and its whole transcript with it. The new
+    // project may only be inserted further down, so the foreign key is
+    // checked at commit rather than here (the pragma ends with the
+    // transaction).
+    const chats = Array.isArray(state.chats) ? state.chats : [];
+    const projectIdsToPersist = new Set(
+      projectsToPersist.map(({ project }) => project.id),
+    );
+    database.exec("PRAGMA defer_foreign_keys = ON");
+    const moveChat = database.prepare(
+      "UPDATE chats SET project_id = ? WHERE id = ? AND project_id <> ?",
+    );
+    for (const chat of chats) {
+      if (
+        isRecord(chat) &&
+        typeof chat.id === "string" &&
+        typeof chat.projectId === "string" &&
+        projectIdsToPersist.has(chat.projectId)
+      ) {
+        moveChat.run(chat.projectId, chat.id, chat.projectId);
+      }
+    }
+
     if (projectsToPersist.length === 0) {
       database.prepare("DELETE FROM projects").run();
     } else {
@@ -1301,7 +1327,6 @@ function saveStateToRelationalDatabase(database, state) {
       );
     }
 
-    const chats = Array.isArray(state.chats) ? state.chats : [];
     const messagesByChatId = isRecord(state.messagesByChatId)
       ? state.messagesByChatId
       : {};

@@ -869,3 +869,95 @@ test("chats remember their task, and older chats are claimed by their task's run
     await rm(directory, { force: true, recursive: true });
   }
 });
+
+test("step chats and transcripts survive removing the task's worktree", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  const worktree = createProject("project-one-worktree", timestamp);
+  const message = {
+    id: "step-message",
+    parts: [{ text: "build it", type: "text" }],
+    role: "user",
+  };
+  const task = createStoredTask("task-one", project.id, timestamp, {
+    runs: [
+      {
+        chatId: "step-chat",
+        commitError: null,
+        feedback: null,
+        finishedAt: timestamp,
+        id: "run-1",
+        output: null,
+        startedAt: timestamp,
+        step: "build",
+      },
+    ],
+    step: "build",
+    worktreeProjectId: worktree.id,
+  });
+
+  try {
+    savePersistedState(
+      createState(project, {
+        chats: [
+          createStoredChat("step-chat", worktree.id, timestamp, {
+            taskId: task.id,
+          }),
+        ],
+        messagesByChatId: { "step-chat": [message] },
+        projects: [project, worktree],
+        tasks: [task],
+      }),
+      { databasePath },
+    );
+
+    // Removing the worktree hands the chat to the task's own project and
+    // drops the worktree project. The transcript is not loaded, so this save
+    // carries no messages for it.
+    savePersistedState(
+      createState(project, {
+        chats: [
+          createStoredChat("step-chat", project.id, timestamp, {
+            taskId: task.id,
+          }),
+        ],
+        tasks: [task],
+      }),
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.deepEqual(
+      loaded.chats.map((chat) => [chat.id, chat.projectId]),
+      [["step-chat", project.id]],
+    );
+    assert.deepEqual(
+      loadPersistedChatMessages("step-chat", { databasePath }),
+      [message],
+      "moving the chat must not cascade away its transcript",
+    );
+
+    // The same holds when the chat's new project is first saved in the very
+    // save that drops its old one.
+    const successor = createProject("project-two", timestamp);
+    savePersistedState(
+      createState(successor, {
+        chats: [
+          createStoredChat("step-chat", successor.id, timestamp, {
+            taskId: task.id,
+          }),
+        ],
+        projects: [successor],
+      }),
+      { databasePath },
+    );
+    assert.deepEqual(loadPersistedChatMessages("step-chat", { databasePath }), [
+      message,
+    ]);
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
