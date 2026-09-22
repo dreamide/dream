@@ -313,7 +313,7 @@ test("starting a task runs the plan step in its own configured chat", async () =
   const chat = state.chats.find((entry) => entry.id === chatId);
   assert.equal(chat?.title, "Plan: Task");
   assert.equal(chat?.agentMode, "plan");
-  assert.equal(chat?.permissionMode, "standard");
+  assert.equal(chat?.permissionMode, "full-access");
 
   // The task got its own background worktree and the chat runs there.
   assert.equal(worktreeRequests.length, 1);

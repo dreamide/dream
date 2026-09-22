@@ -1,6 +1,6 @@
 import { Bot, MapIcon, Shield, ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { memo, useId, useMemo } from "react";
+import { memo, useMemo } from "react";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import {
   Select,
@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import {
   getConnectedProviders,
   getDefaultModelSelection,
@@ -144,9 +143,6 @@ const TaskColumnModelBarImpl = ({
       )
     : undefined;
   const AgentModeIcon = getAgentModeIcon(config.agentMode);
-  const autoAdvanceId = useId();
-  // Merge is the last step, so there is nothing to advance to.
-  const canAutoAdvance = step !== "merge";
   const reasoningEfforts = selectedModel
     ? getOptionReasoningEfforts(
         selectedModelOption,
@@ -198,77 +194,6 @@ const TaskColumnModelBarImpl = ({
       {/* Same surface as the chat composer, without the prompt input. It sits
           flush with the column, which must not clip so the shadow shows. */}
       <div className="flex flex-col overflow-hidden rounded-lg border border-surface-300 bg-surface-50 px-2 py-1.5 shadow-md dark:border-surface-700 dark:bg-surface-900">
-        <div className="flex items-center gap-1">
-          <Select onValueChange={handleModelChange} value={selectedModelValue}>
-            <SelectTrigger
-              className={cn(TRIGGER_CLASSES, "min-w-0 shrink")}
-              showChevron={false}
-              title={chatT("model")}
-            >
-              <SelectValue placeholder={chatT("model")}>
-                <span className="flex min-w-0 items-center gap-1.5">
-                  {selectedModel?.model ? (
-                    <ProviderIcon
-                      className={ITEM_ICON_CLASSES}
-                      provider={selectedModel.provider}
-                    />
-                  ) : null}
-                  <span className="truncate">
-                    {selectedModel?.model
-                      ? (selectedModelOption?.label ?? selectedModel.model)
-                      : t("inheritModel")}
-                  </span>
-                </span>
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent
-              alignItemWithTrigger={false}
-              className="text-xs"
-              side="top"
-            >
-              <SelectGroup>
-                <SelectLabel>{chatT("model")}</SelectLabel>
-                <SelectItem className="text-xs" value={INHERIT_MODEL}>
-                  {t("inheritModel")}
-                </SelectItem>
-                {modelOptions.map((option) => (
-                  <SelectItem
-                    className="text-xs"
-                    key={option.value}
-                    value={option.value}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <ProviderIcon
-                        className={ITEM_ICON_CLASSES}
-                        provider={option.provider}
-                      />
-                      <span className="truncate">{option.label}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-
-          {canAutoAdvance ? (
-            <label
-              className="ml-auto flex h-7 shrink-0 items-center gap-1.5 px-2 font-medium text-muted-foreground text-xs"
-              htmlFor={autoAdvanceId}
-              title={t("autoAdvance")}
-            >
-              <Switch
-                checked={config.autoAdvance}
-                id={autoAdvanceId}
-                onCheckedChange={(checked) =>
-                  update((current) => ({ ...current, autoAdvance: checked }))
-                }
-                size="sm"
-              />
-              {t("gateAuto")}
-            </label>
-          ) : null}
-        </div>
-
         <div className="flex items-center gap-1">
           <Select
             onValueChange={(value) => {
@@ -342,6 +267,57 @@ const TaskColumnModelBarImpl = ({
                     </SelectItem>
                   );
                 })}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Select onValueChange={handleModelChange} value={selectedModelValue}>
+            <SelectTrigger
+              className={cn(TRIGGER_CLASSES, "min-w-0 shrink")}
+              showChevron={false}
+              title={chatT("model")}
+            >
+              <SelectValue placeholder={chatT("model")}>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {selectedModel?.model ? (
+                    <ProviderIcon
+                      className={ITEM_ICON_CLASSES}
+                      provider={selectedModel.provider}
+                    />
+                  ) : null}
+                  <span className="truncate">
+                    {selectedModel?.model
+                      ? (selectedModelOption?.label ?? selectedModel.model)
+                      : t("inheritModel")}
+                  </span>
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent
+              alignItemWithTrigger={false}
+              className="text-xs"
+              side="top"
+            >
+              <SelectGroup>
+                <SelectLabel>{chatT("model")}</SelectLabel>
+                <SelectItem className="text-xs" value={INHERIT_MODEL}>
+                  {t("inheritModel")}
+                </SelectItem>
+                {modelOptions.map((option) => (
+                  <SelectItem
+                    className="text-xs"
+                    key={option.value}
+                    value={option.value}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <ProviderIcon
+                        className={ITEM_ICON_CLASSES}
+                        provider={option.provider}
+                      />
+                      <span className="truncate">{option.label}</span>
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectGroup>
             </SelectContent>
           </Select>
