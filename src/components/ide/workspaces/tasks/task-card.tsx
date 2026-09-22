@@ -263,7 +263,8 @@ const TaskCardImpl = ({
         "group/card shrink-0 select-none rounded-md border border-surface-300 bg-background p-3 text-left text-foreground shadow-sm transition-colors hover:border-surface-400 dark:border-surface-700 dark:hover:border-surface-600",
         "cursor-pointer",
         status === "done" && "opacity-60",
-        selected && "border-primary/60 ring-1 ring-primary/40",
+        selected &&
+          "border-primary hover:border-primary dark:border-primary dark:hover:border-primary",
       )}
       data-task={task.id}
       data-project-id={entry.projectId}

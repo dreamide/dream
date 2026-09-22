@@ -194,7 +194,7 @@ const TaskColumnModelBarImpl = ({
       {/* Same surface as the chat composer, without the prompt input. It sits
           flush with the column, which must not clip so the shadow shows. */}
       <div className="flex flex-col overflow-hidden rounded-lg border border-surface-300 bg-surface-50 px-2 py-1.5 shadow-md dark:border-surface-700 dark:bg-surface-900">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center">
           <Select
             onValueChange={(value) => {
               if (value === "standard" || value === "full-access") {

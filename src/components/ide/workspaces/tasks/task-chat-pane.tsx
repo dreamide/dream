@@ -14,7 +14,10 @@ import { useActivityStore } from "../../activity-store";
 import { ChatPanel } from "../../chat-panel";
 import { useIdeStore } from "../../ide-store";
 import { getCurrentTaskRun } from "../../store/task-actions";
-import { SLIDING_PANEL_TRANSITION } from "../../workspace/constants";
+import {
+  SLIDING_PANEL_TRANSITION,
+  WORKSPACE_VIEWPORT_BACKGROUND,
+} from "../../workspace/constants";
 import { WorkspaceSlidingPanel } from "../../workspace/sliding-panel";
 import {
   getTaskStatus,
@@ -161,97 +164,105 @@ const TaskChatPaneBody = ({
   }, [runs]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-lg border border-surface-200 bg-background dark:border-surface-800">
-      <div className="flex shrink-0 items-start gap-2 border-surface-200 border-b px-3 py-2 dark:border-surface-800">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <TaskStepIcon step={task.step} />
-            <h2 className="truncate font-medium text-sm">{task.title}</h2>
+    <div
+      className="flex h-full min-h-0 flex-col"
+      style={{ backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND }}
+    >
+      {/* Styled like the composer: a white card on a gray strip. */}
+      <div className="shrink-0 px-2 pt-2">
+        <div className="mx-auto w-full max-w-[700px] overflow-hidden rounded-lg border border-surface-300 bg-surface-50 shadow-md dark:border-surface-700 dark:bg-surface-900">
+          <div className="-mx-px -mt-px flex w-[calc(100%+2px)] items-start gap-2 rounded-lg border border-surface-300 bg-background px-3 py-2 dark:border-surface-700">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <TaskStepIcon step={task.step} />
+                <h2 className="truncate font-medium text-sm">{task.title}</h2>
+              </div>
+              {task.step !== "backlog" ? (
+                <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+                  <StatusDot
+                    className={dot.className}
+                    color={dot.color}
+                    pulse={dot.pulse}
+                  />
+                  <span className="truncate">
+                    {t(getTaskStatusLabelKey(status, task.step))}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+            <Button
+              aria-label={commonT("close")}
+              className="size-7 shrink-0 text-muted-foreground"
+              onClick={closeTaskPane}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <X className="size-4" />
+            </Button>
           </div>
-          {task.step !== "backlog" ? (
-            <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
-              <StatusDot
-                className={dot.className}
-                color={dot.color}
-                pulse={dot.pulse}
-              />
-              <span className="truncate">
-                {t(getTaskStatusLabelKey(status, task.step))}
+
+          {runs.length > 1 ? (
+            <div
+              className="flex items-center overflow-x-auto px-2 py-1.5"
+              role="tablist"
+            >
+              {runs.map((run, index) => {
+                const selected = run.id === selectedRun?.id;
+                return (
+                  <button
+                    aria-selected={selected}
+                    className={cn(
+                      "flex h-7 shrink-0 items-center gap-1 rounded-md px-2 font-medium text-xs transition-colors",
+                      selected
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                    key={run.id}
+                    onClick={() => openTaskPane(task.id, run.id)}
+                    role="tab"
+                    type="button"
+                  >
+                    <TaskStepIcon step={run.step} />
+                    {t(TASK_STEP_LABEL_KEYS[run.step])}
+                    {runLabels[index]}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {chat && !projectOpen ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 text-muted-foreground text-xs">
+              <span>
+                {worktreeRemoved
+                  ? t("chatWorktreeRemoved")
+                  : t("chatWorktreeClosed")}
               </span>
+              {canReopen ? (
+                <Button
+                  className="h-6 gap-1 px-2 text-xs"
+                  disabled={reopening}
+                  onClick={() => void handleReopen()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {reopening ? (
+                    <Spinner className="size-3" />
+                  ) : (
+                    <FolderOpen className="size-3.5" />
+                  )}
+                  {t("reopenWorktree")}
+                </Button>
+              ) : null}
+              {reopenError ? (
+                <span className="w-full text-destructive">{reopenError}</span>
+              ) : null}
             </div>
           ) : null}
         </div>
-        <Button
-          aria-label={commonT("close")}
-          className="size-7 shrink-0 text-muted-foreground"
-          onClick={closeTaskPane}
-          size="icon"
-          type="button"
-          variant="ghost"
-        >
-          <X className="size-4" />
-        </Button>
       </div>
-
-      {runs.length > 1 ? (
-        <div
-          className="flex shrink-0 gap-1 overflow-x-auto border-surface-200 border-b px-2 py-1.5 dark:border-surface-800"
-          role="tablist"
-        >
-          {runs.map((run, index) => {
-            const selected = run.id === selectedRun?.id;
-            return (
-              <button
-                aria-selected={selected}
-                className={cn(
-                  "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
-                  selected
-                    ? "bg-surface-100 text-foreground dark:bg-surface-800"
-                    : "text-muted-foreground hover:bg-surface-100/60 hover:text-foreground dark:hover:bg-surface-800/60",
-                )}
-                key={run.id}
-                onClick={() => openTaskPane(task.id, run.id)}
-                role="tab"
-                type="button"
-              >
-                <TaskStepIcon step={run.step} />
-                {t(TASK_STEP_LABEL_KEYS[run.step])}
-                {runLabels[index]}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {chat && !projectOpen ? (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-surface-200 border-b bg-surface-50 px-3 py-2 text-muted-foreground text-xs dark:border-surface-800 dark:bg-surface-900">
-          <span>
-            {worktreeRemoved
-              ? t("chatWorktreeRemoved")
-              : t("chatWorktreeClosed")}
-          </span>
-          {canReopen ? (
-            <Button
-              className="h-6 gap-1 px-2 text-xs"
-              disabled={reopening}
-              onClick={() => void handleReopen()}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {reopening ? (
-                <Spinner className="size-3" />
-              ) : (
-                <FolderOpen className="size-3.5" />
-              )}
-              {t("reopenWorktree")}
-            </Button>
-          ) : null}
-          {reopenError ? (
-            <span className="w-full text-destructive">{reopenError}</span>
-          ) : null}
-        </div>
-      ) : null}
 
       <div className="min-h-0 flex-1">
         {chat && chatProject ? (

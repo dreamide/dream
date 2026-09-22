@@ -1010,7 +1010,7 @@ export const ChatComposer = ({
                 </PromptInputBody>
               </PromptInput>
 
-              <div className="flex items-center gap-1 px-2 py-1.5">
+              <div className="flex items-center px-2 py-1.5">
                 <Select
                   onValueChange={(value) => {
                     if (value === "standard" || value === "full-access") {
