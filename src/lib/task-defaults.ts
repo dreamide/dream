@@ -1,4 +1,5 @@
 import type {
+  AgentMode,
   Task,
   TaskConfig,
   TaskRunStepId,
@@ -133,6 +134,17 @@ export const DEFAULT_TASK_CONFIG: TaskConfig = {
     permissionMode: "full-access",
     prompt: null,
   },
+};
+
+/**
+ * Each step's agent mode follows from what the step is for: planning and
+ * reviewing read, building and shipping write. It is not a setting.
+ */
+export const TASK_STEP_AGENT_MODE: Record<TaskRunStepId, AgentMode> = {
+  build: DEFAULT_TASK_CONFIG.build.agentMode,
+  merge: DEFAULT_TASK_CONFIG.merge.agentMode,
+  plan: DEFAULT_TASK_CONFIG.plan.agentMode,
+  review: DEFAULT_TASK_CONFIG.review.agentMode,
 };
 
 export const createDefaultTaskConfig = (): TaskConfig => ({

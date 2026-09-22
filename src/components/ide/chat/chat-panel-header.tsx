@@ -188,11 +188,15 @@ export const ChatPanelHeader = ({
                     <FilePenLine className="size-4" />
                     {commonT("edit")}
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={onDeleteChat}>
-                    <Archive className="size-4" />
-                    {commonT("archive")}
-                  </DropdownMenuItem>
+                  {onDeleteChat ? (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={onDeleteChat}>
+                        <Archive className="size-4" />
+                        {commonT("archive")}
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : null}

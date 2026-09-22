@@ -9,6 +9,7 @@ import {
   getTaskReviewVerdict,
   getTaskStepPrompt,
   renderTaskPrompt,
+  TASK_STEP_AGENT_MODE,
   TASK_STEP_IDS,
 } from "@/lib/task-defaults";
 import type {
@@ -430,11 +431,9 @@ export const createTaskActions = (
       return null;
     }
 
-    // A closed worktree must be reopened by the user first (it may be gone
-    // from disk); a task that runs in its own project just loads it.
-    const hostProject = task.worktreeProjectId
-      ? get().projects.find((entry) => entry.id === task.worktreeProjectId)
-      : ensureProjectOpen(projectId);
+    // The host project (the task's worktree, or its own project for a task
+    // that runs in place) is loaded in the background when it was closed.
+    const hostProject = ensureProjectOpen(task.worktreeProjectId ?? projectId);
     if (!hostProject) {
       return null;
     }
@@ -471,7 +470,7 @@ export const createTaskActions = (
       const agent = resolveTaskStepAgent(config, hostProject, state.settings);
       nextChat = createChatConfig(hostProject, {
         ...agent,
-        agentMode: config.agentMode,
+        agentMode: TASK_STEP_AGENT_MODE[step],
         permissionMode: config.permissionMode,
         taskId: task.id,
         title: `${STEP_TITLE_PREFIX[step]}: ${title}`,

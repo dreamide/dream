@@ -89,6 +89,7 @@ export const TaskBoard = ({
   const retryTaskStep = useIdeStore((s) => s.retryTaskStep);
   const completeTask = useIdeStore((s) => s.completeTask);
   const openTaskPane = useIdeStore((s) => s.openTaskPane);
+  const closeTaskPane = useIdeStore((s) => s.closeTaskPane);
   const selectedTaskId = useIdeStore((s) => s.tasksPane?.taskId ?? null);
   const reopenTaskWorktree = useIdeStore((s) => s.reopenTaskWorktree);
   const recreateTaskWorktree = useIdeStore((s) => s.recreateTaskWorktree);
@@ -199,15 +200,6 @@ export const TaskBoard = ({
       ),
     [retryTaskStep, runTaskAction],
   );
-  const handleReopenWorktree = useCallback(
-    (entry: TaskEntry) =>
-      runTaskAction(entry.key, async () => {
-        if (!(await reopenTaskWorktree(entry.projectId, entry.task.id))) {
-          throw new Error(t("worktreeMissing"));
-        }
-      }),
-    [reopenTaskWorktree, runTaskAction, t],
-  );
   const handleRecreateWorktree = useCallback(
     (entry: TaskEntry) =>
       runTaskAction(entry.key, () =>
@@ -229,9 +221,19 @@ export const TaskBoard = ({
     [completeTask, setTaskError],
   );
   const handleOpenChat = useCallback(
-    (entry: TaskEntry, runId?: string) =>
-      openTaskPane(entry.task.id, runId ?? null),
-    [openTaskPane],
+    (entry: TaskEntry, runId?: string) => {
+      // Clicking the card of the task already in the pane closes the pane;
+      // asking for a specific run always shows it.
+      if (
+        runId === undefined &&
+        useIdeStore.getState().tasksPane?.taskId === entry.task.id
+      ) {
+        closeTaskPane();
+        return;
+      }
+      openTaskPane(entry.task.id, runId ?? null);
+    },
+    [closeTaskPane, openTaskPane],
   );
 
   const handleComplete = useCallback(
@@ -372,9 +374,9 @@ export const TaskBoard = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="-m-2 min-h-0 flex-1 overflow-x-auto p-2">
-        {/* Columns share the width up to 1920px and squeeze down to 13rem
-            each (e.g. beside the chat pane); below that the board scrolls. */}
-        <div className="mx-auto flex h-full w-full min-w-[calc(5*13rem+4*0.5rem)] max-w-[1920px] gap-2">
+        {/* Columns are a fixed 370px; when five do not fit (e.g. beside the
+            chat pane) the board scrolls. */}
+        <div className="mx-auto flex h-full w-max min-w-0 gap-2">
           {TASK_STEPS.map((step) => (
             <TaskColumn
               busyKeys={busyKeys}
@@ -393,7 +395,6 @@ export const TaskBoard = ({
               onMarkDone={handleMarkDone}
               onOpenChat={handleOpenChat}
               onRecreateWorktree={handleRecreateWorktree}
-              onReopenWorktree={handleReopenWorktree}
               onRetry={handleRetry}
               onSendBack={handleSendBack}
               onStart={handleStart}

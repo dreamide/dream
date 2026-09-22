@@ -45,8 +45,6 @@ export const supplementalMessages = {
       shipFinish: "Aufgabe abschließen",
       removeTaskWorktree: "Worktree entfernen…",
       noChatsYet: "Diese Aufgabe hat noch keine Chats.",
-      chatWorktreeClosed:
-        "Der Worktree ist geschlossen. Der Chat ist schreibgeschützt, bis er wieder geöffnet wird.",
       chatWorktreeRemoved:
         "Der Worktree wurde entfernt. Der Chat ist schreibgeschützt.",
       deliveryState: "{branch} ist {ahead} voraus, {behind} hinter {upstream}",
@@ -67,7 +65,6 @@ export const supplementalMessages = {
       sendBackTo: "Zurück an {step}",
       statusAwaitingApproval: "Bereit zur Freigabe",
       statusReadyToFinalize: "Bereit zum Abschließen",
-      statusWorktreeClosed: "Worktree geschlossen",
       statusDone: "Erledigt",
       approveAdvance: "Freigeben → {step}",
       complete: "Aufgabe abschließen",
@@ -99,7 +96,6 @@ export const supplementalMessages = {
       promptLabel: "Prompt",
       promptVariables: "Variablen:",
       resetPrompt: "Auf Standard zurücksetzen",
-      reopenWorktree: "Worktree wieder öffnen",
       worktreeError:
         "Der Worktree für diese Aufgabe konnte nicht erstellt werden.",
       worktreeMissing: "Der Worktree dieser Aufgabe existiert nicht mehr.",
@@ -664,8 +660,6 @@ export const supplementalMessages = {
       shipFinish: "Finish task",
       removeTaskWorktree: "Remove worktree…",
       noChatsYet: "This task has no chats yet.",
-      chatWorktreeClosed:
-        "The worktree is closed. The chat is read-only until it is reopened.",
       chatWorktreeRemoved: "The worktree was removed. The chat is read-only.",
       deliveryState: "{branch} is {ahead} ahead, {behind} behind {upstream}",
       deliveryInSync: "{branch} is up to date with {upstream}",
@@ -685,7 +679,6 @@ export const supplementalMessages = {
       sendBackTo: "Send back to {step}",
       statusAwaitingApproval: "Ready for approval",
       statusReadyToFinalize: "Ready to finalize",
-      statusWorktreeClosed: "Worktree closed",
       statusDone: "Done",
       approveAdvance: "Approve → {step}",
       complete: "Finalize task",
@@ -717,7 +710,6 @@ export const supplementalMessages = {
       promptLabel: "Prompt",
       promptVariables: "Variables:",
       resetPrompt: "Reset to default",
-      reopenWorktree: "Reopen worktree",
       worktreeError: "The worktree for this task could not be created.",
       worktreeMissing: "This task's worktree no longer exists.",
     },
@@ -1268,8 +1260,6 @@ export const supplementalMessages = {
       shipFinish: "Finalizar tarea",
       removeTaskWorktree: "Quitar worktree…",
       noChatsYet: "Esta tarea aún no tiene chats.",
-      chatWorktreeClosed:
-        "El worktree está cerrado. El chat es de solo lectura hasta que se vuelva a abrir.",
       chatWorktreeRemoved:
         "El worktree se eliminó. El chat es de solo lectura.",
       deliveryState:
@@ -1291,7 +1281,6 @@ export const supplementalMessages = {
       sendBackTo: "Devolver a {step}",
       statusAwaitingApproval: "Lista para aprobar",
       statusReadyToFinalize: "Lista para finalizar",
-      statusWorktreeClosed: "Worktree cerrado",
       statusDone: "Hecho",
       approveAdvance: "Aprobar → {step}",
       complete: "Finalizar tarea",
@@ -1324,7 +1313,6 @@ export const supplementalMessages = {
       promptLabel: "Prompt",
       promptVariables: "Variables:",
       resetPrompt: "Restablecer",
-      reopenWorktree: "Reabrir worktree",
       worktreeError: "No se pudo crear el worktree para esta tarea.",
       worktreeMissing: "El worktree de esta tarea ya no existe.",
     },
@@ -1883,8 +1871,6 @@ export const supplementalMessages = {
       shipFinish: "Terminer la tâche",
       removeTaskWorktree: "Supprimer le worktree…",
       noChatsYet: "Cette tâche n'a pas encore de discussion.",
-      chatWorktreeClosed:
-        "Le worktree est fermé. La discussion est en lecture seule jusqu'à sa réouverture.",
       chatWorktreeRemoved:
         "Le worktree a été supprimé. La discussion est en lecture seule.",
       deliveryState:
@@ -1906,7 +1892,6 @@ export const supplementalMessages = {
       sendBackTo: "Renvoyer à {step}",
       statusAwaitingApproval: "Prête pour approbation",
       statusReadyToFinalize: "Prête à finaliser",
-      statusWorktreeClosed: "Worktree fermé",
       statusDone: "Terminé",
       approveAdvance: "Approuver → {step}",
       complete: "Finaliser la tâche",
@@ -1939,7 +1924,6 @@ export const supplementalMessages = {
       promptLabel: "Prompt",
       promptVariables: "Variables :",
       resetPrompt: "Réinitialiser",
-      reopenWorktree: "Rouvrir le worktree",
       worktreeError: "Impossible de créer le worktree pour cette tâche.",
       worktreeMissing: "Le worktree de cette tâche n'existe plus.",
     },
@@ -2499,8 +2483,6 @@ export const supplementalMessages = {
       shipFinish: "Concludi attività",
       removeTaskWorktree: "Rimuovi worktree…",
       noChatsYet: "Questa attività non ha ancora chat.",
-      chatWorktreeClosed:
-        "Il worktree è chiuso. La chat è di sola lettura finché non viene riaperto.",
       chatWorktreeRemoved:
         "Il worktree è stato rimosso. La chat è di sola lettura.",
       deliveryState:
@@ -2522,7 +2504,6 @@ export const supplementalMessages = {
       sendBackTo: "Rimanda a {step}",
       statusAwaitingApproval: "Pronta per l'approvazione",
       statusReadyToFinalize: "Pronta da finalizzare",
-      statusWorktreeClosed: "Worktree chiuso",
       statusDone: "Fatto",
       approveAdvance: "Approva → {step}",
       complete: "Finalizza attività",
@@ -2555,7 +2536,6 @@ export const supplementalMessages = {
       promptLabel: "Prompt",
       promptVariables: "Variabili:",
       resetPrompt: "Ripristina predefinito",
-      reopenWorktree: "Riapri worktree",
       worktreeError: "Impossibile creare il worktree per questa attività.",
       worktreeMissing: "Il worktree di questa attività non esiste più.",
     },
@@ -3115,8 +3095,6 @@ export const supplementalMessages = {
       shipFinish: "タスクを完了",
       removeTaskWorktree: "ワークツリーを削除…",
       noChatsYet: "このタスクにはまだチャットがありません。",
-      chatWorktreeClosed:
-        "ワークツリーは閉じています。再度開くまでチャットは読み取り専用です。",
       chatWorktreeRemoved:
         "ワークツリーは削除されました。チャットは読み取り専用です。",
       deliveryState: "{branch} は {upstream} より {ahead} 先行、{behind} 遅れ",
@@ -3137,7 +3115,6 @@ export const supplementalMessages = {
       sendBackTo: "{step}に差し戻す",
       statusAwaitingApproval: "承認待ち",
       statusReadyToFinalize: "完了待ち",
-      statusWorktreeClosed: "ワークツリーが閉じています",
       statusDone: "完了",
       approveAdvance: "承認 → {step}",
       complete: "タスクを完了する",
@@ -3169,7 +3146,6 @@ export const supplementalMessages = {
       promptLabel: "プロンプト",
       promptVariables: "変数:",
       resetPrompt: "既定に戻す",
-      reopenWorktree: "ワークツリーを再度開く",
       worktreeError: "このタスクのワークツリーを作成できませんでした。",
       worktreeMissing: "このタスクのワークツリーはもう存在しません。",
     },
@@ -3721,8 +3697,6 @@ export const supplementalMessages = {
       shipFinish: "작업 완료",
       removeTaskWorktree: "워크트리 제거…",
       noChatsYet: "이 작업에는 아직 채팅이 없습니다.",
-      chatWorktreeClosed:
-        "워크트리가 닫혀 있습니다. 다시 열 때까지 채팅은 읽기 전용입니다.",
       chatWorktreeRemoved: "워크트리가 제거되었습니다. 채팅은 읽기 전용입니다.",
       deliveryState:
         "{branch}은(는) {upstream}보다 {ahead} 앞서고 {behind} 뒤처져 있습니다",
@@ -3743,7 +3717,6 @@ export const supplementalMessages = {
       sendBackTo: "{step}(으)로 돌려보내기",
       statusAwaitingApproval: "승인 대기",
       statusReadyToFinalize: "완료 대기",
-      statusWorktreeClosed: "워크트리 닫힘",
       statusDone: "완료",
       approveAdvance: "승인 → {step}",
       complete: "작업 완료하기",
@@ -3775,7 +3748,6 @@ export const supplementalMessages = {
       promptLabel: "프롬프트",
       promptVariables: "변수:",
       resetPrompt: "기본값으로 재설정",
-      reopenWorktree: "워크트리 다시 열기",
       worktreeError: "이 작업의 워크트리를 만들 수 없습니다.",
       worktreeMissing: "이 작업의 워크트리가 더 이상 존재하지 않습니다.",
     },
@@ -4318,8 +4290,6 @@ export const supplementalMessages = {
       shipFinish: "Concluir tarefa",
       removeTaskWorktree: "Remover worktree…",
       noChatsYet: "Esta tarefa ainda não tem chats.",
-      chatWorktreeClosed:
-        "O worktree está fechado. O chat é somente leitura até ser reaberto.",
       chatWorktreeRemoved: "O worktree foi removido. O chat é somente leitura.",
       deliveryState:
         "{branch} está {ahead} à frente e {behind} atrás de {upstream}",
@@ -4340,7 +4310,6 @@ export const supplementalMessages = {
       sendBackTo: "Devolver para {step}",
       statusAwaitingApproval: "Pronta para aprovação",
       statusReadyToFinalize: "Pronta para finalizar",
-      statusWorktreeClosed: "Worktree fechado",
       statusDone: "Concluído",
       approveAdvance: "Aprovar → {step}",
       complete: "Finalizar tarefa",
@@ -4373,7 +4342,6 @@ export const supplementalMessages = {
       promptLabel: "Prompt",
       promptVariables: "Variáveis:",
       resetPrompt: "Restaurar padrão",
-      reopenWorktree: "Reabrir worktree",
       worktreeError: "Não foi possível criar o worktree para esta tarefa.",
       worktreeMissing: "O worktree desta tarefa não existe mais.",
     },
@@ -4927,8 +4895,6 @@ export const supplementalMessages = {
       shipFinish: "Hoàn thành nhiệm vụ",
       removeTaskWorktree: "Xóa worktree…",
       noChatsYet: "Nhiệm vụ này chưa có cuộc trò chuyện nào.",
-      chatWorktreeClosed:
-        "Worktree đã đóng. Cuộc trò chuyện chỉ đọc cho đến khi được mở lại.",
       chatWorktreeRemoved: "Worktree đã bị xóa. Cuộc trò chuyện chỉ đọc.",
       deliveryState:
         "{branch} đi trước {ahead}, đi sau {behind} so với {upstream}",
@@ -4949,7 +4915,6 @@ export const supplementalMessages = {
       sendBackTo: "Gửi lại về {step}",
       statusAwaitingApproval: "Sẵn sàng phê duyệt",
       statusReadyToFinalize: "Sẵn sàng hoàn tất",
-      statusWorktreeClosed: "Worktree đã đóng",
       statusDone: "Hoàn tất",
       approveAdvance: "Phê duyệt → {step}",
       complete: "Hoàn tất tác vụ",
@@ -4981,7 +4946,6 @@ export const supplementalMessages = {
       promptLabel: "Prompt",
       promptVariables: "Biến:",
       resetPrompt: "Đặt lại mặc định",
-      reopenWorktree: "Mở lại worktree",
       worktreeError: "Không thể tạo worktree cho tác vụ này.",
       worktreeMissing: "Worktree của tác vụ này không còn tồn tại.",
     },
@@ -5528,7 +5492,6 @@ export const supplementalMessages = {
       shipFinish: "完成任务",
       removeTaskWorktree: "移除工作树…",
       noChatsYet: "此任务还没有聊天。",
-      chatWorktreeClosed: "工作树已关闭。重新打开前聊天为只读。",
       chatWorktreeRemoved: "工作树已移除。聊天为只读。",
       deliveryState:
         "{branch} 领先 {upstream} {ahead} 个提交，落后 {behind} 个",
@@ -5549,7 +5512,6 @@ export const supplementalMessages = {
       sendBackTo: "退回到{step}",
       statusAwaitingApproval: "等待批准",
       statusReadyToFinalize: "等待完成",
-      statusWorktreeClosed: "工作树已关闭",
       statusDone: "已完成",
       approveAdvance: "批准 → {step}",
       complete: "完成任务",
@@ -5581,7 +5543,6 @@ export const supplementalMessages = {
       promptLabel: "提示词",
       promptVariables: "变量：",
       resetPrompt: "恢复默认",
-      reopenWorktree: "重新打开工作树",
       worktreeError: "无法为此任务创建工作树。",
       worktreeMissing: "此任务的工作树已不存在。",
     },
@@ -6108,7 +6069,6 @@ export const supplementalMessages = {
       shipFinish: "完成任務",
       removeTaskWorktree: "移除工作樹…",
       noChatsYet: "此任務還沒有聊天。",
-      chatWorktreeClosed: "工作樹已關閉。重新開啟前聊天為唯讀。",
       chatWorktreeRemoved: "工作樹已移除。聊天為唯讀。",
       deliveryState:
         "{branch} 領先 {upstream} {ahead} 個提交，落後 {behind} 個",
@@ -6129,7 +6089,6 @@ export const supplementalMessages = {
       sendBackTo: "退回到{step}",
       statusAwaitingApproval: "等待核准",
       statusReadyToFinalize: "等待完成",
-      statusWorktreeClosed: "工作樹已關閉",
       statusDone: "已完成",
       approveAdvance: "核准 → {step}",
       complete: "完成任務",
@@ -6161,7 +6120,6 @@ export const supplementalMessages = {
       promptLabel: "提示詞",
       promptVariables: "變數：",
       resetPrompt: "恢復預設",
-      reopenWorktree: "重新開啟工作樹",
       worktreeError: "無法為此任務建立工作樹。",
       worktreeMissing: "此任務的工作樹已不存在。",
     },

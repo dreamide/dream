@@ -13,7 +13,6 @@ export type TaskStatus =
   | "failed"
   | "interrupted"
   | "missing"
-  | "worktreeClosed"
   | "worktreeMissing"
   | "done";
 
@@ -30,7 +29,6 @@ export const getTaskStatus = ({
   streaming,
   task,
   worktreeMissing = false,
-  worktreeOpen,
 }: {
   activityEntry: ChatActivity | undefined;
   awaitingAnswer: boolean;
@@ -47,8 +45,6 @@ export const getTaskStatus = ({
    * outranks everything the step chat reports.
    */
   worktreeMissing?: boolean;
-  /** Whether the task's worktree project is open (true when it has none). */
-  worktreeOpen: boolean;
 }): TaskStatus => {
   if (task.completion) {
     return "done";
@@ -60,10 +56,6 @@ export const getTaskStatus = ({
 
   if (task.worktreeProjectId && worktreeMissing) {
     return "worktreeMissing";
-  }
-
-  if (task.worktreeProjectId && !worktreeOpen) {
-    return "worktreeClosed";
   }
 
   if (awaitingAnswer) {
@@ -161,7 +153,6 @@ export const TASK_STATUS_LABEL_KEYS = {
   running: "statusRunning",
   starting: "statusStarting",
   waiting: "statusWaiting",
-  worktreeClosed: "statusWorktreeClosed",
   worktreeMissing: "statusWorktreeMissing",
 } as const satisfies Record<TaskStatus, string>;
 

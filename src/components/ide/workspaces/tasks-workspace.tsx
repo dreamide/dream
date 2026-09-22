@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { useIdeStore } from "../ide-store";
 import {
   getRecentTaskProjects,
@@ -25,6 +26,7 @@ const TasksWorkspaceComponent = ({ active }: TasksWorkspaceProps) => {
   const tasksProjectId = useIdeStore((s) => s.tasksProjectId);
 
   const tasks = useIdeStore((s) => s.tasks);
+  const paneOpen = useIdeStore((s) => s.tasksPane !== null);
 
   const { entries, scopeProject } = useMemo(
     () =>
@@ -46,7 +48,8 @@ const TasksWorkspaceComponent = ({ active }: TasksWorkspaceProps) => {
       data-tasks-scope={scopeProject ? "project" : "all"}
       data-project-id={scopeProject?.id}
     >
-      <div className="min-w-0 flex-1">
+      {/* Keeps the columns clear of the pane's border while it is open. */}
+      <div className={cn("min-w-0 flex-1", paneOpen && "pr-2")}>
         <TaskBoard
           entries={entries}
           projects={taskProjects}

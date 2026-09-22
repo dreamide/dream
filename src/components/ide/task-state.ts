@@ -236,10 +236,8 @@ const normalizeTaskStepConfig = (
   const modelId = rawModel ? asNonEmptyString(rawModel.model) : null;
 
   return {
-    agentMode:
-      config.agentMode === "plan" || config.agentMode === "build"
-        ? config.agentMode
-        : fallback.agentMode,
+    // Fixed per step; a saved value from when it was configurable is ignored.
+    agentMode: fallback.agentMode,
     autoAdvance:
       typeof config.autoAdvance === "boolean"
         ? config.autoAdvance

@@ -6,7 +6,6 @@ import {
   ChevronsRight,
   Ellipsis,
   FilePenLine,
-  FolderOpen,
   FolderSync,
   FolderX,
   GitBranch,
@@ -71,7 +70,6 @@ export interface TaskCardProps {
   /** Ends a task whose worktree is gone, e.g. because it was merged by hand. */
   onMarkDone: (entry: TaskEntry) => void;
   onRecreateWorktree: (entry: TaskEntry) => void;
-  onReopenWorktree: (entry: TaskEntry) => void;
   onRetry: (entry: TaskEntry) => void;
   onSendBack: (entry: TaskEntry, toStep: TaskRunStepId) => void;
   onStart: (entry: TaskEntry) => void;
@@ -96,7 +94,6 @@ const TaskCardImpl = ({
   onMarkDone,
   onOpenChat,
   onRecreateWorktree,
-  onReopenWorktree,
   onRetry,
   onSendBack,
   onStart,
@@ -167,7 +164,6 @@ const TaskCardImpl = ({
     streaming,
     task,
     worktreeMissing,
-    worktreeOpen,
   });
   // "Done" means merged locally; whether it was pushed is a separate fact.
   const mergedCommit =
@@ -215,43 +211,37 @@ const TaskCardImpl = ({
               label: t("markDone"),
               run: () => onMarkDone(entry),
             }
-        : status === "worktreeClosed"
+        : changesRequested
           ? {
-              icon: FolderOpen,
-              label: t("reopenWorktree"),
-              run: () => onReopenWorktree(entry),
+              // The reviewer's findings go back to the builder; approving
+              // anyway stays available from the menu.
+              icon: Undo2,
+              label: t("sendBackTo", {
+                step: t(TASK_STEP_LABEL_KEYS.build),
+              }),
+              run: () => onSendBack(entry, "build"),
             }
-          : changesRequested
+          : needsRetry
             ? {
-                // The reviewer's findings go back to the builder; approving
-                // anyway stays available from the menu.
-                icon: Undo2,
-                label: t("sendBackTo", {
-                  step: t(TASK_STEP_LABEL_KEYS.build),
-                }),
-                run: () => onSendBack(entry, "build"),
+                icon: RotateCcw,
+                label: t("retryStep"),
+                run: () => onRetry(entry),
               }
-            : needsRetry
+            : canApprove && nextStep
               ? {
-                  icon: RotateCcw,
-                  label: t("retryStep"),
-                  run: () => onRetry(entry),
+                  icon: ChevronsRight,
+                  label: t("approveAdvance", {
+                    step: t(TASK_STEP_LABEL_KEYS[nextStep]),
+                  }),
+                  run: () => onAdvance(entry),
                 }
-              : canApprove && nextStep
+              : canApprove && task.step === "merge"
                 ? {
-                    icon: ChevronsRight,
-                    label: t("approveAdvance", {
-                      step: t(TASK_STEP_LABEL_KEYS[nextStep]),
-                    }),
-                    run: () => onAdvance(entry),
+                    icon: ArrowRight,
+                    label: t("complete"),
+                    run: () => onComplete(entry),
                   }
-                : canApprove && task.step === "merge"
-                  ? {
-                      icon: ArrowRight,
-                      label: t("complete"),
-                      run: () => onComplete(entry),
-                    }
-                  : null;
+                : null;
 
   // Completing is also offered from the menu, so a task can skip the merge
   // agent (or a failed one) and go straight to merge / PR.
@@ -262,7 +252,6 @@ const TaskCardImpl = ({
       className={cn(
         "group/card shrink-0 select-none rounded-md border border-surface-300 bg-background p-3 text-left text-foreground shadow-sm transition-colors hover:border-surface-400 dark:border-surface-700 dark:hover:border-surface-600",
         "cursor-pointer",
-        status === "done" && "opacity-60",
         selected &&
           "border-primary hover:border-primary dark:border-primary dark:hover:border-primary",
       )}

@@ -22,7 +22,6 @@ const base = {
   pendingSubmit: false,
   streaming: false,
   task: { completion: null, step: "build", worktreeProjectId: null },
-  worktreeOpen: true,
 } as const;
 
 test("backlog tasks and unstarted steps are idle", () => {
@@ -101,7 +100,6 @@ test("a missing worktree outranks whatever the step chat reports", () => {
     getTaskStatus({
       ...withWorktree,
       currentRun: { chatId: "chat-1", finishedAt: "now" },
-      worktreeOpen: false,
     }),
     "worktreeMissing",
   );
@@ -137,17 +135,6 @@ test("an unfinished run reflects the recorded activity", () => {
   // A queued prompt that never ran (e.g. app restart) needs a retry.
   assert.equal(getTaskStatus(base), "interrupted");
   assert.equal(getTaskStatus({ ...base, chatExists: false }), "missing");
-});
-
-test("a closed worktree project blocks the task", () => {
-  assert.equal(
-    getTaskStatus({
-      ...base,
-      task: { ...base.task, worktreeProjectId: "worktree" },
-      worktreeOpen: false,
-    }),
-    "worktreeClosed",
-  );
 });
 
 test("only settled statuses allow approve, send back, and retry", () => {

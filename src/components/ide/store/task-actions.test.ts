@@ -643,13 +643,11 @@ test("a closed worktree project reopens in the background", async () => {
       .getState()
       .projects.filter((entry) => entry.id !== worktreeProjectId),
   });
-  assert.equal(await store.getState().retryTaskStep(project.id, taskId), null);
-
-  assert.equal(
-    await store.getState().reopenTaskWorktree(project.id, taskId),
-    true,
-  );
+  // Running a step brings the closed worktree project back by itself.
   assert.ok(await store.getState().retryTaskStep(project.id, taskId));
+  assert.ok(
+    store.getState().projects.some((entry) => entry.id === worktreeProjectId),
+  );
 
   // A worktree removed outside the Tasks workspace cannot be reopened.
   store.setState({
@@ -664,7 +662,7 @@ test("a closed worktree project reopens in the background", async () => {
   );
 });
 
-test("a task whose worktree project is closed cannot run steps", async () => {
+test("a task whose worktree project the app no longer knows cannot run steps", async () => {
   const { project, store } = createTestStore();
   const taskId = addTask(store, project.id);
   store.setState({

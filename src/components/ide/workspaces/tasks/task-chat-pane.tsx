@@ -1,8 +1,7 @@
-import { FolderOpen, MessageSquare, X } from "lucide-react";
+import { MessageSquare, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { StatusDot } from "@/components/ui/status-dot";
 import {
   TASKS_CHAT_PANEL_MAX_WIDTH_PX,
@@ -51,7 +50,6 @@ const TaskChatPaneBody = ({
   const commonT = useTranslations("common");
   const closeTaskPane = useIdeStore((s) => s.closeTaskPane);
   const openTaskPane = useIdeStore((s) => s.openTaskPane);
-  const reopenTaskWorktree = useIdeStore((s) => s.reopenTaskWorktree);
   const chats = useIdeStore((s) => s.chats);
 
   const runs = useMemo(() => getTaskRunsWithChats(task, chats), [chats, task]);
@@ -83,12 +81,25 @@ const TaskChatPaneBody = ({
   const worktreeMissing = useIdeStore(
     (s) => s.missingTaskWorktrees[task.id] !== undefined,
   );
-  const canReopen =
-    !projectOpen &&
-    !worktreeRemoved &&
-    !worktreeMissing &&
-    task.worktreeProjectId !== null &&
-    !task.completion;
+  // A closed worktree project is reopened in the background so the chat can
+  // be used right away; one that is gone from disk is left alone.
+  useEffect(() => {
+    if (
+      chatProject &&
+      !projectOpen &&
+      !worktreeRemoved &&
+      !worktreeMissing &&
+      !task.completion
+    ) {
+      useIdeStore.getState().addProject(chatProject.path, { activate: false });
+    }
+  }, [
+    chatProject,
+    projectOpen,
+    task.completion,
+    worktreeMissing,
+    worktreeRemoved,
+  ]);
 
   // The same status the card shows.
   const currentRun = getCurrentTaskRun(task);
@@ -110,11 +121,6 @@ const TaskChatPaneBody = ({
   const pendingSubmit = useIdeStore((s) =>
     Boolean(currentChatId && s.pendingChatSubmitByChatId[currentChatId]),
   );
-  const worktreeOpen = useIdeStore(
-    (s) =>
-      !task.worktreeProjectId ||
-      s.projects.some((project) => project.id === task.worktreeProjectId),
-  );
   const activityEntry = useActivityStore((s) =>
     currentChatId ? s.entries[currentChatId] : undefined,
   );
@@ -127,27 +133,8 @@ const TaskChatPaneBody = ({
     streaming,
     task,
     worktreeMissing,
-    worktreeOpen,
   });
   const dot = getTaskStatusDotProps(status);
-
-  const [reopening, setReopening] = useState(false);
-  const [reopenError, setReopenError] = useState<string | null>(null);
-  const handleReopen = useCallback(async () => {
-    setReopening(true);
-    setReopenError(null);
-    try {
-      if (!(await reopenTaskWorktree(task.projectId, task.id))) {
-        setReopenError(t("worktreeMissing"));
-      }
-    } catch (error) {
-      setReopenError(
-        error instanceof Error ? error.message : t("worktreeMissing"),
-      );
-    } finally {
-      setReopening(false);
-    }
-  }, [reopenTaskWorktree, t, task.id, task.projectId]);
 
   // Step labels repeat when a step ran more than once; number those.
   const runLabels = useMemo(() => {
@@ -232,33 +219,9 @@ const TaskChatPaneBody = ({
             </div>
           ) : null}
 
-          {chat && !projectOpen ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 text-muted-foreground text-xs">
-              <span>
-                {worktreeRemoved
-                  ? t("chatWorktreeRemoved")
-                  : t("chatWorktreeClosed")}
-              </span>
-              {canReopen ? (
-                <Button
-                  className="h-6 gap-1 px-2 text-xs"
-                  disabled={reopening}
-                  onClick={() => void handleReopen()}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  {reopening ? (
-                    <Spinner className="size-3" />
-                  ) : (
-                    <FolderOpen className="size-3.5" />
-                  )}
-                  {t("reopenWorktree")}
-                </Button>
-              ) : null}
-              {reopenError ? (
-                <span className="w-full text-destructive">{reopenError}</span>
-              ) : null}
+          {chat && worktreeRemoved ? (
+            <div className="px-3 py-1.5 text-muted-foreground text-xs">
+              {t("chatWorktreeRemoved")}
             </div>
           ) : null}
         </div>
@@ -314,7 +277,10 @@ const TaskChatPaneImpl = ({ active }: { active: boolean }) => {
   return (
     <WorkspaceSlidingPanel
       className="z-20"
-      contentClassName="pl-2"
+      contentClassName="border-surface-300 border-l pl-2 dark:border-surface-700"
+      // Opaque, so the board (whose scroller bleeds under the pane by its
+      // negative margin) stops exactly at the border.
+      contentStyle={{ backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND }}
       contentMinWidth={TASKS_CHAT_PANEL_MIN_WIDTH_PX}
       maxWidth={TASKS_CHAT_PANEL_MAX_WIDTH_PX}
       minWidth={TASKS_CHAT_PANEL_MIN_WIDTH_PX}

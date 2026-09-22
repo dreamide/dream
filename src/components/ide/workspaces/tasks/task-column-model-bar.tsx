@@ -1,11 +1,4 @@
-import {
-  Bot,
-  ChevronLeft,
-  ChevronRight,
-  MapIcon,
-  Shield,
-  ShieldAlert,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Shield, ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
@@ -28,7 +21,6 @@ import {
 import { getModelReasoningEfforts, getModelSpeedTiers } from "@/lib/models";
 import { cn } from "@/lib/utils";
 import type {
-  AgentMode,
   AiProvider,
   ModelSpeed,
   ReasoningEffort,
@@ -36,10 +28,7 @@ import type {
   TaskStepConfig,
 } from "@/types/ide";
 import { useIdeStore } from "../../ide-store";
-import { AGENT_MODE_OPTIONS } from "../../ide-types";
 import { resolveTaskStepAgent } from "../../store/task-actions";
-
-const getAgentModeIcon = (mode: AgentMode) => (mode === "plan" ? MapIcon : Bot);
 
 const INHERIT_MODEL = "__inherit__";
 const MODEL_VALUE_SEPARATOR = "::";
@@ -204,7 +193,6 @@ const TaskColumnModelBarImpl = ({
           option.id === selectedModel.model,
       )
     : undefined;
-  const AgentModeIcon = getAgentModeIcon(config.agentMode);
   const reasoningEfforts = selectedModel
     ? getOptionReasoningEfforts(
         selectedModelOption,
@@ -308,44 +296,6 @@ const TaskColumnModelBarImpl = ({
                       <span>{chatT("fullAccess")}</span>
                     </span>
                   </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-
-            <Select
-              onValueChange={(value) => {
-                if (value === "plan" || value === "build") {
-                  update((current) => ({ ...current, agentMode: value }));
-                }
-              }}
-              value={config.agentMode}
-            >
-              <SelectTrigger
-                className={cn(TRIGGER_CLASSES, "shrink-0")}
-                showChevron={false}
-                title={chatT("agentMode")}
-              >
-                <AgentModeIcon className="size-3.5 shrink-0" />
-                <span className="truncate">{chatT(config.agentMode)}</span>
-              </SelectTrigger>
-              <SelectContent className="text-xs" side="top">
-                <SelectGroup>
-                  <SelectLabel>{chatT("mode")}</SelectLabel>
-                  {AGENT_MODE_OPTIONS.map((option) => {
-                    const OptionIcon = getAgentModeIcon(option.value);
-                    return (
-                      <SelectItem
-                        className="text-xs"
-                        key={option.value}
-                        value={option.value}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <OptionIcon className={ITEM_ICON_CLASSES} />
-                          <span>{chatT(option.value)}</span>
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
                 </SelectGroup>
               </SelectContent>
             </Select>
