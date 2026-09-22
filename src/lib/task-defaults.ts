@@ -94,7 +94,7 @@ export const DEFAULT_TASK_CONFIG: TaskConfig = {
     agentMode: "plan",
     autoAdvance: false,
     model: null,
-    permissionMode: "standard",
+    permissionMode: "full-access",
     prompt: null,
   },
   build: {
@@ -108,7 +108,7 @@ export const DEFAULT_TASK_CONFIG: TaskConfig = {
     agentMode: "plan",
     autoAdvance: false,
     model: null,
-    permissionMode: "standard",
+    permissionMode: "full-access",
     prompt: null,
   },
   merge: {

@@ -1,9 +1,11 @@
 import { Plus, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { memo, useMemo } from "react";
+import { memo, useId, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { TaskEntry, TaskRunStepId, TaskStepConfig } from "@/types/ide";
+import { useIdeStore } from "../../ide-store";
 import { TaskCard, type TaskCardProps } from "./task-card";
 import { TaskColumnModelBar } from "./task-column-model-bar";
 import { TaskStepIcon } from "./task-step-icon";
@@ -42,6 +44,8 @@ const TaskColumnImpl = ({
 }: TaskColumnProps) => {
   const t = useTranslations("tasks");
   const isBacklog = step.id === "backlog";
+  const autoAdvanceId = useId();
+  const setTaskStepConfig = useIdeStore((s) => s.setTaskStepConfig);
 
   // Backlog order is per project: "move up" must swap with the previous task
   // of the same project even when other projects' tasks sit in between.
@@ -85,17 +89,39 @@ const TaskColumnImpl = ({
             <Plus className="size-4" />
           </Button>
         ) : (
-          <Button
-            aria-label={t("configureStep")}
-            className="ml-auto size-6 shrink-0 text-muted-foreground hover:text-foreground"
-            onClick={() => onConfigureStep(step.id as TaskRunStepId)}
-            size="icon-xs"
-            title={t("configureStep")}
-            type="button"
-            variant="ghost"
-          >
-            <SlidersHorizontal className="size-3.5" />
-          </Button>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {config && step.id !== "merge" ? (
+              <label
+                className="flex h-7 shrink-0 items-center gap-1.5 font-medium text-muted-foreground text-xs"
+                htmlFor={autoAdvanceId}
+                title={t("autoAdvance")}
+              >
+                <Switch
+                  checked={config.autoAdvance}
+                  id={autoAdvanceId}
+                  onCheckedChange={(checked) =>
+                    setTaskStepConfig(step.id as TaskRunStepId, (current) => ({
+                      ...current,
+                      autoAdvance: checked,
+                    }))
+                  }
+                  size="sm"
+                />
+                {t("gateAuto")}
+              </label>
+            ) : null}
+            <Button
+              aria-label={t("configureStep")}
+              className="ml-auto size-6 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => onConfigureStep(step.id as TaskRunStepId)}
+              size="icon-xs"
+              title={t("configureStep")}
+              type="button"
+              variant="ghost"
+            >
+              <SlidersHorizontal className="size-3.5" />
+            </Button>
+          </div>
         )}
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
