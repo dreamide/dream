@@ -372,9 +372,9 @@ export const TaskBoard = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="-m-2 min-h-0 flex-1 overflow-x-auto p-2">
-        {/* Columns share the width up to 1920px; below five 18rem columns
-            (plus gaps) the board scrolls instead of squeezing them. */}
-        <div className="mx-auto flex h-full w-full min-w-[calc(5*18rem+4*0.5rem)] max-w-[1920px] gap-2">
+        {/* Columns share the width up to 1920px and squeeze down to 13rem
+            each (e.g. beside the chat pane); below that the board scrolls. */}
+        <div className="mx-auto flex h-full w-full min-w-[calc(5*13rem+4*0.5rem)] max-w-[1920px] gap-2">
           {TASK_STEPS.map((step) => (
             <TaskColumn
               busyKeys={busyKeys}

@@ -67,7 +67,7 @@ const TaskColumnImpl = ({
       aria-label={t(step.labelKey)}
       className={cn(
         TASK_COLUMN_SURFACE_CLASSES,
-        "flex min-w-72 flex-1 basis-0 flex-col",
+        "flex min-w-52 flex-1 basis-0 flex-col",
       )}
       data-task-step={step.id}
     >

@@ -261,12 +261,26 @@ const TaskCardImpl = ({
     <article
       className={cn(
         "group/card shrink-0 select-none rounded-md border border-surface-300 bg-background p-3 text-left text-foreground shadow-sm transition-colors hover:border-surface-400 dark:border-surface-700 dark:hover:border-surface-600",
+        "cursor-pointer",
         status === "done" && "opacity-60",
         selected && "border-primary/60 ring-1 ring-primary/40",
       )}
       data-task={task.id}
       data-project-id={entry.projectId}
+      // Clicking the card shows its chats in the pane; the card's own
+      // controls handle their own clicks.
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("button, a, [role]")) {
+          return;
+        }
+        onOpenChat(entry);
+      }}
       onDoubleClick={() => onEdit(entry)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && event.target === event.currentTarget) {
+          onOpenChat(entry);
+        }
+      }}
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
