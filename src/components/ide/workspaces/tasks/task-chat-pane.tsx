@@ -159,24 +159,20 @@ const TaskChatPaneBody = ({
       <div className="shrink-0 px-2 pt-2">
         <div className="mx-auto w-full max-w-[700px] overflow-hidden rounded-lg border border-surface-300 bg-surface-50 shadow-md dark:border-surface-700 dark:bg-surface-900">
           <div className="-mx-px -mt-px flex w-[calc(100%+2px)] items-center gap-2 rounded-lg border border-surface-300 bg-background px-3 py-1.5 dark:border-surface-700">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-h-7 min-w-0 items-center gap-1.5">
-                <TaskStepIcon step={task.step} />
-                <h2 className="truncate font-medium text-sm">{task.title}</h2>
-              </div>
-              {task.step !== "backlog" ? (
-                <div className="flex items-center gap-1.5 pb-1 text-muted-foreground text-xs">
-                  <StatusDot
-                    className={dot.className}
-                    color={dot.color}
-                    pulse={dot.pulse}
-                  />
-                  <span className="truncate">
-                    {t(getTaskStatusLabelKey(status, task.step))}
-                  </span>
-                </div>
-              ) : null}
+            <div className="flex min-h-7 min-w-0 flex-1 items-center gap-1.5">
+              <TaskStepIcon step={task.step} />
+              <h2 className="truncate font-medium text-sm">{task.title}</h2>
             </div>
+            {task.step !== "backlog" ? (
+              <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+                <StatusDot
+                  className={dot.className}
+                  color={dot.color}
+                  pulse={dot.pulse}
+                />
+                <span>{t(getTaskStatusLabelKey(status, task.step))}</span>
+              </div>
+            ) : null}
             <Button
               aria-label={commonT("close")}
               className="size-7 shrink-0 text-muted-foreground"
@@ -277,7 +273,9 @@ const TaskChatPaneImpl = ({ active }: { active: boolean }) => {
   return (
     <WorkspaceSlidingPanel
       className="z-20"
-      contentClassName="border-surface-300 border-l pl-2 dark:border-surface-700"
+      contentClassName="pl-2"
+      // The same divider as between chat columns, highlighted on hover.
+      handleClassName="bg-border transition-colors hover:bg-surface-300 dark:hover:bg-surface-700"
       // Opaque, so the board (whose scroller bleeds under the pane by its
       // negative margin) stops exactly at the border.
       contentStyle={{ backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND }}

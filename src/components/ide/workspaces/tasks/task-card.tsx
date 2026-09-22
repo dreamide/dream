@@ -9,7 +9,7 @@ import {
   FolderSync,
   FolderX,
   GitBranch,
-  MessageSquare,
+  GitPullRequest,
   Play,
   RotateCcw,
   Trash2,
@@ -113,17 +113,6 @@ const TaskCardImpl = ({
         s.chats.some((chat) => chat.id === chatId && chat.deletedAt === null),
     ),
   );
-  // A stable string so the selector does not return a fresh array each time.
-  const liveRunIdsKey = useIdeStore((s) =>
-    task.runs
-      .filter((run) =>
-        s.chats.some(
-          (chat) => chat.id === run.chatId && chat.deletedAt === null,
-        ),
-      )
-      .map((run) => run.id)
-      .join(","),
-  );
   const streaming = useIdeStore((s) =>
     Boolean(chatId && s.streamingChatIds[chatId]),
   );
@@ -168,19 +157,30 @@ const TaskCardImpl = ({
   // "Done" means merged locally; whether it was pushed is a separate fact.
   const mergedCommit =
     task.completion?.kind === "merged" ? task.completion.mergeCommit : null;
+  const gitRefreshKey = useIdeStore(
+    (s) =>
+      `${s.projectGitRefreshKeys[project.id] ?? 0}:${s.projectGitRefreshKeys[task.worktreeProjectId ?? ""] ?? 0}`,
+  );
   const delivery = useTaskDelivery({
     branch: task.baseRef,
     commit: mergedCommit,
-    enabled: mergedCommit !== null,
+    enabled:
+      task.completion?.kind === "merged" || task.completion?.kind === "pr",
     projectPath: project.path,
+    taskBranch: task.branch,
+    refreshKey: `${gitRefreshKey}:${streaming}`,
   });
   const dot = getTaskStatusDotProps(status);
+  const prUrl =
+    (delivery?.pullRequest?.state !== "closed"
+      ? delivery?.pullRequest?.url
+      : null) ||
+    task.completion?.prUrl ||
+    "";
+  const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
   const settled = isTaskSettled(status);
   // Deleting mid-run would orphan a live agent still editing the worktree.
   const canDelete = !busy && status !== "starting" && status !== "running";
-  const liveRunIds = new Set(liveRunIdsKey ? liveRunIdsKey.split(",") : []);
-  const liveRuns = task.runs.filter((run) => liveRunIds.has(run.id));
-  const latestLiveRun = liveRuns.at(-1) ?? null;
   const nextStep = getNextTaskStep(task.step);
   const sendBackTargets = settled ? getEarlierTaskRunSteps(task.step) : [];
   const needsRetry =
@@ -290,22 +290,7 @@ const TaskCardImpl = ({
           <div className="flex items-start gap-2">
             <TaskStepIcon className="mt-0.5" step={task.step} />
             <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
-              {latestLiveRun ? (
-                // Runs are stored oldest first, so the last live one is the
-                // chat the task was most recently working in.
-                <button
-                  className="cursor-pointer text-left hover:underline focus-visible:underline focus-visible:outline-none"
-                  onClick={() => onOpenChat(entry, latestLiveRun.id)}
-                  // The card's double-click opens the edit dialog.
-                  onDoubleClick={(event) => event.stopPropagation()}
-                  title={t("openChat")}
-                  type="button"
-                >
-                  {task.title}
-                </button>
-              ) : (
-                task.title
-              )}
+              {task.title}
             </h3>
           </div>
           {task.description ? (
@@ -329,36 +314,6 @@ const TaskCardImpl = ({
             <Ellipsis className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            {liveRuns.length === 1 ? (
-              <DropdownMenuItem
-                onClick={() => onOpenChat(entry, liveRuns[0]?.id)}
-              >
-                <MessageSquare className="size-4" />
-                {t("openChat")}
-              </DropdownMenuItem>
-            ) : null}
-            {liveRuns.length > 1 ? (
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <MessageSquare className="size-4" />
-                  {t("openChat")}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {liveRuns.map((run, index) => (
-                    <DropdownMenuItem
-                      key={run.id}
-                      onClick={() => onOpenChat(entry, run.id)}
-                    >
-                      <TaskStepIcon step={run.step} />
-                      {t(TASK_STEP_LABEL_KEYS[run.step])}
-                      <span className="ml-auto text-muted-foreground text-xs tabular-nums">
-                        #{index + 1}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            ) : null}
             {changesRequested && canApprove && nextStep ? (
               <DropdownMenuItem onClick={() => onAdvance(entry)}>
                 <ChevronsRight className="size-4" />
@@ -464,8 +419,18 @@ const TaskCardImpl = ({
           </span>
         </div>
       ) : null}
-      {delivery?.branchExists && delivery.pushed !== null ? (
+      {!prUrl && delivery?.branchExists && delivery.pushed !== null ? (
         <TaskDeliveryBadge status={delivery} />
+      ) : null}
+      {prUrl ? (
+        <button
+          className="mt-2 flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground hover:underline"
+          onClick={() => openExternalUrl(prUrl)}
+          type="button"
+        >
+          <GitPullRequest className="size-3.5" />
+          {t("prBadge")}
+        </button>
       ) : null}
       {error ? (
         <p className="mt-2 break-words text-destructive text-xs leading-5">

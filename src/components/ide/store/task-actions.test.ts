@@ -969,6 +969,8 @@ test("a task can be filed under a folder the app has never seen", () => {
     (entry) => entry.path === "/workspace/brand-new",
   );
   assert.equal(created?.name, "brand-new");
+  // Registered in the background: no tab appears in Code.
+  assert.equal(created?.hidden, true);
   assert.deepEqual(
     state.tasks.map((task) => [task.id, task.projectId]),
     [[taskId, created?.id]],

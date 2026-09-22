@@ -662,3 +662,48 @@ test("renderUserMessageText joins text sections and labels attachments", () => {
   );
   assert.equal(renderUserMessageText(createUserMessage([])), "");
 });
+
+test("task worktrees saved as tabs load hidden, and Code falls back off them", () => {
+  const worktree = {
+    branch: "task/one",
+    kind: "worktree",
+    mainWorktreePath: "/home/user/project-one",
+    repoRoot: "/home/user/project-one",
+  } as ProjectConfig["worktree"];
+  const merged = mergePersistedState({
+    activeProjectId: "task-worktree",
+    projects: [
+      createPersistedProject(),
+      createPersistedProject({
+        id: "task-worktree",
+        path: "/home/user/wt/task-one",
+        worktree,
+      }),
+      createPersistedProject({
+        id: "own-worktree",
+        path: "/home/user/wt/feature",
+        worktree,
+      }),
+    ],
+    tasks: [{ id: "task-one", worktreeProjectId: "task-worktree" }] as never,
+  });
+
+  const hiddenById = Object.fromEntries(
+    merged.projects.map((entry) => [entry.id, entry.hidden === true]),
+  );
+  // Only the task's worktree is a background project; a worktree the user
+  // opened from Code keeps its tab.
+  assert.deepEqual(hiddenById, {
+    "own-worktree": false,
+    "project-one": false,
+    "task-worktree": true,
+  });
+  assert.equal(merged.activeProjectId, "project-one");
+});
+
+test("ensureActiveProject never picks a hidden project", () => {
+  const hidden = { ...project, hidden: true, id: "hidden" } as ProjectConfig;
+  assert.equal(ensureActiveProject([hidden, project], "hidden"), project.id);
+  assert.equal(ensureActiveProject([hidden, project], null), project.id);
+  assert.equal(ensureActiveProject([hidden], null), null);
+});

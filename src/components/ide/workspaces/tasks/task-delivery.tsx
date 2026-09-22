@@ -11,6 +11,7 @@ export interface TaskDeliveryStatus {
   /** `null` when it cannot be known, e.g. the branch tracks no remote. */
   pushed: boolean | null;
   upstream: string | null;
+  pullRequest?: { url: string; state: "open" | "closed" | "merged" } | null;
 }
 
 /**
@@ -24,12 +25,16 @@ export const useTaskDelivery = ({
   commit,
   enabled = true,
   projectPath,
+  refreshKey = "",
+  taskBranch = null,
 }: {
   branch: string | null;
   /** The commit the task landed as; `null` judges the whole branch. */
   commit: string | null;
   enabled?: boolean;
   projectPath: string | null;
+  refreshKey?: string;
+  taskBranch?: string | null;
 }): TaskDeliveryStatus | null => {
   const [status, setStatus] = useState<TaskDeliveryStatus | null>(null);
 
@@ -40,25 +45,41 @@ export const useTaskDelivery = ({
     }
 
     let cancelled = false;
-    fetch("/api/project-git-task-delivery", {
-      body: JSON.stringify({ branch, commit, projectPath }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    })
-      .then(async (response) =>
-        response.ok ? ((await response.json()) as TaskDeliveryStatus) : null,
-      )
-      // Not knowing is not worth an error on every card.
-      .catch(() => null)
-      .then((next) => {
-        if (!cancelled) {
-          setStatus(next);
-        }
-      });
+    let requestId = 0;
+    const refresh = () => {
+      const id = ++requestId;
+      return (
+        fetch("/api/project-git-task-delivery", {
+          body: JSON.stringify({ branch, commit, projectPath, taskBranch }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        })
+          .then(async (response) =>
+            response.ok
+              ? ((await response.json()) as TaskDeliveryStatus)
+              : null,
+          )
+          // Not knowing is not worth an error on every card.
+          .catch(() => null)
+          .then((next) => {
+            if (!cancelled && id === requestId) {
+              setStatus(next);
+            }
+          })
+      );
+    };
+    void refreshKey;
+    setStatus(null);
+    void refresh();
+    const onFocus = () => {
+      void refresh();
+    };
+    window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
     };
-  }, [branch, commit, enabled, projectPath]);
+  }, [branch, commit, enabled, projectPath, refreshKey, taskBranch]);
 
   return status;
 };

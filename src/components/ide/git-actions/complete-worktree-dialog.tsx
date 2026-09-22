@@ -390,9 +390,17 @@ export const CompleteWorktreeDialog = ({
 
   const dirtyCount = compare?.worktreeStatus.fileCount ?? 0;
   const isDirty = dirtyCount > 0;
-  // Nothing ahead and nothing uncommitted: the base branch has all of it.
+  // A pull request opened outside this dialog (Code, gh, the website) still
+  // counts: the branch is the source of truth.
+  const existingPr = compare?.pullRequest ?? null;
+  const prOpen = existingPr?.state === "open";
+  const prMerged = existingPr?.state === "merged";
+  // Nothing ahead and nothing uncommitted (or the PR was merged): the base
+  // branch has all of it.
   const alreadyMerged =
-    Boolean(task) && compare !== null && compare.aheadCount === 0 && !isDirty;
+    Boolean(task) &&
+    compare !== null &&
+    ((compare.aheadCount === 0 && !isDirty) || prMerged);
   // A task is shipped or finished here, not thrown away.
   const removeAllowed = !task || alreadyMerged;
   // Read again once the merge has landed, when the counts have changed.
@@ -428,9 +436,11 @@ export const CompleteWorktreeDialog = ({
       ? worktreeT("noRemote")
       : !compare.ghAvailable
         ? worktreeT("ghMissing")
-        : compare.aheadCount === 0 && !isDirty
-          ? worktreeT("nothingToMerge", { base: compare.baseBranch })
-          : null;
+        : prOpen
+          ? null
+          : compare.aheadCount === 0 && !isDirty
+            ? worktreeT("nothingToMerge", { base: compare.baseBranch })
+            : null;
   const mergeEnabled = Boolean(compare) && !mergeDisabledReason;
   const prEnabled = Boolean(compare) && !prDisabledReason;
 
@@ -602,6 +612,13 @@ export const CompleteWorktreeDialog = ({
       return;
     }
     if (action === "pr") {
+      if (existingPr && prOpen) {
+        // The pull request already exists: the task is delivered as is.
+        prHandoffRef.current = true;
+        setPrUrl(existingPr.url);
+        setPhase("done");
+        return;
+      }
       prHandoffRef.current = false;
       setPhase("pr");
       return;
@@ -612,7 +629,7 @@ export const CompleteWorktreeDialog = ({
       return;
     }
     void runCleanup({ deleteBranch: false });
-  }, [action, alreadyMerged, runCleanup, runMerge, task]);
+  }, [action, alreadyMerged, existingPr, prOpen, runCleanup, runMerge, task]);
 
   const handleRetryCleanup = useCallback(async () => {
     setRetryingCleanup(true);
@@ -634,7 +651,9 @@ export const CompleteWorktreeDialog = ({
     action === "merge"
       ? worktreeT("merge")
       : action === "pr"
-        ? worktreeT("continueToPr")
+        ? prOpen
+          ? tasksT("shipFinish")
+          : worktreeT("continueToPr")
         : task && alreadyMerged
           ? tasksT("shipFinish")
           : worktreeT("removeWorktree");
@@ -755,7 +774,11 @@ export const CompleteWorktreeDialog = ({
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                    <span>{worktreeT("pullRequestCreated")}</span>
+                    <span>
+                      {existingPr && prUrl === existingPr.url
+                        ? tasksT("shipPrOpen", { number: existingPr.number })
+                        : worktreeT("pullRequestCreated")}
+                    </span>
                     {prUrl ? (
                       <Button
                         className="h-7 gap-1 px-2 text-xs"
@@ -886,6 +909,32 @@ export const CompleteWorktreeDialog = ({
                                 count: compare.aheadCount,
                               })}
                       </div>
+                      {existingPr ? (
+                        <div className="mt-1.5 flex items-center justify-between gap-2 text-muted-foreground text-xs">
+                          <span>
+                            {tasksT(
+                              existingPr.state === "merged"
+                                ? "shipPrMerged"
+                                : existingPr.state === "closed"
+                                  ? "shipPrClosed"
+                                  : "shipPrOpen",
+                              { number: existingPr.number },
+                            )}
+                          </span>
+                          {existingPr.url ? (
+                            <Button
+                              className="h-6 gap-1 px-2 text-xs"
+                              onClick={() => openExternalUrl(existingPr.url)}
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <ExternalLink className="size-3.5" />
+                              {worktreeT("viewPullRequest")}
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {baseDelivery?.branchExists ? (
                         <TaskDeliveryLine
                           className="mt-1.5"
@@ -1120,7 +1169,12 @@ export const CompleteWorktreeDialog = ({
                       {
                         disabled: !prEnabled,
                         icon: <GitPullRequest />,
-                        label: worktreeT("createPullRequest"),
+                        label:
+                          task && prOpen && existingPr
+                            ? tasksT("shipFinishWithPr", {
+                                number: existingPr.number,
+                              })
+                            : worktreeT("createPullRequest"),
                         value: "pr",
                       },
                       ...(removeAllowed

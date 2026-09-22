@@ -20,12 +20,15 @@ import { cn } from "@/lib/utils";
  *   dragging up increases height.
  */
 export const PanelResizeHandle = ({
+  className,
   onDoubleClick,
   onResizeStart,
   onResize,
   onResizeEnd,
   side,
 }: {
+  /** Styles the 1px line itself, e.g. to colour it and highlight on hover. */
+  className?: string;
   onDoubleClick?: () => void;
   onResizeStart?: () => void;
   onResize: (delta: number) => void;
@@ -103,6 +106,7 @@ export const PanelResizeHandle = ({
         side === "left" || side === "right"
           ? "cursor-col-resize"
           : "cursor-row-resize",
+        className,
       )}
       style={side === "left" || side === "right" ? { width: 1 } : { height: 1 }}
       onPointerDown={handlePointerDown}

@@ -315,6 +315,20 @@ test("createWorktreeProject can open the worktree without taking focus", async (
         ?.worktree?.branch,
       "task/task",
     );
+    // A background worktree has no Code tab until something activates it.
+    assert.equal(
+      state.projects.find((project) => project.id === created.projectId)
+        ?.hidden,
+      true,
+    );
+    store.getState().setActiveProjectId(created.projectId);
+    assert.equal(store.getState().activeProjectId, created.projectId);
+    assert.equal(
+      store
+        .getState()
+        .projects.find((project) => project.id === created.projectId)?.hidden,
+      undefined,
+    );
 
     // The default still switches to the new worktree.
     stubFetch(() =>
@@ -330,6 +344,13 @@ test("createWorktreeProject can open the worktree without taking focus", async (
       .getState()
       .createWorktreeProject(parent.id, { branchName: "feature-two" });
     assert.equal(store.getState().activeProjectId, foreground?.projectId);
+    assert.equal(
+      store
+        .getState()
+        .projects.find((project) => project.id === foreground?.projectId)
+        ?.hidden,
+      undefined,
+    );
   } finally {
     vi.unstubAllGlobals();
   }

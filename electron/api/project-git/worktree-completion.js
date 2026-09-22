@@ -292,6 +292,50 @@ const readCompareFiles = async (worktreeRoot, mergeBase) => {
     .sort((left, right) => left.path.localeCompare(right.path));
 };
 
+/**
+ * The pull request GitHub has for `branch`, newest first, or `null` when
+ * there is none or `gh` cannot say (not logged in, no GitHub remote, ...).
+ */
+export const readBranchPullRequest = async (cwd, branch, base = null) => {
+  const result = await runGhCommand(
+    cwd,
+    [
+      "pr",
+      "list",
+      "--head",
+      branch,
+      ...(base ? ["--base", base] : []),
+      "--state",
+      "all",
+      "--limit",
+      "1",
+      "--json",
+      "number,url,state,isDraft,mergedAt",
+    ],
+    { allowFailure: true },
+  );
+  if (!result.ok) {
+    return null;
+  }
+  try {
+    const [entry] = JSON.parse(result.stdout);
+    if (!entry || typeof entry.number !== "number") {
+      return null;
+    }
+    const state = String(entry.state ?? "").toLowerCase();
+    return {
+      isDraft: entry.isDraft === true,
+      mergedAt: typeof entry.mergedAt === "string" ? entry.mergedAt : null,
+      number: entry.number,
+      state:
+        state === "merged" ? "merged" : state === "closed" ? "closed" : "open",
+      url: typeof entry.url === "string" ? entry.url : "",
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const compareProjectGitWorktree = async (
   projectPath,
   { baseRef = null } = {},
@@ -328,9 +372,12 @@ export const compareProjectGitWorktree = async (
       allowFailure: true,
     }),
   ]);
-  const files = mergeBase
-    ? await readCompareFiles(context.worktreeRoot, mergeBase)
-    : [];
+  const [files, pullRequest] = await Promise.all([
+    mergeBase ? readCompareFiles(context.worktreeRoot, mergeBase) : [],
+    ghResult.ok && base.remoteName
+      ? readBranchPullRequest(context.mainWorktreePath, context.worktreeBranch)
+      : null,
+  ]);
 
   return {
     aheadCount: counts.aheadCount,
@@ -348,6 +395,7 @@ export const compareProjectGitWorktree = async (
     mainInProgressOperation,
     mainWorktreePath: context.mainWorktreePath,
     mergeBase,
+    pullRequest,
     remoteName: base.remoteName,
     totalCommits,
     truncated: commits.length < totalCommits,

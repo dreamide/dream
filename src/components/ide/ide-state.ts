@@ -564,6 +564,7 @@ const normalizeProject = (
     worktree: normalizeProjectWorktree(
       rawProject.worktree ?? rawMetadata.worktree,
     ),
+    ...(rawProject.hidden === true ? { hidden: true } : {}),
   };
 };
 
@@ -965,8 +966,24 @@ export const mergePersistedState = (
   mergedSettings.defaultModelSpeed = defaultSelection.modelSpeed;
   mergedSettings.defaultReasoningEffort = defaultSelection.reasoningEffort;
 
+  // Task worktrees saved before projects could be hidden were opened as tabs;
+  // they are background projects, so they start hidden.
+  const taskWorktreeProjectIds = new Set(
+    (Array.isArray(state.tasks) ? state.tasks : []).flatMap((task) =>
+      task && typeof task.worktreeProjectId === "string"
+        ? [task.worktreeProjectId]
+        : [],
+    ),
+  );
   const projects = (Array.isArray(state.projects) ? state.projects : []).map(
-    (project) => normalizeProject(project, mergedSettings),
+    (project) => {
+      const normalized = normalizeProject(project, mergedSettings);
+      return project.hidden === undefined &&
+        normalized.worktree &&
+        taskWorktreeProjectIds.has(normalized.id)
+        ? { ...normalized, hidden: true }
+        : normalized;
+    },
   );
   const openProjectIds = new Set(projects.map((project) => project.id));
   const openProjectPathKeys = new Set(
@@ -1125,8 +1142,14 @@ export const mergePersistedState = (
     browserTabsByProject,
   );
 
-  const activeProjectId =
+  const savedActiveProjectId =
     typeof state.activeProjectId === "string" ? state.activeProjectId : null;
+  // A project without a tab is never the one Code shows.
+  const activeProjectId = projects.some(
+    (project) => project.id === savedActiveProjectId && project.hidden,
+  )
+    ? ensureActiveProject(projects, null)
+    : savedActiveProjectId;
 
   return {
     activeProjectId,
@@ -1175,14 +1198,36 @@ export const ensureActiveProject = (
   projects: ProjectConfig[],
   activeProjectId: string | null,
 ) => {
+  // Code only ever shows a project that has a tab.
   if (
     activeProjectId &&
-    projects.some((project) => project.id === activeProjectId)
+    projects.some(
+      (project) => project.id === activeProjectId && !project.hidden,
+    )
   ) {
     return activeProjectId;
   }
 
-  return projects[0]?.id ?? null;
+  return projects.find((project) => !project.hidden)?.id ?? null;
+};
+
+/** Shows or hides a project's Code tab; the list is unchanged when it holds. */
+export const setProjectHiddenInList = (
+  projects: ProjectConfig[],
+  projectId: string,
+  hidden: boolean,
+): ProjectConfig[] => {
+  const project = projects.find((entry) => entry.id === projectId);
+  if (!project || Boolean(project.hidden) === hidden) {
+    return projects;
+  }
+  return projects.map((entry) => {
+    if (entry.id !== projectId) {
+      return entry;
+    }
+    const { hidden: _hidden, ...rest } = entry;
+    return hidden ? { ...rest, hidden: true } : rest;
+  });
 };
 
 export const ensureActiveChatForProject = (

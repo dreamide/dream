@@ -18,6 +18,8 @@ export interface WorkspaceSlidingPanelProps {
   contentClassName?: string;
   contentMinWidth: number;
   contentStyle?: CSSProperties;
+  /** Classes for the resize handle's 1px line. */
+  handleClassName?: string;
   handleVisible?: boolean;
   maxWidth: number;
   minWidth: number;
@@ -42,6 +44,7 @@ export const WorkspaceSlidingPanel = ({
   contentClassName,
   contentMinWidth,
   contentStyle,
+  handleClassName,
   handleVisible = true,
   maxWidth,
   minWidth,
@@ -168,6 +171,7 @@ export const WorkspaceSlidingPanel = ({
 
   const handle = handleVisible ? (
     <PanelResizeHandle
+      className={handleClassName}
       onDoubleClick={onHandleDoubleClick}
       onResize={handleResize}
       onResizeEnd={handleResizeEnd}

@@ -124,6 +124,7 @@ export const projectGitTaskWorktreeRequestSchema = z.object({
  */
 export const projectGitTaskDeliveryRequestSchema = z.object({
   branch: z.string().trim().min(1),
+  taskBranch: nullableTrimmedStringSchema,
   /** The commit the task landed as, if known. */
   commit: nullableTrimmedStringSchema,
   projectPath: z.string().min(1),

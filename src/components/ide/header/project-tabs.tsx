@@ -164,7 +164,12 @@ export const ProjectTabs = () => {
   const projectsT = useTranslations("projects");
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
-  const projects = useIdeStore((s) => s.projects);
+  const allProjects = useIdeStore((s) => s.projects);
+  // Background projects (a task's worktree) are loaded but have no tab.
+  const projects = useMemo(
+    () => allProjects.filter((project) => !project.hidden),
+    [allProjects],
+  );
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setProjects = useIdeStore((s) => s.setProjects);
@@ -367,9 +372,13 @@ export const ProjectTabs = () => {
 
   const handleProjectReorder = useCallback(
     (fromIndex: number, toIndex: number) => {
-      setProjects(moveTabItem(projects, fromIndex, toIndex));
+      // Indices are tab positions; hidden projects keep their place after them.
+      setProjects([
+        ...moveTabItem(projects, fromIndex, toIndex),
+        ...allProjects.filter((project) => project.hidden),
+      ]);
     },
-    [projects, setProjects],
+    [allProjects, projects, setProjects],
   );
 
   return (

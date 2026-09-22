@@ -1,4 +1,11 @@
-import { lazy, Suspense, useDeferredValue, useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -43,11 +50,16 @@ export const IdeShell = () => {
   const setAppReady = useIdeStore((s) => s.setAppReady);
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const projects = useIdeStore((s) => s.projects);
+  // Background projects (a task's worktree) run chats but have no workspace.
+  const visibleProjects = useMemo(
+    () => projects.filter((project) => !project.hidden),
+    [projects],
+  );
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const deferredActiveProjectId = useDeferredValue(activeProjectId);
   const renderedActiveProjectId =
     activeProjectId !== null &&
-    projects.some((project) => project.id === deferredActiveProjectId)
+    visibleProjects.some((project) => project.id === deferredActiveProjectId)
       ? deferredActiveProjectId
       : activeProjectId;
   const tasksSelected = useIdeStore((s) => s.appView === "tasks");
@@ -536,7 +548,7 @@ export const IdeShell = () => {
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           {!stateHydrated ? null : (
             <>
-              {projects.map((project) => {
+              {visibleProjects.map((project) => {
                 // Keep the outgoing surface painted while React prepares the
                 // incoming workspace, then reveal and activate it atomically.
                 const selected = project.id === renderedActiveProjectId;

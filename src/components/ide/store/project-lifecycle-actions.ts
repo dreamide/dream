@@ -16,6 +16,7 @@ import {
   ensureActiveProject,
   normalizeProjectPathKey,
   sanitizeProjectUiForChats,
+  setProjectHiddenInList,
 } from "../ide-state";
 import { deleteTerminalScrollback } from "../terminal-scrollback";
 import { updateProjectInList, updateProjectUiInList } from ".";
@@ -49,323 +50,430 @@ export const createProjectLifecycleActions = (
   | "purgeWorktreeProject"
   | "removeWorktreeProject"
   | "updateProject"
-> => ({
-  setProjects: (projects: ProjectConfig[]) => {
+> => {
+  /**
+   * Opening a project without activating it (a task's worktree, a folder a
+   * task was added to) loads it in the background with no Code tab. Opening
+   * it for real shows it; a project that already had a tab keeps it.
+   */
+  const applyOpenVisibility = (
+    path: string,
+    { activate, wasOpen }: { activate: boolean; wasOpen: boolean },
+  ) => {
+    if (!activate && wasOpen) {
+      return;
+    }
+    const pathKey = normalizeProjectPathKey(path);
     set((state) => {
-      const nextActiveProjectId =
-        state.activeProjectId === null
-          ? null
-          : ensureActiveProject(projects, state.activeProjectId);
-      let nextChats = state.chats;
-      let nextMessagesByChatId = state.messagesByChatId;
-      const nextProjects = projects.map((project) => {
-        let nextActiveChatId = ensureActiveChatForProject(
-          nextChats,
-          project.id,
-          project.ui.activeChatId,
-        );
-
-        if (!nextActiveChatId) {
-          const defaultSelection = getDefaultModelSelection(state.settings);
-          const nextChat = createChatConfig(project, {
-            model: defaultSelection.model || project.model,
-            provider: defaultSelection.model
-              ? defaultSelection.provider
-              : project.provider,
-          });
-          nextChats = [...nextChats, nextChat];
-          nextMessagesByChatId = {
-            ...nextMessagesByChatId,
-            [nextChat.id]: [],
-          };
-          nextActiveChatId = nextChat.id;
-        }
-
-        return {
-          ...project,
-          ui: sanitizeProjectUiForChats(
-            nextChats,
-            project.id,
-            project.ui,
-            nextActiveChatId,
-          ),
-        };
-      });
-
-      return {
-        activeProjectId: nextActiveProjectId,
-        chats: nextChats,
-        messagesByChatId: nextMessagesByChatId,
-        projects: nextProjects,
-      };
-    });
-  },
-
-  setActiveProjectId: (id: string | null) => {
-    set((state) => {
-      if (id === null) {
-        return state.activeProjectId === null
-          ? state
-          : {
-              activeProjectId: null,
-            };
-      }
-
-      const nextActiveProjectId = ensureActiveProject(state.projects, id);
-      const lastUsedAt = new Date().toISOString();
-      const nextCompletedChatIds = { ...state.completedChatIds };
-      if (nextActiveProjectId) {
-        for (const chat of state.chats) {
-          if (chat.projectId === nextActiveProjectId) {
-            delete nextCompletedChatIds[chat.id];
-          }
-        }
-      }
-      const completedChatIdsChanged =
-        Object.keys(nextCompletedChatIds).length !==
-        Object.keys(state.completedChatIds).length;
-
-      if (
-        nextActiveProjectId === state.activeProjectId &&
-        !completedChatIdsChanged
-      ) {
+      const project = state.projects.find(
+        (entry) => normalizeProjectPathKey(entry.path) === pathKey,
+      );
+      if (!project) {
         return state;
       }
-
-      return {
-        activeProjectId: nextActiveProjectId,
-        completedChatIds: nextCompletedChatIds,
-        projects: nextActiveProjectId
-          ? touchProjectInList(state.projects, nextActiveProjectId, lastUsedAt)
-          : state.projects,
-      };
+      const projects = setProjectHiddenInList(
+        state.projects,
+        project.id,
+        !activate,
+      );
+      return projects === state.projects ? state : { projects };
     });
-  },
+  };
 
-  addProject: (path: string, addOptions?: { activate?: boolean }) => {
-    // Background reopen (e.g. a task's worktree) keeps focus put.
-    const activate = addOptions?.activate !== false;
-    set((state) => {
-      const pathKey = normalizeProjectPathKey(path);
-      const lastUsedAt = new Date().toISOString();
-      const openProject = state.projects.find(
-        (project) => normalizeProjectPathKey(project.path) === pathKey,
-      );
-      if (openProject) {
+  return {
+    setProjects: (projects: ProjectConfig[]) => {
+      set((state) => {
+        const nextActiveProjectId =
+          state.activeProjectId === null
+            ? null
+            : ensureActiveProject(projects, state.activeProjectId);
         let nextChats = state.chats;
         let nextMessagesByChatId = state.messagesByChatId;
-        let nextActiveChatId = ensureActiveChatForProject(
-          nextChats,
-          openProject.id,
-          openProject.ui.activeChatId,
-        );
+        const nextProjects = projects.map((project) => {
+          let nextActiveChatId = ensureActiveChatForProject(
+            nextChats,
+            project.id,
+            project.ui.activeChatId,
+          );
 
-        if (!nextActiveChatId) {
-          const defaultSelection = getDefaultModelSelection(state.settings);
-          const nextChat = createChatConfig(openProject, {
-            model: defaultSelection.model || openProject.model,
-            provider: defaultSelection.model
-              ? defaultSelection.provider
-              : openProject.provider,
-          });
-          nextChats = [...nextChats, nextChat];
-          nextMessagesByChatId = {
-            ...nextMessagesByChatId,
-            [nextChat.id]: [],
+          if (!nextActiveChatId) {
+            const defaultSelection = getDefaultModelSelection(state.settings);
+            const nextChat = createChatConfig(project, {
+              model: defaultSelection.model || project.model,
+              provider: defaultSelection.model
+                ? defaultSelection.provider
+                : project.provider,
+            });
+            nextChats = [...nextChats, nextChat];
+            nextMessagesByChatId = {
+              ...nextMessagesByChatId,
+              [nextChat.id]: [],
+            };
+            nextActiveChatId = nextChat.id;
+          }
+
+          return {
+            ...project,
+            ui: sanitizeProjectUiForChats(
+              nextChats,
+              project.id,
+              project.ui,
+              nextActiveChatId,
+            ),
           };
-          nextActiveChatId = nextChat.id;
-        }
+        });
+
         return {
-          ...(activate ? { activeProjectId: openProject.id } : {}),
+          activeProjectId: nextActiveProjectId,
           chats: nextChats,
           messagesByChatId: nextMessagesByChatId,
-          projects: updateProjectUiInList(
-            touchProjectInList(state.projects, openProject.id, lastUsedAt),
-            openProject.id,
-            (project) =>
-              sanitizeProjectUiForChats(
-                nextChats,
-                openProject.id,
-                project.ui,
-                nextActiveChatId,
-              ),
-          ),
+          projects: nextProjects,
         };
-      }
+      });
+    },
 
-      const closedProject = state.closedProjects.find(
-        (project) => normalizeProjectPathKey(project.path) === pathKey,
-      );
-      if (closedProject) {
-        const reopenedProject = { ...closedProject, lastUsedAt, path };
-        let nextChats = state.chats;
-        let nextMessagesByChatId = state.messagesByChatId;
-        let nextActiveChatId = ensureActiveChatForProject(
-          nextChats,
-          reopenedProject.id,
-          reopenedProject.ui.activeChatId,
-        );
+    setActiveProjectId: (id: string | null) => {
+      set((state) => {
+        if (id === null) {
+          return state.activeProjectId === null
+            ? state
+            : {
+                activeProjectId: null,
+              };
+        }
 
-        if (!nextActiveChatId) {
-          const nextChat = createChatConfig(reopenedProject);
-          nextChats = [...nextChats, nextChat];
-          nextMessagesByChatId = {
-            ...nextMessagesByChatId,
-            [nextChat.id]: [],
-          };
-          nextActiveChatId = nextChat.id;
+        // Activating a background project gives it its Code tab.
+        const projects = setProjectHiddenInList(state.projects, id, false);
+        const nextActiveProjectId = ensureActiveProject(projects, id);
+        const lastUsedAt = new Date().toISOString();
+        const nextCompletedChatIds = { ...state.completedChatIds };
+        if (nextActiveProjectId) {
+          for (const chat of state.chats) {
+            if (chat.projectId === nextActiveProjectId) {
+              delete nextCompletedChatIds[chat.id];
+            }
+          }
+        }
+        const completedChatIdsChanged =
+          Object.keys(nextCompletedChatIds).length !==
+          Object.keys(state.completedChatIds).length;
+
+        if (
+          nextActiveProjectId === state.activeProjectId &&
+          !completedChatIdsChanged &&
+          projects === state.projects
+        ) {
+          return state;
         }
 
         return {
-          ...(activate ? { activeProjectId: reopenedProject.id } : {}),
-          closedProjects: state.closedProjects.filter(
-            (project) =>
-              normalizeProjectPathKey(project.path) !== pathKey &&
-              project.id !== reopenedProject.id,
-          ),
-          messagesByChatId: nextMessagesByChatId,
-          chats: nextChats,
+          activeProjectId: nextActiveProjectId,
+          completedChatIds: nextCompletedChatIds,
+          projects: nextActiveProjectId
+            ? touchProjectInList(projects, nextActiveProjectId, lastUsedAt)
+            : projects,
+        };
+      });
+    },
+
+    addProject: (path: string, addOptions?: { activate?: boolean }) => {
+      // Background reopen (e.g. a task's worktree) keeps focus put.
+      const activate = addOptions?.activate !== false;
+      const wasOpen = get().projects.some(
+        (project) =>
+          normalizeProjectPathKey(project.path) ===
+          normalizeProjectPathKey(path),
+      );
+      set((state) => {
+        const pathKey = normalizeProjectPathKey(path);
+        const lastUsedAt = new Date().toISOString();
+        const openProject = state.projects.find(
+          (project) => normalizeProjectPathKey(project.path) === pathKey,
+        );
+        if (openProject) {
+          let nextChats = state.chats;
+          let nextMessagesByChatId = state.messagesByChatId;
+          let nextActiveChatId = ensureActiveChatForProject(
+            nextChats,
+            openProject.id,
+            openProject.ui.activeChatId,
+          );
+
+          if (!nextActiveChatId) {
+            const defaultSelection = getDefaultModelSelection(state.settings);
+            const nextChat = createChatConfig(openProject, {
+              model: defaultSelection.model || openProject.model,
+              provider: defaultSelection.model
+                ? defaultSelection.provider
+                : openProject.provider,
+            });
+            nextChats = [...nextChats, nextChat];
+            nextMessagesByChatId = {
+              ...nextMessagesByChatId,
+              [nextChat.id]: [],
+            };
+            nextActiveChatId = nextChat.id;
+          }
+          return {
+            ...(activate ? { activeProjectId: openProject.id } : {}),
+            chats: nextChats,
+            messagesByChatId: nextMessagesByChatId,
+            projects: updateProjectUiInList(
+              touchProjectInList(state.projects, openProject.id, lastUsedAt),
+              openProject.id,
+              (project) =>
+                sanitizeProjectUiForChats(
+                  nextChats,
+                  openProject.id,
+                  project.ui,
+                  nextActiveChatId,
+                ),
+            ),
+          };
+        }
+
+        const closedProject = state.closedProjects.find(
+          (project) => normalizeProjectPathKey(project.path) === pathKey,
+        );
+        if (closedProject) {
+          const reopenedProject = { ...closedProject, lastUsedAt, path };
+          let nextChats = state.chats;
+          let nextMessagesByChatId = state.messagesByChatId;
+          let nextActiveChatId = ensureActiveChatForProject(
+            nextChats,
+            reopenedProject.id,
+            reopenedProject.ui.activeChatId,
+          );
+
+          if (!nextActiveChatId) {
+            const nextChat = createChatConfig(reopenedProject);
+            nextChats = [...nextChats, nextChat];
+            nextMessagesByChatId = {
+              ...nextMessagesByChatId,
+              [nextChat.id]: [],
+            };
+            nextActiveChatId = nextChat.id;
+          }
+
+          return {
+            ...(activate ? { activeProjectId: reopenedProject.id } : {}),
+            closedProjects: state.closedProjects.filter(
+              (project) =>
+                normalizeProjectPathKey(project.path) !== pathKey &&
+                project.id !== reopenedProject.id,
+            ),
+            messagesByChatId: nextMessagesByChatId,
+            chats: nextChats,
+            projects: [
+              ...state.projects,
+              {
+                ...reopenedProject,
+                ui: sanitizeProjectUiForChats(
+                  nextChats,
+                  reopenedProject.id,
+                  reopenedProject.ui,
+                  nextActiveChatId,
+                ),
+              },
+            ],
+          };
+        }
+
+        const nextProject = createProjectConfig(path, state.settings);
+        const nextChat = createChatConfig(nextProject);
+
+        return {
+          ...(activate ? { activeProjectId: nextProject.id } : {}),
+          draftChatIdByProject: {
+            ...state.draftChatIdByProject,
+            [nextProject.id]: nextChat.id,
+          },
+          messagesByChatId: {
+            ...state.messagesByChatId,
+            [nextChat.id]: [],
+          },
+          chats: [...state.chats, nextChat],
           projects: [
             ...state.projects,
             {
-              ...reopenedProject,
-              ui: sanitizeProjectUiForChats(
-                nextChats,
-                reopenedProject.id,
-                reopenedProject.ui,
-                nextActiveChatId,
-              ),
+              ...nextProject,
+              ui: {
+                ...nextProject.ui,
+                activeChatId: nextChat.id,
+                openChatIds: [nextChat.id],
+                chatColumnWidths: {},
+              },
             },
           ],
         };
-      }
-
-      const nextProject = createProjectConfig(path, state.settings);
-      const nextChat = createChatConfig(nextProject);
-
-      return {
-        ...(activate ? { activeProjectId: nextProject.id } : {}),
-        draftChatIdByProject: {
-          ...state.draftChatIdByProject,
-          [nextProject.id]: nextChat.id,
-        },
-        messagesByChatId: {
-          ...state.messagesByChatId,
-          [nextChat.id]: [],
-        },
-        chats: [...state.chats, nextChat],
-        projects: [
-          ...state.projects,
-          {
-            ...nextProject,
-            ui: {
-              ...nextProject.ui,
-              activeChatId: nextChat.id,
-              openChatIds: [nextChat.id],
-              chatColumnWidths: {},
-            },
-          },
-        ],
-      };
-    });
-  },
-
-  createWorktreeProject: async (
-    parentProjectId: string,
-    options: {
-      /** `false` creates the worktree project without switching to it. */
-      activate?: boolean;
-      baseRef?: string | null;
-      branchName: string;
-      initialChatSeed?: import("./ide-store-types").WorktreeInitialChatSeed;
+      });
+      applyOpenVisibility(path, { activate, wasOpen });
     },
-  ) => {
-    const activate = options.activate !== false;
-    const parentProject = get().projects.find(
-      (project) => project.id === parentProjectId,
-    );
-    if (!parentProject) {
-      throw new Error();
-    }
 
-    const response = await fetch("/api/project-git-worktree-create", {
-      body: JSON.stringify({
-        baseRef: options.baseRef ?? null,
-        branchName: options.branchName,
-        projectPath: parentProject.path,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(
-        text.trim() || response.statusText || String(response.status),
+    createWorktreeProject: async (
+      parentProjectId: string,
+      options: {
+        /** `false` creates the worktree project without switching to it. */
+        activate?: boolean;
+        baseRef?: string | null;
+        branchName: string;
+        initialChatSeed?: import("./ide-store-types").WorktreeInitialChatSeed;
+      },
+    ) => {
+      const activate = options.activate !== false;
+      const parentProject = get().projects.find(
+        (project) => project.id === parentProjectId,
       );
-    }
-
-    const payload = (await response.json()) as ProjectGitCreateWorktreeResponse;
-    let createdProjectId: string | null = null;
-    let createdChatId: string | null = null;
-
-    set((state) => {
-      const pathKey = normalizeProjectPathKey(payload.path);
-      const existingProject = state.projects.find(
-        (project) => normalizeProjectPathKey(project.path) === pathKey,
-      );
-      if (existingProject) {
-        createdProjectId = existingProject.id;
-        const lastUsedAt = new Date().toISOString();
-        const nextChat = options.initialChatSeed
-          ? createBranchedChatConfig(
-              options.initialChatSeed.sourceChat,
-              existingProject,
-              options.initialChatSeed.messageId,
-            )
-          : null;
-        if (nextChat) {
-          nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
-        }
-        createdChatId = nextChat?.id ?? existingProject.ui.activeChatId;
-        return {
-          ...(activate ? { activeProjectId: existingProject.id } : {}),
-          chats: nextChat ? [...state.chats, nextChat] : state.chats,
-          messagesByChatId: nextChat
-            ? {
-                ...state.messagesByChatId,
-                [nextChat.id]: options.initialChatSeed?.messages ?? [],
-              }
-            : state.messagesByChatId,
-          projects: touchProjectInList(
-            nextChat
-              ? updateProjectUiInList(
-                  state.projects,
-                  existingProject.id,
-                  (project) => ({
-                    ...project.ui,
-                    activeChatId: nextChat.id,
-                    openChatIds: [nextChat.id],
-                    chatColumnWidths: {},
-                  }),
-                )
-              : state.projects,
-            existingProject.id,
-            lastUsedAt,
-          ),
-        };
+      if (!parentProject) {
+        throw new Error();
       }
 
-      const closedProject = state.closedProjects.find(
-        (project) => normalizeProjectPathKey(project.path) === pathKey,
+      const response = await fetch("/api/project-git-worktree-create", {
+        body: JSON.stringify({
+          baseRef: options.baseRef ?? null,
+          branchName: options.branchName,
+          projectPath: parentProject.path,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(
+          text.trim() || response.statusText || String(response.status),
+        );
+      }
+
+      const payload =
+        (await response.json()) as ProjectGitCreateWorktreeResponse;
+      const wasOpen = get().projects.some(
+        (project) =>
+          normalizeProjectPathKey(project.path) ===
+          normalizeProjectPathKey(payload.path),
       );
-      if (closedProject) {
-        createdProjectId = closedProject.id;
-        const lastUsedAt = new Date().toISOString();
-        const reopenedProject = {
-          ...closedProject,
-          lastUsedAt,
-          path: payload.path,
+      let createdProjectId: string | null = null;
+      let createdChatId: string | null = null;
+
+      set((state) => {
+        const pathKey = normalizeProjectPathKey(payload.path);
+        const existingProject = state.projects.find(
+          (project) => normalizeProjectPathKey(project.path) === pathKey,
+        );
+        if (existingProject) {
+          createdProjectId = existingProject.id;
+          const lastUsedAt = new Date().toISOString();
+          const nextChat = options.initialChatSeed
+            ? createBranchedChatConfig(
+                options.initialChatSeed.sourceChat,
+                existingProject,
+                options.initialChatSeed.messageId,
+              )
+            : null;
+          if (nextChat) {
+            nextChat.messageCount =
+              options.initialChatSeed?.messages.length ?? 0;
+          }
+          createdChatId = nextChat?.id ?? existingProject.ui.activeChatId;
+          return {
+            ...(activate ? { activeProjectId: existingProject.id } : {}),
+            chats: nextChat ? [...state.chats, nextChat] : state.chats,
+            messagesByChatId: nextChat
+              ? {
+                  ...state.messagesByChatId,
+                  [nextChat.id]: options.initialChatSeed?.messages ?? [],
+                }
+              : state.messagesByChatId,
+            projects: touchProjectInList(
+              nextChat
+                ? updateProjectUiInList(
+                    state.projects,
+                    existingProject.id,
+                    (project) => ({
+                      ...project.ui,
+                      activeChatId: nextChat.id,
+                      openChatIds: [nextChat.id],
+                      chatColumnWidths: {},
+                    }),
+                  )
+                : state.projects,
+              existingProject.id,
+              lastUsedAt,
+            ),
+          };
+        }
+
+        const closedProject = state.closedProjects.find(
+          (project) => normalizeProjectPathKey(project.path) === pathKey,
+        );
+        if (closedProject) {
+          createdProjectId = closedProject.id;
+          const lastUsedAt = new Date().toISOString();
+          const reopenedProject = {
+            ...closedProject,
+            lastUsedAt,
+            path: payload.path,
+            worktree: {
+              baseRef: payload.baseRef,
+              branch: payload.branch,
+              createdAt: new Date().toISOString(),
+              kind: "worktree" as const,
+              mainWorktreePath: payload.mainWorktreePath,
+              managed: true,
+              parentProjectId,
+              repoRoot: payload.repoRoot,
+            },
+          };
+          const nextChat = options.initialChatSeed
+            ? createBranchedChatConfig(
+                options.initialChatSeed.sourceChat,
+                reopenedProject,
+                options.initialChatSeed.messageId,
+              )
+            : null;
+          if (nextChat) {
+            nextChat.messageCount =
+              options.initialChatSeed?.messages.length ?? 0;
+          }
+          createdChatId = nextChat?.id ?? reopenedProject.ui.activeChatId;
+          return {
+            ...(activate ? { activeProjectId: closedProject.id } : {}),
+            chats: nextChat ? [...state.chats, nextChat] : state.chats,
+            closedProjects: state.closedProjects.filter(
+              (project) => project.id !== closedProject.id,
+            ),
+            messagesByChatId: nextChat
+              ? {
+                  ...state.messagesByChatId,
+                  [nextChat.id]: options.initialChatSeed?.messages ?? [],
+                }
+              : state.messagesByChatId,
+            projects: [
+              ...state.projects,
+              {
+                ...reopenedProject,
+                ui: nextChat
+                  ? {
+                      ...reopenedProject.ui,
+                      activeChatId: nextChat.id,
+                      openChatIds: [nextChat.id],
+                      chatColumnWidths: {},
+                    }
+                  : reopenedProject.ui,
+              },
+            ],
+          };
+        }
+
+        const nextProject = {
+          ...createProjectConfig(payload.path, state.settings),
+          browserUrl: parentProject.browserUrl,
+          model: parentProject.model,
+          modelSpeed: parentProject.modelSpeed,
+          name: `${parentProject.name} / ${payload.branch}`,
+          provider: parentProject.provider,
+          reasoningEffort: parentProject.reasoningEffort,
+          runCommand: parentProject.runCommand,
           worktree: {
             baseRef: payload.baseRef,
             branch: payload.branch,
@@ -380,396 +488,341 @@ export const createProjectLifecycleActions = (
         const nextChat = options.initialChatSeed
           ? createBranchedChatConfig(
               options.initialChatSeed.sourceChat,
-              reopenedProject,
+              nextProject,
               options.initialChatSeed.messageId,
             )
-          : null;
-        if (nextChat) {
-          nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
-        }
-        createdChatId = nextChat?.id ?? reopenedProject.ui.activeChatId;
+          : createChatConfig(nextProject);
+        nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
+        createdProjectId = nextProject.id;
+        createdChatId = nextChat.id;
+
         return {
-          ...(activate ? { activeProjectId: closedProject.id } : {}),
-          chats: nextChat ? [...state.chats, nextChat] : state.chats,
-          closedProjects: state.closedProjects.filter(
-            (project) => project.id !== closedProject.id,
-          ),
-          messagesByChatId: nextChat
-            ? {
-                ...state.messagesByChatId,
-                [nextChat.id]: options.initialChatSeed?.messages ?? [],
-              }
-            : state.messagesByChatId,
+          ...(activate ? { activeProjectId: nextProject.id } : {}),
+          draftChatIdByProject: {
+            ...state.draftChatIdByProject,
+            [nextProject.id]: options.initialChatSeed ? null : nextChat.id,
+          },
+          messagesByChatId: {
+            ...state.messagesByChatId,
+            [nextChat.id]: options.initialChatSeed?.messages ?? [],
+          },
+          chats: [...state.chats, nextChat],
           projects: [
             ...state.projects,
             {
-              ...reopenedProject,
-              ui: nextChat
-                ? {
-                    ...reopenedProject.ui,
-                    activeChatId: nextChat.id,
-                    openChatIds: [nextChat.id],
-                    chatColumnWidths: {},
-                  }
-                : reopenedProject.ui,
+              ...nextProject,
+              ui: {
+                ...nextProject.ui,
+                activeChatId: nextChat.id,
+                openChatIds: [nextChat.id],
+                chatColumnWidths: {},
+                rightPanelView: "changes",
+              },
             },
           ],
         };
+      });
+      applyOpenVisibility(payload.path, { activate, wasOpen });
+
+      if (createdChatId && options.initialChatSeed) {
+        await get().persistMessagesForChat?.(createdChatId);
       }
 
-      const nextProject = {
-        ...createProjectConfig(payload.path, state.settings),
-        browserUrl: parentProject.browserUrl,
-        model: parentProject.model,
-        modelSpeed: parentProject.modelSpeed,
-        name: `${parentProject.name} / ${payload.branch}`,
-        provider: parentProject.provider,
-        reasoningEffort: parentProject.reasoningEffort,
-        runCommand: parentProject.runCommand,
-        worktree: {
-          baseRef: payload.baseRef,
-          branch: payload.branch,
-          createdAt: new Date().toISOString(),
-          kind: "worktree" as const,
-          mainWorktreePath: payload.mainWorktreePath,
-          managed: true,
-          parentProjectId,
-          repoRoot: payload.repoRoot,
-        },
-      };
-      const nextChat = options.initialChatSeed
-        ? createBranchedChatConfig(
-            options.initialChatSeed.sourceChat,
-            nextProject,
-            options.initialChatSeed.messageId,
-          )
-        : createChatConfig(nextProject);
-      nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
-      createdProjectId = nextProject.id;
-      createdChatId = nextChat.id;
+      return createdProjectId
+        ? { chatId: createdChatId, projectId: createdProjectId }
+        : null;
+    },
 
-      return {
-        ...(activate ? { activeProjectId: nextProject.id } : {}),
-        draftChatIdByProject: {
-          ...state.draftChatIdByProject,
-          [nextProject.id]: options.initialChatSeed ? null : nextChat.id,
-        },
-        messagesByChatId: {
-          ...state.messagesByChatId,
-          [nextChat.id]: options.initialChatSeed?.messages ?? [],
-        },
-        chats: [...state.chats, nextChat],
-        projects: [
-          ...state.projects,
-          {
-            ...nextProject,
-            ui: {
-              ...nextProject.ui,
-              activeChatId: nextChat.id,
-              openChatIds: [nextChat.id],
-              chatColumnWidths: {},
-              rightPanelView: "changes",
-            },
-          },
-        ],
-      };
-    });
+    stopProjectTerminals: (projectId: string) => {
+      const terminalSessionIds =
+        get().projectTerminalSessionIds?.[projectId] ?? [];
+      const desktopApi = getDesktopApi();
+      for (const sessionId of terminalSessionIds) {
+        void desktopApi?.stopTerminal(sessionId);
+        deleteTerminalScrollback(sessionId);
+      }
+    },
 
-    if (createdChatId && options.initialChatSeed) {
-      await get().persistMessagesForChat?.(createdChatId);
-    }
-
-    return createdProjectId
-      ? { chatId: createdChatId, projectId: createdProjectId }
-      : null;
-  },
-
-  stopProjectTerminals: (projectId: string) => {
-    const terminalSessionIds =
-      get().projectTerminalSessionIds?.[projectId] ?? [];
-    const desktopApi = getDesktopApi();
-    for (const sessionId of terminalSessionIds) {
-      void desktopApi?.stopTerminal(sessionId);
-      deleteTerminalScrollback(sessionId);
-    }
-  },
-
-  purgeWorktreeProject: (
-    worktreePath: string,
-    options: { activateProjectId?: string | null } = {},
-  ) => {
-    const worktreePathKey = normalizeProjectPathKey(worktreePath);
-    const openProject = get().projects.find(
-      (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
-    );
-    if (openProject) {
-      get().closeProject(openProject.id);
-    }
-
-    requestProjectCheckpointCleanup(worktreePath);
-
-    set((current) => {
-      const removedProjectIds = new Set(
-        [...current.projects, ...current.closedProjects]
-          .filter(
-            (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
-          )
-          .map((item) => item.id),
+    purgeWorktreeProject: (
+      worktreePath: string,
+      options: { activateProjectId?: string | null } = {},
+    ) => {
+      const worktreePathKey = normalizeProjectPathKey(worktreePath);
+      const openProject = get().projects.find(
+        (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
       );
-      if (removedProjectIds.size === 0) {
-        return current;
+      if (openProject) {
+        get().closeProject(openProject.id);
       }
 
-      // Task chats outlive the worktree they ran in: they move to the task's
-      // own project (read-only from here on), keeping the transcript. The
-      // worktree's other chats go with it.
-      const taskOwnerById = new Map(
-        (current.tasks ?? []).map((task) => [task.id, task.projectId]),
-      );
-      const keepsChat = (chat: ChatConfig) =>
-        !removedProjectIds.has(chat.projectId) ||
-        (chat.taskId !== null &&
-          taskOwnerById.has(chat.taskId) &&
-          !removedProjectIds.has(taskOwnerById.get(chat.taskId) as string));
-      const messagesByChatId = { ...current.messagesByChatId };
-      for (const chat of current.chats) {
-        if (!keepsChat(chat)) {
-          delete messagesByChatId[chat.id];
+      requestProjectCheckpointCleanup(worktreePath);
+
+      set((current) => {
+        const removedProjectIds = new Set(
+          [...current.projects, ...current.closedProjects]
+            .filter(
+              (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
+            )
+            .map((item) => item.id),
+        );
+        if (removedProjectIds.size === 0) {
+          return current;
         }
-      }
 
-      return {
-        chats: current.chats.flatMap((chat) => {
+        // Task chats outlive the worktree they ran in: they move to the task's
+        // own project (read-only from here on), keeping the transcript. The
+        // worktree's other chats go with it.
+        const taskOwnerById = new Map(
+          (current.tasks ?? []).map((task) => [task.id, task.projectId]),
+        );
+        const keepsChat = (chat: ChatConfig) =>
+          !removedProjectIds.has(chat.projectId) ||
+          (chat.taskId !== null &&
+            taskOwnerById.has(chat.taskId) &&
+            !removedProjectIds.has(taskOwnerById.get(chat.taskId) as string));
+        const messagesByChatId = { ...current.messagesByChatId };
+        for (const chat of current.chats) {
           if (!keepsChat(chat)) {
-            return [];
+            delete messagesByChatId[chat.id];
           }
-          if (!removedProjectIds.has(chat.projectId)) {
-            return [chat];
-          }
-          return [
-            {
-              ...chat,
-              projectId: taskOwnerById.get(chat.taskId as string) as string,
-            },
-          ];
-        }),
-        closedProjects: current.closedProjects.filter(
-          (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
-        ),
-        messagesByChatId,
-        projects: current.projects.filter(
-          (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
-        ),
-        // Tasks filed under the purged project go with it. Tasks that merely
-        // ran in this worktree belong to its parent and stay.
-        tasks: (current.tasks ?? []).filter(
-          (task) => !removedProjectIds.has(task.projectId),
-        ),
-      };
-    });
+        }
 
-    const activateProjectId = options.activateProjectId ?? null;
-    if (
-      activateProjectId &&
-      get().projects.some((project) => project.id === activateProjectId)
-    ) {
-      get().setActiveProjectId(activateProjectId);
-      get().bumpProjectGitRefreshKey?.(activateProjectId);
-    }
-  },
+        return {
+          chats: current.chats.flatMap((chat) => {
+            if (!keepsChat(chat)) {
+              return [];
+            }
+            if (!removedProjectIds.has(chat.projectId)) {
+              return [chat];
+            }
+            return [
+              {
+                ...chat,
+                projectId: taskOwnerById.get(chat.taskId as string) as string,
+              },
+            ];
+          }),
+          closedProjects: current.closedProjects.filter(
+            (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
+          ),
+          messagesByChatId,
+          projects: current.projects.filter(
+            (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
+          ),
+          // Tasks filed under the purged project go with it. Tasks that merely
+          // ran in this worktree belong to its parent and stay.
+          tasks: (current.tasks ?? []).filter(
+            (task) => !removedProjectIds.has(task.projectId),
+          ),
+        };
+      });
 
-  removeWorktreeProject: async ({
-    deleteBranch = false,
-    force = false,
-    mainWorktreePath,
-    parentProjectId = null,
-    worktreePath,
-  }) => {
-    const worktreePathKey = normalizeProjectPathKey(worktreePath);
-    const openProject = get().projects.find(
-      (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
-    );
-    if (openProject) {
-      get().stopProjectTerminals(openProject.id);
-    }
+      const activateProjectId = options.activateProjectId ?? null;
+      if (
+        activateProjectId &&
+        get().projects.some((project) => project.id === activateProjectId)
+      ) {
+        get().setActiveProjectId(activateProjectId);
+        get().bumpProjectGitRefreshKey?.(activateProjectId);
+      }
+    },
 
-    const response = await fetch("/api/project-git-worktree-cleanup", {
-      body: JSON.stringify({
-        deleteBranch,
-        force,
-        projectPath: mainWorktreePath,
-        worktreePath,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      const message =
-        text.trim() || response.statusText || String(response.status);
-      if (!isMissingWorktreeError(message)) {
-        throw new Error(message);
+    removeWorktreeProject: async ({
+      deleteBranch = false,
+      force = false,
+      mainWorktreePath,
+      parentProjectId = null,
+      worktreePath,
+    }) => {
+      const worktreePathKey = normalizeProjectPathKey(worktreePath);
+      const openProject = get().projects.find(
+        (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
+      );
+      if (openProject) {
+        get().stopProjectTerminals(openProject.id);
       }
 
+      const response = await fetch("/api/project-git-worktree-cleanup", {
+        body: JSON.stringify({
+          deleteBranch,
+          force,
+          projectPath: mainWorktreePath,
+          worktreePath,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        const message =
+          text.trim() || response.statusText || String(response.status);
+        if (!isMissingWorktreeError(message)) {
+          throw new Error(message);
+        }
+
+        get().purgeWorktreeProject(worktreePath, {
+          activateProjectId: parentProjectId,
+        });
+        return null;
+      }
+
+      const payload =
+        (await response.json()) as ProjectGitWorktreeCleanupResponse;
       get().purgeWorktreeProject(worktreePath, {
         activateProjectId: parentProjectId,
       });
-      return null;
-    }
+      return payload;
+    },
 
-    const payload =
-      (await response.json()) as ProjectGitWorktreeCleanupResponse;
-    get().purgeWorktreeProject(worktreePath, {
-      activateProjectId: parentProjectId,
-    });
-    return payload;
-  },
+    closeProject: (projectId: string) => {
+      const terminalSessionIds =
+        get().projectTerminalSessionIds?.[projectId] ?? [];
+      get().stopProjectTerminals(projectId);
 
-  closeProject: (projectId: string) => {
-    const terminalSessionIds =
-      get().projectTerminalSessionIds?.[projectId] ?? [];
-    get().stopProjectTerminals(projectId);
+      set((state) => {
+        const closedProject = state.projects.find(
+          (project) => project.id === projectId,
+        );
+        const closedAt = new Date().toISOString();
+        const nextProjects = state.projects.filter(
+          (project) => project.id !== projectId,
+        );
+        const nextActiveProjectId = ensureActiveProject(
+          nextProjects,
+          state.activeProjectId === projectId ? null : state.activeProjectId,
+        );
+        const closedProjectPathKey = closedProject
+          ? normalizeProjectPathKey(closedProject.path)
+          : null;
+        const nextClosedProjects = closedProject
+          ? [
+              ...state.closedProjects.filter(
+                (project) =>
+                  project.id !== closedProject.id &&
+                  normalizeProjectPathKey(project.path) !==
+                    closedProjectPathKey,
+              ),
+              closedProject,
+            ]
+          : state.closedProjects;
+        const nextProjectGitRefreshKeys = { ...state.projectGitRefreshKeys };
+        const nextProjectFilesRefreshKeys = {
+          ...state.projectFilesRefreshKeys,
+        };
+        const nextProjectFileOpenRequests = {
+          ...state.projectFileOpenRequests,
+        };
+        const nextTerminalOrdinalByProject = {
+          ...state.nextTerminalOrdinalByProject,
+        };
+        const nextTerminalStatus = { ...state.terminalStatus };
+        const nextTerminalTransport = { ...state.terminalTransport };
+        const nextTerminalShell = { ...state.terminalShell };
+        const nextTerminalSessionNames = { ...state.terminalSessionNames };
+        const nextProjectTerminalSessionIds = {
+          ...state.projectTerminalSessionIds,
+        };
+        const nextActiveTerminalSessionIdByProject = {
+          ...state.activeTerminalSessionIdByProject,
+        };
+        const nextProjectTerminalPanelOpenByProject = {
+          ...state.projectTerminalPanelOpenByProject,
+        };
+        const nextBrowserLoading = { ...state.browserLoading };
+        const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
+        const browserTabs = state.browserTabsByProject[projectId] ?? [];
 
-    set((state) => {
-      const closedProject = state.projects.find(
-        (project) => project.id === projectId,
-      );
-      const closedAt = new Date().toISOString();
-      const nextProjects = state.projects.filter(
-        (project) => project.id !== projectId,
-      );
-      const nextActiveProjectId = ensureActiveProject(
-        nextProjects,
-        state.activeProjectId === projectId ? null : state.activeProjectId,
-      );
-      const closedProjectPathKey = closedProject
-        ? normalizeProjectPathKey(closedProject.path)
-        : null;
-      const nextClosedProjects = closedProject
-        ? [
-            ...state.closedProjects.filter(
-              (project) =>
-                project.id !== closedProject.id &&
-                normalizeProjectPathKey(project.path) !== closedProjectPathKey,
-            ),
-            closedProject,
-          ]
-        : state.closedProjects;
-      const nextProjectGitRefreshKeys = { ...state.projectGitRefreshKeys };
-      const nextProjectFilesRefreshKeys = {
-        ...state.projectFilesRefreshKeys,
-      };
-      const nextProjectFileOpenRequests = {
-        ...state.projectFileOpenRequests,
-      };
-      const nextTerminalOrdinalByProject = {
-        ...state.nextTerminalOrdinalByProject,
-      };
-      const nextTerminalStatus = { ...state.terminalStatus };
-      const nextTerminalTransport = { ...state.terminalTransport };
-      const nextTerminalShell = { ...state.terminalShell };
-      const nextTerminalSessionNames = { ...state.terminalSessionNames };
-      const nextProjectTerminalSessionIds = {
-        ...state.projectTerminalSessionIds,
-      };
-      const nextActiveTerminalSessionIdByProject = {
-        ...state.activeTerminalSessionIdByProject,
-      };
-      const nextProjectTerminalPanelOpenByProject = {
-        ...state.projectTerminalPanelOpenByProject,
-      };
-      const nextBrowserLoading = { ...state.browserLoading };
-      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
-      const browserTabs = state.browserTabsByProject[projectId] ?? [];
-
-      delete nextProjectGitRefreshKeys[projectId];
-      delete nextProjectFilesRefreshKeys[projectId];
-      delete nextProjectFileOpenRequests[projectId];
-      delete nextTerminalOrdinalByProject[projectId];
-      delete nextProjectTerminalSessionIds[projectId];
-      delete nextActiveTerminalSessionIdByProject[projectId];
-      delete nextProjectTerminalPanelOpenByProject[projectId];
-      delete nextDraftChatIdByProject[projectId];
-      for (const tab of browserTabs) {
-        delete nextBrowserLoading[tab.id];
-      }
-      for (const sessionId of terminalSessionIds) {
-        delete nextTerminalStatus[sessionId];
-        delete nextTerminalTransport[sessionId];
-        delete nextTerminalShell[sessionId];
-        delete nextTerminalSessionNames[sessionId];
-      }
-      const nextOpenProjects = nextProjects.map((project) => ({
-        ...project,
-        ui: sanitizeProjectUiForChats(
-          state.chats,
-          project.id,
-          project.ui,
-          ensureActiveChatForProject(
+        delete nextProjectGitRefreshKeys[projectId];
+        delete nextProjectFilesRefreshKeys[projectId];
+        delete nextProjectFileOpenRequests[projectId];
+        delete nextTerminalOrdinalByProject[projectId];
+        delete nextProjectTerminalSessionIds[projectId];
+        delete nextActiveTerminalSessionIdByProject[projectId];
+        delete nextProjectTerminalPanelOpenByProject[projectId];
+        delete nextDraftChatIdByProject[projectId];
+        for (const tab of browserTabs) {
+          delete nextBrowserLoading[tab.id];
+        }
+        for (const sessionId of terminalSessionIds) {
+          delete nextTerminalStatus[sessionId];
+          delete nextTerminalTransport[sessionId];
+          delete nextTerminalShell[sessionId];
+          delete nextTerminalSessionNames[sessionId];
+        }
+        const nextOpenProjects = nextProjects.map((project) => ({
+          ...project,
+          ui: sanitizeProjectUiForChats(
             state.chats,
             project.id,
-            project.ui.activeChatId,
-          ),
-        ),
-      }));
-      const nextClosedProject = closedProject
-        ? {
-            ...closedProject,
-            lastUsedAt: closedAt,
-            ui: sanitizeProjectUiForChats(
+            project.ui,
+            ensureActiveChatForProject(
               state.chats,
-              projectId,
-              closedProject.ui,
-              ensureActiveChatForProject(
+              project.id,
+              project.ui.activeChatId,
+            ),
+          ),
+        }));
+        const nextClosedProject = closedProject
+          ? {
+              ...closedProject,
+              lastUsedAt: closedAt,
+              ui: sanitizeProjectUiForChats(
                 state.chats,
                 projectId,
-                closedProject.ui.activeChatId,
+                closedProject.ui,
+                ensureActiveChatForProject(
+                  state.chats,
+                  projectId,
+                  closedProject.ui.activeChatId,
+                ),
               ),
-            ),
-          }
-        : null;
-      const nextClosedProjectsWithUi = nextClosedProject
-        ? [
-            ...state.closedProjects.filter(
-              (project) =>
-                project.id !== nextClosedProject.id &&
-                normalizeProjectPathKey(project.path) !== closedProjectPathKey,
-            ),
-            nextClosedProject,
-          ]
-        : nextClosedProjects;
+            }
+          : null;
+        const nextClosedProjectsWithUi = nextClosedProject
+          ? [
+              ...state.closedProjects.filter(
+                (project) =>
+                  project.id !== nextClosedProject.id &&
+                  normalizeProjectPathKey(project.path) !==
+                    closedProjectPathKey,
+              ),
+              nextClosedProject,
+            ]
+          : nextClosedProjects;
 
-      return {
-        activeProjectId: nextActiveProjectId,
-        closedProjects: nextClosedProjectsWithUi,
-        nextTerminalOrdinalByProject,
-        terminalStatus: nextTerminalStatus,
-        terminalTransport: nextTerminalTransport,
-        terminalShell: nextTerminalShell,
-        terminalSessionNames: nextTerminalSessionNames,
-        projectTerminalSessionIds: nextProjectTerminalSessionIds,
-        activeTerminalSessionIdByProject: nextActiveTerminalSessionIdByProject,
-        projectTerminalPanelOpenByProject:
-          nextProjectTerminalPanelOpenByProject,
-        browserLoading: nextBrowserLoading,
-        draftChatIdByProject: nextDraftChatIdByProject,
-        projectGitRefreshKeys: nextProjectGitRefreshKeys,
-        projectFilesRefreshKeys: nextProjectFilesRefreshKeys,
-        projectFileOpenRequests: nextProjectFileOpenRequests,
-        projects: nextOpenProjects,
-      };
-    });
-  },
+        return {
+          activeProjectId: nextActiveProjectId,
+          closedProjects: nextClosedProjectsWithUi,
+          nextTerminalOrdinalByProject,
+          terminalStatus: nextTerminalStatus,
+          terminalTransport: nextTerminalTransport,
+          terminalShell: nextTerminalShell,
+          terminalSessionNames: nextTerminalSessionNames,
+          projectTerminalSessionIds: nextProjectTerminalSessionIds,
+          activeTerminalSessionIdByProject:
+            nextActiveTerminalSessionIdByProject,
+          projectTerminalPanelOpenByProject:
+            nextProjectTerminalPanelOpenByProject,
+          browserLoading: nextBrowserLoading,
+          draftChatIdByProject: nextDraftChatIdByProject,
+          projectGitRefreshKeys: nextProjectGitRefreshKeys,
+          projectFilesRefreshKeys: nextProjectFilesRefreshKeys,
+          projectFileOpenRequests: nextProjectFileOpenRequests,
+          projects: nextOpenProjects,
+        };
+      });
+    },
 
-  updateProject: (
-    projectId: string,
-    updater: (project: ProjectConfig) => ProjectConfig,
-  ) => {
-    set((state) => ({
-      projects: state.projects.map((project) =>
-        project.id === projectId ? updater(project) : project,
-      ),
-    }));
-  },
-});
+    updateProject: (
+      projectId: string,
+      updater: (project: ProjectConfig) => ProjectConfig,
+    ) => {
+      set((state) => ({
+        projects: state.projects.map((project) =>
+          project.id === projectId ? updater(project) : project,
+        ),
+      }));
+    },
+  };
+};

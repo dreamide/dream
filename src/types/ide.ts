@@ -188,6 +188,12 @@ export interface ProjectConfig {
   reasoningEffort: ReasoningEffort | null;
   ui: ProjectUiState;
   worktree: ProjectWorktreeInfo | null;
+  /**
+   * Loaded for background work (a task's chats run in it) but not shown as a
+   * tab in Code. Set when a project is opened without activating it, cleared
+   * as soon as anything activates it.
+   */
+  hidden?: boolean;
 }
 
 export type McpServerTransport = "stdio" | "http" | "sse";
@@ -512,6 +518,15 @@ export interface ProjectGitRemoveWorktreeResponse {
   path: string;
 }
 
+/** A pull request GitHub has for a branch, as `gh` reports it. */
+export interface ProjectGitPullRequest {
+  isDraft: boolean;
+  mergedAt: string | null;
+  number: number;
+  state: "open" | "closed" | "merged";
+  url: string;
+}
+
 export interface ProjectGitWorktreeCompareRequest {
   baseRef?: string | null;
   projectPath: string;
@@ -533,6 +548,8 @@ export interface ProjectGitWorktreeCompareResponse {
   mainInProgressOperation: boolean;
   mainWorktreePath: string;
   mergeBase: string | null;
+  /** The branch's pull request, when GitHub knows of one (needs `gh`). */
+  pullRequest: ProjectGitPullRequest | null;
   remoteName: string | null;
   totalCommits: number;
   truncated: boolean;
