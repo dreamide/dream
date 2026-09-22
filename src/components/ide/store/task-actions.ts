@@ -1080,9 +1080,10 @@ export const createTaskActions = (
 
     checkTaskWorktree: async (projectId, taskId) => {
       const task = findTask(projectId, taskId)?.task;
+      // Done tasks are checked too: their card offers to remove a worktree
+      // that is still around, and must not once it is gone.
       if (
         !task?.worktreeProjectId ||
-        task.completion ||
         get().projects.some((entry) => entry.id === task.worktreeProjectId)
       ) {
         return true;

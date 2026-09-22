@@ -244,7 +244,7 @@ export const TaskBoard = ({
         : null;
 
       if (worktreeProject?.worktree) {
-        // Merge, open a PR, or discard — then the worktree is cleaned up.
+        // Merge or open a PR. The worktree stays until removed explicitly.
         setDialog({
           discard: false,
           entry,
@@ -271,37 +271,54 @@ export const TaskBoard = ({
   );
 
   const handleDiscard = useCallback(
-    (entry: TaskEntry) => {
-      setTaskError(entry.key, null);
-      const worktreeProject = useIdeStore
-        .getState()
-        .projects.find(
-          (project) => project.id === entry.task.worktreeProjectId,
-        );
-      if (!worktreeProject?.worktree) {
-        setTaskError(entry.key, t("worktreeMissing"));
-        return;
-      }
-      setDialog({
-        discard: true,
-        entry,
-        mode: "complete",
-        project: worktreeProject as WorktreeProject,
-      });
-    },
-    [setTaskError, t],
+    (entry: TaskEntry) =>
+      runTaskAction(entry.key, async () => {
+        const findWorktreeProject = () =>
+          useIdeStore
+            .getState()
+            .projects.find(
+              (project) => project.id === entry.task.worktreeProjectId,
+            );
+        // A finished task's worktree is usually closed by now; reopen it so
+        // the dialog has a project to work on.
+        if (
+          !findWorktreeProject() &&
+          !(await reopenTaskWorktree(entry.projectId, entry.task.id))
+        ) {
+          throw new Error(t("worktreeMissing"));
+        }
+        const worktreeProject = findWorktreeProject();
+        if (!worktreeProject?.worktree) {
+          throw new Error(t("worktreeMissing"));
+        }
+        setDialog({
+          discard: true,
+          entry,
+          mode: "complete",
+          project: worktreeProject as WorktreeProject,
+        });
+      }),
+    [reopenTaskWorktree, runTaskAction, t],
   );
 
   const handleWorktreeCompleted = useCallback(
-    (entry: TaskEntry, result: WorktreeCompletionResult) =>
+    (entry: TaskEntry, result: WorktreeCompletionResult) => {
+      const current = useIdeStore
+        .getState()
+        .tasks.find((task) => task.id === entry.task.id);
+      // Removing a finished task's worktree is cleanup, not a new outcome.
+      if (current?.completion) {
+        return;
+      }
       completeTask(entry.projectId, entry.task.id, {
         at: new Date().toISOString(),
-        // Finishing a task whose work was already on the base branch only
-        // removes the worktree, but the outcome is still "merged".
+        // A task whose work was already on the base branch is finished
+        // without merging again, but the outcome is still "merged".
         kind: result.alreadyMerged ? "merged" : COMPLETION_KINDS[result.action],
         mergeCommit: result.mergeCommit,
         prUrl: result.prUrl,
-      }),
+      });
+    },
     [completeTask],
   );
 
@@ -431,6 +448,7 @@ export const TaskBoard = ({
       ) : null}
       {dialog?.mode === "complete" ? (
         <CompleteWorktreeDialog
+          removeOnly={dialog.discard}
           onCompleted={(result) =>
             handleWorktreeCompleted(dialog.entry, result)
           }

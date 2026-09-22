@@ -144,18 +144,13 @@ const TaskCardImpl = ({
   const worktreeMissing = missingWorktree !== null;
   const checkTaskWorktree = useIdeStore((s) => s.checkTaskWorktree);
   // A closed worktree may be gone from disk. Looking once saves offering a
-  // Reopen that cannot work; failures to look just leave the card as it is.
+  // Reopen (or Remove) that cannot work; failures to look just leave the
+  // card as it is.
   useEffect(() => {
-    if (!worktreeOpen && !task.completion) {
+    if (!worktreeOpen) {
       void checkTaskWorktree(entry.projectId, task.id).catch(() => {});
     }
-  }, [
-    checkTaskWorktree,
-    entry.projectId,
-    task.completion,
-    task.id,
-    worktreeOpen,
-  ]);
+  }, [checkTaskWorktree, entry.projectId, task.id, worktreeOpen]);
   const activityEntry = useActivityStore((s) =>
     chatId ? s.entries[chatId] : undefined,
   );
@@ -427,12 +422,14 @@ const TaskCardImpl = ({
               <FilePenLine className="size-4" />
               {t("edit")}
             </DropdownMenuItem>
-            {settled && task.worktreeProjectId && !task.completion ? (
-              // Shipping never discards; throwing the work away is its own,
-              // clearly destructive, action.
+            {task.worktreeProjectId &&
+            !worktreeMissing &&
+            (task.completion || settled) ? (
+              // Shipping never touches the worktree; removing it is its own
+              // action: cleanup once the task is done, discarding before.
               <DropdownMenuItem onClick={() => onDiscard(entry)}>
                 <FolderX className="size-4" />
-                {t("discardWork")}
+                {task.completion ? t("removeTaskWorktree") : t("discardWork")}
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuSeparator />

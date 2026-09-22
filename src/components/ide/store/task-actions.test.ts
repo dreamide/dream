@@ -1397,7 +1397,8 @@ test("a closed worktree is checked on disk: gone with its branch means mark as d
     [taskId]: { branchExists: false },
   });
 
-  // Finished tasks are never checked.
+  // Finished tasks are checked too: their card must not offer to remove a
+  // worktree that is already gone.
   store.getState().completeTask(project.id, taskId, {
     at: new Date().toISOString(),
     kind: "removed",
@@ -1406,6 +1407,9 @@ test("a closed worktree is checked on disk: gone with its branch means mark as d
   });
   assert.equal(
     await store.getState().checkTaskWorktree(project.id, taskId),
-    true,
+    false,
   );
+  assert.deepEqual(store.getState().missingTaskWorktrees, {
+    [taskId]: { branchExists: false },
+  });
 });

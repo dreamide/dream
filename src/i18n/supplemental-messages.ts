@@ -42,7 +42,8 @@ export const supplementalMessages = {
         "Diese Arbeit ist bereits auf {base}. Es gibt nichts mehr zu mergen.",
       shipDirty:
         "Der Worktree enthält nicht committete Änderungen. Committe sie vor dem Ausliefern.",
-      shipFinish: "Aufgabe abschließen und Worktree entfernen",
+      shipFinish: "Aufgabe abschließen",
+      removeTaskWorktree: "Worktree entfernen…",
       deliveryState: "{branch} ist {ahead} voraus, {behind} hinter {upstream}",
       deliveryInSync: "{branch} ist auf dem Stand von {upstream}",
       deliveryNoUpstream: "{branch} verfolgt keinen Remote-Branch",
@@ -330,7 +331,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "Worktree {branch} abschließen",
       conflictingFiles: "Konfliktdateien",
       continueToPr: "Weiter zum Pull Request",
-      createPrAndRemove: "Pull Request erstellen und Worktree entfernen",
+      createPullRequest: "Pull Request erstellen",
+      uncommittedStay:
+        "Nicht committete Änderungen bleiben im Worktree und werden nicht zusammengeführt.",
       dirtyFiles:
         "{count, plural, one {# nicht committete Datei} other {# nicht committete Dateien}}",
       discardUncommitted: "Nicht committete Änderungen verwerfen",
@@ -344,10 +347,10 @@ export const supplementalMessages = {
       mainWillSwitch: "Der Haupt-Checkout wechselt von {from} zu {to}.",
       mainWorktreeDirty:
         "Der Haupt-Checkout ({branch}) hat {count, plural, one {# nicht committete Datei} other {# nicht committete Dateien}}. Committe oder stashe sie zuerst.",
-      mergeAndRemove: "Mergen & entfernen",
+      merge: "Zusammenführen",
       mergeConflict:
         "Der Merge in {base} hat Konflikte erzeugt. Der Merge wurde abgebrochen und nichts geändert.",
-      mergeIntoAndRemove: "In {base} mergen und Worktree entfernen",
+      mergeInto: "In {base} zusammenführen",
       mergedFastForward: "{base} per Fast-Forward auf {branch} gesetzt.",
       mergedWithCommit: "{branch} in {base} gemergt ({hash}).",
       merging: "Merge in {base}...",
@@ -653,7 +656,8 @@ export const supplementalMessages = {
         "This work is already on {base}. Nothing is left to merge.",
       shipDirty:
         "The worktree has uncommitted changes. Commit them before shipping.",
-      shipFinish: "Finish task and remove worktree",
+      shipFinish: "Finish task",
+      removeTaskWorktree: "Remove worktree…",
       deliveryState: "{branch} is {ahead} ahead, {behind} behind {upstream}",
       deliveryInSync: "{branch} is up to date with {upstream}",
       deliveryNoUpstream: "{branch} does not track a remote branch",
@@ -932,7 +936,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "Complete worktree {branch}",
       conflictingFiles: "Conflicting files",
       continueToPr: "Continue to pull request",
-      createPrAndRemove: "Create pull request and remove worktree",
+      createPullRequest: "Create pull request",
+      uncommittedStay:
+        "Uncommitted changes stay in the worktree and are not merged.",
       dirtyFiles:
         "{count, plural, one {# uncommitted file} other {# uncommitted files}}",
       discardUncommitted: "Discard uncommitted changes",
@@ -947,10 +953,10 @@ export const supplementalMessages = {
       mainWillSwitch: "The main checkout will switch from {from} to {to}.",
       mainWorktreeDirty:
         "The main checkout ({branch}) has {count, plural, one {# uncommitted file} other {# uncommitted files}}. Commit or stash them first.",
-      mergeAndRemove: "Merge & remove",
+      merge: "Merge",
       mergeConflict:
         "Merging into {base} produced conflicts. The merge was aborted and nothing was changed.",
-      mergeIntoAndRemove: "Merge into {base} and remove worktree",
+      mergeInto: "Merge into {base}",
       mergedFastForward: "Fast-forwarded {base} to {branch}.",
       mergedWithCommit: "Merged {branch} into {base} ({hash}).",
       merging: "Merging into {base}...",
@@ -1250,7 +1256,8 @@ export const supplementalMessages = {
         "Este trabajo ya está en {base}. No queda nada por fusionar.",
       shipDirty:
         "El worktree tiene cambios sin confirmar. Confírmalos antes de entregar.",
-      shipFinish: "Finalizar tarea y quitar worktree",
+      shipFinish: "Finalizar tarea",
+      removeTaskWorktree: "Quitar worktree…",
       deliveryState:
         "{branch} está {ahead} por delante y {behind} por detrás de {upstream}",
       deliveryInSync: "{branch} está al día con {upstream}",
@@ -1531,7 +1538,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "Completar worktree {branch}",
       conflictingFiles: "Archivos en conflicto",
       continueToPr: "Continuar al pull request",
-      createPrAndRemove: "Crear pull request y eliminar worktree",
+      createPullRequest: "Crear pull request",
+      uncommittedStay:
+        "Los cambios sin confirmar permanecen en el worktree y no se fusionan.",
       dirtyFiles:
         "{count, plural, one {# archivo sin confirmar} other {# archivos sin confirmar}}",
       discardUncommitted: "Descartar cambios sin confirmar",
@@ -1546,10 +1555,10 @@ export const supplementalMessages = {
       mainWillSwitch: "El checkout principal cambiará de {from} a {to}.",
       mainWorktreeDirty:
         "El checkout principal ({branch}) tiene {count, plural, one {# archivo sin confirmar} other {# archivos sin confirmar}}. Confírmalos o guárdalos en stash primero.",
-      mergeAndRemove: "Fusionar y eliminar",
+      merge: "Fusionar",
       mergeConflict:
         "La fusión en {base} produjo conflictos. Se abortó la fusión y no se cambió nada.",
-      mergeIntoAndRemove: "Fusionar en {base} y eliminar worktree",
+      mergeInto: "Fusionar en {base}",
       mergedFastForward: "{base} avanzado (fast-forward) a {branch}.",
       mergedWithCommit: "{branch} fusionada en {base} ({hash}).",
       merging: "Fusionando en {base}...",
@@ -1857,7 +1866,8 @@ export const supplementalMessages = {
         "Ce travail est déjà sur {base}. Il ne reste rien à fusionner.",
       shipDirty:
         "Le worktree contient des modifications non validées. Validez-les avant de livrer.",
-      shipFinish: "Terminer la tâche et supprimer le worktree",
+      shipFinish: "Terminer la tâche",
+      removeTaskWorktree: "Supprimer le worktree…",
       deliveryState:
         "{branch} a {ahead} d'avance et {behind} de retard sur {upstream}",
       deliveryInSync: "{branch} est à jour avec {upstream}",
@@ -2141,7 +2151,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "Terminer le worktree {branch}",
       conflictingFiles: "Fichiers en conflit",
       continueToPr: "Continuer vers la pull request",
-      createPrAndRemove: "Créer une pull request et supprimer le worktree",
+      createPullRequest: "Créer une pull request",
+      uncommittedStay:
+        "Les modifications non validées restent dans le worktree et ne sont pas fusionnées.",
       dirtyFiles:
         "{count, plural, one {# fichier non validé} other {# fichiers non validés}}",
       discardUncommitted: "Abandonner les modifications non validées",
@@ -2156,10 +2168,10 @@ export const supplementalMessages = {
       mainWillSwitch: "Le checkout principal passera de {from} à {to}.",
       mainWorktreeDirty:
         "Le checkout principal ({branch}) contient {count, plural, one {# fichier non validé} other {# fichiers non validés}}. Validez-les ou mettez-les de côté d'abord.",
-      mergeAndRemove: "Fusionner et supprimer",
+      merge: "Fusionner",
       mergeConflict:
         "La fusion dans {base} a produit des conflits. La fusion a été annulée et rien n'a été modifié.",
-      mergeIntoAndRemove: "Fusionner dans {base} et supprimer le worktree",
+      mergeInto: "Fusionner dans {base}",
       mergedFastForward: "{base} avancée (fast-forward) vers {branch}.",
       mergedWithCommit: "{branch} fusionnée dans {base} ({hash}).",
       merging: "Fusion dans {base}...",
@@ -2465,7 +2477,8 @@ export const supplementalMessages = {
         "Questo lavoro è già su {base}. Non resta nulla da unire.",
       shipDirty:
         "Il worktree contiene modifiche non salvate in un commit. Esegui il commit prima di consegnare.",
-      shipFinish: "Concludi attività e rimuovi worktree",
+      shipFinish: "Concludi attività",
+      removeTaskWorktree: "Rimuovi worktree…",
       deliveryState:
         "{branch} è avanti di {ahead} e indietro di {behind} rispetto a {upstream}",
       deliveryInSync: "{branch} è allineato con {upstream}",
@@ -2748,7 +2761,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "Completa worktree {branch}",
       conflictingFiles: "File in conflitto",
       continueToPr: "Continua alla pull request",
-      createPrAndRemove: "Crea pull request e rimuovi worktree",
+      createPullRequest: "Crea pull request",
+      uncommittedStay:
+        "Le modifiche non committate restano nel worktree e non vengono unite.",
       dirtyFiles:
         "{count, plural, one {# file senza commit} other {# file senza commit}}",
       discardUncommitted: "Scarta le modifiche senza commit",
@@ -2763,10 +2778,10 @@ export const supplementalMessages = {
       mainWillSwitch: "Il checkout principale passerà da {from} a {to}.",
       mainWorktreeDirty:
         "Il checkout principale ({branch}) ha {count, plural, one {# file senza commit} other {# file senza commit}}. Esegui prima il commit o lo stash.",
-      mergeAndRemove: "Unisci e rimuovi",
+      merge: "Unisci",
       mergeConflict:
         "L'unione in {base} ha generato conflitti. L'unione è stata annullata e nulla è cambiato.",
-      mergeIntoAndRemove: "Unisci in {base} e rimuovi worktree",
+      mergeInto: "Unisci in {base}",
       mergedFastForward: "{base} avanzato (fast-forward) a {branch}.",
       mergedWithCommit: "{branch} unito in {base} ({hash}).",
       merging: "Unione in {base}...",
@@ -3073,7 +3088,8 @@ export const supplementalMessages = {
         "この作業はすでに {base} にあります。マージするものはありません。",
       shipDirty:
         "ワークツリーに未コミットの変更があります。出荷前にコミットしてください。",
-      shipFinish: "タスクを完了してワークツリーを削除",
+      shipFinish: "タスクを完了",
+      removeTaskWorktree: "ワークツリーを削除…",
       deliveryState: "{branch} は {upstream} より {ahead} 先行、{behind} 遅れ",
       deliveryInSync: "{branch} は {upstream} と同期しています",
       deliveryNoUpstream: "{branch} はリモートブランチを追跡していません",
@@ -3350,7 +3366,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "ワークツリー {branch} を完了",
       conflictingFiles: "競合しているファイル",
       continueToPr: "プルリクエストへ進む",
-      createPrAndRemove: "プルリクエストを作成してワークツリーを削除",
+      createPullRequest: "プルリクエストを作成",
+      uncommittedStay:
+        "未コミットの変更はワークツリーに残り、マージされません。",
       dirtyFiles: "未コミットのファイル {count} 件",
       discardUncommitted: "未コミットの変更を破棄",
       discardWarning:
@@ -3365,10 +3383,10 @@ export const supplementalMessages = {
         "メインチェックアウトは {from} から {to} に切り替わります。",
       mainWorktreeDirty:
         "メインチェックアウト ({branch}) に未コミットのファイルが {count} 件あります。先にコミットまたはスタッシュしてください。",
-      mergeAndRemove: "マージして削除",
+      merge: "マージ",
       mergeConflict:
         "{base} へのマージで競合が発生しました。マージは中止され、何も変更されていません。",
-      mergeIntoAndRemove: "{base} にマージしてワークツリーを削除",
+      mergeInto: "{base} にマージ",
       mergedFastForward: "{base} を {branch} にファストフォワードしました。",
       mergedWithCommit: "{branch} を {base} にマージしました ({hash})。",
       merging: "{base} にマージ中...",
@@ -3671,7 +3689,8 @@ export const supplementalMessages = {
         "이 작업은 이미 {base}에 있습니다. 병합할 것이 없습니다.",
       shipDirty:
         "워크트리에 커밋되지 않은 변경 사항이 있습니다. 출시 전에 커밋하세요.",
-      shipFinish: "작업 완료 및 워크트리 제거",
+      shipFinish: "작업 완료",
+      removeTaskWorktree: "워크트리 제거…",
       deliveryState:
         "{branch}은(는) {upstream}보다 {ahead} 앞서고 {behind} 뒤처져 있습니다",
       deliveryInSync: "{branch}은(는) {upstream}과(와) 동기화되어 있습니다",
@@ -3945,7 +3964,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "워크트리 {branch} 완료",
       conflictingFiles: "충돌 파일",
       continueToPr: "풀 리퀘스트로 계속",
-      createPrAndRemove: "풀 리퀘스트 생성 후 워크트리 제거",
+      createPullRequest: "풀 리퀘스트 만들기",
+      uncommittedStay:
+        "커밋되지 않은 변경 사항은 워크트리에 남으며 병합되지 않습니다.",
       dirtyFiles: "커밋되지 않은 파일 {count}개",
       discardUncommitted: "커밋되지 않은 변경 사항 버리기",
       discardWarning:
@@ -3959,10 +3980,10 @@ export const supplementalMessages = {
       mainWillSwitch: "메인 체크아웃이 {from}에서 {to}(으)로 전환됩니다.",
       mainWorktreeDirty:
         "메인 체크아웃({branch})에 커밋되지 않은 파일이 {count}개 있습니다. 먼저 커밋하거나 스태시하세요.",
-      mergeAndRemove: "병합 및 제거",
+      merge: "병합",
       mergeConflict:
         "{base}에 병합하는 중 충돌이 발생했습니다. 병합이 중단되었고 아무것도 변경되지 않았습니다.",
-      mergeIntoAndRemove: "{base}에 병합하고 워크트리 제거",
+      mergeInto: "{base}에 병합",
       mergedFastForward: "{base}을(를) {branch}(으)로 패스트 포워드했습니다.",
       mergedWithCommit: "{branch}을(를) {base}에 병합했습니다 ({hash}).",
       merging: "{base}에 병합 중...",
@@ -4261,7 +4282,8 @@ export const supplementalMessages = {
         "Este trabalho já está em {base}. Não há mais nada para mesclar.",
       shipDirty:
         "O worktree tem alterações sem commit. Faça o commit antes de entregar.",
-      shipFinish: "Concluir tarefa e remover worktree",
+      shipFinish: "Concluir tarefa",
+      removeTaskWorktree: "Remover worktree…",
       deliveryState:
         "{branch} está {ahead} à frente e {behind} atrás de {upstream}",
       deliveryInSync: "{branch} está em dia com {upstream}",
@@ -4542,7 +4564,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "Concluir worktree {branch}",
       conflictingFiles: "Arquivos em conflito",
       continueToPr: "Continuar para o pull request",
-      createPrAndRemove: "Criar pull request e remover worktree",
+      createPullRequest: "Criar pull request",
+      uncommittedStay:
+        "Alterações não confirmadas permanecem no worktree e não são mescladas.",
       dirtyFiles:
         "{count, plural, one {# arquivo sem commit} other {# arquivos sem commit}}",
       discardUncommitted: "Descartar alterações sem commit",
@@ -4557,10 +4581,10 @@ export const supplementalMessages = {
       mainWillSwitch: "O checkout principal mudará de {from} para {to}.",
       mainWorktreeDirty:
         "O checkout principal ({branch}) tem {count, plural, one {# arquivo sem commit} other {# arquivos sem commit}}. Faça commit ou stash primeiro.",
-      mergeAndRemove: "Fazer merge e remover",
+      merge: "Mesclar",
       mergeConflict:
         "O merge em {base} gerou conflitos. O merge foi abortado e nada foi alterado.",
-      mergeIntoAndRemove: "Fazer merge em {base} e remover worktree",
+      mergeInto: "Mesclar em {base}",
       mergedFastForward: "{base} avançado (fast-forward) para {branch}.",
       mergedWithCommit: "{branch} mesclado em {base} ({hash}).",
       merging: "Fazendo merge em {base}...",
@@ -4863,7 +4887,8 @@ export const supplementalMessages = {
         "Công việc này đã có trên {base}. Không còn gì để gộp.",
       shipDirty:
         "Worktree có thay đổi chưa commit. Hãy commit trước khi bàn giao.",
-      shipFinish: "Hoàn tất nhiệm vụ và xóa worktree",
+      shipFinish: "Hoàn thành nhiệm vụ",
+      removeTaskWorktree: "Xóa worktree…",
       deliveryState:
         "{branch} đi trước {ahead}, đi sau {behind} so với {upstream}",
       deliveryInSync: "{branch} đã đồng bộ với {upstream}",
@@ -5142,7 +5167,9 @@ export const supplementalMessages = {
       completeWorktreeLabel: "Hoàn tất worktree {branch}",
       conflictingFiles: "Tệp xung đột",
       continueToPr: "Tiếp tục tới pull request",
-      createPrAndRemove: "Tạo pull request và gỡ bỏ worktree",
+      createPullRequest: "Tạo pull request",
+      uncommittedStay:
+        "Các thay đổi chưa commit vẫn ở trong worktree và không được hợp nhất.",
       dirtyFiles: "{count} tệp chưa commit",
       discardUncommitted: "Bỏ các thay đổi chưa commit",
       discardWarning:
@@ -5156,10 +5183,10 @@ export const supplementalMessages = {
       mainWillSwitch: "Checkout chính sẽ chuyển từ {from} sang {to}.",
       mainWorktreeDirty:
         "Checkout chính ({branch}) có {count} tệp chưa commit. Hãy commit hoặc stash trước.",
-      mergeAndRemove: "Hợp nhất & gỡ bỏ",
+      merge: "Hợp nhất",
       mergeConflict:
         "Hợp nhất vào {base} gây xung đột. Việc hợp nhất đã bị hủy và không có gì thay đổi.",
-      mergeIntoAndRemove: "Hợp nhất vào {base} và gỡ bỏ worktree",
+      mergeInto: "Hợp nhất vào {base}",
       mergedFastForward: "Đã fast-forward {base} tới {branch}.",
       mergedWithCommit: "Đã hợp nhất {branch} vào {base} ({hash}).",
       merging: "Đang hợp nhất vào {base}...",
@@ -5457,7 +5484,8 @@ export const supplementalMessages = {
       shipReady: "可合入 {base} 的提交：{count}",
       shipAlreadyMerged: "这项工作已在 {base} 上，没有需要合并的内容。",
       shipDirty: "工作树有未提交的更改。请先提交再交付。",
-      shipFinish: "完成任务并移除工作树",
+      shipFinish: "完成任务",
+      removeTaskWorktree: "移除工作树…",
       deliveryState:
         "{branch} 领先 {upstream} {ahead} 个提交，落后 {behind} 个",
       deliveryInSync: "{branch} 与 {upstream} 同步",
@@ -5721,7 +5749,8 @@ export const supplementalMessages = {
       completeWorktreeLabel: "完成工作树 {branch}",
       conflictingFiles: "冲突文件",
       continueToPr: "继续创建拉取请求",
-      createPrAndRemove: "创建拉取请求并移除工作树",
+      createPullRequest: "创建拉取请求",
+      uncommittedStay: "未提交的更改会保留在工作树中，不会被合并。",
       dirtyFiles: "{count} 个未提交文件",
       discardUncommitted: "丢弃未提交的更改",
       discardWarning: "移除工作树后，这些更改将永久丢失。",
@@ -5733,9 +5762,9 @@ export const supplementalMessages = {
       mainWillSwitch: "主检出将从 {from} 切换到 {to}。",
       mainWorktreeDirty:
         "主检出（{branch}）有 {count} 个未提交文件。请先提交或暂存。",
-      mergeAndRemove: "合并并移除",
+      merge: "合并",
       mergeConflict: "合并到 {base} 时产生冲突。合并已中止，未做任何更改。",
-      mergeIntoAndRemove: "合并到 {base} 并移除工作树",
+      mergeInto: "合并到 {base}",
       mergedFastForward: "已将 {base} 快进到 {branch}。",
       mergedWithCommit: "已将 {branch} 合并到 {base}（{hash}）。",
       merging: "正在合并到 {base}...",
@@ -6032,7 +6061,8 @@ export const supplementalMessages = {
       shipReady: "可合入 {base} 的提交：{count}",
       shipAlreadyMerged: "這項工作已在 {base} 上，沒有需要合併的內容。",
       shipDirty: "工作樹有未提交的變更。請先提交再交付。",
-      shipFinish: "完成任務並移除工作樹",
+      shipFinish: "完成任務",
+      removeTaskWorktree: "移除工作樹…",
       deliveryState:
         "{branch} 領先 {upstream} {ahead} 個提交，落後 {behind} 個",
       deliveryInSync: "{branch} 與 {upstream} 同步",
@@ -6295,7 +6325,8 @@ export const supplementalMessages = {
       completeWorktreeLabel: "完成工作樹 {branch}",
       conflictingFiles: "衝突檔案",
       continueToPr: "繼續建立拉取請求",
-      createPrAndRemove: "建立拉取請求並移除工作樹",
+      createPullRequest: "建立拉取請求",
+      uncommittedStay: "未提交的變更會保留在工作樹中，不會被合併。",
       dirtyFiles: "{count} 個未提交檔案",
       discardUncommitted: "捨棄未提交的變更",
       discardWarning: "移除工作樹後，這些變更將永久遺失。",
@@ -6307,9 +6338,9 @@ export const supplementalMessages = {
       mainWillSwitch: "主檢出將從 {from} 切換到 {to}。",
       mainWorktreeDirty:
         "主檢出（{branch}）有 {count} 個未提交檔案。請先提交或暫存。",
-      mergeAndRemove: "合併並移除",
+      merge: "合併",
       mergeConflict: "合併到 {base} 時產生衝突。合併已中止，未做任何變更。",
-      mergeIntoAndRemove: "合併到 {base} 並移除工作樹",
+      mergeInto: "合併到 {base}",
       mergedFastForward: "已將 {base} 快轉到 {branch}。",
       mergedWithCommit: "已將 {branch} 合併到 {base}（{hash}）。",
       merging: "正在合併到 {base}...",
