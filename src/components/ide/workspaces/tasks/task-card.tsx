@@ -295,7 +295,7 @@ const TaskCardImpl = ({
             render={
               <Button
                 aria-label={t("taskActions")}
-                className="size-6 shrink-0 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/card:opacity-100 data-[state=open]:text-foreground data-[state=open]:opacity-100"
+                className="size-6 shrink-0 text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover/card:opacity-100 data-popup-open:text-foreground data-popup-open:opacity-100"
                 size="icon-xs"
                 type="button"
                 variant="ghost"
@@ -304,7 +304,7 @@ const TaskCardImpl = ({
           >
             <Ellipsis className="size-4" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuContent align="end" className="w-max min-w-28 max-w-64">
             {changesRequested && canApprove && nextStep ? (
               <DropdownMenuItem onClick={() => onAdvance(entry)}>
                 <ChevronsRight className="size-4" />
