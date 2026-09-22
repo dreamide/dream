@@ -251,7 +251,7 @@ export function ActivityInbox() {
                                     : status === "waiting" ||
                                         status === "interrupted"
                                       ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                      : "text-muted-foreground",
+                                      : "bg-surface-200 text-surface-600 dark:bg-surface-700 dark:text-surface-300",
                             )}
                           >
                             {t(status)}
