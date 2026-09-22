@@ -58,6 +58,9 @@ export interface IdeState {
   tasks: Task[];
   tasksProjectId: string | null;
   taskConfig: TaskConfig;
+  tasksChatPanelWidth: number;
+  /** The task whose chats the Tasks workspace pane shows (not persisted). */
+  tasksPane: { taskId: string; runId: string | null } | null;
   chats: ChatConfig[];
   chatSort: ChatSortOrder;
   settings: AppSettings;
@@ -235,7 +238,6 @@ export interface IdeState {
     taskId: string,
     completion: TaskCompletion,
   ) => void;
-  openTaskStepChat: (projectId: string, taskId: string, runId?: string) => void;
   /** Reopens a task's closed worktree project in the background. */
   reopenTaskWorktree: (projectId: string, taskId: string) => Promise<boolean>;
   /**
@@ -250,7 +252,6 @@ export interface IdeState {
    * is gone too, or the folder holds other files).
    */
   recreateTaskWorktree: (projectId: string, taskId: string) => Promise<void>;
-  unlinkTaskRunsForChats: (chatIds: string[]) => void;
   /**
    * Edits a step's settings. There is one config for the whole app — no
    * per-project layer — so the Tasks workspace always shows what runs.
@@ -276,6 +277,10 @@ export interface IdeState {
   setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
   setAppView: (view: AppView) => void;
   setTasksProjectId: (projectId: string | null) => void;
+  setTasksChatPanelWidth: (width: number) => void;
+  /** Shows a task's chats in the Tasks workspace pane, at `runId` if given. */
+  openTaskPane: (taskId: string, runId?: string | null) => void;
+  closeTaskPane: () => void;
   openProjectFile: (projectId: string, filePath: string) => void;
   setOutputPanelOpen: (open: boolean) => void;
 

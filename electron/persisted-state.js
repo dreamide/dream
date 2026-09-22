@@ -16,6 +16,7 @@ const DEFAULT_PERSISTED_STATE = {
   appView: "code",
   tasksProjectId: null,
   taskConfig: null,
+  tasksChatPanelWidth: 560,
   tasks: [],
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
@@ -269,6 +270,16 @@ function getAppView(value, fallback = "code") {
 
 function getTasksProjectId(value) {
   return typeof value === "string" && value ? value : null;
+}
+
+function getTasksChatPanelWidth(value) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_PERSISTED_STATE.tasksChatPanelWidth;
+}
+
+function getChatTaskId(value) {
+  return typeof value === "string" && value.trim() ? value : null;
 }
 
 function getNestedRightPanelView(parent, key, fallback = "changes") {
@@ -545,6 +556,30 @@ function saveTasksToRelationalDatabase(database, tasks, knownProjectIds, now) {
           .join(", ")})`,
       )
       .run(...persistedTaskIds);
+  }
+}
+
+/**
+ * Chats saved before chats knew their task are claimed by the task whose runs
+ * point at them. Mutates `chats`; the next save writes the link.
+ */
+function backfillChatTaskIds(chats, tasks) {
+  const taskIdByChatId = new Map();
+  for (const task of tasks) {
+    if (!isRecord(task) || typeof task.id !== "string") {
+      continue;
+    }
+    const runs = Array.isArray(task.runs) ? task.runs : [];
+    for (const run of runs) {
+      if (isRecord(run) && typeof run.chatId === "string" && run.chatId) {
+        taskIdByChatId.set(run.chatId, task.id);
+      }
+    }
+  }
+  for (const chat of chats) {
+    if (chat.taskId === null && taskIdByChatId.has(chat.id)) {
+      chat.taskId = taskIdByChatId.get(chat.id);
+    }
   }
 }
 
@@ -1043,6 +1078,12 @@ function saveStateToRelationalDatabase(database, state) {
     }
     writeConfig(
       database,
+      "tasksChatPanelWidth",
+      getTasksChatPanelWidth(state.tasksChatPanelWidth),
+      now,
+    );
+    writeConfig(
+      database,
       "browserTabsByProject",
       isRecord(state.browserTabsByProject) ? state.browserTabsByProject : {},
       now,
@@ -1269,15 +1310,17 @@ function saveStateToRelationalDatabase(database, state) {
         INSERT INTO chats (
           id,
           project_id,
+          task_id,
           title,
           metadata,
           created_at,
           updated_at,
           deleted_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           project_id = excluded.project_id,
+          task_id = excluded.task_id,
           title = excluded.title,
           metadata = excluded.metadata,
           updated_at = excluded.updated_at,
@@ -1308,6 +1351,7 @@ function saveStateToRelationalDatabase(database, state) {
       insertChat.run(
         chat.id,
         chat.projectId,
+        getChatTaskId(chat.taskId),
         typeof chat.title === "string" && chat.title.trim()
           ? chat.title
           : "New chat",
@@ -1523,6 +1567,7 @@ function loadStateFromRelationalDatabase(database) {
         "projectPath",
       ),
       sparklesPalette: normalizeSparklesPaletteName(metadata.sparklesPalette),
+      taskId: getChatTaskId(row.task_id),
       title: row.title || "New chat",
       updatedAt: row.updated_at,
     });
@@ -1572,6 +1617,7 @@ function loadStateFromRelationalDatabase(database) {
     loadTasksFromRelationalDatabase(database),
     allProjects,
   );
+  backfillChatTaskIds(chats, tasks);
   for (const project of allProjects) {
     const metadataUi = getNestedRecord(project.metadata, "ui");
     for (const key of LEGACY_PROJECT_TASK_KEYS) {
@@ -1593,6 +1639,7 @@ function loadStateFromRelationalDatabase(database) {
     tasksProjectId: getTasksProjectId(
       config.tasksProjectId ?? config.pipelineProjectId,
     ),
+    tasksChatPanelWidth: getTasksChatPanelWidth(config.tasksChatPanelWidth),
     // Absent until first saved; the renderer then seeds it from the legacy
     // per-project configs passed through on each project's `ui.taskConfig`.
     taskConfig: isRecord(config.taskConfig) ? config.taskConfig : null,

@@ -152,6 +152,71 @@ test("removeWorktreeProject cleans up the worktree and activates the parent", as
   }
 });
 
+test("removing a worktree keeps its task chats, moved to the task's project", async () => {
+  const { parent, parentChat, store, worktree, worktreeChat } =
+    createTestStore();
+  const taskChat = createChatConfig(worktree, {
+    taskId: "task-1",
+    title: "Plan: fix login",
+  });
+  const orphanTaskChat = createChatConfig(worktree, {
+    taskId: "task-gone",
+    title: "Plan: deleted task",
+  });
+  const messages = [
+    { id: "m1", parts: [{ text: "plan", type: "text" }], role: "user" },
+  ] as UIMessage[];
+  store.setState((state) => ({
+    chats: [...state.chats, taskChat, orphanTaskChat],
+    messagesByChatId: {
+      ...state.messagesByChatId,
+      [orphanTaskChat.id]: messages,
+      [taskChat.id]: messages,
+    },
+    tasks: [
+      {
+        id: "task-1",
+        projectId: parent.id,
+        runs: [{ chatId: taskChat.id, id: "run-1", step: "plan" }],
+      },
+    ] as unknown as IdeState["tasks"],
+  }));
+  stubFetch(() =>
+    Response.json({
+      branch: "feature",
+      branchDeleted: false,
+      branchDeleteError: null,
+      path: WORKTREE_PATH,
+      pruned: false,
+      removed: true,
+    }),
+  );
+
+  try {
+    await store.getState().removeWorktreeProject({
+      mainWorktreePath: parent.path,
+      parentProjectId: parent.id,
+      worktreePath: worktree.path,
+    });
+
+    const state = store.getState();
+    assert.deepEqual(
+      state.chats.map((chat) => chat.id).sort(),
+      [parentChat.id, taskChat.id].sort(),
+    );
+    const kept = state.chats.find((chat) => chat.id === taskChat.id);
+    assert.equal(kept?.projectId, parent.id);
+    assert.equal(kept?.taskId, "task-1");
+    assert.equal(state.messagesByChatId[taskChat.id], messages);
+    assert.equal(state.messagesByChatId[worktreeChat.id], undefined);
+    assert.equal(state.messagesByChatId[orphanTaskChat.id], undefined);
+    // The run still points at its chat.
+    assert.equal(state.tasks[0]?.runs[0]?.chatId, taskChat.id);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 test("removeWorktreeProject purges state when git no longer knows the worktree", async () => {
   const { parent, store, worktree } = createTestStore();
   stubFetch(

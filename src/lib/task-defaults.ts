@@ -7,6 +7,21 @@ import type {
   TaskStepRun,
 } from "@/types/ide";
 
+export const TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX = 560;
+export const TASKS_CHAT_PANEL_MIN_WIDTH_PX = 450;
+export const TASKS_CHAT_PANEL_MAX_WIDTH_PX = 900;
+
+export const clampTasksChatPanelWidth = (width: unknown) =>
+  Math.max(
+    TASKS_CHAT_PANEL_MIN_WIDTH_PX,
+    Math.min(
+      TASKS_CHAT_PANEL_MAX_WIDTH_PX,
+      typeof width === "number" && Number.isFinite(width)
+        ? width
+        : TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
+    ),
+  );
+
 export const TASK_STEP_IDS = [
   "backlog",
   "plan",

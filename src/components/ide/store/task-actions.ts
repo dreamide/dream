@@ -24,7 +24,6 @@ import type {
 } from "@/types/ide";
 import { normalizeProjectPathKey } from "../ide-state";
 import { extractStepOutput } from "../workspaces/tasks/task-output";
-import { updateProjectUiInList } from ".";
 import type {
   IdeState,
   IdeStoreGet,
@@ -264,32 +263,6 @@ export const finishTaskRun = (
   }));
 };
 
-/** Returns the same reference when no run is linked to `chatIds`. */
-const unlinkTaskRuns = (
-  tasks: Task[],
-  chatIds: Set<string>,
-  timestamp: string,
-): Task[] => {
-  const isLinked = (run: TaskStepRun) =>
-    run.chatId !== null && chatIds.has(run.chatId);
-  if (!tasks.some((task) => task.runs.some(isLinked))) {
-    return tasks;
-  }
-
-  return tasks.map((task) =>
-    task.runs.some(isLinked)
-      ? {
-          ...task,
-          // The output snapshot is kept so later steps can still use it.
-          runs: task.runs.map((run) =>
-            isLinked(run) ? { ...run, chatId: null } : run,
-          ),
-          updatedAt: timestamp,
-        }
-      : task,
-  );
-};
-
 /**
  * Model settings for a step chat: the step's own model when configured,
  * otherwise the same default selection a manually created chat would get.
@@ -354,11 +327,9 @@ export const createTaskActions = (
   | "sendTaskBack"
   | "retryTaskStep"
   | "completeTask"
-  | "openTaskStepChat"
   | "reopenTaskWorktree"
   | "checkTaskWorktree"
   | "recreateTaskWorktree"
-  | "unlinkTaskRunsForChats"
   | "setTaskStepConfig"
   | "isTaskChat"
   | "maybeAutoAdvanceTaskForChat"
@@ -502,6 +473,7 @@ export const createTaskActions = (
         ...agent,
         agentMode: config.agentMode,
         permissionMode: config.permissionMode,
+        taskId: task.id,
         title: `${STEP_TITLE_PREFIX[step]}: ${title}`,
       });
       chatId = nextChat.id;
@@ -525,22 +497,10 @@ export const createTaskActions = (
       step,
     };
 
+    // The chat is not put into the host project's UI: task chats are shown
+    // in the Tasks workspace, and the chat runtime sends the queued prompt
+    // without any panel being mounted.
     set((current) => {
-      const withChat = updateProjectUiInList(
-        current.projects,
-        hostProject.id,
-        (entry) => ({
-          ...entry.ui,
-          activeChatId: chatId,
-          openChatIds: entry.ui.multiChat
-            ? entry.ui.openChatIds.includes(chatId)
-              ? entry.ui.openChatIds
-              : [...entry.ui.openChatIds, chatId]
-            : [chatId],
-          ...(entry.ui.multiChat ? {} : { chatColumnWidths: {} }),
-        }),
-      );
-
       return {
         ...(nextChat
           ? {
@@ -555,7 +515,6 @@ export const createTaskActions = (
           ...current.pendingChatSubmitByChatId,
           [chatId]: { references: [], text },
         },
-        projects: withChat,
         tasks: replaceTask(current.tasks, taskId, (entry) => ({
           ...entry,
           runs: [...entry.runs, run],
@@ -876,9 +835,22 @@ export const createTaskActions = (
         return;
       }
 
-      set((state) => ({
-        tasks: state.tasks.filter((task) => task.id !== taskId),
-      }));
+      // The task's chats go with it (the chat runtime stops any that are
+      // still streaming once they leave the list).
+      set((state) => {
+        const messagesByChatId = { ...state.messagesByChatId };
+        for (const chat of state.chats) {
+          if (chat.taskId === taskId) {
+            delete messagesByChatId[chat.id];
+          }
+        }
+        return {
+          chats: state.chats.filter((chat) => chat.taskId !== taskId),
+          messagesByChatId,
+          tasks: state.tasks.filter((task) => task.id !== taskId),
+          ...(state.tasksPane?.taskId === taskId ? { tasksPane: null } : {}),
+        };
+      });
     },
 
     moveTaskInBacklog: (projectId, taskId, index) => {
@@ -1018,38 +990,6 @@ export const createTaskActions = (
       }));
     },
 
-    openTaskStepChat: (projectId, taskId, runId) => {
-      const found = findTask(projectId, taskId);
-      if (!found) {
-        return;
-      }
-
-      const state = get();
-      const run = runId
-        ? found.task.runs.find((entry) => entry.id === runId)
-        : [...found.task.runs]
-            .reverse()
-            .find((entry) => isLiveChat(state.chats, entry.chatId));
-      const chat = state.chats.find(
-        (entry) => entry.id === run?.chatId && entry.deletedAt === null,
-      );
-      const chatProject = chat
-        ? findProjectById(state, chat.projectId)
-        : undefined;
-      if (!chat || !chatProject) {
-        return;
-      }
-
-      if (!state.projects.some((entry) => entry.id === chat.projectId)) {
-        // Opening a chat leads into Code, so a closed project is reopened.
-        get().addProject(chatProject.path);
-      } else if (state.activeProjectId !== chat.projectId) {
-        get().setActiveProjectId(chat.projectId);
-      }
-      get().setActiveChatId(chat.projectId, chat.id);
-      get().setAppView("code");
-    },
-
     reopenTaskWorktree: async (projectId, taskId) => {
       const task = findTask(projectId, taskId)?.task;
       if (!task?.worktreeProjectId) {
@@ -1153,22 +1093,6 @@ export const createTaskActions = (
       setWorktreeMissing(taskId, null);
     },
 
-    unlinkTaskRunsForChats: (chatIds) => {
-      const ids = new Set(chatIds);
-      if (ids.size === 0) {
-        return;
-      }
-
-      set((state) => {
-        const tasks = unlinkTaskRuns(
-          state.tasks,
-          ids,
-          new Date().toISOString(),
-        );
-        return tasks === state.tasks ? state : { tasks };
-      });
-    },
-
     setTaskStepConfig: (step, updater) => {
       set((state) => ({
         taskConfig: {
@@ -1178,7 +1102,8 @@ export const createTaskActions = (
       }));
     },
 
-    isTaskChat: (chatId) => findTaskByChatId(get().tasks, chatId) !== null,
+    isTaskChat: (chatId) =>
+      get().chats.some((chat) => chat.id === chatId && chat.taskId !== null),
 
     maybeAutoAdvanceTaskForChat: (chatId) => {
       const match = findTaskByChatId(get().tasks, chatId);

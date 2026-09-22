@@ -4,7 +4,10 @@ import {
   normalizeModelSpeed,
 } from "@/lib/models";
 import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
-import { createDefaultTaskConfig } from "@/lib/task-defaults";
+import {
+  createDefaultTaskConfig,
+  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
+} from "@/lib/task-defaults";
 import type {
   AiProvider,
   AppSettings,
@@ -115,6 +118,7 @@ export const createEmptyState = (): PersistedIdeState => ({
   tasks: [],
   tasksProjectId: null,
   taskConfig: createDefaultTaskConfig(),
+  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -165,6 +169,7 @@ export const createChatConfig = (
       | "permissionMode"
       | "provider"
       | "reasoningEffort"
+      | "taskId"
       | "title"
     >
   >,
@@ -192,6 +197,7 @@ export const createChatConfig = (
     remoteConversationModelSpeed: null,
     remoteConversationProjectPath: null,
     sparklesPalette: DEFAULT_SPARKLES_PALETTE,
+    taskId: overrides?.taskId ?? null,
     title: overrides?.title?.trim() || "New chat",
     updatedAt: timestamp,
   };

@@ -64,6 +64,7 @@ const createPersistedChat = (overrides: Partial<ChatConfig> = {}): ChatConfig =>
     permissionMode: "full-access",
     projectId: "project-one",
     provider: "openai",
+    taskId: null,
     title: "First chat",
     updatedAt: "2026-07-19T12:00:00.000Z",
     ...overrides,
@@ -369,7 +370,7 @@ test("mergePersistedState fills task step config gaps from defaults", () => {
   assert.equal(config.plan.agentMode, "plan");
   assert.equal(config.plan.model, null);
   assert.equal(config.plan.prompt, null);
-  assert.equal(config.review.permissionMode, "standard");
+  assert.equal(config.review.permissionMode, "full-access");
   assert.equal(config.merge.autoAdvance, false);
 });
 

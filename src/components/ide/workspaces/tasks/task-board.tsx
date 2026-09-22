@@ -88,7 +88,8 @@ export const TaskBoard = ({
   const sendTaskBack = useIdeStore((s) => s.sendTaskBack);
   const retryTaskStep = useIdeStore((s) => s.retryTaskStep);
   const completeTask = useIdeStore((s) => s.completeTask);
-  const openTaskStepChat = useIdeStore((s) => s.openTaskStepChat);
+  const openTaskPane = useIdeStore((s) => s.openTaskPane);
+  const selectedTaskId = useIdeStore((s) => s.tasksPane?.taskId ?? null);
   const reopenTaskWorktree = useIdeStore((s) => s.reopenTaskWorktree);
   const recreateTaskWorktree = useIdeStore((s) => s.recreateTaskWorktree);
   const taskConfig = useIdeStore((s) => s.taskConfig);
@@ -229,8 +230,8 @@ export const TaskBoard = ({
   );
   const handleOpenChat = useCallback(
     (entry: TaskEntry, runId?: string) =>
-      openTaskStepChat(entry.projectId, entry.task.id, runId),
-    [openTaskStepChat],
+      openTaskPane(entry.task.id, runId ?? null),
+    [openTaskPane],
   );
 
   const handleComplete = useCallback(
@@ -397,6 +398,7 @@ export const TaskBoard = ({
               onSendBack={handleSendBack}
               onStart={handleStart}
               hostProjectId={scopeProject?.id ?? null}
+              selectedTaskId={selectedTaskId}
               showProject={!scopeProject}
               step={step}
             />

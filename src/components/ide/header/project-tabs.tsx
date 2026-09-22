@@ -170,7 +170,12 @@ export const ProjectTabs = () => {
   const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
-  const chats = useIdeStore((s) => s.chats);
+  const allChats = useIdeStore((s) => s.chats);
+  // Task chats are not part of a project's tab status.
+  const chats = useMemo(
+    () => allChats.filter((chat) => chat.taskId === null),
+    [allChats],
+  );
   const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);

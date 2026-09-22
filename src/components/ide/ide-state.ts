@@ -22,7 +22,11 @@ import {
 } from "@/lib/ide-defaults";
 import { normalizeMcpServerList } from "@/lib/mcp-servers";
 import { normalizeSparklesPaletteName } from "@/lib/sparkles-palettes";
-import { createDefaultTaskConfig } from "@/lib/task-defaults";
+import {
+  clampTasksChatPanelWidth,
+  createDefaultTaskConfig,
+  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
+} from "@/lib/task-defaults";
 import type {
   AgentMode,
   AiProvider,
@@ -60,6 +64,7 @@ export const emptyState: PersistedIdeState = {
   tasks: [],
   tasksProjectId: null,
   taskConfig: createDefaultTaskConfig(),
+  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -676,6 +681,10 @@ const normalizeChat = (
     sparklesPalette: normalizeSparklesPaletteName(
       rawChat.sparklesPalette ?? rawMetadata.sparklesPalette,
     ),
+    taskId:
+      typeof rawChat.taskId === "string" && rawChat.taskId.trim()
+        ? rawChat.taskId
+        : null,
     title: title || "New chat",
     updatedAt,
   } as ChatConfig;
@@ -687,8 +696,12 @@ export const sanitizeProjectUiForChats = (
   ui: ProjectUiState,
   preferredActiveChatId: string | null = ui.activeChatId,
 ): ProjectUiState => {
+  // Task chats belong to the Tasks workspace, never to a project's chat UI.
   const projectChats = chats.filter(
-    (chat) => chat.projectId === projectId && chat.deletedAt === null,
+    (chat) =>
+      chat.projectId === projectId &&
+      chat.deletedAt === null &&
+      chat.taskId === null,
   );
   const availableChatIds = new Set(projectChats.map((chat) => chat.id));
   const activeChatId =
@@ -1136,6 +1149,7 @@ export const mergePersistedState = (
       knownProjectIds.has(state.tasksProjectId)
         ? state.tasksProjectId
         : null,
+    tasksChatPanelWidth: clampTasksChatPanelWidth(state.tasksChatPanelWidth),
     activeBrowserTabIdByProject,
     browserTabsByProject,
     chats,
@@ -1177,7 +1191,10 @@ export const ensureActiveChatForProject = (
   activeChatId: string | null,
 ) => {
   const projectChats = chats.filter(
-    (chat) => chat.projectId === projectId && chat.deletedAt === null,
+    (chat) =>
+      chat.projectId === projectId &&
+      chat.deletedAt === null &&
+      chat.taskId === null,
   );
   if (activeChatId && projectChats.some((chat) => chat.id === activeChatId)) {
     return activeChatId;
@@ -1186,9 +1203,13 @@ export const ensureActiveChatForProject = (
   return projectChats[0]?.id ?? null;
 };
 
+/** A project's own chats: the ones Code shows. Task chats are left out. */
 export const getChatsForProject = (chats: ChatConfig[], projectId: string) =>
   chats.filter(
-    (chat) => chat.projectId === projectId && chat.deletedAt === null,
+    (chat) =>
+      chat.projectId === projectId &&
+      chat.deletedAt === null &&
+      chat.taskId === null,
   );
 
 export const renderUserMessageText = (message: UIMessage): string => {

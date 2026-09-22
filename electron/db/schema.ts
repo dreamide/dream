@@ -50,6 +50,9 @@ export const chats = sqliteTable(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    // The owning task for step chats. Not a foreign key: tasks are removed
+    // app-side, which deletes their chats along with them.
+    taskId: text("task_id"),
     title: text("title").notNull(),
     metadata: text("metadata").notNull().default("{}"),
     createdAt: text("created_at").notNull(),
@@ -63,6 +66,7 @@ export const chats = sqliteTable(
       table.deletedAt,
       table.updatedAt,
     ),
+    index("idx_chats_task").on(table.taskId),
   ],
 );
 

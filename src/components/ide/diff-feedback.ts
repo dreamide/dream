@@ -3,7 +3,7 @@ import type { ChatConfig, ProjectConfig } from "@/types/ide";
 
 export function getFirstActiveDiffChatId(
   project: Pick<ProjectConfig, "id" | "ui"> | undefined,
-  chats: Pick<ChatConfig, "id" | "projectId" | "deletedAt">[],
+  chats: Pick<ChatConfig, "id" | "projectId" | "deletedAt" | "taskId">[],
 ): string | null {
   if (!project) return null;
   return (
@@ -12,7 +12,8 @@ export function getFirstActiveDiffChatId(
         (chat) =>
           chat.id === id &&
           chat.projectId === project.id &&
-          chat.deletedAt === null,
+          chat.deletedAt === null &&
+          chat.taskId === null,
       ),
     ) ?? null
   );

@@ -5,6 +5,7 @@ import {
   getDefaultModelSelection,
 } from "@/lib/ide-defaults";
 import type {
+  ChatConfig,
   ProjectConfig,
   ProjectGitCreateWorktreeResponse,
   ProjectGitWorktreeCleanupResponse,
@@ -507,21 +508,6 @@ export const createProjectLifecycleActions = (
 
     requestProjectCheckpointCleanup(worktreePath);
 
-    // Task tasks keep their step outputs but lose the purged chats.
-    const purgedState = get();
-    const purgedProjectIds = new Set(
-      [...purgedState.projects, ...purgedState.closedProjects]
-        .filter(
-          (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
-        )
-        .map((item) => item.id),
-    );
-    get().unlinkTaskRunsForChats?.(
-      purgedState.chats
-        .filter((chat) => purgedProjectIds.has(chat.projectId))
-        .map((chat) => chat.id),
-    );
-
     set((current) => {
       const removedProjectIds = new Set(
         [...current.projects, ...current.closedProjects]
@@ -534,20 +520,39 @@ export const createProjectLifecycleActions = (
         return current;
       }
 
-      const removedChatIds = new Set(
-        current.chats
-          .filter((chat) => removedProjectIds.has(chat.projectId))
-          .map((chat) => chat.id),
+      // Task chats outlive the worktree they ran in: they move to the task's
+      // own project (read-only from here on), keeping the transcript. The
+      // worktree's other chats go with it.
+      const taskOwnerById = new Map(
+        (current.tasks ?? []).map((task) => [task.id, task.projectId]),
       );
+      const keepsChat = (chat: ChatConfig) =>
+        !removedProjectIds.has(chat.projectId) ||
+        (chat.taskId !== null &&
+          taskOwnerById.has(chat.taskId) &&
+          !removedProjectIds.has(taskOwnerById.get(chat.taskId) as string));
       const messagesByChatId = { ...current.messagesByChatId };
-      for (const chatId of removedChatIds) {
-        delete messagesByChatId[chatId];
+      for (const chat of current.chats) {
+        if (!keepsChat(chat)) {
+          delete messagesByChatId[chat.id];
+        }
       }
 
       return {
-        chats: current.chats.filter(
-          (chat) => !removedProjectIds.has(chat.projectId),
-        ),
+        chats: current.chats.flatMap((chat) => {
+          if (!keepsChat(chat)) {
+            return [];
+          }
+          if (!removedProjectIds.has(chat.projectId)) {
+            return [chat];
+          }
+          return [
+            {
+              ...chat,
+              projectId: taskOwnerById.get(chat.taskId as string) as string,
+            },
+          ];
+        }),
         closedProjects: current.closedProjects.filter(
           (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
         ),

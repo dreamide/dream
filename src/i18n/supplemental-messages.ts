@@ -44,6 +44,11 @@ export const supplementalMessages = {
         "Der Worktree enthält nicht committete Änderungen. Committe sie vor dem Ausliefern.",
       shipFinish: "Aufgabe abschließen",
       removeTaskWorktree: "Worktree entfernen…",
+      noChatsYet: "Diese Aufgabe hat noch keine Chats.",
+      chatWorktreeClosed:
+        "Der Worktree ist geschlossen. Der Chat ist schreibgeschützt, bis er wieder geöffnet wird.",
+      chatWorktreeRemoved:
+        "Der Worktree wurde entfernt. Der Chat ist schreibgeschützt.",
       deliveryState: "{branch} ist {ahead} voraus, {behind} hinter {upstream}",
       deliveryInSync: "{branch} ist auf dem Stand von {upstream}",
       deliveryNoUpstream: "{branch} verfolgt keinen Remote-Branch",
@@ -658,6 +663,10 @@ export const supplementalMessages = {
         "The worktree has uncommitted changes. Commit them before shipping.",
       shipFinish: "Finish task",
       removeTaskWorktree: "Remove worktree…",
+      noChatsYet: "This task has no chats yet.",
+      chatWorktreeClosed:
+        "The worktree is closed. The chat is read-only until it is reopened.",
+      chatWorktreeRemoved: "The worktree was removed. The chat is read-only.",
       deliveryState: "{branch} is {ahead} ahead, {behind} behind {upstream}",
       deliveryInSync: "{branch} is up to date with {upstream}",
       deliveryNoUpstream: "{branch} does not track a remote branch",
@@ -1258,6 +1267,11 @@ export const supplementalMessages = {
         "El worktree tiene cambios sin confirmar. Confírmalos antes de entregar.",
       shipFinish: "Finalizar tarea",
       removeTaskWorktree: "Quitar worktree…",
+      noChatsYet: "Esta tarea aún no tiene chats.",
+      chatWorktreeClosed:
+        "El worktree está cerrado. El chat es de solo lectura hasta que se vuelva a abrir.",
+      chatWorktreeRemoved:
+        "El worktree se eliminó. El chat es de solo lectura.",
       deliveryState:
         "{branch} está {ahead} por delante y {behind} por detrás de {upstream}",
       deliveryInSync: "{branch} está al día con {upstream}",
@@ -1868,6 +1882,11 @@ export const supplementalMessages = {
         "Le worktree contient des modifications non validées. Validez-les avant de livrer.",
       shipFinish: "Terminer la tâche",
       removeTaskWorktree: "Supprimer le worktree…",
+      noChatsYet: "Cette tâche n'a pas encore de discussion.",
+      chatWorktreeClosed:
+        "Le worktree est fermé. La discussion est en lecture seule jusqu'à sa réouverture.",
+      chatWorktreeRemoved:
+        "Le worktree a été supprimé. La discussion est en lecture seule.",
       deliveryState:
         "{branch} a {ahead} d'avance et {behind} de retard sur {upstream}",
       deliveryInSync: "{branch} est à jour avec {upstream}",
@@ -2479,6 +2498,11 @@ export const supplementalMessages = {
         "Il worktree contiene modifiche non salvate in un commit. Esegui il commit prima di consegnare.",
       shipFinish: "Concludi attività",
       removeTaskWorktree: "Rimuovi worktree…",
+      noChatsYet: "Questa attività non ha ancora chat.",
+      chatWorktreeClosed:
+        "Il worktree è chiuso. La chat è di sola lettura finché non viene riaperto.",
+      chatWorktreeRemoved:
+        "Il worktree è stato rimosso. La chat è di sola lettura.",
       deliveryState:
         "{branch} è avanti di {ahead} e indietro di {behind} rispetto a {upstream}",
       deliveryInSync: "{branch} è allineato con {upstream}",
@@ -3090,6 +3114,11 @@ export const supplementalMessages = {
         "ワークツリーに未コミットの変更があります。出荷前にコミットしてください。",
       shipFinish: "タスクを完了",
       removeTaskWorktree: "ワークツリーを削除…",
+      noChatsYet: "このタスクにはまだチャットがありません。",
+      chatWorktreeClosed:
+        "ワークツリーは閉じています。再度開くまでチャットは読み取り専用です。",
+      chatWorktreeRemoved:
+        "ワークツリーは削除されました。チャットは読み取り専用です。",
       deliveryState: "{branch} は {upstream} より {ahead} 先行、{behind} 遅れ",
       deliveryInSync: "{branch} は {upstream} と同期しています",
       deliveryNoUpstream: "{branch} はリモートブランチを追跡していません",
@@ -3691,6 +3720,10 @@ export const supplementalMessages = {
         "워크트리에 커밋되지 않은 변경 사항이 있습니다. 출시 전에 커밋하세요.",
       shipFinish: "작업 완료",
       removeTaskWorktree: "워크트리 제거…",
+      noChatsYet: "이 작업에는 아직 채팅이 없습니다.",
+      chatWorktreeClosed:
+        "워크트리가 닫혀 있습니다. 다시 열 때까지 채팅은 읽기 전용입니다.",
+      chatWorktreeRemoved: "워크트리가 제거되었습니다. 채팅은 읽기 전용입니다.",
       deliveryState:
         "{branch}은(는) {upstream}보다 {ahead} 앞서고 {behind} 뒤처져 있습니다",
       deliveryInSync: "{branch}은(는) {upstream}과(와) 동기화되어 있습니다",
@@ -4284,6 +4317,10 @@ export const supplementalMessages = {
         "O worktree tem alterações sem commit. Faça o commit antes de entregar.",
       shipFinish: "Concluir tarefa",
       removeTaskWorktree: "Remover worktree…",
+      noChatsYet: "Esta tarefa ainda não tem chats.",
+      chatWorktreeClosed:
+        "O worktree está fechado. O chat é somente leitura até ser reaberto.",
+      chatWorktreeRemoved: "O worktree foi removido. O chat é somente leitura.",
       deliveryState:
         "{branch} está {ahead} à frente e {behind} atrás de {upstream}",
       deliveryInSync: "{branch} está em dia com {upstream}",
@@ -4889,6 +4926,10 @@ export const supplementalMessages = {
         "Worktree có thay đổi chưa commit. Hãy commit trước khi bàn giao.",
       shipFinish: "Hoàn thành nhiệm vụ",
       removeTaskWorktree: "Xóa worktree…",
+      noChatsYet: "Nhiệm vụ này chưa có cuộc trò chuyện nào.",
+      chatWorktreeClosed:
+        "Worktree đã đóng. Cuộc trò chuyện chỉ đọc cho đến khi được mở lại.",
+      chatWorktreeRemoved: "Worktree đã bị xóa. Cuộc trò chuyện chỉ đọc.",
       deliveryState:
         "{branch} đi trước {ahead}, đi sau {behind} so với {upstream}",
       deliveryInSync: "{branch} đã đồng bộ với {upstream}",
@@ -5486,6 +5527,9 @@ export const supplementalMessages = {
       shipDirty: "工作树有未提交的更改。请先提交再交付。",
       shipFinish: "完成任务",
       removeTaskWorktree: "移除工作树…",
+      noChatsYet: "此任务还没有聊天。",
+      chatWorktreeClosed: "工作树已关闭。重新打开前聊天为只读。",
+      chatWorktreeRemoved: "工作树已移除。聊天为只读。",
       deliveryState:
         "{branch} 领先 {upstream} {ahead} 个提交，落后 {behind} 个",
       deliveryInSync: "{branch} 与 {upstream} 同步",
@@ -6063,6 +6107,9 @@ export const supplementalMessages = {
       shipDirty: "工作樹有未提交的變更。請先提交再交付。",
       shipFinish: "完成任務",
       removeTaskWorktree: "移除工作樹…",
+      noChatsYet: "此任務還沒有聊天。",
+      chatWorktreeClosed: "工作樹已關閉。重新開啟前聊天為唯讀。",
+      chatWorktreeRemoved: "工作樹已移除。聊天為唯讀。",
       deliveryState:
         "{branch} 領先 {upstream} {ahead} 個提交，落後 {behind} 個",
       deliveryInSync: "{branch} 與 {upstream} 同步",

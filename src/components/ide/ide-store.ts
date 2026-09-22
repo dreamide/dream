@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import { createDefaultTaskConfig } from "@/lib/task-defaults";
+import {
+  createDefaultTaskConfig,
+  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
+} from "@/lib/task-defaults";
 import { ensureActiveProject, getChatsForProject } from "./ide-state";
 import { getBrowserTabsForProject, resolveActiveBrowserTab } from "./store";
 import { createBrowserActions } from "./store/browser-actions";
@@ -36,6 +39,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   tasks: [],
   tasksProjectId: null,
   taskConfig: createDefaultTaskConfig(),
+  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
+  tasksPane: null,
   chats: [],
   chatSort: "recent",
   settings: DEFAULT_SETTINGS,
@@ -172,6 +177,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       tasks: loaded.tasks,
       tasksProjectId: loaded.tasksProjectId,
       taskConfig: loaded.taskConfig,
+      tasksChatPanelWidth: loaded.tasksChatPanelWidth,
       activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
       browserTabsByProject: loaded.browserTabsByProject,
       chats: loaded.chats,
@@ -197,6 +203,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       closedProjects,
       tasks,
       tasksProjectId,
+      tasksChatPanelWidth,
       projects,
       settings,
       stateHydrated,
@@ -210,6 +217,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       appView,
       tasks,
       tasksProjectId,
+      tasksChatPanelWidth,
       taskConfig,
       browserTabsByProject,
       chats,

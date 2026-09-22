@@ -561,16 +561,20 @@ test("step chats run in the task's worktree project without stealing focus", asy
   finishTurn(store, chatId, "Worktree plan");
   assert.equal(getTask(store).runs[0]?.output, "Worktree plan");
 
-  // Opening the chat leaves the app-level Tasks workspace for the chat's project.
-  store.getState().setAppView("tasks");
-  store.getState().openTaskStepChat(project.id, taskId);
-  assert.equal(store.getState().appView, "code");
-  assert.equal(store.getState().activeProjectId, worktree.id);
+  // The chat is the task's, not the worktree project's: Code never lists it,
+  // and opening it stays in the Tasks workspace.
   assert.equal(
-    store.getState().projects.find((entry) => entry.id === worktree.id)?.ui
-      .activeChatId,
+    state.chats.find((entry) => entry.id === chatId)?.taskId,
+    taskId,
+  );
+  assert.notEqual(
+    state.projects.find((entry) => entry.id === worktree.id)?.ui.activeChatId,
     chatId,
   );
+  store.getState().setAppView("tasks");
+  store.getState().openTaskPane(taskId);
+  assert.equal(store.getState().appView, "tasks");
+  assert.deepEqual(store.getState().tasksPane, { runId: null, taskId });
 });
 
 test("a failed worktree leaves the task in the backlog and reports why", async () => {
@@ -674,18 +678,29 @@ test("a task whose worktree project is closed cannot run steps", async () => {
   assert.equal(getTask(store).step, "backlog");
 });
 
-test("deleting a step chat unlinks the run but keeps its output", async () => {
+test("a step chat lives and dies with its task", async () => {
   const { project, store } = createTestStore();
   const taskId = addTask(store, project.id);
   const chatId = await store.getState().startTask(project.id, taskId);
   assert.ok(chatId);
   finishTurn(store, chatId, "The plan");
 
+  // Deleting the chat on its own is refused: the task still owns it.
   store.getState().deleteChat(chatId);
-  const run = getTask(store).runs[0];
-  assert.equal(run?.chatId, null);
-  assert.equal(run?.output, "The plan");
-  assert.equal(getTask(store).step, "plan");
+  assert.equal(
+    store.getState().chats.find((chat) => chat.id === chatId)?.deletedAt,
+    null,
+  );
+  assert.equal(getTask(store).runs[0]?.chatId, chatId);
+
+  store.getState().openTaskPane(taskId);
+  store.getState().deleteTask(project.id, taskId);
+  assert.equal(
+    store.getState().chats.some((chat) => chat.id === chatId),
+    false,
+  );
+  assert.equal(store.getState().messagesByChatId[chatId], undefined);
+  assert.equal(store.getState().tasksPane, null);
 });
 
 test("completing a task records how it finished", async () => {
@@ -1073,7 +1088,7 @@ test("starting a task of a closed project loads it in the background", async () 
   assert.equal(state.appView, "tasks");
 });
 
-test("opening a step chat of a closed project reopens it in Code", async () => {
+test("opening a step chat of a closed project stays in Tasks", async () => {
   const { project, store } = createTestStoreWithRealProjects();
   const taskId = addTask(store, project.id);
   // A task with runs stays in its own project (no worktree), like tasks
@@ -1101,12 +1116,17 @@ test("opening a step chat of a closed project reopens it in Code", async () => {
   closeProjectInStore(store, project.id);
   store.setState({ appView: "tasks" });
 
-  store.getState().openTaskStepChat(project.id, taskId);
+  store
+    .getState()
+    .openTaskPane(taskId, getTaskById(store, taskId)?.runs.at(-1)?.id ?? null);
 
   const state = store.getState();
-  assert.equal(state.activeProjectId, project.id);
-  assert.ok(state.projects.some((entry) => entry.id === project.id));
-  assert.equal(state.appView, "code");
+  assert.equal(
+    state.projects.some((entry) => entry.id === project.id),
+    false,
+  );
+  assert.equal(state.appView, "tasks");
+  assert.equal(state.tasksPane?.taskId, taskId);
 });
 
 test("reordering one project's backlog leaves other projects' tasks in place", () => {

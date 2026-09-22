@@ -300,10 +300,14 @@ export const ChatPanel = ({
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
+  // A task chat is shown in the Tasks workspace: it has no place in Code's
+  // chat list, terminal panel or branch controls.
+  const isTaskChat = chat.taskId !== null;
   const claudeSessionId = chat.remoteConversationId?.trim() ?? "";
   const claudeSessionProjectPath =
     chat.remoteConversationProjectPath?.trim() ?? "";
   const canContinueInTerminal =
+    !isTaskChat &&
     chat.provider === "anthropic" &&
     CLAUDE_SESSION_ID_PATTERN.test(claudeSessionId) &&
     Boolean(claudeSessionProjectPath);
@@ -476,7 +480,7 @@ export const ChatPanel = ({
             isTitleGenerating={isTitleGenerating}
             onCloseChat={onCloseChat}
             onChatMenuOpenChange={setChatMenuOpen}
-            onDeleteChat={() => deleteChat(chat.id)}
+            onDeleteChat={isTaskChat ? undefined : () => deleteChat(chat.id)}
             onEditChat={handleEditChat}
             onContinueInTerminal={
               canContinueInTerminal ? handleContinueInTerminal : undefined
@@ -666,7 +670,7 @@ export const ChatPanel = ({
           todoSummary={todoSummary}
         />
 
-        <ProjectBranchFooter project={project} />
+        {isTaskChat ? null : <ProjectBranchFooter project={project} />}
       </div>
 
       <EditChatDialog

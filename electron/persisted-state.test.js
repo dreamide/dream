@@ -792,3 +792,80 @@ test("legacy kanban cards migrate to tasks", async () => {
     await rm(directory, { force: true, recursive: true });
   }
 });
+
+const createStoredChat = (id, projectId, timestamp, overrides = {}) => ({
+  agentMode: "build",
+  branchedFrom: null,
+  createdAt: timestamp,
+  deletedAt: null,
+  id,
+  model: "gpt-5.6",
+  modelSpeed: "standard",
+  permissionMode: "full-access",
+  projectId,
+  provider: "openai",
+  reasoningEffort: null,
+  remoteConversationId: null,
+  remoteConversationModel: null,
+  remoteConversationModelSpeed: null,
+  remoteConversationProjectPath: null,
+  sparklesPalette: "default",
+  taskId: null,
+  title: id,
+  updatedAt: timestamp,
+  ...overrides,
+});
+
+test("chats remember their task, and older chats are claimed by their task's runs", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-08-15T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+  const state = {
+    ...createState(project),
+    chats: [
+      createStoredChat("owned", project.id, timestamp, { taskId: "task-one" }),
+      // Saved before chats knew their task; its task's run points at it.
+      createStoredChat("legacy", project.id, timestamp),
+      createStoredChat("plain", project.id, timestamp),
+    ],
+    tasks: [
+      createStoredTask("task-one", project.id, timestamp, {
+        runs: [
+          {
+            chatId: "legacy",
+            commitError: null,
+            feedback: null,
+            finishedAt: null,
+            id: "run-1",
+            output: null,
+            startedAt: timestamp,
+            step: "plan",
+          },
+        ],
+        step: "plan",
+      }),
+    ],
+  };
+
+  try {
+    savePersistedState(state, { databasePath });
+    const loaded = loadPersistedState({ databasePath });
+    const byId = new Map(loaded.chats.map((chat) => [chat.id, chat.taskId]));
+    assert.equal(byId.get("owned"), "task-one");
+    assert.equal(byId.get("legacy"), "task-one");
+    assert.equal(byId.get("plain"), null);
+
+    // The claimed link is written on the next save.
+    savePersistedState({ ...state, chats: loaded.chats }, { databasePath });
+    const database = getPersistedStateDatabase({ databasePath });
+    assert.equal(
+      database.prepare("SELECT task_id FROM chats WHERE id = ?").get("legacy")
+        .task_id,
+      "task-one",
+    );
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});

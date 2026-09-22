@@ -58,6 +58,7 @@ export function ActivityInbox() {
         const project = projectById.get(chat.projectId);
         if (
           chat.deletedAt !== null ||
+          chat.taskId !== null ||
           !project?.ui.openChatIds.includes(chat.id)
         )
           return [];

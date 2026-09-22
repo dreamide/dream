@@ -15,6 +15,13 @@
       "when": 1789972139653,
       "tag": "0001_tasks_table",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790047956426,
+      "tag": "0002_chat_task_id",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import {
   selectTaskEntries,
 } from "../store/task-actions";
 import { TaskBoard } from "./tasks/task-board";
+import { TaskChatPane } from "./tasks/task-chat-pane";
 
 export interface TasksWorkspaceProps {
   active: boolean;
@@ -18,7 +19,7 @@ export interface TasksWorkspaceProps {
  * board project-tagged entries. New tasks can go to recent projects as well as
  * open ones, so nothing here requires a trip to Code first.
  */
-const TasksWorkspaceComponent = (_props: TasksWorkspaceProps) => {
+const TasksWorkspaceComponent = ({ active }: TasksWorkspaceProps) => {
   const projects = useIdeStore((s) => s.projects);
   const closedProjects = useIdeStore((s) => s.closedProjects);
   const tasksProjectId = useIdeStore((s) => s.tasksProjectId);
@@ -41,16 +42,19 @@ const TasksWorkspaceComponent = (_props: TasksWorkspaceProps) => {
 
   return (
     <div
-      className="flex h-full min-h-0 flex-col p-2"
+      className="relative flex h-full min-h-0 overflow-hidden p-2"
       data-tasks-scope={scopeProject ? "project" : "all"}
       data-project-id={scopeProject?.id}
     >
-      <TaskBoard
-        entries={entries}
-        projects={taskProjects}
-        recentProjects={recentProjects}
-        scopeProject={scopeProject}
-      />
+      <div className="min-w-0 flex-1">
+        <TaskBoard
+          entries={entries}
+          projects={taskProjects}
+          recentProjects={recentProjects}
+          scopeProject={scopeProject}
+        />
+      </div>
+      <TaskChatPane active={active} />
     </div>
   );
 };

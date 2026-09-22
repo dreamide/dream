@@ -115,6 +115,7 @@ export const createRuntimeActions = (
           wasStreaming &&
           chat &&
           chat.deletedAt === null &&
+          chat.taskId === null &&
           !isActiveVisibleChat
         ) {
           nextCompletedChatIds[chatId] = true;

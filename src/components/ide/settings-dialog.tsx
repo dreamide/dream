@@ -419,7 +419,7 @@ export const SettingsDialog = () => {
   const deletedChats = useMemo(
     () =>
       [...chats]
-        .filter((chat) => chat.deletedAt !== null)
+        .filter((chat) => chat.deletedAt !== null && chat.taskId === null)
         .sort(
           (left, right) =>
             Date.parse(right.deletedAt ?? "") -

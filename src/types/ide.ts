@@ -51,6 +51,12 @@ export interface ChatConfig {
   messageCount: number;
   permissionMode: ChatPermissionMode;
   projectId: string;
+  /**
+   * The task this chat belongs to, for step chats. A task chat is never shown
+   * in the Code workspace: it lives in the Tasks workspace, runs in the task's
+   * worktree while that exists, and is deleted with its task.
+   */
+  taskId: string | null;
   title: string;
   provider: AiProvider;
   model: string;
@@ -306,6 +312,8 @@ export interface PersistedIdeState {
    * workspace shows is always what runs.
    */
   taskConfig: TaskConfig;
+  /** Width of the chat pane in the Tasks workspace. */
+  tasksChatPanelWidth: number;
   activeBrowserTabIdByProject: Record<string, string | null>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
   settings: AppSettings;

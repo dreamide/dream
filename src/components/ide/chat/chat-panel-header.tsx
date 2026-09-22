@@ -27,7 +27,8 @@ export interface ChatPanelHeaderProps {
   isTitleGenerating?: boolean;
   onCloseChat?: () => void;
   onChatMenuOpenChange: (open: boolean) => void;
-  onDeleteChat: () => void;
+  /** Absent when the chat cannot be deleted on its own (task chats). */
+  onDeleteChat?: () => void;
   onEditChat: () => void;
   onContinueInTerminal?: () => void;
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;

@@ -75,6 +75,8 @@ export interface TaskCardProps {
   onRetry: (entry: TaskEntry) => void;
   onSendBack: (entry: TaskEntry, toStep: TaskRunStepId) => void;
   onStart: (entry: TaskEntry) => void;
+  /** Whether the chat pane is showing this task. */
+  selected: boolean;
   /** Names the owning project on the card; set when several are in view. */
   showProject: boolean;
 }
@@ -98,6 +100,7 @@ const TaskCardImpl = ({
   onRetry,
   onSendBack,
   onStart,
+  selected,
   showProject,
 }: TaskCardProps) => {
   const t = useTranslations("tasks");
@@ -259,6 +262,7 @@ const TaskCardImpl = ({
       className={cn(
         "group/card shrink-0 select-none rounded-md border border-surface-300 bg-background p-3 text-left text-foreground shadow-sm transition-colors hover:border-surface-400 dark:border-surface-700 dark:hover:border-surface-600",
         status === "done" && "opacity-60",
+        selected && "border-primary/60 ring-1 ring-primary/40",
       )}
       data-task={task.id}
       data-project-id={entry.projectId}

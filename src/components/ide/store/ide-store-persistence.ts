@@ -1,7 +1,11 @@
 import type { UIMessage } from "ai";
 import { getDesktopApi } from "@/lib/electron";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import { createDefaultTaskConfig } from "@/lib/task-defaults";
+import {
+  clampTasksChatPanelWidth,
+  createDefaultTaskConfig,
+  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
+} from "@/lib/task-defaults";
 import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
 import {
   ensureActiveProject,
@@ -16,6 +20,7 @@ const createEmptyPersistedState = (): PersistedIdeState => ({
   tasks: [],
   tasksProjectId: null,
   taskConfig: createDefaultTaskConfig(),
+  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -102,6 +107,7 @@ export const createPersistedIdeState = ({
   messagesByChatId,
   tasks,
   tasksProjectId,
+  tasksChatPanelWidth,
   projects,
   settings,
   taskConfig,
@@ -112,6 +118,7 @@ export const createPersistedIdeState = ({
   | "appView"
   | "tasks"
   | "tasksProjectId"
+  | "tasksChatPanelWidth"
   | "taskConfig"
   | "browserTabsByProject"
   | "chats"
@@ -194,6 +201,7 @@ export const createPersistedIdeState = ({
     tasks: tasks.filter((task) => knownProjectIds.has(task.projectId)),
     tasksProjectId,
     taskConfig,
+    tasksChatPanelWidth: clampTasksChatPanelWidth(tasksChatPanelWidth),
     activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,
     browserTabsByProject: persistedBrowserTabsByProject,
     chats: persistedChats,

@@ -350,8 +350,10 @@ export const createChatActions = (
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     const chatIds = state.chats
       .filter((chat) => {
+        // Task chats live and die with their task.
         if (
           chat.deletedAt !== null ||
+          chat.taskId !== null ||
           state.streamingChatIds[chat.id] ||
           state.titleGeneratingChatIds[chat.id]
         ) {
@@ -375,7 +377,8 @@ export const createChatActions = (
 
     set((state) => {
       const chat = state.chats.find((item) => item.id === chatId);
-      if (!chat) {
+      // Task chats are removed with their task, never on their own.
+      if (!chat || chat.taskId !== null) {
         return state;
       }
 
@@ -434,15 +437,19 @@ export const createChatActions = (
       };
     });
 
-    get().unlinkTaskRunsForChats([chatId]);
-
     if (projectIdNeedingNewChat) {
       get().addChat(projectIdNeedingNewChat);
     }
   },
 
   permanentlyDeleteChats: (chatIds: string[]) => {
-    const idsToDelete = new Set(chatIds);
+    const idsToDelete = new Set(
+      get()
+        .chats.filter(
+          (chat) => chatIds.includes(chat.id) && chat.taskId === null,
+        )
+        .map((chat) => chat.id),
+    );
     if (idsToDelete.size === 0) {
       return;
     }
@@ -520,8 +527,6 @@ export const createChatActions = (
         chats: nextChats,
       };
     });
-
-    get().unlinkTaskRunsForChats(chatIds);
   },
 
   restoreChats: (chatIds: string[]) => {

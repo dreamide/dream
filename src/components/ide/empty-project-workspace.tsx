@@ -125,6 +125,9 @@ export const EmptyProjectWorkspace = () => {
     const timestamps = new Map<string, string>();
 
     for (const chat of chats) {
+      if (chat.taskId !== null) {
+        continue;
+      }
       const timestamp = chat.updatedAt || chat.createdAt;
       if (!timestamp || !Number.isFinite(Date.parse(timestamp))) {
         continue;

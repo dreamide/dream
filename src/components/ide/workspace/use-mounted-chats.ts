@@ -38,7 +38,10 @@ export const useMountedProjectChats = ({
   return useMemo(() => {
     const mountedChatIds = new Set<string>();
     const projectChats = chats.filter(
-      (chat) => chat.projectId === projectId && chat.deletedAt === null,
+      (chat) =>
+        chat.projectId === projectId &&
+        chat.deletedAt === null &&
+        chat.taskId === null,
     );
     const projectChatsById = new Map(
       projectChats.map((chat) => [chat.id, chat]),

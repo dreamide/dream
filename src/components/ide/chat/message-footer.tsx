@@ -164,8 +164,11 @@ export const MessageHoverFooter = ({
         })
       : null;
   const text = getMessageText(message);
+  // Task chats are not branched: they belong to their task's flow.
   const continueChatContext =
-    message.role === "assistant" ? continueChat : undefined;
+    message.role === "assistant" && continueChat?.chat.taskId === null
+      ? continueChat
+      : undefined;
   const checkpointId =
     message.role === "assistant" && checkpoint && metadata?.checkpointId
       ? metadata.checkpointId

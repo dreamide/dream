@@ -17,7 +17,7 @@ export const TASK_COLUMN_SURFACE_CLASSES =
 export interface TaskColumnProps
   extends Omit<
     TaskCardProps,
-    "backlogIndex" | "backlogSize" | "busy" | "entry" | "error"
+    "backlogIndex" | "backlogSize" | "busy" | "entry" | "error" | "selected"
   > {
   busyKeys: Record<string, true>;
   /** The step's app-wide settings; `null` for the backlog, which runs no agent. */
@@ -28,6 +28,8 @@ export interface TaskColumnProps
   onConfigureStep: (step: TaskRunStepId) => void;
   /** The project the board is filtered to, if any; previews inherited models. */
   hostProjectId: string | null;
+  /** The task shown in the chat pane, if any. */
+  selectedTaskId: string | null;
   step: TaskStepDescriptor;
 }
 
@@ -39,6 +41,7 @@ const TaskColumnImpl = ({
   onAddTask,
   onConfigureStep,
   hostProjectId,
+  selectedTaskId,
   step,
   ...cardProps
 }: TaskColumnProps) => {
@@ -128,6 +131,7 @@ const TaskColumnImpl = ({
         {entries.map((entry, index) => (
           <TaskCard
             {...cardProps}
+            selected={entry.task.id === selectedTaskId}
             backlogIndex={
               isBacklog ? (backlogPositions.indexes[index] ?? null) : null
             }

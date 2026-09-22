@@ -135,6 +135,7 @@ export const ProjectSidebar = ({
         (chat) =>
           chat.projectId === project.id &&
           chat.deletedAt === null &&
+          chat.taskId === null &&
           chat.messageCount > 0,
       )
       .sort((left, right) => {

@@ -1,3 +1,4 @@
+import { clampTasksChatPanelWidth } from "@/lib/task-defaults";
 import type { ProjectConfig } from "@/types/ide";
 import { updateProjectUiInList } from ".";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
@@ -14,6 +15,9 @@ export const createPanelActions = (
   | "setProjectRightPanelView"
   | "setAppView"
   | "setTasksProjectId"
+  | "setTasksChatPanelWidth"
+  | "openTaskPane"
+  | "closeTaskPane"
   | "openProjectFile"
   | "setOutputPanelOpen"
 > => ({
@@ -190,6 +194,13 @@ export const createPanelActions = (
   setAppView: (appView) => set({ appView }),
 
   setTasksProjectId: (tasksProjectId) => set({ tasksProjectId }),
+
+  setTasksChatPanelWidth: (width) =>
+    set({ tasksChatPanelWidth: clampTasksChatPanelWidth(width) }),
+
+  openTaskPane: (taskId, runId = null) => set({ tasksPane: { runId, taskId } }),
+
+  closeTaskPane: () => set({ tasksPane: null }),
 
   openProjectFile: (projectId, filePath) => {
     const normalizedProjectId =

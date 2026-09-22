@@ -128,6 +128,7 @@ export const IdeShell = () => {
       appView: useIdeStore.getState().appView,
       tasks: useIdeStore.getState().tasks,
       tasksProjectId: useIdeStore.getState().tasksProjectId,
+      tasksChatPanelWidth: useIdeStore.getState().tasksChatPanelWidth,
       taskConfig: useIdeStore.getState().taskConfig,
       browserTabsByProject: useIdeStore.getState().browserTabsByProject,
       chatSort: useIdeStore.getState().chatSort,
@@ -170,6 +171,7 @@ export const IdeShell = () => {
         appView: state.appView,
         tasks: state.tasks,
         tasksProjectId: state.tasksProjectId,
+        tasksChatPanelWidth: state.tasksChatPanelWidth,
         taskConfig: state.taskConfig,
         browserTabsByProject: state.browserTabsByProject,
         chatSort: state.chatSort,
@@ -197,6 +199,7 @@ export const IdeShell = () => {
         next.appView !== prev.appView ||
         next.tasks !== prev.tasks ||
         next.tasksProjectId !== prev.tasksProjectId ||
+        next.tasksChatPanelWidth !== prev.tasksChatPanelWidth ||
         next.taskConfig !== prev.taskConfig
       ) {
         const isActiveProjectSelectionOnly =
@@ -213,6 +216,7 @@ export const IdeShell = () => {
           next.appView === prev.appView &&
           next.tasks === prev.tasks &&
           next.tasksProjectId === prev.tasksProjectId &&
+          next.tasksChatPanelWidth === prev.tasksChatPanelWidth &&
           next.taskConfig === prev.taskConfig &&
           areProjectListsEqualExceptLastUsedAt(prev.projects, next.projects);
         prev = next;

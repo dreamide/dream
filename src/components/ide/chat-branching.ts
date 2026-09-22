@@ -40,5 +40,7 @@ export const createBranchedChatConfig = (
     remoteConversationModelSpeed: null,
     remoteConversationProjectPath: null,
     sparklesPalette: sourceChat.sparklesPalette,
+    // Branching off a task chat yields an ordinary project chat.
+    taskId: null,
   };
 };
