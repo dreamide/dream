@@ -2,27 +2,19 @@ import { MessageSquare, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { StatusDot } from "@/components/ui/status-dot";
 import {
   TASKS_CHAT_PANEL_MAX_WIDTH_PX,
   TASKS_CHAT_PANEL_MIN_WIDTH_PX,
 } from "@/lib/task-defaults";
 import { cn } from "@/lib/utils";
 import type { ChatConfig, Task, TaskStepRun } from "@/types/ide";
-import { useActivityStore } from "../../activity-store";
 import { ChatPanel } from "../../chat-panel";
 import { useIdeStore } from "../../ide-store";
-import { getCurrentTaskRun } from "../../store/task-actions";
 import {
   SLIDING_PANEL_TRANSITION,
   WORKSPACE_VIEWPORT_BACKGROUND,
 } from "../../workspace/constants";
 import { WorkspaceSlidingPanel } from "../../workspace/sliding-panel";
-import {
-  getTaskStatus,
-  getTaskStatusDotProps,
-  getTaskStatusLabelKey,
-} from "./task-status";
 import { TaskStepIcon } from "./task-step-icon";
 import { TASK_STEP_LABEL_KEYS } from "./task-steps";
 
@@ -101,41 +93,6 @@ const TaskChatPaneBody = ({
     worktreeRemoved,
   ]);
 
-  // The same status the card shows.
-  const currentRun = getCurrentTaskRun(task);
-  const currentChatId = currentRun?.chatId ?? null;
-  const chatExists = useIdeStore((s) =>
-    Boolean(
-      currentChatId &&
-        s.chats.some(
-          (entry) => entry.id === currentChatId && entry.deletedAt === null,
-        ),
-    ),
-  );
-  const streaming = useIdeStore((s) =>
-    Boolean(currentChatId && s.streamingChatIds[currentChatId]),
-  );
-  const awaitingAnswer = useIdeStore((s) =>
-    Boolean(currentChatId && s.awaitingAnswerChatIds[currentChatId]),
-  );
-  const pendingSubmit = useIdeStore((s) =>
-    Boolean(currentChatId && s.pendingChatSubmitByChatId[currentChatId]),
-  );
-  const activityEntry = useActivityStore((s) =>
-    currentChatId ? s.entries[currentChatId] : undefined,
-  );
-  const status = getTaskStatus({
-    activityEntry,
-    awaitingAnswer,
-    chatExists,
-    currentRun,
-    pendingSubmit,
-    streaming,
-    task,
-    worktreeMissing,
-  });
-  const dot = getTaskStatusDotProps(status);
-
   // Step labels repeat when a step ran more than once; number those.
   const runLabels = useMemo(() => {
     const seen = new Map<string, number>();
@@ -158,22 +115,12 @@ const TaskChatPaneBody = ({
         style={{ backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND }}
       >
         {/* The header spans the panel's full width. */}
-        <div className="shrink-0 border-surface-300 border-b bg-background dark:border-surface-700">
-          <div className="flex min-h-[50px] items-center gap-2 px-3 py-2">
+        <div className="shrink-0">
+          <div className="flex min-h-[50px] items-center gap-2 border-surface-300 border-b bg-background px-3 py-2 dark:border-surface-700">
             <div className="flex min-h-7 min-w-0 flex-1 items-center gap-1.5">
               <TaskStepIcon step={task.step} />
               <h2 className="truncate font-medium text-sm">{task.title}</h2>
             </div>
-            {task.step !== "backlog" ? (
-              <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
-                <StatusDot
-                  className={dot.className}
-                  color={dot.color}
-                  pulse={dot.pulse}
-                />
-                <span>{t(getTaskStatusLabelKey(status, task.step))}</span>
-              </div>
-            ) : null}
             <Button
               aria-label={commonT("close")}
               className="size-7 shrink-0 text-muted-foreground"
@@ -187,37 +134,36 @@ const TaskChatPaneBody = ({
           </div>
 
           {runs.length > 1 ? (
-            <div
-              className="flex items-center overflow-x-auto px-2 pb-1.5"
-              role="tablist"
-            >
-              {runs.map((run, index) => {
-                const selected = run.id === selectedRun?.id;
-                return (
-                  <button
-                    aria-selected={selected}
-                    className={cn(
-                      "flex h-7 shrink-0 items-center gap-1 rounded-md px-2 font-medium text-xs transition-colors",
-                      selected
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                    )}
-                    key={run.id}
-                    onClick={() => openTaskPane(task.id, run.id)}
-                    role="tab"
-                    type="button"
-                  >
-                    <TaskStepIcon step={run.step} />
-                    {t(TASK_STEP_LABEL_KEYS[run.step])}
-                    {runLabels[index]}
-                  </button>
-                );
-              })}
+            <div className="overflow-x-auto px-2 py-1.5" role="tablist">
+              <div className="mx-auto flex w-max items-center gap-1">
+                {runs.map((run, index) => {
+                  const selected = run.id === selectedRun?.id;
+                  return (
+                    <button
+                      aria-selected={selected}
+                      className={cn(
+                        "flex h-7 shrink-0 items-center gap-1 rounded-md px-2 font-medium text-xs transition-colors",
+                        selected
+                          ? "bg-surface-200 text-foreground dark:bg-surface-700"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                      )}
+                      key={run.id}
+                      onClick={() => openTaskPane(task.id, run.id)}
+                      role="tab"
+                      type="button"
+                    >
+                      <TaskStepIcon step={run.step} />
+                      {t(TASK_STEP_LABEL_KEYS[run.step])}
+                      {runLabels[index]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 
           {chat && worktreeRemoved ? (
-            <div className="px-3 pb-1.5 text-muted-foreground text-xs">
+            <div className="border-surface-300 border-b px-3 py-1.5 text-muted-foreground text-xs dark:border-surface-700">
               {t("chatWorktreeRemoved")}
             </div>
           ) : null}

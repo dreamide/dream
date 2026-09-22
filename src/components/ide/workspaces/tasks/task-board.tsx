@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   ProjectConfig,
   ProjectWorktreeInfo,
@@ -99,6 +99,34 @@ export const TaskBoard = ({
   const [errorsByKey, setErrorsByKey] = useState<Record<string, string>>({});
   // Tasks with a step action in flight (e.g. creating the worktree).
   const [busyKeys, setBusyKeys] = useState<Record<string, true>>({});
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const scrollArea = scrollAreaRef.current;
+    if (!scrollArea || !selectedTaskId) {
+      return;
+    }
+
+    const card = Array.from(
+      scrollArea.querySelectorAll<HTMLElement>("[data-task]"),
+    ).find((element) => element.dataset.task === selectedTaskId);
+    if (!card) {
+      return;
+    }
+
+    const viewport = scrollArea.getBoundingClientRect();
+    const bounds = card.getBoundingClientRect();
+    const left = viewport.left + 8;
+    const right = viewport.right - 8;
+
+    // Keep the selected card visible after the chat pane narrows the board.
+    // Only move the board horizontally; the column owns vertical scrolling.
+    if (bounds.width > right - left || bounds.left < left) {
+      scrollArea.scrollLeft += bounds.left - left;
+    } else if (bounds.right > right) {
+      scrollArea.scrollLeft += bounds.right - right;
+    }
+  }, [selectedTaskId]);
 
   const entriesByStep = useMemo(() => {
     const groups: Record<TaskStepId, TaskEntry[]> = {
@@ -373,7 +401,10 @@ export const TaskBoard = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="-m-2 min-h-0 flex-1 overflow-x-auto p-2">
+      <div
+        className="-m-2 min-h-0 flex-1 overflow-x-auto p-2"
+        ref={scrollAreaRef}
+      >
         {/* Columns are a fixed 370px; when five do not fit (e.g. beside the
             chat pane) the board scrolls. */}
         <div className="mx-auto flex h-full w-max min-w-0 gap-2">
