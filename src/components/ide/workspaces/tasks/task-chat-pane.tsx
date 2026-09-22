@@ -171,14 +171,14 @@ const TaskChatPaneBody = ({
       {/* Styled like the composer: a white card on a gray strip. */}
       <div className="shrink-0 px-2 pt-2">
         <div className="mx-auto w-full max-w-[700px] overflow-hidden rounded-lg border border-surface-300 bg-surface-50 shadow-md dark:border-surface-700 dark:bg-surface-900">
-          <div className="-mx-px -mt-px flex w-[calc(100%+2px)] items-start gap-2 rounded-lg border border-surface-300 bg-background px-3 py-2 dark:border-surface-700">
+          <div className="-mx-px -mt-px flex w-[calc(100%+2px)] items-center gap-2 rounded-lg border border-surface-300 bg-background px-3 py-1.5 dark:border-surface-700">
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5">
+              <div className="flex min-h-7 min-w-0 items-center gap-1.5">
                 <TaskStepIcon step={task.step} />
                 <h2 className="truncate font-medium text-sm">{task.title}</h2>
               </div>
               {task.step !== "backlog" ? (
-                <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+                <div className="flex items-center gap-1.5 pb-1 text-muted-foreground text-xs">
                   <StatusDot
                     className={dot.className}
                     color={dot.color}
