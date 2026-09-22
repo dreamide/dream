@@ -46,27 +46,39 @@ export const useTaskDelivery = ({
 
     let cancelled = false;
     let requestId = 0;
-    const refresh = () => {
+    const readDelivery = async (deliveryBranch: string, lookupPr: boolean) => {
+      const response = await fetch("/api/project-git-task-delivery", {
+        body: JSON.stringify({
+          branch: deliveryBranch,
+          commit,
+          projectPath,
+          taskBranch: lookupPr ? taskBranch : null,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      return response.ok
+        ? ((await response.json()) as TaskDeliveryStatus)
+        : null;
+    };
+    const refresh = async () => {
       const id = ++requestId;
-      return (
-        fetch("/api/project-git-task-delivery", {
-          body: JSON.stringify({ branch, commit, projectPath, taskBranch }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        })
-          .then(async (response) =>
-            response.ok
-              ? ((await response.json()) as TaskDeliveryStatus)
-              : null,
-          )
-          // Not knowing is not worth an error on every card.
-          .catch(() => null)
-          .then((next) => {
-            if (!cancelled && id === requestId) {
-              setStatus(next);
-            }
-          })
-      );
+      const [baseDelivery, branchDelivery] = await Promise.all([
+        readDelivery(branch, true).catch(() => null),
+        // The same commit may have been published on the task branch for a PR
+        // while the local base branch remains ahead of its own upstream.
+        // Verify the commit itself, not just whether the task branch is in sync.
+        taskBranch && taskBranch !== branch && commit
+          ? readDelivery(taskBranch, false).catch(() => null)
+          : null,
+      ]);
+      const next =
+        baseDelivery?.pushed !== true && branchDelivery?.pushed === true
+          ? { ...branchDelivery, pullRequest: baseDelivery?.pullRequest }
+          : baseDelivery;
+      if (!cancelled && id === requestId) {
+        setStatus(next);
+      }
     };
     void refreshKey;
     setStatus(null);

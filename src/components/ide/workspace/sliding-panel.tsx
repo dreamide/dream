@@ -28,6 +28,8 @@ export interface WorkspaceSlidingPanelProps {
   onResizeEnd?: (width: number) => void;
   onResizeStart?: () => void;
   open: boolean;
+  /** Classes for the panel box itself, e.g. to let a shadow escape it. */
+  panelClassName?: string;
   panelRef?: RefObject<HTMLDivElement | null>;
   reserveSpace: boolean;
   side: SlideSide;
@@ -53,6 +55,7 @@ export const WorkspaceSlidingPanel = ({
   onResizeEnd,
   onResizeStart,
   open,
+  panelClassName,
   panelRef,
   reserveSpace,
   side,
@@ -182,7 +185,11 @@ export const WorkspaceSlidingPanel = ({
 
   const panel = (
     <div
-      className={cn("shrink-0 overflow-hidden", handleVisible ? "" : "min-w-0")}
+      className={cn(
+        "shrink-0 overflow-hidden",
+        handleVisible ? "" : "min-w-0",
+        panelClassName,
+      )}
       ref={setPanelRef}
       style={{
         boxSizing: "border-box",

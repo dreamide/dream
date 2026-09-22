@@ -151,14 +151,15 @@ const TaskChatPaneBody = ({
   }, [runs]);
 
   return (
-    <div
-      className="flex h-full min-h-0 flex-col"
-      style={{ backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND }}
-    >
-      {/* Styled like the composer: a white card on a gray strip. */}
-      <div className="shrink-0 px-2 pt-2">
-        <div className="mx-auto w-full max-w-[700px] overflow-hidden rounded-lg border border-surface-300 bg-surface-50 shadow-md dark:border-surface-700 dark:bg-surface-900">
-          <div className="-mx-px -mt-px flex w-[calc(100%+2px)] items-center gap-2 rounded-lg border border-surface-300 bg-background px-3 py-1.5 dark:border-surface-700">
+    <div className="flex h-full min-h-0 flex-col">
+      {/* One panel for the whole pane, like the workspace side panels. */}
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-surface-300 shadow-md dark:border-surface-700"
+        style={{ backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND }}
+      >
+        {/* The header spans the panel's full width. */}
+        <div className="shrink-0 border-surface-300 border-b bg-background dark:border-surface-700">
+          <div className="flex items-center gap-2 px-3 py-1.5">
             <div className="flex min-h-7 min-w-0 flex-1 items-center gap-1.5">
               <TaskStepIcon step={task.step} />
               <h2 className="truncate font-medium text-sm">{task.title}</h2>
@@ -187,7 +188,7 @@ const TaskChatPaneBody = ({
 
           {runs.length > 1 ? (
             <div
-              className="flex items-center overflow-x-auto px-2 py-1.5"
+              className="flex items-center overflow-x-auto px-2 pb-1.5"
               role="tablist"
             >
               {runs.map((run, index) => {
@@ -216,28 +217,28 @@ const TaskChatPaneBody = ({
           ) : null}
 
           {chat && worktreeRemoved ? (
-            <div className="px-3 py-1.5 text-muted-foreground text-xs">
+            <div className="px-3 pb-1.5 text-muted-foreground text-xs">
               {t("chatWorktreeRemoved")}
             </div>
           ) : null}
         </div>
-      </div>
 
-      <div className="min-h-0 flex-1">
-        {chat && chatProject ? (
-          <ChatPanel
-            chat={chat}
-            isActive={active}
-            isProjectActive={active && projectOpen}
-            key={chat.id}
-            project={chatProject}
-          />
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-muted-foreground text-sm">
-            <MessageSquare className="size-5" />
-            {t("noChatsYet")}
-          </div>
-        )}
+        <div className="min-h-0 flex-1">
+          {chat && chatProject ? (
+            <ChatPanel
+              chat={chat}
+              isActive={active}
+              isProjectActive={active && projectOpen}
+              key={chat.id}
+              project={chatProject}
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-muted-foreground text-sm">
+              <MessageSquare className="size-5" />
+              {t("noChatsYet")}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -273,18 +274,15 @@ const TaskChatPaneImpl = ({ active }: { active: boolean }) => {
   return (
     <WorkspaceSlidingPanel
       className="z-20"
-      contentClassName="pl-2"
-      // The same divider as between chat columns, highlighted on hover.
-      handleClassName="bg-border transition-colors hover:bg-surface-300 dark:hover:bg-surface-700"
-      // Opaque, so the board (whose scroller bleeds under the pane by its
-      // negative margin) stops exactly at the border.
-      contentStyle={{ backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND }}
       contentMinWidth={TASKS_CHAT_PANEL_MIN_WIDTH_PX}
       maxWidth={TASKS_CHAT_PANEL_MAX_WIDTH_PX}
       minWidth={TASKS_CHAT_PANEL_MIN_WIDTH_PX}
       onHandleDoubleClick={closeTaskPane}
       onResizeEnd={setTasksChatPanelWidth}
       open={open}
+      // The panel fills the pane edge to edge, so its shadow needs to fall
+      // outside the box instead of being clipped by it.
+      panelClassName="overflow-visible"
       reserveSpace
       side="right"
       transition={SLIDING_PANEL_TRANSITION}
