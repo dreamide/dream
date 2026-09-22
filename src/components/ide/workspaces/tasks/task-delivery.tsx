@@ -2,6 +2,16 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
+/** What GitHub says about the task branch's pull request, via `gh`. */
+export interface TaskPullRequest {
+  isDraft: boolean;
+  /** ISO timestamp, or `null` while the PR is still open or was closed. */
+  mergedAt: string | null;
+  number: number;
+  state: "open" | "closed" | "merged";
+  url: string;
+}
+
 /** Where a branch stands against the remote branch it tracks. */
 export interface TaskDeliveryStatus {
   aheadCount: number;
@@ -11,7 +21,7 @@ export interface TaskDeliveryStatus {
   /** `null` when it cannot be known, e.g. the branch tracks no remote. */
   pushed: boolean | null;
   upstream: string | null;
-  pullRequest?: { url: string; state: "open" | "closed" | "merged" } | null;
+  pullRequest?: TaskPullRequest | null;
 }
 
 /**

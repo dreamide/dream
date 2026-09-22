@@ -9,7 +9,6 @@ import {
   FolderSync,
   FolderX,
   GitBranch,
-  GitPullRequest,
   Play,
   RotateCcw,
   Trash2,
@@ -38,6 +37,7 @@ import { ProjectTabIcon } from "../../header/project-tab-icon";
 import { useIdeStore } from "../../ide-store";
 import { getCurrentTaskRun } from "../../store/task-actions";
 import { TaskDeliveryBadge, useTaskDelivery } from "./task-delivery";
+import { TaskPullRequestRow } from "./task-pull-request";
 import {
   getTaskStatus,
   getTaskStatusDotProps,
@@ -171,12 +171,8 @@ const TaskCardImpl = ({
     refreshKey: `${gitRefreshKey}:${streaming}`,
   });
   const dot = getTaskStatusDotProps(status);
-  const prUrl =
-    (delivery?.pullRequest?.state !== "closed"
-      ? delivery?.pullRequest?.url
-      : null) ||
-    task.completion?.prUrl ||
-    "";
+  const pullRequest = delivery?.pullRequest ?? null;
+  const prUrl = pullRequest?.url || task.completion?.prUrl || "";
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
   const settled = isTaskSettled(status);
   // Deleting mid-run would orphan a live agent still editing the worktree.
@@ -287,12 +283,9 @@ const TaskCardImpl = ({
               <span className="truncate">{project.name}</span>
             </div>
           ) : null}
-          <div className="flex items-start gap-2">
-            <TaskStepIcon className="mt-0.5" step={task.step} />
-            <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
-              {task.title}
-            </h3>
-          </div>
+          <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
+            {task.title}
+          </h3>
           {task.description ? (
             <p className="mt-2 line-clamp-3 whitespace-pre-line text-muted-foreground text-xs leading-5">
               {task.description}
@@ -423,14 +416,11 @@ const TaskCardImpl = ({
         <TaskDeliveryBadge status={delivery} />
       ) : null}
       {prUrl ? (
-        <button
-          className="mt-2 flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground hover:underline"
-          onClick={() => openExternalUrl(prUrl)}
-          type="button"
-        >
-          <GitPullRequest className="size-3.5" />
-          {t("prBadge")}
-        </button>
+        <TaskPullRequestRow
+          onOpen={openExternalUrl}
+          pullRequest={pullRequest}
+          url={prUrl}
+        />
       ) : null}
       {error ? (
         <p className="mt-2 break-words text-destructive text-xs leading-5">
