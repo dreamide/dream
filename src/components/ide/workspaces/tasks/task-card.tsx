@@ -14,7 +14,7 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { memo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,9 +101,7 @@ const TaskCardImpl = ({
   showProject,
 }: TaskCardProps) => {
   const t = useTranslations("tasks");
-  const format = useFormatter();
   const { project, task } = entry;
-  const createdAt = new Date(task.createdAt);
   const currentRun = getCurrentTaskRun(task);
   const chatId = currentRun?.chatId ?? null;
 
@@ -400,18 +398,6 @@ const TaskCardImpl = ({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {task.step !== "backlog" ? (
-        <div className="mt-2 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
-          <StatusDot
-            className={dot.className}
-            color={dot.color}
-            pulse={dot.pulse}
-          />
-          <span className="truncate">
-            {t(getTaskStatusLabelKey(status, task.step))}
-          </span>
-        </div>
-      ) : null}
       {!prUrl && delivery?.branchExists && delivery.pushed !== null ? (
         <TaskDeliveryBadge status={delivery} />
       ) : null}
@@ -444,15 +430,23 @@ const TaskCardImpl = ({
           <span className="truncate font-mono">{task.branch}</span>
         </div>
       ) : null}
-      <div className="mt-3 flex items-center gap-2">
-        {Number.isFinite(createdAt.getTime()) ? (
-          <time
-            className="text-muted-foreground text-xs"
-            dateTime={task.createdAt}
-            title={format.dateTime(createdAt, { dateStyle: "long" })}
+      <div className="mt-3 flex min-w-0 items-center gap-2">
+        {/* Beside the action it explains; it gives way to the button. While
+            starting, the spinner button already says so. */}
+        {task.step !== "backlog" && status !== "starting" ? (
+          <div
+            className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs"
+            title={t(getTaskStatusLabelKey(status, task.step))}
           >
-            {format.dateTime(createdAt, { month: "short", day: "numeric" })}
-          </time>
+            <StatusDot
+              className={dot.className}
+              color={dot.color}
+              pulse={dot.pulse}
+            />
+            <span className="truncate">
+              {t(getTaskStatusLabelKey(status, task.step))}
+            </span>
+          </div>
         ) : null}
         {primaryAction ? (
           <Button
