@@ -107,7 +107,7 @@ export const TaskSettingsDialog = ({
             </Button>
           </div>
           <Textarea
-            className="max-h-[60vh] min-h-80 text-sm leading-5"
+            className="max-h-[60vh] min-h-88 text-sm leading-5"
             id="task-step-prompt"
             onChange={(event) => {
               const value = event.target.value;

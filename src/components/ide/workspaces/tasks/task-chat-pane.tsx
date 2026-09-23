@@ -163,7 +163,7 @@ const TaskChatPaneBody = ({
           ) : null}
 
           {chat && worktreeRemoved ? (
-            <div className="border-surface-300 border-b px-3 py-1.5 text-center text-muted-foreground text-xs dark:border-surface-700">
+            <div className="px-3 py-1.5 text-center text-muted-foreground text-xs">
               {t("chatWorktreeRemoved")}
             </div>
           ) : null}

@@ -28,8 +28,8 @@ const PULL_REQUEST_STATES = {
 } as const;
 
 /**
- * A task's pull request on GitHub: "Pull request #12" with its state as a
- * badge when `gh` could say what became of it, and a plain "Pull request" link
+ * A task's pull request on GitHub: "PR #12" with its state as a
+ * badge when `gh` could say what became of it, and a plain "PR" link
  * when only the stored URL is known (no `gh`, no network, or no match for the
  * branch).
  */
@@ -60,9 +60,7 @@ export const TaskPullRequestRow = ({
     >
       <GitPullRequest className="size-4 shrink-0" />
       <span className="truncate group-hover:underline">
-        {pullRequest
-          ? t("prNumber", { number: pullRequest.number })
-          : t("prBadge")}
+        {pullRequest ? `PR #${pullRequest.number}` : "PR"}
       </span>
       {state ? (
         <Badge
