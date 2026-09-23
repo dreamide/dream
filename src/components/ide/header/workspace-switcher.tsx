@@ -44,7 +44,7 @@ export const WorkspaceSwitcher = () => {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="w-48 [-webkit-app-region:no-drag]"
+        className="w-72 [-webkit-app-region:no-drag]"
         side="bottom"
       >
         <DropdownMenuGroup>
@@ -56,12 +56,24 @@ export const WorkspaceSwitcher = () => {
           }}
           value={appView}
         >
-          {APP_VIEW_DESCRIPTORS.map(({ icon: Icon, id, labelKey }) => (
-            <DropdownMenuRadioItem closeOnClick key={id} value={id}>
-              <Icon className="size-4" />
-              {t(labelKey)}
-            </DropdownMenuRadioItem>
-          ))}
+          {APP_VIEW_DESCRIPTORS.map(
+            ({ descriptionKey, icon: Icon, id, labelKey }) => (
+              <DropdownMenuRadioItem
+                className="items-start gap-3 py-2"
+                closeOnClick
+                key={id}
+                value={id}
+              >
+                <Icon className="mt-0.5 size-5" />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-medium text-sm">{t(labelKey)}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {t(descriptionKey)}
+                  </span>
+                </span>
+              </DropdownMenuRadioItem>
+            ),
+          )}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

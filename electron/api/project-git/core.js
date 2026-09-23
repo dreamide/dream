@@ -189,17 +189,58 @@ const getGitDefaultBranch = async (repoRoot, remoteName) => {
   return null;
 };
 
-const getCurrentGitUpstream = async (repoRoot) => {
+/**
+ * The upstream of the checked-out branch, or of `branch` when given, as
+ * `remote/branch`.
+ */
+export const getCurrentGitUpstream = async (repoRoot, branch = null) => {
   const upstreamResult = await runGitCommand(
     repoRoot,
-    ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    [
+      "rev-parse",
+      "--abbrev-ref",
+      "--symbolic-full-name",
+      branch ? `refs/heads/${branch}@{u}` : "@{u}",
+    ],
     { allowFailure: true },
   );
 
   return upstreamResult.ok ? upstreamResult.stdout.trim() || null : null;
 };
 
-export const getGitAheadBehindCounts = async (repoRoot, upstreamBranch) => {
+const readGitConfigValue = async (repoRoot, key) => {
+  const result = await runGitCommand(repoRoot, ["config", "--get", key], {
+    allowFailure: true,
+  });
+  return result.ok ? result.stdout.trim() : "";
+};
+
+/**
+ * The remote branch `branch` tracks, as the remote name and the local
+ * remote-tracking ref. `null` when the branch tracks nothing, e.g. a
+ * repository with no remote.
+ */
+export const resolveGitBranchUpstream = async (repoRoot, branch) => {
+  const remote = await readGitConfigValue(repoRoot, `branch.${branch}.remote`);
+  const mergeRef = await readGitConfigValue(repoRoot, `branch.${branch}.merge`);
+  if (!remote || remote === "." || !mergeRef.startsWith("refs/heads/")) {
+    return null;
+  }
+
+  const remoteBranch = mergeRef.slice("refs/heads/".length);
+  return {
+    ref: `refs/remotes/${remote}/${remoteBranch}`,
+    remote,
+    remoteBranch,
+    upstream: `${remote}/${remoteBranch}`,
+  };
+};
+
+export const getGitAheadBehindCounts = async (
+  repoRoot,
+  upstreamBranch,
+  headRef = "HEAD",
+) => {
   if (!upstreamBranch) {
     return {
       aheadCount: 0,
@@ -209,7 +250,7 @@ export const getGitAheadBehindCounts = async (repoRoot, upstreamBranch) => {
 
   const countsResult = await runGitCommand(
     repoRoot,
-    ["rev-list", "--left-right", "--count", `${upstreamBranch}...HEAD`],
+    ["rev-list", "--left-right", "--count", `${upstreamBranch}...${headRef}`],
     { allowFailure: true },
   );
 
@@ -227,17 +268,26 @@ export const getGitAheadBehindCounts = async (repoRoot, upstreamBranch) => {
   };
 };
 
-export const getProjectGitMetadata = async (repoRoot, branch) => {
+/**
+ * Remote, upstream and ahead/behind counts for the checked-out branch, or,
+ * with `named`, for `branch` itself whether or not it is checked out.
+ */
+export const getProjectGitMetadata = async (
+  repoRoot,
+  branch,
+  { named = false } = {},
+) => {
   const remoteName = await getPreferredGitRemote(repoRoot);
   const [baseBranch, upstreamBranch] = await Promise.all([
     getGitDefaultBranch(repoRoot, remoteName),
     branch?.startsWith("HEAD ")
       ? Promise.resolve(null)
-      : getCurrentGitUpstream(repoRoot),
+      : getCurrentGitUpstream(repoRoot, named ? branch : null),
   ]);
   const { aheadCount, behindCount } = await getGitAheadBehindCounts(
     repoRoot,
     upstreamBranch,
+    named ? `refs/heads/${branch}` : "HEAD",
   );
 
   return {

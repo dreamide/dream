@@ -1,6 +1,6 @@
 import { MessageSquare, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   TASKS_CHAT_PANEL_MAX_WIDTH_PX,
@@ -11,6 +11,7 @@ import type { ChatConfig, Task, TaskStepRun } from "@/types/ide";
 import { ChatPanel } from "../../chat-panel";
 import { useIdeStore } from "../../ide-store";
 import {
+  PANEL_TRANSITION_MS,
   SLIDING_PANEL_TRANSITION,
   WORKSPACE_VIEWPORT_BACKGROUND,
 } from "../../workspace/constants";
@@ -203,6 +204,19 @@ const TaskChatPaneImpl = ({ active }: { active: boolean }) => {
       ? (s.tasks.find((entry) => entry.id === tasksPane.taskId) ?? null)
       : null,
   );
+  // The last pane shown, kept on screen while the panel slides out so it
+  // leaves with its content instead of emptying first.
+  const lastPaneRef = useRef(tasksPane);
+  if (tasksPane) {
+    lastPaneRef.current = tasksPane;
+  }
+  const [exiting, setExiting] = useState(false);
+  const exitingPane = exiting ? lastPaneRef.current : null;
+  const exitingTask = useIdeStore((s) =>
+    exitingPane
+      ? (s.tasks.find((entry) => entry.id === exitingPane.taskId) ?? null)
+      : null,
+  );
   const width = useIdeStore((s) => s.tasksChatPanelWidth);
   const setTasksChatPanelWidth = useIdeStore((s) => s.setTasksChatPanelWidth);
   const closeTaskPane = useIdeStore((s) => s.closeTaskPane);
@@ -217,6 +231,28 @@ const TaskChatPaneImpl = ({ active }: { active: boolean }) => {
   }, [closeTaskPane, task, tasksPane]);
 
   const open = tasksPane !== null && task !== null;
+
+  const wasOpenRef = useRef(open);
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (open) {
+      setExiting(false);
+      return;
+    }
+    if (!wasOpen) {
+      return;
+    }
+    setExiting(true);
+    const timer = window.setTimeout(
+      () => setExiting(false),
+      PANEL_TRANSITION_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  const shownPane = open ? tasksPane : exitingPane;
+  const shownTask = open ? task : exitingTask;
 
   return (
     <WorkspaceSlidingPanel
@@ -236,12 +272,12 @@ const TaskChatPaneImpl = ({ active }: { active: boolean }) => {
       width={width}
       widthRef={widthRef}
     >
-      {open && task && tasksPane ? (
+      {shownPane && shownTask ? (
         <TaskChatPaneBody
-          active={active}
-          key={task.id}
-          runId={tasksPane.runId}
-          task={task}
+          active={active && open}
+          key={shownTask.id}
+          runId={shownPane.runId}
+          task={shownTask}
         />
       ) : null}
     </WorkspaceSlidingPanel>

@@ -12,7 +12,13 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
 import openCodeLogo from "@/assets/opencode.svg";
@@ -58,7 +64,6 @@ import { PERMISSION_MODE_OPTIONS } from "./chat/permission-selector";
 import { WindowControls } from "./header/window-controls";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS } from "./ide-types";
-
 import {
   formatDeletedDate,
   MCP_LIST_VIEW,
@@ -70,6 +75,7 @@ import {
   SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
+import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const getAccentColorSwatch = (color: AccentColor) =>
   color === "black-white"
@@ -86,6 +92,11 @@ const BASE_COLOR_SWATCHES: Record<BaseColor, string> = {
 
 const getBaseColorSwatch = (color: BaseColor) => BASE_COLOR_SWATCHES[color];
 const appVersion = packageJson.version;
+// Matches the chat transcript's top fade (see chat-panel.tsx).
+const SETTINGS_CONTENT_TOP_FADE_STYLE: CSSProperties = {
+  background: `linear-gradient(to bottom, ${WORKSPACE_VIEWPORT_BACKGROUND} 0%, transparent 100%)`,
+  height: 24,
+};
 
 const getShellExecutableName = (value: string) => {
   const match = value.trim().match(/^(?:"([^"]+)"|'([^']+)'|(\S+))/);
@@ -558,902 +569,924 @@ export const SettingsWorkspace = () => {
           </div>
         </nav>
 
-        <div className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-5xl space-y-4 p-3">
-            {settingsSection === "mcp" && mcpView.kind !== "list" ? (
-              <button
-                className="-ml-3 rounded-md border border-transparent px-3 py-2 text-left font-medium text-muted-foreground text-sm outline-none transition-colors hover:text-foreground focus-visible:border-ring"
-                onClick={() => setMcpView(MCP_LIST_VIEW)}
-                type="button"
-              >
-                <span className="flex items-center gap-2">
-                  <ArrowLeft className="size-4" />
-                  {settingsT("mcpBack")}
-                </span>
-              </button>
-            ) : null}
-            {settingsSection === "appearance" ? (
-              <div className="space-y-8">
-                <SettingsGroup label={settingsT("models")}>
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description={settingsT(
-                      "defaultModelForNewChatsDescription",
-                    )}
-                    label={settingsT("defaultModelForNewChats")}
-                  >
-                    <ModelSelectionControl
-                      groups={groupedDefaultModelOptions}
-                      id="default-model"
-                      onChange={(next) =>
-                        setSettings((previous) => ({
-                          ...previous,
-                          defaultModel: next.model,
-                          defaultModelSpeed: next.modelSpeed,
-                          defaultReasoningEffort: next.reasoningEffort,
-                        }))
-                      }
-                      value={{
-                        model: selectedDefaultModel,
-                        modelSpeed: settings.defaultModelSpeed,
-                        reasoningEffort: settings.defaultReasoningEffort,
-                      }}
-                    />
-                  </SettingsControlRow>
-
-                  <SettingsControlRow
-                    controlClassName="w-auto md:w-auto"
-                    description={settingsT("defaultPermissionModeDescription")}
-                    label={settingsT("defaultPermissionMode")}
-                  >
-                    <Select
-                      onValueChange={(value) => {
-                        const option = PERMISSION_MODE_OPTIONS.find(
-                          (item) => item.value === value,
-                        );
-                        if (!option) {
-                          return;
-                        }
-                        setSettings((previous) => ({
-                          ...previous,
-                          defaultPermissionMode: option.value,
-                        }));
-                      }}
-                      value={settings.defaultPermissionMode}
+        <div className="relative min-w-0 flex-1">
+          {/* Same top fade as the chat transcript, so content scrolling
+              under the header dissolves instead of cutting off. The right
+              inset keeps the scrollbar uncovered. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-0 right-3 left-0 z-10"
+            style={SETTINGS_CONTENT_TOP_FADE_STYLE}
+          />
+          <div className="h-full overflow-y-auto">
+            <div className="mx-auto w-full max-w-5xl space-y-4 p-3 pt-6">
+              {settingsSection === "mcp" && mcpView.kind !== "list" ? (
+                <button
+                  className="-ml-3 rounded-md border border-transparent px-3 py-2 text-left font-medium text-muted-foreground text-sm outline-none transition-colors hover:text-foreground focus-visible:border-ring"
+                  onClick={() => setMcpView(MCP_LIST_VIEW)}
+                  type="button"
+                >
+                  <span className="flex items-center gap-2">
+                    <ArrowLeft className="size-4" />
+                    {settingsT("mcpBack")}
+                  </span>
+                </button>
+              ) : null}
+              {settingsSection === "appearance" ? (
+                <div className="space-y-8">
+                  <SettingsGroup label={settingsT("models")}>
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={settingsT(
+                        "defaultModelForNewChatsDescription",
+                      )}
+                      label={settingsT("defaultModelForNewChats")}
                     >
-                      <SelectTrigger
-                        className="w-full md:w-48"
-                        id="default-permission-mode"
+                      <ModelSelectionControl
+                        groups={groupedDefaultModelOptions}
+                        id="default-model"
+                        onChange={(next) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            defaultModel: next.model,
+                            defaultModelSpeed: next.modelSpeed,
+                            defaultReasoningEffort: next.reasoningEffort,
+                          }))
+                        }
+                        value={{
+                          model: selectedDefaultModel,
+                          modelSpeed: settings.defaultModelSpeed,
+                          reasoningEffort: settings.defaultReasoningEffort,
+                        }}
+                      />
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
+                      controlClassName="w-auto md:w-auto"
+                      description={settingsT(
+                        "defaultPermissionModeDescription",
+                      )}
+                      label={settingsT("defaultPermissionMode")}
+                    >
+                      <Select
+                        onValueChange={(value) => {
+                          const option = PERMISSION_MODE_OPTIONS.find(
+                            (item) => item.value === value,
+                          );
+                          if (!option) {
+                            return;
+                          }
+                          setSettings((previous) => ({
+                            ...previous,
+                            defaultPermissionMode: option.value,
+                          }));
+                        }}
+                        value={settings.defaultPermissionMode}
                       >
-                        <SelectValue>
-                          <span className="flex items-center gap-2">
-                            <selectedPermissionOption.icon className="size-4 shrink-0" />
-                            {chatT(selectedPermissionOption.label)}
-                          </span>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PERMISSION_MODE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
+                        <SelectTrigger
+                          className="w-full md:w-48"
+                          id="default-permission-mode"
+                        >
+                          <SelectValue>
                             <span className="flex items-center gap-2">
-                              <option.icon className="size-4 shrink-0" />
-                              {chatT(option.label)}
+                              <selectedPermissionOption.icon className="size-4 shrink-0" />
+                              {chatT(selectedPermissionOption.label)}
                             </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </SettingsControlRow>
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PERMISSION_MODE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <span className="flex items-center gap-2">
+                                <option.icon className="size-4 shrink-0" />
+                                {chatT(option.label)}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsControlRow>
 
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description={settingsT("defaultModelForCommitsDescription")}
-                    label={settingsT("defaultModelForCommits")}
-                  >
-                    <ModelSelectionControl
-                      groups={groupedDefaultModelOptions}
-                      id="default-git-generation-model"
-                      onChange={(next) =>
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={settingsT(
+                        "defaultModelForCommitsDescription",
+                      )}
+                      label={settingsT("defaultModelForCommits")}
+                    >
+                      <ModelSelectionControl
+                        groups={groupedDefaultModelOptions}
+                        id="default-git-generation-model"
+                        onChange={(next) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            defaultGitGenerationModel: next.model,
+                            defaultGitGenerationModelSpeed: next.modelSpeed,
+                            defaultGitGenerationReasoningEffort:
+                              next.reasoningEffort,
+                          }))
+                        }
+                        value={{
+                          model: selectedGitGenerationModel,
+                          modelSpeed: settings.defaultGitGenerationModelSpeed,
+                          reasoningEffort:
+                            settings.defaultGitGenerationReasoningEffort,
+                        }}
+                      />
+                    </SettingsControlRow>
+                  </SettingsGroup>
+
+                  <SettingsGroup label={commonT("general")}>
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={localeT("description")}
+                      label={commonT("language")}
+                    >
+                      <Select
+                        onValueChange={(value) =>
+                          setSettings((previous) => ({
+                            ...previous,
+                            locale: value as AppLocale,
+                          }))
+                        }
+                        value={settings.locale}
+                      >
+                        <SelectTrigger className="w-full md:w-72">
+                          <SelectValue>
+                            {LOCALE_LABELS[settings.locale]}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end" alignItemWithTrigger={false}>
+                          {APP_LOCALES.map((locale) => (
+                            <SelectItem key={locale} value={locale}>
+                              {LOCALE_LABELS[locale]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
+                      description={<p>{settingsT("terminalDescription")}</p>}
+                      label={commonT("terminal")}
+                    >
+                      <Select
+                        disabled={terminalShellOptions.length === 0}
+                        onValueChange={(value) => {
+                          if (!value) {
+                            return;
+                          }
+
+                          setSettings((previous) => ({
+                            ...previous,
+                            shellPath: value,
+                          }));
+                        }}
+                        value={selectedTerminalShell?.shellPath ?? null}
+                      >
+                        <SelectTrigger
+                          aria-label={settingsT("shellPath")}
+                          className="w-full md:w-72"
+                        >
+                          <SelectValue>
+                            {selectedTerminalShell?.label ??
+                              settingsT("shellPath")}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent align="end" alignItemWithTrigger={false}>
+                          {terminalShellOptions.map((shell) => (
+                            <SelectItem key={shell.id} value={shell.shellPath}>
+                              {shell.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </SettingsControlRow>
+                  </SettingsGroup>
+
+                  <SettingsGroup label={themeT("appearance")}>
+                    <SettingsControlRow
+                      description={themeT("themeDescription")}
+                      label={themeT("theme")}
+                    >
+                      <Tabs
+                        className="w-full"
+                        onValueChange={(value) => {
+                          if (value) {
+                            setTheme(value);
+                          }
+                        }}
+                        value={themeMounted ? (theme ?? "dark") : "dark"}
+                      >
+                        <TabsList
+                          className="w-full justify-start"
+                          id="theme-tabs"
+                        >
+                          <TabsTrigger value="system">
+                            <Monitor className="size-4" />
+                            {themeT("system")}
+                          </TabsTrigger>
+                          <TabsTrigger value="light">
+                            <Sun className="size-4" />
+                            {themeT("light")}
+                          </TabsTrigger>
+                          <TabsTrigger value="dark">
+                            <Moon className="size-4" />
+                            {themeT("dark")}
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={themeT("baseColorDescription")}
+                      label={themeT("baseColor")}
+                    >
+                      <div className="flex justify-end gap-2">
+                        {BASE_COLORS.map((color) => {
+                          const selected = baseColor === color;
+
+                          return (
+                            <button
+                              aria-label={getColorLabel(color)}
+                              aria-pressed={selected}
+                              className={cn(
+                                "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                                selected
+                                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                                  : "ring-1 ring-transparent",
+                              )}
+                              key={color}
+                              onClick={() => setBaseColor(color)}
+                              style={{
+                                background: getBaseColorSwatch(color),
+                              }}
+                              title={getColorLabel(color)}
+                              type="button"
+                            />
+                          );
+                        })}
+                      </div>
+                    </SettingsControlRow>
+
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={themeT("accentColorDescription")}
+                      label={themeT("accentColor")}
+                    >
+                      <div className="grid grid-cols-9 gap-2">
+                        {ACCENT_COLORS.map((color) => {
+                          const selected = accentColor === color;
+
+                          return (
+                            <button
+                              aria-label={getColorLabel(color)}
+                              aria-pressed={selected}
+                              className={cn(
+                                "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                                selected
+                                  ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                                  : "ring-1 ring-transparent",
+                              )}
+                              key={color}
+                              onClick={() => setAccentColor(color)}
+                              style={{
+                                background: getAccentColorSwatch(color),
+                              }}
+                              title={getColorLabel(color)}
+                              type="button"
+                            />
+                          );
+                        })}
+                      </div>
+                    </SettingsControlRow>
+                  </SettingsGroup>
+
+                  <SettingsGroup label={settingsT("chatMessages")}>
+                    <SettingsSwitchRow
+                      checked={settings.showReasoningSummaries}
+                      description={settingsT(
+                        "showReasoningSummariesDescription",
+                      )}
+                      label={settingsT("showReasoningSummaries")}
+                      onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
-                          defaultGitGenerationModel: next.model,
-                          defaultGitGenerationModelSpeed: next.modelSpeed,
-                          defaultGitGenerationReasoningEffort:
-                            next.reasoningEffort,
+                          showReasoningSummaries: checked,
                         }))
                       }
-                      value={{
-                        model: selectedGitGenerationModel,
-                        modelSpeed: settings.defaultGitGenerationModelSpeed,
-                        reasoningEffort:
-                          settings.defaultGitGenerationReasoningEffort,
-                      }}
                     />
-                  </SettingsControlRow>
-                </SettingsGroup>
-
-                <SettingsGroup label={commonT("general")}>
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description={localeT("description")}
-                    label={commonT("language")}
-                  >
-                    <Select
-                      onValueChange={(value) =>
+                    <SettingsSwitchRow
+                      checked={settings.groupToolCalls}
+                      description={settingsT("groupToolCallsDescription")}
+                      label={settingsT("groupToolCalls")}
+                      onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
-                          locale: value as AppLocale,
+                          groupToolCalls: checked,
                         }))
                       }
-                      value={settings.locale}
-                    >
-                      <SelectTrigger className="w-full md:w-72">
-                        <SelectValue>
-                          {LOCALE_LABELS[settings.locale]}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent align="end" alignItemWithTrigger={false}>
-                        {APP_LOCALES.map((locale) => (
-                          <SelectItem key={locale} value={locale}>
-                            {LOCALE_LABELS[locale]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </SettingsControlRow>
-
-                  <SettingsControlRow
-                    description={<p>{settingsT("terminalDescription")}</p>}
-                    label={commonT("terminal")}
-                  >
-                    <Select
-                      disabled={terminalShellOptions.length === 0}
-                      onValueChange={(value) => {
-                        if (!value) {
-                          return;
-                        }
-
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.changeCheckpoints}
+                      description={settingsT("changeCheckpointsDescription")}
+                      label={settingsT("changeCheckpoints")}
+                      onCheckedChange={(checked) =>
                         setSettings((previous) => ({
                           ...previous,
-                          shellPath: value,
-                        }));
-                      }}
-                      value={selectedTerminalShell?.shellPath ?? null}
-                    >
-                      <SelectTrigger
-                        aria-label={settingsT("shellPath")}
-                        className="w-full md:w-72"
-                      >
-                        <SelectValue>
-                          {selectedTerminalShell?.label ??
-                            settingsT("shellPath")}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent align="end" alignItemWithTrigger={false}>
-                        {terminalShellOptions.map((shell) => (
-                          <SelectItem key={shell.id} value={shell.shellPath}>
-                            {shell.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </SettingsControlRow>
-                </SettingsGroup>
-
-                <SettingsGroup label={themeT("appearance")}>
-                  <SettingsControlRow
-                    description={themeT("themeDescription")}
-                    label={themeT("theme")}
-                  >
-                    <Tabs
-                      className="w-full"
-                      onValueChange={(value) => {
-                        if (value) {
-                          setTheme(value);
-                        }
-                      }}
-                      value={themeMounted ? (theme ?? "dark") : "dark"}
-                    >
-                      <TabsList
-                        className="w-full justify-start"
-                        id="theme-tabs"
-                      >
-                        <TabsTrigger value="system">
-                          <Monitor className="size-4" />
-                          {themeT("system")}
-                        </TabsTrigger>
-                        <TabsTrigger value="light">
-                          <Sun className="size-4" />
-                          {themeT("light")}
-                        </TabsTrigger>
-                        <TabsTrigger value="dark">
-                          <Moon className="size-4" />
-                          {themeT("dark")}
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </SettingsControlRow>
-
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description={themeT("baseColorDescription")}
-                    label={themeT("baseColor")}
-                  >
-                    <div className="flex justify-end gap-2">
-                      {BASE_COLORS.map((color) => {
-                        const selected = baseColor === color;
-
-                        return (
-                          <button
-                            aria-label={getColorLabel(color)}
-                            aria-pressed={selected}
-                            className={cn(
-                              "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                              selected
-                                ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                                : "ring-1 ring-transparent",
-                            )}
-                            key={color}
-                            onClick={() => setBaseColor(color)}
-                            style={{
-                              background: getBaseColorSwatch(color),
-                            }}
-                            title={getColorLabel(color)}
-                            type="button"
-                          />
-                        );
-                      })}
-                    </div>
-                  </SettingsControlRow>
-
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description={themeT("accentColorDescription")}
-                    label={themeT("accentColor")}
-                  >
-                    <div className="grid grid-cols-9 gap-2">
-                      {ACCENT_COLORS.map((color) => {
-                        const selected = accentColor === color;
-
-                        return (
-                          <button
-                            aria-label={getColorLabel(color)}
-                            aria-pressed={selected}
-                            className={cn(
-                              "size-6 rounded-full border border-border shadow-xs outline-none transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                              selected
-                                ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                                : "ring-1 ring-transparent",
-                            )}
-                            key={color}
-                            onClick={() => setAccentColor(color)}
-                            style={{
-                              background: getAccentColorSwatch(color),
-                            }}
-                            title={getColorLabel(color)}
-                            type="button"
-                          />
-                        );
-                      })}
-                    </div>
-                  </SettingsControlRow>
-                </SettingsGroup>
-
-                <SettingsGroup label={settingsT("chatMessages")}>
-                  <SettingsSwitchRow
-                    checked={settings.showReasoningSummaries}
-                    description={settingsT("showReasoningSummariesDescription")}
-                    label={settingsT("showReasoningSummaries")}
-                    onCheckedChange={(checked) =>
-                      setSettings((previous) => ({
-                        ...previous,
-                        showReasoningSummaries: checked,
-                      }))
-                    }
-                  />
-                  <SettingsSwitchRow
-                    checked={settings.groupToolCalls}
-                    description={settingsT("groupToolCallsDescription")}
-                    label={settingsT("groupToolCalls")}
-                    onCheckedChange={(checked) =>
-                      setSettings((previous) => ({
-                        ...previous,
-                        groupToolCalls: checked,
-                      }))
-                    }
-                  />
-                  <SettingsSwitchRow
-                    checked={settings.changeCheckpoints}
-                    description={settingsT("changeCheckpointsDescription")}
-                    label={settingsT("changeCheckpoints")}
-                    onCheckedChange={(checked) =>
-                      setSettings((previous) => ({
-                        ...previous,
-                        changeCheckpoints: checked,
-                      }))
-                    }
-                  />
-                  <SettingsSwitchRow
-                    checked={settings.expandToolCalls}
-                    description={settingsT("expandToolCallsDescription")}
-                    label={settingsT("expandToolCalls")}
-                    onCheckedChange={(checked) =>
-                      setSettings((previous) => ({
-                        ...previous,
-                        expandToolCalls: checked,
-                      }))
-                    }
-                  />
-                </SettingsGroup>
-              </div>
-            ) : null}
-
-            {settingsSection === "providers" ? (
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <h3 className="font-medium text-sm">
-                      {commonT("providers")}
-                    </h3>
-                    {providerModels.fetchedAt ? (
-                      <p className="text-muted-foreground text-xs">
-                        {settingsT("lastChecked", {
-                          date: new Date(
-                            providerModels.fetchedAt,
-                          ).toLocaleString(),
-                        })}
-                      </p>
-                    ) : null}
-                  </div>
+                          changeCheckpoints: checked,
+                        }))
+                      }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.expandToolCalls}
+                      description={settingsT("expandToolCallsDescription")}
+                      label={settingsT("expandToolCalls")}
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          expandToolCalls: checked,
+                        }))
+                      }
+                    />
+                  </SettingsGroup>
                 </div>
+              ) : null}
 
-                {installedProviderCount === 0 ? (
-                  <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
-                    {settingsT("installProviders")}
-                  </p>
-                ) : null}
-
-                <div className="grid gap-3">
-                  <ProviderStatusCard
-                    action={
-                      <Button
-                        aria-label={settingsT("refreshProvider", {
-                          provider: providerT("openai"),
-                        })}
-                        disabled={providerModels.openai.loading}
-                        onClick={handleRefreshOpenAiProvider}
-                        size="icon-xs"
-                        title={settingsT("refreshProvider", {
-                          provider: providerT("openai"),
-                        })}
-                        type="button"
-                        variant="ghost"
-                      >
-                        <RotateCw className="size-3.5" />
-                      </Button>
-                    }
-                    enabled={isProviderEnabled("openai", settings)}
-                    error={getProviderError(providerModels.openai.error)}
-                    installed={providerModels.openai.installed}
-                    label="OpenAI"
-                    logoSrc={openAiLogo}
-                    loading={providerModels.openai.loading}
-                    onEnabledChange={(enabled) =>
-                      setProviderEnabled("openai", enabled)
-                    }
-                    runtimeLabel={providerT("codexCli")}
-                    version={providerModels.openai.version}
-                  >
-                    <div className="space-y-1.5 rounded-md p-1">
-                      {availableOpenAiModels.length === 0 ? (
-                        <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                          {settingsT("noCliModels")}
-                        </p>
-                      ) : (
-                        availableOpenAiModels.map((model) => {
-                          const isSelected = openAiModels.includes(model.id);
-
-                          return (
-                            <div
-                              className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
-                              key={model.id}
-                            >
-                              <Label
-                                className={cn(
-                                  "truncate pr-3 text-sm",
-                                  isSelected
-                                    ? "text-foreground"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {model.label}
-                              </Label>
-                              <Switch
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked !== isSelected) {
-                                    toggleProviderModel(
-                                      "openai",
-                                      model.id,
-                                      checked,
-                                    );
-                                  }
-                                }}
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </ProviderStatusCard>
-                  <ProviderStatusCard
-                    action={
-                      <Button
-                        aria-label={settingsT("refreshProvider", {
-                          provider: providerT("anthropic"),
-                        })}
-                        disabled={providerModels.anthropic.loading}
-                        onClick={handleRefreshAnthropicProvider}
-                        size="icon-xs"
-                        title={settingsT("refreshProvider", {
-                          provider: providerT("anthropic"),
-                        })}
-                        type="button"
-                        variant="ghost"
-                      >
-                        <RotateCw className="size-3.5" />
-                      </Button>
-                    }
-                    enabled={isProviderEnabled("anthropic", settings)}
-                    error={getProviderError(providerModels.anthropic.error)}
-                    installed={providerModels.anthropic.installed}
-                    label="Anthropic"
-                    logoSrc={anthropicLogo}
-                    loading={providerModels.anthropic.loading}
-                    onEnabledChange={(enabled) =>
-                      setProviderEnabled("anthropic", enabled)
-                    }
-                    runtimeLabel={providerT("claudeCodeCli")}
-                    version={providerModels.anthropic.version}
-                  >
-                    <div className="space-y-1.5 rounded-md p-1">
-                      {availableAnthropicModels.length === 0 ? (
-                        <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                          {settingsT("noCliModels")}
-                        </p>
-                      ) : (
-                        availableAnthropicModels.map((model) => {
-                          const isSelected = anthropicModels.includes(model.id);
-
-                          return (
-                            <div
-                              className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
-                              key={model.id}
-                            >
-                              <Label
-                                className={cn(
-                                  "truncate pr-3 text-sm",
-                                  isSelected
-                                    ? "text-foreground"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {model.label}
-                              </Label>
-                              <Switch
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked !== isSelected) {
-                                    toggleProviderModel(
-                                      "anthropic",
-                                      model.id,
-                                      checked,
-                                    );
-                                  }
-                                }}
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </ProviderStatusCard>
-                  <ProviderStatusCard
-                    action={
-                      <Button
-                        aria-label={settingsT("refreshProvider", {
-                          provider: providerT("opencode"),
-                        })}
-                        disabled={providerModels.opencode.loading}
-                        onClick={handleRefreshOpenCodeProvider}
-                        size="icon-xs"
-                        title={settingsT("refreshProvider", {
-                          provider: providerT("opencode"),
-                        })}
-                        type="button"
-                        variant="ghost"
-                      >
-                        <RotateCw className="size-3.5" />
-                      </Button>
-                    }
-                    enabled={isProviderEnabled("opencode", settings)}
-                    error={getProviderError(providerModels.opencode.error)}
-                    installed={providerModels.opencode.installed}
-                    label="OpenCode"
-                    logoSrc={openCodeLogo}
-                    loading={providerModels.opencode.loading}
-                    onEnabledChange={(enabled) =>
-                      setProviderEnabled("opencode", enabled)
-                    }
-                    runtimeLabel={providerT("opencodeCli")}
-                    version={providerModels.opencode.version}
-                  >
-                    <div className="space-y-1.5 rounded-md p-1">
-                      {availableOpenCodeModels.length === 0 ? (
-                        <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                          {settingsT("noOpenCodeModels")}
-                        </p>
-                      ) : (
-                        availableOpenCodeModels.map((model) => {
-                          const isSelected = openCodeModels.includes(model.id);
-
-                          return (
-                            <div
-                              className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
-                              key={model.id}
-                            >
-                              <Label
-                                className={cn(
-                                  "truncate pr-3 text-sm",
-                                  isSelected
-                                    ? "text-foreground"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {model.label}
-                              </Label>
-                              <Switch
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked !== isSelected) {
-                                    toggleProviderModel(
-                                      "opencode",
-                                      model.id,
-                                      checked,
-                                    );
-                                  }
-                                }}
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </ProviderStatusCard>
-                  <ProviderStatusCard
-                    action={
-                      <Button
-                        aria-label={settingsT("refreshProvider", {
-                          provider: providerT("cursor"),
-                        })}
-                        disabled={providerModels.cursor.loading}
-                        onClick={handleRefreshCursorProvider}
-                        size="icon-xs"
-                        title={settingsT("refreshProvider", {
-                          provider: providerT("cursor"),
-                        })}
-                        type="button"
-                        variant="ghost"
-                      >
-                        <RotateCw className="size-3.5" />
-                      </Button>
-                    }
-                    enabled={isProviderEnabled("cursor", settings)}
-                    error={getProviderError(providerModels.cursor.error)}
-                    icon={
-                      <CursorIcon
-                        aria-hidden="true"
-                        className="size-4 text-foreground"
-                        role="presentation"
-                      />
-                    }
-                    installed={providerModels.cursor.installed}
-                    label="Cursor"
-                    loading={providerModels.cursor.loading}
-                    onEnabledChange={(enabled) =>
-                      setProviderEnabled("cursor", enabled)
-                    }
-                    runtimeLabel={providerT("cursorAgentCli")}
-                    version={providerModels.cursor.version}
-                  >
-                    <div className="space-y-1.5 rounded-md p-1">
-                      {availableCursorModels.length === 0 ? (
-                        <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                          {settingsT("noCliModels")}
-                        </p>
-                      ) : (
-                        availableCursorModels.map((model) => {
-                          const isSelected = cursorModels.includes(model.id);
-
-                          return (
-                            <div
-                              className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
-                              key={model.id}
-                            >
-                              <Label
-                                className={cn(
-                                  "truncate pr-3 text-sm",
-                                  isSelected
-                                    ? "text-foreground"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {model.label}
-                              </Label>
-                              <Switch
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked !== isSelected) {
-                                    toggleProviderModel(
-                                      "cursor",
-                                      model.id,
-                                      checked,
-                                    );
-                                  }
-                                }}
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </ProviderStatusCard>
-                  <ProviderStatusCard
-                    action={
-                      <Button
-                        aria-label={settingsT("refreshProvider", {
-                          provider: "Grok Build",
-                        })}
-                        disabled={providerModels.grok.loading}
-                        onClick={handleRefreshGrokProvider}
-                        size="icon-xs"
-                        title={settingsT("refreshProvider", {
-                          provider: "Grok Build",
-                        })}
-                        type="button"
-                        variant="ghost"
-                      >
-                        <RotateCw className="size-3.5" />
-                      </Button>
-                    }
-                    enabled={isProviderEnabled("grok", settings)}
-                    error={getProviderError(providerModels.grok.error)}
-                    icon={
-                      <GrokIcon
-                        aria-hidden="true"
-                        className="size-4 text-foreground"
-                        role="presentation"
-                      />
-                    }
-                    installed={providerModels.grok.installed}
-                    label="Grok Build"
-                    loading={providerModels.grok.loading}
-                    onEnabledChange={(enabled) =>
-                      setProviderEnabled("grok", enabled)
-                    }
-                    runtimeLabel="Grok Build CLI"
-                    version={providerModels.grok.version}
-                  >
-                    <div className="space-y-1.5 rounded-md p-1">
-                      {availableGrokModels.length === 0 ? (
-                        <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                          {settingsT("noCliModels")}
-                        </p>
-                      ) : (
-                        availableGrokModels.map((model) => {
-                          const isSelected = grokModels.includes(model.id);
-
-                          return (
-                            <div
-                              className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
-                              key={model.id}
-                            >
-                              <Label
-                                className={cn(
-                                  "truncate pr-3 text-sm",
-                                  isSelected
-                                    ? "text-foreground"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {model.label}
-                              </Label>
-                              <Switch
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked !== isSelected) {
-                                    toggleProviderModel(
-                                      "grok",
-                                      model.id,
-                                      checked,
-                                    );
-                                  }
-                                }}
-                              />
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </ProviderStatusCard>
-                </div>
-              </div>
-            ) : null}
-
-            {settingsSection === "mcp" ? (
-              <McpServersSection setView={setMcpView} view={mcpView} />
-            ) : null}
-
-            {settingsSection === "chats" ? (
-              <div className="space-y-8">
+              {settingsSection === "providers" ? (
                 <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
                       <h3 className="font-medium text-sm">
-                        {settingsT("archivedChats")}
+                        {commonT("providers")}
                       </h3>
-                      <p className="text-muted-foreground text-sm">
-                        {settingsT("archivedChatCount", {
-                          count: deletedChats.length,
-                        })}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        disabled={selectedDeletedChatIds.length === 0}
-                        onClick={handleRestoreSelectedChats}
-                        type="button"
-                        variant="outline"
-                      >
-                        <RotateCcw className="size-4" />
-                        {commonT("restore")}
-                      </Button>
-                      <Button
-                        disabled={selectedDeletedChatIds.length === 0}
-                        onClick={handlePermanentlyDeleteSelectedChats}
-                        type="button"
-                        variant="destructive"
-                      >
-                        <Trash2 className="size-4" />
-                        {commonT("delete")}
-                      </Button>
+                      {providerModels.fetchedAt ? (
+                        <p className="text-muted-foreground text-xs">
+                          {settingsT("lastChecked", {
+                            date: new Date(
+                              providerModels.fetchedAt,
+                            ).toLocaleString(),
+                          })}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
-                  {deletedChats.length === 0 ? (
-                    <div className="flex min-h-[280px] items-center justify-center rounded-md border border-surface-200 dark:border-surface-800">
-                      <p className="text-muted-foreground text-sm">
-                        {settingsT("noArchivedChats")}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="overflow-hidden rounded-md border border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-950">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-10">
-                              <Checkbox
-                                aria-label={settingsT("selectAllArchivedChats")}
-                                checked={allDeletedChatsSelected}
-                                indeterminate={someDeletedChatsSelected}
-                                onCheckedChange={(checked) =>
-                                  toggleAllDeletedChatSelection(checked)
-                                }
-                              />
-                            </TableHead>
-                            <TableHead>{commonT("chat")}</TableHead>
-                            <TableHead>{commonT("project")}</TableHead>
-                            <TableHead className="text-right">
-                              {commonT("archived")}
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {deletedChats.map((chat) => {
-                            const project = projectsById.get(chat.projectId);
-                            const checked = selectedDeletedChatIdSet.has(
-                              chat.id,
+                  {installedProviderCount === 0 ? (
+                    <p className="rounded-md px-3 py-2 text-muted-foreground text-sm">
+                      {settingsT("installProviders")}
+                    </p>
+                  ) : null}
+
+                  <div className="grid gap-3">
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("openai"),
+                          })}
+                          disabled={providerModels.openai.loading}
+                          onClick={handleRefreshOpenAiProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("openai"),
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      enabled={isProviderEnabled("openai", settings)}
+                      error={getProviderError(providerModels.openai.error)}
+                      installed={providerModels.openai.installed}
+                      label="OpenAI"
+                      logoSrc={openAiLogo}
+                      loading={providerModels.openai.loading}
+                      onEnabledChange={(enabled) =>
+                        setProviderEnabled("openai", enabled)
+                      }
+                      runtimeLabel={providerT("codexCli")}
+                      version={providerModels.openai.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableOpenAiModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noCliModels")}
+                          </p>
+                        ) : (
+                          availableOpenAiModels.map((model) => {
+                            const isSelected = openAiModels.includes(model.id);
+
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel(
+                                        "openai",
+                                        model.id,
+                                        checked,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("anthropic"),
+                          })}
+                          disabled={providerModels.anthropic.loading}
+                          onClick={handleRefreshAnthropicProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("anthropic"),
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      enabled={isProviderEnabled("anthropic", settings)}
+                      error={getProviderError(providerModels.anthropic.error)}
+                      installed={providerModels.anthropic.installed}
+                      label="Anthropic"
+                      logoSrc={anthropicLogo}
+                      loading={providerModels.anthropic.loading}
+                      onEnabledChange={(enabled) =>
+                        setProviderEnabled("anthropic", enabled)
+                      }
+                      runtimeLabel={providerT("claudeCodeCli")}
+                      version={providerModels.anthropic.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableAnthropicModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noCliModels")}
+                          </p>
+                        ) : (
+                          availableAnthropicModels.map((model) => {
+                            const isSelected = anthropicModels.includes(
+                              model.id,
                             );
 
                             return (
-                              <TableRow key={chat.id}>
-                                <TableCell>
-                                  <Checkbox
-                                    aria-label={settingsT(
-                                      "selectArchivedChat",
-                                      {
-                                        title: chat.title,
-                                      },
-                                    )}
-                                    checked={checked}
-                                    onCheckedChange={(nextChecked) =>
-                                      toggleDeletedChatSelection(
-                                        chat.id,
-                                        nextChecked === true,
-                                      )
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel(
+                                        "anthropic",
+                                        model.id,
+                                        checked,
+                                      );
                                     }
-                                  />
-                                </TableCell>
-                                <TableCell className="max-w-[320px] truncate font-medium">
-                                  {chat.title}
-                                </TableCell>
-                                <TableCell className="max-w-[280px] truncate text-muted-foreground">
-                                  {project?.name ?? commonT("unknownProject")}
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                  {formatDeletedDate(chat.deletedAt ?? "")}
-                                </TableCell>
-                              </TableRow>
+                                  }}
+                                />
+                              </div>
                             );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("opencode"),
                           })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+                          disabled={providerModels.opencode.loading}
+                          onClick={handleRefreshOpenCodeProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("opencode"),
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      enabled={isProviderEnabled("opencode", settings)}
+                      error={getProviderError(providerModels.opencode.error)}
+                      installed={providerModels.opencode.installed}
+                      label="OpenCode"
+                      logoSrc={openCodeLogo}
+                      loading={providerModels.opencode.loading}
+                      onEnabledChange={(enabled) =>
+                        setProviderEnabled("opencode", enabled)
+                      }
+                      runtimeLabel={providerT("opencodeCli")}
+                      version={providerModels.opencode.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableOpenCodeModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noOpenCodeModels")}
+                          </p>
+                        ) : (
+                          availableOpenCodeModels.map((model) => {
+                            const isSelected = openCodeModels.includes(
+                              model.id,
+                            );
+
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel(
+                                        "opencode",
+                                        model.id,
+                                        checked,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: providerT("cursor"),
+                          })}
+                          disabled={providerModels.cursor.loading}
+                          onClick={handleRefreshCursorProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: providerT("cursor"),
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      enabled={isProviderEnabled("cursor", settings)}
+                      error={getProviderError(providerModels.cursor.error)}
+                      icon={
+                        <CursorIcon
+                          aria-hidden="true"
+                          className="size-4 text-foreground"
+                          role="presentation"
+                        />
+                      }
+                      installed={providerModels.cursor.installed}
+                      label="Cursor"
+                      loading={providerModels.cursor.loading}
+                      onEnabledChange={(enabled) =>
+                        setProviderEnabled("cursor", enabled)
+                      }
+                      runtimeLabel={providerT("cursorAgentCli")}
+                      version={providerModels.cursor.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableCursorModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noCliModels")}
+                          </p>
+                        ) : (
+                          availableCursorModels.map((model) => {
+                            const isSelected = cursorModels.includes(model.id);
+
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel(
+                                        "cursor",
+                                        model.id,
+                                        checked,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: "Grok Build",
+                          })}
+                          disabled={providerModels.grok.loading}
+                          onClick={handleRefreshGrokProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: "Grok Build",
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      enabled={isProviderEnabled("grok", settings)}
+                      error={getProviderError(providerModels.grok.error)}
+                      icon={
+                        <GrokIcon
+                          aria-hidden="true"
+                          className="size-4 text-foreground"
+                          role="presentation"
+                        />
+                      }
+                      installed={providerModels.grok.installed}
+                      label="Grok Build"
+                      loading={providerModels.grok.loading}
+                      onEnabledChange={(enabled) =>
+                        setProviderEnabled("grok", enabled)
+                      }
+                      runtimeLabel="Grok Build CLI"
+                      version={providerModels.grok.version}
+                    >
+                      <div className="space-y-1.5 rounded-md p-1">
+                        {availableGrokModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noCliModels")}
+                          </p>
+                        ) : (
+                          availableGrokModels.map((model) => {
+                            const isSelected = grokModels.includes(model.id);
+
+                            return (
+                              <div
+                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel(
+                                        "grok",
+                                        model.id,
+                                        checked,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+                  </div>
                 </div>
+              ) : null}
 
-                <SettingsGroup>
-                  <SettingsControlRow
-                    controlClassName="md:w-[34rem]"
-                    description={settingsT("archiveInactiveChatsDescription")}
-                    label={settingsT("archiveChatsAfterDays")}
-                  >
-                    <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:justify-end">
-                      <Input
-                        aria-label={settingsT("archiveDays")}
-                        className="w-20"
-                        inputMode="numeric"
-                        onBlur={(event) => {
-                          if (event.currentTarget.value !== "") {
-                            return;
-                          }
+              {settingsSection === "mcp" ? (
+                <McpServersSection setView={setMcpView} view={mcpView} />
+              ) : null}
 
-                          setSettings((previous) => ({
-                            ...previous,
-                            archiveChatsAfterDays: 30,
-                          }));
-                        }}
-                        onChange={(event) => {
-                          const nextValue = event.currentTarget.value;
-                          if (!/^\d+$/.test(nextValue)) {
-                            return;
-                          }
-
-                          setSettings((previous) => ({
-                            ...previous,
-                            archiveChatsAfterDays: Math.max(
-                              1,
-                              Number.parseInt(nextValue, 10),
-                            ),
-                          }));
-                        }}
-                        pattern="[0-9]*"
-                        type="text"
-                        value={settings.archiveChatsAfterDays}
-                      />
-                      <Button
-                        onClick={handleArchiveInactiveChats}
-                        type="button"
-                        variant="outline"
-                      >
-                        <Archive className="size-4" />
-                        {settingsT("archiveNow")}
-                      </Button>
+              {settingsSection === "chats" ? (
+                <div className="space-y-8">
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <h3 className="font-medium text-sm">
+                          {settingsT("archivedChats")}
+                        </h3>
+                        <p className="text-muted-foreground text-sm">
+                          {settingsT("archivedChatCount", {
+                            count: deletedChats.length,
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          disabled={selectedDeletedChatIds.length === 0}
+                          onClick={handleRestoreSelectedChats}
+                          type="button"
+                          variant="outline"
+                        >
+                          <RotateCcw className="size-4" />
+                          {commonT("restore")}
+                        </Button>
+                        <Button
+                          disabled={selectedDeletedChatIds.length === 0}
+                          onClick={handlePermanentlyDeleteSelectedChats}
+                          type="button"
+                          variant="destructive"
+                        >
+                          <Trash2 className="size-4" />
+                          {commonT("delete")}
+                        </Button>
+                      </div>
                     </div>
-                  </SettingsControlRow>
-                </SettingsGroup>
-              </div>
-            ) : null}
+
+                    {deletedChats.length === 0 ? (
+                      <div className="flex min-h-[280px] items-center justify-center rounded-md border border-surface-200 dark:border-surface-800">
+                        <p className="text-muted-foreground text-sm">
+                          {settingsT("noArchivedChats")}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-md border border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-950">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-10">
+                                <Checkbox
+                                  aria-label={settingsT(
+                                    "selectAllArchivedChats",
+                                  )}
+                                  checked={allDeletedChatsSelected}
+                                  indeterminate={someDeletedChatsSelected}
+                                  onCheckedChange={(checked) =>
+                                    toggleAllDeletedChatSelection(checked)
+                                  }
+                                />
+                              </TableHead>
+                              <TableHead>{commonT("chat")}</TableHead>
+                              <TableHead>{commonT("project")}</TableHead>
+                              <TableHead className="text-right">
+                                {commonT("archived")}
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {deletedChats.map((chat) => {
+                              const project = projectsById.get(chat.projectId);
+                              const checked = selectedDeletedChatIdSet.has(
+                                chat.id,
+                              );
+
+                              return (
+                                <TableRow key={chat.id}>
+                                  <TableCell>
+                                    <Checkbox
+                                      aria-label={settingsT(
+                                        "selectArchivedChat",
+                                        {
+                                          title: chat.title,
+                                        },
+                                      )}
+                                      checked={checked}
+                                      onCheckedChange={(nextChecked) =>
+                                        toggleDeletedChatSelection(
+                                          chat.id,
+                                          nextChecked === true,
+                                        )
+                                      }
+                                    />
+                                  </TableCell>
+                                  <TableCell className="max-w-[320px] truncate font-medium">
+                                    {chat.title}
+                                  </TableCell>
+                                  <TableCell className="max-w-[280px] truncate text-muted-foreground">
+                                    {project?.name ?? commonT("unknownProject")}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {formatDeletedDate(chat.deletedAt ?? "")}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+
+                  <SettingsGroup>
+                    <SettingsControlRow
+                      controlClassName="md:w-[34rem]"
+                      description={settingsT("archiveInactiveChatsDescription")}
+                      label={settingsT("archiveChatsAfterDays")}
+                    >
+                      <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:justify-end">
+                        <Input
+                          aria-label={settingsT("archiveDays")}
+                          className="w-20"
+                          inputMode="numeric"
+                          onBlur={(event) => {
+                            if (event.currentTarget.value !== "") {
+                              return;
+                            }
+
+                            setSettings((previous) => ({
+                              ...previous,
+                              archiveChatsAfterDays: 30,
+                            }));
+                          }}
+                          onChange={(event) => {
+                            const nextValue = event.currentTarget.value;
+                            if (!/^\d+$/.test(nextValue)) {
+                              return;
+                            }
+
+                            setSettings((previous) => ({
+                              ...previous,
+                              archiveChatsAfterDays: Math.max(
+                                1,
+                                Number.parseInt(nextValue, 10),
+                              ),
+                            }));
+                          }}
+                          pattern="[0-9]*"
+                          type="text"
+                          value={settings.archiveChatsAfterDays}
+                        />
+                        <Button
+                          onClick={handleArchiveInactiveChats}
+                          type="button"
+                          variant="outline"
+                        >
+                          <Archive className="size-4" />
+                          {settingsT("archiveNow")}
+                        </Button>
+                      </div>
+                    </SettingsControlRow>
+                  </SettingsGroup>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

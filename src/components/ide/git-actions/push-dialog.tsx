@@ -24,13 +24,20 @@ export const PushDialog = ({
   open,
   projectPath,
   status,
+  targetBranch = null,
 }: {
   branch: string | null;
   onCompleted: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   projectPath: string;
+  /** The checked-out branch's status; unused when `targetBranch` is set. */
   status: ProjectGitStatusResponse | null;
+  /**
+   * Pushes this branch by name instead of the checked-out one, e.g. a
+   * finished task's base branch. `branch` should name it too.
+   */
+  targetBranch?: string | null;
 }) => {
   const commonT = useTranslations("common");
   const format = useFormatter();
@@ -42,7 +49,11 @@ export const PushDialog = ({
   );
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const canPush = hasPushableCommits(status);
+  // A named branch is judged by its own preview; the status describes the
+  // checked-out branch.
+  const canPush = targetBranch
+    ? (preview?.totalCommits ?? 0) > 0
+    : hasPushableCommits(status);
 
   useEffect(() => {
     if (!open) {
@@ -65,7 +76,7 @@ export const PushDialog = ({
     void (async () => {
       try {
         const response = await fetch("/api/project-git-push-preview", {
-          body: JSON.stringify({ projectPath }),
+          body: JSON.stringify({ branch: targetBranch, projectPath }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
           signal: controller.signal,
@@ -103,7 +114,7 @@ export const PushDialog = ({
     return () => {
       controller.abort();
     };
-  }, [gitT, open, projectPath]);
+  }, [gitT, open, projectPath, targetBranch]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -118,6 +129,7 @@ export const PushDialog = ({
         await postJson<ProjectGitPushResponse>(
           "/api/project-git-push",
           {
+            branch: targetBranch,
             commitMessage: null,
             includeUnstaged: true,
             nextStep: "push",
@@ -133,7 +145,15 @@ export const PushDialog = ({
         setSubmitting(false);
       }
     },
-    [canPush, gitT, onCompleted, onOpenChange, projectPath, submitting],
+    [
+      canPush,
+      gitT,
+      onCompleted,
+      onOpenChange,
+      projectPath,
+      submitting,
+      targetBranch,
+    ],
   );
 
   return (

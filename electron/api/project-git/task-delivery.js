@@ -1,11 +1,9 @@
-import { getGitRepositoryInfo, gitRefExists, runGitCommand } from "./core.js";
-
-const readConfig = async (repoRoot, key) => {
-  const result = await runGitCommand(repoRoot, ["config", "--get", key], {
-    allowFailure: true,
-  });
-  return result.ok ? result.stdout.trim() : "";
-};
+import {
+  getGitRepositoryInfo,
+  gitRefExists,
+  resolveGitBranchUpstream,
+  runGitCommand,
+} from "./core.js";
 
 const requireRepoRoot = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
@@ -16,27 +14,6 @@ const requireRepoRoot = async (projectPath) => {
 };
 
 /**
- * The remote branch `branch` tracks, as the remote name and the local
- * remote-tracking ref. `null` when the branch tracks nothing, e.g. a
- * repository with no remote.
- */
-const resolveUpstream = async (repoRoot, branch) => {
-  const remote = await readConfig(repoRoot, `branch.${branch}.remote`);
-  const mergeRef = await readConfig(repoRoot, `branch.${branch}.merge`);
-  if (!remote || remote === "." || !mergeRef.startsWith("refs/heads/")) {
-    return null;
-  }
-
-  const remoteBranch = mergeRef.slice("refs/heads/".length);
-  return {
-    ref: `refs/remotes/${remote}/${remoteBranch}`,
-    remote,
-    remoteBranch,
-    upstream: `${remote}/${remoteBranch}`,
-  };
-};
-
-/**
  * Where a branch stands against its remote, from the refs already in the
  * repository: nothing is fetched, so this never touches the network.
  *
@@ -44,8 +21,8 @@ const resolveUpstream = async (repoRoot, branch) => {
  * task wants to know: merging is local, so a task can be done and still exist
  * on one machine only. It is `null` when that cannot be known.
  *
- * The app only reports this. It never pushes: that stays with the user's own
- * git tools, where a push cannot happen by a stray click on a task card.
+ * Reading the status never pushes. The task card pushes through the regular
+ * push dialog, naming the branch (see `pushProjectGitChanges`).
  */
 export const getTaskDeliveryStatus = async (
   projectPath,
@@ -54,7 +31,7 @@ export const getTaskDeliveryStatus = async (
   const repoRoot = await requireRepoRoot(projectPath);
   const branchExists = await gitRefExists(repoRoot, `refs/heads/${branch}`);
   const upstream = branchExists
-    ? await resolveUpstream(repoRoot, branch)
+    ? await resolveGitBranchUpstream(repoRoot, branch)
     : null;
   const upstreamKnown =
     upstream !== null && (await gitRefExists(repoRoot, upstream.ref));

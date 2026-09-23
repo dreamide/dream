@@ -100,10 +100,24 @@ export const TaskBoard = ({
   // Tasks with a step action in flight (e.g. creating the worktree).
   const [busyKeys, setBusyKeys] = useState<Record<string, true>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const selectedTaskInLastColumn = useMemo(
+    () =>
+      selectedTaskId !== null &&
+      entries.find((entry) => entry.task.id === selectedTaskId)?.task.step ===
+        TASK_STEPS[TASK_STEPS.length - 1]?.id,
+    [entries, selectedTaskId],
+  );
 
   useLayoutEffect(() => {
     const scrollArea = scrollAreaRef.current;
     if (!scrollArea || !selectedTaskId) {
+      return;
+    }
+
+    // The last column scrolls fully to the end so the board's right margin
+    // stays visible instead of stopping flush against the card.
+    if (selectedTaskInLastColumn) {
+      scrollArea.scrollLeft = scrollArea.scrollWidth - scrollArea.clientWidth;
       return;
     }
 
@@ -126,7 +140,7 @@ export const TaskBoard = ({
     } else if (bounds.right > right) {
       scrollArea.scrollLeft += bounds.right - right;
     }
-  }, [selectedTaskId]);
+  }, [selectedTaskId, selectedTaskInLastColumn]);
 
   const entriesByStep = useMemo(() => {
     const groups: Record<TaskStepId, TaskEntry[]> = {

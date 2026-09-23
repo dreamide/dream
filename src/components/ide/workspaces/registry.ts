@@ -31,6 +31,8 @@ export const isLegacyTasksWorkspaceView = (value: unknown): boolean =>
   value === "pipeline" || value === "kanban";
 
 export interface AppViewDescriptor {
+  /** Key inside the `workspace` i18n namespace. */
+  descriptionKey: "workspaceCodeDescription" | "workspaceTasksDescription";
   icon: LucideIcon;
   id: AppView;
   /** Key inside the `workspace` i18n namespace. */
@@ -40,6 +42,16 @@ export interface AppViewDescriptor {
 // Intentionally free of component imports so the header switcher can import
 // this without pulling in the full workspace body trees.
 export const APP_VIEW_DESCRIPTORS: readonly AppViewDescriptor[] = [
-  { icon: Code2, id: "code", labelKey: "workspaceCode" },
-  { icon: CircleCheckBig, id: "tasks", labelKey: "workspaceTasks" },
+  {
+    descriptionKey: "workspaceCodeDescription",
+    icon: Code2,
+    id: "code",
+    labelKey: "workspaceCode",
+  },
+  {
+    descriptionKey: "workspaceTasksDescription",
+    icon: CircleCheckBig,
+    id: "tasks",
+    labelKey: "workspaceTasks",
+  },
 ];

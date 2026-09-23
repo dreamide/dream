@@ -30,6 +30,7 @@ import {
   getProjectGitMetadata,
   gitRefExists,
   listProjectGitChanges,
+  resolveGitBranchUpstream,
   runGhCommand,
   runGitCommand,
 } from "./core.js";
@@ -780,15 +781,42 @@ export const commitProjectGitChanges = async (
   };
 };
 
+/**
+ * The branch a push acts on: the checked-out one, or `requestedBranch` by name
+ * (e.g. a finished task's base branch), which need not be checked out.
+ */
+const resolveGitPushBranch = async (repoInfo, requestedBranch) => {
+  const currentBranch = getGitActionBranchName(repoInfo.branch);
+  const branch = normalizeGitActionText(requestedBranch);
+  if (!branch || branch === currentBranch) {
+    if (!currentBranch) {
+      throw new Error("Cannot push from a detached HEAD.");
+    }
+    return { branch: currentBranch, headRef: "HEAD", named: false };
+  }
+
+  if (!(await gitRefExists(repoInfo.repoRoot, `refs/heads/${branch}`))) {
+    throw new Error(`Branch ${branch} does not exist.`);
+  }
+  return { branch, headRef: `refs/heads/${branch}`, named: true };
+};
+
 export const pushProjectGitChanges = async (
   projectPath,
   {
+    branch: requestedBranch = "",
     commitMessage = "",
     customInstructions = "",
     includeUnstaged = true,
     nextStep = "push",
   } = {},
 ) => {
+  const repoInfo = await ensureProjectGitRepository(projectPath);
+  const target = await resolveGitPushBranch(repoInfo, requestedBranch);
+  if (target.named && nextStep === "commit-push") {
+    throw new Error("Only the checked-out branch can be committed and pushed.");
+  }
+
   let commit = null;
   if (nextStep === "commit-push") {
     commit = await commitProjectGitChanges(projectPath, {
@@ -798,18 +826,35 @@ export const pushProjectGitChanges = async (
     });
   }
 
-  const repoInfo = await ensureProjectGitRepository(projectPath);
-  const branch = getGitActionBranchName(repoInfo.branch);
-  if (!branch) {
-    throw new Error("Cannot push from a detached HEAD.");
-  }
-
-  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, branch);
-  const args = metadata.upstreamBranch
-    ? ["push"]
-    : metadata.remoteName
-      ? ["push", "-u", metadata.remoteName, branch]
-      : null;
+  const { branch } = target;
+  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, branch, {
+    named: target.named,
+  });
+  // A named branch is pushed with an explicit refspec to the branch it
+  // tracks, so it does not have to be checked out. Nothing is force-pushed.
+  const upstream = target.named
+    ? await resolveGitBranchUpstream(repoInfo.repoRoot, branch)
+    : null;
+  const args = target.named
+    ? upstream
+      ? [
+          "push",
+          upstream.remote,
+          `refs/heads/${branch}:refs/heads/${upstream.remoteBranch}`,
+        ]
+      : metadata.remoteName
+        ? [
+            "push",
+            "-u",
+            metadata.remoteName,
+            `refs/heads/${branch}:refs/heads/${branch}`,
+          ]
+        : null
+    : metadata.upstreamBranch
+      ? ["push"]
+      : metadata.remoteName
+        ? ["push", "-u", metadata.remoteName, branch]
+        : null;
 
   if (!args) {
     throw new Error("No Git remote is configured for this repository.");
@@ -823,7 +868,9 @@ export const pushProjectGitChanges = async (
     commit,
     pushed: true,
     status,
-    upstreamBranch: status.upstreamBranch,
+    upstreamBranch: target.named
+      ? (upstream?.upstream ?? `${metadata.remoteName}/${branch}`)
+      : status.upstreamBranch,
   };
 };
 
@@ -899,14 +946,17 @@ export const readGitPushPreviewCommits = async (repoRoot, rangeRef) => {
     .map(parseGitPushPreviewCommit);
 };
 
-export const getProjectGitPushPreview = async (projectPath) => {
+export const getProjectGitPushPreview = async (
+  projectPath,
+  { branch: requestedBranch = "" } = {},
+) => {
   const repoInfo = await ensureProjectGitRepository(projectPath);
-  const branch = getGitActionBranchName(repoInfo.branch);
-  if (!branch) {
-    throw new Error("Cannot push from a detached HEAD.");
-  }
+  const target = await resolveGitPushBranch(repoInfo, requestedBranch);
+  const { branch } = target;
 
-  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, branch);
+  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, branch, {
+    named: target.named,
+  });
   if (!metadata.upstreamBranch && !metadata.remoteName) {
     throw new Error("No Git remote is configured for this repository.");
   }
@@ -927,7 +977,12 @@ export const getProjectGitPushPreview = async (projectPath) => {
       metadata.remoteName,
       metadata.baseBranch,
     ));
-  const rangeRef = baseRef ? `${baseRef}..HEAD` : null;
+  // Without a base, the whole history of the pushed branch is new.
+  const rangeRef = baseRef
+    ? `${baseRef}..${target.headRef}`
+    : target.named
+      ? target.headRef
+      : null;
   const [commits, totalCommits] = await Promise.all([
     readGitPushPreviewCommits(repoInfo.repoRoot, rangeRef),
     readGitCommitCount(repoInfo.repoRoot, rangeRef),

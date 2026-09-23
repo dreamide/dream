@@ -1,6 +1,14 @@
+import { GitMerge } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+/** GitHub's "merged" purple, shared by the delivery and pull request badges. */
+export const MERGED_BADGE_CLASS_NAME =
+  "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400";
+const NOT_PUSHED_BADGE_CLASS_NAME =
+  "border-warning-border bg-warning-surface text-warning-foreground";
 
 /** What GitHub says about the task branch's pull request, via `gh`. */
 export interface TaskPullRequest {
@@ -47,9 +55,14 @@ export const useTaskDelivery = ({
   taskBranch?: string | null;
 }): TaskDeliveryStatus | null => {
   const [status, setStatus] = useState<TaskDeliveryStatus | null>(null);
+  // What the shown status describes. A refresh of the same thing keeps the
+  // last answer on screen until the new one arrives, instead of blanking the
+  // badge for the length of the round trip (the PR lookup goes to GitHub).
+  const subjectRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!enabled || !branch || !projectPath) {
+      subjectRef.current = null;
       setStatus(null);
       return;
     }
@@ -91,7 +104,11 @@ export const useTaskDelivery = ({
       }
     };
     void refreshKey;
-    setStatus(null);
+    const subject = JSON.stringify([projectPath, branch, commit, taskBranch]);
+    if (subjectRef.current !== subject) {
+      subjectRef.current = subject;
+      setStatus(null);
+    }
     void refresh();
     const onFocus = () => {
       void refresh();
@@ -148,16 +165,20 @@ export const TaskDeliveryBadge = ({
   const t = useTranslations("tasks");
   const stateText = useDeliveryStateText(status);
   return (
-    <div
-      className={cn(
-        "mt-2 truncate text-xs",
-        status.pushed
-          ? "text-muted-foreground"
-          : "text-amber-600 dark:text-amber-400",
-      )}
-      title={stateText}
-    >
-      {status.pushed ? t("deliveryPushed") : t("deliveryNotPushed")}
+    <div className="mt-2 flex min-w-0">
+      <Badge
+        className={cn(
+          "h-4 max-w-full px-1.5 text-[10px]",
+          status.pushed ? MERGED_BADGE_CLASS_NAME : NOT_PUSHED_BADGE_CLASS_NAME,
+        )}
+        title={stateText}
+        variant="outline"
+      >
+        <GitMerge />
+        <span className="truncate">
+          {status.pushed ? t("deliveryPushed") : t("deliveryNotPushed")}
+        </span>
+      </Badge>
     </div>
   );
 };

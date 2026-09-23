@@ -2,7 +2,7 @@ import { GitPullRequest } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { TaskPullRequest } from "./task-delivery";
+import { MERGED_BADGE_CLASS_NAME, type TaskPullRequest } from "./task-delivery";
 
 // GitHub's own colours for each state, so the badge reads at a glance.
 const PULL_REQUEST_STATES = {
@@ -16,8 +16,7 @@ const PULL_REQUEST_STATES = {
     labelKey: "prStateDraft",
   },
   merged: {
-    className:
-      "border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-950 dark:text-purple-400",
+    className: MERGED_BADGE_CLASS_NAME,
     labelKey: "prStateMerged",
   },
   open: {

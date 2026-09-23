@@ -725,11 +725,11 @@ export const registerProjectGitRoutes = (app) => {
       return c.text(parsed.error.message, 400);
     }
 
-    const { projectPath } = parsed.data;
+    const { branch, projectPath } = parsed.data;
 
     try {
       await ensureProjectDirectory(projectPath);
-      return c.json(await getProjectGitPushPreview(projectPath));
+      return c.json(await getProjectGitPushPreview(projectPath, { branch }));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to preview push.";

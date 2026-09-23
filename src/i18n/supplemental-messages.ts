@@ -2,7 +2,11 @@ export const supplementalMessages = {
   de: {
     workspace: {
       workspaceCode: "Code",
+      workspaceCodeDescription:
+        "Mit Agenten in deinen Projekten chatten und Code bearbeiten",
       workspaceTasks: "Aufgaben",
+      workspaceTasksDescription:
+        "Aufgaben über eine Pipeline planen, bauen und ausliefern",
       workspaces: "Arbeitsbereiche",
     },
     tasks: {
@@ -59,6 +63,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} verfolgt keinen Remote-Branch",
       deliveryPushed: "Gemergt · gepusht",
       deliveryNotPushed: "Gemergt · nicht gepusht",
+      pushBranch: "{branch} pushen",
       discardWork: "Arbeit verwerfen…",
       statusWorktreeMissing: "Worktree fehlt",
       recreateWorktree: "Worktree neu erstellen",
@@ -624,7 +629,11 @@ export const supplementalMessages = {
   en: {
     workspace: {
       workspaceCode: "Code",
+      workspaceCodeDescription:
+        "Chat with agents and edit code in your projects",
       workspaceTasks: "Tasks",
+      workspaceTasksDescription:
+        "Plan, build, and ship tasks through a pipeline",
       workspaces: "Workspaces",
     },
     tasks: {
@@ -680,6 +689,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} does not track a remote branch",
       deliveryPushed: "Merged · pushed",
       deliveryNotPushed: "Merged · not pushed",
+      pushBranch: "Push {branch}",
       discardWork: "Discard work…",
       statusWorktreeMissing: "Worktree missing",
       recreateWorktree: "Recreate worktree",
@@ -1231,7 +1241,11 @@ export const supplementalMessages = {
   es: {
     workspace: {
       workspaceCode: "Código",
+      workspaceCodeDescription:
+        "Chatea con agentes y edita código en tus proyectos",
       workspaceTasks: "Tareas",
+      workspaceTasksDescription:
+        "Planifica, construye y entrega tareas a través de un pipeline",
       workspaces: "Espacios de trabajo",
     },
     tasks: {
@@ -1289,6 +1303,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} no sigue ninguna rama remota",
       deliveryPushed: "Fusionado · enviado",
       deliveryNotPushed: "Fusionado · sin enviar",
+      pushBranch: "Enviar {branch}",
       discardWork: "Descartar trabajo…",
       statusWorktreeMissing: "Falta el worktree",
       recreateWorktree: "Recrear worktree",
@@ -1849,7 +1864,11 @@ export const supplementalMessages = {
   fr: {
     workspace: {
       workspaceCode: "Code",
+      workspaceCodeDescription:
+        "Discutez avec des agents et modifiez le code de vos projets",
       workspaceTasks: "Tâches",
+      workspaceTasksDescription:
+        "Planifiez, construisez et livrez des tâches via un pipeline",
       workspaces: "Espaces de travail",
     },
     tasks: {
@@ -1907,6 +1926,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} ne suit aucune branche distante",
       deliveryPushed: "Fusionné · poussé",
       deliveryNotPushed: "Fusionné · non poussé",
+      pushBranch: "Pousser {branch}",
       discardWork: "Abandonner le travail…",
       statusWorktreeMissing: "Worktree manquant",
       recreateWorktree: "Recréer le worktree",
@@ -2468,7 +2488,11 @@ export const supplementalMessages = {
   it: {
     workspace: {
       workspaceCode: "Codice",
+      workspaceCodeDescription:
+        "Chatta con gli agenti e modifica il codice nei tuoi progetti",
       workspaceTasks: "Attività",
+      workspaceTasksDescription:
+        "Pianifica, sviluppa e rilascia attività attraverso una pipeline",
       workspaces: "Aree di lavoro",
     },
     tasks: {
@@ -2526,6 +2550,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} non segue alcun ramo remoto",
       deliveryPushed: "Unito · inviato",
       deliveryNotPushed: "Unito · non inviato",
+      pushBranch: "Invia {branch}",
       discardWork: "Scarta lavoro…",
       statusWorktreeMissing: "Worktree mancante",
       recreateWorktree: "Ricrea worktree",
@@ -3087,7 +3112,10 @@ export const supplementalMessages = {
   ja: {
     workspace: {
       workspaceCode: "コード",
+      workspaceCodeDescription:
+        "プロジェクトでエージェントとチャットしてコードを編集",
       workspaceTasks: "タスク",
+      workspaceTasksDescription: "パイプラインでタスクを計画・構築・リリース",
       workspaces: "ワークスペース",
     },
     tasks: {
@@ -3145,6 +3173,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} はリモートブランチを追跡していません",
       deliveryPushed: "マージ済み · プッシュ済み",
       deliveryNotPushed: "マージ済み · 未プッシュ",
+      pushBranch: "{branch} をプッシュ",
       discardWork: "作業を破棄…",
       statusWorktreeMissing: "ワークツリーがありません",
       recreateWorktree: "ワークツリーを再作成",
@@ -3697,7 +3726,9 @@ export const supplementalMessages = {
   ko: {
     workspace: {
       workspaceCode: "코드",
+      workspaceCodeDescription: "프로젝트에서 에이전트와 채팅하고 코드를 편집",
       workspaceTasks: "작업",
+      workspaceTasksDescription: "파이프라인으로 작업을 계획, 빌드, 배포",
       workspaces: "워크스페이스",
     },
     tasks: {
@@ -3754,6 +3785,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch}은(는) 원격 브랜치를 추적하지 않습니다",
       deliveryPushed: "병합됨 · 푸시됨",
       deliveryNotPushed: "병합됨 · 푸시 안 됨",
+      pushBranch: "{branch} 푸시",
       discardWork: "작업 폐기…",
       statusWorktreeMissing: "워크트리 없음",
       recreateWorktree: "워크트리 다시 만들기",
@@ -4297,7 +4329,11 @@ export const supplementalMessages = {
   pt: {
     workspace: {
       workspaceCode: "Código",
+      workspaceCodeDescription:
+        "Converse com agentes e edite o código dos seus projetos",
       workspaceTasks: "Tarefas",
+      workspaceTasksDescription:
+        "Planeje, construa e entregue tarefas por meio de um pipeline",
       workspaces: "Espaços de trabalho",
     },
     tasks: {
@@ -4354,6 +4390,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} não acompanha nenhum branch remoto",
       deliveryPushed: "Mesclado · enviado",
       deliveryNotPushed: "Mesclado · não enviado",
+      pushBranch: "Enviar {branch}",
       discardWork: "Descartar trabalho…",
       statusWorktreeMissing: "Worktree ausente",
       recreateWorktree: "Recriar worktree",
@@ -4909,7 +4946,11 @@ export const supplementalMessages = {
   vi: {
     workspace: {
       workspaceCode: "Mã",
+      workspaceCodeDescription:
+        "Trò chuyện với agent và sửa mã trong dự án của bạn",
       workspaceTasks: "Tác vụ",
+      workspaceTasksDescription:
+        "Lập kế hoạch, xây dựng và phát hành tác vụ qua một pipeline",
       workspaces: "Không gian làm việc",
     },
     tasks: {
@@ -4966,6 +5007,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} không theo dõi nhánh từ xa nào",
       deliveryPushed: "Đã gộp · đã push",
       deliveryNotPushed: "Đã gộp · chưa push",
+      pushBranch: "Push {branch}",
       discardWork: "Hủy bỏ công việc…",
       statusWorktreeMissing: "Thiếu worktree",
       recreateWorktree: "Tạo lại worktree",
@@ -5515,7 +5557,9 @@ export const supplementalMessages = {
   "zh-Hans": {
     workspace: {
       workspaceCode: "代码",
+      workspaceCodeDescription: "在项目中与智能体聊天并编辑代码",
       workspaceTasks: "任务",
+      workspaceTasksDescription: "通过流水线规划、构建和交付任务",
       workspaces: "工作区",
     },
     tasks: {
@@ -5570,6 +5614,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} 未跟踪远程分支",
       deliveryPushed: "已合并 · 已推送",
       deliveryNotPushed: "已合并 · 未推送",
+      pushBranch: "推送 {branch}",
       discardWork: "放弃工作…",
       statusWorktreeMissing: "工作树缺失",
       recreateWorktree: "重新创建工作树",
@@ -6099,7 +6144,9 @@ export const supplementalMessages = {
   "zh-Hant": {
     workspace: {
       workspaceCode: "程式碼",
+      workspaceCodeDescription: "在專案中與代理聊天並編輯程式碼",
       workspaceTasks: "任務",
+      workspaceTasksDescription: "透過管線規劃、建置和交付任務",
       workspaces: "工作區",
     },
     tasks: {
@@ -6154,6 +6201,7 @@ export const supplementalMessages = {
       deliveryNoUpstream: "{branch} 未追蹤遠端分支",
       deliveryPushed: "已合併 · 已推送",
       deliveryNotPushed: "已合併 · 未推送",
+      pushBranch: "推送 {branch}",
       discardWork: "放棄工作…",
       statusWorktreeMissing: "工作樹遺失",
       recreateWorktree: "重新建立工作樹",

@@ -147,6 +147,8 @@ export const projectGitTaskDeliveryRequestSchema = z.object({
 });
 
 export const projectGitPushRequestSchema = z.object({
+  /** Pushes this branch by name; the checked-out branch when omitted. */
+  branch: nullableTrimmedStringSchema,
   commitMessage: nullableTrimmedStringSchema,
   customInstructions: nullableTrimmedStringSchema,
   includeUnstaged: z.boolean().default(true),
@@ -155,6 +157,8 @@ export const projectGitPushRequestSchema = z.object({
 });
 
 export const projectGitPushPreviewRequestSchema = z.object({
+  /** Previews this branch; the checked-out branch when omitted. */
+  branch: nullableTrimmedStringSchema,
   projectPath: z.string().min(1),
 });
 
