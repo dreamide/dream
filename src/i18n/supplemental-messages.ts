@@ -98,7 +98,7 @@ export const supplementalMessages = {
       inheritModel: "Projektstandard verwenden",
       speedLabel: "Geschwindigkeit",
       permissionHint:
-        "Mit Standardberechtigungen oder im Planmodus kann der Agent für eine Freigabe anhalten; die Aufgabe wartet, bis du im Chat antwortest.",
+        "Mit „Nachfragen“ oder „Änderungen akzeptieren“ kann der Agent eine Freigabe anfordern; die Aufgabe wartet auf deine Antwort im Chat.",
       autoAdvance: "Automatisch fortfahren",
       autoAdvanceHint:
         "Zum nächsten Schritt wechseln, wenn der Agent normal fertig wird. Fehlgeschlagene, unterbrochene oder wartende Durchläufe rücken nie vor.",
@@ -722,7 +722,7 @@ export const supplementalMessages = {
       inheritModel: "Use project default",
       speedLabel: "Speed",
       permissionHint:
-        "With standard permissions or plan mode the agent may stop to ask for approval, and the task waits until you answer in the chat.",
+        "With Ask or Accept edits, the agent may request approval. The task waits until you answer in the chat.",
       autoAdvance: "Advance automatically",
       autoAdvanceHint:
         "Move to the next step when the agent finishes normally. Failed, interrupted or waiting turns never advance.",
@@ -1334,7 +1334,7 @@ export const supplementalMessages = {
       inheritModel: "Usar el predeterminado del proyecto",
       speedLabel: "Velocidad",
       permissionHint:
-        "Con permisos estándar o en modo plan, el agente puede detenerse para pedir aprobación y la tarea espera hasta que respondas en el chat.",
+        "Con Preguntar o Aceptar ediciones, el agente puede solicitar aprobación. La tarea espera tu respuesta en el chat.",
       autoAdvance: "Avanzar automáticamente",
       autoAdvanceHint:
         "Pasa al siguiente paso cuando el agente termina con normalidad. Los turnos fallidos, interrumpidos o en espera nunca avanzan.",
@@ -1955,7 +1955,7 @@ export const supplementalMessages = {
       inheritModel: "Utiliser la valeur par défaut du projet",
       speedLabel: "Vitesse",
       permissionHint:
-        "Avec les autorisations standard ou en mode plan, l'agent peut s'arrêter pour demander une approbation ; la tâche attend votre réponse dans le chat.",
+        "Avec Demander ou Accepter les modifications, l’agent peut demander une approbation. La tâche attend votre réponse dans le chat.",
       autoAdvance: "Avancer automatiquement",
       autoAdvanceHint:
         "Passe à l'étape suivante lorsque l'agent termine normalement. Les tours échoués, interrompus ou en attente n'avancent jamais.",
@@ -2577,7 +2577,7 @@ export const supplementalMessages = {
       inheritModel: "Usa il predefinito del progetto",
       speedLabel: "Velocità",
       permissionHint:
-        "Con i permessi standard o in modalità piano l'agente può fermarsi per chiedere l'approvazione; l'attività attende la tua risposta nella chat.",
+        "Con Chiedi o Accetta modifiche, l’agente può chiedere approvazione. L’attività attende la tua risposta nella chat.",
       autoAdvance: "Avanza automaticamente",
       autoAdvanceHint:
         "Passa al passaggio successivo quando l'agente termina normalmente. I turni falliti, interrotti o in attesa non avanzano mai.",
@@ -3199,7 +3199,7 @@ export const supplementalMessages = {
       inheritModel: "プロジェクトの既定を使用",
       speedLabel: "速度",
       permissionHint:
-        "標準の権限またはプランモードでは、エージェントが承認を求めて停止することがあり、チャットで回答するまでタスクは待機します。",
+        "「確認する」または「編集を承認」では、エージェントが承認を求めることがあります。チャットで回答するまでタスクは待機します。",
       autoAdvance: "自動で進める",
       autoAdvanceHint:
         "エージェントが正常に終了したら次のステップへ進みます。失敗・中断・待機中のターンでは進みません。",
@@ -3811,7 +3811,7 @@ export const supplementalMessages = {
       inheritModel: "프로젝트 기본값 사용",
       speedLabel: "속도",
       permissionHint:
-        "표준 권한이나 계획 모드에서는 에이전트가 승인을 요청하며 멈출 수 있고, 채팅에서 답할 때까지 작업이 대기합니다.",
+        "물어보기 또는 편집 승인에서는 에이전트가 승인을 요청할 수 있습니다. 채팅에서 답할 때까지 작업이 대기합니다.",
       autoAdvance: "자동으로 진행",
       autoAdvanceHint:
         "에이전트가 정상적으로 끝나면 다음 단계로 이동합니다. 실패, 중단 또는 대기 중인 턴은 진행되지 않습니다.",
@@ -4414,7 +4414,7 @@ export const supplementalMessages = {
       inheritModel: "Usar padrão do projeto",
       speedLabel: "Velocidade",
       permissionHint:
-        "Com permissões padrão ou no modo plano, o agente pode parar para pedir aprovação, e a tarefa aguarda até você responder no chat.",
+        "Com Perguntar ou Aceitar edições, o agente pode solicitar aprovação. A tarefa aguarda sua resposta no chat.",
       autoAdvance: "Avançar automaticamente",
       autoAdvanceHint:
         "Passa para a próxima etapa quando o agente termina normalmente. Turnos com falha, interrompidos ou em espera nunca avançam.",
@@ -5029,7 +5029,7 @@ export const supplementalMessages = {
       inheritModel: "Dùng mặc định của dự án",
       speedLabel: "Tốc độ",
       permissionHint:
-        "Với quyền tiêu chuẩn hoặc chế độ lập kế hoạch, tác nhân có thể dừng lại để xin phê duyệt và tác vụ sẽ chờ đến khi bạn trả lời trong cuộc trò chuyện.",
+        "Với Hỏi hoặc Chấp nhận chỉnh sửa, tác nhân có thể yêu cầu phê duyệt. Tác vụ chờ bạn trả lời trong cuộc trò chuyện.",
       autoAdvance: "Tự động chuyển tiếp",
       autoAdvanceHint:
         "Chuyển sang bước tiếp theo khi tác nhân kết thúc bình thường. Các lượt thất bại, bị gián đoạn hoặc đang chờ sẽ không bao giờ chuyển tiếp.",
@@ -5636,7 +5636,7 @@ export const supplementalMessages = {
       inheritModel: "使用项目默认值",
       speedLabel: "速度",
       permissionHint:
-        "在标准权限或计划模式下，代理可能会停下来请求批准，任务会一直等待，直到你在聊天中回复。",
+        "在“询问”或“接受编辑”下，代理可能会请求批准。任务会等待你在聊天中回复。",
       autoAdvance: "自动推进",
       autoAdvanceHint:
         "代理正常完成后进入下一步。失败、中断或等待中的轮次不会推进。",
@@ -6223,7 +6223,7 @@ export const supplementalMessages = {
       inheritModel: "使用專案預設值",
       speedLabel: "速度",
       permissionHint:
-        "在標準權限或規劃模式下，代理可能會停下來要求核准，任務會持續等待，直到你在聊天中回覆。",
+        "在「詢問」或「接受編輯」下，代理可能會要求核准。任務會等待你在聊天中回覆。",
       autoAdvance: "自動推進",
       autoAdvanceHint:
         "代理正常完成後進入下一步。失敗、中斷或等待中的回合不會推進。",

@@ -141,6 +141,8 @@
     "model": "Model",
     "permissions": "Permissions",
     "plan": "Plan",
+    "askPermissions": "Ask",
+    "acceptEdits": "Accept edits",
     "standardPermissions": "Standard",
     "back": "Back",
     "branchingUnavailableWhileProcessing": "Wait for the current response to finish before branching.",

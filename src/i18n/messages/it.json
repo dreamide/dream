@@ -141,6 +141,8 @@
     "model": "Modello",
     "permissions": "Permessi",
     "plan": "Pianifica",
+    "askPermissions": "Chiedi",
+    "acceptEdits": "Accetta modifiche",
     "standardPermissions": "Standard",
     "back": "Indietro",
     "branchingUnavailableWhileProcessing": "Attendi il completamento della risposta corrente prima di creare un ramo.",

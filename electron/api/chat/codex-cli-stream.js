@@ -224,7 +224,7 @@ const buildFileChangeOutput = async ({ item, projectPath }) => {
 
 export const streamCodexCliResponse = ({
   abortSignal,
-  codexPermissionMode,
+  permissionMode,
   messages,
   model,
   modelSpeed,
@@ -575,7 +575,7 @@ export const streamCodexCliResponse = ({
             : fullPrompt;
           const args = buildCodexExecArgs({
             addDirs: preparedAttachments?.addDirs ?? [],
-            codexPermissionMode,
+            permissionMode,
             imagePaths: preparedAttachments?.imagePaths ?? [],
             model,
             modelSpeed,

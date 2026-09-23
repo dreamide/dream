@@ -9,7 +9,6 @@ import {
   getTaskReviewVerdict,
   getTaskStepPrompt,
   renderTaskPrompt,
-  TASK_STEP_AGENT_MODE,
   TASK_STEP_IDS,
 } from "@/lib/task-defaults";
 import type {
@@ -470,7 +469,7 @@ export const createTaskActions = (
       const agent = resolveTaskStepAgent(config, hostProject, state.settings);
       nextChat = createChatConfig(hostProject, {
         ...agent,
-        agentMode: TASK_STEP_AGENT_MODE[step],
+
         permissionMode: config.permissionMode,
         taskId: task.id,
         title: `${STEP_TITLE_PREFIX[step]}: ${title}`,

@@ -588,7 +588,6 @@ export const ChatPanel = ({
         ) : null}
 
         <ChatComposer
-          agentMode={chat.agentMode}
           allModelOptions={allModelOptions}
           chatProvider={chat.provider}
           contextWindow={contextWindow}
@@ -598,12 +597,6 @@ export const ChatPanel = ({
           isProcessing={isProcessing}
           isProviderInstalled={isProviderInstalled}
           modelId={modelId}
-          onAgentModeChange={(agentMode) => {
-            updateChat(chat.id, (current) => ({
-              ...current,
-              agentMode,
-            }));
-          }}
           onModelChange={(nextOption) => {
             updateChat(chat.id, (current) => ({
               ...current,

@@ -31,9 +31,9 @@ import {
 } from "./schema.js";
 
 const CLAUDE_PERMISSION_MODE_MAP = {
-  "ask-permissions": "default",
-  "accept-edits": "acceptEdits",
-  "bypass-permissions": "bypassPermissions",
+  ask: "default",
+  "auto-accept-edits": "acceptEdits",
+  "full-access": "bypassPermissions",
 };
 
 const appendClaudeAttachmentTextToLatestUserMessage = (messages) => {
@@ -67,7 +67,6 @@ const appendClaudeAttachmentTextToLatestUserMessage = (messages) => {
 
 const CLAUDE_ACCEPT_EDITS_ALLOWED_TOOLS = new Set([
   "edit",
-  "exitplanmode",
   "glob",
   "grep",
   "ls",
@@ -92,15 +91,11 @@ const CLAUDE_BUILT_IN_TOOLS = [
   "WebFetch",
   "WebSearch",
   "NotebookEdit",
-  "EnterPlanMode",
   "AskUserQuestion",
-  "ExitPlanMode",
 ];
 
-const CLAUDE_ALLOWED_TOOLS = [...CLAUDE_BUILT_IN_TOOLS];
-
 const CLAUDE_PRELOADED_TOOL_NAMES = new Set(
-  CLAUDE_ALLOWED_TOOLS.map((toolName) => normalizeClaudeToolName(toolName)),
+  CLAUDE_BUILT_IN_TOOLS.map((toolName) => normalizeClaudeToolName(toolName)),
 );
 
 // Dream's chat transport is scoped to one request. Claude background agents can
@@ -128,9 +123,8 @@ export const keepClaudeAgentAttachedToTurn = (toolName, input) => {
 };
 
 // PreToolUse hook wrapper for keepClaudeAgentAttachedToTurn. The canUseTool
-// rewrite only runs when the SDK asks for permission, but Agent/Task is in
-// `allowedTools` (and bypass mode skips permissions entirely), so the callback
-// never fires for it. Hooks run before permission evaluation in every mode.
+// rewrite only runs when the SDK asks for permission. Bypass mode and user
+// allow rules can skip that callback; hooks run before permission evaluation.
 export const createClaudeAgentAttachmentHook = () => {
   return async (hookInput) => {
     const toolInput = hookInput?.tool_input;
@@ -285,9 +279,6 @@ export const createClaudePermissionHandler = (
     ) {
       return {
         behavior: "allow",
-        ...(options?.suggestions
-          ? { updatedPermissions: options.suggestions }
-          : {}),
         ...(toolUseID ? { toolUseID } : {}),
         updatedInput: attachedInput,
       };
@@ -296,28 +287,8 @@ export const createClaudePermissionHandler = (
     if (normalizedToolName !== "askuserquestion" && mode === "bypass") {
       return {
         behavior: "allow",
-        ...(options?.suggestions
-          ? { updatedPermissions: options.suggestions }
-          : {}),
         ...(toolUseID ? { toolUseID } : {}),
         updatedInput: attachedInput,
-      };
-    }
-
-    if (
-      normalizedToolName !== "askuserquestion" &&
-      mode === "accept-edits" &&
-      // MCP tools are neither reads nor edits; let them fall through to the
-      // interactive approval prompt instead of hard-denying them. Check the
-      // raw name because normalization strips the `mcp__` separators.
-      !String(toolName ?? "").startsWith("mcp__")
-    ) {
-      return {
-        behavior: "deny",
-        interrupt: false,
-        message:
-          "Accept edits only auto-approves file read and edit tools. Switch to Bypass permissions to allow this action.",
-        ...(toolUseID ? { toolUseID } : {}),
       };
     }
 
@@ -465,8 +436,7 @@ const parseAskUserQuestionApproval = (reason) => {
 };
 
 export const streamClaudeResponse = async ({
-  agentMode,
-  claudePermissionMode,
+  permissionMode,
   mcpServers = [],
   messages,
   model,
@@ -483,13 +453,11 @@ export const streamClaudeResponse = async ({
   const usesReasoningModel =
     getModelReasoningEfforts("anthropic", model).length > 0;
   const claudePermissionHandlerMode =
-    agentMode === "plan"
-      ? "ask"
-      : claudePermissionMode === "accept-edits"
-        ? "accept-edits"
-        : claudePermissionMode === "bypass-permissions"
-          ? "bypass"
-          : "ask";
+    permissionMode === "auto-accept-edits"
+      ? "accept-edits"
+      : permissionMode === "full-access"
+        ? "bypass"
+        : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
   let claudeCompactionId = null;
   let resumeSessionId = null;
@@ -574,10 +542,8 @@ export const streamClaudeResponse = async ({
         ],
       },
       // `tools` controls the catalog shown to the model; `allowedTools` only
-      // controls permission. Declare built-ins explicitly so plan-mode tools
-      // are available directly instead of being discovered via ToolSearch.
+      // controls permission. Do not pre-allow tools: Ask must reach canUseTool.
       tools: CLAUDE_BUILT_IN_TOOLS,
-      allowedTools: CLAUDE_ALLOWED_TOOLS,
       // Only Dream-managed MCP servers are loaded; strict mode keeps the
       // user's ~/.claude.json and project .mcp.json entries out of scope
       // (users import those explicitly from Settings > MCP servers).
@@ -588,11 +554,8 @@ export const streamClaudeResponse = async ({
       // (e.g. attribution overrides), project .claude/ settings, and CLAUDE.md
       // are honored, matching Claude Code CLI behavior.
       settingSources: ["user", "project", "local"],
-      permissionMode:
-        agentMode === "plan"
-          ? "plan"
-          : CLAUDE_PERMISSION_MODE_MAP[claudePermissionMode],
-      ...(agentMode !== "plan" && claudePermissionMode === "bypass-permissions"
+      permissionMode: CLAUDE_PERMISSION_MODE_MAP[permissionMode] ?? "default",
+      ...(permissionMode === "full-access"
         ? { allowDangerouslySkipPermissions: true }
         : {}),
       ...(usesReasoningModel

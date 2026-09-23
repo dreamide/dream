@@ -1,5 +1,4 @@
 import type {
-  AgentMode,
   Task,
   TaskConfig,
   TaskRunStepId,
@@ -71,7 +70,7 @@ export const DEFAULT_TASK_PROMPTS: Record<TaskRunStepId, string> = {
 
 {{feedback}}
 
-Explore the repository and produce a concrete implementation plan: the files to change, the changes to make, tests to add or update, and risks. Do not modify any files. Do not call ExitPlanMode. End your reply with the complete plan as your final message, because the next step only sees that message.`,
+Explore the repository and produce a concrete implementation plan: the files to change, the changes to make, tests to add or update, and risks. Do not modify any files. End your reply with the complete plan as your final message, because the next step only sees that message.`,
   build: `You are the build step of a task pipeline. Implement this task in the current working tree (branch {{branch}}).
 
 # {{task.title}}
@@ -107,44 +106,29 @@ Finish with a short readiness summary.`,
 
 export const DEFAULT_TASK_CONFIG: TaskConfig = {
   plan: {
-    agentMode: "plan",
     autoAdvance: false,
     model: null,
     permissionMode: "full-access",
     prompt: null,
   },
   build: {
-    agentMode: "build",
     autoAdvance: true,
     model: null,
     permissionMode: "full-access",
     prompt: null,
   },
   review: {
-    agentMode: "build",
     autoAdvance: false,
     model: null,
     permissionMode: "full-access",
     prompt: null,
   },
   merge: {
-    agentMode: "build",
     autoAdvance: false,
     model: null,
     permissionMode: "full-access",
     prompt: null,
   },
-};
-
-/**
- * Only planning uses provider plan mode. Review runs in normal mode with
- * instructions not to edit, avoiding the provider's plan approval workflow.
- */
-export const TASK_STEP_AGENT_MODE: Record<TaskRunStepId, AgentMode> = {
-  build: DEFAULT_TASK_CONFIG.build.agentMode,
-  merge: DEFAULT_TASK_CONFIG.merge.agentMode,
-  plan: DEFAULT_TASK_CONFIG.plan.agentMode,
-  review: DEFAULT_TASK_CONFIG.review.agentMode,
 };
 
 export const createDefaultTaskConfig = (): TaskConfig => ({

@@ -1,5 +1,5 @@
 import type { ChatStatus, LanguageModelUsage } from "ai";
-import { Bot, MapIcon, Shield, ShieldAlert, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type ChangeEventHandler,
@@ -37,6 +37,7 @@ import {
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
+import { PermissionSelector } from "@/components/ide/chat/permission-selector";
 import {
   Select,
   SelectContent,
@@ -54,7 +55,6 @@ import {
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type {
-  AgentMode,
   AiProvider,
   ChatPermissionMode,
   ModelSpeed,
@@ -62,7 +62,6 @@ import type {
   ReasoningEffort,
 } from "@/types/ide";
 import { PromptAttachments } from "../chat";
-import { AGENT_MODE_OPTIONS } from "../ide-types";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
 import type { ChatTodoSummary } from "./todo-list";
 import { TodoListPopover } from "./todo-list-popover";
@@ -100,8 +99,6 @@ type ActiveReferenceToken = {
 
 const PROJECT_REFERENCE_RESULT_LIMIT = 8;
 const PROJECT_REFERENCE_FILE_LIMIT = 2500;
-
-const getAgentModeIcon = (mode: AgentMode) => (mode === "plan" ? MapIcon : Bot);
 
 const normalizeProjectPath = (path: string) => path.replace(/\\/g, "/");
 
@@ -519,7 +516,6 @@ const ChatComposerSubmitButton = ({
 };
 
 export interface ChatComposerProps {
-  agentMode: AgentMode;
   allModelOptions: ChatPanelModelOption[];
   chatProvider: AiProvider;
   className?: string;
@@ -532,7 +528,6 @@ export interface ChatComposerProps {
   isProviderInstalled: boolean;
   modelId: string;
   onDelete?: () => void;
-  onAgentModeChange: (mode: AgentMode) => void;
   onModelChange: (option: ChatPanelModelOption) => void;
   onModelSpeedChange: (speed: ModelSpeed) => void;
   onPermissionModeChange: (mode: ChatPermissionMode) => void;
@@ -563,7 +558,6 @@ export interface ChatComposerProps {
 }
 
 export const ChatComposer = ({
-  agentMode,
   allModelOptions,
   chatProvider,
   className,
@@ -576,7 +570,6 @@ export const ChatComposer = ({
   isProviderInstalled,
   modelId,
   onDelete,
-  onAgentModeChange,
   onModelChange,
   onModelSpeedChange,
   onPermissionModeChange,
@@ -608,8 +601,6 @@ export const ChatComposer = ({
   const chatT = useTranslations("chat");
   const modelT = useTranslations("models");
   const settingsT = useTranslations("settings");
-  const AgentModeIcon = getAgentModeIcon(agentMode);
-  const selectedAgentModeLabel = chatT(agentMode);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const todoPanelId = useId();
   const [projectReferences, setProjectReferences] = useState<
@@ -1013,83 +1004,6 @@ export const ChatComposer = ({
               <div className="flex items-center px-2 py-1.5">
                 <Select
                   onValueChange={(value) => {
-                    if (value === "standard" || value === "full-access") {
-                      onPermissionModeChange(value);
-                    }
-                  }}
-                  value={permissionMode}
-                >
-                  <SelectTrigger
-                    className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
-                    showChevron={false}
-                    title={chatT("permissions")}
-                  >
-                    {permissionMode === "full-access" ? (
-                      <ShieldAlert className="size-3.5 shrink-0" />
-                    ) : (
-                      <Shield className="size-3.5 shrink-0" />
-                    )}
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    <SelectGroup>
-                      <SelectLabel>{chatT("permissions")}</SelectLabel>
-                      <SelectItem className="text-xs" value="standard">
-                        <span className="flex items-center gap-1.5">
-                          <Shield className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                          <span>{chatT("standardPermissions")}</span>
-                        </span>
-                      </SelectItem>
-                      <SelectItem className="text-xs" value="full-access">
-                        <span className="flex items-center gap-1.5">
-                          <ShieldAlert className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                          <span>{chatT("fullAccess")}</span>
-                        </span>
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  onValueChange={(value) =>
-                    onAgentModeChange(value as AgentMode)
-                  }
-                  value={agentMode}
-                >
-                  <SelectTrigger
-                    className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
-                    showChevron={false}
-                    title={chatT("agentMode")}
-                  >
-                    <AgentModeIcon className="size-3.5 shrink-0" />
-                    <span className="hidden truncate @[560px]/chat-composer:inline">
-                      {selectedAgentModeLabel}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent className="text-xs" side="top">
-                    <SelectGroup>
-                      <SelectLabel>{chatT("mode")}</SelectLabel>
-                      {AGENT_MODE_OPTIONS.map((option) => {
-                        const OptionIcon = getAgentModeIcon(option.value);
-
-                        return (
-                          <SelectItem
-                            className="text-xs"
-                            key={option.value}
-                            value={option.value}
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <OptionIcon className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400" />
-                              <span>{chatT(option.value)}</span>
-                            </span>
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  onValueChange={(value) => {
                     if (typeof value !== "string") return;
                     const matchingOptions = allModelOptions.filter(
                       (option) => option.id === value,
@@ -1212,6 +1126,11 @@ export const ChatComposer = ({
                     </SelectContent>
                   </Select>
                 ) : null}
+
+                <PermissionSelector
+                  value={permissionMode}
+                  onChange={onPermissionModeChange}
+                />
 
                 {hideUsageAndContext ? (
                   onDelete ? (

@@ -445,7 +445,7 @@ const buildCollabAgentOutput = (item) => {
 
 export const streamCodexAppServerResponse = ({
   abortSignal,
-  codexPermissionMode,
+  permissionMode,
   mcpServers = [],
   messages,
   model,
@@ -1235,9 +1235,8 @@ export const streamCodexAppServerResponse = ({
               preparedAttachments?.promptText ?? null,
               projectReferencesPrompt,
             );
-            const sandbox = getCodexAppSandboxMode(codexPermissionMode);
-            const approvalPolicy =
-              getCodexAppApprovalPolicy(codexPermissionMode);
+            const sandbox = getCodexAppSandboxMode(permissionMode);
+            const approvalPolicy = getCodexAppApprovalPolicy(permissionMode);
             const serviceTier = modelSpeed === "fast" ? "fast" : null;
 
             const shouldResume = shouldResumeProviderSession({
@@ -1354,7 +1353,7 @@ export const streamCodexAppServerResponse = ({
               ],
               model,
               sandboxPolicy: getCodexAppTurnSandboxPolicy({
-                codexPermissionMode,
+                permissionMode,
                 projectPath,
               }),
               serviceTier,

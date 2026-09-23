@@ -141,6 +141,8 @@
     "model": "Modelo",
     "permissions": "Permissões",
     "plan": "Planejar",
+    "askPermissions": "Perguntar",
+    "acceptEdits": "Aceitar edições",
     "standardPermissions": "Padrão",
     "back": "Voltar",
     "branchingUnavailableWhileProcessing": "Aguarde a conclusão da resposta atual antes de criar uma ramificação.",

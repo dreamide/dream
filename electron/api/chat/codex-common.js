@@ -192,7 +192,7 @@ export const writeCodexContextCompactionPart = (writeEvent, item, state) => {
 
 export const buildCodexExecArgs = ({
   addDirs = [],
-  codexPermissionMode,
+  permissionMode,
   imagePaths = [],
   model,
   modelSpeed = "standard",
@@ -200,12 +200,8 @@ export const buildCodexExecArgs = ({
   reasoningEffort,
   sessionId,
 }) => {
-  const sandboxMode =
-    codexPermissionMode === "full-access"
-      ? "danger-full-access"
-      : "workspace-write";
-  const approvalPolicy =
-    codexPermissionMode === "default" ? "on-request" : "never";
+  const sandboxMode = getCodexAppSandboxMode(permissionMode);
+  const approvalPolicy = getCodexAppApprovalPolicy(permissionMode);
   const sandboxConfig = ["-c", `sandbox_mode=${JSON.stringify(sandboxMode)}`];
   const approvalConfig = [
     "-c",
@@ -252,20 +248,26 @@ export const buildCodexExecArgs = ({
   ];
 };
 
-export const getCodexAppSandboxMode = (codexPermissionMode) => {
-  if (codexPermissionMode === "full-access") {
+export const getCodexAppSandboxMode = (permissionMode) => {
+  if (permissionMode === "full-access") {
     return "danger-full-access";
   }
 
-  return "workspace-write";
+  return permissionMode === "auto-accept-edits"
+    ? "workspace-write"
+    : "read-only";
 };
 
 export const getCodexAppTurnSandboxPolicy = ({
-  codexPermissionMode,
+  permissionMode,
   projectPath,
 }) => {
-  if (codexPermissionMode === "full-access") {
+  if (permissionMode === "full-access") {
     return { type: "dangerFullAccess" };
+  }
+
+  if (permissionMode !== "auto-accept-edits") {
+    return { type: "readOnly" };
   }
 
   return {
@@ -278,12 +280,12 @@ export const getCodexAppTurnSandboxPolicy = ({
   };
 };
 
-export const getCodexAppApprovalPolicy = (codexPermissionMode) => {
-  if (codexPermissionMode !== "default") {
+export const getCodexAppApprovalPolicy = (permissionMode) => {
+  if (permissionMode === "full-access") {
     return "never";
   }
 
-  return "untrusted";
+  return permissionMode === "auto-accept-edits" ? "on-request" : "untrusted";
 };
 
 export const getCodexReasoningEffort = (reasoningEffort) =>

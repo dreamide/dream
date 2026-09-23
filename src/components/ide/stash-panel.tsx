@@ -17,7 +17,6 @@ import {
 import { getModelReasoningEfforts, getModelSpeedTiers } from "@/lib/models";
 import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
 import type {
-  AgentMode,
   ChatPermissionMode,
   ModelSpeed,
   ProjectConfig,
@@ -188,7 +187,6 @@ const StashItemComposer = ({
 
   return (
     <ChatComposer
-      agentMode={item.agentMode}
       allModelOptions={allModelOptions}
       chatProvider={item.provider}
       className="px-3 pb-3"
@@ -199,9 +197,6 @@ const StashItemComposer = ({
       isProcessing={false}
       isProviderInstalled={isProviderInstalled}
       modelId=""
-      onAgentModeChange={(agentMode) =>
-        onUpdate((current) => ({ ...current, agentMode }))
-      }
       onDelete={onDelete}
       onModelChange={(nextOption) =>
         onUpdate((current) => ({
@@ -272,7 +267,6 @@ const StashDraftComposer = ({
   const providerModels = useIdeStore((state) => state.providerModels);
   const defaultSelection = getDefaultModelSelection(settings);
   const [promptText, setPromptText] = useState("");
-  const [agentMode, setAgentMode] = useState<AgentMode>("build");
   const [permissionMode, setPermissionMode] =
     useState<ChatPermissionMode>("full-access");
   const [provider, setProvider] = useState(
@@ -305,7 +299,6 @@ const StashDraftComposer = ({
       }
 
       onSubmit({
-        agentMode,
         model: selection.selectedModel,
         modelSpeed: selection.selectedModelSpeed,
         permissionMode,
@@ -320,7 +313,6 @@ const StashDraftComposer = ({
       setPromptText("");
     },
     [
-      agentMode,
       onSubmit,
       permissionMode,
       selection.selectedModel,
@@ -332,7 +324,6 @@ const StashDraftComposer = ({
 
   return (
     <ChatComposer
-      agentMode={agentMode}
       allModelOptions={allModelOptions}
       chatProvider={provider}
       className="px-3 pb-3"
@@ -343,7 +334,6 @@ const StashDraftComposer = ({
       isProcessing={false}
       isProviderInstalled={isProviderInstalled}
       modelId=""
-      onAgentModeChange={setAgentMode}
       onModelChange={(nextOption) => {
         setProvider(nextOption.provider);
         setModel(nextOption.id);

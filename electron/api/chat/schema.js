@@ -31,7 +31,9 @@ export const mcpServerConfigSchema = z
   });
 
 export const chatRequestBodySchema = z.object({
-  permissionMode: z.enum(["standard", "full-access"]).default("full-access"),
+  permissionMode: z
+    .enum(["ask", "auto-accept-edits", "full-access"])
+    .default("full-access"),
   messages: z.array(z.unknown()),
   model: z.string().min(1),
   modelLabel: z.string().min(1).optional(),
@@ -47,7 +49,6 @@ export const chatRequestBodySchema = z.object({
     .default([]),
   projectPath: z.string().min(1),
   provider: z.enum(["openai", "anthropic", "opencode", "cursor", "grok"]),
-  agentMode: z.enum(["plan", "build"]).default("build"),
   remoteConversationId: z.string().nullable().optional(),
   remoteConversationModel: z.string().nullable().optional(),
   remoteConversationModelSpeed: z

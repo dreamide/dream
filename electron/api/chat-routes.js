@@ -5,7 +5,6 @@ import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCursorResponse } from "./chat/cursor-stream.js";
 import { streamGrokResponse } from "./chat/grok-stream.js";
 import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
-import { resolveChatPermissionModes } from "./chat/permissions.js";
 import {
   chatRequestBodySchema,
   chatTitleRequestBodySchema,
@@ -237,7 +236,7 @@ export const registerChatRoutes = (app) => {
 
     const {
       chatId,
-      agentMode,
+
       checkpointsEnabled,
       messages,
       model,
@@ -258,8 +257,6 @@ export const registerChatRoutes = (app) => {
       threadId,
       mcpServers,
     } = parsed.data;
-    const { claudePermissionMode, codexPermissionMode } =
-      resolveChatPermissionModes({ agentMode, permissionMode });
     const resolvedChatId = chatId ?? threadId;
     const resolvedProjectPath =
       resolvePersistedProjectPath({
@@ -316,7 +313,7 @@ export const registerChatRoutes = (app) => {
         return streamCodexAppServerResponse({
           abortSignal: c.req.raw.signal,
           chatId: resolvedChatId,
-          codexPermissionMode,
+          permissionMode,
           mcpServers,
           messages,
           model,
@@ -340,8 +337,8 @@ export const registerChatRoutes = (app) => {
 
         return streamOpenCodeResponse({
           abortSignal: c.req.raw.signal,
-          agentMode,
-          codexPermissionMode,
+
+          permissionMode,
           mcpServers,
           messages,
           model,
@@ -363,8 +360,9 @@ export const registerChatRoutes = (app) => {
         }
 
         return streamCursorResponse({
+          mcpServers,
           abortSignal: c.req.raw.signal,
-          codexPermissionMode,
+          permissionMode,
           messages,
           model,
           modelSpeed,
@@ -385,9 +383,11 @@ export const registerChatRoutes = (app) => {
         }
 
         return streamGrokResponse({
+          modelSpeed,
+          remoteConversationModelSpeed,
           abortSignal: c.req.raw.signal,
-          agentMode,
-          codexPermissionMode,
+
+          permissionMode,
           mcpServers,
           messages,
           model,
@@ -407,8 +407,7 @@ export const registerChatRoutes = (app) => {
       }
 
       return streamClaudeResponse({
-        agentMode,
-        claudePermissionMode,
+        permissionMode,
         mcpServers,
         messages,
         model,

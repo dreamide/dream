@@ -141,6 +141,8 @@
     "model": "Modèle",
     "permissions": "Autorisations",
     "plan": "Planifier",
+    "askPermissions": "Demander",
+    "acceptEdits": "Accepter les modifications",
     "standardPermissions": "Standard",
     "back": "Retour",
     "branchingUnavailableWhileProcessing": "Attendez la fin de la réponse actuelle avant de créer une branche.",

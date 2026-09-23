@@ -141,6 +141,8 @@
     "model": "模型",
     "permissions": "權限",
     "plan": "規劃",
+    "askPermissions": "詢問",
+    "acceptEdits": "接受編輯",
     "standardPermissions": "標準",
     "back": "返回",
     "branchingUnavailableWhileProcessing": "請等待目前回覆完成後再建立分支。",

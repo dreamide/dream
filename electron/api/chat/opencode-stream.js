@@ -127,35 +127,37 @@ const parseOpenCodeModel = (model) => {
   return { modelID, providerID };
 };
 
-const getOpenCodePermissionConfig = (codexPermissionMode) => {
-  if (codexPermissionMode === "full-access") {
-    return {
-      permission: {
-        bash: "allow",
-        doom_loop: "allow",
-        edit: "allow",
-        external_directory: "allow",
-        webfetch: "allow",
-      },
-    };
-  }
-
-  if (codexPermissionMode === "auto-accept-edits") {
-    return {
-      permission: {
-        edit: "allow",
-      },
-    };
-  }
-
-  return {};
+const getOpenCodePermissionConfig = (permissionMode) => {
+  const action = permissionMode === "full-access" ? "allow" : "ask";
+  const permission = {
+    "*": action,
+    read:
+      permissionMode === "full-access"
+        ? "allow"
+        : {
+            "*": "allow",
+            "*.env": "ask",
+            "*.env.*": "ask",
+            "*.env.example": "allow",
+          },
+    glob: "allow",
+    grep: "allow",
+    lsp: "allow",
+    skill: "allow",
+    todowrite: "allow",
+    question: "allow",
+    edit: permissionMode === "auto-accept-edits" ? "allow" : action,
+    bash: action,
+    webfetch: action,
+    external_directory: action,
+    doom_loop: action,
+  };
+  // Set the build agent explicitly too, since agent config overrides globals.
+  return { permission, agent: { build: { permission } } };
 };
 
-export const getOpenCodeServerConfig = (
-  codexPermissionMode,
-  mcpServers = [],
-) => {
-  const config = getOpenCodePermissionConfig(codexPermissionMode);
+export const getOpenCodeServerConfig = (permissionMode, mcpServers = []) => {
+  const config = getOpenCodePermissionConfig(permissionMode);
   const mcp = toOpenCodeMcpConfig(mcpServers);
   return Object.keys(mcp).length > 0 ? { ...config, mcp } : config;
 };
@@ -231,16 +233,14 @@ const createOpenCodePermissionInput = (permission) => ({
 });
 
 const shouldAutoApproveOpenCodePermission = ({
-  codexPermissionMode,
+  permissionMode,
   permission,
 }) => {
-  if (codexPermissionMode === "full-access") {
+  if (permissionMode === "full-access") {
     return true;
   }
 
-  return (
-    codexPermissionMode === "auto-accept-edits" && permission.type === "edit"
-  );
+  return permissionMode === "auto-accept-edits" && permission.type === "edit";
 };
 
 const replyToOpenCodePermission = async ({
@@ -489,8 +489,7 @@ const getOpenCodeToolErrorText = (part) => {
 
 export const streamOpenCodeResponse = ({
   abortSignal,
-  agentMode,
-  codexPermissionMode,
+  permissionMode,
   mcpServers = [],
   messages,
   model,
@@ -851,7 +850,7 @@ export const streamOpenCodeResponse = ({
 
           if (
             shouldAutoApproveOpenCodePermission({
-              codexPermissionMode,
+              permissionMode,
               permission,
             })
           ) {
@@ -1077,7 +1076,7 @@ export const streamOpenCodeResponse = ({
 
             const { modelID, providerID } = parseOpenCodeModel(model);
             opencode = await createOpencode({
-              config: getOpenCodeServerConfig(codexPermissionMode, mcpServers),
+              config: getOpenCodeServerConfig(permissionMode, mcpServers),
               hostname: "127.0.0.1",
               port: 0,
               signal: serverAbortController.signal,
@@ -1109,7 +1108,7 @@ export const streamOpenCodeResponse = ({
             if (!activeSessionId) {
               const sessionResult = await opencode.client.session.create({
                 body: {
-                  agent: agentMode === "plan" ? "plan" : "build",
+                  agent: "build",
                   model: {
                     id: modelID,
                     providerID,
@@ -1164,7 +1163,7 @@ export const streamOpenCodeResponse = ({
             const promptResult = await opencode.client.session.prompt(
               {
                 body: {
-                  agent: agentMode === "plan" ? "plan" : "build",
+                  agent: "build",
                   model: {
                     modelID,
                     providerID,

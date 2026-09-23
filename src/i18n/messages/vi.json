@@ -141,6 +141,8 @@
     "model": "Mô hình",
     "permissions": "Quyền",
     "plan": "Lập kế hoạch",
+    "askPermissions": "Hỏi",
+    "acceptEdits": "Chấp nhận chỉnh sửa",
     "standardPermissions": "Tiêu chuẩn",
     "back": "Quay lại",
     "branchingUnavailableWhileProcessing": "Hãy đợi phản hồi hiện tại hoàn tất trước khi phân nhánh.",

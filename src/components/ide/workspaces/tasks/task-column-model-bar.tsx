@@ -1,7 +1,8 @@
-import { ChevronLeft, ChevronRight, Shield, ShieldAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
+import { PermissionSelector } from "@/components/ide/chat/permission-selector";
 import {
   Select,
   SelectContent,
@@ -263,44 +264,6 @@ const TaskColumnModelBarImpl = ({
             ref={scrollRef}
           >
             <Select
-              onValueChange={(value) => {
-                if (value === "standard" || value === "full-access") {
-                  update((current) => ({ ...current, permissionMode: value }));
-                }
-              }}
-              value={config.permissionMode}
-            >
-              <SelectTrigger
-                className={cn(TRIGGER_CLASSES, "shrink-0")}
-                showChevron={false}
-                title={chatT("permissions")}
-              >
-                {config.permissionMode === "full-access" ? (
-                  <ShieldAlert className="size-3.5 shrink-0" />
-                ) : (
-                  <Shield className="size-3.5 shrink-0" />
-                )}
-              </SelectTrigger>
-              <SelectContent className="text-xs" side="top">
-                <SelectGroup>
-                  <SelectLabel>{chatT("permissions")}</SelectLabel>
-                  <SelectItem className="text-xs" value="standard">
-                    <span className="flex items-center gap-1.5">
-                      <Shield className={ITEM_ICON_CLASSES} />
-                      <span>{chatT("standardPermissions")}</span>
-                    </span>
-                  </SelectItem>
-                  <SelectItem className="text-xs" value="full-access">
-                    <span className="flex items-center gap-1.5">
-                      <ShieldAlert className={ITEM_ICON_CLASSES} />
-                      <span>{chatT("fullAccess")}</span>
-                    </span>
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-
-            <Select
               onValueChange={handleModelChange}
               value={selectedModelValue}
             >
@@ -449,6 +412,12 @@ const TaskColumnModelBarImpl = ({
                 </SelectContent>
               </Select>
             ) : null}
+            <PermissionSelector
+              value={config.permissionMode}
+              onChange={(permissionMode) =>
+                update((current) => ({ ...current, permissionMode }))
+              }
+            />
           </div>
           {scrollState.hasOverflow ? (
             <button

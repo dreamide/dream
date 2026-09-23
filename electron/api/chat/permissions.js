@@ -1,20 +1,5 @@
-export const resolveChatPermissionModes = ({ agentMode, permissionMode }) => {
-  if (permissionMode === "full-access") {
-    return {
-      claudePermissionMode: "bypass-permissions",
-      codexPermissionMode: "full-access",
-    };
-  }
+import { normalizeChatPermissionMode } from "../../shared/chat-permissions.js";
 
-  if (agentMode === "plan") {
-    return {
-      claudePermissionMode: "ask-permissions",
-      codexPermissionMode: "default",
-    };
-  }
-
-  return {
-    claudePermissionMode: "accept-edits",
-    codexPermissionMode: "auto-accept-edits",
-  };
-};
+export const resolveChatPermissionModes = ({ agentMode, permissionMode }) => ({
+  permissionMode: normalizeChatPermissionMode(permissionMode, agentMode),
+});

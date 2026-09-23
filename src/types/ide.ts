@@ -31,8 +31,7 @@ export type AccentColor =
 export type BaseColor = "neutral" | "gray" | "zinc" | "stone" | "slate";
 export type ModelSpeed = "standard" | "fast";
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
-export type AgentMode = "plan" | "build";
-export type ChatPermissionMode = "standard" | "full-access";
+export type ChatPermissionMode = "ask" | "auto-accept-edits" | "full-access";
 export type ChatSortOrder =
   | "recent"
   | "createdDesc"
@@ -45,7 +44,6 @@ export interface ChatBranchPoint {
 }
 
 export interface ChatConfig {
-  agentMode: AgentMode;
   branchedFrom: ChatBranchPoint | null;
   id: string;
   messageCount: number;
@@ -84,7 +82,6 @@ export interface ProjectReference {
 }
 
 export interface StashItem {
-  agentMode: AgentMode;
   createdAt: string;
   id: string;
   model: string;
@@ -109,7 +106,6 @@ export interface TaskStepModel {
 }
 
 export interface TaskStepConfig {
-  agentMode: AgentMode;
   /** Advance to the next step when the agent turn finishes normally. */
   autoAdvance: boolean;
   /** `null` inherits the host project's model selection. */

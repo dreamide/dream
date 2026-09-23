@@ -123,7 +123,7 @@ export const createStashActions = (
 
     get().updateChat(chatId, (chat) => ({
       ...chat,
-      agentMode: item.agentMode,
+
       model: item.model,
       modelSpeed: item.modelSpeed,
       permissionMode: item.permissionMode,

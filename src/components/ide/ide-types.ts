@@ -1,6 +1,5 @@
 import type { ModelOption } from "@/lib/models";
 import type {
-  AgentMode,
   AiProvider,
   AppSettings,
   ModelSpeed,
@@ -67,10 +66,6 @@ export const REASONING_EFFORT_OPTIONS: Array<{
 export const MODEL_SPEED_OPTIONS: Array<{
   value: ModelSpeed;
 }> = [{ value: "standard" }, { value: "fast" }];
-
-export const AGENT_MODE_OPTIONS: Array<{
-  value: AgentMode;
-}> = [{ value: "plan" }, { value: "build" }];
 
 export const normalizeReasoningEffort = (
   value: unknown,

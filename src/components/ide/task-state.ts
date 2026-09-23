@@ -15,6 +15,7 @@ import type {
   TaskStepConfig,
   TaskStepRun,
 } from "@/types/ide";
+import { normalizeChatPermissionMode } from "../../../electron/shared/chat-permissions.js";
 import { normalizeReasoningEffort } from "./ide-types";
 
 const asNonEmptyString = (value: unknown): string | null =>
@@ -230,14 +231,12 @@ const normalizeTaskStepConfig = (
     return fallback;
   }
 
-  const config = value as Partial<TaskStepConfig>;
+  const config = value as Partial<TaskStepConfig> & { agentMode?: unknown };
   const rawModel =
     config.model && typeof config.model === "object" ? config.model : null;
   const modelId = rawModel ? asNonEmptyString(rawModel.model) : null;
 
   return {
-    // Fixed per step; a saved value from when it was configurable is ignored.
-    agentMode: fallback.agentMode,
     autoAdvance:
       typeof config.autoAdvance === "boolean"
         ? config.autoAdvance
@@ -251,11 +250,11 @@ const normalizeTaskStepConfig = (
             reasoningEffort: normalizeReasoningEffort(rawModel.reasoningEffort),
           }
         : null,
-    permissionMode:
-      config.permissionMode === "standard" ||
-      config.permissionMode === "full-access"
-        ? config.permissionMode
-        : fallback.permissionMode,
+    permissionMode: normalizeChatPermissionMode(
+      config.permissionMode,
+      config.agentMode,
+      fallback.permissionMode,
+    ),
     prompt: asNonEmptyString(config.prompt),
   };
 };

@@ -28,7 +28,6 @@ import {
   TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
 } from "@/lib/task-defaults";
 import type {
-  AgentMode,
   AiProvider,
   AppSettings,
   BrowserTabState,
@@ -42,6 +41,7 @@ import type {
   RightPanelView,
   StashItem,
 } from "@/types/ide";
+import { normalizeChatPermissionMode } from "../../../electron/shared/chat-permissions.js";
 import {
   dedupeModels,
   normalizeModelSpeed,
@@ -158,7 +158,7 @@ const normalizeStashItem = (value: unknown): StashItem | null => {
     return null;
   }
 
-  const item = value as Partial<StashItem>;
+  const item = value as Partial<StashItem> & { agentMode?: unknown };
   const id = typeof item.id === "string" ? item.id.trim() : "";
   if (!id) {
     return null;
@@ -174,13 +174,14 @@ const normalizeStashItem = (value: unknown): StashItem | null => {
       : createdAt;
 
   return {
-    agentMode: item.agentMode === "plan" ? "plan" : "build",
     createdAt,
     id,
     model: typeof item.model === "string" ? item.model : "",
     modelSpeed: normalizeModelSpeed(item.modelSpeed),
-    permissionMode:
-      item.permissionMode === "standard" ? "standard" : "full-access",
+    permissionMode: normalizeChatPermissionMode(
+      item.permissionMode,
+      item.agentMode,
+    ),
     provider: normalizeProvider(item.provider),
     reasoningEffort: normalizeReasoningEffort(item.reasoningEffort),
     references: Array.isArray(item.references)
@@ -600,6 +601,7 @@ const normalizeChat = (
     metadata?: unknown;
     messageCount?: unknown;
     permissionMode?: unknown;
+    agentMode?: unknown;
     sparklesPalette?: unknown;
   };
   const rawMetadata =
@@ -607,6 +609,7 @@ const normalizeChat = (
       ? (rawChat.metadata as {
           branchedFrom?: unknown;
           permissions?: { mode?: unknown };
+          modelSelection?: { agentMode?: unknown };
           sparklesPalette?: unknown;
         })
       : {};
@@ -629,10 +632,8 @@ const normalizeChat = (
     typeof rawChat.deletedAt === "string" && rawChat.deletedAt.trim().length > 0
       ? rawChat.deletedAt
       : null;
-  const agentMode: AgentMode = chat.agentMode === "plan" ? "plan" : "build";
 
   return {
-    agentMode,
     branchedFrom,
     createdAt,
     deletedAt,
@@ -648,14 +649,11 @@ const normalizeChat = (
         : 0,
     model: model || project.model,
     modelSpeed: normalizeModelSpeed(chat.modelSpeed),
-    permissionMode:
-      rawChat.permissionMode === "full-access" ||
-      rawChat.permissionMode === "standard"
-        ? rawChat.permissionMode
-        : rawMetadata.permissions?.mode === "full-access" ||
-            rawMetadata.permissions?.mode === "standard"
-          ? rawMetadata.permissions.mode
-          : legacyPermissionMode,
+    permissionMode: normalizeChatPermissionMode(
+      rawChat.permissionMode ?? rawMetadata.permissions?.mode,
+      rawChat.agentMode ?? rawMetadata.modelSelection?.agentMode,
+      legacyPermissionMode,
+    ),
     projectId: chat.projectId,
     provider,
     reasoningEffort: normalizeReasoningEffort(chat.reasoningEffort),
@@ -861,7 +859,7 @@ export const mergePersistedState = (
   const rawSettings = (state.settings ?? {}) as Partial<AppSettings> &
     Record<string, unknown>;
   const legacyPermissionMode: ChatPermissionMode =
-    rawSettings.autoAcceptPermissions === false ? "standard" : "full-access";
+    rawSettings.autoAcceptPermissions === false ? "ask" : "full-access";
 
   const mergedSettings: AppSettings = {
     ...DEFAULT_SETTINGS,

@@ -20,7 +20,6 @@ export const createBranchedChatConfig = (
   messageId: string,
 ): ChatConfig => {
   const branchedChat = createChatConfig(targetProject, {
-    agentMode: sourceChat.agentMode,
     model: sourceChat.model,
     modelSpeed: sourceChat.modelSpeed,
     permissionMode: sourceChat.permissionMode,

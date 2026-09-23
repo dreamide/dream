@@ -348,34 +348,6 @@ const observeSessionMessages = (session: InternalChatSession) => {
       scheduleProjectPanelRefresh(config.projectId);
     }
   }
-
-  // Auto-approve Anthropic writeFile tool calls for non-interactive modes.
-  if (
-    config &&
-    (config.permissionMode === "full-access" || config.agentMode === "build")
-  ) {
-    for (const message of messages) {
-      if (message.role !== "assistant") continue;
-      for (const part of message.parts) {
-        if (
-          typeof part.type === "string" &&
-          part.type === "tool-writeFile" &&
-          "approval" in part &&
-          part.approval &&
-          typeof part.approval === "object" &&
-          "id" in part.approval &&
-          !("approved" in part.approval) &&
-          "state" in part &&
-          part.state === "approval-requested"
-        ) {
-          respondToToolApproval(chatId, {
-            approved: true,
-            id: part.approval.id as string,
-          });
-        }
-      }
-    }
-  }
 };
 
 const isSessionBusy = (session: InternalChatSession) => {
@@ -764,7 +736,7 @@ export const submitChatPrompt = (
       {
         body: {
           ...selectionMetadata,
-          agentMode: config.agentMode,
+
           chatId,
           checkpointsEnabled: settings.changeCheckpoints,
           mcpServers: MCP_PROVIDER_SUPPORT[activeProvider]

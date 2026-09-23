@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { normalizeMcpServerList } from "./api/chat/mcp-servers.js";
+import { normalizeChatPermissionMode } from "./shared/chat-permissions.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -903,7 +904,16 @@ function buildChatMetadata(chat) {
       : null;
   const permissions = {
     ...getNestedRecord(metadata, "permissions"),
-    mode: chat.permissionMode === "standard" ? "standard" : "full-access",
+    mode: normalizeChatPermissionMode(
+      chat.permissionMode ??
+        getNestedString(getNestedRecord(metadata, "permissions"), "mode", null),
+      chat.agentMode ??
+        getNestedString(
+          getNestedRecord(metadata, "modelSelection"),
+          "agentMode",
+          "build",
+        ),
+    ),
   };
   const remoteConversation = {
     ...getNestedRecord(metadata, "remoteConversation"),
@@ -928,9 +938,10 @@ function buildChatMetadata(chat) {
         ? chat.remoteConversationProjectPath
         : null,
   };
+  const { agentMode: _legacyAgentMode, ...savedModelSelection } =
+    getNestedRecord(metadata, "modelSelection");
   const modelSelection = {
-    ...getNestedRecord(metadata, "modelSelection"),
-    agentMode: chat.agentMode === "plan" ? "plan" : "build",
+    ...savedModelSelection,
     model: typeof chat.model === "string" ? chat.model : "",
     modelSpeed:
       typeof chat.modelSpeed === "string" ? chat.modelSpeed : "standard",
@@ -1571,10 +1582,15 @@ function loadStateFromRelationalDatabase(database) {
       messageCount:
         typeof row.message_count === "number" ? row.message_count : 0,
       metadata,
-      agentMode: getNestedString(modelSelection, "agentMode", "build"),
       model: getNestedString(modelSelection, "model", ""),
       modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
-      permissionMode: getNestedString(permissions, "mode", null),
+      permissionMode:
+        getNestedString(permissions, "mode", null) == null
+          ? null
+          : normalizeChatPermissionMode(
+              getNestedString(permissions, "mode", null),
+              getNestedString(modelSelection, "agentMode", "build"),
+            ),
       projectId: row.project_id,
       provider: getNestedString(modelSelection, "provider", "openai"),
       reasoningEffort: getNestedString(modelSelection, "reasoningEffort", null),

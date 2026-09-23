@@ -163,7 +163,6 @@ export const createChatConfig = (
   overrides?: Partial<
     Pick<
       ChatConfig,
-      | "agentMode"
       | "model"
       | "modelSpeed"
       | "permissionMode"
@@ -177,7 +176,6 @@ export const createChatConfig = (
   const timestamp = new Date().toISOString();
 
   return {
-    agentMode: overrides?.agentMode ?? "build",
     branchedFrom: null,
     createdAt: timestamp,
     deletedAt: null,
@@ -208,7 +206,6 @@ export const createStashItem = (
   overrides?: Partial<
     Pick<
       StashItem,
-      | "agentMode"
       | "model"
       | "modelSpeed"
       | "permissionMode"
@@ -222,7 +219,6 @@ export const createStashItem = (
   const timestamp = new Date().toISOString();
 
   return {
-    agentMode: overrides?.agentMode ?? "build",
     createdAt: timestamp,
     id: crypto.randomUUID(),
     model: overrides?.model ?? project.model,

@@ -141,6 +141,8 @@
     "model": "モデル",
     "permissions": "権限",
     "plan": "計画",
+    "askPermissions": "確認する",
+    "acceptEdits": "編集を承認",
     "standardPermissions": "標準",
     "back": "戻る",
     "branchingUnavailableWhileProcessing": "現在の応答が完了してから分岐してください。",

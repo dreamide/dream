@@ -141,6 +141,8 @@
     "model": "Modell",
     "permissions": "Berechtigungen",
     "plan": "Planen",
+    "askPermissions": "Nachfragen",
+    "acceptEdits": "Änderungen akzeptieren",
     "standardPermissions": "Standard",
     "back": "Zurück",
     "branchingUnavailableWhileProcessing": "Warten Sie, bis die aktuelle Antwort abgeschlossen ist.",
