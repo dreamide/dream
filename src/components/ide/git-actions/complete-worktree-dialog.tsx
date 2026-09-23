@@ -264,7 +264,7 @@ export const CompleteWorktreeDialog = ({
   const worktreeT = useTranslations("worktrees");
   const format = useFormatter();
   const settings = useIdeStore((s) => s.settings);
-  const { model, provider } = useMemo(
+  const { model, modelSpeed, provider, reasoningEffort } = useMemo(
     () => getDefaultGitGenerationModelSelection(settings),
     [settings],
   );
@@ -663,6 +663,7 @@ export const CompleteWorktreeDialog = ({
       <CommitDialog
         branch={project.worktree.branch}
         model={model}
+        modelSpeed={modelSpeed}
         onCompleted={() => {
           bumpProjectGitRefreshKey(project.id);
         }}
@@ -674,6 +675,7 @@ export const CompleteWorktreeDialog = ({
         open
         projectPath={project.path}
         provider={provider}
+        reasoningEffort={reasoningEffort}
         refreshToken={gitRefreshKey}
         status={compare?.worktreeStatus ?? null}
       />
@@ -686,6 +688,7 @@ export const CompleteWorktreeDialog = ({
         baseBranch={compare?.baseBranch ?? null}
         branch={project.worktree.branch}
         model={model}
+        modelSpeed={modelSpeed}
         onCompleted={(url, openPage) => {
           prHandoffRef.current = true;
           setPrUrl(url);
@@ -705,6 +708,7 @@ export const CompleteWorktreeDialog = ({
         open
         projectPath={project.path}
         provider={provider}
+        reasoningEffort={reasoningEffort}
         refreshToken={gitRefreshKey}
         status={compare?.worktreeStatus ?? null}
       />

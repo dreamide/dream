@@ -1,8 +1,10 @@
 import type {
   AiProvider,
+  ModelSpeed,
   ProjectGitCreatePrNextStep,
   ProjectGitPullRequestDetailsResponse,
   ProjectGitStatusEntry,
+  ReasoningEffort,
 } from "@/types/ide";
 
 const PULL_REQUEST_DETAILS_CACHE_MAX_ENTRIES = 50;
@@ -14,9 +16,11 @@ type PullRequestDetailsCacheParams = {
   changes: ProjectGitStatusEntry[];
   includeUnstaged: boolean;
   model: string;
+  modelSpeed: ModelSpeed;
   nextStep: ProjectGitCreatePrNextStep;
   projectPath: string;
   provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
   refreshToken: number;
 };
 
@@ -62,9 +66,11 @@ const getPullRequestDetailsCacheKey = ({
   changes,
   includeUnstaged,
   model,
+  modelSpeed,
   nextStep,
   projectPath,
   provider,
+  reasoningEffort,
   refreshToken,
 }: PullRequestDetailsCacheParams) =>
   JSON.stringify({
@@ -83,9 +89,11 @@ const getPullRequestDetailsCacheKey = ({
       .sort((a, b) => a.path.localeCompare(b.path)),
     includeUnstaged,
     model,
+    modelSpeed,
     nextStep,
     projectPath,
     provider,
+    reasoningEffort,
     refreshToken,
     version: PULL_REQUEST_DETAILS_CACHE_VERSION,
   });
@@ -115,9 +123,11 @@ export const generateCachedProjectPullRequestDetails = (
           baseBranch: params.baseBranch,
           includeUnstaged: params.includeUnstaged,
           model: params.model,
+          modelSpeed: params.modelSpeed,
           nextStep: params.nextStep,
           projectPath: params.projectPath,
           provider: params.provider,
+          reasoningEffort: params.reasoningEffort,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",

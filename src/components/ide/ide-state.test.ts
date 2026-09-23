@@ -707,3 +707,32 @@ test("ensureActiveProject never picks a hidden project", () => {
   assert.equal(ensureActiveProject([hidden, project], null), project.id);
   assert.equal(ensureActiveProject([hidden], null), null);
 });
+
+test("mergePersistedState defaults the new-chat and text generation settings", () => {
+  const merged = mergePersistedState({ settings: {} } as never);
+  assert.equal(merged.settings.defaultPermissionMode, "full-access");
+  // Profiles from before the setting keep the original low effort.
+  assert.equal(merged.settings.defaultGitGenerationReasoningEffort, "low");
+  assert.equal(merged.settings.defaultGitGenerationModelSpeed, "standard");
+});
+
+test("mergePersistedState reads the new-chat and text generation settings", () => {
+  const merged = mergePersistedState({
+    settings: {
+      defaultGitGenerationModelSpeed: "fast",
+      // `null` is the explicit "medium" choice and must not become "low".
+      defaultGitGenerationReasoningEffort: null,
+      defaultPermissionMode: "auto-accept-edits",
+    },
+  } as never);
+  assert.equal(merged.settings.defaultPermissionMode, "auto-accept-edits");
+  assert.equal(merged.settings.defaultGitGenerationReasoningEffort, null);
+  assert.equal(merged.settings.defaultGitGenerationModelSpeed, "fast");
+});
+
+test("mergePersistedState defaults new chats to full access despite the legacy auto-accept setting", () => {
+  const merged = mergePersistedState({
+    settings: { autoAcceptPermissions: false },
+  } as never);
+  assert.equal(merged.settings.defaultPermissionMode, "full-access");
+});

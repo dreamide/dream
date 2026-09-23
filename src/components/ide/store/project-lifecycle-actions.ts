@@ -100,6 +100,7 @@ export const createProjectLifecycleActions = (
             const defaultSelection = getDefaultModelSelection(state.settings);
             const nextChat = createChatConfig(project, {
               model: defaultSelection.model || project.model,
+              permissionMode: state.settings.defaultPermissionMode,
               provider: defaultSelection.model
                 ? defaultSelection.provider
                 : project.provider,
@@ -203,6 +204,7 @@ export const createProjectLifecycleActions = (
             const defaultSelection = getDefaultModelSelection(state.settings);
             const nextChat = createChatConfig(openProject, {
               model: defaultSelection.model || openProject.model,
+              permissionMode: state.settings.defaultPermissionMode,
               provider: defaultSelection.model
                 ? defaultSelection.provider
                 : openProject.provider,
@@ -246,7 +248,9 @@ export const createProjectLifecycleActions = (
           );
 
           if (!nextActiveChatId) {
-            const nextChat = createChatConfig(reopenedProject);
+            const nextChat = createChatConfig(reopenedProject, {
+              permissionMode: state.settings.defaultPermissionMode,
+            });
             nextChats = [...nextChats, nextChat];
             nextMessagesByChatId = {
               ...nextMessagesByChatId,
@@ -280,7 +284,9 @@ export const createProjectLifecycleActions = (
         }
 
         const nextProject = createProjectConfig(path, state.settings);
-        const nextChat = createChatConfig(nextProject);
+        const nextChat = createChatConfig(nextProject, {
+          permissionMode: state.settings.defaultPermissionMode,
+        });
 
         return {
           ...(activate ? { activeProjectId: nextProject.id } : {}),
@@ -491,7 +497,9 @@ export const createProjectLifecycleActions = (
               nextProject,
               options.initialChatSeed.messageId,
             )
-          : createChatConfig(nextProject);
+          : createChatConfig(nextProject, {
+              permissionMode: state.settings.defaultPermissionMode,
+            });
         nextChat.messageCount = options.initialChatSeed?.messages.length ?? 0;
         createdProjectId = nextProject.id;
         createdChatId = nextChat.id;

@@ -1170,8 +1170,11 @@ test("the app commits a finished build in the task's worktree, then advances", a
     {
       fallbackMessage: "Task",
       model: commitRequests[0]?.model,
+      // The text generation model's effort/speed ride along with the model.
+      modelSpeed: "standard",
       projectPath: task.worktreePath,
       provider: commitRequests[0]?.provider,
+      reasoningEffort: "low",
     },
   ]);
   assert.equal(task.step, "review");

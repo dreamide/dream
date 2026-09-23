@@ -37,9 +37,9 @@ const TasksWorkspace = lazy(() =>
   })),
 );
 
-const SettingsDialog = lazy(() =>
-  import("./settings-dialog").then((module) => ({
-    default: module.SettingsDialog,
+const SettingsWorkspace = lazy(() =>
+  import("./settings-workspace").then((module) => ({
+    default: module.SettingsWorkspace,
   })),
 );
 
@@ -537,10 +537,12 @@ export const IdeShell = () => {
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-surface-50 dark:bg-surface-900 text-foreground">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-surface-50 dark:bg-surface-900 text-foreground">
       {!appReady && <AppLoadingScreen />}
       <ChatRuntimeHost />
-      <IdeHeader />
+      <div className="contents" inert={settingsOpen}>
+        <IdeHeader />
+      </div>
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {!stateHydrated ? null : (
@@ -553,7 +555,7 @@ export const IdeShell = () => {
               // back is instant, but only the visible surface owns shortcuts
               // and native webviews. (Chats run in the chat runtime, not in
               // these panels.)
-              const active = selected && !tasksSelected;
+              const active = selected && !tasksSelected && !settingsOpen;
 
               return (
                 <div
@@ -578,7 +580,7 @@ export const IdeShell = () => {
             {!renderedActiveProjectId ? (
               <div
                 className="absolute inset-0 z-20 bg-surface-50 p-3 dark:bg-surface-900"
-                inert={tasksSelected}
+                inert={tasksSelected || settingsOpen}
               >
                 <EmptyProjectWorkspace />
               </div>
@@ -588,7 +590,7 @@ export const IdeShell = () => {
                   state survives switching back and forth. */}
             {tasksVisited ? (
               <div
-                aria-hidden={!tasksSelected}
+                aria-hidden={!tasksSelected || settingsOpen}
                 className={cn(
                   "absolute inset-0 z-30 min-h-0 bg-surface-50 dark:bg-surface-900",
                   tasksSelected
@@ -596,10 +598,10 @@ export const IdeShell = () => {
                     : "invisible opacity-0 pointer-events-none",
                 )}
                 data-app-view="tasks"
-                inert={!tasksSelected}
+                inert={!tasksSelected || settingsOpen}
               >
                 <Suspense fallback={null}>
-                  <TasksWorkspace active={tasksSelected} />
+                  <TasksWorkspace active={tasksSelected && !settingsOpen} />
                 </Suspense>
               </div>
             ) : null}
@@ -607,10 +609,17 @@ export const IdeShell = () => {
         )}
       </div>
 
-      {settingsOpen ? (
-        <Suspense fallback={null}>
-          <SettingsDialog />
-        </Suspense>
+      {/* Settings is a full-window workspace layered above the titlebar and
+          every other surface; everything beneath stays mounted but inert. */}
+      {stateHydrated && settingsOpen ? (
+        <div
+          className="absolute inset-0 z-40 min-h-0 bg-surface-50 dark:bg-surface-900"
+          data-app-view="settings"
+        >
+          <Suspense fallback={null}>
+            <SettingsWorkspace />
+          </Suspense>
+        </div>
       ) : null}
     </div>
   );

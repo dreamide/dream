@@ -267,8 +267,9 @@ const StashDraftComposer = ({
   const providerModels = useIdeStore((state) => state.providerModels);
   const defaultSelection = getDefaultModelSelection(settings);
   const [promptText, setPromptText] = useState("");
-  const [permissionMode, setPermissionMode] =
-    useState<ChatPermissionMode>("full-access");
+  const [permissionMode, setPermissionMode] = useState<ChatPermissionMode>(
+    settings.defaultPermissionMode,
+  );
   const [provider, setProvider] = useState(
     defaultSelection.model ? defaultSelection.provider : project.provider,
   );

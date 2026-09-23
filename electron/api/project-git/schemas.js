@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+/**
+ * Effort/speed for the text generation model. `null` effort means the model's
+ * default (medium); omitted keeps the legacy low-effort behavior.
+ */
+const gitGenerationReasoningEffortSchema = z
+  .enum(["low", "medium", "high", "xhigh", "max"])
+  .nullable()
+  .optional();
+const gitGenerationModelSpeedSchema = z
+  .enum(["standard", "fast"])
+  .default("standard");
+
 export const projectFilesRequestSchema = z.object({
   directory: z.string().min(1).default("."),
   maxResults: z.number().int().min(1).max(50_000).default(2000),
@@ -92,10 +104,12 @@ export const projectGitCommitRequestSchema = z.object({
 export const projectGitCommitMessageRequestSchema = z.object({
   includeUnstaged: z.boolean().default(true),
   model: nullableTrimmedStringSchema,
+  modelSpeed: gitGenerationModelSpeedSchema,
   projectPath: z.string().min(1),
   provider: z
     .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
     .default("openai"),
+  reasoningEffort: gitGenerationReasoningEffortSchema,
 });
 
 /** The app committing a task step's work (see `commitTaskStepWork`). */
@@ -103,10 +117,12 @@ export const projectGitTaskCommitRequestSchema = z.object({
   /** Used when no message can be generated, e.g. the task title. */
   fallbackMessage: nullableTrimmedStringSchema,
   model: nullableTrimmedStringSchema,
+  modelSpeed: gitGenerationModelSpeedSchema,
   projectPath: z.string().min(1),
   provider: z
     .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
     .default("openai"),
+  reasoningEffort: gitGenerationReasoningEffortSchema,
 });
 
 /** Checking on, or bringing back, the worktree a task runs in. */
@@ -162,6 +178,7 @@ export const projectGitPullRequestDetailsRequestSchema = z.object({
   customInstructions: nullableTrimmedStringSchema,
   includeUnstaged: z.boolean().default(true),
   model: nullableTrimmedStringSchema,
+  modelSpeed: gitGenerationModelSpeedSchema,
   nextStep: z
     .enum(["create", "push-create", "commit-push-create"])
     .default("create"),
@@ -169,6 +186,7 @@ export const projectGitPullRequestDetailsRequestSchema = z.object({
   provider: z
     .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
     .default("openai"),
+  reasoningEffort: gitGenerationReasoningEffortSchema,
 });
 
 export const projectGitWorktreeCompareRequestSchema = z.object({

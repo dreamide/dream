@@ -20,9 +20,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   AiProvider,
+  ModelSpeed,
   ProjectGitCreatePrNextStep,
   ProjectGitCreatePrResponse,
   ProjectGitStatusResponse,
+  ReasoningEffort,
 } from "@/types/ide";
 import {
   generateCachedProjectPullRequestDetails,
@@ -45,8 +47,10 @@ export const CreatePrDialog = ({
   onOpenChange,
   open,
   model,
+  modelSpeed,
   projectPath,
   provider,
+  reasoningEffort,
   refreshToken,
   status,
 }: {
@@ -56,8 +60,10 @@ export const CreatePrDialog = ({
   onOpenChange: (open: boolean) => void;
   open: boolean;
   model: string;
+  modelSpeed: ModelSpeed;
   projectPath: string;
   provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
   refreshToken: number;
   status: ProjectGitStatusResponse | null;
 }) => {
@@ -117,9 +123,11 @@ export const CreatePrDialog = ({
       changes: pullRequestChanges,
       includeUnstaged: true,
       model,
+      modelSpeed,
       nextStep,
       projectPath,
       provider,
+      reasoningEffort,
       refreshToken,
     };
     const cachedDetails = getCachedProjectPullRequestDetails(params);
@@ -161,10 +169,12 @@ export const CreatePrDialog = ({
     branchError,
     nextStep,
     model,
+    modelSpeed,
     open,
     projectPath,
     provider,
     pullRequestChanges,
+    reasoningEffort,
     refreshToken,
   ]);
 

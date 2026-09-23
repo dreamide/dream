@@ -1306,7 +1306,14 @@ export const getProjectGitBulkCachedDiff = async (projectPath, changes) => {
  */
 export const getProjectGitChangesFingerprint = (
   changes,
-  { customInstructions = "", includeUnstaged = true, projectPath, provider },
+  {
+    customInstructions = "",
+    includeUnstaged = true,
+    modelSpeed = "standard",
+    projectPath,
+    provider,
+    reasoningEffort,
+  },
 ) =>
   hashContent(
     JSON.stringify({
@@ -1323,7 +1330,9 @@ export const getProjectGitChangesFingerprint = (
         .sort((a, b) => a.path.localeCompare(b.path)),
       customInstructions,
       includeUnstaged,
+      modelSpeed,
       projectPath,
       provider,
+      reasoningEffort,
     }),
   );

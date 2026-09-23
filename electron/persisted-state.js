@@ -31,8 +31,11 @@ const DEFAULT_PERSISTED_STATE = {
     cursorSelectedModels: [],
     grokSelectedModels: [],
     defaultGitGenerationModel: "",
+    defaultGitGenerationModelSpeed: "standard",
+    defaultGitGenerationReasoningEffort: "low",
     defaultModel: "",
     defaultModelSpeed: "standard",
+    defaultPermissionMode: "full-access",
     defaultReasoningEffort: null,
     expandToolCalls: false,
     groupToolCalls: false,
@@ -1121,8 +1124,28 @@ function saveStateToRelationalDatabase(database, state) {
     );
     writeConfig(
       database,
+      "settings.defaultGitGenerationModelSpeed",
+      settings.defaultGitGenerationModelSpeed ?? "standard",
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.defaultGitGenerationReasoningEffort",
+      settings.defaultGitGenerationReasoningEffort === undefined
+        ? "low"
+        : settings.defaultGitGenerationReasoningEffort,
+      now,
+    );
+    writeConfig(
+      database,
       "settings.defaultModelSpeed",
       settings.defaultModelSpeed ?? "standard",
+      now,
+    );
+    writeConfig(
+      database,
+      "settings.defaultPermissionMode",
+      settings.defaultPermissionMode ?? "full-access",
       now,
     );
     writeConfig(
@@ -1709,10 +1732,28 @@ function loadStateFromRelationalDatabase(database) {
         typeof config["settings.defaultGitGenerationModel"] === "string"
           ? config["settings.defaultGitGenerationModel"]
           : "",
+      defaultGitGenerationModelSpeed:
+        typeof config["settings.defaultGitGenerationModelSpeed"] === "string"
+          ? config["settings.defaultGitGenerationModelSpeed"]
+          : "standard",
+      // A stored `null` is the explicit "medium" choice; a missing key is a
+      // profile from before the setting existed.
+      ...(config["settings.defaultGitGenerationReasoningEffort"] === undefined
+        ? {}
+        : {
+            defaultGitGenerationReasoningEffort:
+              typeof config["settings.defaultGitGenerationReasoningEffort"] ===
+              "string"
+                ? config["settings.defaultGitGenerationReasoningEffort"]
+                : null,
+          }),
       defaultModelSpeed:
         typeof config["settings.defaultModelSpeed"] === "string"
           ? config["settings.defaultModelSpeed"]
           : "standard",
+      ...(typeof config["settings.defaultPermissionMode"] === "string"
+        ? { defaultPermissionMode: config["settings.defaultPermissionMode"] }
+        : {}),
       defaultReasoningEffort:
         typeof config["settings.defaultReasoningEffort"] === "string"
           ? config["settings.defaultReasoningEffort"]

@@ -69,8 +69,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoCompactContext: true,
   anthropicSelectedModels: [],
   defaultGitGenerationModel: "",
+  defaultGitGenerationModelSpeed: "standard",
+  // Commit messages and PR text are short; low effort keeps them fast.
+  defaultGitGenerationReasoningEffort: "low",
   defaultModel: "",
   defaultModelSpeed: "standard",
+  defaultPermissionMode: "full-access",
   defaultReasoningEffort: null,
   changeCheckpoints: true,
   expandToolCalls: false,
@@ -430,7 +434,9 @@ export const getDefaultGitGenerationModelSelection = (
   settings: AppSettings,
 ): {
   model: string;
+  modelSpeed: ModelSpeed;
   provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
 } => {
   const model = getPreferredDefaultModel(
     settings,
@@ -441,7 +447,16 @@ export const getDefaultGitGenerationModelSelection = (
     getConnectedProviders(settings)[0] ??
     DEFAULT_PROVIDER;
 
-  return { model, provider };
+  return {
+    model,
+    modelSpeed: normalizeModelSpeed(settings.defaultGitGenerationModelSpeed),
+    provider,
+    reasoningEffort: isReasoningEffort(
+      settings.defaultGitGenerationReasoningEffort,
+    )
+      ? settings.defaultGitGenerationReasoningEffort
+      : null,
+  };
 };
 
 export const normalizeDefaultModelSettings = (

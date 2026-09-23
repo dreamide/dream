@@ -51,7 +51,7 @@ export const ProviderStatusCard = ({
     error || (!loading && !installed ? uiT("cliNotDetected") : null);
 
   return (
-    <div className="rounded-lg border border-surface-200 dark:border-surface-800 p-4">
+    <div className="rounded-lg border border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-950">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -100,16 +100,16 @@ export const SettingsGroup = ({
   label,
 }: {
   children: ReactNode;
-  label: string;
+  label?: string;
 }) => (
-  <div>
-    <div className="space-y-1 pt-2">
-      <h3 className="text-muted-foreground text-xs uppercase">{label}</h3>
-    </div>
-    <div className="mt-2 border-l border-surface-200 pl-4 dark:border-surface-800">
+  <section>
+    {label ? (
+      <h3 className="px-4 pb-2 text-muted-foreground text-sm">{label}</h3>
+    ) : null}
+    <div className="divide-y divide-surface-200 overflow-hidden rounded-xl border border-surface-200 bg-white dark:divide-surface-800 dark:border-surface-800 dark:bg-surface-950">
       {children}
     </div>
-  </div>
+  </section>
 );
 
 export const SettingsControlRow = ({
@@ -123,7 +123,7 @@ export const SettingsControlRow = ({
   description: ReactNode;
   label: string;
 }) => (
-  <div className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between md:gap-8">
+  <div className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-8">
     <div className="min-w-0 space-y-0.5">
       <Label className="font-medium text-sm">{label}</Label>
       <div className="text-muted-foreground text-sm">{description}</div>

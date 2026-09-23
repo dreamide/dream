@@ -230,7 +230,11 @@ export interface AppSettings {
   autoCompactContext: boolean;
   defaultModel: string;
   defaultGitGenerationModel: string;
+  defaultGitGenerationModelSpeed: ModelSpeed;
+  /** `null` is the model's default (medium), like `defaultReasoningEffort`. */
+  defaultGitGenerationReasoningEffort: ReasoningEffort | null;
   defaultModelSpeed: ModelSpeed;
+  defaultPermissionMode: ChatPermissionMode;
   defaultReasoningEffort: ReasoningEffort | null;
   changeCheckpoints: boolean;
   expandToolCalls: boolean;

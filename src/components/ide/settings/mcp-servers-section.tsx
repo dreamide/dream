@@ -117,7 +117,7 @@ export const McpServersSection = ({
   }
 
   return (
-    <div className="space-y-4 rounded-lg p-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <h3 className="font-medium text-sm">{settingsT("mcpServers")}</h3>
@@ -153,7 +153,7 @@ export const McpServersSection = ({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-md border">
+        <div className="overflow-hidden rounded-md border bg-white dark:bg-surface-950">
           <Table>
             <TableHeader>
               <TableRow>

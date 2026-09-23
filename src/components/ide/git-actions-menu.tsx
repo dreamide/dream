@@ -14,7 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
-import type { AiProvider, ProjectGitStatusResponse } from "@/types/ide";
+import type {
+  AiProvider,
+  ModelSpeed,
+  ProjectGitStatusResponse,
+  ReasoningEffort,
+} from "@/types/ide";
 import { getPullRequestBranchError } from "./git-actions/branch-utils";
 import { CommitDialog } from "./git-actions/commit-dialog";
 import { CreatePrDialog } from "./git-actions/create-pr-dialog";
@@ -40,8 +45,10 @@ const GitActionDialogHost = ({
   onOpenChange,
   onPrCompleted,
   model,
+  modelSpeed,
   projectPath,
   provider,
+  reasoningEffort,
   refreshToken,
   status,
 }: {
@@ -51,8 +58,10 @@ const GitActionDialogHost = ({
   onOpenChange: (open: boolean) => void;
   onPrCompleted: (url: string | null, shouldOpen: boolean) => void;
   model: string;
+  modelSpeed: ModelSpeed;
   projectPath: string;
   provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
   refreshToken: number;
   status: ProjectGitStatusResponse | null;
 }) => {
@@ -64,8 +73,10 @@ const GitActionDialogHost = ({
         onOpenChange={onOpenChange}
         open
         model={model}
+        modelSpeed={modelSpeed}
         projectPath={projectPath}
         provider={provider}
+        reasoningEffort={reasoningEffort}
         refreshToken={refreshToken}
         status={status}
       />
@@ -92,8 +103,10 @@ const GitActionDialogHost = ({
       onOpenChange={onOpenChange}
       open
       model={model}
+      modelSpeed={modelSpeed}
       projectPath={projectPath}
       provider={provider}
+      reasoningEffort={reasoningEffort}
       refreshToken={refreshToken}
       status={status}
     />
@@ -249,8 +262,10 @@ const GitActionsMenuImpl = ({
           onOpenChange={handleDialogOpenChange}
           onPrCompleted={handlePrCompleted}
           model={gitGenerationModelSelection.model}
+          modelSpeed={gitGenerationModelSelection.modelSpeed}
           projectPath={projectPath}
           provider={gitGenerationModelSelection.provider}
+          reasoningEffort={gitGenerationModelSelection.reasoningEffort}
           refreshToken={gitRefreshKey}
           status={status}
         />

@@ -15,9 +15,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   AiProvider,
+  ModelSpeed,
   ProjectGitCommitResponse,
   ProjectGitPushResponse,
   ProjectGitStatusResponse,
+  ReasoningEffort,
 } from "@/types/ide";
 import {
   generateCachedProjectCommitMessage,
@@ -36,8 +38,10 @@ export const CommitDialog = ({
   onOpenChange,
   open,
   model,
+  modelSpeed,
   projectPath,
   provider,
+  reasoningEffort,
   refreshToken,
   status,
 }: {
@@ -46,8 +50,10 @@ export const CommitDialog = ({
   onOpenChange: (open: boolean) => void;
   open: boolean;
   model: string;
+  modelSpeed: ModelSpeed;
   projectPath: string;
   provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
   refreshToken: number;
   status: ProjectGitStatusResponse | null;
 }) => {
@@ -100,8 +106,10 @@ export const CommitDialog = ({
       changes: commitChanges,
       includeUnstaged,
       model,
+      modelSpeed,
       projectPath,
       provider,
+      reasoningEffort,
       refreshToken,
     });
     if (cachedMessage !== undefined) {
@@ -118,8 +126,10 @@ export const CommitDialog = ({
       changes: commitChanges,
       includeUnstaged,
       model,
+      modelSpeed,
       projectPath,
       provider,
+      reasoningEffort,
       refreshToken,
     })
       .then((nextMessage) => {
@@ -149,9 +159,11 @@ export const CommitDialog = ({
     hasCommitChanges,
     includeUnstaged,
     model,
+    modelSpeed,
     open,
     projectPath,
     provider,
+    reasoningEffort,
     refreshToken,
     gitT,
   ]);

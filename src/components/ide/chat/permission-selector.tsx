@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import type { ChatPermissionMode } from "@/types/ide";
 
-const options = [
+export const PERMISSION_MODE_OPTIONS = [
   { value: "ask", label: "askPermissions", icon: Shield },
   { value: "auto-accept-edits", label: "acceptEdits", icon: ShieldPlus },
   { value: "full-access", label: "fullAccess", icon: ShieldAlert },
@@ -25,14 +25,17 @@ export function PermissionSelector({
 }) {
   const t = useTranslations("chat");
   const selected =
-    options.find((option) => option.value === value) ?? options[0];
+    PERMISSION_MODE_OPTIONS.find((option) => option.value === value) ??
+    PERMISSION_MODE_OPTIONS[0];
   const Icon = selected.icon;
 
   return (
     <Select
       value={value}
       onValueChange={(next) => {
-        const option = options.find((option) => option.value === next);
+        const option = PERMISSION_MODE_OPTIONS.find(
+          (option) => option.value === next,
+        );
         if (option) onChange(option.value);
       }}
     >
@@ -48,7 +51,7 @@ export function PermissionSelector({
       <SelectContent className="text-xs" side="top">
         <SelectGroup>
           <SelectLabel>{t("permissions")}</SelectLabel>
-          {options.map(({ value, label, icon: OptionIcon }) => (
+          {PERMISSION_MODE_OPTIONS.map(({ value, label, icon: OptionIcon }) => (
             <SelectItem className="text-xs" key={value} value={value}>
               <span className="flex items-center gap-1.5">
                 <OptionIcon className="size-3.5 shrink-0" />

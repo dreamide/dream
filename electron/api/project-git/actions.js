@@ -7,6 +7,7 @@ import {
   getCodexCliSpawnErrorMessage,
   resolveCodexCliLaunch,
 } from "../chat/codex-cli-launch.js";
+import { getCodexReasoningEffort } from "../chat/codex-common.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
 import {
   getCursorCliSpawnErrorMessage,
@@ -14,7 +15,11 @@ import {
   resolveCursorCliLaunch,
 } from "../providers/cursor-cli.js";
 import { runGrokPrompt } from "../providers/grok-acp.js";
-import { normalizeClaudeCodeModel } from "../providers/model-options.js";
+import {
+  CLAUDE_REASONING_EFFORT_MAP,
+  getModelReasoningEfforts,
+  normalizeClaudeCodeModel,
+} from "../providers/model-options.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
 import {
   getGitCommandErrorMessage,
@@ -175,10 +180,22 @@ const setCommitMessageCacheEntry = (key, value) => {
   }
 };
 
-const runClaudePrompt = async ({ model, prompt, projectPath, system }) => {
+const runClaudePrompt = async ({
+  model,
+  prompt,
+  projectPath,
+  reasoningEffort,
+  system,
+}) => {
   const claudeExecutablePath = await resolveCliCommandPath("claude");
+  const claudeModel = normalizeClaudeCodeModel(model || "haiku");
+  // `undefined` effort (callers that predate the setting) keeps the model's
+  // own default; `null` is the explicit "medium" default.
+  const usesReasoningModel =
+    reasoningEffort !== undefined &&
+    getModelReasoningEfforts("anthropic", claudeModel).length > 0;
   const result = await generateText({
-    model: claudeCode(normalizeClaudeCodeModel(model || "haiku"), {
+    model: claudeCode(claudeModel, {
       ...(claudeExecutablePath
         ? { pathToClaudeCodeExecutable: claudeExecutablePath }
         : {}),
@@ -188,6 +205,9 @@ const runClaudePrompt = async ({ model, prompt, projectPath, system }) => {
       permissionMode: "plan",
       mcpServers: {},
       strictMcpConfig: true,
+      ...(usesReasoningModel
+        ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort ?? "medium"] }
+        : {}),
     }),
     prompt,
     instructions: system,
@@ -196,7 +216,13 @@ const runClaudePrompt = async ({ model, prompt, projectPath, system }) => {
   return result.text;
 };
 
-const runCodexPrompt = async ({ model, prompt, projectPath }) =>
+const runCodexPrompt = async ({
+  model,
+  modelSpeed = "standard",
+  prompt,
+  projectPath,
+  reasoningEffort,
+}) =>
   new Promise((resolve, reject) => {
     let stdoutBuffer = "";
     let stderrBuffer = "";
@@ -261,7 +287,14 @@ const runCodexPrompt = async ({ model, prompt, projectPath }) =>
             "-c",
             'approval_policy="never"',
             "-c",
-            'model_reasoning_effort="low"',
+            // Callers that predate the text generation effort setting keep
+            // the original low effort.
+            `model_reasoning_effort=${JSON.stringify(
+              reasoningEffort === undefined
+                ? "low"
+                : getCodexReasoningEffort(reasoningEffort),
+            )}`,
+            ...(modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : []),
             "-",
           ],
           {
@@ -538,12 +571,20 @@ const runCursorPrompt = async ({ model, prompt, projectPath }) =>
 const generateAiText = async ({
   provider,
   model,
+  modelSpeed,
   prompt,
   projectPath,
+  reasoningEffort,
   system,
 }) => {
   if (provider === "anthropic") {
-    return runClaudePrompt({ model, prompt, projectPath, system });
+    return runClaudePrompt({
+      model,
+      prompt,
+      projectPath,
+      reasoningEffort,
+      system,
+    });
   }
 
   if (provider === "opencode") {
@@ -562,7 +603,13 @@ const generateAiText = async ({
     });
   }
 
-  return runCodexPrompt({ model, prompt, projectPath });
+  return runCodexPrompt({
+    model,
+    modelSpeed,
+    prompt,
+    projectPath,
+    reasoningEffort,
+  });
 };
 
 export const generateProjectGitCommitMessage = async (
@@ -571,7 +618,9 @@ export const generateProjectGitCommitMessage = async (
     includeUnstaged = true,
     customInstructions = "",
     model = "",
+    modelSpeed = "standard",
     provider = "openai",
+    reasoningEffort,
     throwOnError = false,
   } = {},
 ) => {
@@ -591,8 +640,10 @@ export const generateProjectGitCommitMessage = async (
     customInstructions,
     includeUnstaged,
     model,
+    modelSpeed,
     projectPath,
     provider,
+    reasoningEffort,
   });
 
   const cachedMessage = commitMessageCache.get(cacheKey);
@@ -636,9 +687,11 @@ export const generateProjectGitCommitMessage = async (
     const aiMessage = sanitizeGeneratedCommitMessage(
       await generateAiText({
         model,
+        modelSpeed,
         projectPath,
         prompt: commitPrompt,
         provider,
+        reasoningEffort,
         system: provider === "anthropic" ? commitInstruction : undefined,
       }),
     );
@@ -1025,8 +1078,10 @@ const generateAiPullRequestDetails = async ({
   customInstructions,
   diffStat,
   model,
+  modelSpeed,
   projectPath,
   provider,
+  reasoningEffort,
 }) => {
   const context = buildPullRequestContext({
     branch,
@@ -1046,17 +1101,21 @@ const generateAiPullRequestDetails = async ({
   const [titleText, bodyText] = await Promise.all([
     generateAiText({
       model,
+      modelSpeed,
       projectPath,
       prompt: titlePrompt,
       provider,
+      reasoningEffort,
       system:
         provider === "anthropic" ? PULL_REQUEST_TITLE_INSTRUCTION : undefined,
     }),
     generateAiText({
       model,
+      modelSpeed,
       projectPath,
       prompt: bodyPrompt,
       provider,
+      reasoningEffort,
       system:
         provider === "anthropic" ? PULL_REQUEST_BODY_INSTRUCTION : undefined,
     }),
@@ -1104,8 +1163,10 @@ export const generateProjectPullRequestDetails = async (
     customInstructions = "",
     includeUnstaged = true,
     model = "",
+    modelSpeed = "standard",
     nextStep = "create",
     provider = "openai",
+    reasoningEffort,
   } = {},
 ) => {
   const context = await getProjectPullRequestGenerationContext(
@@ -1122,7 +1183,9 @@ export const generateProjectPullRequestDetails = async (
           customInstructions,
           includeUnstaged,
           model,
+          modelSpeed,
           provider,
+          reasoningEffort,
         })
       : "";
   const commitSubjects = generatedCommitMessage
@@ -1145,8 +1208,10 @@ export const generateProjectPullRequestDetails = async (
         customInstructions,
         diffStat,
         model,
+        modelSpeed,
         projectPath,
         provider,
+        reasoningEffort,
       });
       generatedTitle = aiDetails.title;
       generatedDescription = aiDetails.description;

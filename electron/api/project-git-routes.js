@@ -556,7 +556,14 @@ export const registerProjectGitRoutes = (app) => {
       return c.text(parsed.error.message, 400);
     }
 
-    const { fallbackMessage, model, projectPath, provider } = parsed.data;
+    const {
+      fallbackMessage,
+      model,
+      modelSpeed,
+      projectPath,
+      provider,
+      reasoningEffort,
+    } = parsed.data;
 
     try {
       await ensureProjectDirectory(projectPath);
@@ -568,7 +575,9 @@ export const registerProjectGitRoutes = (app) => {
           generateMessage: () =>
             generateProjectGitCommitMessage(projectPath, {
               model: model ?? "",
+              modelSpeed,
               provider,
+              reasoningEffort,
               throwOnError: true,
             }),
         }),

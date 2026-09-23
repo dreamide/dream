@@ -714,8 +714,10 @@ export const submitChatPrompt = (
     flushProjectPanelRefresh(submittedProject.id);
     void warmProjectCommitMessage({
       model: gitGenerationModelSelection.model,
+      modelSpeed: gitGenerationModelSelection.modelSpeed,
       projectPath: submittedProjectPath,
       provider: gitGenerationModelSelection.provider,
+      reasoningEffort: gitGenerationModelSelection.reasoningEffort,
       refreshToken:
         useIdeStore.getState().projectGitRefreshKeys[submittedProject.id] ?? 0,
     });

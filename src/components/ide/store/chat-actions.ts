@@ -81,6 +81,7 @@ export const createChatActions = (
         provider: defaultSelection.model
           ? defaultSelection.provider
           : project.provider,
+        permissionMode: state.settings.defaultPermissionMode,
         reasoningEffort: defaultSelection.model
           ? defaultSelection.reasoningEffort
           : project.reasoningEffort,
@@ -129,6 +130,7 @@ export const createChatActions = (
         provider: defaultSelection.model
           ? defaultSelection.provider
           : project.provider,
+        permissionMode: state.settings.defaultPermissionMode,
         reasoningEffort: defaultSelection.model
           ? defaultSelection.reasoningEffort
           : project.reasoningEffort,

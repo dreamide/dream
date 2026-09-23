@@ -961,3 +961,31 @@ test("step chats and transcripts survive removing the task's worktree", async ()
     await rm(directory, { force: true, recursive: true });
   }
 });
+
+test("new-chat and text generation settings survive a persistence round trip", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+
+  try {
+    const project = createProject("project-one", "2026-07-19T12:00:00.000Z");
+    savePersistedState(
+      {
+        ...createState(project),
+        settings: {
+          defaultGitGenerationModelSpeed: "fast",
+          defaultGitGenerationReasoningEffort: null,
+          defaultPermissionMode: "ask",
+        },
+      },
+      { databasePath },
+    );
+
+    const loaded = loadPersistedState({ databasePath });
+    assert.equal(loaded.settings.defaultGitGenerationModelSpeed, "fast");
+    assert.equal(loaded.settings.defaultGitGenerationReasoningEffort, null);
+    assert.equal(loaded.settings.defaultPermissionMode, "ask");
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});

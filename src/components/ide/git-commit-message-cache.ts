@@ -1,8 +1,10 @@
 import type {
   AiProvider,
+  ModelSpeed,
   ProjectGitCommitMessageResponse,
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
+  ReasoningEffort,
 } from "@/types/ide";
 
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 50;
@@ -12,8 +14,10 @@ type CommitMessageCacheParams = {
   changes: ProjectGitStatusEntry[];
   includeUnstaged: boolean;
   model: string;
+  modelSpeed: ModelSpeed;
   projectPath: string;
   provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
   refreshToken: number;
 };
 
@@ -22,8 +26,10 @@ type GenerateCommitMessageParams = CommitMessageCacheParams;
 type WarmCommitMessageParams = {
   includeUnstaged?: boolean;
   model: string;
+  modelSpeed: ModelSpeed;
   projectPath: string;
   provider: AiProvider;
+  reasoningEffort: ReasoningEffort | null;
   refreshToken: number;
 };
 
@@ -63,8 +69,10 @@ const getCommitMessageCacheKey = ({
   changes,
   includeUnstaged,
   model,
+  modelSpeed,
   projectPath,
   provider,
+  reasoningEffort,
 }: CommitMessageCacheParams) =>
   JSON.stringify({
     changes: changes
@@ -80,8 +88,10 @@ const getCommitMessageCacheKey = ({
       .sort((a, b) => a.path.localeCompare(b.path)),
     includeUnstaged,
     model,
+    modelSpeed,
     projectPath,
     provider,
+    reasoningEffort,
     version: COMMIT_MESSAGE_CACHE_VERSION,
   });
 
@@ -108,8 +118,10 @@ export const generateCachedProjectCommitMessage = (
       body: JSON.stringify({
         includeUnstaged: params.includeUnstaged,
         model: params.model,
+        modelSpeed: params.modelSpeed,
         projectPath: params.projectPath,
         provider: params.provider,
+        reasoningEffort: params.reasoningEffort,
       }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -145,8 +157,10 @@ export const generateCachedProjectCommitMessage = (
 export const warmProjectCommitMessageForStatus = async ({
   includeUnstaged = true,
   model,
+  modelSpeed,
   projectPath,
   provider,
+  reasoningEffort,
   refreshToken,
   status,
 }: WarmCommitMessageForStatusParams) => {
@@ -160,8 +174,10 @@ export const warmProjectCommitMessageForStatus = async ({
       changes,
       includeUnstaged,
       model,
+      modelSpeed,
       projectPath,
       provider,
+      reasoningEffort,
       refreshToken,
     });
   } catch {
@@ -172,8 +188,10 @@ export const warmProjectCommitMessageForStatus = async ({
 export const warmProjectCommitMessage = async ({
   includeUnstaged = true,
   model,
+  modelSpeed,
   projectPath,
   provider,
+  reasoningEffort,
   refreshToken,
 }: WarmCommitMessageParams) => {
   try {
@@ -190,8 +208,10 @@ export const warmProjectCommitMessage = async ({
     return await warmProjectCommitMessageForStatus({
       includeUnstaged,
       model,
+      modelSpeed,
       projectPath,
       provider,
+      reasoningEffort,
       refreshToken,
       status: (await statusResponse.json()) as ProjectGitStatusResponse,
     });

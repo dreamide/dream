@@ -890,7 +890,21 @@ export const mergePersistedState = (
       typeof rawSettings.defaultGitGenerationModel === "string"
         ? rawSettings.defaultGitGenerationModel
         : "",
+    defaultGitGenerationModelSpeed: normalizeModelSpeed(
+      rawSettings.defaultGitGenerationModelSpeed,
+    ),
+    defaultGitGenerationReasoningEffort:
+      rawSettings.defaultGitGenerationReasoningEffort === undefined
+        ? DEFAULT_SETTINGS.defaultGitGenerationReasoningEffort
+        : normalizeReasoningEffort(
+            rawSettings.defaultGitGenerationReasoningEffort,
+          ),
     defaultModelSpeed: normalizeModelSpeed(rawSettings.defaultModelSpeed),
+    defaultPermissionMode: normalizeChatPermissionMode(
+      rawSettings.defaultPermissionMode,
+      undefined,
+      DEFAULT_SETTINGS.defaultPermissionMode,
+    ),
     defaultReasoningEffort: normalizeReasoningEffort(
       rawSettings.defaultReasoningEffort,
     ),
@@ -1046,13 +1060,15 @@ export const mergePersistedState = (
     normalizedChats.length > 0
       ? [...normalizedChats]
       : projects.map((project) =>
-          createChatConfig(project, { permissionMode: legacyPermissionMode }),
+          createChatConfig(project, {
+            permissionMode: mergedSettings.defaultPermissionMode,
+          }),
         );
   const projectIdsWithChats = new Set(chats.map((chat) => chat.projectId));
   for (const project of projects) {
     if (!projectIdsWithChats.has(project.id)) {
       const chat = createChatConfig(project, {
-        permissionMode: legacyPermissionMode,
+        permissionMode: mergedSettings.defaultPermissionMode,
       });
       chats.push(chat);
       projectIdsWithChats.add(project.id);
