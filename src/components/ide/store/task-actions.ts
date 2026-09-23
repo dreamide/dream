@@ -1143,17 +1143,21 @@ export const createTaskActions = (
         if (!config.autoAdvance || !getNextTaskStep(task.step)) {
           return;
         }
-        // A review only passes itself along on an explicit APPROVE; requested
-        // changes (or no verdict at all) wait for the user to decide.
-        if (
-          run.step === "review" &&
-          getTaskReviewVerdict(
+        // Auto review routes findings back to the builder; only an explicit
+        // approval moves forward. An absent verdict still needs attention.
+        if (run.step === "review") {
+          const verdict = getTaskReviewVerdict(
             findTask(task.projectId, task.id)?.task.runs.find(
               (entry) => entry.id === run.id,
             )?.output ?? run.output,
-          ) !== "approve"
-        ) {
-          return;
+          );
+          if (verdict === "changes") {
+            await get().sendTaskBack(task.projectId, task.id, "build");
+            return;
+          }
+          if (verdict !== "approve") {
+            return;
+          }
         }
 
         await advance(task.projectId, task.id, { alreadyCommitted: true });

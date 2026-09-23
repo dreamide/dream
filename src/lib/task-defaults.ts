@@ -83,7 +83,7 @@ Explore the repository and produce a concrete implementation plan: the files to 
 {{feedback}}
 
 Run the project's tests and lint. Do NOT run \`git commit\`: the app commits your work when you finish, and tells you if the commit is rejected. Finish with a summary of what changed and anything you could not verify.`,
-  review: `You are the review step of a task pipeline. Review the changes on branch {{branch}} against {{baseRef}} for this task. Do not edit files.
+  review: `You are the review step of a task pipeline. Review the changes on branch {{branch}} against {{baseRef}} for this task. Do not edit files. Do not enter plan mode or call EnterPlanMode or ExitPlanMode. Complete the review directly and return your findings as your final message.
 
 # {{task.title}}
 {{task.description}}
@@ -121,7 +121,7 @@ export const DEFAULT_TASK_CONFIG: TaskConfig = {
     prompt: null,
   },
   review: {
-    agentMode: "plan",
+    agentMode: "build",
     autoAdvance: false,
     model: null,
     permissionMode: "full-access",
@@ -137,8 +137,8 @@ export const DEFAULT_TASK_CONFIG: TaskConfig = {
 };
 
 /**
- * Each step's agent mode follows from what the step is for: planning and
- * reviewing read, building and shipping write. It is not a setting.
+ * Only planning uses provider plan mode. Review runs in normal mode with
+ * instructions not to edit, avoiding the provider's plan approval workflow.
  */
 export const TASK_STEP_AGENT_MODE: Record<TaskRunStepId, AgentMode> = {
   build: DEFAULT_TASK_CONFIG.build.agentMode,

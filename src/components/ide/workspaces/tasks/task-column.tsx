@@ -1,6 +1,7 @@
 import { Plus, SlidersHorizontal } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useId, useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -79,9 +80,12 @@ const TaskColumnImpl = ({
         >
           {t(step.labelKey)}
         </h3>
-        <span className="text-muted-foreground text-sm tabular-nums">
+        <Badge
+          className="min-w-5 border-surface-300 bg-surface-200 px-1.5 text-foreground text-xs tabular-nums dark:border-surface-600 dark:bg-surface-700"
+          variant="secondary"
+        >
           {entries.length}
-        </span>
+        </Badge>
         {isBacklog ? (
           <Button
             aria-label={t("addTask")}
