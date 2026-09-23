@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { parsePatchFiles } from "@pierre/diffs";
 import { app } from "electron";
@@ -704,7 +705,16 @@ const isPathInsideDirectory = (targetPath, directoryPath) => {
 };
 
 const getAppWorktreesDirectory = () =>
+  path.join(os.homedir(), ".dream", "worktrees");
+
+// Worktrees created before the move to ~/.dream/worktrees lived under the
+// app's userData folder. Keep recognising them as app-managed.
+const getLegacyAppWorktreesDirectory = () =>
   path.join(app.getPath("userData"), "worktrees");
+
+const isAppManagedWorktreePath = (worktreePath) =>
+  isPathInsideDirectory(worktreePath, getAppWorktreesDirectory()) ||
+  isPathInsideDirectory(worktreePath, getLegacyAppWorktreesDirectory());
 
 export const listProjectGitWorktrees = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
@@ -722,11 +732,10 @@ export const listProjectGitWorktrees = async (projectPath) => {
     "list",
     "--porcelain",
   ]);
-  const appWorktreesDirectory = getAppWorktreesDirectory();
   const worktrees = parseProjectGitWorktreePorcelain(result.stdout).map(
     (worktree) => ({
       ...worktree,
-      appManaged: isPathInsideDirectory(worktree.path, appWorktreesDirectory),
+      appManaged: isAppManagedWorktreePath(worktree.path),
     }),
   );
   const mainWorktreePath =
