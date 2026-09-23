@@ -25,23 +25,27 @@ export const formatDeletedDate = (value: string) => {
 export const ProviderStatusCard = ({
   action,
   children,
+  enabled,
   error,
   icon,
   installed,
   label,
   logoSrc,
   loading,
+  onEnabledChange,
   runtimeLabel,
   version,
 }: {
   action?: ReactNode;
   children?: ReactNode;
+  enabled: boolean;
   error: string | null;
   icon?: ReactNode;
   installed: boolean;
   label: string;
   logoSrc?: string;
   loading: boolean;
+  onEnabledChange: (enabled: boolean) => void;
   runtimeLabel: string;
   version: string | null;
 }) => {
@@ -75,8 +79,16 @@ export const ProviderStatusCard = ({
             ) : null}
           </p>
         </div>
-        <div className="flex size-6 items-center justify-center">
-          {loading ? <Spinner className="size-3.5" /> : action}
+        <div className="flex items-center gap-2">
+          <div className="flex size-6 items-center justify-center">
+            {loading ? <Spinner className="size-3.5" /> : action}
+          </div>
+          <Switch
+            aria-label={uiT("enableProvider", { provider: label })}
+            checked={enabled}
+            onCheckedChange={onEnabledChange}
+            title={uiT("enableProvider", { provider: label })}
+          />
         </div>
       </div>
 
@@ -86,7 +98,7 @@ export const ProviderStatusCard = ({
         </p>
       ) : null}
 
-      {children && installed ? (
+      {children && installed && enabled ? (
         <div className="mt-4 max-h-[min(34vh,22rem)] overflow-y-auto pr-1">
           {children}
         </div>

@@ -37,6 +37,7 @@ const DEFAULT_PERSISTED_STATE = {
     defaultModelSpeed: "standard",
     defaultPermissionMode: "full-access",
     defaultReasoningEffort: null,
+    disabledProviders: [],
     expandToolCalls: false,
     groupToolCalls: false,
     openAiSelectedModels: [],
@@ -1206,6 +1207,14 @@ function saveStateToRelationalDatabase(database, state) {
     writeConfig(database, "settings.shellPath", settings.shellPath ?? "", now);
     writeConfig(
       database,
+      "settings.disabledProviders",
+      Array.isArray(settings.disabledProviders)
+        ? settings.disabledProviders
+        : [],
+      now,
+    );
+    writeConfig(
+      database,
       "settings.expandToolCalls",
       settings.expandToolCalls === true,
       now,
@@ -1806,6 +1815,9 @@ function loadStateFromRelationalDatabase(database) {
         typeof config["settings.shellPath"] === "string"
           ? config["settings.shellPath"]
           : "",
+      disabledProviders: Array.isArray(config["settings.disabledProviders"])
+        ? config["settings.disabledProviders"]
+        : [],
     },
   };
 }

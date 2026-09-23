@@ -43,10 +43,16 @@ import { getDesktopApi } from "@/lib/electron";
 import {
   getModelOptionsForProvider,
   getModelsForProvider,
+  isProviderEnabled,
 } from "@/lib/ide-defaults";
 import { ACCENT_COLORS, BASE_COLORS, useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
-import type { AccentColor, BaseColor, TerminalShellOption } from "@/types/ide";
+import type {
+  AccentColor,
+  AiProvider,
+  BaseColor,
+  TerminalShellOption,
+} from "@/types/ide";
 import packageJson from "../../../package.json";
 import { PERMISSION_MODE_OPTIONS } from "./chat/permission-selector";
 import { WindowControls } from "./header/window-controls";
@@ -441,6 +447,18 @@ export const SettingsWorkspace = () => {
   const handleRefreshGrokProvider = () => {
     void refreshProviderModels({ force: true, provider: "grok" });
   };
+  const setProviderEnabled = (provider: AiProvider, enabled: boolean) =>
+    setSettings((previous) => {
+      const disabledProviders = (previous.disabledProviders ?? []).filter(
+        (item) => item !== provider,
+      );
+      return {
+        ...previous,
+        disabledProviders: enabled
+          ? disabledProviders
+          : [...disabledProviders, provider],
+      };
+    });
   const getProviderError = (error: string | null) =>
     error ? uiT("unableToFetchModels") : null;
 
@@ -914,11 +932,15 @@ export const SettingsWorkspace = () => {
                         <RotateCw className="size-3.5" />
                       </Button>
                     }
+                    enabled={isProviderEnabled("openai", settings)}
                     error={getProviderError(providerModels.openai.error)}
                     installed={providerModels.openai.installed}
                     label="OpenAI"
                     logoSrc={openAiLogo}
                     loading={providerModels.openai.loading}
+                    onEnabledChange={(enabled) =>
+                      setProviderEnabled("openai", enabled)
+                    }
                     runtimeLabel={providerT("codexCli")}
                     version={providerModels.openai.version}
                   >
@@ -982,11 +1004,15 @@ export const SettingsWorkspace = () => {
                         <RotateCw className="size-3.5" />
                       </Button>
                     }
+                    enabled={isProviderEnabled("anthropic", settings)}
                     error={getProviderError(providerModels.anthropic.error)}
                     installed={providerModels.anthropic.installed}
                     label="Anthropic"
                     logoSrc={anthropicLogo}
                     loading={providerModels.anthropic.loading}
+                    onEnabledChange={(enabled) =>
+                      setProviderEnabled("anthropic", enabled)
+                    }
                     runtimeLabel={providerT("claudeCodeCli")}
                     version={providerModels.anthropic.version}
                   >
@@ -1050,11 +1076,15 @@ export const SettingsWorkspace = () => {
                         <RotateCw className="size-3.5" />
                       </Button>
                     }
+                    enabled={isProviderEnabled("opencode", settings)}
                     error={getProviderError(providerModels.opencode.error)}
                     installed={providerModels.opencode.installed}
                     label="OpenCode"
                     logoSrc={openCodeLogo}
                     loading={providerModels.opencode.loading}
+                    onEnabledChange={(enabled) =>
+                      setProviderEnabled("opencode", enabled)
+                    }
                     runtimeLabel={providerT("opencodeCli")}
                     version={providerModels.opencode.version}
                   >
@@ -1118,6 +1148,7 @@ export const SettingsWorkspace = () => {
                         <RotateCw className="size-3.5" />
                       </Button>
                     }
+                    enabled={isProviderEnabled("cursor", settings)}
                     error={getProviderError(providerModels.cursor.error)}
                     icon={
                       <CursorIcon
@@ -1129,6 +1160,9 @@ export const SettingsWorkspace = () => {
                     installed={providerModels.cursor.installed}
                     label="Cursor"
                     loading={providerModels.cursor.loading}
+                    onEnabledChange={(enabled) =>
+                      setProviderEnabled("cursor", enabled)
+                    }
                     runtimeLabel={providerT("cursorAgentCli")}
                     version={providerModels.cursor.version}
                   >
@@ -1192,6 +1226,7 @@ export const SettingsWorkspace = () => {
                         <RotateCw className="size-3.5" />
                       </Button>
                     }
+                    enabled={isProviderEnabled("grok", settings)}
                     error={getProviderError(providerModels.grok.error)}
                     icon={
                       <GrokIcon
@@ -1203,6 +1238,9 @@ export const SettingsWorkspace = () => {
                     installed={providerModels.grok.installed}
                     label="Grok Build"
                     loading={providerModels.grok.loading}
+                    onEnabledChange={(enabled) =>
+                      setProviderEnabled("grok", enabled)
+                    }
                     runtimeLabel="Grok Build CLI"
                     version={providerModels.grok.version}
                   >

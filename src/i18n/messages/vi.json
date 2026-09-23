@@ -5,6 +5,7 @@
   "ui": {
     "addPhotosOrFiles": "Thêm ảnh hoặc tệp",
     "cliNotDetected": "Không phát hiện CLI.",
+    "enableProvider": "Bật {provider}",
     "colors": {
       "amber": "Hổ phách",
       "blackWhite": "Đen / trắng",

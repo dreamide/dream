@@ -236,6 +236,11 @@ export interface AppSettings {
   defaultModelSpeed: ModelSpeed;
   defaultPermissionMode: ChatPermissionMode;
   defaultReasoningEffort: ReasoningEffort | null;
+  /**
+   * Providers switched off in settings. Their selected models are kept so
+   * switching a provider back on restores them.
+   */
+  disabledProviders: AiProvider[];
   changeCheckpoints: boolean;
   expandToolCalls: boolean;
   groupToolCalls: boolean;

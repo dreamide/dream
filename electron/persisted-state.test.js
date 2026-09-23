@@ -975,6 +975,7 @@ test("new-chat and text generation settings survive a persistence round trip", a
           defaultGitGenerationModelSpeed: "fast",
           defaultGitGenerationReasoningEffort: null,
           defaultPermissionMode: "ask",
+          disabledProviders: ["cursor"],
         },
       },
       { databasePath },
@@ -984,6 +985,7 @@ test("new-chat and text generation settings survive a persistence round trip", a
     assert.equal(loaded.settings.defaultGitGenerationModelSpeed, "fast");
     assert.equal(loaded.settings.defaultGitGenerationReasoningEffort, null);
     assert.equal(loaded.settings.defaultPermissionMode, "ask");
+    assert.deepEqual(loaded.settings.disabledProviders, ["cursor"]);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

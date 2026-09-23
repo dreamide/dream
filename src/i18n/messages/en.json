@@ -5,6 +5,7 @@
   "ui": {
     "addPhotosOrFiles": "Add photos or files",
     "cliNotDetected": "CLI not detected.",
+    "enableProvider": "Enable {provider}",
     "colors": {
       "amber": "Amber",
       "blackWhite": "Black / white",

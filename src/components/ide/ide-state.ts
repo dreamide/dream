@@ -10,6 +10,7 @@ import type {
 } from "ai";
 import { normalizeLocalePreference } from "@/i18n/config";
 import {
+  ALL_PROVIDERS,
   createChatConfig,
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
@@ -908,6 +909,11 @@ export const mergePersistedState = (
     defaultReasoningEffort: normalizeReasoningEffort(
       rawSettings.defaultReasoningEffort,
     ),
+    disabledProviders: Array.isArray(rawSettings.disabledProviders)
+      ? ALL_PROVIDERS.filter((provider) =>
+          (rawSettings.disabledProviders as unknown[]).includes(provider),
+        )
+      : [],
     expandToolCalls:
       typeof rawSettings.expandToolCalls === "boolean"
         ? rawSettings.expandToolCalls

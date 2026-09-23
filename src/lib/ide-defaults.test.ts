@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   DEFAULT_SETTINGS,
+  getConnectedProviders,
   getModelsForProvider,
   getPreferredDefaultModel,
   getProviderForModel,
@@ -147,4 +148,20 @@ test("normalizeDefaultModelSettings keeps valid selections intact", () => {
   assert.equal(normalized.defaultGitGenerationModel, "gpt-5");
   assert.equal(normalized.defaultModelSpeed, "fast");
   assert.equal(normalized.defaultReasoningEffort, "high");
+});
+
+test("a disabled provider offers no models but keeps its selection", () => {
+  const settings = createSettings({
+    anthropicSelectedModels: ["sonnet"],
+    disabledProviders: ["openai"],
+    openAiSelectedModels: ["gpt-5"],
+  });
+
+  assert.deepEqual(getModelsForProvider("openai", settings), []);
+  assert.deepEqual(getConnectedProviders(settings), ["anthropic"]);
+  assert.deepEqual(settings.openAiSelectedModels, ["gpt-5"]);
+  assert.deepEqual(
+    getModelsForProvider("openai", { ...settings, disabledProviders: [] }),
+    ["gpt-5"],
+  );
 });

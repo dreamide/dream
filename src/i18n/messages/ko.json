@@ -5,6 +5,7 @@
   "ui": {
     "addPhotosOrFiles": "사진 또는 파일 추가",
     "cliNotDetected": "CLI가 감지되지 않았습니다.",
+    "enableProvider": "{provider} 사용",
     "colors": {
       "amber": "호박색",
       "blackWhite": "검정 / 흰색",

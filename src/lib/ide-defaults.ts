@@ -76,6 +76,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultModelSpeed: "standard",
   defaultPermissionMode: "full-access",
   defaultReasoningEffort: null,
+  disabledProviders: [],
   changeCheckpoints: true,
   expandToolCalls: false,
   groupToolCalls: false,
@@ -285,10 +286,23 @@ export const getDefaultModelForProvider = (
   return providerModels[0] ?? "";
 };
 
+export const isProviderEnabled = (
+  provider: AiProvider,
+  settings: AppSettings,
+): boolean => !settings.disabledProviders?.includes(provider);
+
+/**
+ * Models offered for a provider. A disabled provider offers none, which hides
+ * it everywhere a model can be picked.
+ */
 export const getModelsForProvider = (
   provider: AiProvider,
   settings: AppSettings,
 ): string[] => {
+  if (!isProviderEnabled(provider, settings)) {
+    return [];
+  }
+
   const clean = (models: string[]): string[] => {
     return Array.from(
       new Set(models.map((model) => model.trim()).filter(Boolean)),

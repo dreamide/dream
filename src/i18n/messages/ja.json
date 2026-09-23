@@ -5,6 +5,7 @@
   "ui": {
     "addPhotosOrFiles": "写真またはファイルを追加",
     "cliNotDetected": "CLI が検出されませんでした。",
+    "enableProvider": "{provider} を有効にする",
     "colors": {
       "amber": "アンバー",
       "blackWhite": "黒 / 白",
