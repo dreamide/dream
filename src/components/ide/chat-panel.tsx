@@ -127,6 +127,7 @@ export const ChatPanel = ({
   canCloseChat = false,
   isActive,
   isProjectActive = isActive,
+  readOnly = false,
   onActivateChat,
   onCloseChat,
   onHeaderPointerDown,
@@ -136,6 +137,7 @@ export const ChatPanel = ({
   canCloseChat?: boolean;
   isActive: boolean;
   isProjectActive?: boolean;
+  readOnly?: boolean;
   onActivateChat?: () => void;
   onCloseChat?: () => void;
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -412,6 +414,7 @@ export const ChatPanel = ({
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
+      if (readOnly) return;
       handleActivateChat();
 
       // The runtime validates and sends; this panel only owns the draft.
@@ -426,6 +429,7 @@ export const ChatPanel = ({
     [
       chat.id,
       handleActivateChat,
+      readOnly,
       resetPromptHistory,
       scrollConversationToBottom,
     ],
@@ -587,81 +591,83 @@ export const ChatPanel = ({
           />
         ) : null}
 
-        <ChatComposer
-          allModelOptions={allModelOptions}
-          chatProvider={chat.provider}
-          contextWindow={contextWindow}
-          contextUsage={contextUsage}
-          contextUsedTokens={contextUsedTokens}
-          isActive={isProjectActive && messagesLoaded}
-          isProcessing={isProcessing}
-          isProviderInstalled={isProviderInstalled}
-          modelId={modelId}
-          onModelChange={(nextOption) => {
-            updateChat(chat.id, (current) => ({
-              ...current,
-              model: nextOption.id,
-              modelSpeed: "standard",
-              provider: nextOption.provider,
-              reasoningEffort: null,
-              remoteConversationId: null,
-              remoteConversationModel: null,
-              remoteConversationModelSpeed: null,
-              remoteConversationProjectPath: null,
-            }));
-          }}
-          onModelSpeedChange={(modelSpeed) => {
-            updateChat(chat.id, (current) => ({
-              ...current,
-              modelSpeed,
-              remoteConversationId: null,
-              remoteConversationModel: null,
-              remoteConversationModelSpeed: null,
-              remoteConversationProjectPath: null,
-            }));
-          }}
-          onPermissionModeChange={(permissionMode) => {
-            updateChat(chat.id, (current) => ({
-              ...current,
-              permissionMode,
-            }));
-          }}
-          onPromptKeyDown={handlePromptKeyDown}
-          onPromptTextChange={setPromptText}
-          onReasoningEffortChange={(reasoningEffort) => {
-            updateChat(chat.id, (current) => ({
-              ...current,
-              reasoningEffort:
-                reasoningEffort === "medium" ? null : reasoningEffort,
-            }));
-          }}
-          onSparklesPaletteChange={(sparklesPalette) => {
-            updateChat(chat.id, (current) => ({
-              ...current,
-              sparklesPalette,
-            }));
-          }}
-          onStop={stop}
-          onSubmit={handleSubmit}
-          promptDomId={promptDomId}
-          promptInputDomId={promptInputDomId}
-          promptText={promptText}
-          permissionMode={chat.permissionMode}
-          projectPath={project.path}
-          reasoningEffortOptions={reasoningEffortOptions}
-          speedOptions={speedOptions}
-          selectedModel={selectedModel}
-          selectedModelLabel={selectedModelLabel}
-          selectedModelValue={selectedModelValue}
-          selectedModelSpeed={selectedModelSpeed}
-          selectedModelSpeedLabel={selectedModelSpeedLabel}
-          selectedProvider={selectedProvider}
-          selectedReasoningEffort={selectedReasoningEffortForControl}
-          selectedReasoningLabel={selectedReasoningLabel}
-          sparklesPalette={chat.sparklesPalette}
-          status={status}
-          todoSummary={todoSummary}
-        />
+        {readOnly ? null : (
+          <ChatComposer
+            allModelOptions={allModelOptions}
+            chatProvider={chat.provider}
+            contextWindow={contextWindow}
+            contextUsage={contextUsage}
+            contextUsedTokens={contextUsedTokens}
+            isActive={isProjectActive && messagesLoaded}
+            isProcessing={isProcessing}
+            isProviderInstalled={isProviderInstalled}
+            modelId={modelId}
+            onModelChange={(nextOption) => {
+              updateChat(chat.id, (current) => ({
+                ...current,
+                model: nextOption.id,
+                modelSpeed: "standard",
+                provider: nextOption.provider,
+                reasoningEffort: null,
+                remoteConversationId: null,
+                remoteConversationModel: null,
+                remoteConversationModelSpeed: null,
+                remoteConversationProjectPath: null,
+              }));
+            }}
+            onModelSpeedChange={(modelSpeed) => {
+              updateChat(chat.id, (current) => ({
+                ...current,
+                modelSpeed,
+                remoteConversationId: null,
+                remoteConversationModel: null,
+                remoteConversationModelSpeed: null,
+                remoteConversationProjectPath: null,
+              }));
+            }}
+            onPermissionModeChange={(permissionMode) => {
+              updateChat(chat.id, (current) => ({
+                ...current,
+                permissionMode,
+              }));
+            }}
+            onPromptKeyDown={handlePromptKeyDown}
+            onPromptTextChange={setPromptText}
+            onReasoningEffortChange={(reasoningEffort) => {
+              updateChat(chat.id, (current) => ({
+                ...current,
+                reasoningEffort:
+                  reasoningEffort === "medium" ? null : reasoningEffort,
+              }));
+            }}
+            onSparklesPaletteChange={(sparklesPalette) => {
+              updateChat(chat.id, (current) => ({
+                ...current,
+                sparklesPalette,
+              }));
+            }}
+            onStop={stop}
+            onSubmit={handleSubmit}
+            promptDomId={promptDomId}
+            promptInputDomId={promptInputDomId}
+            promptText={promptText}
+            permissionMode={chat.permissionMode}
+            projectPath={project.path}
+            reasoningEffortOptions={reasoningEffortOptions}
+            speedOptions={speedOptions}
+            selectedModel={selectedModel}
+            selectedModelLabel={selectedModelLabel}
+            selectedModelValue={selectedModelValue}
+            selectedModelSpeed={selectedModelSpeed}
+            selectedModelSpeedLabel={selectedModelSpeedLabel}
+            selectedProvider={selectedProvider}
+            selectedReasoningEffort={selectedReasoningEffortForControl}
+            selectedReasoningLabel={selectedReasoningLabel}
+            sparklesPalette={chat.sparklesPalette}
+            status={status}
+            todoSummary={todoSummary}
+          />
+        )}
 
         {isTaskChat ? null : <ProjectBranchFooter project={project} />}
       </div>
