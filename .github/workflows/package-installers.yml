@@ -361,6 +361,14 @@ jobs:
         if: env.ENABLE_SIGNING != 'true' || env.WINDOWS_SIGNING_AVAILABLE != 'true'
         run: pnpm vite:build
 
+      - name: Setup Java for Windows signing
+        if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '11'
+          check-latest: true
+
       - name: Install SSL.com CodeSignTool
         if: env.ENABLE_SIGNING == 'true' && env.WINDOWS_SIGNING_AVAILABLE == 'true'
         shell: pwsh
@@ -382,6 +390,21 @@ jobs:
           if (-not (Test-Path -LiteralPath $codeSignTool)) {
             throw "Could not find CodeSignTool.bat after expanding $downloadPath"
           }
+
+          # The vendor launcher hardcodes Java 11.0.2 (2019), whose trust store
+          # cannot validate the signing service's current TLS certificate.
+          # Use the maintained Java 11 installed above, retaining TLS validation.
+          $javaPath = Join-Path $env:JAVA_HOME "bin\java.exe"
+          $toolJar = Join-Path $toolRoot "jar\code_sign_tool-$($toolVersion.TrimStart('v')).jar"
+          if (-not (Test-Path -LiteralPath $javaPath) -or -not (Test-Path -LiteralPath $toolJar)) {
+            throw "Could not find the signing Java runtime or CodeSignTool JAR."
+          }
+          @(
+            '@echo off'
+            '"%JAVA_HOME%\bin\java.exe" -jar "%~dp0jar\code_sign_tool-1.3.2.jar" %*'
+            'exit /b %errorlevel%'
+          ) | Set-Content -LiteralPath $codeSignTool -Encoding ASCII
+          & $javaPath -version
 
           $configPath = Join-Path $toolRoot "conf\code_sign_tool.properties"
           if ($env:SSL_COM_ENVIRONMENT_NAME -eq "TEST") {
