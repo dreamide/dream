@@ -281,7 +281,10 @@ const TaskCardImpl = ({
               <span className="truncate">{project.name}</span>
             </div>
           ) : null}
-          <h3 className="line-clamp-2 break-words font-medium text-sm leading-5">
+          <h3
+            className="truncate font-medium text-sm leading-5"
+            title={task.title}
+          >
             {task.title}
           </h3>
           {task.description ? (

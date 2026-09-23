@@ -405,9 +405,9 @@ export const TaskBoard = ({
         className="-m-2 min-h-0 flex-1 overflow-x-auto p-2"
         ref={scrollAreaRef}
       >
-        {/* Columns are a fixed 370px; when five do not fit (e.g. beside the
-            chat pane) the board scrolls. */}
-        <div className="mx-auto flex h-full w-max min-w-0 gap-2">
+        {/* The outer auto margins center the columns when they fit and
+            collapse when the board needs to scroll. */}
+        <div className="flex h-full w-full gap-2">
           {TASK_STEPS.map((step) => (
             <TaskColumn
               busyKeys={busyKeys}
@@ -435,6 +435,10 @@ export const TaskBoard = ({
               step={step}
             />
           ))}
+          {/* A flex child's trailing margin is omitted from the scroll range. */}
+          {selectedTaskId ? (
+            <div aria-hidden className="mr-auto w-2 shrink-0" />
+          ) : null}
         </div>
       </div>
       {dialog?.mode === "create" || dialog?.mode === "edit" ? (

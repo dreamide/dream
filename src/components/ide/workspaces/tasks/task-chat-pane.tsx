@@ -144,7 +144,7 @@ const TaskChatPaneBody = ({
                       className={cn(
                         "flex h-7 shrink-0 items-center gap-1 rounded-md px-2 font-medium text-xs transition-colors",
                         selected
-                          ? "bg-surface-200 text-foreground dark:bg-surface-700"
+                          ? "bg-accent text-foreground"
                           : "text-muted-foreground hover:bg-accent hover:text-foreground",
                       )}
                       key={run.id}

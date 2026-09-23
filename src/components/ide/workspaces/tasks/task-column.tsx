@@ -67,13 +67,16 @@ const TaskColumnImpl = ({
       aria-label={t(step.labelKey)}
       className={cn(
         TASK_COLUMN_SURFACE_CLASSES,
-        "flex w-[370px] shrink-0 flex-col",
+        "flex min-w-64 max-w-[370px] flex-1 flex-col first:ml-auto last:mr-auto",
       )}
       data-task-step={step.id}
     >
       <header className="flex h-12 shrink-0 items-center gap-2 px-3">
         <TaskStepIcon step={step.id} />
-        <h3 className="min-w-0 truncate font-medium text-sm">
+        <h3
+          className="min-w-0 truncate font-medium text-sm"
+          title={t(step.labelKey)}
+        >
           {t(step.labelKey)}
         </h3>
         <span className="text-muted-foreground text-sm tabular-nums">
