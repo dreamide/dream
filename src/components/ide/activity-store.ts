@@ -50,8 +50,6 @@ function readActivity(): Record<string, ChatActivity> {
 }
 
 interface ActivityState {
-  open: boolean;
-  toggleOpen: () => void;
   entries: Record<string, ChatActivity>;
   start: (chatId: string) => void;
   attention: (chatId: string, detail: string | null) => void;
@@ -63,8 +61,6 @@ interface ActivityState {
 }
 
 export const useActivityStore = create<ActivityState>((set) => ({
-  open: false,
-  toggleOpen: () => set((state) => ({ open: !state.open })),
   entries: readActivity(),
   start: (chatId) =>
     set((state) => ({

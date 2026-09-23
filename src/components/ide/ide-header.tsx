@@ -2,7 +2,6 @@ import { Settings } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ActivityButton } from "./header/activity-button";
 import { ProjectTabs } from "./header/project-tabs";
 import { HeaderUpdateButton } from "./header/update-button";
 import { WindowControls } from "./header/window-controls";
@@ -37,21 +36,12 @@ export const IdeHeader = () => {
           )}
         />
 
-        {/* Each workspace owns the titlebar's navigation. Chat activity and
-            project tabs lead into Code, so Tasks shows neither and swaps in
-            its own project filter. */}
-        {tasksSelected ? (
-          <TasksScopeSwitcher />
-        ) : (
-          <>
-            <ActivityButton />
-            <ProjectTabs />
-          </>
-        )}
+        <WorkspaceSwitcher />
+
+        {/* Each workspace owns the rest of the titlebar's navigation. */}
+        {tasksSelected ? <TasksScopeSwitcher /> : <ProjectTabs />}
 
         <HeaderUpdateButton />
-
-        <WorkspaceSwitcher />
 
         <Button
           aria-label={t("settings")}

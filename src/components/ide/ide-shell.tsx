@@ -20,7 +20,6 @@ import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { ChatRuntimeHost } from "./chat/chat-runtime-host";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
-import { ActivityInbox } from "./header/activity-inbox";
 import { IdeHeader } from "./ide-header";
 import { areProjectListsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
@@ -543,72 +542,69 @@ export const IdeShell = () => {
       <ChatRuntimeHost />
       <IdeHeader />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <ActivityInbox />
-        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-          {!stateHydrated ? null : (
-            <>
-              {visibleProjects.map((project) => {
-                // Keep the outgoing surface painted while React prepares the
-                // incoming workspace, then reveal and activate it atomically.
-                const selected = project.id === renderedActiveProjectId;
-                // Project workspaces stay mounted beneath Tasks so switching
-                // back is instant, but only the visible surface owns shortcuts
-                // and native webviews. (Chats run in the chat runtime, not in
-                // these panels.)
-                const active = selected && !tasksSelected;
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        {!stateHydrated ? null : (
+          <>
+            {visibleProjects.map((project) => {
+              // Keep the outgoing surface painted while React prepares the
+              // incoming workspace, then reveal and activate it atomically.
+              const selected = project.id === renderedActiveProjectId;
+              // Project workspaces stay mounted beneath Tasks so switching
+              // back is instant, but only the visible surface owns shortcuts
+              // and native webviews. (Chats run in the chat runtime, not in
+              // these panels.)
+              const active = selected && !tasksSelected;
 
-                return (
-                  <div
-                    aria-hidden={!active}
-                    className={cn(
-                      "absolute inset-0 min-h-0 bg-surface-50 dark:bg-surface-900",
-                      selected
-                        ? "z-10 pointer-events-auto"
-                        : // Keep inactive workspaces painted beneath the active
-                          // one. Hiding or moving them offscreen makes Chromium
-                          // rebuild the layer when a project is selected, which
-                          // produces a blank frame during the tab switch.
-                          "z-0 pointer-events-none",
-                    )}
-                    inert={!active}
-                    key={project.id}
-                  >
-                    <ProjectWorkspace active={active} project={project} />
-                  </div>
-                );
-              })}
-              {!renderedActiveProjectId ? (
+              return (
                 <div
-                  className="absolute inset-0 z-20 bg-surface-50 p-3 dark:bg-surface-900"
-                  inert={tasksSelected}
+                  aria-hidden={!active}
+                  className={cn(
+                    "absolute inset-0 min-h-0 bg-surface-50 dark:bg-surface-900",
+                    selected
+                      ? "z-10 pointer-events-auto"
+                      : // Keep inactive workspaces painted beneath the active
+                        // one. Hiding or moving them offscreen makes Chromium
+                        // rebuild the layer when a project is selected, which
+                        // produces a blank frame during the tab switch.
+                        "z-0 pointer-events-none",
+                  )}
+                  inert={!active}
+                  key={project.id}
                 >
-                  <EmptyProjectWorkspace />
+                  <ProjectWorkspace active={active} project={project} />
                 </div>
-              ) : null}
-              {/* Tasks is app-level: mounted once on first visit, above
+              );
+            })}
+            {!renderedActiveProjectId ? (
+              <div
+                className="absolute inset-0 z-20 bg-surface-50 p-3 dark:bg-surface-900"
+                inert={tasksSelected}
+              >
+                <EmptyProjectWorkspace />
+              </div>
+            ) : null}
+            {/* Tasks is app-level: mounted once on first visit, above
                   every project (and the empty state), then kept alive so board
                   state survives switching back and forth. */}
-              {tasksVisited ? (
-                <div
-                  aria-hidden={!tasksSelected}
-                  className={cn(
-                    "absolute inset-0 z-30 min-h-0 bg-surface-50 dark:bg-surface-900",
-                    tasksSelected
-                      ? "visible opacity-100 pointer-events-auto"
-                      : "invisible opacity-0 pointer-events-none",
-                  )}
-                  data-app-view="tasks"
-                  inert={!tasksSelected}
-                >
-                  <Suspense fallback={null}>
-                    <TasksWorkspace active={tasksSelected} />
-                  </Suspense>
-                </div>
-              ) : null}
-            </>
-          )}
-        </div>
+            {tasksVisited ? (
+              <div
+                aria-hidden={!tasksSelected}
+                className={cn(
+                  "absolute inset-0 z-30 min-h-0 bg-surface-50 dark:bg-surface-900",
+                  tasksSelected
+                    ? "visible opacity-100 pointer-events-auto"
+                    : "invisible opacity-0 pointer-events-none",
+                )}
+                data-app-view="tasks"
+                inert={!tasksSelected}
+              >
+                <Suspense fallback={null}>
+                  <TasksWorkspace active={tasksSelected} />
+                </Suspense>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
 
       {settingsOpen ? (

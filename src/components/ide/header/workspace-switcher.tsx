@@ -1,42 +1,69 @@
 import { useTranslations } from "next-intl";
-import { useMemo } from "react";
+import { useState } from "react";
+import starSvg from "@/assets/star.svg";
 import {
-  SegmentedToggle,
-  type SegmentedToggleOption,
-} from "@/components/ui/segmented-toggle";
-import type { AppView } from "@/types/ide";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useIdeStore } from "../ide-store";
-import { APP_VIEW_DESCRIPTORS } from "../workspaces/registry";
+import { WorkspaceNavButton } from "../workspace/nav-button";
+import { APP_VIEW_DESCRIPTORS, isAppView } from "../workspaces/registry";
 
-/**
- * One-click switch between the app-level workspaces. Works with or without an
- * active project.
- */
+// Vite can inline SVGs as data URLs containing spaces and parentheses.
+const starMask = `url("${starSvg}") center / contain no-repeat`;
+
 export const WorkspaceSwitcher = () => {
   const t = useTranslations("workspace");
   const appView = useIdeStore((s) => s.appView);
   const setAppView = useIdeStore((s) => s.setAppView);
-  const options = useMemo(
-    (): SegmentedToggleOption<AppView>[] =>
-      APP_VIEW_DESCRIPTORS.map(({ icon, id, labelKey }) => ({
-        icon,
-        label: t(labelKey),
-        value: id,
-      })),
-    [t],
-  );
+  const [open, setOpen] = useState(false);
 
   return (
-    <SegmentedToggle
-      aria-label={t("switchWorkspace")}
-      className="[-webkit-app-region:no-drag]"
-      onPointerDown={(event) => {
-        // Keep the titlebar from treating the press as a window drag.
-        event.stopPropagation();
-      }}
-      onValueChange={setAppView}
-      options={options}
-      value={appView}
-    />
+    <DropdownMenu onOpenChange={setOpen} open={open}>
+      <DropdownMenuTrigger
+        render={
+          <WorkspaceNavButton
+            active={open}
+            className="shrink-0"
+            title={t("workspaces")}
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+          />
+        }
+      >
+        <span
+          aria-hidden="true"
+          className="size-4 bg-current"
+          style={{ mask: starMask, WebkitMask: starMask }}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="w-48 [-webkit-app-region:no-drag]"
+        side="bottom"
+      >
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>{t("workspaces")}</DropdownMenuLabel>
+        </DropdownMenuGroup>
+        <DropdownMenuRadioGroup
+          onValueChange={(value) => {
+            if (isAppView(value)) setAppView(value);
+          }}
+          value={appView}
+        >
+          {APP_VIEW_DESCRIPTORS.map(({ icon: Icon, id, labelKey }) => (
+            <DropdownMenuRadioItem closeOnClick key={id} value={id}>
+              <Icon className="size-4" />
+              {t(labelKey)}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };

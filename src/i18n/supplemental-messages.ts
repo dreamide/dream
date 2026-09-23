@@ -1,7 +1,6 @@
 export const supplementalMessages = {
   de: {
     workspace: {
-      switchWorkspace: "Arbeitsbereich wechseln",
       workspaceCode: "Code",
       workspaceTasks: "Aufgaben",
       workspaces: "Arbeitsbereiche",
@@ -626,7 +625,6 @@ export const supplementalMessages = {
   },
   en: {
     workspace: {
-      switchWorkspace: "Switch workspace",
       workspaceCode: "Code",
       workspaceTasks: "Tasks",
       workspaces: "Workspaces",
@@ -1236,7 +1234,6 @@ export const supplementalMessages = {
   },
   es: {
     workspace: {
-      switchWorkspace: "Cambiar de espacio de trabajo",
       workspaceCode: "Código",
       workspaceTasks: "Tareas",
       workspaces: "Espacios de trabajo",
@@ -1857,7 +1854,6 @@ export const supplementalMessages = {
   },
   fr: {
     workspace: {
-      switchWorkspace: "Changer d'espace de travail",
       workspaceCode: "Code",
       workspaceTasks: "Tâches",
       workspaces: "Espaces de travail",
@@ -2479,7 +2475,6 @@ export const supplementalMessages = {
   },
   it: {
     workspace: {
-      switchWorkspace: "Cambia area di lavoro",
       workspaceCode: "Codice",
       workspaceTasks: "Attività",
       workspaces: "Aree di lavoro",
@@ -3101,7 +3096,6 @@ export const supplementalMessages = {
   },
   ja: {
     workspace: {
-      switchWorkspace: "ワークスペースを切り替え",
       workspaceCode: "コード",
       workspaceTasks: "タスク",
       workspaces: "ワークスペース",
@@ -3714,7 +3708,6 @@ export const supplementalMessages = {
   },
   ko: {
     workspace: {
-      switchWorkspace: "워크스페이스 전환",
       workspaceCode: "코드",
       workspaceTasks: "작업",
       workspaces: "워크스페이스",
@@ -4317,7 +4310,6 @@ export const supplementalMessages = {
   },
   pt: {
     workspace: {
-      switchWorkspace: "Alternar espaço de trabalho",
       workspaceCode: "Código",
       workspaceTasks: "Tarefas",
       workspaces: "Espaços de trabalho",
@@ -4932,7 +4924,6 @@ export const supplementalMessages = {
   },
   vi: {
     workspace: {
-      switchWorkspace: "Chuyển không gian làm việc",
       workspaceCode: "Mã",
       workspaceTasks: "Tác vụ",
       workspaces: "Không gian làm việc",
@@ -5541,7 +5532,6 @@ export const supplementalMessages = {
   },
   "zh-Hans": {
     workspace: {
-      switchWorkspace: "切换工作区",
       workspaceCode: "代码",
       workspaceTasks: "任务",
       workspaces: "工作区",
@@ -6128,7 +6118,6 @@ export const supplementalMessages = {
   },
   "zh-Hant": {
     workspace: {
-      switchWorkspace: "切換工作區",
       workspaceCode: "程式碼",
       workspaceTasks: "任務",
       workspaces: "工作區",
