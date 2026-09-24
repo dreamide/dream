@@ -1,3 +1,4 @@
+import type { SelectedLineRange } from "@pierre/diffs";
 import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -85,6 +86,8 @@ export const IdeDiffViewer = ({
   diffStyle = "unified",
   fileDiff,
   feedback,
+  onLineComment,
+  selectedLines,
   largeDiffGuardEnabled = true,
   renderChangedLineLimit = DIFF_RENDER_CHANGED_LINE_LIMIT,
   wordWrap = false,
@@ -94,6 +97,8 @@ export const IdeDiffViewer = ({
   diffStyle?: DiffViewMode;
   fileDiff: ParsedFileDiff;
   feedback?: DiffFeedbackTarget;
+  onLineComment?: (range: SelectedLineRange) => void;
+  selectedLines?: SelectedLineRange | null;
   largeDiffGuardEnabled?: boolean;
   renderChangedLineLimit?: number;
   wordWrap?: boolean;
@@ -116,8 +121,15 @@ export const IdeDiffViewer = ({
       },
       themeType: resolvedTheme === "dark" ? "dark" : "light",
       unsafeCSS: DIFF_UNMODIFIED_LINES_CSS,
+      ...(onLineComment
+        ? {
+            enableGutterUtility: true,
+            onGutterUtilityClick: onLineComment,
+            controlledSelection: true,
+          }
+        : {}),
     }),
-    [diffStyle, resolvedTheme, wordWrap],
+    [diffStyle, resolvedTheme, wordWrap, onLineComment],
   );
 
   if (
@@ -149,6 +161,7 @@ export const IdeDiffViewer = ({
           className="dream-diff-viewer w-full min-w-0"
           fileDiff={fileDiff}
           options={diffOptions}
+          selectedLines={selectedLines}
         />
       )}
     </div>

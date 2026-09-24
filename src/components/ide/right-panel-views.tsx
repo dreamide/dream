@@ -5,6 +5,12 @@ import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
 import type { RightPanelView } from "./ide-types";
 
+const PullRequestsPanel = lazy(() =>
+  import("./pull-requests/panel").then((module) => ({
+    default: module.PullRequestsPanel,
+  })),
+);
+
 const BrowserPanel = lazy(() =>
   import("./browser-panel").then((module) => ({
     default: module.BrowserPanel,
@@ -108,6 +114,20 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
       >
         <div className="relative min-h-0 flex-1">
           <Suspense fallback={<RightPanelLoadingFallback />}>
+            {visitedPersistentViews.has("pull-requests") ? (
+              <RightPanelViewSlot active={rightPanelView === "pull-requests"}>
+                <PullRequestsPanel
+                  key={props.project.id}
+                  project={props.project}
+                  active={
+                    props.active &&
+                    props.open &&
+                    rightPanelView === "pull-requests"
+                  }
+                  onClosePanel={props.onClosePanel}
+                />
+              </RightPanelViewSlot>
+            ) : null}
             {visitedPersistentViews.has("explorer") ? (
               <RightPanelViewSlot active={rightPanelView === "explorer"}>
                 <FileExplorerPanel

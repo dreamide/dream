@@ -3,9 +3,11 @@ import { useTranslations } from "next-intl";
 import { memo } from "react";
 import type { RightPanelView } from "@/types/ide";
 import { GitActionsMenu } from "../git-actions-menu";
+import { PullRequestNavButton } from "../pull-requests/nav-button";
 import { WorkspaceNavButton } from "./nav-button";
 
 export interface WorkspaceRightRailProps {
+  active: boolean;
   browserHiddenWithActiveTab: boolean;
   changesAvailable: boolean;
   onOpenTerminal: () => void;
@@ -19,6 +21,7 @@ export interface WorkspaceRightRailProps {
 }
 
 const WorkspaceRightRailImpl = ({
+  active,
   browserHiddenWithActiveTab,
   changesAvailable,
   onOpenTerminal,
@@ -67,6 +70,13 @@ const WorkspaceRightRailImpl = ({
         <TerminalSquare className="size-4" />
       </WorkspaceNavButton>
       <GitActionsMenu projectId={projectId} projectPath={projectPath} />
+      <PullRequestNavButton
+        visible={active}
+        projectId={projectId}
+        projectPath={projectPath}
+        active={rightVisible && rightPanelView === "pull-requests"}
+        onClick={() => onSelectRightPanelView("pull-requests")}
+      />
       <WorkspaceNavButton
         active={rightVisible && rightPanelView === "stash"}
         accent={stashAvailable}

@@ -701,6 +701,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
       />
 
       <WorkspaceRightRail
+        active={active}
         browserHiddenWithActiveTab={browserHiddenWithActiveTab}
         changesAvailable={changesAvailable}
         onOpenTerminal={handleOpenTerminal}

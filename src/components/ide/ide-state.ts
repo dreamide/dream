@@ -137,7 +137,8 @@ const isRightPanelView = (value: unknown): value is RightPanelView =>
   value === "explorer" ||
   value === "changes" ||
   value === "terminal" ||
-  value === "stash";
+  value === "stash" ||
+  value === "pull-requests";
 
 const isProjectReference = (value: unknown): value is ProjectReference => {
   if (!value || typeof value !== "object") {

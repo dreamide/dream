@@ -269,6 +269,7 @@ export interface PanelSizes {
 }
 
 export type RightPanelView =
+  | "pull-requests"
   | "browser"
   | "explorer"
   | "changes"

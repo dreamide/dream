@@ -293,7 +293,8 @@ function getNestedRightPanelView(parent, key, fallback = "changes") {
     value === "explorer" ||
     value === "changes" ||
     value === "terminal" ||
-    value === "stash"
+    value === "stash" ||
+    value === "pull-requests"
     ? value
     : fallback;
 }
