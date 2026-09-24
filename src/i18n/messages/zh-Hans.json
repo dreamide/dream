@@ -63,6 +63,7 @@
   "common": {
     "appName": "Dream",
     "archived": "已归档",
+    "back": "后退",
     "browser": "浏览器",
     "cancel": "取消",
     "changes": "更改",
@@ -71,6 +72,7 @@
     "close": "关闭",
     "delete": "删除",
     "files": "文件",
+    "forward": "前进",
     "general": "通用",
     "language": "语言",
     "open": "打开",

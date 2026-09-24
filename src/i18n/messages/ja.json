@@ -63,6 +63,7 @@
   "common": {
     "appName": "Dream",
     "archived": "アーカイブ済み",
+    "back": "戻る",
     "browser": "ブラウザ",
     "cancel": "キャンセル",
     "changes": "変更",
@@ -71,6 +72,7 @@
     "close": "閉じる",
     "delete": "削除",
     "files": "ファイル",
+    "forward": "進む",
     "general": "一般",
     "language": "言語",
     "open": "開く",

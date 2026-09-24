@@ -2,6 +2,7 @@ import { Settings } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { HistoryNavButtons } from "./header/history-nav-buttons";
 import { ProjectTabs } from "./header/project-tabs";
 import { HeaderUpdateButton } from "./header/update-button";
 import { WindowControls } from "./header/window-controls";
@@ -35,6 +36,8 @@ export const IdeHeader = () => {
         />
 
         <WorkspaceSwitcher />
+
+        <HistoryNavButtons />
 
         <ProjectTabs />
 

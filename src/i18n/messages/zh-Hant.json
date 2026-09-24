@@ -63,6 +63,7 @@
   "common": {
     "appName": "Dream",
     "archived": "已封存",
+    "back": "上一頁",
     "browser": "瀏覽器",
     "cancel": "取消",
     "changes": "變更",
@@ -71,6 +72,7 @@
     "close": "關閉",
     "delete": "刪除",
     "files": "檔案",
+    "forward": "下一頁",
     "general": "一般",
     "language": "語言",
     "open": "開啟",

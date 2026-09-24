@@ -63,6 +63,7 @@
   "common": {
     "appName": "Dream",
     "archived": "Đã lưu trữ",
+    "back": "Quay lại",
     "browser": "Trình duyệt",
     "cancel": "Hủy",
     "changes": "Thay đổi",
@@ -71,6 +72,7 @@
     "close": "Đóng",
     "delete": "Xóa",
     "files": "Tệp",
+    "forward": "Tiến tới",
     "general": "Chung",
     "language": "Ngôn ngữ",
     "open": "Mở",

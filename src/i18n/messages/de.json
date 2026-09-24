@@ -63,6 +63,7 @@
   "common": {
     "appName": "Dream",
     "archived": "Archiviert",
+    "back": "Zurück",
     "browser": "Browser",
     "cancel": "Abbrechen",
     "changes": "Änderungen",
@@ -71,6 +72,7 @@
     "close": "Schließen",
     "delete": "Löschen",
     "files": "Dateien",
+    "forward": "Vorwärts",
     "general": "Allgemein",
     "language": "Sprache",
     "open": "Öffnen",

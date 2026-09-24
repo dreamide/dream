@@ -63,6 +63,7 @@
   "common": {
     "appName": "Dream",
     "archived": "보관됨",
+    "back": "뒤로",
     "browser": "브라우저",
     "cancel": "취소",
     "changes": "변경 사항",
@@ -71,6 +72,7 @@
     "close": "닫기",
     "delete": "삭제",
     "files": "파일",
+    "forward": "앞으로",
     "general": "일반",
     "language": "언어",
     "open": "열기",
