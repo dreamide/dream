@@ -24,6 +24,7 @@ const requestSchema = z.object({
     "reply",
     "review",
     "checkout",
+    "merge",
   ]),
   repository: z.string().optional(),
   number: z.number().int().positive().optional(),
@@ -101,6 +102,8 @@ function summary(pr) {
     state: pr.merged_at || pr.pull_request?.merged_at ? "merged" : pr.state,
     draft: Boolean(pr.draft),
     author: pr.user?.login ?? "",
+    authorAvatarUrl: pr.user?.avatar_url ?? "",
+    commit: pr.head?.sha,
     updatedAt: pr.updated_at,
   };
 }
@@ -232,6 +235,30 @@ async function execute(input) {
     return { items, hasMore: items.length === 100 };
   }
   const pr = await get(prPath);
+  if (input.action === "merge") {
+    if (pr.state !== "open" || pr.draft)
+      throw new Error("Only open, non-draft pull requests can be merged.");
+    const commit = required(input.commit, "PR head commit");
+    if (pr.head.sha !== commit)
+      throw new Error("This PR changed on GitHub. Refresh before merging.");
+    const settings = await get(base);
+    const method = settings.allow_merge_commit
+      ? "merge"
+      : settings.allow_squash_merge
+        ? "squash"
+        : settings.allow_rebase_merge
+          ? "rebase"
+          : null;
+    if (!method)
+      throw new Error("No merge method is enabled for this repository.");
+    const result = await write(`${prPath}/merge`, "PUT", {
+      sha: commit,
+      merge_method: method,
+    });
+    if (!result.merged)
+      throw new Error(result.message || "GitHub could not merge this PR.");
+    return result;
+  }
   if (input.action === "checkout") {
     const status = await runGitCommand(cwd, ["status", "--porcelain=v1"]);
     if (status.stdout.trim())

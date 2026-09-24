@@ -77,7 +77,6 @@ export const CreatePrDialog = ({
   >(null);
   const [generatingDetails, setGeneratingDetails] = useState(false);
   const [draft, setDraft] = useState(false);
-  const [openPrPage, setOpenPrPage] = useState(false);
   const [nextStep, setNextStep] =
     useState<ProjectGitCreatePrNextStep>("create");
   const [submitting, setSubmitting] = useState(false);
@@ -104,7 +103,6 @@ export const CreatePrDialog = ({
     setGeneratedCommitMessage(null);
     setGeneratingDetails(false);
     setDraft(false);
-    setOpenPrPage(false);
     setNextStep(
       hasChanges ? "commit-push-create" : needsPush ? "push-create" : "create",
     );
@@ -216,13 +214,13 @@ export const CreatePrDialog = ({
             draft,
             includeUnstaged: true,
             nextStep,
-            openPrPage,
+            openPrPage: false,
             projectPath,
             title,
           },
           gitT("unableToCreatePr"),
         );
-        onCompleted(response.url, openPrPage);
+        onCompleted(response.url, false);
         onOpenChange(false);
       } catch (error) {
         setError(
@@ -243,7 +241,6 @@ export const CreatePrDialog = ({
       nextStep,
       onCompleted,
       onOpenChange,
-      openPrPage,
       projectPath,
       submitting,
       title,
@@ -257,7 +254,7 @@ export const CreatePrDialog = ({
           icon={<GitPullRequest />}
           subtitle={
             <>
-              {baseBranch} -&gt; {branch ?? gitT("currentBranch")}
+              {branch ?? gitT("currentBranch")} -&gt; {baseBranch}
             </>
           }
           title={gitT("createPr")}
@@ -372,17 +369,6 @@ export const CreatePrDialog = ({
                 onCheckedChange={setDraft}
               />
               <span>{gitT("draft")}</span>
-            </label>
-            <label
-              className="flex items-center gap-2 text-sm"
-              htmlFor="pr-open-page"
-            >
-              <Switch
-                checked={openPrPage}
-                id="pr-open-page"
-                onCheckedChange={setOpenPrPage}
-              />
-              <span>{gitT("openPrPage")}</span>
             </label>
             <Button
               className="ml-auto min-w-36"

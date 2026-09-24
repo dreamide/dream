@@ -1,7 +1,7 @@
 import { parsePatchFiles, type SelectedLineRange } from "@pierre/diffs";
 import { formatDistanceToNow } from "date-fns";
 import {
-  ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   ChevronDown,
   ChevronsDownUp,
@@ -11,7 +11,9 @@ import {
   Columns2,
   Ellipsis,
   ExternalLink,
-  FileCode2,
+  File,
+  GitBranch,
+  GitMerge,
   GitPullRequest,
   Pencil,
   RefreshCw,
@@ -28,6 +30,7 @@ import {
   useState,
 } from "react";
 import { Streamdown } from "streamdown";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -180,6 +183,7 @@ function Composer({
   onCancel?: () => void;
 }) {
   const draft = usePrDraft(storageKey, initial, initialVersion);
+  const [submitting, setSubmitting] = useState(false);
   return (
     <div className="space-y-2">
       {showLabel ? (
@@ -198,7 +202,7 @@ function Composer({
               disabled={busy}
               onChange={(e) => draft.update(e.target.value)}
               placeholder="Write Markdown…"
-              className="min-h-24"
+              className="min-h-24 p-3 text-sm leading-relaxed md:leading-relaxed"
             />
           </TabsContent>
           <TabsContent value="preview">
@@ -224,10 +228,16 @@ function Composer({
               size="sm"
               disabled={busy || (!allowEmpty && !draft.value.trim())}
               onClick={async () => {
-                if (await onSubmit(draft.value, draft.version)) draft.clear();
+                if (busy || submitting) return;
+                setSubmitting(true);
+                try {
+                  if (await onSubmit(draft.value, draft.version)) draft.clear();
+                } finally {
+                  setSubmitting(false);
+                }
               }}
             >
-              {busy ? "Saving…" : submitLabel}
+              {submitting ? "Saving…" : submitLabel}
             </Button>
           </InlineEditorFooter>
         </InlineEditor>
@@ -301,6 +311,7 @@ function EditTitle({
     pr.title,
     pr.updatedAt,
   );
+  const [submitting, setSubmitting] = useState(false);
   const cancel = () => {
     title.clear();
     close();
@@ -309,16 +320,21 @@ function EditTitle({
     <form
       onSubmit={async (event) => {
         event.preventDefault();
-        if (busy || !title.value.trim()) return;
-        if (
-          await save({
-            action: "edit",
-            title: title.value,
-            updatedAt: title.version ?? pr.updatedAt,
-          })
-        ) {
-          title.clear();
-          close();
+        if (busy || submitting || !title.value.trim()) return;
+        setSubmitting(true);
+        try {
+          if (
+            await save({
+              action: "edit",
+              title: title.value,
+              updatedAt: title.version ?? pr.updatedAt,
+            })
+          ) {
+            title.clear();
+            close();
+          }
+        } finally {
+          setSubmitting(false);
         }
       }}
     >
@@ -351,7 +367,7 @@ function EditTitle({
             type="submit"
             disabled={busy || !title.value.trim()}
           >
-            {busy ? "Saving…" : "Save"}
+            {submitting ? "Saving…" : "Save"}
           </Button>
         </InlineEditorFooter>
       </InlineEditor>
@@ -377,84 +393,83 @@ function Comment({
   children?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
-  const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
   const date = comment.created_at ?? comment.submitted_at ?? comment.updated_at;
   const submitted = Boolean(date) && Number.isFinite(new Date(date).getTime());
   return (
-    <article className="rounded-lg border border-surface-200 dark:border-surface-800 p-3 space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span
-          className="flex size-5 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-foreground"
-          aria-hidden="true"
-        >
+    <article className="relative flex items-start gap-3">
+      <Avatar className="mt-1">
+        <AvatarImage src={comment.user.avatar_url} alt={comment.user.login} />
+        <AvatarFallback>
           {comment.user.login.slice(0, 1).toUpperCase()}
-        </span>
-        <strong className="font-medium text-foreground">
-          {comment.user.login}
-        </strong>
-        {comment.state ? (
-          <span>{comment.state.replaceAll("_", " ")}</span>
-        ) : null}
-        <time
-          dateTime={submitted ? date : undefined}
-          title={submitted ? new Date(date).toLocaleString() : undefined}
-        >
-          {submitted
-            ? formatDistanceToNow(new Date(date), { addSuffix: true })
-            : "Not submitted"}
-        </time>
-        <button
-          type="button"
-          className="ml-auto hover:text-foreground"
-          title="Open comment on GitHub"
-          aria-label="Open comment on GitHub"
-          onClick={() => openExternalUrl(comment.html_url)}
-        >
-          <ExternalLink className="size-3" />
-        </button>
-        {!inline && !comment.state && comment.user.login === pr.viewer ? (
-          <button
-            type="button"
-            disabled={busy}
-            className="hover:text-foreground"
-            onClick={() => setEditing(!editing)}
+        </AvatarFallback>
+      </Avatar>
+      <div className="relative min-w-0 flex-1 rounded-lg bg-surface-50 text-foreground dark:bg-surface-900">
+        <div className="flex min-h-10 flex-wrap items-center gap-2 px-4 pt-3 text-xs text-muted-foreground">
+          <strong className="font-medium text-foreground">
+            {comment.user.login}
+          </strong>
+          {comment.state ? (
+            <span>{comment.state.replaceAll("_", " ")}</span>
+          ) : null}
+          <time
+            dateTime={submitted ? date : undefined}
+            title={submitted ? new Date(date).toLocaleString() : undefined}
           >
-            Edit
-          </button>
-        ) : null}
-      </div>
-      {comment.path ? (
-        <div className="break-all text-xs text-muted-foreground">
-          {comment.path}:{comment.line ?? comment.original_line} ·{" "}
-          {comment.side === "LEFT" ? "old" : "new"}
-          {comment.line === null ? " · outdated" : ""}
+            {submitted
+              ? formatDistanceToNow(new Date(date), { addSuffix: true })
+              : "Not submitted"}
+          </time>
+          {!inline && !comment.state && comment.user.login === pr.viewer ? (
+            <button
+              type="button"
+              disabled={busy}
+              className="ml-auto hover:text-foreground"
+              onClick={() => setEditing(!editing)}
+            >
+              Edit
+            </button>
+          ) : null}
         </div>
-      ) : null}
-      {editing ? (
-        <Composer
-          key={`edit-${comment.id}`}
-          storageKey={draftKey(repository, pr.number, `comment-${comment.id}`)}
-          initial={comment.body}
-          initialVersion={comment.updated_at}
-          label="Comment"
-          submitLabel="Save"
-          busy={busy}
-          onCancel={() => setEditing(false)}
-          onSubmit={async (body, version) => {
-            const ok = await save({
-              action: "editComment",
-              commentId: comment.id,
-              body,
-              updatedAt: version ?? comment.updated_at,
-            });
-            if (ok) setEditing(false);
-            return ok;
-          }}
-        />
-      ) : (
-        <Markdown>{comment.body}</Markdown>
-      )}
-      {children}
+        <div className="space-y-3 px-4 py-3">
+          {comment.path ? (
+            <div className="break-all text-xs text-muted-foreground">
+              {comment.path}:{comment.line ?? comment.original_line} ·{" "}
+              {comment.side === "LEFT" ? "old" : "new"}
+              {comment.line === null ? " · outdated" : ""}
+            </div>
+          ) : null}
+          {editing ? (
+            <Composer
+              key={`edit-${comment.id}`}
+              storageKey={draftKey(
+                repository,
+                pr.number,
+                `comment-${comment.id}`,
+              )}
+              initial={comment.body}
+              initialVersion={comment.updated_at}
+              label="Comment"
+              showLabel={false}
+              submitLabel="Save"
+              busy={busy}
+              onCancel={() => setEditing(false)}
+              onSubmit={async (body, version) => {
+                const ok = await save({
+                  action: "editComment",
+                  commentId: comment.id,
+                  body,
+                  updatedAt: version ?? comment.updated_at,
+                });
+                if (ok) setEditing(false);
+                return ok;
+              }}
+            />
+          ) : (
+            <Markdown>{comment.body}</Markdown>
+          )}
+          {children}
+        </div>
+      </div>
     </article>
   );
 }
@@ -586,13 +601,15 @@ function SummaryComments(props: SectionProps) {
         <ChevronDown className="size-3 transition-transform group-aria-expanded:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent keepMounted className="space-y-4 pt-3">
-        {activity.map((comment) => (
-          <Comment
-            key={`${comment.state ? "review" : "comment"}-${comment.id}`}
-            comment={comment}
-            {...{ repository, pr, busy, save }}
-          />
-        ))}
+        <div className="relative space-y-6 before:absolute before:inset-y-0 before:left-[60px] before:w-px before:bg-surface-300 dark:before:bg-surface-700 empty:hidden">
+          {activity.map((comment) => (
+            <Comment
+              key={`${comment.state ? "review" : "comment"}-${comment.id}`}
+              comment={comment}
+              {...{ repository, pr, busy, save }}
+            />
+          ))}
+        </div>
         <PageFooter data={comments} />
         <PageFooter data={reviews} />
         <Composer
@@ -1078,7 +1095,7 @@ function Detail({
     >
       {pr ? (
         <>
-          <div className="space-y-3 px-4 py-4">
+          <div className="space-y-2 px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
@@ -1120,12 +1137,20 @@ function Detail({
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span
-                className="flex size-5 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-foreground"
-                aria-hidden="true"
-              >
-                {pr.author.slice(0, 1).toUpperCase()}
-              </span>
+              <Avatar className="size-5">
+                <AvatarImage
+                  src={
+                    pr.authorAvatarUrl ||
+                    (repository.startsWith("github.com/") && pr.author
+                      ? `https://github.com/${encodeURIComponent(pr.author)}.png?size=40`
+                      : undefined)
+                  }
+                  alt={pr.author}
+                />
+                <AvatarFallback className="text-[10px]">
+                  {pr.author.slice(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               <span>{pr.author}</span>
               <span>·</span>
               <time
@@ -1137,34 +1162,25 @@ function Detail({
                   addSuffix: true,
                 })}
               </time>
-              {checks ? (
-                <div
-                  className={cn(
-                    "ml-auto flex items-center gap-1.5 text-xs",
-                    checks.className,
-                  )}
-                >
-                  <checks.icon className="size-3.5" />
-                  {checks.label}
+
+              <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <GitBranch className="size-3 shrink-0" />
+                  <span className="truncate" title={pr.head}>
+                    {pr.head}
+                  </span>
+                  <ArrowRight className="size-3 shrink-0" />
+                  <span className="truncate" title={pr.base}>
+                    {pr.base}
+                  </span>
                 </div>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate" title={pr.base}>
-                  {pr.base}
-                </span>
-                <ArrowLeft className="size-3 shrink-0" />
-                <span className="truncate" title={pr.head}>
-                  {pr.head}
+                <span className="flex shrink-0 items-center gap-2 font-mono tabular-nums">
+                  <File className="size-3" />
+                  {pr.changedFiles} {pr.changedFiles === 1 ? "file" : "files"}
+                  <span className="text-emerald-600">+{pr.additions}</span>
+                  <span className="text-rose-600">−{pr.deletions}</span>
                 </span>
               </div>
-              <span className="flex shrink-0 items-center gap-2">
-                <FileCode2 className="size-3" />
-                {pr.changedFiles} {pr.changedFiles === 1 ? "file" : "files"}
-                <span className="text-emerald-600">+{pr.additions}</span>
-                <span className="text-rose-600">−{pr.deletions}</span>
-              </span>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-surface-800 px-3 py-2">
@@ -1172,6 +1188,17 @@ function Detail({
               <TabsTrigger value="overview">Summary</TabsTrigger>
               <TabsTrigger value="files">Code</TabsTrigger>
             </TabsList>
+            {checks ? (
+              <div
+                className={cn(
+                  "ml-auto flex items-center gap-1.5 text-xs",
+                  checks.className,
+                )}
+              >
+                <checks.icon className="size-3.5" />
+                {checks.label}
+              </div>
+            ) : null}
           </div>
         </>
       ) : null}
@@ -1340,11 +1367,32 @@ export function PullRequestsPanel({
   const context = usePullRequestContext(project.path, refreshKey, active);
   const [revision, setRevision] = useState(0);
   const [create, setCreate] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
   const repository = context.data?.repository;
   const current = context.data?.current;
   const refresh = () => {
+    setMergeError(null);
     context.refresh();
     setRevision((n) => n + 1);
+  };
+  const merge = async () => {
+    if (!repository || !current?.commit || merging) return;
+    setMerging(true);
+    setMergeError(null);
+    try {
+      await prRequest(project.path, {
+        action: "merge",
+        repository,
+        number: current.number,
+        commit: current.commit,
+      });
+      refresh();
+    } catch (error) {
+      setMergeError(message(error));
+    } finally {
+      setMerging(false);
+    }
   };
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1356,6 +1404,26 @@ export function PullRequestsPanel({
         <span className="flex-1 truncate text-sm font-medium">
           Pull request
         </span>
+        {current?.state === "open" ? (
+          <Button
+            size="sm"
+            className="text-xs"
+            disabled={merging || current.draft || !current.commit}
+            onClick={merge}
+            title={
+              current.draft
+                ? "Mark this PR ready before merging"
+                : "Merge pull request"
+            }
+          >
+            {merging ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <GitMerge className="size-3.5" />
+            )}
+            {merging ? "Merging…" : "Merge"}
+          </Button>
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
@@ -1377,6 +1445,14 @@ export function PullRequestsPanel({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {mergeError ? (
+        <p
+          role="alert"
+          className="px-4 py-3 text-xs text-destructive whitespace-pre-wrap"
+        >
+          {mergeError}
+        </p>
+      ) : null}
       {context.error ? (
         <div role="alert" className="p-4 text-sm space-y-3">
           <p className="text-destructive whitespace-pre-wrap">

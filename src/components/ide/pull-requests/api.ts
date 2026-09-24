@@ -7,6 +7,8 @@ export interface PullRequestSummary {
   state: "open" | "closed" | "merged";
   draft: boolean;
   author: string;
+  authorAvatarUrl?: string;
+  commit?: string;
   updatedAt: string;
 }
 export interface PullRequestContext {
@@ -41,7 +43,7 @@ export interface PullRequestDetail extends PullRequestSummary {
 export interface PrComment {
   id: number;
   body: string;
-  user: { login: string };
+  user: { login: string; avatar_url?: string };
   created_at?: string;
   submitted_at?: string;
   updated_at: string;

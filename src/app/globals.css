@@ -1021,6 +1021,22 @@
   height: 14px;
 }
 
+/* Keep Streamdown's external-link confirmation at Dream's compact UI scale. */
+[data-streamdown="link-safety-modal"] .text-lg {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+[data-streamdown="link-safety-modal"] button {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
+[data-streamdown="link-safety-modal"] [role="presentation"] > button svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* Shared diff viewer styling for changes and inline tool previews. */
 .dream-diff-viewer {
   --diffs-font-family: var(--font-jetbrains-mono);
