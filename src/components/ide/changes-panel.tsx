@@ -20,11 +20,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  SegmentedToggle,
-  type SegmentedToggleOption,
-} from "@/components/ui/segmented-toggle";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import type {
   ProjectGitDiffResponse,
@@ -541,13 +538,6 @@ const ChangesPanelImpl = ({
     },
     [projectId],
   );
-  const diffViewOptions = useMemo(
-    (): SegmentedToggleOption<DiffViewMode>[] => [
-      { icon: Rows3, label: panelsT("unifiedDiff"), value: "unified" },
-      { icon: Columns2, label: panelsT("splitDiff"), value: "split" },
-    ],
-    [panelsT],
-  );
 
   const handleRefreshChanges = useCallback(() => {
     if (!projectId) {
@@ -740,12 +730,35 @@ const ChangesPanelImpl = ({
           </div>
         </div>
 
-        <SegmentedToggle
-          aria-label={`${panelsT("unifiedDiff")} / ${panelsT("splitDiff")}`}
-          onValueChange={handleSetDiffViewMode}
-          options={diffViewOptions}
+        <Tabs
           value={diffViewMode}
-        />
+          onValueChange={(value) => {
+            if (value === "unified" || value === "split") {
+              handleSetDiffViewMode(value);
+            }
+          }}
+        >
+          <TabsList
+            aria-label={`${panelsT("unifiedDiff")} / ${panelsT("splitDiff")}`}
+          >
+            <TabsTrigger
+              value="unified"
+              aria-label={panelsT("unifiedDiff")}
+              title={panelsT("unifiedDiff")}
+              className="w-7 px-0"
+            >
+              <Rows3 className="size-3.5" />
+            </TabsTrigger>
+            <TabsTrigger
+              value="split"
+              aria-label={panelsT("splitDiff")}
+              title={panelsT("splitDiff")}
+              className="w-7 px-0"
+            >
+              <Columns2 className="size-3.5" />
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         <Button
           aria-label={expandAllTitle}

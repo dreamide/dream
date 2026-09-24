@@ -42,6 +42,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  InlineEditor,
+  InlineEditorFooter,
+} from "@/components/ui/inline-editor";
 import { Input } from "@/components/ui/input";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { Spinner } from "@/components/ui/spinner";
@@ -186,46 +190,48 @@ function Composer({
           <TabsTrigger value="write">Write</TabsTrigger>
           <TabsTrigger value="preview">Preview</TabsTrigger>
         </TabsList>
-        <TabsContent value="write">
-          <Textarea
-            aria-label={label}
-            value={draft.value}
-            disabled={busy}
-            onChange={(e) => draft.update(e.target.value)}
-            placeholder="Write Markdown…"
-            className="min-h-24"
-          />
-        </TabsContent>
-        <TabsContent value="preview">
-          <div className="min-h-24 rounded-md border p-3">
-            <Markdown>{draft.value}</Markdown>
-          </div>
-        </TabsContent>
+        <InlineEditor>
+          <TabsContent value="write">
+            <Textarea
+              aria-label={label}
+              value={draft.value}
+              disabled={busy}
+              onChange={(e) => draft.update(e.target.value)}
+              placeholder="Write Markdown…"
+              className="min-h-24"
+            />
+          </TabsContent>
+          <TabsContent value="preview">
+            <div className="min-h-24 p-3">
+              <Markdown>{draft.value}</Markdown>
+            </div>
+          </TabsContent>
+          <InlineEditorFooter>
+            {onCancel ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => {
+                  draft.clear();
+                  onCancel();
+                }}
+              >
+                Cancel
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              disabled={busy || (!allowEmpty && !draft.value.trim())}
+              onClick={async () => {
+                if (await onSubmit(draft.value, draft.version)) draft.clear();
+              }}
+            >
+              {busy ? "Saving…" : submitLabel}
+            </Button>
+          </InlineEditorFooter>
+        </InlineEditor>
       </Tabs>
-      <div className="flex flex-wrap justify-end gap-2">
-        {onCancel ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              draft.clear();
-              onCancel();
-            }}
-          >
-            Cancel
-          </Button>
-        ) : null}
-        <Button
-          size="sm"
-          disabled={busy || (!allowEmpty && !draft.value.trim())}
-          onClick={async () => {
-            if (await onSubmit(draft.value, draft.version)) draft.clear();
-          }}
-        >
-          {busy ? "Saving…" : submitLabel}
-        </Button>
-      </div>
     </div>
   );
 }
@@ -301,7 +307,6 @@ function EditTitle({
   };
   return (
     <form
-      className="space-y-2"
       onSubmit={async (event) => {
         event.preventDefault();
         if (busy || !title.value.trim()) return;
@@ -317,33 +322,39 @@ function EditTitle({
         }
       }}
     >
-      <Input
-        aria-label="PR title"
-        value={title.value}
-        disabled={busy}
-        maxLength={256}
-        onChange={(event) => title.update(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && !busy) {
-            event.preventDefault();
-            cancel();
-          }
-        }}
-      />
-      <div className="flex justify-end gap-2">
-        <Button
-          size="sm"
-          type="button"
-          variant="ghost"
+      <InlineEditor>
+        <Input
+          aria-label="PR title"
+          value={title.value}
           disabled={busy}
-          onClick={cancel}
-        >
-          Cancel
-        </Button>
-        <Button size="sm" type="submit" disabled={busy || !title.value.trim()}>
-          {busy ? "Saving…" : "Save"}
-        </Button>
-      </div>
+          maxLength={256}
+          onChange={(event) => title.update(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && !busy) {
+              event.preventDefault();
+              cancel();
+            }
+          }}
+        />
+        <InlineEditorFooter>
+          <Button
+            size="sm"
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            onClick={cancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            type="submit"
+            disabled={busy || !title.value.trim()}
+          >
+            {busy ? "Saving…" : "Save"}
+          </Button>
+        </InlineEditorFooter>
+      </InlineEditor>
     </form>
   );
 }
@@ -534,7 +545,12 @@ function PageFooter({
       {data.loading ? (
         <PullRequestLoading />
       ) : data.hasMore ? (
-        <Button size="sm" variant="outline" onClick={data.more}>
+        <Button
+          size="sm"
+          className="text-xs"
+          variant="outline"
+          onClick={data.more}
+        >
           Load more
         </Button>
       ) : null}
@@ -813,6 +829,7 @@ function PullRequestFileRow({
                   <Button
                     variant="ghost"
                     size="sm"
+                    className="text-xs"
                     onClick={() => setReply(root.id)}
                   >
                     Reply
@@ -1150,7 +1167,7 @@ function Detail({
               </span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-y border-surface-200 dark:border-surface-800 px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-surface-800 px-3 py-2">
             <TabsList aria-label="Pull request views">
               <TabsTrigger value="overview">Summary</TabsTrigger>
               <TabsTrigger value="files">Code</TabsTrigger>
@@ -1365,7 +1382,12 @@ export function PullRequestsPanel({
           <p className="text-destructive whitespace-pre-wrap">
             {context.error}
           </p>
-          <Button size="sm" variant="outline" onClick={refresh}>
+          <Button
+            size="sm"
+            className="text-xs"
+            variant="outline"
+            onClick={refresh}
+          >
             Retry
           </Button>
         </div>
@@ -1394,7 +1416,12 @@ export function PullRequestsPanel({
               : "Check out a branch to view its pull request."}
           </p>
           {context.data?.branch ? (
-            <Button size="sm" variant="outline" onClick={() => setCreate(true)}>
+            <Button
+              size="sm"
+              className="text-xs"
+              variant="outline"
+              onClick={() => setCreate(true)}
+            >
               Create pull request
             </Button>
           ) : null}
