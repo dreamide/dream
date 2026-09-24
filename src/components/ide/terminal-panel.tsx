@@ -1,5 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { Plus, TerminalSquare, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -18,6 +19,7 @@ import {
   getTerminalScrollback,
   subscribeToTerminalOutput,
 } from "./terminal-scrollback";
+import { attachTerminalWebglRenderer } from "./terminal-webgl";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
 const TERMINAL_SURFACE_CLASSES =
@@ -281,6 +283,8 @@ export const TerminalPanel = ({
   const themeRef = useRef(resolvedTheme);
   themeRef.current = resolvedTheme;
   const fitTerminalRef = useRef<(() => void) | null>(null);
+  const activeRef = useRef(isActive);
+  activeRef.current = isActive;
 
   useEffect(() => {
     transportRef.current = terminalTransport;
@@ -352,12 +356,21 @@ export const TerminalPanel = ({
     terminal.open(host);
 
     let resizeFrame: number | null = null;
+    let webgl: ReturnType<typeof attachTerminalWebglRenderer> | null = null;
 
     const fitAndSyncSize = () => {
       resizeFrame = null;
       // Hidden tabs retain their last valid size and continue parsing output.
       if (host.clientWidth === 0 || host.clientHeight === 0) return;
       fitAddon.fit();
+
+      // Allocate once, on first visible activation; retain across tab switches.
+      // A failed renderer keeps its disposable so this instance never retries.
+      if (activeRef.current && !webgl) {
+        webgl = attachTerminalWebglRenderer(terminal, () => new WebglAddon());
+      }
+      // Repaint after fitting even when the terminal dimensions are unchanged.
+      terminal.refresh(0, Math.max(0, terminal.rows - 1));
 
       const cols = terminal.cols;
       const rows = terminal.rows;
@@ -437,6 +450,7 @@ export const TerminalPanel = ({
       window.removeEventListener("resize", scheduleFitAndSyncSize);
       terminalInstanceRef.current = null;
       fitTerminalRef.current = null;
+      webgl?.dispose();
       terminal.dispose();
     };
   }, [autoStart, onStart, projectId, sessionId]);
