@@ -64,6 +64,7 @@ import {
 import { useIdeStore } from "./ide-store";
 import { MODEL_SPEED_OPTIONS, REASONING_EFFORT_OPTIONS } from "./ide-types";
 import { ProjectBranchFooter } from "./project-status-bar";
+import { RunTaskSubmenu } from "./tasks/run-task-submenu";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
@@ -302,14 +303,10 @@ export const ChatPanel = ({
 
   const isStreaming = status === "streaming";
   const isProcessing = status === "submitted" || status === "streaming";
-  // A task chat is shown in the Tasks workspace: it has no place in Code's
-  // chat list, terminal panel or branch controls.
-  const isTaskChat = chat.taskId !== null;
   const claudeSessionId = chat.remoteConversationId?.trim() ?? "";
   const claudeSessionProjectPath =
     chat.remoteConversationProjectPath?.trim() ?? "";
   const canContinueInTerminal =
-    !isTaskChat &&
     chat.provider === "anthropic" &&
     CLAUDE_SESSION_ID_PATTERN.test(claudeSessionId) &&
     Boolean(claudeSessionProjectPath);
@@ -484,7 +481,7 @@ export const ChatPanel = ({
             isTitleGenerating={isTitleGenerating}
             onCloseChat={onCloseChat}
             onChatMenuOpenChange={setChatMenuOpen}
-            onDeleteChat={isTaskChat ? undefined : () => deleteChat(chat.id)}
+            onDeleteChat={() => deleteChat(chat.id)}
             onEditChat={handleEditChat}
             onContinueInTerminal={
               canContinueInTerminal ? handleContinueInTerminal : undefined
@@ -666,10 +663,17 @@ export const ChatPanel = ({
             sparklesPalette={chat.sparklesPalette}
             status={status}
             todoSummary={todoSummary}
+            actionMenuItems={
+              <RunTaskSubmenu
+                branch={currentGitBranch}
+                chatId={chat.id}
+                projectId={project.id}
+              />
+            }
           />
         )}
 
-        {isTaskChat ? null : <ProjectBranchFooter project={project} />}
+        <ProjectBranchFooter project={project} />
       </div>
 
       <EditChatDialog

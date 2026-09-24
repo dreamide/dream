@@ -555,6 +555,8 @@ export interface ChatComposerProps {
   sparklesPalette: SparklesPaletteName;
   status: ChatStatus;
   todoSummary: ChatTodoSummary;
+  /** Extra items for the + menu, after "Add photos & files". */
+  actionMenuItems?: ReactNode;
 }
 
 export const ChatComposer = ({
@@ -597,6 +599,7 @@ export const ChatComposer = ({
   sparklesPalette,
   status,
   todoSummary,
+  actionMenuItems,
 }: ChatComposerProps) => {
   const chatT = useTranslations("chat");
   const modelT = useTranslations("models");
@@ -945,6 +948,7 @@ export const ChatComposer = ({
                       />
                       <PromptInputActionMenuContent side="top">
                         <PromptInputActionAddAttachments />
+                        {actionMenuItems}
                       </PromptInputActionMenuContent>
                     </PromptInputActionMenu>
                   </PromptInputTools>

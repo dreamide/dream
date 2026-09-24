@@ -39,10 +39,6 @@ import { normalizeProjectPathKey } from "../ide-state";
 import { useIdeStore } from "../ide-store";
 import { MaterialFileIcon } from "../material-file-icon";
 import { isMissingWorktreeError } from "../store/project-lifecycle-actions";
-import {
-  TaskDeliveryLine,
-  useTaskDelivery,
-} from "../workspaces/tasks/task-delivery";
 import { CommitDialog } from "./commit-dialog";
 import { CreatePrDialog } from "./create-pr-dialog";
 import {
@@ -224,11 +220,6 @@ const InfoLine = ({
 
 export interface WorktreeCompletionResult {
   action: WorktreeCompletionAction;
-  /**
-   * The work was already on the base branch, so finishing only cleaned up:
-   * the outcome is "merged" even though the action was "remove".
-   */
-  alreadyMerged: boolean;
   mergeCommit: string | null;
   prUrl: string | null;
 }
@@ -239,7 +230,6 @@ export const CompleteWorktreeDialog = ({
   open,
   project,
   removeOnly = false,
-  task,
 }: {
   /** Called once when the dialog closes after the chosen action succeeded. */
   onCompleted?: (result: WorktreeCompletionResult) => void;
@@ -248,18 +238,8 @@ export const CompleteWorktreeDialog = ({
   project: WorktreeProject;
   /** Only offer removing the worktree: no merge, no pull request. */
   removeOnly?: boolean;
-  /**
-   * Set when shipping a task from the Tasks workspace. The question there is
-   * "how does this work get delivered, and has it been?", so the dialog says
-   * where the work stands, offers only ways to deliver it, and shows whether
-   * the base branch has been pushed. The worktree is left alone: removing it
-   * is a separate, explicit action. Pushing is never done here except by the
-   * explicit button.
-   */
-  task?: { title: string };
 }) => {
   const commonT = useTranslations("common");
-  const tasksT = useTranslations("tasks");
   const gitT = useTranslations("git");
   const worktreeT = useTranslations("worktrees");
   const format = useFormatter();
@@ -311,9 +291,6 @@ export const CompleteWorktreeDialog = ({
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [retryingCleanup, setRetryingCleanup] = useState(false);
   const prHandoffRef = useRef(false);
-  // The comparison is not refreshed once the action runs, but the worktree is
-  // gone by then; remember what it said when the user chose.
-  const alreadyMergedRef = useRef(false);
   const cleanupOptionsRef = useRef<{ deleteBranch: boolean }>({
     deleteBranch: false,
   });
@@ -334,7 +311,6 @@ export const CompleteWorktreeDialog = ({
     setCleanupResult(null);
     setCleanupError(null);
     prHandoffRef.current = false;
-    alreadyMergedRef.current = false;
   }, [open]);
 
   useEffect(() => {
@@ -394,28 +370,6 @@ export const CompleteWorktreeDialog = ({
   // counts: the branch is the source of truth.
   const existingPr = compare?.pullRequest ?? null;
   const prOpen = existingPr?.state === "open";
-  const prMerged = existingPr?.state === "merged";
-  // Nothing ahead and nothing uncommitted (or the PR was merged): the base
-  // branch has all of it.
-  const alreadyMerged =
-    Boolean(task) &&
-    compare !== null &&
-    ((compare.aheadCount === 0 && !isDirty) || prMerged);
-  // A task is shipped or finished here, not thrown away.
-  const removeAllowed = !task || alreadyMerged;
-  // Read again once the merge has landed, when the counts have changed.
-  const doneDelivery = useTaskDelivery({
-    branch: compare?.baseBranch ?? null,
-    commit: null,
-    enabled: Boolean(task) && open && phase === "done",
-    projectPath: compare?.mainWorktreePath ?? null,
-  });
-  const baseDelivery = useTaskDelivery({
-    branch: compare?.baseBranch ?? null,
-    commit: null,
-    enabled: Boolean(task) && open,
-    projectPath: compare?.mainWorktreePath ?? null,
-  });
   const mergeDisabledReason = !compare
     ? null
     : compare.aheadCount === 0
@@ -558,16 +512,12 @@ export const CompleteWorktreeDialog = ({
   ]);
 
   const notifyCompleted = useCallback(() => {
-    const finishedAlreadyMerged = alreadyMergedRef.current;
     onCompleted?.({
       action,
-      alreadyMerged: finishedAlreadyMerged,
-      mergeCommit:
-        mergeResult?.mergeCommit ??
-        (finishedAlreadyMerged ? (compare?.mergeBase ?? null) : null),
+      mergeCommit: mergeResult?.mergeCommit ?? null,
       prUrl,
     });
-  }, [action, compare?.mergeBase, mergeResult, onCompleted, prUrl]);
+  }, [action, mergeResult, onCompleted, prUrl]);
 
   const finish = useCallback(() => {
     onOpenChange(false);
@@ -606,14 +556,13 @@ export const CompleteWorktreeDialog = ({
   );
 
   const handlePrimary = useCallback(() => {
-    alreadyMergedRef.current = action === "remove" && alreadyMerged;
     if (action === "merge") {
       void runMerge();
       return;
     }
     if (action === "pr") {
       if (existingPr && prOpen) {
-        // The pull request already exists: the task is delivered as is.
+        // The pull request already exists: hand it over as is.
         prHandoffRef.current = true;
         setPrUrl(existingPr.url);
         setPhase("done");
@@ -623,13 +572,8 @@ export const CompleteWorktreeDialog = ({
       setPhase("pr");
       return;
     }
-    if (task && alreadyMerged) {
-      // The work is already on the base branch: the task is simply finished.
-      setPhase("done");
-      return;
-    }
     void runCleanup({ deleteBranch: false });
-  }, [action, alreadyMerged, existingPr, prOpen, runCleanup, runMerge, task]);
+  }, [action, existingPr, prOpen, runCleanup, runMerge]);
 
   const handleRetryCleanup = useCallback(async () => {
     setRetryingCleanup(true);
@@ -645,18 +589,15 @@ export const CompleteWorktreeDialog = ({
     (action !== "remove" && !compare) ||
     (action === "merge" && !mergeEnabled) ||
     (action === "pr" && !prEnabled) ||
-    (action === "remove" && !removeAllowed) ||
     (isDirty && action === "remove" && !discardUncommitted);
   const primaryLabel =
     action === "merge"
       ? worktreeT("merge")
       : action === "pr"
-        ? prOpen
-          ? tasksT("shipFinish")
+        ? prOpen && existingPr
+          ? worktreeT("useOpenPullRequest", { number: existingPr.number })
           : worktreeT("continueToPr")
-        : task && alreadyMerged
-          ? tasksT("shipFinish")
-          : worktreeT("removeWorktree");
+        : worktreeT("removeWorktree");
 
   if (phase === "commit") {
     return (
@@ -722,20 +663,15 @@ export const CompleteWorktreeDialog = ({
       <DialogContent className="flex max-h-[85vh] flex-col gap-5 sm:max-w-2xl">
         <GitDialogHeader
           icon={<FolderTree />}
-          subtitle={[
-            task?.title,
+          subtitle={
             compare
               ? `${compare.branch} -> ${compare.baseBranch}`
-              : project.worktree.branch,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+              : project.worktree.branch
+          }
           title={
             removeOnly
               ? worktreeT("removeWorktree")
-              : task
-                ? tasksT("shipTask")
-                : worktreeT("completeWorktree")
+              : worktreeT("completeWorktree")
           }
         />
 
@@ -780,7 +716,9 @@ export const CompleteWorktreeDialog = ({
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                     <span>
                       {existingPr && prUrl === existingPr.url
-                        ? tasksT("shipPrOpen", { number: existingPr.number })
+                        ? worktreeT("pullRequestOpen", {
+                            number: existingPr.number,
+                          })
                         : worktreeT("pullRequestCreated")}
                     </span>
                     {prUrl ? (
@@ -795,16 +733,6 @@ export const CompleteWorktreeDialog = ({
                         {worktreeT("viewPullRequest")}
                       </Button>
                     ) : null}
-                  </div>
-                </div>
-              ) : null}
-              {task && alreadyMergedRef.current ? (
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-                  <div>
-                    {tasksT("shipAlreadyMerged", {
-                      base: compare?.baseBranch ?? "",
-                    })}
                   </div>
                 </div>
               ) : null}
@@ -844,16 +772,6 @@ export const CompleteWorktreeDialog = ({
               ) : null}
             </div>
 
-            {task &&
-            (mergeResult || alreadyMergedRef.current) &&
-            doneDelivery?.branchExists ? (
-              // Read from the repository, so it is right whoever pushed. Only
-              // reported: pushing is left to the user's own git tools.
-              <div className="rounded-md border border-surface-200 px-3 py-2.5 dark:border-surface-800">
-                <TaskDeliveryLine status={doneDelivery} />
-              </div>
-            ) : null}
-
             <div className="flex justify-end gap-2">
               {cleanupError ? (
                 <>
@@ -892,61 +810,6 @@ export const CompleteWorktreeDialog = ({
 
               {compare ? (
                 <>
-                  {task ? (
-                    <div
-                      className={cn(
-                        "rounded-md border px-3 py-2.5 text-sm",
-                        alreadyMerged
-                          ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40"
-                          : "border-surface-200 bg-surface-50 dark:border-surface-800 dark:bg-surface-900",
-                      )}
-                    >
-                      <div className="font-medium">
-                        {alreadyMerged
-                          ? tasksT("shipAlreadyMerged", {
-                              base: compare.baseBranch,
-                            })
-                          : isDirty
-                            ? tasksT("shipDirty")
-                            : tasksT("shipReady", {
-                                base: compare.baseBranch,
-                                count: compare.aheadCount,
-                              })}
-                      </div>
-                      {existingPr ? (
-                        <div className="mt-1.5 flex items-center justify-between gap-2 text-muted-foreground text-xs">
-                          <span>
-                            {tasksT(
-                              existingPr.state === "merged"
-                                ? "shipPrMerged"
-                                : existingPr.state === "closed"
-                                  ? "shipPrClosed"
-                                  : "shipPrOpen",
-                              { number: existingPr.number },
-                            )}
-                          </span>
-                          {existingPr.url ? (
-                            <Button
-                              className="h-6 gap-1 px-2 text-xs"
-                              onClick={() => openExternalUrl(existingPr.url)}
-                              size="sm"
-                              type="button"
-                              variant="ghost"
-                            >
-                              <ExternalLink className="size-3.5" />
-                              {worktreeT("viewPullRequest")}
-                            </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {baseDelivery?.branchExists ? (
-                        <TaskDeliveryLine
-                          className="mt-1.5"
-                          status={baseDelivery}
-                        />
-                      ) : null}
-                    </div>
-                  ) : null}
                   <div className="space-y-2">
                     <DialogMetricRow
                       icon={<GitBranch className="size-4" />}
@@ -1174,30 +1037,18 @@ export const CompleteWorktreeDialog = ({
                         disabled: !prEnabled,
                         icon: <GitPullRequest />,
                         label:
-                          task && prOpen && existingPr
-                            ? tasksT("shipFinishWithPr", {
+                          prOpen && existingPr
+                            ? worktreeT("useOpenPullRequest", {
                                 number: existingPr.number,
                               })
                             : worktreeT("createPullRequest"),
                         value: "pr",
                       },
-                      ...(removeAllowed
-                        ? [
-                            {
-                              icon:
-                                task && alreadyMerged ? (
-                                  <CheckCircle2 />
-                                ) : (
-                                  <FolderX />
-                                ),
-                              label:
-                                task && alreadyMerged
-                                  ? tasksT("shipFinish")
-                                  : worktreeT("removeWorktreeOnly"),
-                              value: "remove" as const,
-                            },
-                          ]
-                        : []),
+                      {
+                        icon: <FolderX />,
+                        label: worktreeT("removeWorktreeOnly"),
+                        value: "remove" as const,
+                      },
                     ]}
                     value={action}
                   />
@@ -1241,11 +1092,7 @@ export const CompleteWorktreeDialog = ({
                 disabled={primaryDisabled}
                 onClick={handlePrimary}
                 type="button"
-                variant={
-                  action === "remove" && !alreadyMerged
-                    ? "destructive"
-                    : "default"
-                }
+                variant={action === "remove" ? "destructive" : "default"}
               >
                 {primaryLabel}
               </Button>

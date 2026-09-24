@@ -2,6 +2,7 @@ import {
   Archive,
   ArrowLeft,
   Bot,
+  ListChecks,
   Monitor,
   Moon,
   RotateCcw,
@@ -75,6 +76,7 @@ import {
   SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
+import { TasksSettingsSection } from "./tasks/tasks-settings-section";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const getAccentColorSwatch = (color: AccentColor) =>
@@ -142,6 +144,7 @@ export const SettingsWorkspace = () => {
   const localeT = useTranslations("locale");
   const providerT = useTranslations("provider");
   const settingsT = useTranslations("settings");
+  const tasksT = useTranslations("tasks");
   const themeT = useTranslations("theme");
   const uiT = useTranslations("ui");
   const getColorLabel = (color: AccentColor | BaseColor) =>
@@ -386,7 +389,7 @@ export const SettingsWorkspace = () => {
   const deletedChats = useMemo(
     () =>
       [...chats]
-        .filter((chat) => chat.deletedAt !== null && chat.taskId === null)
+        .filter((chat) => chat.deletedAt !== null)
         .sort(
           (left, right) =>
             Date.parse(right.deletedAt ?? "") -
@@ -546,6 +549,21 @@ export const SettingsWorkspace = () => {
               <span className="flex items-center gap-2">
                 <Server className="size-4" />
                 {settingsT("mcpServers")}
+              </span>
+            </button>
+            <button
+              className={cn(
+                "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
+                settingsSection === "tasks"
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setSettingsSection("tasks")}
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                <ListChecks className="size-4" />
+                {tasksT("title")}
               </span>
             </button>
             <button
@@ -1323,6 +1341,8 @@ export const SettingsWorkspace = () => {
               {settingsSection === "mcp" ? (
                 <McpServersSection setView={setMcpView} view={mcpView} />
               ) : null}
+
+              {settingsSection === "tasks" ? <TasksSettingsSection /> : null}
 
               {settingsSection === "chats" ? (
                 <div className="space-y-8">

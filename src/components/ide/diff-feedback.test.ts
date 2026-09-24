@@ -156,21 +156,18 @@ describe("diff reference messages", () => {
 describe("first active feedback destination", () => {
   const project = createProjectConfig("/workspace/project", DEFAULT_SETTINGS);
   const chats = [
-    { id: "first", projectId: project.id, deletedAt: null, taskId: null },
-    { id: "focused", projectId: project.id, deletedAt: null, taskId: null },
+    { id: "first", projectId: project.id, deletedAt: null },
+    { id: "focused", projectId: project.id, deletedAt: null },
     {
       id: "archived",
       projectId: project.id,
       deletedAt: "2026-01-01",
-      taskId: null,
     },
     {
       id: "foreign",
       projectId: "other-project",
       deletedAt: null,
-      taskId: null,
     },
-    { id: "step", projectId: project.id, deletedAt: null, taskId: "task-1" },
   ];
   it("uses the first open chat even when another chat has focus", () => {
     const current = {
@@ -188,7 +185,7 @@ describe("first active feedback destination", () => {
       ...project,
       ui: {
         ...project.ui,
-        openChatIds: ["archived", "foreign", "missing", "step"],
+        openChatIds: ["archived", "foreign", "missing"],
         activeChatId: "focused",
       },
     };

@@ -112,40 +112,6 @@ export const projectGitCommitMessageRequestSchema = z.object({
   reasoningEffort: gitGenerationReasoningEffortSchema,
 });
 
-/** The app committing a task step's work (see `commitTaskStepWork`). */
-export const projectGitTaskCommitRequestSchema = z.object({
-  /** Used when no message can be generated, e.g. the task title. */
-  fallbackMessage: nullableTrimmedStringSchema,
-  model: nullableTrimmedStringSchema,
-  modelSpeed: gitGenerationModelSpeedSchema,
-  projectPath: z.string().min(1),
-  provider: z
-    .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
-    .default("openai"),
-  reasoningEffort: gitGenerationReasoningEffortSchema,
-});
-
-/** Checking on, or bringing back, the worktree a task runs in. */
-export const projectGitTaskWorktreeRequestSchema = z.object({
-  action: z.enum(["check", "recreate"]),
-  branch: z.string().trim().min(1),
-  /** The project that owns the task, i.e. the repository's own checkout. */
-  projectPath: z.string().min(1),
-  worktreePath: z.string().trim().min(1),
-});
-
-/**
- * Whether a finished task's work has reached the remote. Read-only: the Tasks
- * workspace reports this and never pushes.
- */
-export const projectGitTaskDeliveryRequestSchema = z.object({
-  branch: z.string().trim().min(1),
-  taskBranch: nullableTrimmedStringSchema,
-  /** The commit the task landed as, if known. */
-  commit: nullableTrimmedStringSchema,
-  projectPath: z.string().min(1),
-});
-
 export const projectGitPushRequestSchema = z.object({
   /** Pushes this branch by name; the checked-out branch when omitted. */
   branch: nullableTrimmedStringSchema,

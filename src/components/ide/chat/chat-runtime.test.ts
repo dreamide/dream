@@ -161,7 +161,7 @@ test("a queued submission that cannot be sent returns to the draft", async () =>
   );
 });
 
-test("a chat outside the active project is refused unless a task runs it", () => {
+test("a chat outside the active project is refused", () => {
   const { chat } = setUp();
   useIdeStore.setState({ activeProjectId: "another-project" });
 
@@ -169,15 +169,6 @@ test("a chat outside the active project is refused unless a task runs it", () =>
     () => submitChatPrompt(chat.id, { files: [], text: "Hello" }),
     /no longer in the active project/,
   );
-
-  useIdeStore.setState({
-    tasks: [
-      {
-        runs: [{ chatId: chat.id }],
-      } as unknown as ReturnType<typeof useIdeStore.getState>["tasks"][number],
-    ],
-  });
-  assert.equal(submitChatPrompt(chat.id, { files: [], text: "Hello" }), true);
 });
 
 test("an idle session is dropped only after its last watcher leaves", () => {

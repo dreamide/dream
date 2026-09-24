@@ -16,7 +16,6 @@ import {
   ensureActiveProject,
   normalizeProjectPathKey,
   sanitizeProjectUiForChats,
-  setProjectHiddenInList,
 } from "../ide-state";
 import { deleteTerminalScrollback } from "../terminal-scrollback";
 import { updateProjectInList, updateProjectUiInList } from ".";
@@ -51,35 +50,6 @@ export const createProjectLifecycleActions = (
   | "removeWorktreeProject"
   | "updateProject"
 > => {
-  /**
-   * Opening a project without activating it (a task's worktree, a folder a
-   * task was added to) loads it in the background with no Code tab. Opening
-   * it for real shows it; a project that already had a tab keeps it.
-   */
-  const applyOpenVisibility = (
-    path: string,
-    { activate, wasOpen }: { activate: boolean; wasOpen: boolean },
-  ) => {
-    if (!activate && wasOpen) {
-      return;
-    }
-    const pathKey = normalizeProjectPathKey(path);
-    set((state) => {
-      const project = state.projects.find(
-        (entry) => normalizeProjectPathKey(entry.path) === pathKey,
-      );
-      if (!project) {
-        return state;
-      }
-      const projects = setProjectHiddenInList(
-        state.projects,
-        project.id,
-        !activate,
-      );
-      return projects === state.projects ? state : { projects };
-    });
-  };
-
   return {
     setProjects: (projects: ProjectConfig[]) => {
       set((state) => {
@@ -143,9 +113,7 @@ export const createProjectLifecycleActions = (
               };
         }
 
-        // Activating a background project gives it its Code tab.
-        const projects = setProjectHiddenInList(state.projects, id, false);
-        const nextActiveProjectId = ensureActiveProject(projects, id);
+        const nextActiveProjectId = ensureActiveProject(state.projects, id);
         const lastUsedAt = new Date().toISOString();
         const nextCompletedChatIds = { ...state.completedChatIds };
         if (nextActiveProjectId) {
@@ -161,8 +129,7 @@ export const createProjectLifecycleActions = (
 
         if (
           nextActiveProjectId === state.activeProjectId &&
-          !completedChatIdsChanged &&
-          projects === state.projects
+          !completedChatIdsChanged
         ) {
           return state;
         }
@@ -171,20 +138,19 @@ export const createProjectLifecycleActions = (
           activeProjectId: nextActiveProjectId,
           completedChatIds: nextCompletedChatIds,
           projects: nextActiveProjectId
-            ? touchProjectInList(projects, nextActiveProjectId, lastUsedAt)
-            : projects,
+            ? touchProjectInList(
+                state.projects,
+                nextActiveProjectId,
+                lastUsedAt,
+              )
+            : state.projects,
         };
       });
     },
 
     addProject: (path: string, addOptions?: { activate?: boolean }) => {
-      // Background reopen (e.g. a task's worktree) keeps focus put.
+      // `activate: false` opens the project without switching to it.
       const activate = addOptions?.activate !== false;
-      const wasOpen = get().projects.some(
-        (project) =>
-          normalizeProjectPathKey(project.path) ===
-          normalizeProjectPathKey(path),
-      );
       set((state) => {
         const pathKey = normalizeProjectPathKey(path);
         const lastUsedAt = new Date().toISOString();
@@ -313,7 +279,6 @@ export const createProjectLifecycleActions = (
           ],
         };
       });
-      applyOpenVisibility(path, { activate, wasOpen });
     },
 
     createWorktreeProject: async (
@@ -353,11 +318,6 @@ export const createProjectLifecycleActions = (
 
       const payload =
         (await response.json()) as ProjectGitCreateWorktreeResponse;
-      const wasOpen = get().projects.some(
-        (project) =>
-          normalizeProjectPathKey(project.path) ===
-          normalizeProjectPathKey(payload.path),
-      );
       let createdProjectId: string | null = null;
       let createdChatId: string | null = null;
 
@@ -530,7 +490,6 @@ export const createProjectLifecycleActions = (
           ],
         };
       });
-      applyOpenVisibility(payload.path, { activate, wasOpen });
 
       if (createdChatId && options.initialChatSeed) {
         await get().persistMessagesForChat?.(createdChatId);
@@ -577,17 +536,9 @@ export const createProjectLifecycleActions = (
           return current;
         }
 
-        // Task chats outlive the worktree they ran in: they move to the task's
-        // own project (read-only from here on), keeping the transcript. The
-        // worktree's other chats go with it.
-        const taskOwnerById = new Map(
-          (current.tasks ?? []).map((task) => [task.id, task.projectId]),
-        );
+        // The worktree's chats go with it.
         const keepsChat = (chat: ChatConfig) =>
-          !removedProjectIds.has(chat.projectId) ||
-          (chat.taskId !== null &&
-            taskOwnerById.has(chat.taskId) &&
-            !removedProjectIds.has(taskOwnerById.get(chat.taskId) as string));
+          !removedProjectIds.has(chat.projectId);
         const messagesByChatId = { ...current.messagesByChatId };
         for (const chat of current.chats) {
           if (!keepsChat(chat)) {
@@ -596,31 +547,13 @@ export const createProjectLifecycleActions = (
         }
 
         return {
-          chats: current.chats.flatMap((chat) => {
-            if (!keepsChat(chat)) {
-              return [];
-            }
-            if (!removedProjectIds.has(chat.projectId)) {
-              return [chat];
-            }
-            return [
-              {
-                ...chat,
-                projectId: taskOwnerById.get(chat.taskId as string) as string,
-              },
-            ];
-          }),
+          chats: current.chats.filter(keepsChat),
           closedProjects: current.closedProjects.filter(
             (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
           ),
           messagesByChatId,
           projects: current.projects.filter(
             (item) => normalizeProjectPathKey(item.path) !== worktreePathKey,
-          ),
-          // Tasks filed under the purged project go with it. Tasks that merely
-          // ran in this worktree belong to its parent and stay.
-          tasks: (current.tasks ?? []).filter(
-            (task) => !removedProjectIds.has(task.projectId),
           ),
         };
       });

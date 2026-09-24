@@ -7,12 +7,10 @@ import { HeaderUpdateButton } from "./header/update-button";
 import { WindowControls } from "./header/window-controls";
 import { WorkspaceSwitcher } from "./header/workspace-switcher";
 import { useIdeStore } from "./ide-store";
-import { TasksScopeSwitcher } from "./workspaces/tasks/tasks-scope-switcher";
 
 export const IdeHeader = () => {
   const t = useTranslations("common");
   const appReady = useIdeStore((s) => s.appReady);
-  const tasksSelected = useIdeStore((s) => s.appView === "tasks");
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
@@ -38,8 +36,7 @@ export const IdeHeader = () => {
 
         <WorkspaceSwitcher />
 
-        {/* Each workspace owns the rest of the titlebar's navigation. */}
-        {tasksSelected ? <TasksScopeSwitcher /> : <ProjectTabs />}
+        <ProjectTabs />
 
         <HeaderUpdateButton />
 

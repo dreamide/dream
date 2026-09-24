@@ -34,7 +34,6 @@ import {
   flushProjectPanelRefresh,
   scheduleProjectPanelRefresh,
 } from "../project-panel-refresh";
-import { findTaskByChatId } from "../store/task-actions";
 import {
   addAskUserQuestionAnswerToMessages,
   preserveAskUserQuestionAnswers,
@@ -614,14 +613,10 @@ export const submitChatPrompt = (
     ? state.projects.find((item) => item.id === config.projectId)
     : undefined;
 
-  // Task step chats run in a background worktree project while the board's
-  // project stays active, so they are exempt from the focus check.
-  const isTaskStepChat = findTaskByChatId(state.tasks, chatId) !== null;
-
   if (
     !config ||
     !submittedProject ||
-    (state.activeProjectId !== submittedProject.id && !isTaskStepChat)
+    state.activeProjectId !== submittedProject.id
   ) {
     const message = chatT("notInActiveProject");
     setChatError(chatId, message);

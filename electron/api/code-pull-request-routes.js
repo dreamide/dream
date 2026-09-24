@@ -6,7 +6,7 @@ import { runGitCommand } from "./project-git/core.js";
 import { ensureProjectDirectory } from "./project-git-service.js";
 import { execFileAsync } from "./shared/cli.js";
 
-// Deliberately independent of task delivery and its PR lookup/cache.
+// Pull request lookups for the Code workspace PR panel.
 const requestSchema = z.object({
   projectPath: z.string().min(1),
   action: z.enum([

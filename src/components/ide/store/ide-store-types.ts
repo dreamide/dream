@@ -15,21 +15,8 @@ import type {
   RightPanelView,
   StashItem,
   Task,
-  TaskCompletion,
-  TaskConfig,
-  TaskRunStepId,
-  TaskStepConfig,
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
-
-export interface MissingTaskWorktree {
-  /**
-   * Whether the task's branch still exists. With it the worktree can be
-   * recreated; without it there is nothing left to bring back, which usually
-   * means the work was merged and cleaned up outside the Tasks workspace.
-   */
-  branchExists: boolean;
-}
 
 export interface WorktreeInitialChatSeed {
   messageId: string;
@@ -56,11 +43,6 @@ export interface IdeState {
   activeProjectId: string | null;
   appView: AppView;
   tasks: Task[];
-  tasksProjectId: string | null;
-  taskConfig: TaskConfig;
-  tasksChatPanelWidth: number;
-  /** The task whose chats the Tasks workspace pane shows (not persisted). */
-  tasksPane: { taskId: string; runId: string | null } | null;
   chats: ChatConfig[];
   chatSort: ChatSortOrder;
   settings: AppSettings;
@@ -69,12 +51,6 @@ export interface IdeState {
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
-  /**
-   * Tasks (by id) whose worktree was found missing on disk. Not persisted: it
-   * is re-detected by the next reopen or commit, and the disk may have changed
-   * by the next launch anyway.
-   */
-  missingTaskWorktrees: Record<string, MissingTaskWorktree>;
   awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
@@ -202,66 +178,24 @@ export interface IdeState {
   takePendingChatSubmit: (chatId: string) => PendingChatSubmit | null;
 
   // Actions - tasks
-  addTask: (
-    projectId: string,
-    task: { description?: string; title: string },
-  ) => string | null;
-  /**
-   * Files a task under the project at `path`, which need not be open: a closed
-   * project stays closed until one of its tasks runs, and an unknown folder is
-   * registered in the background.
-   */
-  addTaskToProjectPath: (
-    path: string,
-    task: { description?: string; title: string },
-  ) => string | null;
+  /** Saves a new task at the end of the list. Returns its id. */
+  addTask: (task: { prompt: string; title: string }) => string | null;
   updateTask: (
+    taskId: string,
+    updates: { prompt?: string; title?: string },
+  ) => void;
+  deleteTask: (taskId: string) => void;
+  moveTask: (taskId: string, index: number) => void;
+  /**
+   * Sends a task's prompt, with its placeholders filled, to `chatId` in
+   * `projectId`. Returns whether it was sent (it is not when the chat is
+   * busy).
+   */
+  runTask: (
     projectId: string,
     taskId: string,
-    updates: { description?: string; title?: string },
-  ) => void;
-  deleteTask: (projectId: string, taskId: string) => void;
-  moveTaskInBacklog: (projectId: string, taskId: string, index: number) => void;
-  /** Backlog -> Plan. Resolves to the step chat id. */
-  startTask: (projectId: string, taskId: string) => Promise<string | null>;
-  /** Approves the current step and runs the next one. */
-  advanceTask: (projectId: string, taskId: string) => Promise<string | null>;
-  sendTaskBack: (
-    projectId: string,
-    taskId: string,
-    toStep: TaskRunStepId,
-    note?: string,
-  ) => Promise<string | null>;
-  retryTaskStep: (projectId: string, taskId: string) => Promise<string | null>;
-  completeTask: (
-    projectId: string,
-    taskId: string,
-    completion: TaskCompletion,
-  ) => void;
-  /** Reopens a task's closed worktree project in the background. */
-  reopenTaskWorktree: (projectId: string, taskId: string) => Promise<boolean>;
-  /**
-   * Looks at the disk for a task whose worktree project is not open, so the
-   * card can say "worktree missing" by itself instead of offering a Reopen
-   * that cannot work. Returns whether the worktree is usable.
-   */
-  checkTaskWorktree: (projectId: string, taskId: string) => Promise<boolean>;
-  /**
-   * Checks the task's branch out again where its worktree used to be, and
-   * opens it in the background. Throws when that is not possible (the branch
-   * is gone too, or the folder holds other files).
-   */
-  recreateTaskWorktree: (projectId: string, taskId: string) => Promise<void>;
-  /**
-   * Edits a step's settings. There is one config for the whole app — no
-   * per-project layer — so the Tasks workspace always shows what runs.
-   */
-  setTaskStepConfig: (
-    step: TaskRunStepId,
-    updater: (config: TaskStepConfig) => TaskStepConfig,
-  ) => void;
-  isTaskChat: (chatId: string) => boolean;
-  maybeAutoAdvanceTaskForChat: (chatId: string) => void;
+    options: { branch?: string | null; chatId: string },
+  ) => boolean;
 
   // Actions - panels
   togglePanel: (panel: keyof PanelVisibility) => void;
@@ -276,11 +210,6 @@ export interface IdeState {
   setProjectRightPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
   setAppView: (view: AppView) => void;
-  setTasksProjectId: (projectId: string | null) => void;
-  setTasksChatPanelWidth: (width: number) => void;
-  /** Shows a task's chats in the Tasks workspace pane, at `runId` if given. */
-  openTaskPane: (taskId: string, runId?: string | null) => void;
-  closeTaskPane: () => void;
   openProjectFile: (projectId: string, filePath: string) => void;
   setOutputPanelOpen: (open: boolean) => void;
 
