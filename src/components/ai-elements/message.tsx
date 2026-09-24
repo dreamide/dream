@@ -329,7 +329,10 @@ export const MessageBranchPage = ({
   );
 };
 
-export type MessageResponseProps = ComponentProps<typeof Streamdown>;
+export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
+  /** Render single newlines as line breaks (for user-authored text). */
+  lineBreaks?: boolean;
+};
 
 const StreamdownMessageRenderer = lazy(
   () => import("@/components/ai-elements/streamdown-message-renderer"),
@@ -675,7 +678,13 @@ const getLargeMessagePreview = (value: string, percent: number) => {
 };
 
 export const MessageResponse = memo(
-  ({ children, className, components, ...props }: MessageResponseProps) => {
+  ({
+    children,
+    className,
+    components,
+    lineBreaks,
+    ...props
+  }: MessageResponseProps) => {
     const aiT = useTranslations("aiElements");
     const format = useFormatter();
     const [largeMessagePercent, setLargeMessagePercent] = useState(
@@ -787,6 +796,7 @@ export const MessageResponse = memo(
             className,
           )}
           components={mergedComponents}
+          lineBreaks={lineBreaks}
           {...props}
         >
           {normalizedChildren}
@@ -797,7 +807,8 @@ export const MessageResponse = memo(
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
     prevProps.animated === nextProps.animated &&
-    prevProps.isAnimating === nextProps.isAnimating,
+    prevProps.isAnimating === nextProps.isAnimating &&
+    prevProps.lineBreaks === nextProps.lineBreaks,
 );
 
 MessageResponse.displayName = "MessageResponse";

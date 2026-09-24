@@ -52,6 +52,7 @@
     "next-intl": "^4.14.6",
     "node-pty": "^1.1.0",
     "property-information": "7.1.0",
+    "remark-breaks": "^4.0.0",
     "sirv": "^3.0.2",
     "space-separated-tokens": "2.0.2",
     "stringify-entities": "4.0.4",

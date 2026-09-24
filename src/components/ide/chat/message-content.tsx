@@ -283,6 +283,7 @@ export const UserMessageContent = ({
               <MarkdownFileLink {...props} projectPath={projectPath} />
             ),
           }}
+          lineBreaks
         >
           {normalizeProjectFileLinksInMarkdown(renderedText, projectPath)}
         </MessageResponse>
