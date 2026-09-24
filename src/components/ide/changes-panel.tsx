@@ -680,10 +680,86 @@ const ChangesPanelImpl = ({
   );
 
   const handleRevertAllChanges = useCallback(async () => {
-    for (const change of visibleChanges) {
-      await handleRevertFile(change);
+    if (
+      !projectId ||
+      !projectPath ||
+      visibleChanges.length === 0 ||
+      Object.keys(revertingPaths).length > 0
+    ) {
+      return;
     }
-  }, [handleRevertFile, visibleChanges]);
+
+    const paths = visibleChanges.map((change) => change.path);
+    const pathSet = new Set(paths);
+
+    diffLoadQueueRef.current = diffLoadQueueRef.current.filter(
+      (request) => !pathSet.has(request.filePath),
+    );
+    for (const path of paths) {
+      diffLoadQueuedPathsRef.current.delete(path);
+      diffLoadInFlightPathsRef.current.delete(path);
+    }
+    const clearRecord = <T,>(
+      current: Record<string, Record<string, T>>,
+    ): Record<string, Record<string, T>> => ({ ...current, [projectId]: {} });
+    const clearList = (
+      current: Record<string, string[]>,
+    ): Record<string, string[]> => ({ ...current, [projectId]: [] });
+    setDiffsByProject(clearRecord);
+    setDiffErrorsByProject(clearRecord);
+    setDiffLoadingByProject(clearRecord);
+    setDiffRefreshKeysByProject(clearRecord);
+    setForcedRenderedDiffsByProject(clearList);
+    setExpandedPathsByProject(clearList);
+
+    setHiddenRevertedPathsByProject((current) => ({
+      ...current,
+      [projectId]: [...new Set([...(current[projectId] ?? []), ...paths])],
+    }));
+    setRevertingPathsByProject((current) => ({
+      ...current,
+      [projectId]: Object.fromEntries(paths.map((path) => [path, true])),
+    }));
+
+    try {
+      const response = await fetch("/api/project-git-revert-all", {
+        body: JSON.stringify({ projectPath }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readResponseText(
+            response,
+            uiT("requestFailedStatus", { status: response.status }),
+          ),
+        );
+      }
+    } catch (error) {
+      console.error("[changes] Failed to revert all changes", error);
+      // Show the files again so the user can see what's still changed.
+      setHiddenRevertedPathsByProject((current) => ({
+        ...current,
+        [projectId]: (current[projectId] ?? []).filter(
+          (path) => !pathSet.has(path),
+        ),
+      }));
+    } finally {
+      setRevertingPathsByProject((current) => ({
+        ...current,
+        [projectId]: {},
+      }));
+      bumpProjectGitRefreshKey(projectId);
+    }
+  }, [
+    bumpProjectGitRefreshKey,
+    projectId,
+    projectPath,
+    revertingPaths,
+    uiT,
+    visibleChanges,
+  ]);
 
   const handleForceRenderDiff = useCallback(
     (filePath: string) => {

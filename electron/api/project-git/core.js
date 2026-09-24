@@ -1207,6 +1207,41 @@ export const revertProjectGitFile = async (
   return { filePath: normalizedFilePath, reverted: true };
 };
 
+// Reverts every change under the project directory in one pass instead of one
+// request per file. The pathspec is "." with cwd set to the project, so when the
+// project is a subdirectory of a larger repo, nothing outside it is touched.
+export const revertAllProjectGitChanges = async (projectPath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const baseRef = await getGitDiffBaseRef(repoInfo.repoRoot);
+  if (baseRef === EMPTY_GIT_TREE_HASH) {
+    throw new Error("The repository has no commits to revert to.");
+  }
+
+  const projectRoot = resolveProjectPath(projectPath, ".");
+
+  // Tracked changes (modified, deleted, renamed, staged adds). restore runs in
+  // no-overlay mode, so files that are not in HEAD are removed from the index
+  // and the working tree too.
+  await runGitCommand(projectRoot, [
+    "restore",
+    "--source=HEAD",
+    "--staged",
+    "--worktree",
+    "--",
+    ".",
+  ]);
+
+  // Untracked files and directories. Ignored files (no -x) and nested repos
+  // (no second -f) are left alone.
+  await runGitCommand(projectRoot, ["clean", "-f", "-d", "--", "."]);
+
+  return { reverted: true };
+};
+
 export const getProjectGitCachedDiff = async (
   projectPath,
   filePath,

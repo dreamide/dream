@@ -88,6 +88,10 @@ export const projectGitDiffRequestSchema = z.object({
 
 export const projectGitRevertFileRequestSchema = projectGitDiffRequestSchema;
 
+export const projectGitRevertAllRequestSchema = z.object({
+  projectPath: z.string().min(1),
+});
+
 const nullableTrimmedStringSchema = z
   .string()
   .transform((value) => value.trim())

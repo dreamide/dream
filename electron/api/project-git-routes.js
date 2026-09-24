@@ -37,6 +37,7 @@ import {
   projectGitPushPreviewRequestSchema,
   projectGitPushRequestSchema,
   projectGitRemoveWorktreeRequestSchema,
+  projectGitRevertAllRequestSchema,
   projectGitRevertFileRequestSchema,
   projectGitStatusRequestSchema,
   projectGitWorktreeCleanupRequestSchema,
@@ -48,6 +49,7 @@ import {
   pushProjectGitChanges,
   removeProjectGitWorktree,
   resolveProjectPath,
+  revertAllProjectGitChanges,
   revertProjectGitFile,
 } from "./project-git-service.js";
 
@@ -833,6 +835,31 @@ export const registerProjectGitRoutes = (app) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to revert file.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-revert-all", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitRevertAllRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { projectPath } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(await revertAllProjectGitChanges(projectPath));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to revert changes.";
       return c.text(message, 400);
     }
   });
