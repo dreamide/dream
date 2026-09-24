@@ -276,13 +276,15 @@ async function execute(input) {
     };
   }
   if (input.action === "edit") {
+    if (input.title === undefined && input.body === undefined)
+      throw new Error("Provide a title or description to update.");
     if (pr.updated_at !== required(input.updatedAt, "Original update time"))
       throw new Error(
         "This PR changed on GitHub. Refresh and review your edits before saving.",
       );
     return write(prPath, "PATCH", {
-      title: required(input.title, "Title"),
-      body: required(input.body, "Description"),
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.body !== undefined ? { body: input.body } : {}),
     });
   }
   const body = input.body?.trim() ?? "";

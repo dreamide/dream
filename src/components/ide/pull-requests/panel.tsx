@@ -13,10 +13,10 @@ import {
   ExternalLink,
   FileCode2,
   GitPullRequest,
+  Pencil,
   RefreshCw,
   Rows3,
   TextWrap,
-  Users,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
+import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
@@ -136,7 +138,7 @@ function checkSummary(checks: PullRequestDetail["checks"]) {
       icon: Clock3,
     };
   return {
-    label: checks.length === 1 ? "Passed" : "All checks passed",
+    label: "All checks passed",
     className: "text-success-foreground",
     icon: CheckCircle2,
   };
@@ -155,6 +157,8 @@ function Composer({
   initial = "",
   initialVersion,
   label,
+  showLabel = true,
+  submitLabel = label,
   busy,
   onSubmit,
   onCancel,
@@ -164,36 +168,54 @@ function Composer({
   initial?: string;
   initialVersion?: string;
   label: string;
+  showLabel?: boolean;
+  submitLabel?: string;
   busy: boolean;
   allowEmpty?: boolean;
   onSubmit: (body: string, version?: string) => Promise<boolean>;
   onCancel?: () => void;
 }) {
   const draft = usePrDraft(storageKey, initial, initialVersion);
-  const [preview, setPreview] = useState(false);
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      {showLabel ? (
         <span className="text-xs text-muted-foreground">{label}</span>
-        <Button size="sm" variant="ghost" onClick={() => setPreview(!preview)}>
-          {preview ? "Write" : "Preview"}
-        </Button>
-      </div>
-      {preview ? (
-        <div className="min-h-24 rounded-md border p-3">
-          <Markdown>{draft.value}</Markdown>
-        </div>
-      ) : (
-        <Textarea
-          aria-label={label}
-          value={draft.value}
-          disabled={busy}
-          onChange={(e) => draft.update(e.target.value)}
-          placeholder="Write Markdown…"
-          className="min-h-24"
-        />
-      )}
-      <div className="flex flex-wrap gap-2">
+      ) : null}
+      <Tabs defaultValue="write">
+        <TabsList aria-label={`${label} editor mode`}>
+          <TabsTrigger value="write">Write</TabsTrigger>
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+        </TabsList>
+        <TabsContent value="write">
+          <Textarea
+            aria-label={label}
+            value={draft.value}
+            disabled={busy}
+            onChange={(e) => draft.update(e.target.value)}
+            placeholder="Write Markdown…"
+            className="min-h-24"
+          />
+        </TabsContent>
+        <TabsContent value="preview">
+          <div className="min-h-24 rounded-md border p-3">
+            <Markdown>{draft.value}</Markdown>
+          </div>
+        </TabsContent>
+      </Tabs>
+      <div className="flex flex-wrap justify-end gap-2">
+        {onCancel ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => {
+              draft.clear();
+              onCancel();
+            }}
+          >
+            Cancel
+          </Button>
+        ) : null}
         <Button
           size="sm"
           disabled={busy || (!allowEmpty && !draft.value.trim())}
@@ -201,24 +223,8 @@ function Composer({
             if (await onSubmit(draft.value, draft.version)) draft.clear();
           }}
         >
-          {busy ? "Saving…" : label}
+          {busy ? "Saving…" : submitLabel}
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() => {
-            draft.reset();
-            setPreview(false);
-          }}
-        >
-          {initialVersion ? "Reset to GitHub" : "Discard draft"}
-        </Button>
-        {onCancel ? (
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onCancel}>
-            Cancel
-          </Button>
-        ) : null}
       </div>
     </div>
   );
@@ -247,50 +253,98 @@ function EditDescription({
   save: Save;
   close: () => void;
 }) {
+  return (
+    <Composer
+      storageKey={draftKey(repository, pr.number, "description")}
+      initial={pr.body}
+      initialVersion={pr.updatedAt}
+      label="Description"
+      showLabel={false}
+      submitLabel="Save"
+      allowEmpty
+      busy={busy}
+      onCancel={close}
+      onSubmit={async (body, version) => {
+        const ok = await save({
+          action: "edit",
+          body,
+          updatedAt: version ?? pr.updatedAt,
+        });
+        if (ok) close();
+        return ok;
+      }}
+    />
+  );
+}
+
+function EditTitle({
+  pr,
+  repository,
+  busy,
+  save,
+  close,
+}: {
+  pr: PullRequestDetail;
+  repository: string;
+  busy: boolean;
+  save: Save;
+  close: () => void;
+}) {
   const title = usePrDraft(
     draftKey(repository, pr.number, "title"),
     pr.title,
     pr.updatedAt,
   );
+  const cancel = () => {
+    title.clear();
+    close();
+  };
   return (
-    <div className="space-y-3">
+    <form
+      className="space-y-2"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (busy || !title.value.trim()) return;
+        if (
+          await save({
+            action: "edit",
+            title: title.value,
+            updatedAt: title.version ?? pr.updatedAt,
+          })
+        ) {
+          title.clear();
+          close();
+        }
+      }}
+    >
       <Input
         aria-label="PR title"
         value={title.value}
         disabled={busy}
-        onChange={(e) => title.update(e.target.value)}
         maxLength={256}
-      />
-      <Button size="sm" variant="ghost" disabled={busy} onClick={title.reset}>
-        Reset title to GitHub
-      </Button>
-      <Composer
-        storageKey={draftKey(repository, pr.number, "description")}
-        initial={pr.body}
-        initialVersion={pr.updatedAt}
-        label="Save description"
-        allowEmpty
-        busy={busy}
-        onCancel={close}
-        onSubmit={async (body, version) => {
-          if (!title.value.trim()) return false;
-          const ok = await save({
-            action: "edit",
-            title: title.value,
-            body,
-            updatedAt: [
-              title.version ?? pr.updatedAt,
-              version ?? pr.updatedAt,
-            ].sort()[0],
-          });
-          if (ok) {
-            title.clear();
-            close();
+        onChange={(event) => title.update(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && !busy) {
+            event.preventDefault();
+            cancel();
           }
-          return ok;
         }}
       />
-    </div>
+      <div className="flex justify-end gap-2">
+        <Button
+          size="sm"
+          type="button"
+          variant="ghost"
+          disabled={busy}
+          onClick={cancel}
+        >
+          Cancel
+        </Button>
+        <Button size="sm" type="submit" disabled={busy || !title.value.trim()}>
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -371,7 +425,8 @@ function Comment({
           storageKey={draftKey(repository, pr.number, `comment-${comment.id}`)}
           initial={comment.body}
           initialVersion={comment.updated_at}
-          label="Save comment"
+          label="Comment"
+          submitLabel="Save"
           busy={busy}
           onCancel={() => setEditing(false)}
           onSubmit={async (body, version) => {
@@ -446,6 +501,19 @@ function usePrPage<T>(
   return { items, error, loading, hasMore, more: () => setPage((p) => p + 1) };
 }
 
+function PullRequestLoading({ fill = false }: { fill?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-center",
+        fill ? "h-full min-h-0 flex-1" : "py-6",
+      )}
+    >
+      <Spinner className="size-4 text-muted-foreground" />
+    </div>
+  );
+}
+
 function PageFooter({
   data,
 }: {
@@ -464,9 +532,7 @@ function PageFooter({
         </p>
       ) : null}
       {data.loading ? (
-        <p role="status" className="text-xs text-muted-foreground">
-          Loading…
-        </p>
+        <PullRequestLoading />
       ) : data.hasMore ? (
         <Button size="sm" variant="outline" onClick={data.more}>
           Load more
@@ -476,46 +542,7 @@ function PageFooter({
   );
 }
 
-function SummaryComments({
-  projectPath,
-  repository,
-  pr,
-  revision,
-  busy,
-  save,
-}: SectionProps) {
-  const comments = usePrPage<PrComment>(
-    projectPath,
-    repository,
-    pr.number,
-    "comments",
-    revision,
-  );
-  return (
-    <section className="space-y-3">
-      <h3 className="text-xs text-muted-foreground">Comments</h3>
-      {comments.items.map((comment) => (
-        <Comment
-          key={comment.id}
-          comment={comment}
-          {...{ repository, pr, busy, save }}
-        />
-      ))}
-      {!comments.items.length && !comments.loading && !comments.error ? (
-        <p className="text-xs text-muted-foreground">No comments yet.</p>
-      ) : null}
-      <PageFooter data={comments} />
-      <Composer
-        storageKey={draftKey(repository, pr.number, "new-comment")}
-        label="Post comment"
-        busy={busy}
-        onSubmit={(body) => save({ action: "comment", body })}
-      />
-    </section>
-  );
-}
-
-function Conversation(props: SectionProps) {
+function SummaryComments(props: SectionProps) {
   const { projectPath, repository, pr, revision, busy, save } = props;
   const comments = usePrPage<PrComment>(
     projectPath,
@@ -536,59 +563,31 @@ function Conversation(props: SectionProps) {
       b.created_at ?? b.submitted_at ?? "",
     ),
   );
-  const [event, setEvent] = useState("COMMENT");
   return (
-    <div className="space-y-4">
-      {activity.map((comment) => (
-        <Comment
-          key={`${comment.state ? "review" : "comment"}-${comment.id}`}
-          comment={comment}
-          {...{ repository, pr, busy, save }}
-        />
-      ))}
-      {!activity.length && !comments.loading && !reviews.loading ? (
-        <p className="text-sm text-muted-foreground">No conversation yet.</p>
-      ) : null}
-      <PageFooter data={comments} />
-      <PageFooter data={reviews} />
-      <Composer
-        storageKey={draftKey(repository, pr.number, "new-comment")}
-        label="Post comment"
-        busy={busy}
-        onSubmit={(body) => save({ action: "comment", body })}
-      />
-      {pr.state === "open" ? (
-        <div className="border-t pt-4 space-y-2">
-          <label className="flex items-center gap-2 text-sm">
-            Review
-            <select
-              aria-label="Review decision"
-              className="rounded-md border bg-background p-2"
-              value={event}
-              disabled={busy}
-              onChange={(e) => setEvent(e.target.value)}
-            >
-              <option value="COMMENT">Comment</option>
-              {pr.author !== pr.viewer ? (
-                <>
-                  <option value="APPROVE">Approve</option>
-                  <option value="REQUEST_CHANGES">Request changes</option>
-                </>
-              ) : null}
-            </select>
-          </label>
-          <Composer
-            storageKey={draftKey(repository, pr.number, "review")}
-            label="Submit review"
-            allowEmpty={event === "APPROVE"}
-            busy={busy}
-            onSubmit={(body) =>
-              save({ action: "review", body, event, commit: pr.commit })
-            }
+    <Collapsible defaultOpen>
+      <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        Comments
+        <ChevronDown className="size-3 transition-transform group-aria-expanded:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent keepMounted className="space-y-4 pt-3">
+        {activity.map((comment) => (
+          <Comment
+            key={`${comment.state ? "review" : "comment"}-${comment.id}`}
+            comment={comment}
+            {...{ repository, pr, busy, save }}
           />
-        </div>
-      ) : null}
-    </div>
+        ))}
+        <PageFooter data={comments} />
+        <PageFooter data={reviews} />
+        <Composer
+          storageKey={draftKey(repository, pr.number, "new-comment")}
+          label="Post comment"
+          showLabel={false}
+          busy={busy}
+          onSubmit={(body) => save({ action: "comment", body })}
+        />
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -976,6 +975,8 @@ function Detail({
   const writing = useRef(false);
   const [tab, setTab] = useState("overview");
   const [editing, setEditing] = useState(false);
+  const [descriptionOpen, setDescriptionOpen] = useState(true);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [loading, setLoading] = useState(true);
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
   useEffect(() => {
@@ -1013,7 +1014,24 @@ function Detail({
     setBusy(true);
     setError(null);
     try {
-      await prRequest(projectPath, { repository, number, ...input });
+      const result = await prRequest<{ updated_at?: string }>(projectPath, {
+        repository,
+        number,
+        ...input,
+      });
+      if (input.action === "edit")
+        setPr((current) =>
+          current
+            ? {
+                ...current,
+                ...(typeof input.title === "string"
+                  ? { title: input.title.trim() }
+                  : {}),
+                ...(typeof input.body === "string" ? { body: input.body } : {}),
+                updatedAt: result.updated_at ?? current.updatedAt,
+              }
+            : current,
+        );
       setRevision((n) => n + 1);
       return true;
     } catch (error) {
@@ -1036,7 +1054,11 @@ function Detail({
     : null;
   const checks = pr ? checkSummary(pr.checks) : null;
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setTab(String(value))}
+      className="h-full min-h-0 flex-col gap-0"
+    >
       {pr ? (
         <>
           <div className="space-y-3 px-4 py-4">
@@ -1055,9 +1077,31 @@ function Detail({
               </button>
               <PullRequestStatus pr={pr} />
             </div>
-            <h2 className="break-words text-sm font-semibold leading-relaxed">
-              {pr.title}
-            </h2>
+            {editingTitle ? (
+              <EditTitle
+                key={`${repository}:${number}`}
+                {...{ pr, repository, busy, save }}
+                close={() => setEditingTitle(false)}
+              />
+            ) : (
+              <div className="group/title flex items-start gap-2">
+                <h2 className="min-w-0 flex-1 break-words text-sm font-semibold leading-relaxed">
+                  {pr.title}
+                </h2>
+                {pr.canEdit ? (
+                  <button
+                    type="button"
+                    aria-label="Edit title"
+                    title="Edit title"
+                    disabled={busy}
+                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100 focus-visible:opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => setEditingTitle(true)}
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span
                 className="flex size-5 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-foreground"
@@ -1076,6 +1120,17 @@ function Detail({
                   addSuffix: true,
                 })}
               </time>
+              {checks ? (
+                <div
+                  className={cn(
+                    "ml-auto flex items-center gap-1.5 text-xs",
+                    checks.className,
+                  )}
+                >
+                  <checks.icon className="size-3.5" />
+                  {checks.label}
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <div className="flex min-w-0 items-center gap-2">
@@ -1090,48 +1145,16 @@ function Detail({
               <span className="flex shrink-0 items-center gap-2">
                 <FileCode2 className="size-3" />
                 {pr.changedFiles} {pr.changedFiles === 1 ? "file" : "files"}
-                <span className="text-success-foreground">+{pr.additions}</span>
-                <span className="text-destructive">−{pr.deletions}</span>
+                <span className="text-emerald-600">+{pr.additions}</span>
+                <span className="text-rose-600">−{pr.deletions}</span>
               </span>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-y border-surface-200 dark:border-surface-800 px-3 py-2">
-            <nav
-              className="inline-flex rounded-lg bg-muted p-0.5"
-              aria-label="Pull request views"
-            >
-              {[
-                { id: "overview", label: "Summary" },
-                { id: "conversation", label: "Conversation" },
-                { id: "files", label: "Code" },
-              ].map((view) => (
-                <button
-                  type="button"
-                  key={view.id}
-                  aria-pressed={tab === view.id}
-                  onClick={() => setTab(view.id)}
-                  className={cn(
-                    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    tab === view.id
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {view.label}
-                </button>
-              ))}
-            </nav>
-            {checks ? (
-              <div
-                className={cn(
-                  "flex items-center gap-1.5 text-xs",
-                  checks.className,
-                )}
-              >
-                <checks.icon className="size-3.5" />
-                {checks.label}
-              </div>
-            ) : null}
+            <TabsList aria-label="Pull request views">
+              <TabsTrigger value="overview">Summary</TabsTrigger>
+              <TabsTrigger value="files">Code</TabsTrigger>
+            </TabsList>
           </div>
         </>
       ) : null}
@@ -1149,44 +1172,47 @@ function Detail({
             {error}
           </p>
         ) : null}
-        {loading && !pr ? (
-          <p role="status" className="text-xs text-muted-foreground">
-            Loading pull request…
-          </p>
-        ) : null}
+        {loading && !pr ? <PullRequestLoading fill /> : null}
         {pr && section ? (
           tab === "overview" ? (
-            <>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <Users className="size-3.5" />
-                <span>Reviewers</span>
-                <span className="text-foreground">
-                  {pr.reviewers.join(", ") || "None"}
-                </span>
-              </div>
-              <section className="space-y-3">
+            <TabsContent value="overview" className="space-y-5">
+              <Collapsible
+                className="group/description"
+                open={descriptionOpen}
+                onOpenChange={setDescriptionOpen}
+              >
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs text-muted-foreground">Description</h3>
+                  <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    Description
+                    <ChevronDown className="size-3 transition-transform group-aria-expanded:rotate-180" />
+                  </CollapsibleTrigger>
                   {pr.canEdit && !editing ? (
                     <button
                       type="button"
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setEditing(true)}
+                      aria-label="Edit description"
+                      title="Edit description"
+                      className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/description:opacity-100 focus-visible:opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => {
+                        setDescriptionOpen(true);
+                        setEditing(true);
+                      }}
                     >
-                      Edit
+                      <Pencil className="size-3.5" />
                     </button>
                   ) : null}
                 </div>
-                {editing ? (
-                  <EditDescription
-                    key={`${repository}:${number}`}
-                    {...{ pr, repository, busy, save }}
-                    close={() => setEditing(false)}
-                  />
-                ) : (
-                  <Markdown>{pr.body}</Markdown>
-                )}
-              </section>
+                <CollapsibleContent keepMounted className="pt-3">
+                  {editing ? (
+                    <EditDescription
+                      key={`${repository}:${number}`}
+                      {...{ pr, repository, busy, save }}
+                      close={() => setEditing(false)}
+                    />
+                  ) : (
+                    <Markdown>{pr.body}</Markdown>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
               <Collapsible defaultOpen>
                 <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   Checks
@@ -1226,19 +1252,19 @@ function Detail({
                 </CollapsibleContent>
               </Collapsible>
               <SummaryComments key={number} {...section} />
-            </>
-          ) : tab === "conversation" ? (
-            <Conversation key={number} {...section} />
+            </TabsContent>
           ) : (
-            <Files
-              key={`${number}:${pr.commit}`}
-              {...section}
-              onRefresh={() => setRevision((value) => value + 1)}
-            />
+            <TabsContent value="files" className="h-full">
+              <Files
+                key={`${number}:${pr.commit}`}
+                {...section}
+                onRefresh={() => setRevision((value) => value + 1)}
+              />
+            </TabsContent>
           )
         ) : null}
       </div>
-    </div>
+    </Tabs>
   );
 }
 
@@ -1344,9 +1370,7 @@ export function PullRequestsPanel({
           </Button>
         </div>
       ) : !repository ? (
-        <p role="status" className="p-4 text-sm text-muted-foreground">
-          Finding branch pull request…
-        </p>
+        <PullRequestLoading fill />
       ) : current ? (
         <div className="flex-1 min-h-0">
           <Detail
