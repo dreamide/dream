@@ -222,7 +222,8 @@ const GitActionsMenuImpl = ({
           <SourceControlIcon className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent
-          align="end"
+          align="start"
+          side="left"
           className="w-52 [-webkit-app-region:no-drag]"
         >
           <DropdownMenuItem onClick={handleOpenChanges}>
