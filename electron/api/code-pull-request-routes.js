@@ -25,6 +25,7 @@ const requestSchema = z.object({
     "review",
     "checkout",
     "merge",
+    "mergeInfo",
   ]),
   repository: z.string().optional(),
   number: z.number().int().positive().optional(),
@@ -43,6 +44,7 @@ const requestSchema = z.object({
     .optional(),
   updatedAt: z.string().optional(),
   event: z.enum(["COMMENT", "APPROVE", "REQUEST_CHANGES"]).optional(),
+  mergeMethod: z.enum(["merge", "squash", "rebase"]).optional(),
 });
 
 async function gh(cwd, args, json = true) {
@@ -235,6 +237,20 @@ async function execute(input) {
     return { items, hasMore: items.length === 100 };
   }
   const pr = await get(prPath);
+  if (input.action === "mergeInfo") {
+    const settings = await get(base);
+    return {
+      ...summary(pr),
+      head: pr.head.ref,
+      base: pr.base.ref,
+      canMerge: ["ADMIN", "MAINTAIN", "WRITE"].includes(repo.permission),
+      methods: [
+        settings.allow_merge_commit && "merge",
+        settings.allow_squash_merge && "squash",
+        settings.allow_rebase_merge && "rebase",
+      ].filter(Boolean),
+    };
+  }
   if (input.action === "merge") {
     if (pr.state !== "open" || pr.draft)
       throw new Error("Only open, non-draft pull requests can be merged.");
@@ -242,15 +258,14 @@ async function execute(input) {
     if (pr.head.sha !== commit)
       throw new Error("This PR changed on GitHub. Refresh before merging.");
     const settings = await get(base);
-    const method = settings.allow_merge_commit
-      ? "merge"
-      : settings.allow_squash_merge
-        ? "squash"
-        : settings.allow_rebase_merge
-          ? "rebase"
-          : null;
-    if (!method)
-      throw new Error("No merge method is enabled for this repository.");
+    const method = required(input.mergeMethod, "Merge method");
+    const allowed = {
+      merge: settings.allow_merge_commit,
+      squash: settings.allow_squash_merge,
+      rebase: settings.allow_rebase_merge,
+    };
+    if (!allowed[method])
+      throw new Error("This merge method is not enabled for this repository.");
     const result = await write(`${prPath}/merge`, "PUT", {
       sha: commit,
       merge_method: method,

@@ -75,6 +75,8 @@ import {
   usePullRequestContext,
 } from "./api";
 
+import { MergePrDialog } from "./merge-pr-dialog";
+
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "Unable to complete the request.";
 const draftKey = (repository: string, number: number, kind: string) =>
@@ -1367,32 +1369,15 @@ export function PullRequestsPanel({
   const context = usePullRequestContext(project.path, refreshKey, active);
   const [revision, setRevision] = useState(0);
   const [create, setCreate] = useState(false);
-  const [merging, setMerging] = useState(false);
-  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<{
+    repository: string;
+    number: number;
+  } | null>(null);
   const repository = context.data?.repository;
   const current = context.data?.current;
   const refresh = () => {
-    setMergeError(null);
     context.refresh();
     setRevision((n) => n + 1);
-  };
-  const merge = async () => {
-    if (!repository || !current?.commit || merging) return;
-    setMerging(true);
-    setMergeError(null);
-    try {
-      await prRequest(project.path, {
-        action: "merge",
-        repository,
-        number: current.number,
-        commit: current.commit,
-      });
-      refresh();
-    } catch (error) {
-      setMergeError(message(error));
-    } finally {
-      setMerging(false);
-    }
   };
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1408,20 +1393,19 @@ export function PullRequestsPanel({
           <Button
             size="sm"
             className="text-xs"
-            disabled={merging || current.draft || !current.commit}
-            onClick={merge}
+            disabled={current.draft || !repository}
+            onClick={() => {
+              if (repository)
+                setMergeTarget({ repository, number: current.number });
+            }}
             title={
               current.draft
                 ? "Mark this PR ready before merging"
                 : "Merge pull request"
             }
           >
-            {merging ? (
-              <Spinner className="size-3.5" />
-            ) : (
-              <GitMerge className="size-3.5" />
-            )}
-            {merging ? "Merging…" : "Merge"}
+            <GitMerge className="size-3.5" />
+            Merge
           </Button>
         ) : null}
         <DropdownMenu>
@@ -1445,14 +1429,6 @@ export function PullRequestsPanel({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {mergeError ? (
-        <p
-          role="alert"
-          className="px-4 py-3 text-xs text-destructive whitespace-pre-wrap"
-        >
-          {mergeError}
-        </p>
-      ) : null}
       {context.error ? (
         <div role="alert" className="p-4 text-sm space-y-3">
           <p className="text-destructive whitespace-pre-wrap">
@@ -1503,6 +1479,16 @@ export function PullRequestsPanel({
           ) : null}
         </div>
       )}
+      {mergeTarget ? (
+        <MergePrDialog
+          key={`${project.path}:${mergeTarget.repository}:${mergeTarget.number}`}
+          projectPath={project.path}
+          repository={mergeTarget.repository}
+          number={mergeTarget.number}
+          onClose={() => setMergeTarget(null)}
+          onMerged={refresh}
+        />
+      ) : null}
       {create ? (
         <CreatePullRequest
           project={project}

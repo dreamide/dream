@@ -84,6 +84,7 @@ export async function prRequest<T>(
     "comments",
     "reviews",
     "threads",
+    "mergeInfo",
   ].includes(String(input.action));
   const cached = reads.get(key);
   if (read && !fresh && cached && Date.now() - cached.time < 15000)
