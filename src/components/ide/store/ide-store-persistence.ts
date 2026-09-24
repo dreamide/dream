@@ -1,11 +1,6 @@
 import type { UIMessage } from "ai";
 import { getDesktopApi } from "@/lib/electron";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import {
-  clampTasksChatPanelWidth,
-  createDefaultTaskConfig,
-  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
-} from "@/lib/task-defaults";
 import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
 import {
   ensureActiveProject,
@@ -18,9 +13,6 @@ const createEmptyPersistedState = (): PersistedIdeState => ({
   activeProjectId: null,
   appView: "code",
   tasks: [],
-  tasksProjectId: null,
-  taskConfig: createDefaultTaskConfig(),
-  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -106,20 +98,14 @@ export const createPersistedIdeState = ({
   closedProjects,
   messagesByChatId,
   tasks,
-  tasksProjectId,
-  tasksChatPanelWidth,
   projects,
   settings,
-  taskConfig,
 }: Pick<
   IdeState,
   | "activeBrowserTabIdByProject"
   | "activeProjectId"
   | "appView"
   | "tasks"
-  | "tasksProjectId"
-  | "tasksChatPanelWidth"
-  | "taskConfig"
   | "browserTabsByProject"
   | "chats"
   | "chatSort"
@@ -139,14 +125,6 @@ export const createPersistedIdeState = ({
     }
 
     if (chat.deletedAt !== null) {
-      return true;
-    }
-
-    // A task's runs point at their step chats, and a task chat is never its
-    // project's open chat, so the empty-draft rule below would drop one that
-    // came up empty and leave the task pointing at nothing. Step chats go
-    // only with their task.
-    if (chat.taskId !== null) {
       return true;
     }
 
@@ -205,11 +183,7 @@ export const createPersistedIdeState = ({
   return {
     activeProjectId: ensureActiveProject(projects, activeProjectId),
     appView,
-    // A task never outlives its project.
-    tasks: tasks.filter((task) => knownProjectIds.has(task.projectId)),
-    tasksProjectId,
-    taskConfig,
-    tasksChatPanelWidth: clampTasksChatPanelWidth(tasksChatPanelWidth),
+    tasks,
     activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,
     browserTabsByProject: persistedBrowserTabsByProject,
     chats: persistedChats,

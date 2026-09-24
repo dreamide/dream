@@ -164,23 +164,13 @@ export const ProjectTabs = () => {
   const projectsT = useTranslations("projects");
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
-  const allProjects = useIdeStore((s) => s.projects);
-  // Background projects (a task's worktree) are loaded but have no tab.
-  const projects = useMemo(
-    () => allProjects.filter((project) => !project.hidden),
-    [allProjects],
-  );
+  const projects = useIdeStore((s) => s.projects);
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
-  const allChats = useIdeStore((s) => s.chats);
-  // Task chats are not part of a project's tab status.
-  const chats = useMemo(
-    () => allChats.filter((chat) => chat.taskId === null),
-    [allChats],
-  );
+  const chats = useIdeStore((s) => s.chats);
   const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
@@ -372,13 +362,9 @@ export const ProjectTabs = () => {
 
   const handleProjectReorder = useCallback(
     (fromIndex: number, toIndex: number) => {
-      // Indices are tab positions; hidden projects keep their place after them.
-      setProjects([
-        ...moveTabItem(projects, fromIndex, toIndex),
-        ...allProjects.filter((project) => project.hidden),
-      ]);
+      setProjects(moveTabItem(projects, fromIndex, toIndex));
     },
-    [allProjects, projects, setProjects],
+    [projects, setProjects],
   );
 
   return (

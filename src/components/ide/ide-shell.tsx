@@ -1,11 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { lazy, Suspense, useDeferredValue, useEffect } from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
@@ -31,12 +24,6 @@ import {
   publishTerminalOutput,
 } from "./terminal-scrollback";
 
-const TasksWorkspace = lazy(() =>
-  import("./workspaces/tasks-workspace").then((module) => ({
-    default: module.TasksWorkspace,
-  })),
-);
-
 const SettingsWorkspace = lazy(() =>
   import("./settings-workspace").then((module) => ({
     default: module.SettingsWorkspace,
@@ -49,23 +36,13 @@ export const IdeShell = () => {
   const setAppReady = useIdeStore((s) => s.setAppReady);
   const stateHydrated = useIdeStore((s) => s.stateHydrated);
   const projects = useIdeStore((s) => s.projects);
-  // Background projects (a task's worktree) run chats but have no workspace.
-  const visibleProjects = useMemo(
-    () => projects.filter((project) => !project.hidden),
-    [projects],
-  );
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
   const deferredActiveProjectId = useDeferredValue(activeProjectId);
   const renderedActiveProjectId =
     activeProjectId !== null &&
-    visibleProjects.some((project) => project.id === deferredActiveProjectId)
+    projects.some((project) => project.id === deferredActiveProjectId)
       ? deferredActiveProjectId
       : activeProjectId;
-  const tasksSelected = useIdeStore((s) => s.appView === "tasks");
-  const [tasksVisited, setTasksVisited] = useState(false);
-  if (tasksSelected && !tasksVisited) {
-    setTasksVisited(true);
-  }
   const settings = useIdeStore((s) => s.settings);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
@@ -138,9 +115,6 @@ export const IdeShell = () => {
         useIdeStore.getState().activeBrowserTabIdByProject,
       appView: useIdeStore.getState().appView,
       tasks: useIdeStore.getState().tasks,
-      tasksProjectId: useIdeStore.getState().tasksProjectId,
-      tasksChatPanelWidth: useIdeStore.getState().tasksChatPanelWidth,
-      taskConfig: useIdeStore.getState().taskConfig,
       browserTabsByProject: useIdeStore.getState().browserTabsByProject,
       chatSort: useIdeStore.getState().chatSort,
       chats: useIdeStore.getState().chats,
@@ -181,9 +155,6 @@ export const IdeShell = () => {
         activeBrowserTabIdByProject: state.activeBrowserTabIdByProject,
         appView: state.appView,
         tasks: state.tasks,
-        tasksProjectId: state.tasksProjectId,
-        tasksChatPanelWidth: state.tasksChatPanelWidth,
-        taskConfig: state.taskConfig,
         browserTabsByProject: state.browserTabsByProject,
         chatSort: state.chatSort,
         chats: state.chats,
@@ -208,10 +179,7 @@ export const IdeShell = () => {
         next.settings !== prev.settings ||
         next.chatSort !== prev.chatSort ||
         next.appView !== prev.appView ||
-        next.tasks !== prev.tasks ||
-        next.tasksProjectId !== prev.tasksProjectId ||
-        next.tasksChatPanelWidth !== prev.tasksChatPanelWidth ||
-        next.taskConfig !== prev.taskConfig
+        next.tasks !== prev.tasks
       ) {
         const isActiveProjectSelectionOnly =
           next.activeProjectId !== prev.activeProjectId &&
@@ -222,13 +190,8 @@ export const IdeShell = () => {
           next.closedProjects === prev.closedProjects &&
           next.settings === prev.settings &&
           next.chatSort === prev.chatSort &&
-          // Opening a step chat from Tasks switches project *and* view;
-          // the active-project fast path would drop the view change.
           next.appView === prev.appView &&
           next.tasks === prev.tasks &&
-          next.tasksProjectId === prev.tasksProjectId &&
-          next.tasksChatPanelWidth === prev.tasksChatPanelWidth &&
-          next.taskConfig === prev.taskConfig &&
           areProjectListsEqualExceptLastUsedAt(prev.projects, next.projects);
         prev = next;
         if (state.stateHydrated) {
@@ -547,15 +510,15 @@ export const IdeShell = () => {
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {!stateHydrated ? null : (
           <>
-            {visibleProjects.map((project) => {
+            {projects.map((project) => {
               // Keep the outgoing surface painted while React prepares the
               // incoming workspace, then reveal and activate it atomically.
               const selected = project.id === renderedActiveProjectId;
-              // Project workspaces stay mounted beneath Tasks so switching
-              // back is instant, but only the visible surface owns shortcuts
-              // and native webviews. (Chats run in the chat runtime, not in
-              // these panels.)
-              const active = selected && !tasksSelected && !settingsOpen;
+              // Project workspaces stay mounted so switching back is instant,
+              // but only the visible surface owns shortcuts and native
+              // webviews. (Chats run in the chat runtime, not in these
+              // panels.)
+              const active = selected && !settingsOpen;
 
               return (
                 <div
@@ -580,29 +543,9 @@ export const IdeShell = () => {
             {!renderedActiveProjectId ? (
               <div
                 className="absolute inset-0 z-20 bg-surface-50 p-3 dark:bg-surface-900"
-                inert={tasksSelected || settingsOpen}
+                inert={settingsOpen}
               >
                 <EmptyProjectWorkspace />
-              </div>
-            ) : null}
-            {/* Tasks is app-level: mounted once on first visit, above
-                  every project (and the empty state), then kept alive so board
-                  state survives switching back and forth. */}
-            {tasksVisited ? (
-              <div
-                aria-hidden={!tasksSelected || settingsOpen}
-                className={cn(
-                  "absolute inset-0 z-30 min-h-0 bg-surface-50 dark:bg-surface-900",
-                  tasksSelected
-                    ? "visible opacity-100 pointer-events-auto"
-                    : "invisible opacity-0 pointer-events-none",
-                )}
-                data-app-view="tasks"
-                inert={!tasksSelected || settingsOpen}
-              >
-                <Suspense fallback={null}>
-                  <TasksWorkspace active={tasksSelected && !settingsOpen} />
-                </Suspense>
               </div>
             ) : null}
           </>

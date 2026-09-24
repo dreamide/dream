@@ -1,12 +1,9 @@
 import { getDesktopApi } from "@/lib/electron";
 import { useActivityStore } from "../activity-store";
-import { extractStepOutput } from "../workspaces/tasks/task-output";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { finishTaskRun } from "./task-actions";
+import type { IdeState, IdeStoreSet } from "./ide-store-types";
 
 export const createRuntimeActions = (
   set: IdeStoreSet,
-  get?: IdeStoreGet,
 ): Pick<
   IdeState,
   | "setTerminalStatus"
@@ -66,13 +63,10 @@ export const createRuntimeActions = (
   },
 
   setChatStreaming: (chatId, streaming) => {
-    let finishedNormally = false;
-
     set((state) => {
       const nextStreamingChatIds = { ...state.streamingChatIds };
       const nextAwaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
       const nextCompletedChatIds = { ...state.completedChatIds };
-      let nextTasks = state.tasks;
 
       if (streaming) {
         if (!state.streamingChatIds[chatId])
@@ -88,20 +82,6 @@ export const createRuntimeActions = (
         delete nextStreamingChatIds[chatId];
         delete nextAwaitingAnswerChatIds[chatId];
 
-        // A normally finished agent turn completes the linked task run
-        // and snapshots its output for handoff. Waiting/failed/interrupted
-        // turns leave the run open (the chat panel records the activity
-        // status and the final messages before it clears the streaming flag).
-        if (wasStreaming && activity?.status === "finished") {
-          finishedNormally = true;
-          nextTasks = finishTaskRun(
-            state.tasks ?? [],
-            chatId,
-            extractStepOutput(state.messagesByChatId?.[chatId] ?? []),
-            new Date().toISOString(),
-          );
-        }
-
         const chat = state.chats.find((item) => item.id === chatId);
         const project = chat
           ? state.projects.find((item) => item.id === chat.projectId)
@@ -115,7 +95,6 @@ export const createRuntimeActions = (
           wasStreaming &&
           chat &&
           chat.deletedAt === null &&
-          chat.taskId === null &&
           !isActiveVisibleChat
         ) {
           nextCompletedChatIds[chatId] = true;
@@ -128,15 +107,8 @@ export const createRuntimeActions = (
         awaitingAnswerChatIds: nextAwaitingAnswerChatIds,
         completedChatIds: nextCompletedChatIds,
         streamingChatIds: nextStreamingChatIds,
-        ...(nextTasks !== state.tasks ? { tasks: nextTasks } : {}),
       };
     });
-
-    // Auto-advance runs outside the reducer because it starts the next
-    // step's chat.
-    if (finishedNormally && get) {
-      queueMicrotask(() => get().maybeAutoAdvanceTaskForChat?.(chatId));
-    }
   },
 
   setChatAwaitingAnswer: (chatId, awaiting) =>

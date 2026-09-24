@@ -23,11 +23,6 @@ import {
 } from "@/lib/ide-defaults";
 import { normalizeMcpServerList } from "@/lib/mcp-servers";
 import { normalizeSparklesPaletteName } from "@/lib/sparkles-palettes";
-import {
-  clampTasksChatPanelWidth,
-  createDefaultTaskConfig,
-  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
-} from "@/lib/task-defaults";
 import type {
   AiProvider,
   AppSettings,
@@ -41,6 +36,7 @@ import type {
   ProjectWorktreeInfo,
   RightPanelView,
   StashItem,
+  Task,
 } from "@/types/ide";
 import { normalizeChatPermissionMode } from "../../../electron/shared/chat-permissions.js";
 import {
@@ -48,24 +44,12 @@ import {
   normalizeModelSpeed,
   normalizeReasoningEffort,
 } from "./ide-types";
-import {
-  type LegacyProjectTasks,
-  normalizeTaskConfig,
-  normalizeTasks,
-} from "./task-state";
-import {
-  DEFAULT_APP_VIEW,
-  isLegacyTasksWorkspaceView,
-  normalizeAppView,
-} from "./workspaces/registry";
+import { DEFAULT_APP_VIEW, normalizeAppView } from "./workspaces/registry";
 
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
   appView: DEFAULT_APP_VIEW,
   tasks: [],
-  tasksProjectId: null,
-  taskConfig: createDefaultTaskConfig(),
-  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -567,7 +551,6 @@ const normalizeProject = (
     worktree: normalizeProjectWorktree(
       rawProject.worktree ?? rawMetadata.worktree,
     ),
-    ...(rawProject.hidden === true ? { hidden: true } : {}),
   };
 };
 
@@ -682,10 +665,6 @@ const normalizeChat = (
     sparklesPalette: normalizeSparklesPaletteName(
       rawChat.sparklesPalette ?? rawMetadata.sparklesPalette,
     ),
-    taskId:
-      typeof rawChat.taskId === "string" && rawChat.taskId.trim()
-        ? rawChat.taskId
-        : null,
     title: title || "New chat",
     updatedAt,
   } as ChatConfig;
@@ -697,12 +676,8 @@ export const sanitizeProjectUiForChats = (
   ui: ProjectUiState,
   preferredActiveChatId: string | null = ui.activeChatId,
 ): ProjectUiState => {
-  // Task chats belong to the Tasks workspace, never to a project's chat UI.
   const projectChats = chats.filter(
-    (chat) =>
-      chat.projectId === projectId &&
-      chat.deletedAt === null &&
-      chat.taskId === null,
+    (chat) => chat.projectId === projectId && chat.deletedAt === null,
   );
   const availableChatIds = new Set(projectChats.map((chat) => chat.id));
   const activeChatId =
@@ -742,112 +717,43 @@ export const sanitizeProjectUiForChats = (
 };
 
 /**
- * The workspace view used to be stored per project. When no app-level view has
- * been saved yet, carry over the active project's choice so an upgrade reopens
- * on the surface the user left.
+ * Saved tasks, dropping anything that is not one: pipeline tasks from before
+ * tasks were saved prompts have no `prompt`, and are not carried over.
  */
-const getLegacyAppView = (
-  rawProjects: unknown,
-  activeProjectId: string | null,
-): PersistedIdeState["appView"] => {
-  if (!activeProjectId || !Array.isArray(rawProjects)) {
-    return DEFAULT_APP_VIEW;
+const normalizeTasks = (value: unknown): Task[] => {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  const rawActiveProject = rawProjects.find(
-    (project): project is { ui?: { workspaceView?: unknown } } =>
-      Boolean(project) &&
-      typeof project === "object" &&
-      (project as { id?: unknown }).id === activeProjectId,
-  );
-
-  return isLegacyTasksWorkspaceView(rawActiveProject?.ui?.workspaceView)
-    ? "tasks"
-    : DEFAULT_APP_VIEW;
-};
-
-/**
- * Step settings used to be stored whole on every project, as `ui.taskConfig`
- * (`ui.pipelineConfig` when the Tasks workspace was called the pipeline). They
- * are one app-wide config now. So customized prompts are not lost on upgrade,
- * the app-wide config starts from the first project that changed anything,
- * preferring the active one.
- */
-const getLegacyTaskConfig = (
-  state: Partial<PersistedIdeState>,
-  activeProjectId: string | null,
-): PersistedIdeState["taskConfig"] => {
-  const defaults = normalizeTaskConfig(null);
-  const rawProjects = [state.projects, state.closedProjects]
-    .flatMap((list) => (Array.isArray(list) ? list : []))
-    .filter(
-      (project): project is ProjectConfig =>
-        Boolean(project) && typeof project === "object",
-    )
-    .sort(
-      (a, b) =>
-        Number(b.id === activeProjectId) - Number(a.id === activeProjectId),
-    );
-
-  for (const project of rawProjects) {
-    const rawUi = (project.ui ?? {}) as {
-      pipelineConfig?: unknown;
-      taskConfig?: unknown;
-    };
-    const config = normalizeTaskConfig(
-      rawUi.taskConfig ?? rawUi.pipelineConfig,
-    );
-    if (JSON.stringify(config) !== JSON.stringify(defaults)) {
-      return config;
+  const seenIds = new Set<string>();
+  const tasks: Task[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") {
+      continue;
     }
-  }
-  return defaults;
-};
-
-/**
- * Tasks used to be stored on their project, as `ui.tasks` (`ui.pipelineTasks`
- * when the Tasks workspace was called the pipeline, `ui.kanbanCards` before
- * that). They are one app-wide list now; these are folded into it on load.
- */
-const getLegacyProjectTasks = (
-  state: Partial<PersistedIdeState>,
-): LegacyProjectTasks[] =>
-  [state.projects, state.closedProjects]
-    .flatMap((list) => (Array.isArray(list) ? list : []))
-    .flatMap((project) => {
-      if (!project || typeof project !== "object") {
-        return [];
-      }
-
-      const raw = project as { id?: unknown; metadata?: unknown; ui?: unknown };
-      const metadataUi =
-        raw.metadata && typeof raw.metadata === "object"
-          ? (raw.metadata as { ui?: unknown }).ui
-          : null;
-      const projectId = typeof raw.id === "string" ? raw.id : "";
-      if (!projectId) {
-        return [];
-      }
-
-      return [raw.ui, metadataUi].flatMap((rawUi) => {
-        if (!rawUi || typeof rawUi !== "object") {
-          return [];
-        }
-
-        const ui = rawUi as {
-          kanbanCards?: unknown;
-          pipelineTasks?: unknown;
-          tasks?: unknown;
-        };
-        return [
-          {
-            kanbanCards: ui.kanbanCards,
-            projectId,
-            tasks: ui.tasks ?? ui.pipelineTasks,
-          },
-        ];
-      });
+    const task = raw as Partial<Record<keyof Task, unknown>>;
+    const id = typeof task.id === "string" ? task.id.trim() : "";
+    if (!id || seenIds.has(id) || typeof task.prompt !== "string") {
+      continue;
+    }
+    seenIds.add(id);
+    const createdAt =
+      typeof task.createdAt === "string" && task.createdAt
+        ? task.createdAt
+        : new Date().toISOString();
+    tasks.push({
+      createdAt,
+      id,
+      prompt: task.prompt,
+      title: typeof task.title === "string" ? task.title : "",
+      updatedAt:
+        typeof task.updatedAt === "string" && task.updatedAt
+          ? task.updatedAt
+          : createdAt,
     });
+  }
+  return tasks;
+};
 
 export const mergePersistedState = (
   state: Partial<PersistedIdeState> | null | undefined,
@@ -985,24 +891,8 @@ export const mergePersistedState = (
   mergedSettings.defaultModelSpeed = defaultSelection.modelSpeed;
   mergedSettings.defaultReasoningEffort = defaultSelection.reasoningEffort;
 
-  // Task worktrees saved before projects could be hidden were opened as tabs;
-  // they are background projects, so they start hidden.
-  const taskWorktreeProjectIds = new Set(
-    (Array.isArray(state.tasks) ? state.tasks : []).flatMap((task) =>
-      task && typeof task.worktreeProjectId === "string"
-        ? [task.worktreeProjectId]
-        : [],
-    ),
-  );
   const projects = (Array.isArray(state.projects) ? state.projects : []).map(
-    (project) => {
-      const normalized = normalizeProject(project, mergedSettings);
-      return project.hidden === undefined &&
-        normalized.worktree &&
-        taskWorktreeProjectIds.has(normalized.id)
-        ? { ...normalized, hidden: true }
-        : normalized;
-    },
+    (project) => normalizeProject(project, mergedSettings),
   );
   const openProjectIds = new Set(projects.map((project) => project.id));
   const openProjectPathKeys = new Set(
@@ -1163,37 +1053,13 @@ export const mergePersistedState = (
     browserTabsByProject,
   );
 
-  const savedActiveProjectId =
+  const activeProjectId =
     typeof state.activeProjectId === "string" ? state.activeProjectId : null;
-  // A project without a tab is never the one Code shows.
-  const activeProjectId = projects.some(
-    (project) => project.id === savedActiveProjectId && project.hidden,
-  )
-    ? ensureActiveProject(projects, null)
-    : savedActiveProjectId;
 
   return {
     activeProjectId,
-    appView:
-      normalizeAppView(state.appView) ??
-      getLegacyAppView(state.projects, activeProjectId),
-    taskConfig:
-      state.taskConfig && typeof state.taskConfig === "object"
-        ? normalizeTaskConfig(state.taskConfig)
-        : getLegacyTaskConfig(state, activeProjectId),
-    tasks: normalizeTasks(
-      state.tasks,
-      knownProjectIds,
-      getLegacyProjectTasks(state),
-    ),
-    // Closed projects keep their tasks on the board, so they can stay the
-    // filter; a removed project just shows everything.
-    tasksProjectId:
-      typeof state.tasksProjectId === "string" &&
-      knownProjectIds.has(state.tasksProjectId)
-        ? state.tasksProjectId
-        : null,
-    tasksChatPanelWidth: clampTasksChatPanelWidth(state.tasksChatPanelWidth),
+    appView: normalizeAppView(state.appView) ?? DEFAULT_APP_VIEW,
+    tasks: normalizeTasks(state.tasks),
     activeBrowserTabIdByProject,
     browserTabsByProject,
     chats,
@@ -1219,36 +1085,14 @@ export const ensureActiveProject = (
   projects: ProjectConfig[],
   activeProjectId: string | null,
 ) => {
-  // Code only ever shows a project that has a tab.
   if (
     activeProjectId &&
-    projects.some(
-      (project) => project.id === activeProjectId && !project.hidden,
-    )
+    projects.some((project) => project.id === activeProjectId)
   ) {
     return activeProjectId;
   }
 
-  return projects.find((project) => !project.hidden)?.id ?? null;
-};
-
-/** Shows or hides a project's Code tab; the list is unchanged when it holds. */
-export const setProjectHiddenInList = (
-  projects: ProjectConfig[],
-  projectId: string,
-  hidden: boolean,
-): ProjectConfig[] => {
-  const project = projects.find((entry) => entry.id === projectId);
-  if (!project || Boolean(project.hidden) === hidden) {
-    return projects;
-  }
-  return projects.map((entry) => {
-    if (entry.id !== projectId) {
-      return entry;
-    }
-    const { hidden: _hidden, ...rest } = entry;
-    return hidden ? { ...rest, hidden: true } : rest;
-  });
+  return projects[0]?.id ?? null;
 };
 
 export const ensureActiveChatForProject = (
@@ -1257,10 +1101,7 @@ export const ensureActiveChatForProject = (
   activeChatId: string | null,
 ) => {
   const projectChats = chats.filter(
-    (chat) =>
-      chat.projectId === projectId &&
-      chat.deletedAt === null &&
-      chat.taskId === null,
+    (chat) => chat.projectId === projectId && chat.deletedAt === null,
   );
   if (activeChatId && projectChats.some((chat) => chat.id === activeChatId)) {
     return activeChatId;
@@ -1269,13 +1110,9 @@ export const ensureActiveChatForProject = (
   return projectChats[0]?.id ?? null;
 };
 
-/** A project's own chats: the ones Code shows. Task chats are left out. */
 export const getChatsForProject = (chats: ChatConfig[], projectId: string) =>
   chats.filter(
-    (chat) =>
-      chat.projectId === projectId &&
-      chat.deletedAt === null &&
-      chat.taskId === null,
+    (chat) => chat.projectId === projectId && chat.deletedAt === null,
   );
 
 export const renderUserMessageText = (message: UIMessage): string => {

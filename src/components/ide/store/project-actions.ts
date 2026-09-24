@@ -38,21 +38,10 @@ export const createProjectActions = (
   | "takePendingChatSubmit"
   | "queueChatSubmit"
   | "addTask"
-  | "addTaskToProjectPath"
   | "updateTask"
   | "deleteTask"
-  | "moveTaskInBacklog"
-  | "startTask"
-  | "advanceTask"
-  | "sendTaskBack"
-  | "retryTaskStep"
-  | "completeTask"
-  | "reopenTaskWorktree"
-  | "checkTaskWorktree"
-  | "recreateTaskWorktree"
-  | "setTaskStepConfig"
-  | "isTaskChat"
-  | "maybeAutoAdvanceTaskForChat"
+  | "moveTask"
+  | "runTask"
 > => ({
   ...createProjectLifecycleActions(set, get),
   ...createChatActions(set, get),

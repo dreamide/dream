@@ -49,12 +49,6 @@ export interface ChatConfig {
   messageCount: number;
   permissionMode: ChatPermissionMode;
   projectId: string;
-  /**
-   * The task this chat belongs to, for step chats. A task chat is never shown
-   * in the Code workspace: it lives in the Tasks workspace, runs in the task's
-   * worktree while that exists, and is deleted with its task.
-   */
-  taskId: string | null;
   title: string;
   provider: AiProvider;
   model: string;
@@ -94,73 +88,18 @@ export interface StashItem {
   updatedAt: string;
 }
 
-export type TaskStepId = "backlog" | "plan" | "build" | "review" | "merge";
-/** Steps that run an agent chat. Backlog is a holding area only. */
-export type TaskRunStepId = Exclude<TaskStepId, "backlog">;
-
-export interface TaskStepModel {
-  model: string;
-  modelSpeed: ModelSpeed;
-  provider: AiProvider;
-  reasoningEffort: ReasoningEffort | null;
-}
-
-export interface TaskStepConfig {
-  /** Advance to the next step when the agent turn finishes normally. */
-  autoAdvance: boolean;
-  /** `null` inherits the host project's model selection. */
-  model: TaskStepModel | null;
-  permissionMode: ChatPermissionMode;
-  /** `null` uses the built-in default template for the step. */
-  prompt: string | null;
-}
-
-export type TaskConfig = Record<TaskRunStepId, TaskStepConfig>;
-
-export interface TaskStepRun {
-  /** `null` once the chat has been deleted or purged. */
-  chatId: string | null;
-  /**
-   * Why the app could not commit this run's work (e.g. a pre-commit hook's
-   * output). The task holds at this step until a commit succeeds.
-   */
-  commitError: string | null;
-  /** Send-back note or findings that started this run. */
-  feedback: string | null;
-  finishedAt: string | null;
-  id: string;
-  /** Final agent output, snapshotted for handoff to later steps. */
-  output: string | null;
-  startedAt: string;
-  step: TaskRunStepId;
-}
-
-export interface TaskCompletion {
-  at: string;
-  kind: "merged" | "pr" | "removed" | "legacy";
-  mergeCommit: string | null;
-  prUrl: string | null;
-}
-
+/**
+ * A saved prompt the user can run in any project's chat, as often as needed.
+ * Tasks are app-wide: none belongs to a project.
+ */
 export interface Task {
-  baseRef: string | null;
-  branch: string | null;
-  completion: TaskCompletion | null;
   createdAt: string;
-  description: string;
-  /** Unique across the whole app, not just within the owning project. */
+  /** A random UUID, unique across the app. */
   id: string;
-  /**
-   * The project the task belongs to, open or closed. A task never changes
-   * project, and is removed together with it.
-   */
-  projectId: string;
-  runs: TaskStepRun[];
-  step: TaskStepId;
+  /** Sent to the agent as written, after `{{variable}}` placeholders are filled. */
+  prompt: string;
   title: string;
   updatedAt: string;
-  worktreePath: string | null;
-  worktreeProjectId: string | null;
 }
 
 export interface PendingChatSubmit {
@@ -184,12 +123,6 @@ export interface ProjectConfig {
   reasoningEffort: ReasoningEffort | null;
   ui: ProjectUiState;
   worktree: ProjectWorktreeInfo | null;
-  /**
-   * Loaded for background work (a task's chats run in it) but not shown as a
-   * tab in Code. Set when a project is opened without activating it, cleared
-   * as soon as anything activates it.
-   */
-  hidden?: boolean;
 }
 
 export type McpServerTransport = "stdio" | "http" | "sse";
@@ -277,16 +210,7 @@ export type RightPanelView =
   | "stash";
 
 /** Top-level surface shown by the shell; not owned by any project. */
-export type AppView = "code" | "tasks";
-
-/** A task paired with the project that owns it. */
-export interface TaskEntry {
-  /** The task id, which is unique across projects. */
-  key: string;
-  project: ProjectConfig;
-  projectId: string;
-  task: Task;
-}
+export type AppView = "code";
 
 export interface ProjectUiState {
   activeChatId: string | null;
@@ -307,25 +231,8 @@ export interface PersistedIdeState {
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
   appView: AppView;
-  /**
-   * Every task in the app, in board order. Tasks are their own list rather
-   * than part of a project record, so the Tasks workspace shows them whether
-   * or not the owning project is open in Code.
-   */
+  /** Every saved task in the app, in the order the Tasks panel lists them. */
   tasks: Task[];
-  /**
-   * The project the Tasks workspace is filtered to, or `null` for every
-   * project. Owned by the Tasks workspace: independent of `activeProjectId`.
-   */
-  tasksProjectId: string | null;
-  /**
-   * Step settings (prompt, model, permissions, auto-advance). One set for the
-   * whole app: there is deliberately no per-project layer, so what the Tasks
-   * workspace shows is always what runs.
-   */
-  taskConfig: TaskConfig;
-  /** Width of the chat pane in the Tasks workspace. */
-  tasksChatPanelWidth: number;
   activeBrowserTabIdByProject: Record<string, string | null>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
   settings: AppSettings;

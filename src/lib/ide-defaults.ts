@@ -4,10 +4,6 @@ import {
   normalizeModelSpeed,
 } from "@/lib/models";
 import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
-import {
-  createDefaultTaskConfig,
-  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
-} from "@/lib/task-defaults";
 import type {
   AiProvider,
   AppSettings,
@@ -121,9 +117,6 @@ export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
   appView: "code",
   tasks: [],
-  tasksProjectId: null,
-  taskConfig: createDefaultTaskConfig(),
-  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -173,7 +166,6 @@ export const createChatConfig = (
       | "permissionMode"
       | "provider"
       | "reasoningEffort"
-      | "taskId"
       | "title"
     >
   >,
@@ -200,7 +192,6 @@ export const createChatConfig = (
     remoteConversationModelSpeed: null,
     remoteConversationProjectPath: null,
     sparklesPalette: DEFAULT_SPARKLES_PALETTE,
-    taskId: overrides?.taskId ?? null,
     title: overrides?.title?.trim() || "New chat",
     updatedAt: timestamp,
   };
@@ -240,26 +231,15 @@ export const createStashItem = (
   };
 };
 
-export const createTask = (
-  projectId: string,
-  overrides?: Partial<Pick<Task, "description" | "title">>,
-): Task => {
+export const createTask = (values: Pick<Task, "prompt" | "title">): Task => {
   const timestamp = new Date().toISOString();
 
   return {
-    baseRef: null,
-    branch: null,
-    completion: null,
     createdAt: timestamp,
-    description: overrides?.description ?? "",
     id: crypto.randomUUID(),
-    projectId,
-    runs: [],
-    step: "backlog",
-    title: overrides?.title?.trim() ?? "",
+    prompt: values.prompt.trim(),
+    title: values.title.trim(),
     updatedAt: timestamp,
-    worktreePath: null,
-    worktreeProjectId: null,
   };
 };
 

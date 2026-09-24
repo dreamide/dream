@@ -782,7 +782,7 @@ export const commitProjectGitChanges = async (
 };
 
 /**
- * The branch a push acts on: the checked-out one, or `requestedBranch` by name
+ * (e.g. a branch other than the checked-out one), which need not be checked out.
  * (e.g. a finished task's base branch), which need not be checked out.
  */
 const resolveGitPushBranch = async (repoInfo, requestedBranch) => {

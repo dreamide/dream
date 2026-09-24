@@ -23,6 +23,11 @@ export const WorkspaceSwitcher = () => {
   const setAppView = useIdeStore((s) => s.setAppView);
   const [open, setOpen] = useState(false);
 
+  // A menu with a single choice has nothing to switch to.
+  if (APP_VIEW_DESCRIPTORS.length < 2) {
+    return null;
+  }
+
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
       <DropdownMenuTrigger

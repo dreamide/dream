@@ -34,8 +34,8 @@ export const PushDialog = ({
   /** The checked-out branch's status; unused when `targetBranch` is set. */
   status: ProjectGitStatusResponse | null;
   /**
-   * Pushes this branch by name instead of the checked-out one, e.g. a
-   * finished task's base branch. `branch` should name it too.
+   * Pushes this branch by name instead of the checked-out one.
+   * `branch` should name it too.
    */
   targetBranch?: string | null;
 }) => {

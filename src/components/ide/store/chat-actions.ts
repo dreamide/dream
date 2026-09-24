@@ -352,10 +352,8 @@ export const createChatActions = (
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     const chatIds = state.chats
       .filter((chat) => {
-        // Task chats live and die with their task.
         if (
           chat.deletedAt !== null ||
-          chat.taskId !== null ||
           state.streamingChatIds[chat.id] ||
           state.titleGeneratingChatIds[chat.id]
         ) {
@@ -379,8 +377,7 @@ export const createChatActions = (
 
     set((state) => {
       const chat = state.chats.find((item) => item.id === chatId);
-      // Task chats are removed with their task, never on their own.
-      if (!chat || chat.taskId !== null) {
+      if (!chat) {
         return state;
       }
 
@@ -447,9 +444,7 @@ export const createChatActions = (
   permanentlyDeleteChats: (chatIds: string[]) => {
     const idsToDelete = new Set(
       get()
-        .chats.filter(
-          (chat) => chatIds.includes(chat.id) && chat.taskId === null,
-        )
+        .chats.filter((chat) => chatIds.includes(chat.id))
         .map((chat) => chat.id),
     );
     if (idsToDelete.size === 0) {

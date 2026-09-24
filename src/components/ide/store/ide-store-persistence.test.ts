@@ -3,20 +3,21 @@ import { test } from "vitest";
 import {
   createChatConfig,
   createProjectConfig,
+  createTask,
   DEFAULT_SETTINGS,
 } from "@/lib/ide-defaults";
-import {
-  createDefaultTaskConfig,
-  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
-} from "@/lib/task-defaults";
-import type { ChatConfig, ProjectConfig } from "@/types/ide";
+import type { ChatConfig, ProjectConfig, Task } from "@/types/ide";
 import { createPersistedIdeState } from "./ide-store-persistence";
 
-const persist = (project: ProjectConfig, chats: ChatConfig[]) =>
+const persist = (
+  project: ProjectConfig,
+  chats: ChatConfig[],
+  tasks: Task[] = [],
+) =>
   createPersistedIdeState({
     activeBrowserTabIdByProject: {},
     activeProjectId: project.id,
-    appView: "tasks",
+    appView: "code",
     browserTabsByProject: {},
     chats,
     chatSort: "recent",
@@ -24,23 +25,37 @@ const persist = (project: ProjectConfig, chats: ChatConfig[]) =>
     messagesByChatId: {},
     projects: [project],
     settings: DEFAULT_SETTINGS,
-    taskConfig: createDefaultTaskConfig(),
-    tasks: [],
-    tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
-    tasksProjectId: null,
+    tasks,
   });
 
-test("empty draft chats are dropped, but a task's step chats are kept", () => {
-  const project = createProjectConfig("/workspace/source", DEFAULT_SETTINGS);
-  const draft = createChatConfig(project, { title: "Draft" });
-  // A step chat whose transcript came up empty is still what the task's run
-  // points at, and it is never the project's open chat.
-  const stepChat = createChatConfig(project, { taskId: "task-one" });
+test("empty draft chats are dropped unless they are the open chat", () => {
+  const baseProject = createProjectConfig(
+    "/workspace/source",
+    DEFAULT_SETTINGS,
+  );
+  const draft = createChatConfig(baseProject, { title: "Draft" });
+  const openChat = createChatConfig(baseProject, { title: "Open" });
+  const project = {
+    ...baseProject,
+    ui: { ...baseProject.ui, activeChatId: openChat.id },
+  };
 
-  const persisted = persist(project, [draft, stepChat]);
+  const persisted = persist(project, [draft, openChat]);
 
   assert.deepEqual(
     persisted.chats.map((chat) => chat.id),
-    [stepChat.id],
+    [openChat.id],
   );
+});
+
+test("tasks are saved app-wide, independent of any project", () => {
+  const project = createProjectConfig("/workspace/source", DEFAULT_SETTINGS);
+  const tasks = [
+    createTask({ prompt: "Address the review comments", title: "Review" }),
+    createTask({ prompt: "Run the tests", title: "Test" }),
+  ];
+
+  const persisted = persist(project, [], tasks);
+
+  assert.deepEqual(persisted.tasks, tasks);
 });

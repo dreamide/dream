@@ -7,7 +7,12 @@ import type {
   RightPanelView,
 } from "@/types/ide";
 
-export type SettingsSection = "appearance" | "providers" | "mcp" | "chats";
+export type SettingsSection =
+  | "appearance"
+  | "providers"
+  | "mcp"
+  | "tasks"
+  | "chats";
 
 export type TerminalStatus = "running" | "stopped";
 export type TerminalTransport = "pty" | "pipe";

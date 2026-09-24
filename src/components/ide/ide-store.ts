@@ -1,9 +1,5 @@
 import { create } from "zustand";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import {
-  createDefaultTaskConfig,
-  TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
-} from "@/lib/task-defaults";
 import { ensureActiveProject, getChatsForProject } from "./ide-state";
 import { getBrowserTabsForProject, resolveActiveBrowserTab } from "./store";
 import { createBrowserActions } from "./store/browser-actions";
@@ -37,10 +33,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   activeProjectId: null,
   appView: "code",
   tasks: [],
-  tasksProjectId: null,
-  taskConfig: createDefaultTaskConfig(),
-  tasksChatPanelWidth: TASKS_CHAT_PANEL_DEFAULT_WIDTH_PX,
-  tasksPane: null,
   chats: [],
   chatSort: "recent",
   settings: DEFAULT_SETTINGS,
@@ -49,7 +41,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},
-  missingTaskWorktrees: {},
   awaitingAnswerChatIds: {},
   completedChatIds: {},
   titleGeneratingChatIds: {},
@@ -140,7 +131,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   ...createSettingsActions(set, get),
 
   // ── Actions: runtime ────────────────────────────────────────────────
-  ...createRuntimeActions(set, get),
+  ...createRuntimeActions(set),
   ...createBrowserActions(set, get),
   ...createTerminalActions(set, get),
 
@@ -175,9 +166,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       activeProjectId: nextActiveProjectId,
       appView: loaded.appView,
       tasks: loaded.tasks,
-      tasksProjectId: loaded.tasksProjectId,
-      taskConfig: loaded.taskConfig,
-      tasksChatPanelWidth: loaded.tasksChatPanelWidth,
       activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
       browserTabsByProject: loaded.browserTabsByProject,
       chats: loaded.chats,
@@ -202,12 +190,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       chats,
       closedProjects,
       tasks,
-      tasksProjectId,
-      tasksChatPanelWidth,
       projects,
       settings,
       stateHydrated,
-      taskConfig,
     } = get();
     if (!stateHydrated) return;
 
@@ -216,9 +201,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       activeProjectId,
       appView,
       tasks,
-      tasksProjectId,
-      tasksChatPanelWidth,
-      taskConfig,
       browserTabsByProject,
       chats,
       chatSort,

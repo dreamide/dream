@@ -47,11 +47,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const chatColumnWidths = projectUi.chatColumnWidths;
   const multiChat = projectUi.multiChat;
   const chats = useIdeStore(
-    useShallow((s) =>
-      s.chats.filter(
-        (chat) => chat.projectId === projectId && chat.taskId === null,
-      ),
-    ),
+    useShallow((s) => s.chats.filter((chat) => chat.projectId === projectId)),
   );
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const projectTerminalSessionIds = useIdeStore(
