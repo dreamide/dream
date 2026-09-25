@@ -35,6 +35,13 @@ export interface AddProjectTerminalOptions {
   cwd?: string;
   name?: string;
   strictCwd?: boolean;
+  /** Close the session when the terminal panel closes if nothing was typed. */
+  closeIfUntouched?: boolean;
+}
+
+export interface CloseProjectTerminalOptions {
+  /** Keep the right panel open even when the last session is closed. */
+  keepRightPanelOpen?: boolean;
 }
 
 export interface IdeState {
@@ -304,7 +311,11 @@ export interface IdeState {
     fromIndex: number,
     toIndex: number,
   ) => void;
-  closeProjectTerminal: (projectId: string, sessionId: string) => Promise<void>;
+  closeProjectTerminal: (
+    projectId: string,
+    sessionId: string,
+    options?: CloseProjectTerminalOptions,
+  ) => Promise<void>;
 
   // Actions - hydration & persistence
   hydrate: () => Promise<void>;

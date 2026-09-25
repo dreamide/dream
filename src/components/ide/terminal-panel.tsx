@@ -19,6 +19,10 @@ import {
   getTerminalScrollback,
   subscribeToTerminalOutput,
 } from "./terminal-scrollback";
+import {
+  isUserTerminalInput,
+  markTerminalSessionTouched,
+} from "./terminal-untouched";
 import { attachTerminalWebglRenderer } from "./terminal-webgl";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
@@ -424,6 +428,10 @@ export const TerminalPanel = ({
       const api = getDesktopApi();
       if (!api) {
         return;
+      }
+
+      if (isUserTerminalInput(data)) {
+        markTerminalSessionTouched(sessionId);
       }
 
       if (transportRef.current === "pipe") {

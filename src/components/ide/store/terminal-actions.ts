@@ -8,6 +8,11 @@ import {
   resetTerminalScrollback,
 } from "../terminal-scrollback";
 import {
+  isTerminalSessionUntouched,
+  markTerminalSessionTouched,
+  markTerminalSessionUntouched,
+} from "../terminal-untouched";
+import {
   getDefaultTerminalSessionName,
   getTerminalOrdinalFromName,
   moveItem,
@@ -91,7 +96,7 @@ export const createTerminalActions = (
       return;
     }
 
-    await get().addProjectTerminal(projectId);
+    await get().addProjectTerminal(projectId, { closeIfUntouched: true });
   },
 
   setProjectTerminalPanelOpen: (projectId, open) => {
@@ -101,6 +106,21 @@ export const createTerminalActions = (
         [projectId]: open,
       },
     }));
+
+    if (open) {
+      return;
+    }
+
+    // Terminals started just by opening the panel are discarded when the
+    // panel closes, unless the user typed something into them.
+    const untouchedSessionIds = (
+      get().projectTerminalSessionIds[projectId] ?? []
+    ).filter(isTerminalSessionUntouched);
+    for (const sessionId of untouchedSessionIds) {
+      void get().closeProjectTerminal(projectId, sessionId, {
+        keepRightPanelOpen: true,
+      });
+    }
   },
 
   addProjectTerminal: async (projectId, options = {}) => {
@@ -113,6 +133,9 @@ export const createTerminalActions = (
 
     const sessionId = createProjectTerminalSessionId(projectId);
     resetTerminalScrollback(sessionId);
+    if (options.closeIfUntouched) {
+      markTerminalSessionUntouched(sessionId);
+    }
 
     set((state) => {
       const existingSessionIds =
@@ -223,7 +246,8 @@ export const createTerminalActions = (
     });
   },
 
-  closeProjectTerminal: async (projectId, sessionId) => {
+  closeProjectTerminal: async (projectId, sessionId, options = {}) => {
+    markTerminalSessionTouched(sessionId);
     set((state) => {
       const currentSessionIds =
         state.projectTerminalSessionIds[projectId] ?? [];
@@ -267,6 +291,8 @@ export const createTerminalActions = (
 
       if (nextSessionIds.length === 0) {
         nextProjectTerminalPanelOpenByProject[projectId] = false;
+      }
+      if (nextSessionIds.length === 0 && !options.keepRightPanelOpen) {
         nextState.projects = updateProjectUiInList(
           state.projects,
           projectId,
