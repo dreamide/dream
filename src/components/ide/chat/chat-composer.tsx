@@ -1,7 +1,7 @@
 import type { ChatStatus, LanguageModelUsage } from "ai";
 import {
-  AppWindow,
   FolderGit2,
+  Grid2x2,
   LaptopMinimal,
   Package,
   Settings2,
@@ -1038,7 +1038,7 @@ export const ChatComposer = ({
       case "system":
         return { icon: LaptopMinimal, label: skillsT("badgeSystem") };
       case "plugin":
-        return { icon: AppWindow, label: skillsT("badgeApp") };
+        return { icon: Grid2x2, label: skillsT("badgeApp") };
       case "admin":
         return { icon: Settings2, label: skillsT("badgeManaged") };
       default:
