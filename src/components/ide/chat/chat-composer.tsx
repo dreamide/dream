@@ -1101,7 +1101,7 @@ export const ChatComposer = ({
                   <button
                     aria-label={`Skill ${skill.name}`}
                     className={cn(
-                      "flex h-8 w-full min-w-0 items-center gap-3 rounded-md px-2 text-left transition-colors",
+                      "flex h-8 w-full min-w-0 items-center gap-8 rounded-md px-2 text-left transition-colors",
                       index === highlightedSkillIndex
                         ? "bg-muted text-foreground"
                         : "text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
@@ -1117,12 +1117,12 @@ export const ChatComposer = ({
                         {getSkillLabel(skill)}
                       </span>
                       {description ? (
-                        <span className="ml-3 text-muted-foreground">
+                        <span className="ml-2 text-muted-foreground">
                           {description}
                         </span>
                       ) : null}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+                    <span className="flex min-w-20 shrink-0 items-center justify-end gap-1 text-muted-foreground text-xs">
                       <BadgeIcon className="size-3.5" />
                       {badge.label}
                     </span>
