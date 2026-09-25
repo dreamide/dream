@@ -185,6 +185,8 @@ contextBridge.exposeInMainWorld("dream", {
   reportBrowserGuestDetached: (payload) =>
     ipcRenderer.send("browser:guest-detached", payload),
   onBrowserCommand: (listener) => subscribe("browser:command", listener),
+  onBrowserAgentActivity: (listener) =>
+    subscribe("browser:agent-activity", listener),
   sendBrowserCommandResult: (payload) =>
     ipcRenderer.send("browser:command-result", payload),
 

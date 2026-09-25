@@ -342,6 +342,14 @@ export interface BrowserAgentCommandResponse {
   result?: BrowserAgentCommandResult;
 }
 
+/** Main -> renderer: an agent tool started or finished driving the browser. */
+export interface BrowserAgentActivityEvent {
+  active: boolean;
+  projectId: string;
+  tool: string;
+  tools: string[];
+}
+
 export type UpdateState =
   | "idle"
   | "disabled"
@@ -839,6 +847,9 @@ export interface DesktopApi {
     listener: (command: BrowserAgentCommand) => void,
   ) => () => void;
   sendBrowserCommandResult: (payload: BrowserAgentCommandResponse) => void;
+  onBrowserAgentActivity: (
+    listener: (event: BrowserAgentActivityEvent) => void,
+  ) => () => void;
 
   detectEditors: () => Promise<DetectedEditor[]>;
   openInEditor: (payload: {

@@ -351,6 +351,25 @@ export const buildWaitForScript = ({
 })()`;
 
 /**
+ * Expression (for CDP `Runtime.evaluate`) that yields the element for a
+ * locator, so `DOM.setFileInputFiles` can target it by remote object id.
+ */
+export const buildFileInputLookupExpression = ({
+  ref = null,
+  selector = null,
+}) => `(() => {
+  const ref = ${JSON.stringify(ref)};
+  const selector = ${JSON.stringify(selector)};
+  const el = ref
+    ? (window.__dreamAgentRefs && window.__dreamAgentRefs.get(ref)) || null
+    : selector
+      ? document.querySelector(selector)
+      : null;
+  if (!el) throw new Error("File input not found for " + JSON.stringify(ref || selector));
+  return el;
+})()`;
+
+/**
  * Wraps a user expression so its result is JSON-safe and errors are reported
  * instead of thrown. Async expressions (promises) are awaited.
  */

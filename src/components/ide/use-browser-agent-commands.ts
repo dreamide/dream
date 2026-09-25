@@ -30,6 +30,7 @@ const listTabs = (projectId: string): BrowserAgentCommandResult => {
 
   return {
     panelOpen,
+    projectPath: project?.path ?? null,
     tabs: tabs.map<BrowserAgentTabInfo>((tab) => ({
       active: tab.id === activeTabId,
       id: tab.id,

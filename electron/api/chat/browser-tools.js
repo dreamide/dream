@@ -1,8 +1,11 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { createCustomMcpServer } from "ai-sdk-provider-claude-code";
 import { z } from "zod";
 import { getBrowserBridge, getBrowserMcpEndpoint } from "../browser-bridge.js";
 import {
   buildEvaluateScript,
+  buildFileInputLookupExpression,
   buildFocusForTypingScript,
   buildLocateForPointerScript,
   buildProgrammaticClickScript,
@@ -295,6 +298,12 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
       getConsoleEntries: (guest, options) =>
         bridge.getConsoleEntries(guest, options),
       getGuest: (tabId) => bridge.getGuest(resolveProjectId(), tabId),
+      getNetworkEntries: (guest, options) =>
+        bridge.getNetworkEntries(guest, options),
+      getResponseBody: (guest, requestId) =>
+        bridge.getResponseBody(guest, requestId),
+      setFileInputFiles: (guest, expression, files) =>
+        bridge.setFileInputFiles(guest, expression, files),
       sendCommand: (type, payload) =>
         bridge.sendCommand(resolveProjectId(), type, payload),
       waitForGuest: (tabId, timeoutMs) =>
@@ -362,7 +371,15 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
     return located;
   };
 
-  return {
+  /** Project root reported by the renderer, for path-restricted tools. */
+  const getProjectPath = async () => {
+    const result = await requireBridge().sendCommand("list-tabs");
+    return typeof result?.projectPath === "string" && result.projectPath
+      ? result.projectPath
+      : null;
+  };
+
+  const tools = {
     browser_list_tabs: {
       annotations: { readOnlyHint: true },
       description:
@@ -921,7 +938,242 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
         tabId: tabIdField,
       }),
     },
+
+    browser_hover: {
+      description:
+        "Move the mouse over an element (snapshot ref or CSS selector) to trigger hover styles, tooltips and menus. Follow with browser_snapshot or browser_screenshot to see the result.",
+      handler: withErrors(async ({ ref, selector, tabId }) => {
+        const { guest, tabId: resolvedTabId } = await acquireGuest(tabId);
+        const located = await locateForPointer(guest, { ref, selector });
+        if (!located.inViewport) {
+          return errorResult(
+            "Element is outside the viewport even after scrolling; cannot hover it.",
+          );
+        }
+        const zoom = guest.getZoomFactor?.() ?? 1;
+        guest.sendInputEvent({
+          type: "mouseMove",
+          x: Math.round(located.x * zoom),
+          y: Math.round(located.y * zoom),
+        });
+        await sleep(150);
+        return textResult({
+          covered: located.covered,
+          hovered: located.element,
+          tabId: resolvedTabId,
+        });
+      }),
+      inputSchema: z.object({
+        ...locatorFields,
+        tabId: tabIdField,
+      }),
+    },
+
+    browser_upload_file: {
+      description:
+        'Attach file(s) to an <input type="file"> element (snapshot ref or CSS selector). Paths must be absolute and inside the project directory.',
+      handler: withErrors(async ({ paths, ref, selector, tabId }) => {
+        const projectPath = await getProjectPath();
+        if (!projectPath) {
+          return errorResult("The project path is unknown; cannot upload.");
+        }
+        const resolved = [];
+        for (const rawPath of paths) {
+          const absolute = path.resolve(projectPath, String(rawPath));
+          if (!isPathInside(projectPath, absolute)) {
+            return errorResult(
+              `Path "${rawPath}" is outside the project root and cannot be uploaded.`,
+            );
+          }
+          try {
+            const stats = await fs.stat(absolute);
+            if (!stats.isFile()) {
+              return errorResult(`"${rawPath}" is not a file.`);
+            }
+          } catch {
+            return errorResult(`File not found: ${rawPath}`);
+          }
+          resolved.push(absolute);
+        }
+        const { guest, tabId: resolvedTabId } = await acquireGuest(tabId);
+        const located = await guest.executeJavaScript(
+          buildLocateForPointerScript({ ref, selector }),
+          true,
+        );
+        if (!located || located.error) {
+          return errorResult(located?.error ?? "Could not locate element.");
+        }
+        if (located.element?.tag !== "input") {
+          return errorResult(
+            `Element is a <${located.element?.tag}>, not an <input type="file">.`,
+          );
+        }
+        await requireBridge().setFileInputFiles(
+          guest,
+          buildFileInputLookupExpression({ ref, selector }),
+          resolved,
+        );
+        return textResult({
+          files: resolved,
+          input: located.element,
+          tabId: resolvedTabId,
+        });
+      }),
+      inputSchema: z.object({
+        ...locatorFields,
+        paths: z
+          .array(z.string().min(1))
+          .min(1)
+          .describe("File paths, absolute or relative to the project root."),
+        tabId: tabIdField,
+      }),
+    },
+
+    browser_network_requests: {
+      annotations: { readOnlyHint: true },
+      description:
+        "List network requests made by a browser tab since its last navigation (method, URL, status, type, timing, failures). Filter with urlIncludes or failedOnly; set clear=true to reset the buffer after reading.",
+      handler: withErrors(
+        async ({ clear, failedOnly, limit, tabId, urlIncludes }) => {
+          const { guest, tabId: resolvedTabId } = await acquireGuest(tabId);
+          const { capturing, entries, reason } =
+            await requireBridge().getNetworkEntries(guest, {
+              clear: Boolean(clear),
+            });
+          const filtered = entries.filter(
+            (entry) =>
+              (!urlIncludes || String(entry.url).includes(urlIncludes)) &&
+              (!failedOnly ||
+                entry.failed ||
+                (typeof entry.status === "number" && entry.status >= 400)),
+          );
+          const max = Math.min(Math.max(Number(limit) || 100, 1), 400);
+          const shown = filtered.slice(-max);
+          const lines = shown.map(formatNetworkEntry);
+          const header = [
+            `tab ${resolvedTabId}: ${filtered.length} request(s)${
+              shown.length < filtered.length
+                ? `, showing last ${shown.length}`
+                : ""
+            }`,
+            capturing
+              ? null
+              : `note: live capture is unavailable${reason ? ` (${reason})` : ""}; entries may be incomplete`,
+          ].filter(Boolean);
+          return textResult(
+            [...header, "", ...(lines.length ? lines : ["(none)"])].join("\n"),
+          );
+        },
+      ),
+      inputSchema: z.object({
+        clear: z.boolean().optional(),
+        failedOnly: z
+          .boolean()
+          .optional()
+          .describe("Only failed requests and HTTP status >= 400."),
+        limit: z.number().int().optional().describe("Default 100, max 400."),
+        tabId: tabIdField,
+        urlIncludes: z.string().optional(),
+      }),
+    },
+
+    browser_network_response_body: {
+      annotations: { readOnlyHint: true },
+      description:
+        "Fetch the response body of a captured network request by its id from browser_network_requests. Text bodies are returned as-is (truncated to maxChars); binary bodies are described, not returned.",
+      handler: withErrors(async ({ maxChars, requestId, tabId }) => {
+        const { guest, tabId: resolvedTabId } = await acquireGuest(tabId);
+        const { base64Encoded, body, entry } =
+          await requireBridge().getResponseBody(guest, requestId);
+        const limit = Math.min(
+          Math.max(Number(maxChars) || 20_000, 200),
+          200_000,
+        );
+        if (base64Encoded) {
+          return textResult({
+            binary: true,
+            bytes: Math.floor((body?.length ?? 0) * 0.75),
+            mimeType: entry?.mimeType,
+            requestId,
+            tabId: resolvedTabId,
+            url: entry?.url,
+          });
+        }
+        const text = String(body ?? "");
+        return textResult(
+          [
+            `${entry?.method ?? ""} ${entry?.url ?? requestId} → ${entry?.status ?? "?"} ${entry?.mimeType ?? ""}`.trim(),
+            text.length > limit
+              ? `(${text.length} chars, truncated to ${limit})`
+              : `(${text.length} chars)`,
+            "",
+            text.slice(0, limit),
+          ].join("\n"),
+        );
+      }),
+      inputSchema: z.object({
+        maxChars: z.number().int().optional(),
+        requestId: z.string().min(1),
+        tabId: tabIdField,
+      }),
+    },
   };
+
+  // Report start/finish of every tool so the browser panel can show that an
+  // agent is driving it. Errors still flow back as tool results.
+  for (const [name, def] of Object.entries(tools)) {
+    const inner = def.handler;
+    def.handler = async (args, extra) => {
+      let endActivity = () => {};
+      try {
+        endActivity = bridge?.beginActivity
+          ? bridge.beginActivity(resolveProjectIdOrNull(), name)
+          : endActivity;
+      } catch {
+        // Activity is cosmetic; never block the tool on it.
+      }
+      try {
+        return await inner(args, extra);
+      } finally {
+        endActivity();
+      }
+    };
+  }
+
+  function resolveProjectIdOrNull() {
+    try {
+      return resolveProjectId();
+    } catch {
+      return null;
+    }
+  }
+
+  return tools;
+};
+
+const isPathInside = (root, candidate) => {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  );
+};
+
+const formatNetworkEntry = (entry) => {
+  const status = entry.failed
+    ? `FAILED${entry.error ? ` ${entry.error}` : ""}${entry.canceled ? " (canceled)" : ""}`
+    : entry.status === null
+      ? "pending"
+      : String(entry.status);
+  const timing =
+    typeof entry.durationMs === "number" ? ` ${entry.durationMs}ms` : "";
+  const size =
+    typeof entry.encodedBytes === "number" ? ` ${entry.encodedBytes}B` : "";
+  const cache = entry.fromCache ? " (cache)" : "";
+  return `[${entry.id}] ${entry.method ?? "?"} ${entry.url} → ${status} ${entry.resourceType ?? ""}${timing}${size}${cache}`.replace(
+    /\s+$/,
+    "",
+  );
 };
 
 /**

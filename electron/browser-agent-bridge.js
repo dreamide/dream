@@ -8,27 +8,51 @@ import { ipcMain, webContents } from "electron";
  * reports each mounted guest's `webContentsId` here so tools can reach the
  * guest directly via `webContents.fromId`, and it answers commands (open a
  * tab, activate a tab, ...) that only the renderer can perform.
+ *
+ * Per guest, the bridge also keeps a console buffer (from `console-message`)
+ * and a network buffer (from the Chrome DevTools Protocol via
+ * `webContents.debugger`), both reset on each main-frame navigation.
  */
 
 const COMMAND_TIMEOUT_MS = 8_000;
 const GUEST_WAIT_TIMEOUT_MS = 10_000;
 const LOAD_TIMEOUT_MS = 20_000;
 const CONSOLE_BUFFER_LIMIT = 300;
+const NETWORK_BUFFER_LIMIT = 400;
+const CDP_PROTOCOL_VERSION = "1.3";
 
 const CONSOLE_LEVELS = ["debug", "info", "warning", "error"];
 
 const createId = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
+const pushBounded = (list, entry, limit) => {
+  list.push(entry);
+  if (list.length > limit) {
+    list.splice(0, list.length - limit);
+  }
+};
+
 export function createBrowserAgentBridge({ sendToRenderer }) {
   /** @type {Map<string, Map<string, {webContentsId:number, attachedAt:number}>>} */
   const guestsByProject = new Map();
-  /** @type {Map<number, {console: Array<object>, cleanup: () => void}>} */
+  /**
+   * @type {Map<number, {
+   *   console: Array<object>,
+   *   network: Array<object>,
+   *   networkById: Map<string, object>,
+   *   debuggerState: "detached"|"attaching"|"attached"|"failed",
+   *   debuggerError: string|null,
+   *   cleanup: () => void,
+   * }>}
+   */
   const guestMeta = new Map();
   /** @type {Map<string, {resolve: Function, reject: Function, timer: any}>} */
   const pendingCommands = new Map();
   /** @type {Set<() => void>} */
   const guestWaiters = new Set();
+  /** @type {Map<string, Map<string, number>>} projectId -> tool -> running count */
+  const activityByProject = new Map();
 
   const getProjectGuests = (projectId) => {
     let map = guestsByProject.get(projectId);
@@ -50,14 +74,84 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
     return guest && !guest.isDestroyed() ? guest : null;
   };
 
-  const pushConsoleEntry = (webContentsId, entry) => {
-    const meta = guestMeta.get(webContentsId);
-    if (!meta) {
+  // -------------------------------------------------------------------------
+  // CDP (network capture, file inputs)
+  // -------------------------------------------------------------------------
+
+  const recordNetworkEvent = (meta, method, params) => {
+    if (method === "Network.requestWillBeSent") {
+      const entry = {
+        id: params.requestId,
+        initiator: params.initiator?.type,
+        method: params.request?.method,
+        resourceType: params.type,
+        startedAt: Date.now(),
+        status: null,
+        url: params.request?.url,
+      };
+      // Redirects reuse the requestId; keep the chain visible.
+      const previous = meta.networkById.get(params.requestId);
+      if (previous && params.redirectResponse) {
+        previous.status = params.redirectResponse.status;
+        previous.redirectedTo = params.request?.url;
+        previous.finished = true;
+      }
+      meta.networkById.set(params.requestId, entry);
+      pushBounded(meta.network, entry, NETWORK_BUFFER_LIMIT);
       return;
     }
-    meta.console.push(entry);
-    if (meta.console.length > CONSOLE_BUFFER_LIMIT) {
-      meta.console.splice(0, meta.console.length - CONSOLE_BUFFER_LIMIT);
+    const entry = params?.requestId
+      ? meta.networkById.get(params.requestId)
+      : null;
+    if (!entry) {
+      return;
+    }
+    if (method === "Network.responseReceived") {
+      entry.status = params.response?.status ?? null;
+      entry.mimeType = params.response?.mimeType;
+      entry.fromCache =
+        Boolean(params.response?.fromDiskCache) ||
+        Boolean(params.response?.fromServiceWorker);
+    } else if (method === "Network.loadingFinished") {
+      entry.finished = true;
+      entry.durationMs = Date.now() - entry.startedAt;
+      entry.encodedBytes = params.encodedDataLength;
+    } else if (method === "Network.loadingFailed") {
+      entry.finished = true;
+      entry.failed = true;
+      entry.error = params.errorText;
+      entry.canceled = Boolean(params.canceled);
+      entry.durationMs = Date.now() - entry.startedAt;
+    }
+  };
+
+  const attachDebugger = async (guest) => {
+    const meta = guestMeta.get(guest.id);
+    if (!meta || guest.isDestroyed()) {
+      return false;
+    }
+    if (meta.debuggerState === "attached") {
+      return true;
+    }
+    if (meta.debuggerState === "attaching") {
+      return false;
+    }
+    meta.debuggerState = "attaching";
+    try {
+      if (!guest.debugger.isAttached()) {
+        guest.debugger.attach(CDP_PROTOCOL_VERSION);
+      }
+      await guest.debugger.sendCommand("Network.enable", {
+        maxPostDataSize: 0,
+      });
+      meta.debuggerState = "attached";
+      meta.debuggerError = null;
+      return true;
+    } catch (error) {
+      meta.debuggerState = "failed";
+      meta.debuggerError =
+        error instanceof Error ? error.message : String(error);
+      return false;
     }
   };
 
@@ -82,38 +176,79 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
               message,
               sourceId,
             };
-      pushConsoleEntry(webContentsId, {
-        level: String(details.level ?? "info"),
-        lineNumber: details.lineNumber,
-        message: String(details.message ?? ""),
-        sourceId: details.sourceId,
-        timestamp: Date.now(),
-      });
+      const meta = guestMeta.get(webContentsId);
+      if (!meta) {
+        return;
+      }
+      pushBounded(
+        meta.console,
+        {
+          level: String(details.level ?? "info"),
+          lineNumber: details.lineNumber,
+          message: String(details.message ?? ""),
+          sourceId: details.sourceId,
+          timestamp: Date.now(),
+        },
+        CONSOLE_BUFFER_LIMIT,
+      );
     };
     const handleNavigationStart = (_event, _url, isInPlace, isMainFrame) => {
       const meta = guestMeta.get(webContentsId);
       if (meta && isMainFrame && !isInPlace) {
         meta.console.length = 0;
+        meta.network.length = 0;
+        meta.networkById.clear();
       }
     };
     const handleDestroyed = () => {
       cleanupGuest(webContentsId);
     };
+    const handleDebuggerMessage = (_event, method, params) => {
+      const meta = guestMeta.get(webContentsId);
+      if (meta && method.startsWith("Network.")) {
+        recordNetworkEvent(meta, method, params ?? {});
+      }
+    };
+    const handleDebuggerDetach = () => {
+      const meta = guestMeta.get(webContentsId);
+      if (meta) {
+        // Re-attached lazily on the next network read.
+        meta.debuggerState = "detached";
+      }
+    };
 
     guest.on("console-message", handleConsole);
     guest.on("did-start-navigation", handleNavigationStart);
     guest.once("destroyed", handleDestroyed);
+    guest.debugger.on("message", handleDebuggerMessage);
+    guest.debugger.on("detach", handleDebuggerDetach);
 
     guestMeta.set(webContentsId, {
-      console: [],
       cleanup: () => {
         if (!guest.isDestroyed()) {
           guest.removeListener("console-message", handleConsole);
           guest.removeListener("did-start-navigation", handleNavigationStart);
           guest.removeListener("destroyed", handleDestroyed);
+          guest.debugger.removeListener("message", handleDebuggerMessage);
+          guest.debugger.removeListener("detach", handleDebuggerDetach);
+          try {
+            if (guest.debugger.isAttached()) {
+              guest.debugger.detach();
+            }
+          } catch {
+            // Already gone.
+          }
         }
       },
+      console: [],
+      debuggerError: null,
+      debuggerState: "detached",
+      network: [],
+      networkById: new Map(),
     });
+
+    // Attach eagerly so requests made during the first load are captured.
+    void attachDebugger(guest);
   };
 
   function cleanupGuest(webContentsId) {
@@ -229,6 +364,58 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
   }
 
   // -------------------------------------------------------------------------
+  // Main -> renderer: activity indicator
+  // -------------------------------------------------------------------------
+
+  /**
+   * Track a running tool so the panel can show that an agent is driving the
+   * browser. Returns a function that marks the tool finished.
+   */
+  function beginActivity(projectId, tool) {
+    if (!projectId) {
+      return () => {};
+    }
+    let counts = activityByProject.get(projectId);
+    if (!counts) {
+      counts = new Map();
+      activityByProject.set(projectId, counts);
+    }
+    counts.set(tool, (counts.get(tool) ?? 0) + 1);
+    publishActivity(projectId, tool);
+    let ended = false;
+    return () => {
+      if (ended) {
+        return;
+      }
+      ended = true;
+      const current = activityByProject.get(projectId);
+      if (!current) {
+        return;
+      }
+      const next = (current.get(tool) ?? 1) - 1;
+      if (next <= 0) {
+        current.delete(tool);
+      } else {
+        current.set(tool, next);
+      }
+      if (current.size === 0) {
+        activityByProject.delete(projectId);
+      }
+      publishActivity(projectId, tool);
+    };
+  }
+
+  function publishActivity(projectId, tool) {
+    const counts = activityByProject.get(projectId);
+    sendToRenderer("browser:agent-activity", {
+      active: Boolean(counts && counts.size > 0),
+      projectId,
+      tool,
+      tools: counts ? [...counts.keys()] : [],
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Guest lookup / waiting
   // -------------------------------------------------------------------------
 
@@ -332,6 +519,10 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
     });
   }
 
+  // -------------------------------------------------------------------------
+  // Buffers and CDP-backed operations
+  // -------------------------------------------------------------------------
+
   function getConsoleEntries(guest, { clear = false } = {}) {
     const meta = guestMeta.get(guest.id);
     if (!meta) {
@@ -344,6 +535,86 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
     return entries;
   }
 
+  /**
+   * Network requests captured since the last navigation. `capturing` is false
+   * when the DevTools Protocol could not be attached (e.g. another debugger
+   * holds the guest); `reason` says why.
+   */
+  async function getNetworkEntries(guest, { clear = false } = {}) {
+    const meta = guestMeta.get(guest.id);
+    if (!meta) {
+      return { capturing: false, entries: [], reason: "Tab is not tracked." };
+    }
+    const attached = await attachDebugger(guest);
+    const entries = meta.network.map((entry) => ({ ...entry }));
+    if (clear) {
+      meta.network.length = 0;
+      meta.networkById.clear();
+    }
+    return {
+      capturing: attached,
+      entries,
+      reason: attached ? null : meta.debuggerError,
+    };
+  }
+
+  async function getResponseBody(guest, requestId) {
+    if (!(await attachDebugger(guest))) {
+      const meta = guestMeta.get(guest.id);
+      throw new Error(
+        `Network capture is unavailable for this tab${meta?.debuggerError ? `: ${meta.debuggerError}` : "."}`,
+      );
+    }
+    const meta = guestMeta.get(guest.id);
+    const entry = meta?.networkById.get(requestId) ?? null;
+    const result = await guest.debugger.sendCommand("Network.getResponseBody", {
+      requestId,
+    });
+    return {
+      base64Encoded: Boolean(result.base64Encoded),
+      body: result.body,
+      entry,
+    };
+  }
+
+  /**
+   * Set the files of an `<input type="file">` via CDP. `expression` must
+   * evaluate to the input element in the page (e.g. a snapshot ref lookup).
+   */
+  async function setFileInputFiles(guest, expression, files) {
+    if (!(await attachDebugger(guest))) {
+      const meta = guestMeta.get(guest.id);
+      throw new Error(
+        `File uploads need the DevTools Protocol, which is unavailable for this tab${meta?.debuggerError ? `: ${meta.debuggerError}` : "."}`,
+      );
+    }
+    const evaluated = await guest.debugger.sendCommand("Runtime.evaluate", {
+      expression,
+      returnByValue: false,
+    });
+    if (evaluated.exceptionDetails) {
+      throw new Error(
+        evaluated.exceptionDetails.exception?.description ??
+          "Could not locate the file input.",
+      );
+    }
+    const objectId = evaluated.result?.objectId;
+    if (!objectId) {
+      throw new Error("Could not locate the file input element.");
+    }
+    try {
+      await guest.debugger.sendCommand("DOM.enable");
+      await guest.debugger.sendCommand("DOM.setFileInputFiles", {
+        files,
+        objectId,
+      });
+    } finally {
+      void guest.debugger
+        .sendCommand("Runtime.releaseObject", { objectId })
+        .catch(() => {});
+    }
+  }
+
   function reset() {
     for (const pending of pendingCommands.values()) {
       clearTimeout(pending.timer);
@@ -354,13 +625,18 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       cleanupGuest(webContentsId);
     }
     guestsByProject.clear();
+    activityByProject.clear();
   }
 
   return {
+    beginActivity,
     getConsoleEntries,
     getGuest,
+    getNetworkEntries,
+    getResponseBody,
     reset,
     sendCommand,
+    setFileInputFiles,
     waitForGuest,
     waitForLoad,
   };

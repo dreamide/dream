@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  Bot,
   Camera,
   Code2,
   Cookie,
@@ -305,6 +306,22 @@ const BrowserPanelImpl = ({
   const [elementSelection, setElementSelection] =
     useState<BrowserElementSelection | null>(null);
   const [inspectingTabId, setInspectingTabId] = useState<string | null>(null);
+  const [agentTools, setAgentTools] = useState<string[]>([]);
+
+  // Show when an agent tool is driving this project's browser (main process
+  // reports start/finish of every browser tool call).
+  useEffect(() => {
+    const desktopApi = getDesktopApi();
+    if (!desktopApi?.onBrowserAgentActivity) {
+      return;
+    }
+    return desktopApi.onBrowserAgentActivity((event) => {
+      if (event.projectId !== project.id) {
+        return;
+      }
+      setAgentTools(event.active ? event.tools : []);
+    });
+  }, [project.id]);
 
   const browserError = useIdeStore((state) => state.browserError);
   const browserLoading = useIdeStore((state) => state.browserLoading);
@@ -978,6 +995,19 @@ const BrowserPanelImpl = ({
             </button>
           ) : null}
         </div>
+
+        {agentTools.length > 0 ? (
+          <span
+            aria-live="polite"
+            className="mr-1 flex h-6 shrink-0 items-center gap-1 rounded-full bg-blue-500/15 px-2 text-[11px] text-blue-600 dark:text-blue-400"
+            title={agentTools
+              .map((tool) => tool.replace(/^browser_/, ""))
+              .join(", ")}
+          >
+            <Bot className="size-3.5 animate-pulse" />
+            {browserT("agentActive")}
+          </span>
+        ) : null}
 
         <button
           aria-label={browserT("selectElement")}

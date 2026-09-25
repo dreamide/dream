@@ -134,6 +134,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "Geben Sie eine URL ein, um mit dem Surfen zu beginnen.",
+      agentActive: "Agent steuert",
     },
     stash: {
       empty: "Noch keine gespeicherten Chats.",
@@ -669,6 +670,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "Enter a URL to start browsing.",
+      agentActive: "Agent active",
     },
     stash: {
       empty: "No stashed chats yet.",
@@ -1194,6 +1196,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "Ingresa una URL para comenzar a navegar.",
+      agentActive: "Agente activo",
     },
     stash: {
       empty: "Aún no hay chats en el stash.",
@@ -1728,6 +1731,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "Saisissez une URL pour commencer la navigation.",
+      agentActive: "Agent actif",
     },
     stash: {
       empty: "Aucun chat en stash pour le moment.",
@@ -2262,6 +2266,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "Inserisci un URL per iniziare la navigazione.",
+      agentActive: "Agente attivo",
     },
     stash: {
       empty: "Nessuna chat nello stash.",
@@ -2794,6 +2799,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "URL を入力して閲覧を開始します。",
+      agentActive: "エージェント操作中",
     },
     stash: {
       empty: "スタッシュされたチャットはまだありません。",
@@ -3317,6 +3323,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "탐색을 시작하려면 URL을 입력하세요.",
+      agentActive: "에이전트 작동 중",
     },
     stash: {
       empty: "아직 스태시된 채팅이 없습니다.",
@@ -3837,6 +3844,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "Insira um URL para começar a navegar.",
+      agentActive: "Agente ativo",
     },
     stash: {
       empty: "Ainda não há chats no stash.",
@@ -4364,6 +4372,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "Nhập URL để bắt đầu duyệt.",
+      agentActive: "Tác nhân đang hoạt động",
     },
     stash: {
       empty: "Chưa có chat nào trong stash.",
@@ -4878,6 +4887,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "输入 URL 以开始浏览。",
+      agentActive: "智能体操作中",
     },
     stash: {
       empty: "还没有暂存的聊天。",
@@ -5378,6 +5388,7 @@ export const supplementalMessages = {
     },
     browser: {
       enterUrlToStart: "輸入 URL 以開始瀏覽。",
+      agentActive: "代理操作中",
     },
     stash: {
       empty: "還沒有暫存的聊天。",
