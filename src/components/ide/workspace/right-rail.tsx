@@ -37,6 +37,7 @@ const WorkspaceRightRailImpl = ({
 
   return (
     <aside className="relative z-20 flex w-12 shrink-0 flex-col items-center gap-1 py-2">
+      <GitActionsMenu projectId={projectId} projectPath={projectPath} />
       <WorkspaceNavButton
         active={rightVisible && rightPanelView === "changes"}
         accent={changesAvailable}
@@ -69,7 +70,6 @@ const WorkspaceRightRailImpl = ({
       >
         <TerminalSquare className="size-4" />
       </WorkspaceNavButton>
-      <GitActionsMenu projectId={projectId} projectPath={projectPath} />
       <PullRequestNavButton
         visible={active}
         projectId={projectId}
