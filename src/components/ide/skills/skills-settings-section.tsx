@@ -1,4 +1,4 @@
-import { FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
+import { FolderGit2, FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
@@ -219,7 +219,14 @@ export const SkillsSettingsSection = () => {
           value={project?.id ?? NO_PROJECT_VALUE}
         >
           <SelectTrigger className="h-8 w-auto max-w-[280px] text-xs">
-            <SelectValue placeholder={t("project")} />
+            <SelectValue placeholder={t("project")}>
+              <span className="flex items-center gap-1.5">
+                <FolderGit2 className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">
+                  {project ? project.name : t("noProject")}
+                </span>
+              </span>
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="text-xs">
             <SelectItem className="text-xs" value={NO_PROJECT_VALUE}>
