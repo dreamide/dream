@@ -156,8 +156,8 @@ export const McpServersSection = ({
         <div className="overflow-hidden rounded-md border bg-white dark:bg-surface-950">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">
+              <TableRow className="hover:bg-transparent dark:hover:bg-transparent">
+                <TableHead className="w-24">
                   {settingsT("mcpEnabled")}
                 </TableHead>
                 <TableHead>{settingsT("mcpName")}</TableHead>
@@ -194,6 +194,7 @@ export const McpServersSection = ({
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         aria-label={commonT("edit")}
+                        className="text-muted-foreground hover:text-foreground"
                         onClick={() =>
                           setView({ kind: "form", target: server })
                         }
@@ -205,6 +206,11 @@ export const McpServersSection = ({
                       </Button>
                       <Button
                         aria-label={commonT("delete")}
+                        className={
+                          pendingDeleteId === server.id
+                            ? undefined
+                            : "text-muted-foreground hover:text-foreground"
+                        }
                         onBlur={() =>
                           setPendingDeleteId((current) =>
                             current === server.id ? null : current,
