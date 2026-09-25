@@ -1112,7 +1112,7 @@ export const ChatComposer = ({
                     title={skill.path || undefined}
                     type="button"
                   >
-                    <span className="min-w-0 flex-1 truncate text-sm">
+                    <span className="min-w-0 flex-1 truncate text-xs">
                       <span className="font-semibold text-foreground">
                         {getSkillLabel(skill)}
                       </span>
