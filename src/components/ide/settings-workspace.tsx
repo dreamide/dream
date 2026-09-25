@@ -8,6 +8,7 @@ import {
   RotateCcw,
   RotateCw,
   Server,
+  Settings,
   Sun,
   Trash2,
 } from "lucide-react";
@@ -517,7 +518,7 @@ export const SettingsWorkspace = () => {
               type="button"
             >
               <span className="flex items-center gap-2">
-                <Monitor className="size-4" />
+                <Settings className="size-4" />
                 {commonT("general")}
               </span>
             </button>
