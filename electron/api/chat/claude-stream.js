@@ -498,6 +498,11 @@ export const streamClaudeResponse = async ({
       streamingInput: "auto",
       continue: false,
       cwd: projectPath,
+      // Dream closes the transport when this request finishes, so background
+      // task notifications cannot start another turn. Disable background mode
+      // for Bash as well as subagents, including automatic backgrounding of
+      // long commands (which the Agent/Task input hook cannot prevent).
+      env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1" },
       persistSession: true,
       ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       hooks: {
