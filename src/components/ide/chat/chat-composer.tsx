@@ -1184,11 +1184,7 @@ export const ChatComposer = ({
                           event.currentTarget.selectionStart,
                         )
                       }
-                      placeholder={
-                        skillsSupported
-                          ? skillsT("composerPlaceholder")
-                          : chatT("askAnything")
-                      }
+                      placeholder={chatT("askAnything")}
                       ref={textareaRef}
                       rows={1}
                       value={promptText}
