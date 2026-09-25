@@ -29,7 +29,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Streamdown } from "streamdown";
+import { Streamdown, type StreamdownProps } from "streamdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,7 @@ import {
   usePullRequestContext,
 } from "./api";
 
+import { PrMarkdownImage } from "./markdown-image";
 import { MergePrDialog } from "./merge-pr-dialog";
 
 const message = (error: unknown) =>
@@ -153,10 +154,16 @@ function checkSummary(checks: PullRequestDetail["checks"]) {
   };
 }
 
+const prMarkdownComponents = {
+  img: PrMarkdownImage,
+} as NonNullable<StreamdownProps["components"]>;
+
 function Markdown({ children }: { children: string }) {
   return (
     <div className="min-w-0 break-words text-sm leading-relaxed">
-      <Streamdown mode="static">{children || "—"}</Streamdown>
+      <Streamdown mode="static" components={prMarkdownComponents}>
+        {children || "—"}
+      </Streamdown>
     </div>
   );
 }
