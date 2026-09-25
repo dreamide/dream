@@ -1,6 +1,7 @@
 import { FolderGit2, FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MessageResponse } from "@/components/ai-elements/message";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +20,12 @@ import type { AiProvider, ProviderSkill } from "@/types/ide";
 import { fetchProviderSkills } from "../chat/provider-skills";
 import { useIdeStore } from "../ide-store";
 import { CreateSkillDialog } from "./create-skill-dialog";
-import { SKILL_TOGGLE_PROVIDERS, setSkillEnabledRequest } from "./skills-api";
+import {
+  readSkillFileRequest,
+  SKILL_TOGGLE_PROVIDERS,
+  type SkillFileContents,
+  setSkillEnabledRequest,
+} from "./skills-api";
 
 const SKILL_PROVIDERS: AiProvider[] = [
   "anthropic",
@@ -47,6 +53,11 @@ export const SkillsSettingsSection = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingToggle, setPendingToggle] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    contents: SkillFileContents | null;
+    error: string | null;
+    path: string;
+  } | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -83,6 +94,39 @@ export const SkillsSettingsSection = () => {
     skills.find((skill) => skillKey(skill) === selectedKey) ??
     skills[0] ??
     null;
+
+  // Load the selected skill's SKILL.md for the preview pane.
+  const selectedPath = selectedSkill?.path ?? "";
+  useEffect(() => {
+    if (!selectedPath) {
+      setPreview(null);
+      return;
+    }
+    let cancelled = false;
+    setPreview({ contents: null, error: null, path: selectedPath });
+    readSkillFileRequest({
+      path: selectedPath,
+      projectPath: projectPath || undefined,
+      provider,
+    })
+      .then((contents) => {
+        if (!cancelled) {
+          setPreview({ contents, error: null, path: selectedPath });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setPreview({
+            contents: null,
+            error: error instanceof Error ? error.message : t("previewFailed"),
+            path: selectedPath,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectPath, provider, selectedPath, t]);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, ProviderSkill[]>();
@@ -396,6 +440,29 @@ export const SkillsSettingsSection = () => {
                 <p className="text-muted-foreground text-xs">
                   {t("usageHint", { mention: `$${selectedSkill.name}` })}
                 </p>
+                {selectedSkill.path ? (
+                  <div className="space-y-2 border-t pt-4">
+                    <p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+                      {t("previewTitle")}
+                    </p>
+                    {preview?.contents ? (
+                      <div className="rounded-md border border-surface-200 bg-surface-50 p-4 text-sm dark:border-surface-800 dark:bg-surface-900">
+                        <MessageResponse>
+                          {preview.contents.body}
+                        </MessageResponse>
+                      </div>
+                    ) : preview?.error ? (
+                      <p className="text-destructive text-xs">
+                        {preview.error}
+                      </p>
+                    ) : (
+                      <p className="flex items-center gap-2 text-muted-foreground text-xs">
+                        <Spinner className="size-3.5" />
+                        {t("previewLoading")}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
               </>
             ) : null}
           </div>

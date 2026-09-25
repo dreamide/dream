@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { listProviderSkills } from "./skills/index.js";
 import { createSkill, setSkillEnabled } from "./skills/manage.js";
+import { readSkillFile } from "./skills/read.js";
 
 const providerSchema = z.enum([
   "openai",
@@ -43,6 +44,13 @@ const setEnabledRequestSchema = z.object({
   provider: providerSchema,
 });
 
+const readSkillRequestSchema = z.object({
+  mcpServers: z.array(z.any()).optional(),
+  path: z.string().min(1),
+  projectPath: z.string().optional(),
+  provider: providerSchema,
+});
+
 const readJsonBody = async (c) => {
   try {
     return await c.req.json();
@@ -65,6 +73,30 @@ export const registerSkillsRoutes = (app) => {
       provider: parsed.data.provider,
     });
     return c.json(result);
+  });
+
+  app.post("/api/skills/read", async (c) => {
+    const parsed = readSkillRequestSchema.safeParse(
+      (await readJsonBody(c)) ?? {},
+    );
+    if (!parsed.success) {
+      return c.text("Invalid skill read request.", 400);
+    }
+
+    try {
+      const result = await readSkillFile({
+        mcpServers: parsed.data.mcpServers ?? [],
+        projectPath: parsed.data.projectPath?.trim() || undefined,
+        provider: parsed.data.provider,
+        skillPath: parsed.data.path,
+      });
+      return c.json(result);
+    } catch (error) {
+      return c.text(
+        error instanceof Error ? error.message : "Reading the skill failed.",
+        400,
+      );
+    }
   });
 
   app.post("/api/skills/create", async (c) => {

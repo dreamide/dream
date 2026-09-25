@@ -66,6 +66,29 @@ export const setSkillEnabledRequest = async (input: {
   invalidateProviderSkills();
 };
 
+export interface SkillFileContents {
+  attributes: Record<string, unknown>;
+  body: string;
+  path: string;
+  text: string;
+}
+
+export const readSkillFileRequest = async (input: {
+  path: string;
+  projectPath?: string;
+  provider: AiProvider;
+}): Promise<SkillFileContents> => {
+  const response = await fetch("/api/skills/read", {
+    body: JSON.stringify(input),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw await readError(response, "Reading the skill failed.");
+  }
+  return (await response.json()) as SkillFileContents;
+};
+
 export const toSkillName = (value: string) =>
   value
     .trim()

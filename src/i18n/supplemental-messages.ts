@@ -1,6 +1,9 @@
 export const supplementalMessages = {
   de: {
     skills: {
+      previewTitle: "Vorschau (SKILL.md)",
+      previewLoading: "SKILL.md wird geladen…",
+      previewFailed: "Vorschau konnte nicht geladen werden.",
       badgeApp: "App-Skill",
       badgePersonal: "Persönlicher Skill",
       badgeSystem: "System-Skill",
@@ -607,6 +610,9 @@ export const supplementalMessages = {
   },
   en: {
     skills: {
+      previewTitle: "Preview (SKILL.md)",
+      previewLoading: "Loading SKILL.md…",
+      previewFailed: "The preview could not be loaded.",
       badgeApp: "App Skill",
       badgePersonal: "Personal Skill",
       badgeSystem: "System Skill",
@@ -1198,6 +1204,9 @@ export const supplementalMessages = {
   },
   es: {
     skills: {
+      previewTitle: "Vista previa (SKILL.md)",
+      previewLoading: "Cargando SKILL.md…",
+      previewFailed: "No se pudo cargar la vista previa.",
       badgeApp: "Skill de app",
       badgePersonal: "Skill personal",
       badgeSystem: "Skill del sistema",
@@ -1798,6 +1807,9 @@ export const supplementalMessages = {
   },
   fr: {
     skills: {
+      previewTitle: "Aperçu (SKILL.md)",
+      previewLoading: "Chargement de SKILL.md…",
+      previewFailed: "L'aperçu n'a pas pu être chargé.",
       badgeApp: "Skill d'app",
       badgePersonal: "Skill personnel",
       badgeSystem: "Skill système",
@@ -2399,6 +2411,9 @@ export const supplementalMessages = {
   },
   it: {
     skills: {
+      previewTitle: "Anteprima (SKILL.md)",
+      previewLoading: "Caricamento di SKILL.md…",
+      previewFailed: "Impossibile caricare l'anteprima.",
       badgeApp: "Skill app",
       badgePersonal: "Skill personale",
       badgeSystem: "Skill di sistema",
@@ -2999,6 +3014,9 @@ export const supplementalMessages = {
   },
   ja: {
     skills: {
+      previewTitle: "プレビュー (SKILL.md)",
+      previewLoading: "SKILL.md を読み込み中…",
+      previewFailed: "プレビューを読み込めませんでした。",
       badgeApp: "アプリスキル",
       badgePersonal: "個人スキル",
       badgeSystem: "システムスキル",
@@ -3590,6 +3608,9 @@ export const supplementalMessages = {
   },
   ko: {
     skills: {
+      previewTitle: "미리보기 (SKILL.md)",
+      previewLoading: "SKILL.md 불러오는 중…",
+      previewFailed: "미리보기를 불러오지 못했습니다.",
       badgeApp: "앱 스킬",
       badgePersonal: "개인 스킬",
       badgeSystem: "시스템 스킬",
@@ -4171,6 +4192,9 @@ export const supplementalMessages = {
   },
   pt: {
     skills: {
+      previewTitle: "Pré-visualização (SKILL.md)",
+      previewLoading: "Carregando SKILL.md…",
+      previewFailed: "Não foi possível carregar a pré-visualização.",
       badgeApp: "Skill de app",
       badgePersonal: "Skill pessoal",
       badgeSystem: "Skill do sistema",
@@ -4765,6 +4789,9 @@ export const supplementalMessages = {
   },
   vi: {
     skills: {
+      previewTitle: "Xem trước (SKILL.md)",
+      previewLoading: "Đang tải SKILL.md…",
+      previewFailed: "Không thể tải bản xem trước.",
       badgeApp: "Kỹ năng ứng dụng",
       badgePersonal: "Kỹ năng cá nhân",
       badgeSystem: "Kỹ năng hệ thống",
@@ -5353,6 +5380,9 @@ export const supplementalMessages = {
   },
   "zh-Hans": {
     skills: {
+      previewTitle: "预览 (SKILL.md)",
+      previewLoading: "正在加载 SKILL.md…",
+      previewFailed: "无法加载预览。",
       badgeApp: "应用技能",
       badgePersonal: "个人技能",
       badgeSystem: "系统技能",
@@ -5916,6 +5946,9 @@ export const supplementalMessages = {
   },
   "zh-Hant": {
     skills: {
+      previewTitle: "預覽 (SKILL.md)",
+      previewLoading: "正在載入 SKILL.md…",
+      previewFailed: "無法載入預覽。",
       badgeApp: "應用技能",
       badgePersonal: "個人技能",
       badgeSystem: "系統技能",
