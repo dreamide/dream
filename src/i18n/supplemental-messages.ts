@@ -1,6 +1,57 @@
 export const supplementalMessages = {
   de: {
     skills: {
+      title: "Skills",
+      description:
+        "Was jeder Agent für ein Projekt lädt – so gelesen, wie der Agent es selbst tut. Erwähne einen Skill im Chat mit $name.",
+      project: "Projekt",
+      noProject: "Kein Projekt (nur persönliche Skills)",
+      refresh: "Aktualisieren",
+      newSkill: "Neuer Skill",
+      empty: "Keine Skills gefunden",
+      loading: "Skills werden geladen…",
+      enabled: "Aktiviert",
+      disabled: "Deaktiviert",
+      noDescription: "Keine Beschreibung",
+      sourceLabel: "Quelle",
+      pathLabel: "Pfad",
+      argumentsLabel: "Argumente",
+      openFolder: "Ordner öffnen",
+      usageHint: "Im Chat mit {mention} verwenden.",
+      claudeToggleNote:
+        "Das Ausschalten schreibt skillOverrides in ~/.claude/settings.json, so wie es /skills in Claude Code tut.",
+      codexToggleNote:
+        "Das Ausschalten wird über den Codex App-Server in ~/.codex/config.toml gespeichert.",
+      noToggleNote:
+        "Dieser Agent hat keinen Schalter pro Skill. Entferne oder verschiebe den Ordner, um einen Skill zu deaktivieren.",
+      updateFailed: "Skill konnte nicht aktualisiert werden.",
+      createTitle: "Neuer Skill",
+      nameLabel: "Name",
+      namePlaceholder: "z. B. release-checklist",
+      nameHelp:
+        "Kleinbuchstaben, Ziffern und Bindestriche; wird auch der Ordnername.",
+      descriptionLabel: "Beschreibung",
+      descriptionPlaceholder:
+        "Was der Skill tut und wann er verwendet werden soll",
+      descriptionHelp:
+        "Agenten sehen nur diese Zeile, bis sie den Skill laden – schreibe hinein, wann er passt.",
+      bodyLabel: "Anleitung (SKILL.md)",
+      bodyPlaceholder: "Schritte, Regeln und Beispiele für den Agenten…",
+      locationLabel: "Speicherort",
+      locationProjectShared:
+        "Projekt · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "Projekt · .claude/skills (Claude Code)",
+      locationUserShared:
+        "Persönlich · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "Persönlich · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code liest nur .claude/skills; die anderen Agenten teilen sich .agents/skills.",
+      manualOnlyLabel: "Nur bei Erwähnung ausführen",
+      manualOnlyHelp:
+        "Setzt disable-model-invocation, damit der Agent den Skill nicht von sich aus wählt.",
+      create: "Erstellen",
+      createFailed: "Skill konnte nicht erstellt werden.",
+      saveAsSkill: "Als Skill speichern",
       composerPlaceholder: "Frag etwas – @ für Dateien, $ für Skills",
       scopeProject: "Projekt",
       scopeUser: "Persönlich",
@@ -551,6 +602,56 @@ export const supplementalMessages = {
   },
   en: {
     skills: {
+      title: "Skills",
+      description:
+        "What each agent loads for a project, read the way that agent reads it. Mention a skill in chat with $name.",
+      project: "Project",
+      noProject: "No project (personal skills only)",
+      refresh: "Refresh",
+      newSkill: "New skill",
+      empty: "No skills found",
+      loading: "Loading skills…",
+      enabled: "Enabled",
+      disabled: "Disabled",
+      noDescription: "No description",
+      sourceLabel: "Source",
+      pathLabel: "Path",
+      argumentsLabel: "Arguments",
+      openFolder: "Open folder",
+      usageHint: "Use it in chat with {mention}.",
+      claudeToggleNote:
+        "Turning a skill off writes skillOverrides to ~/.claude/settings.json, the same setting Claude Code's /skills menu uses.",
+      codexToggleNote:
+        "Turning a skill off is saved through the Codex app-server into ~/.codex/config.toml.",
+      noToggleNote:
+        "This agent has no per-skill switch. Remove or move the folder to stop loading a skill.",
+      updateFailed: "The skill could not be updated.",
+      createTitle: "New skill",
+      nameLabel: "Name",
+      namePlaceholder: "e.g. release-checklist",
+      nameHelp:
+        "Lowercase letters, digits and hyphens; this is also the folder name.",
+      descriptionLabel: "Description",
+      descriptionPlaceholder: "What the skill does and when to use it",
+      descriptionHelp:
+        "Agents only see this line until they load the skill, so say when it applies.",
+      bodyLabel: "Instructions (SKILL.md)",
+      bodyPlaceholder: "Steps, rules and examples for the agent…",
+      locationLabel: "Location",
+      locationProjectShared:
+        "Project · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "Project · .claude/skills (Claude Code)",
+      locationUserShared:
+        "Personal · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "Personal · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code only reads .claude/skills; the other agents share .agents/skills.",
+      manualOnlyLabel: "Only run when mentioned",
+      manualOnlyHelp:
+        "Sets disable-model-invocation so the agent never picks this skill on its own.",
+      create: "Create",
+      createFailed: "The skill could not be created.",
+      saveAsSkill: "Save as skill",
       composerPlaceholder: "Ask anything, @ files, $ skills",
       scopeProject: "Project",
       scopeUser: "Personal",
@@ -1087,6 +1188,56 @@ export const supplementalMessages = {
   },
   es: {
     skills: {
+      title: "Skills",
+      description:
+        "Lo que carga cada agente para un proyecto, leído como lo lee ese agente. Menciona un skill en el chat con $nombre.",
+      project: "Proyecto",
+      noProject: "Sin proyecto (solo skills personales)",
+      refresh: "Actualizar",
+      newSkill: "Nuevo skill",
+      empty: "No se encontraron skills",
+      loading: "Cargando skills…",
+      enabled: "Activado",
+      disabled: "Desactivado",
+      noDescription: "Sin descripción",
+      sourceLabel: "Origen",
+      pathLabel: "Ruta",
+      argumentsLabel: "Argumentos",
+      openFolder: "Abrir carpeta",
+      usageHint: "Úsalo en el chat con {mention}.",
+      claudeToggleNote:
+        "Desactivar un skill escribe skillOverrides en ~/.claude/settings.json, el mismo ajuste que usa /skills en Claude Code.",
+      codexToggleNote:
+        "Desactivar un skill se guarda a través del app-server de Codex en ~/.codex/config.toml.",
+      noToggleNote:
+        "Este agente no tiene interruptor por skill. Elimina o mueve la carpeta para dejar de cargarlo.",
+      updateFailed: "No se pudo actualizar el skill.",
+      createTitle: "Nuevo skill",
+      nameLabel: "Nombre",
+      namePlaceholder: "p. ej. release-checklist",
+      nameHelp:
+        "Minúsculas, dígitos y guiones; también es el nombre de la carpeta.",
+      descriptionLabel: "Descripción",
+      descriptionPlaceholder: "Qué hace el skill y cuándo usarlo",
+      descriptionHelp:
+        "Los agentes solo ven esta línea hasta cargar el skill, así que indica cuándo aplica.",
+      bodyLabel: "Instrucciones (SKILL.md)",
+      bodyPlaceholder: "Pasos, reglas y ejemplos para el agente…",
+      locationLabel: "Ubicación",
+      locationProjectShared:
+        "Proyecto · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "Proyecto · .claude/skills (Claude Code)",
+      locationUserShared:
+        "Personal · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "Personal · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code solo lee .claude/skills; los demás agentes comparten .agents/skills.",
+      manualOnlyLabel: "Ejecutar solo al mencionarlo",
+      manualOnlyHelp:
+        "Establece disable-model-invocation para que el agente nunca elija este skill por su cuenta.",
+      create: "Crear",
+      createFailed: "No se pudo crear el skill.",
+      saveAsSkill: "Guardar como skill",
       composerPlaceholder: "Pregunta lo que quieras: @ archivos, $ skills",
       scopeProject: "Proyecto",
       scopeUser: "Personal",
@@ -1632,6 +1783,56 @@ export const supplementalMessages = {
   },
   fr: {
     skills: {
+      title: "Skills",
+      description:
+        "Ce que chaque agent charge pour un projet, lu comme cet agent le lit. Mentionnez un skill dans le chat avec $nom.",
+      project: "Projet",
+      noProject: "Aucun projet (skills personnels uniquement)",
+      refresh: "Actualiser",
+      newSkill: "Nouveau skill",
+      empty: "Aucun skill trouvé",
+      loading: "Chargement des skills…",
+      enabled: "Activé",
+      disabled: "Désactivé",
+      noDescription: "Pas de description",
+      sourceLabel: "Source",
+      pathLabel: "Chemin",
+      argumentsLabel: "Arguments",
+      openFolder: "Ouvrir le dossier",
+      usageHint: "Utilisez-le dans le chat avec {mention}.",
+      claudeToggleNote:
+        "Désactiver un skill écrit skillOverrides dans ~/.claude/settings.json, le réglage utilisé par /skills dans Claude Code.",
+      codexToggleNote:
+        "La désactivation est enregistrée via l'app-server Codex dans ~/.codex/config.toml.",
+      noToggleNote:
+        "Cet agent n'a pas d'interrupteur par skill. Supprimez ou déplacez le dossier pour ne plus le charger.",
+      updateFailed: "Le skill n'a pas pu être mis à jour.",
+      createTitle: "Nouveau skill",
+      nameLabel: "Nom",
+      namePlaceholder: "ex. release-checklist",
+      nameHelp:
+        "Minuscules, chiffres et tirets ; c'est aussi le nom du dossier.",
+      descriptionLabel: "Description",
+      descriptionPlaceholder: "Ce que fait le skill et quand l'utiliser",
+      descriptionHelp:
+        "Les agents ne voient que cette ligne avant de charger le skill : dites quand il s'applique.",
+      bodyLabel: "Instructions (SKILL.md)",
+      bodyPlaceholder: "Étapes, règles et exemples pour l'agent…",
+      locationLabel: "Emplacement",
+      locationProjectShared:
+        "Projet · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "Projet · .claude/skills (Claude Code)",
+      locationUserShared:
+        "Personnel · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "Personnel · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code ne lit que .claude/skills ; les autres agents partagent .agents/skills.",
+      manualOnlyLabel: "Exécuter uniquement sur mention",
+      manualOnlyHelp:
+        "Définit disable-model-invocation pour que l'agent ne choisisse jamais ce skill seul.",
+      create: "Créer",
+      createFailed: "Le skill n'a pas pu être créé.",
+      saveAsSkill: "Enregistrer comme skill",
       composerPlaceholder: "Demandez n'importe quoi : @ fichiers, $ skills",
       scopeProject: "Projet",
       scopeUser: "Personnel",
@@ -2178,6 +2379,55 @@ export const supplementalMessages = {
   },
   it: {
     skills: {
+      title: "Skill",
+      description:
+        "Cosa carica ogni agente per un progetto, letto come lo legge quell'agente. Menziona una skill in chat con $nome.",
+      project: "Progetto",
+      noProject: "Nessun progetto (solo skill personali)",
+      refresh: "Aggiorna",
+      newSkill: "Nuova skill",
+      empty: "Nessuna skill trovata",
+      loading: "Caricamento skill…",
+      enabled: "Attiva",
+      disabled: "Disattivata",
+      noDescription: "Nessuna descrizione",
+      sourceLabel: "Origine",
+      pathLabel: "Percorso",
+      argumentsLabel: "Argomenti",
+      openFolder: "Apri cartella",
+      usageHint: "Usala in chat con {mention}.",
+      claudeToggleNote:
+        "Disattivare una skill scrive skillOverrides in ~/.claude/settings.json, la stessa impostazione usata da /skills in Claude Code.",
+      codexToggleNote:
+        "La disattivazione viene salvata tramite l'app-server Codex in ~/.codex/config.toml.",
+      noToggleNote:
+        "Questo agente non ha un interruttore per skill. Rimuovi o sposta la cartella per non caricarla più.",
+      updateFailed: "Impossibile aggiornare la skill.",
+      createTitle: "Nuova skill",
+      nameLabel: "Nome",
+      namePlaceholder: "es. release-checklist",
+      nameHelp: "Minuscole, cifre e trattini; è anche il nome della cartella.",
+      descriptionLabel: "Descrizione",
+      descriptionPlaceholder: "Cosa fa la skill e quando usarla",
+      descriptionHelp:
+        "Gli agenti vedono solo questa riga finché non caricano la skill: indica quando si applica.",
+      bodyLabel: "Istruzioni (SKILL.md)",
+      bodyPlaceholder: "Passi, regole ed esempi per l'agente…",
+      locationLabel: "Posizione",
+      locationProjectShared:
+        "Progetto · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "Progetto · .claude/skills (Claude Code)",
+      locationUserShared:
+        "Personale · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "Personale · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code legge solo .claude/skills; gli altri agenti condividono .agents/skills.",
+      manualOnlyLabel: "Esegui solo se menzionata",
+      manualOnlyHelp:
+        "Imposta disable-model-invocation così l'agente non sceglie mai questa skill da solo.",
+      create: "Crea",
+      createFailed: "Impossibile creare la skill.",
+      saveAsSkill: "Salva come skill",
       composerPlaceholder: "Chiedi qualsiasi cosa: @ file, $ skill",
       scopeProject: "Progetto",
       scopeUser: "Personale",
@@ -2724,6 +2974,54 @@ export const supplementalMessages = {
   },
   ja: {
     skills: {
+      title: "スキル",
+      description:
+        "各エージェントがプロジェクトで読み込むスキルを、そのエージェントと同じ方法で一覧します。チャットでは $名前 で呼び出せます。",
+      project: "プロジェクト",
+      noProject: "プロジェクトなし（個人スキルのみ）",
+      refresh: "更新",
+      newSkill: "新しいスキル",
+      empty: "スキルが見つかりません",
+      loading: "スキルを読み込み中…",
+      enabled: "有効",
+      disabled: "無効",
+      noDescription: "説明なし",
+      sourceLabel: "ソース",
+      pathLabel: "パス",
+      argumentsLabel: "引数",
+      openFolder: "フォルダーを開く",
+      usageHint: "チャットで {mention} と入力して使います。",
+      claudeToggleNote:
+        "無効にすると Claude Code の /skills と同じく ~/.claude/settings.json の skillOverrides に書き込みます。",
+      codexToggleNote:
+        "無効化は Codex app-server 経由で ~/.codex/config.toml に保存されます。",
+      noToggleNote:
+        "このエージェントにはスキルごとのスイッチがありません。読み込みを止めるにはフォルダーを削除または移動してください。",
+      updateFailed: "スキルを更新できませんでした。",
+      createTitle: "新しいスキル",
+      nameLabel: "名前",
+      namePlaceholder: "例: release-checklist",
+      nameHelp: "小文字・数字・ハイフンのみ。フォルダー名にもなります。",
+      descriptionLabel: "説明",
+      descriptionPlaceholder: "スキルの内容と使うべき場面",
+      descriptionHelp:
+        "エージェントは読み込むまでこの1行しか見ないので、いつ使うかを書いてください。",
+      bodyLabel: "手順 (SKILL.md)",
+      bodyPlaceholder: "エージェント向けの手順、ルール、例…",
+      locationLabel: "保存先",
+      locationProjectShared:
+        "プロジェクト · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "プロジェクト · .claude/skills (Claude Code)",
+      locationUserShared: "個人 · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "個人 · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code は .claude/skills のみ読み込み、他のエージェントは .agents/skills を共有します。",
+      manualOnlyLabel: "呼び出されたときだけ実行",
+      manualOnlyHelp:
+        "disable-model-invocation を設定し、エージェントが自発的に選ばないようにします。",
+      create: "作成",
+      createFailed: "スキルを作成できませんでした。",
+      saveAsSkill: "スキルとして保存",
       composerPlaceholder: "何でも質問できます。@ でファイル、$ でスキル",
       scopeProject: "プロジェクト",
       scopeUser: "個人",
@@ -3262,6 +3560,54 @@ export const supplementalMessages = {
   },
   ko: {
     skills: {
+      title: "스킬",
+      description:
+        "각 에이전트가 프로젝트에서 불러오는 스킬을 해당 에이전트와 같은 방식으로 표시합니다. 채팅에서 $이름 으로 언급하세요.",
+      project: "프로젝트",
+      noProject: "프로젝트 없음(개인 스킬만)",
+      refresh: "새로고침",
+      newSkill: "새 스킬",
+      empty: "스킬이 없습니다",
+      loading: "스킬 불러오는 중…",
+      enabled: "사용",
+      disabled: "사용 안 함",
+      noDescription: "설명 없음",
+      sourceLabel: "출처",
+      pathLabel: "경로",
+      argumentsLabel: "인수",
+      openFolder: "폴더 열기",
+      usageHint: "채팅에서 {mention} 으로 사용하세요.",
+      claudeToggleNote:
+        "스킬을 끄면 Claude Code의 /skills 와 같이 ~/.claude/settings.json 의 skillOverrides 에 기록됩니다.",
+      codexToggleNote:
+        "끄기는 Codex app-server 를 통해 ~/.codex/config.toml 에 저장됩니다.",
+      noToggleNote:
+        "이 에이전트에는 스킬별 스위치가 없습니다. 불러오지 않으려면 폴더를 삭제하거나 옮기세요.",
+      updateFailed: "스킬을 업데이트하지 못했습니다.",
+      createTitle: "새 스킬",
+      nameLabel: "이름",
+      namePlaceholder: "예: release-checklist",
+      nameHelp: "소문자, 숫자, 하이픈만 사용. 폴더 이름으로도 쓰입니다.",
+      descriptionLabel: "설명",
+      descriptionPlaceholder: "스킬이 하는 일과 사용할 때",
+      descriptionHelp:
+        "에이전트는 스킬을 불러오기 전까지 이 한 줄만 보므로 언제 쓰는지 적어 주세요.",
+      bodyLabel: "지침 (SKILL.md)",
+      bodyPlaceholder: "에이전트를 위한 단계, 규칙, 예시…",
+      locationLabel: "위치",
+      locationProjectShared:
+        "프로젝트 · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "프로젝트 · .claude/skills (Claude Code)",
+      locationUserShared: "개인 · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "개인 · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code는 .claude/skills 만 읽고, 다른 에이전트는 .agents/skills 를 공유합니다.",
+      manualOnlyLabel: "언급했을 때만 실행",
+      manualOnlyHelp:
+        "disable-model-invocation 을 설정해 에이전트가 스스로 선택하지 않게 합니다.",
+      create: "만들기",
+      createFailed: "스킬을 만들지 못했습니다.",
+      saveAsSkill: "스킬로 저장",
       composerPlaceholder: "무엇이든 물어보세요. @ 파일, $ 스킬",
       scopeProject: "프로젝트",
       scopeUser: "개인",
@@ -3790,6 +4136,55 @@ export const supplementalMessages = {
   },
   pt: {
     skills: {
+      title: "Skills",
+      description:
+        "O que cada agente carrega para um projeto, lido como esse agente lê. Mencione um skill no chat com $nome.",
+      project: "Projeto",
+      noProject: "Sem projeto (apenas skills pessoais)",
+      refresh: "Atualizar",
+      newSkill: "Novo skill",
+      empty: "Nenhum skill encontrado",
+      loading: "Carregando skills…",
+      enabled: "Ativado",
+      disabled: "Desativado",
+      noDescription: "Sem descrição",
+      sourceLabel: "Origem",
+      pathLabel: "Caminho",
+      argumentsLabel: "Argumentos",
+      openFolder: "Abrir pasta",
+      usageHint: "Use no chat com {mention}.",
+      claudeToggleNote:
+        "Desativar um skill grava skillOverrides em ~/.claude/settings.json, a mesma configuração usada por /skills no Claude Code.",
+      codexToggleNote:
+        "A desativação é salva pelo app-server do Codex em ~/.codex/config.toml.",
+      noToggleNote:
+        "Este agente não tem interruptor por skill. Remova ou mova a pasta para parar de carregá-lo.",
+      updateFailed: "Não foi possível atualizar o skill.",
+      createTitle: "Novo skill",
+      nameLabel: "Nome",
+      namePlaceholder: "ex.: release-checklist",
+      nameHelp: "Minúsculas, dígitos e hífens; também é o nome da pasta.",
+      descriptionLabel: "Descrição",
+      descriptionPlaceholder: "O que o skill faz e quando usá-lo",
+      descriptionHelp:
+        "Os agentes só veem esta linha até carregar o skill, então diga quando ele se aplica.",
+      bodyLabel: "Instruções (SKILL.md)",
+      bodyPlaceholder: "Passos, regras e exemplos para o agente…",
+      locationLabel: "Local",
+      locationProjectShared:
+        "Projeto · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "Projeto · .claude/skills (Claude Code)",
+      locationUserShared:
+        "Pessoal · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "Pessoal · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "O Claude Code só lê .claude/skills; os outros agentes compartilham .agents/skills.",
+      manualOnlyLabel: "Executar apenas quando mencionado",
+      manualOnlyHelp:
+        "Define disable-model-invocation para que o agente nunca escolha este skill sozinho.",
+      create: "Criar",
+      createFailed: "Não foi possível criar o skill.",
+      saveAsSkill: "Salvar como skill",
       composerPlaceholder: "Pergunte qualquer coisa: @ arquivos, $ skills",
       scopeProject: "Projeto",
       scopeUser: "Pessoal",
@@ -4330,6 +4725,54 @@ export const supplementalMessages = {
   },
   vi: {
     skills: {
+      title: "Kỹ năng",
+      description:
+        "Những gì mỗi agent tải cho một dự án, đọc theo cách agent đó đọc. Nhắc đến kỹ năng trong chat bằng $tên.",
+      project: "Dự án",
+      noProject: "Không có dự án (chỉ kỹ năng cá nhân)",
+      refresh: "Làm mới",
+      newSkill: "Kỹ năng mới",
+      empty: "Không tìm thấy kỹ năng",
+      loading: "Đang tải kỹ năng…",
+      enabled: "Bật",
+      disabled: "Tắt",
+      noDescription: "Không có mô tả",
+      sourceLabel: "Nguồn",
+      pathLabel: "Đường dẫn",
+      argumentsLabel: "Đối số",
+      openFolder: "Mở thư mục",
+      usageHint: "Dùng trong chat bằng {mention}.",
+      claudeToggleNote:
+        "Tắt kỹ năng sẽ ghi skillOverrides vào ~/.claude/settings.json, cùng thiết lập mà /skills của Claude Code dùng.",
+      codexToggleNote:
+        "Việc tắt được lưu qua app-server của Codex vào ~/.codex/config.toml.",
+      noToggleNote:
+        "Agent này không có công tắc theo kỹ năng. Xóa hoặc di chuyển thư mục để ngừng tải.",
+      updateFailed: "Không thể cập nhật kỹ năng.",
+      createTitle: "Kỹ năng mới",
+      nameLabel: "Tên",
+      namePlaceholder: "vd: release-checklist",
+      nameHelp: "Chữ thường, chữ số và dấu gạch ngang; cũng là tên thư mục.",
+      descriptionLabel: "Mô tả",
+      descriptionPlaceholder: "Kỹ năng làm gì và khi nào dùng",
+      descriptionHelp:
+        "Agent chỉ thấy dòng này cho đến khi tải kỹ năng, nên hãy nói khi nào nó áp dụng.",
+      bodyLabel: "Hướng dẫn (SKILL.md)",
+      bodyPlaceholder: "Các bước, quy tắc và ví dụ cho agent…",
+      locationLabel: "Vị trí",
+      locationProjectShared: "Dự án · .agents/skills (Codex, OpenCode, Cursor)",
+      locationProjectClaude: "Dự án · .claude/skills (Claude Code)",
+      locationUserShared:
+        "Cá nhân · ~/.agents/skills (Codex, OpenCode, Cursor)",
+      locationUserClaude: "Cá nhân · ~/.claude/skills (Claude Code)",
+      locationHelp:
+        "Claude Code chỉ đọc .claude/skills; các agent khác dùng chung .agents/skills.",
+      manualOnlyLabel: "Chỉ chạy khi được nhắc đến",
+      manualOnlyHelp:
+        "Đặt disable-model-invocation để agent không bao giờ tự chọn kỹ năng này.",
+      create: "Tạo",
+      createFailed: "Không thể tạo kỹ năng.",
+      saveAsSkill: "Lưu thành kỹ năng",
       composerPlaceholder: "Hỏi bất cứ điều gì, @ tệp, $ kỹ năng",
       scopeProject: "Dự án",
       scopeUser: "Cá nhân",
@@ -4865,6 +5308,51 @@ export const supplementalMessages = {
   },
   "zh-Hans": {
     skills: {
+      title: "技能",
+      description:
+        "每个智能体为项目加载的技能，按该智能体自己的方式读取。在聊天中用 $名称 提及技能。",
+      project: "项目",
+      noProject: "无项目（仅个人技能）",
+      refresh: "刷新",
+      newSkill: "新建技能",
+      empty: "未找到技能",
+      loading: "正在加载技能…",
+      enabled: "已启用",
+      disabled: "已禁用",
+      noDescription: "无描述",
+      sourceLabel: "来源",
+      pathLabel: "路径",
+      argumentsLabel: "参数",
+      openFolder: "打开文件夹",
+      usageHint: "在聊天中输入 {mention} 使用。",
+      claudeToggleNote:
+        "关闭技能会把 skillOverrides 写入 ~/.claude/settings.json，与 Claude Code 的 /skills 使用相同设置。",
+      codexToggleNote:
+        "关闭操作通过 Codex app-server 保存到 ~/.codex/config.toml。",
+      noToggleNote: "该智能体没有按技能的开关。删除或移动文件夹即可停止加载。",
+      updateFailed: "无法更新技能。",
+      createTitle: "新建技能",
+      nameLabel: "名称",
+      namePlaceholder: "例如 release-checklist",
+      nameHelp: "小写字母、数字和连字符；同时也是文件夹名。",
+      descriptionLabel: "描述",
+      descriptionPlaceholder: "技能做什么、何时使用",
+      descriptionHelp: "智能体在加载技能前只能看到这一行，请说明适用场景。",
+      bodyLabel: "说明 (SKILL.md)",
+      bodyPlaceholder: "给智能体的步骤、规则和示例…",
+      locationLabel: "位置",
+      locationProjectShared: "项目 · .agents/skills（Codex、OpenCode、Cursor）",
+      locationProjectClaude: "项目 · .claude/skills（Claude Code）",
+      locationUserShared: "个人 · ~/.agents/skills（Codex、OpenCode、Cursor）",
+      locationUserClaude: "个人 · ~/.claude/skills（Claude Code）",
+      locationHelp:
+        "Claude Code 只读取 .claude/skills；其他智能体共用 .agents/skills。",
+      manualOnlyLabel: "仅在被提及时运行",
+      manualOnlyHelp:
+        "设置 disable-model-invocation，智能体不会自行选择此技能。",
+      create: "创建",
+      createFailed: "无法创建技能。",
+      saveAsSkill: "保存为技能",
       composerPlaceholder: "随便问，@ 文件，$ 技能",
       scopeProject: "项目",
       scopeUser: "个人",
@@ -5378,6 +5866,52 @@ export const supplementalMessages = {
   },
   "zh-Hant": {
     skills: {
+      title: "技能",
+      description:
+        "每個代理程式為專案載入的技能，依該代理程式自己的方式讀取。在聊天中以 $名稱 提及技能。",
+      project: "專案",
+      noProject: "無專案（僅個人技能）",
+      refresh: "重新整理",
+      newSkill: "新增技能",
+      empty: "找不到技能",
+      loading: "正在載入技能…",
+      enabled: "已啟用",
+      disabled: "已停用",
+      noDescription: "無描述",
+      sourceLabel: "來源",
+      pathLabel: "路徑",
+      argumentsLabel: "參數",
+      openFolder: "開啟資料夾",
+      usageHint: "在聊天中輸入 {mention} 使用。",
+      claudeToggleNote:
+        "停用技能會把 skillOverrides 寫入 ~/.claude/settings.json，與 Claude Code 的 /skills 使用相同設定。",
+      codexToggleNote:
+        "停用會透過 Codex app-server 儲存到 ~/.codex/config.toml。",
+      noToggleNote:
+        "此代理程式沒有逐技能的開關。刪除或移動資料夾即可停止載入。",
+      updateFailed: "無法更新技能。",
+      createTitle: "新增技能",
+      nameLabel: "名稱",
+      namePlaceholder: "例如 release-checklist",
+      nameHelp: "小寫字母、數字與連字號；同時也是資料夾名稱。",
+      descriptionLabel: "描述",
+      descriptionPlaceholder: "技能做什麼、何時使用",
+      descriptionHelp: "代理程式在載入技能前只看得到這一行，請說明適用情境。",
+      bodyLabel: "說明 (SKILL.md)",
+      bodyPlaceholder: "給代理程式的步驟、規則與範例…",
+      locationLabel: "位置",
+      locationProjectShared: "專案 · .agents/skills（Codex、OpenCode、Cursor）",
+      locationProjectClaude: "專案 · .claude/skills（Claude Code）",
+      locationUserShared: "個人 · ~/.agents/skills（Codex、OpenCode、Cursor）",
+      locationUserClaude: "個人 · ~/.claude/skills（Claude Code）",
+      locationHelp:
+        "Claude Code 只讀取 .claude/skills；其他代理程式共用 .agents/skills。",
+      manualOnlyLabel: "僅在被提及時執行",
+      manualOnlyHelp:
+        "設定 disable-model-invocation，代理程式不會自行選擇此技能。",
+      create: "建立",
+      createFailed: "無法建立技能。",
+      saveAsSkill: "儲存為技能",
       composerPlaceholder: "隨便問，@ 檔案，$ 技能",
       scopeProject: "專案",
       scopeUser: "個人",

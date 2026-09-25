@@ -12,6 +12,7 @@ export type SettingsSection =
   | "providers"
   | "mcp"
   | "prompts"
+  | "skills"
   | "chats";
 
 export type TerminalStatus = "running" | "stopped";

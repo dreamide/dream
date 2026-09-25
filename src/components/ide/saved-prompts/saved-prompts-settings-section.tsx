@@ -6,6 +6,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Zap,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SavedPrompt } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
+import { CreateSkillDialog } from "../skills/create-skill-dialog";
 import { SavedPromptDialog } from "./saved-prompt-dialog";
 
 type DialogState =
@@ -28,7 +30,14 @@ type DialogState =
 export const SavedPromptsSettingsSection = () => {
   const t = useTranslations("savedPrompts");
   const commonT = useTranslations("common");
+  const skillsT = useTranslations("skills");
   const savedPrompts = useIdeStore((state) => state.savedPrompts);
+  const activeProjectPath = useIdeStore(
+    (state) =>
+      state.projects.find((project) => project.id === state.activeProjectId)
+        ?.path ?? null,
+  );
+  const [skillSource, setSkillSource] = useState<SavedPrompt | null>(null);
   const addSavedPrompt = useIdeStore((state) => state.addSavedPrompt);
   const updateSavedPrompt = useIdeStore((state) => state.updateSavedPrompt);
   const deleteSavedPrompt = useIdeStore((state) => state.deleteSavedPrompt);
@@ -124,6 +133,17 @@ export const SavedPromptsSettingsSection = () => {
                       <ArrowDown className="size-4" />
                     </Button>
                     <Button
+                      aria-label={skillsT("saveAsSkill")}
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setSkillSource(savedPrompt)}
+                      size="icon-sm"
+                      title={skillsT("saveAsSkill")}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Zap className="size-4" />
+                    </Button>
+                    <Button
                       aria-label={commonT("edit")}
                       className="text-muted-foreground hover:text-foreground"
                       onClick={() => setDialog({ mode: "edit", savedPrompt })}
@@ -198,6 +218,18 @@ export const SavedPromptsSettingsSection = () => {
             }
             setDialog(null);
           }}
+        />
+      ) : null}
+      {skillSource ? (
+        <CreateSkillDialog
+          initialValue={{
+            body: skillSource.prompt,
+            description: skillSource.name,
+            name: skillSource.name,
+            userInvocationOnly: true,
+          }}
+          onClose={() => setSkillSource(null)}
+          projectPath={activeProjectPath}
         />
       ) : null}
     </div>

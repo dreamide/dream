@@ -77,8 +77,6 @@ export const applyClaudeSkillOverride = (skill, override) => {
       return { ...skill, enabled: false };
     case "user-invocable-only":
       return { ...skill, userInvocationOnly: true };
-    case "name-only":
-    case "on":
     default:
       return skill;
   }
