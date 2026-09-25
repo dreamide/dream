@@ -5,13 +5,13 @@ import {
   MessageSquareText,
   Monitor,
   Moon,
+  Package,
   RotateCcw,
   RotateCw,
   Server,
   Settings,
   Sun,
   Trash2,
-  Zap,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -581,7 +581,7 @@ export const SettingsWorkspace = () => {
               type="button"
             >
               <span className="flex items-center gap-2">
-                <Zap className="size-4" />
+                <Package className="size-4" />
                 {skillsT("title")}
               </span>
             </button>

@@ -4,7 +4,7 @@ import type {
   ProviderSkillsResponse,
 } from "@/types/ide";
 
-export const SKILL_RESULT_LIMIT = 8;
+export const SKILL_RESULT_LIMIT = 50;
 
 /** Providers whose CLIs load Agent Skills. */
 export const SKILL_PROVIDER_SUPPORT: Record<AiProvider, boolean> = {
@@ -62,12 +62,16 @@ export const getActiveSkillToken = (
   return { end: caretIndex, query, start: dollarIndex };
 };
 
+/** What the menu shows: the provider's display name when it has one. */
+export const getSkillLabel = (skill: ProviderSkill) =>
+  skill.displayName?.trim() || skill.name;
+
 export const isSkillOfferedInMenu = (skill: ProviderSkill) =>
   skill.enabled && skill.userInvocable !== false;
 
 const getSkillScore = (skill: ProviderSkill, query: string) => {
   if (!query) {
-    return skill.scope === "project" ? 0 : skill.scope === "user" ? 1 : 2;
+    return 0;
   }
 
   const normalizedQuery = query.toLowerCase();
@@ -111,7 +115,7 @@ export const searchProviderSkills = (
     .sort(
       (left, right) =>
         left.score - right.score ||
-        left.skill.name.localeCompare(right.skill.name),
+        getSkillLabel(left.skill).localeCompare(getSkillLabel(right.skill)),
     )
     .slice(0, limit)
     .map(({ skill }) => skill);

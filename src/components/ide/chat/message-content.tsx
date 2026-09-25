@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { PaperclipIcon, Zap } from "lucide-react";
+import { Package, PaperclipIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   Attachment,
@@ -243,7 +243,7 @@ export const UserMessageContent = ({
               key={`skill:${name}`}
               variant="secondary"
             >
-              <Zap className="size-3 shrink-0" />
+              <Package className="size-3 shrink-0" />
               <span className="truncate font-mono text-xs">${name}</span>
             </Badge>
           ))}

@@ -84,8 +84,8 @@ describe("searchProviderSkills", () => {
 
   test("hides disabled and non-user-invocable skills", () => {
     expect(searchProviderSkills(skills, "").map((s) => s.name)).toEqual([
-      "deploy",
       "debug-help",
+      "deploy",
       "rel",
     ]);
   });

@@ -1,6 +1,12 @@
 export const supplementalMessages = {
   de: {
     skills: {
+      badgeApp: "App-Skill",
+      badgePersonal: "Persönlicher Skill",
+      badgeSystem: "System-Skill",
+      badgeProject: "Projekt-Skill",
+      badgeManaged: "Verwalteter Skill",
+      badgeCommand: "Befehl",
       title: "Skills",
       description:
         "Was jeder Agent für ein Projekt lädt – so gelesen, wie der Agent es selbst tut. Erwähne einen Skill im Chat mit $name.",
@@ -601,6 +607,12 @@ export const supplementalMessages = {
   },
   en: {
     skills: {
+      badgeApp: "App Skill",
+      badgePersonal: "Personal Skill",
+      badgeSystem: "System Skill",
+      badgeProject: "Project Skill",
+      badgeManaged: "Managed Skill",
+      badgeCommand: "Command",
       title: "Skills",
       description:
         "What each agent loads for a project, read the way that agent reads it. Mention a skill in chat with $name.",
@@ -1186,6 +1198,12 @@ export const supplementalMessages = {
   },
   es: {
     skills: {
+      badgeApp: "Skill de app",
+      badgePersonal: "Skill personal",
+      badgeSystem: "Skill del sistema",
+      badgeProject: "Skill del proyecto",
+      badgeManaged: "Skill gestionado",
+      badgeCommand: "Comando",
       title: "Skills",
       description:
         "Lo que carga cada agente para un proyecto, leído como lo lee ese agente. Menciona un skill en el chat con $nombre.",
@@ -1780,6 +1798,12 @@ export const supplementalMessages = {
   },
   fr: {
     skills: {
+      badgeApp: "Skill d'app",
+      badgePersonal: "Skill personnel",
+      badgeSystem: "Skill système",
+      badgeProject: "Skill du projet",
+      badgeManaged: "Skill géré",
+      badgeCommand: "Commande",
       title: "Skills",
       description:
         "Ce que chaque agent charge pour un projet, lu comme cet agent le lit. Mentionnez un skill dans le chat avec $nom.",
@@ -2375,6 +2399,12 @@ export const supplementalMessages = {
   },
   it: {
     skills: {
+      badgeApp: "Skill app",
+      badgePersonal: "Skill personale",
+      badgeSystem: "Skill di sistema",
+      badgeProject: "Skill del progetto",
+      badgeManaged: "Skill gestita",
+      badgeCommand: "Comando",
       title: "Skill",
       description:
         "Cosa carica ogni agente per un progetto, letto come lo legge quell'agente. Menziona una skill in chat con $nome.",
@@ -2969,6 +2999,12 @@ export const supplementalMessages = {
   },
   ja: {
     skills: {
+      badgeApp: "アプリスキル",
+      badgePersonal: "個人スキル",
+      badgeSystem: "システムスキル",
+      badgeProject: "プロジェクトスキル",
+      badgeManaged: "管理スキル",
+      badgeCommand: "コマンド",
       title: "スキル",
       description:
         "各エージェントがプロジェクトで読み込むスキルを、そのエージェントと同じ方法で一覧します。チャットでは $名前 で呼び出せます。",
@@ -3554,6 +3590,12 @@ export const supplementalMessages = {
   },
   ko: {
     skills: {
+      badgeApp: "앱 스킬",
+      badgePersonal: "개인 스킬",
+      badgeSystem: "시스템 스킬",
+      badgeProject: "프로젝트 스킬",
+      badgeManaged: "관리 스킬",
+      badgeCommand: "명령",
       title: "스킬",
       description:
         "각 에이전트가 프로젝트에서 불러오는 스킬을 해당 에이전트와 같은 방식으로 표시합니다. 채팅에서 $이름 으로 언급하세요.",
@@ -4129,6 +4171,12 @@ export const supplementalMessages = {
   },
   pt: {
     skills: {
+      badgeApp: "Skill de app",
+      badgePersonal: "Skill pessoal",
+      badgeSystem: "Skill do sistema",
+      badgeProject: "Skill do projeto",
+      badgeManaged: "Skill gerenciado",
+      badgeCommand: "Comando",
       title: "Skills",
       description:
         "O que cada agente carrega para um projeto, lido como esse agente lê. Mencione um skill no chat com $nome.",
@@ -4717,6 +4765,12 @@ export const supplementalMessages = {
   },
   vi: {
     skills: {
+      badgeApp: "Kỹ năng ứng dụng",
+      badgePersonal: "Kỹ năng cá nhân",
+      badgeSystem: "Kỹ năng hệ thống",
+      badgeProject: "Kỹ năng dự án",
+      badgeManaged: "Kỹ năng được quản lý",
+      badgeCommand: "Lệnh",
       title: "Kỹ năng",
       description:
         "Những gì mỗi agent tải cho một dự án, đọc theo cách agent đó đọc. Nhắc đến kỹ năng trong chat bằng $tên.",
@@ -5299,6 +5353,12 @@ export const supplementalMessages = {
   },
   "zh-Hans": {
     skills: {
+      badgeApp: "应用技能",
+      badgePersonal: "个人技能",
+      badgeSystem: "系统技能",
+      badgeProject: "项目技能",
+      badgeManaged: "托管技能",
+      badgeCommand: "命令",
       title: "技能",
       description:
         "每个智能体为项目加载的技能，按该智能体自己的方式读取。在聊天中用 $名称 提及技能。",
@@ -5856,6 +5916,12 @@ export const supplementalMessages = {
   },
   "zh-Hant": {
     skills: {
+      badgeApp: "應用技能",
+      badgePersonal: "個人技能",
+      badgeSystem: "系統技能",
+      badgeProject: "專案技能",
+      badgeManaged: "受管理技能",
+      badgeCommand: "命令",
       title: "技能",
       description:
         "每個代理程式為專案載入的技能，依該代理程式自己的方式讀取。在聊天中以 $名稱 提及技能。",

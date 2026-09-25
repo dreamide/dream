@@ -1,4 +1,4 @@
-import { FolderOpen, Plus, RefreshCw, Zap } from "lucide-react";
+import { FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
@@ -285,7 +285,7 @@ export const SkillsSettingsSection = () => {
                           title={skill.path}
                           type="button"
                         >
-                          <Zap className="size-3.5 shrink-0 text-info-foreground" />
+                          <Package className="size-3.5 shrink-0 text-info-foreground" />
                           <span className="min-w-0 flex-1 truncate">
                             <span className="font-medium">{skill.name}</span>
                             {skill.kind === "command" ? (
@@ -317,8 +317,8 @@ export const SkillsSettingsSection = () => {
               <>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-mono font-semibold text-sm">
-                      ${selectedSkill.name}
+                    <h4 className="font-semibold text-sm">
+                      {selectedSkill.displayName || selectedSkill.name}
                     </h4>
                     {selectedSkill.displayName ? (
                       <span className="text-muted-foreground text-sm">

@@ -1,5 +1,12 @@
 import type { ChatStatus, LanguageModelUsage } from "ai";
-import { Trash2, Zap } from "lucide-react";
+import {
+  Blocks,
+  FolderGit2,
+  Package,
+  Settings2,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type ChangeEventHandler,
@@ -68,6 +75,7 @@ import {
   type ActiveSkillToken,
   findSkillMentions,
   getActiveSkillToken,
+  getSkillLabel,
   hasPossibleSkillMention,
   providerSupportsSkills,
   type SkillMentionRange,
@@ -1019,18 +1027,21 @@ export const ChatComposer = ({
       ],
     );
 
-  const getSkillScopeLabel = (skill: ProviderSkill) => {
+  const getSkillBadge = (skill: ProviderSkill) => {
+    if (skill.kind === "command") {
+      return { icon: Package, label: skillsT("badgeCommand") };
+    }
     switch (skill.scope) {
       case "project":
-        return skillsT("scopeProject");
+        return { icon: FolderGit2, label: skillsT("badgeProject") };
       case "system":
-        return skillsT("scopeSystem");
+        return { icon: Settings2, label: skillsT("badgeSystem") };
       case "plugin":
-        return skillsT("scopePlugin");
+        return { icon: Blocks, label: skillsT("badgeApp") };
       case "admin":
-        return skillsT("scopeAdmin");
+        return { icon: Settings2, label: skillsT("badgeManaged") };
       default:
-        return skillsT("scopeUser");
+        return { icon: UserRound, label: skillsT("badgePersonal") };
     }
   };
 
@@ -1081,46 +1092,42 @@ export const ChatComposer = ({
         {showSkillResults ? (
           <div className="mb-2 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-700 bg-background text-foreground shadow-lg">
             <div className="max-h-80 overflow-y-auto p-1">
-              {skillResults.map((skill, index) => (
-                <button
-                  aria-label={`Skill ${skill.name}`}
-                  className={cn(
-                    "flex h-11 w-full min-w-0 items-center gap-3 rounded-md px-2 text-left transition-colors",
-                    index === highlightedSkillIndex
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
-                  )}
-                  key={`${skill.source}:${skill.path || skill.name}`}
-                  onClick={() => insertProviderSkill(skill)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  title={skill.path || undefined}
-                  type="button"
-                >
-                  <Zap className="size-4 shrink-0 text-info-foreground" />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate font-medium text-sm">
-                        ${skill.name}
+              {skillResults.map((skill, index) => {
+                const badge = getSkillBadge(skill);
+                const BadgeIcon = badge.icon;
+                const description = skill.shortDescription || skill.description;
+                return (
+                  <button
+                    aria-label={`Skill ${skill.name}`}
+                    className={cn(
+                      "flex h-8 w-full min-w-0 items-center gap-3 rounded-md px-2 text-left transition-colors",
+                      index === highlightedSkillIndex
+                        ? "bg-muted text-foreground"
+                        : "text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
+                    )}
+                    key={`${skill.source}:${skill.path || skill.name}`}
+                    onClick={() => insertProviderSkill(skill)}
+                    onMouseDown={(event) => event.preventDefault()}
+                    title={skill.path || undefined}
+                    type="button"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className="font-semibold text-foreground">
+                        {getSkillLabel(skill)}
                       </span>
-                      {skill.displayName ? (
-                        <span className="truncate text-muted-foreground text-xs">
-                          {skill.displayName}
+                      {description ? (
+                        <span className="ml-2 text-muted-foreground">
+                          {description}
                         </span>
                       ) : null}
-                      <span className="ml-auto shrink-0 rounded border border-surface-200 px-1 text-[10px] text-muted-foreground uppercase tracking-wide dark:border-surface-700">
-                        {skill.kind === "command"
-                          ? skillsT("command")
-                          : getSkillScopeLabel(skill)}
-                      </span>
                     </span>
-                    {skill.shortDescription || skill.description ? (
-                      <span className="truncate text-muted-foreground text-xs">
-                        {skill.shortDescription || skill.description}
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              ))}
+                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+                      <BadgeIcon className="size-3.5" />
+                      {badge.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}

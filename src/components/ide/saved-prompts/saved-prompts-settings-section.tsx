@@ -3,10 +3,10 @@ import {
   ArrowUp,
   Check,
   Copy,
+  Package,
   Pencil,
   Plus,
   Trash2,
-  Zap,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -141,7 +141,7 @@ export const SavedPromptsSettingsSection = () => {
                       type="button"
                       variant="ghost"
                     >
-                      <Zap className="size-4" />
+                      <Package className="size-4" />
                     </Button>
                     <Button
                       aria-label={commonT("edit")}
