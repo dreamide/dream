@@ -19,6 +19,16 @@ const MAX_STDERR_CHARS = 20_000;
 
 let sharedClient = null;
 let sharedClientPromise = null;
+const skillsChangedListeners = new Set();
+
+/**
+ * Runs `listener` whenever the app-server reports that a watched skill file
+ * changed. Returns an unsubscribe function.
+ */
+export const onCodexSkillsChanged = (listener) => {
+  skillsChangedListeners.add(listener);
+  return () => skillsChangedListeners.delete(listener);
+};
 
 const getMessageThreadId = (message) => {
   const params = message?.params;
@@ -225,6 +235,12 @@ const createCodexAppServerClient = async ({
 
     if (message.method === "thread/started") {
       rememberThread(message.params?.thread);
+    }
+
+    if (message.method === "skills/changed") {
+      for (const listener of skillsChangedListeners) {
+        listener();
+      }
     }
 
     dispatchToThread(message);

@@ -22,6 +22,7 @@ import { registerCodePullRequestRoutes } from "./code-pull-request-routes.js";
 import { registerMcpServerRoutes } from "./mcp-server-routes.js";
 import { registerProjectGitRoutes } from "./project-git-routes.js";
 import { registerProviderRoutes } from "./provider-routes.js";
+import { registerSkillsRoutes } from "./skills-routes.js";
 import { registerToolApprovalRoutes } from "./tool-approvals.js";
 
 export const API_SESSION_TOKEN_HEADER = "x-dream-api-token";
@@ -60,6 +61,7 @@ function createApiApp(apiToken) {
   registerCodePullRequestRoutes(guardedApp);
   registerCheckpointRoutes(guardedApp);
   registerMcpServerRoutes(guardedApp);
+  registerSkillsRoutes(guardedApp);
   registerBrowserMcpRoutes(guardedApp);
 
   return guardedApp;
