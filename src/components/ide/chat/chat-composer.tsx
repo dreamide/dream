@@ -465,7 +465,7 @@ const InlineProjectReferenceMentions = ({
             {text.slice(skillMention.start, skillMention.end)}
           </span>
           <span className="-inset-x-0.5 absolute inset-y-0 flex items-center justify-center">
-            <span className="inline-flex h-[18px] items-center gap-0.5 whitespace-nowrap rounded bg-info-foreground/10 px-1 text-info-foreground text-xs leading-none">
+            <span className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-sm bg-info-foreground/10 text-info-foreground">
               <Package className="size-3 shrink-0" />
               {text.slice(skillMention.start + 1, skillMention.end)}
             </span>
