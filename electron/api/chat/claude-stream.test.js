@@ -90,3 +90,23 @@ test("accept-edits mode prompts for MCP tools instead of denying them", async ()
     ),
   );
 });
+
+test("Skill tool invocations are allowed without an approval prompt", async () => {
+  const { createClaudePermissionHandler } = await import("./claude-stream.js");
+  const parts = [];
+  const writer = { write: (part) => parts.push(part) };
+  const handler = createClaudePermissionHandler(writer, {
+    mode: "ask",
+    projectPath: process.cwd(),
+  });
+
+  const result = await handler(
+    "Skill",
+    { skill: "deploy" },
+    { toolUseID: "skill-1" },
+  );
+  assert.equal(result.behavior, "allow");
+  assert.equal(result.toolUseID, "skill-1");
+  assert.deepEqual(result.updatedInput, { skill: "deploy" });
+  assert.equal(parts.length, 0);
+});

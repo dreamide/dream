@@ -97,6 +97,7 @@ const CLAUDE_BUILT_IN_TOOLS = [
   "WebSearch",
   "NotebookEdit",
   "AskUserQuestion",
+  "Skill",
 ];
 
 const CLAUDE_PRELOADED_TOOL_NAMES = new Set(
@@ -260,6 +261,17 @@ export const createClaudePermissionHandler = (
         message:
           "That tool is already preloaded. Use it directly instead of ToolSearch.",
         ...(toolUseID ? { toolUseID } : {}),
+      };
+    }
+
+    // Invoking a skill only loads its SKILL.md instructions into context. The
+    // tools the skill then uses still go through this handler, so the Skill
+    // tool itself never needs an approval prompt.
+    if (normalizedToolName === "skill") {
+      return {
+        behavior: "allow",
+        ...(toolUseID ? { toolUseID } : {}),
+        updatedInput: attachedInput,
       };
     }
 
@@ -559,6 +571,9 @@ export const streamClaudeResponse = async ({
       // `tools` controls the catalog shown to the model; `allowedTools` only
       // controls permission. Do not pre-allow tools: Ask must reach canUseTool.
       tools: CLAUDE_BUILT_IN_TOOLS,
+      // Skills are discovered from the filesystem via `settingSources`; this
+      // lets Claude invoke any of them through the Skill tool.
+      skills: "all",
       // Only Dream-managed MCP servers are loaded; strict mode keeps the
       // user's ~/.claude.json and project .mcp.json entries out of scope
       // (users import those explicitly from Settings > MCP servers).
