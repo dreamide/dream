@@ -1,5 +1,16 @@
 export const supplementalMessages = {
   de: {
+    skills: {
+      composerPlaceholder: "Frag etwas – @ für Dateien, $ für Skills",
+      scopeProject: "Projekt",
+      scopeUser: "Persönlich",
+      scopeSystem: "Eingebaut",
+      scopePlugin: "Plugin",
+      scopeAdmin: "Verwaltet",
+      command: "Befehl",
+      userInvocationOnly: "Nur manuell",
+      skillsMenuLabel: "Skills",
+    },
     workspace: {
       workspaceCode: "Code",
       workspaceCodeDescription:
@@ -539,6 +550,17 @@ export const supplementalMessages = {
     },
   },
   en: {
+    skills: {
+      composerPlaceholder: "Ask anything, @ files, $ skills",
+      scopeProject: "Project",
+      scopeUser: "Personal",
+      scopeSystem: "Built-in",
+      scopePlugin: "Plugin",
+      scopeAdmin: "Managed",
+      command: "Command",
+      userInvocationOnly: "Manual only",
+      skillsMenuLabel: "Skills",
+    },
     workspace: {
       workspaceCode: "Code",
       workspaceCodeDescription:
@@ -1064,6 +1086,17 @@ export const supplementalMessages = {
     },
   },
   es: {
+    skills: {
+      composerPlaceholder: "Pregunta lo que quieras: @ archivos, $ skills",
+      scopeProject: "Proyecto",
+      scopeUser: "Personal",
+      scopeSystem: "Integrado",
+      scopePlugin: "Plugin",
+      scopeAdmin: "Gestionado",
+      command: "Comando",
+      userInvocationOnly: "Solo manual",
+      skillsMenuLabel: "Skills",
+    },
     workspace: {
       workspaceCode: "Código",
       workspaceCodeDescription:
@@ -1598,6 +1631,17 @@ export const supplementalMessages = {
     },
   },
   fr: {
+    skills: {
+      composerPlaceholder: "Demandez n'importe quoi : @ fichiers, $ skills",
+      scopeProject: "Projet",
+      scopeUser: "Personnel",
+      scopeSystem: "Intégré",
+      scopePlugin: "Plugin",
+      scopeAdmin: "Géré",
+      command: "Commande",
+      userInvocationOnly: "Manuel uniquement",
+      skillsMenuLabel: "Skills",
+    },
     workspace: {
       workspaceCode: "Code",
       workspaceCodeDescription:
@@ -2133,6 +2177,17 @@ export const supplementalMessages = {
     },
   },
   it: {
+    skills: {
+      composerPlaceholder: "Chiedi qualsiasi cosa: @ file, $ skill",
+      scopeProject: "Progetto",
+      scopeUser: "Personale",
+      scopeSystem: "Integrato",
+      scopePlugin: "Plugin",
+      scopeAdmin: "Gestito",
+      command: "Comando",
+      userInvocationOnly: "Solo manuale",
+      skillsMenuLabel: "Skill",
+    },
     workspace: {
       workspaceCode: "Codice",
       workspaceCodeDescription:
@@ -2668,6 +2723,17 @@ export const supplementalMessages = {
     },
   },
   ja: {
+    skills: {
+      composerPlaceholder: "何でも質問できます。@ でファイル、$ でスキル",
+      scopeProject: "プロジェクト",
+      scopeUser: "個人",
+      scopeSystem: "組み込み",
+      scopePlugin: "プラグイン",
+      scopeAdmin: "管理対象",
+      command: "コマンド",
+      userInvocationOnly: "手動のみ",
+      skillsMenuLabel: "スキル",
+    },
     workspace: {
       workspaceCode: "コード",
       workspaceCodeDescription:
@@ -3195,6 +3261,17 @@ export const supplementalMessages = {
     },
   },
   ko: {
+    skills: {
+      composerPlaceholder: "무엇이든 물어보세요. @ 파일, $ 스킬",
+      scopeProject: "프로젝트",
+      scopeUser: "개인",
+      scopeSystem: "내장",
+      scopePlugin: "플러그인",
+      scopeAdmin: "관리됨",
+      command: "명령",
+      userInvocationOnly: "수동만",
+      skillsMenuLabel: "스킬",
+    },
     workspace: {
       workspaceCode: "코드",
       workspaceCodeDescription: "프로젝트에서 에이전트와 채팅하고 코드를 편집",
@@ -3712,6 +3789,17 @@ export const supplementalMessages = {
     },
   },
   pt: {
+    skills: {
+      composerPlaceholder: "Pergunte qualquer coisa: @ arquivos, $ skills",
+      scopeProject: "Projeto",
+      scopeUser: "Pessoal",
+      scopeSystem: "Integrado",
+      scopePlugin: "Plugin",
+      scopeAdmin: "Gerenciado",
+      command: "Comando",
+      userInvocationOnly: "Somente manual",
+      skillsMenuLabel: "Skills",
+    },
     workspace: {
       workspaceCode: "Código",
       workspaceCodeDescription:
@@ -4241,6 +4329,17 @@ export const supplementalMessages = {
     },
   },
   vi: {
+    skills: {
+      composerPlaceholder: "Hỏi bất cứ điều gì, @ tệp, $ kỹ năng",
+      scopeProject: "Dự án",
+      scopeUser: "Cá nhân",
+      scopeSystem: "Tích hợp",
+      scopePlugin: "Plugin",
+      scopeAdmin: "Được quản lý",
+      command: "Lệnh",
+      userInvocationOnly: "Chỉ thủ công",
+      skillsMenuLabel: "Kỹ năng",
+    },
     workspace: {
       workspaceCode: "Mã",
       workspaceCodeDescription:
@@ -4765,6 +4864,17 @@ export const supplementalMessages = {
     },
   },
   "zh-Hans": {
+    skills: {
+      composerPlaceholder: "随便问，@ 文件，$ 技能",
+      scopeProject: "项目",
+      scopeUser: "个人",
+      scopeSystem: "内置",
+      scopePlugin: "插件",
+      scopeAdmin: "托管",
+      command: "命令",
+      userInvocationOnly: "仅手动",
+      skillsMenuLabel: "技能",
+    },
     workspace: {
       workspaceCode: "代码",
       workspaceCodeDescription: "在项目中与智能体聊天并编辑代码",
@@ -5267,6 +5377,17 @@ export const supplementalMessages = {
     },
   },
   "zh-Hant": {
+    skills: {
+      composerPlaceholder: "隨便問，@ 檔案，$ 技能",
+      scopeProject: "專案",
+      scopeUser: "個人",
+      scopeSystem: "內建",
+      scopePlugin: "外掛",
+      scopeAdmin: "受管理",
+      command: "命令",
+      userInvocationOnly: "僅手動",
+      skillsMenuLabel: "技能",
+    },
     workspace: {
       workspaceCode: "程式碼",
       workspaceCodeDescription: "在專案中與代理聊天並編輯程式碼",

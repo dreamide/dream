@@ -75,6 +75,45 @@ export interface ProjectReference {
   path: string;
 }
 
+export type ProviderSkillScope =
+  | "project"
+  | "user"
+  | "system"
+  | "plugin"
+  | "admin";
+
+/**
+ * An Agent Skill (SKILL.md folder) or legacy command file that the selected
+ * provider can invoke. Discovered by the main process the same way each
+ * provider CLI discovers it; Dream never loads the skill body itself.
+ */
+export interface ProviderSkill {
+  argumentHint?: string;
+  description: string;
+  directory: string;
+  displayName?: string;
+  enabled: boolean;
+  kind: "skill" | "command";
+  name: string;
+  path: string;
+  pluginId?: string;
+  provider: AiProvider;
+  scope: ProviderSkillScope;
+  shortDescription?: string;
+  /** Where the provider found it: claude, codex, agents, opencode, cursor. */
+  source: string;
+  /** `user-invocable: false`: the model may use it, but it is hidden from menus. */
+  userInvocable?: false;
+  /** `disable-model-invocation`: only runs when the user mentions it. */
+  userInvocationOnly?: true;
+}
+
+export interface ProviderSkillsResponse {
+  errors: string[];
+  provider: AiProvider;
+  skills: ProviderSkill[];
+}
+
 export interface StashItem {
   createdAt: string;
   id: string;

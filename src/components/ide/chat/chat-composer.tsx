@@ -1,5 +1,5 @@
 import type { ChatStatus, LanguageModelUsage } from "ai";
-import { Trash2 } from "lucide-react";
+import { Trash2, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   type ChangeEventHandler,
@@ -59,13 +59,24 @@ import type {
   ChatPermissionMode,
   ModelSpeed,
   ProjectReference,
+  ProviderSkill,
   ReasoningEffort,
 } from "@/types/ide";
 import { PromptAttachments } from "../chat";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
+import {
+  type ActiveSkillToken,
+  findSkillMentions,
+  getActiveSkillToken,
+  hasPossibleSkillMention,
+  providerSupportsSkills,
+  type SkillMentionRange,
+  searchProviderSkills,
+} from "./provider-skills";
 import type { ChatTodoSummary } from "./todo-list";
 import { TodoListPopover } from "./todo-list-popover";
 import { UsageLimitsPopover } from "./usage-limits-popover";
+import { useProviderSkills } from "./use-provider-skills";
 
 export interface ChatPanelModelOption {
   contextWindow?: number;
@@ -392,14 +403,20 @@ const searchProjectReferences = (
 
 const InlineProjectReferenceMentions = ({
   references,
+  skillMentions,
   text,
 }: {
   references: ProjectReference[];
+  skillMentions: SkillMentionRange[];
   text: string;
 }) => {
-  if (!text || references.length === 0) {
+  if (!text || (references.length === 0 && skillMentions.length === 0)) {
     return null;
   }
+
+  const skillMentionStarts = new Map(
+    skillMentions.map((mention) => [mention.start, mention] as const),
+  );
 
   const sortedReferences = [...references].sort(
     (left, right) =>
@@ -424,6 +441,21 @@ const InlineProjectReferenceMentions = ({
   };
 
   while (index < text.length) {
+    const skillMention = skillMentionStarts.get(index);
+    if (skillMention) {
+      flushText();
+      nodes.push(
+        <span
+          className="rounded-sm bg-info-foreground/10 text-info-foreground dark:text-info-foreground"
+          key={`skill-${skillMention.name}:${index}`}
+        >
+          {text.slice(skillMention.start, skillMention.end)}
+        </span>,
+      );
+      index = skillMention.end;
+      continue;
+    }
+
     const reference = sortedReferences.find((item) => {
       const mention = getReferenceMentionText(item);
       return (
@@ -616,6 +648,20 @@ export const ChatComposer = ({
   const [selectedReferences, setSelectedReferences] = useState<
     ProjectReference[]
   >([]);
+  const [activeSkillToken, setActiveSkillToken] =
+    useState<ActiveSkillToken | null>(null);
+  const [highlightedSkillIndex, setHighlightedSkillIndex] = useState(0);
+  const skillsSupported = providerSupportsSkills(selectedProvider);
+  // Discovery can start a provider process (Codex), so it only runs once
+  // the user reaches for a skill or the draft already mentions one.
+  const { skills: providerSkills } = useProviderSkills({
+    enabled:
+      skillsSupported &&
+      (activeSkillToken !== null || hasPossibleSkillMention(promptText)),
+    projectPath,
+    provider: selectedProvider,
+  });
+  const skillsT = useTranslations("skills");
   const accentColor = useUiStore((s) => s.accentColor);
   const accentSparklesPalette = useMemo(
     () => createAccentSparklesPalette(accentColor),
@@ -667,6 +713,8 @@ export const ChatComposer = ({
 
     setActiveReferenceToken(null);
     setHighlightedReferenceIndex(0);
+    setActiveSkillToken(null);
+    setHighlightedSkillIndex(0);
   }, [promptText]);
 
   useEffect(() => {
@@ -693,16 +741,41 @@ export const ChatComposer = ({
     !activeTokenIsSelectedReference &&
     referenceResults.length > 0;
 
+  const skillResults = useMemo(
+    () =>
+      activeSkillToken
+        ? searchProviderSkills(providerSkills, activeSkillToken.query)
+        : [],
+    [activeSkillToken, providerSkills],
+  );
+  const showSkillResults =
+    !showReferenceResults &&
+    activeSkillToken !== null &&
+    skillResults.length > 0;
+  const skillMentions = useMemo(
+    () =>
+      skillsSupported ? findSkillMentions(promptText, providerSkills) : [],
+    [promptText, providerSkills, skillsSupported],
+  );
+  const hasInlineOverlay =
+    selectedReferences.length > 0 || skillMentions.length > 0;
+
   const updateActiveReferenceToken = useCallback(
     (text: string, caretIndex: number | null | undefined) => {
-      setActiveReferenceToken(
+      const referenceToken =
         typeof caretIndex === "number"
           ? getActiveReferenceToken(text, caretIndex)
+          : null;
+      setActiveReferenceToken(referenceToken);
+      setHighlightedReferenceIndex(0);
+      setActiveSkillToken(
+        !referenceToken && skillsSupported && typeof caretIndex === "number"
+          ? getActiveSkillToken(text, caretIndex)
           : null,
       );
-      setHighlightedReferenceIndex(0);
+      setHighlightedSkillIndex(0);
     },
-    [],
+    [skillsSupported],
   );
 
   const handlePromptChange: ChangeEventHandler<HTMLTextAreaElement> =
@@ -761,6 +834,34 @@ export const ChatComposer = ({
     [activeReferenceToken, onPromptTextChange, promptText],
   );
 
+  const insertProviderSkill = useCallback(
+    (skill: ProviderSkill) => {
+      if (!activeSkillToken) {
+        return;
+      }
+
+      const before = promptText.slice(0, activeSkillToken.start);
+      const after = promptText.slice(activeSkillToken.end);
+      const mentionText = `$${skill.name}`;
+      const nextCharacter = after.at(0);
+      const separator =
+        nextCharacter !== undefined && /\s/.test(nextCharacter) ? "" : " ";
+      const nextValue = `${before}${mentionText}${separator}${after}`;
+      const nextCaretIndex =
+        before.length + mentionText.length + separator.length;
+
+      onPromptTextChange(nextValue);
+      setActiveSkillToken(null);
+      setHighlightedSkillIndex(0);
+
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(nextCaretIndex, nextCaretIndex);
+      });
+    },
+    [activeSkillToken, onPromptTextChange, promptText],
+  );
+
   const handleComposerSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
       await onSubmit({
@@ -771,6 +872,8 @@ export const ChatComposer = ({
       setSelectedReferences([]);
       setActiveReferenceToken(null);
       setHighlightedReferenceIndex(0);
+      setActiveSkillToken(null);
+      setHighlightedSkillIndex(0);
     },
     [onSubmit, selectedReferences],
   );
@@ -853,10 +956,43 @@ export const ChatComposer = ({
           }
         }
 
-        if (activeReferenceToken && event.key === "Escape") {
+        if (showSkillResults) {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setHighlightedSkillIndex(
+              (current) => (current + 1) % skillResults.length,
+            );
+            return;
+          }
+
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setHighlightedSkillIndex(
+              (current) =>
+                (current - 1 + skillResults.length) % skillResults.length,
+            );
+            return;
+          }
+
+          if (event.key === "Enter" || event.key === "Tab") {
+            event.preventDefault();
+            const selected = skillResults[highlightedSkillIndex];
+            if (selected) {
+              insertProviderSkill(selected);
+            }
+            return;
+          }
+        }
+
+        if (
+          (activeReferenceToken || activeSkillToken) &&
+          event.key === "Escape"
+        ) {
           event.preventDefault();
           setActiveReferenceToken(null);
           setHighlightedReferenceIndex(0);
+          setActiveSkillToken(null);
+          setHighlightedSkillIndex(0);
           return;
         }
 
@@ -864,16 +1000,36 @@ export const ChatComposer = ({
       },
       [
         activeReferenceToken,
+        activeSkillToken,
         highlightedReferenceIndex,
+        highlightedSkillIndex,
         insertProjectReference,
+        insertProviderSkill,
         onPromptKeyDown,
         onPromptTextChange,
         promptText,
         referenceResults,
         selectedReferences,
         showReferenceResults,
+        showSkillResults,
+        skillResults,
       ],
     );
+
+  const getSkillScopeLabel = (skill: ProviderSkill) => {
+    switch (skill.scope) {
+      case "project":
+        return skillsT("scopeProject");
+      case "system":
+        return skillsT("scopeSystem");
+      case "plugin":
+        return skillsT("scopePlugin");
+      case "admin":
+        return skillsT("scopeAdmin");
+      default:
+        return skillsT("scopeUser");
+    }
+  };
 
   return (
     <div id={promptDomId} className={cn("shrink-0 px-2 pb-2", className)}>
@@ -919,6 +1075,52 @@ export const ChatComposer = ({
             </div>
           </div>
         ) : null}
+        {showSkillResults ? (
+          <div className="mb-2 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-700 bg-background text-foreground shadow-lg">
+            <div className="max-h-80 overflow-y-auto p-1">
+              {skillResults.map((skill, index) => (
+                <button
+                  aria-label={`Skill ${skill.name}`}
+                  className={cn(
+                    "flex h-11 w-full min-w-0 items-center gap-3 rounded-md px-2 text-left transition-colors",
+                    index === highlightedSkillIndex
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
+                  )}
+                  key={`${skill.source}:${skill.path || skill.name}`}
+                  onClick={() => insertProviderSkill(skill)}
+                  onMouseDown={(event) => event.preventDefault()}
+                  title={skill.path || undefined}
+                  type="button"
+                >
+                  <Zap className="size-4 shrink-0 text-info-foreground" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-medium text-sm">
+                        ${skill.name}
+                      </span>
+                      {skill.displayName ? (
+                        <span className="truncate text-muted-foreground text-xs">
+                          {skill.displayName}
+                        </span>
+                      ) : null}
+                      <span className="ml-auto shrink-0 rounded border border-surface-200 px-1 text-[10px] text-muted-foreground uppercase tracking-wide dark:border-surface-700">
+                        {skill.kind === "command"
+                          ? skillsT("command")
+                          : getSkillScopeLabel(skill)}
+                      </span>
+                    </span>
+                    {skill.shortDescription || skill.description ? (
+                      <span className="truncate text-muted-foreground text-xs">
+                        {skill.shortDescription || skill.description}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="relative z-10">
           <Sparkles
             cyclePalette={sparklesPalette}
@@ -955,12 +1157,13 @@ export const ChatComposer = ({
                   <div className="relative min-w-0 flex-1">
                     <InlineProjectReferenceMentions
                       references={selectedReferences}
+                      skillMentions={skillMentions}
                       text={promptText}
                     />
                     <PromptInputTextarea
                       className={cn(
                         "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0 selection:bg-foreground/20 selection:text-foreground",
-                        selectedReferences.length > 0 &&
+                        hasInlineOverlay &&
                           "text-transparent placeholder:text-muted-foreground selection:text-transparent",
                       )}
                       disabled={!isActive}
@@ -978,7 +1181,11 @@ export const ChatComposer = ({
                           event.currentTarget.selectionStart,
                         )
                       }
-                      placeholder={chatT("askAnything")}
+                      placeholder={
+                        skillsSupported
+                          ? skillsT("composerPlaceholder")
+                          : chatT("askAnything")
+                      }
                       ref={textareaRef}
                       rows={1}
                       value={promptText}
