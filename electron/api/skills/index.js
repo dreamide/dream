@@ -6,11 +6,13 @@
  * `$name` mention into the syntax each agent expands natively.
  */
 
+import path from "node:path";
 import { onCodexSkillsChanged } from "../chat/codex-app-server-client.js";
 import { discoverClaudeSkills } from "./claude-skills.js";
 import { discoverCodexSkills } from "./codex-skills.js";
 import { discoverCursorSkills } from "./cursor-skills.js";
 import { discoverOpenCodeSkills } from "./opencode-skills.js";
+import { setSkillWatchHandler, watchSkillRoots } from "./watch.js";
 
 const CACHE_TTL_MS = 30_000;
 const cache = new Map();
@@ -40,6 +42,18 @@ export const invalidateSkillCache = (provider) => {
 };
 
 onCodexSkillsChanged(() => invalidateSkillCache("openai"));
+setSkillWatchHandler(() => invalidateSkillCache());
+
+// The directory holding each skill folder is a skill root worth watching.
+const collectSkillRoots = (skills) => {
+  const roots = new Set();
+  for (const skill of skills) {
+    if (skill.directory && skill.scope !== "system") {
+      roots.add(path.dirname(skill.directory));
+    }
+  }
+  return [...roots];
+};
 
 /**
  * @returns {Promise<{ provider: string, skills: ProviderSkill[], errors: string[] }>}
@@ -72,6 +86,7 @@ export const listProviderSkills = async ({
         skills: (result.skills ?? []).map((skill) => ({ ...skill, provider })),
       };
       cache.set(key, { at: Date.now(), value });
+      void watchSkillRoots(collectSkillRoots(value.skills));
       return value;
     })
     .catch((error) => {

@@ -529,6 +529,8 @@ export const respondToToolApproval = (
 export interface ChatPromptSubmission {
   files: FileUIPart[];
   references?: ProjectReference[];
+  /** `$skill` names the composer recognised; shown on the sent message. */
+  skills?: string[];
   text: string;
 }
 
@@ -727,6 +729,9 @@ export const submitChatPrompt = (
           createdAt: new Date().toISOString(),
           ...selectionMetadata,
           projectReferences,
+          ...(prompt.skills && prompt.skills.length > 0
+            ? { skillMentions: prompt.skills }
+            : {}),
         },
         text: prompt.text,
       },

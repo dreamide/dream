@@ -13,6 +13,9 @@ Dream is a desktop IDE for working with multiple AI coding agents.
 - File explorer, diff rendering, and editor launch integration
 - Integrated terminal
 - Built-in browser preview panel
+- Agent Skills: type `$` in the composer to pick a skill the selected agent can load
+  (Claude Code, Codex, OpenCode and Cursor skill folders are discovered the way each
+  CLI discovers them); browse, toggle and scaffold skills in Settings > Skills
 
 ## Requirements
 At least one supported agent CLI:

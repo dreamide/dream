@@ -29,6 +29,8 @@ export interface PromptInputMessage {
   text: string;
   files: FileUIPart[];
   references: ProjectReference[];
+  /** Names of the `$skill` mentions the composer recognised in `text`. */
+  skills?: string[];
 }
 
 export type PromptInputProps = Omit<

@@ -868,6 +868,9 @@ export const ChatComposer = ({
         ...prompt,
         text: expandReferenceMentionsForSubmit(prompt.text, selectedReferences),
         references: selectedReferences,
+        skills: [
+          ...new Set(skillMentions.map((mention) => mention.skill.name)),
+        ],
       });
       setSelectedReferences([]);
       setActiveReferenceToken(null);
@@ -875,7 +878,7 @@ export const ChatComposer = ({
       setActiveSkillToken(null);
       setHighlightedSkillIndex(0);
     },
-    [onSubmit, selectedReferences],
+    [onSubmit, selectedReferences, skillMentions],
   );
 
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> =

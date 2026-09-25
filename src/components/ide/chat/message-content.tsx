@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { PaperclipIcon } from "lucide-react";
+import { PaperclipIcon, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   Attachment,
@@ -216,10 +216,15 @@ export const UserMessageContent = ({
   });
   const text = getMessageText(message);
   const metadata = message.metadata as
-    | { projectReferences?: ProjectReference[] }
+    | { projectReferences?: ProjectReference[]; skillMentions?: string[] }
     | undefined;
   const projectReferences = Array.isArray(metadata?.projectReferences)
     ? metadata.projectReferences
+    : [];
+  const skillMentions = Array.isArray(metadata?.skillMentions)
+    ? metadata.skillMentions.filter(
+        (name): name is string => typeof name === "string" && name.length > 0,
+      )
     : [];
   const hasInlineProjectReferences = projectReferences.some((reference) =>
     hasInlineProjectReferenceMention(text, reference),
@@ -230,6 +235,20 @@ export const UserMessageContent = ({
 
   return (
     <>
+      {skillMentions.length > 0 ? (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {skillMentions.map((name) => (
+            <Badge
+              className="max-w-full gap-1.5 rounded-full border border-info-border bg-info-surface px-2.5 py-1 font-medium text-info-foreground dark:text-info-foreground"
+              key={`skill:${name}`}
+              variant="secondary"
+            >
+              <Zap className="size-3 shrink-0" />
+              <span className="truncate font-mono text-xs">${name}</span>
+            </Badge>
+          ))}
+        </div>
+      ) : null}
       {projectReferences.length > 0 && !hasInlineProjectReferences ? (
         <div className="mb-2 flex flex-wrap gap-2">
           {projectReferences.map((reference) => (
