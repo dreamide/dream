@@ -10,6 +10,7 @@ import {
 } from "./codex-prompt.js";
 import { toAcpMcpServers } from "./mcp-servers.js";
 import { shouldResumeProviderSession } from "./provider-session.js";
+import { applySkillSlashPrefix } from "./skill-dispatch.js";
 
 const MAX_ACP_TEXT_CHARS = 250_000;
 const ACP_TEXT_FLUSH_INTERVAL_MS = 50;
@@ -144,6 +145,7 @@ export const streamAcpResponse = ({
   remoteConversationModelSpeed,
   remoteConversationProjectPath,
   responseMessageMetadata,
+  skillSlashCommand,
 }) => {
   const { provider, label } = adapter;
   const acpMcpServers = toAcpMcpServers(mcpServers);
@@ -538,9 +540,16 @@ export const streamAcpResponse = ({
                 "Complete the user's request using the active project when relevant.",
             });
 
+        // A `$skill` mention becomes the agent's own `/name` slash command,
+        // which it only recognizes at the start of the prompt.
+        const dispatchedPrompt = applySkillSlashPrefix(
+          prompt,
+          skillSlashCommand,
+        );
+
         const promptResult = await connection.request(
           "session/prompt",
-          { prompt: [{ text: prompt, type: "text" }], sessionId },
+          { prompt: [{ text: dispatchedPrompt, type: "text" }], sessionId },
           30 * 60_000,
         );
         const usage = adapter.getUsage?.(promptResult);

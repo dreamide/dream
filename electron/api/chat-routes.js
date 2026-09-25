@@ -11,6 +11,10 @@ import {
   chatTitleRequestBodySchema,
   formatProjectReferencesForPrompt,
 } from "./chat/schema.js";
+import {
+  applySkillDispatchToMessages,
+  resolveSkillDispatch,
+} from "./chat/skill-dispatch.js";
 import { generateChatTitle } from "./chat/title.js";
 import {
   attachCheckpointFinalizer,
@@ -291,6 +295,20 @@ export const registerChatRoutes = (app) => {
       responseMessageMetadata.checkpointId = checkpointId;
     }
 
+    // `$skill` mentions in the latest user message become whatever the
+    // provider expands natively (see skill-dispatch.js). Codex needs no
+    // change; the other providers get an instruction part or a slash prefix.
+    const skillDispatch = await resolveSkillDispatch({
+      mcpServers,
+      messages,
+      projectPath: resolvedProjectPath,
+      provider,
+    });
+    const dispatchedMessages = applySkillDispatchToMessages(
+      messages,
+      skillDispatch,
+    );
+
     const streamResponse = await dispatchChatStream();
     if (!checkpointId || !(streamResponse instanceof Response)) {
       return streamResponse;
@@ -350,7 +368,7 @@ export const registerChatRoutes = (app) => {
             projectId,
             scope: "project",
           }),
-          messages,
+          messages: dispatchedMessages,
           model,
           modelSpeed,
           projectReferencesPrompt,
@@ -374,6 +392,7 @@ export const registerChatRoutes = (app) => {
           abortSignal: c.req.raw.signal,
           permissionMode,
           messages,
+          skillSlashCommand: skillDispatch?.slashCommand,
           model,
           modelSpeed,
           projectReferencesPrompt,
@@ -422,7 +441,7 @@ export const registerChatRoutes = (app) => {
       return streamClaudeResponse({
         permissionMode,
         mcpServers,
-        messages,
+        messages: dispatchedMessages,
         model,
         modelSpeed,
         projectId,
