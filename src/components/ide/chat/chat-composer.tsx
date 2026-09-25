@@ -454,11 +454,22 @@ const InlineProjectReferenceMentions = ({
     if (skillMention) {
       flushText();
       nodes.push(
+        // The textarea still holds `$name` (that is what invokes the skill),
+        // so the invisible copy keeps the caret aligned while the badge is
+        // drawn over the same width.
         <span
-          className="rounded-sm bg-info-foreground/10 text-info-foreground dark:text-info-foreground"
+          className="relative inline-block"
           key={`skill-${skillMention.name}:${index}`}
         >
-          {text.slice(skillMention.start, skillMention.end)}
+          <span className="invisible">
+            {text.slice(skillMention.start, skillMention.end)}
+          </span>
+          <span className="-inset-x-0.5 absolute inset-y-0 flex items-center justify-center">
+            <span className="inline-flex h-[18px] items-center gap-0.5 whitespace-nowrap rounded bg-info-foreground/10 px-1 text-info-foreground text-xs leading-none">
+              <Package className="size-3 shrink-0" />
+              {text.slice(skillMention.start + 1, skillMention.end)}
+            </span>
+          </span>
         </span>,
       );
       index = skillMention.end;
