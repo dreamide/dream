@@ -305,8 +305,11 @@ export const SkillsSettingsSection = () => {
           </p>
         </div>
       ) : (
-        <div className="grid min-h-[480px] grid-cols-[minmax(0,24rem)_minmax(0,1fr)] overflow-hidden rounded-md border bg-white dark:bg-surface-950">
-          <div className="min-w-0 overflow-y-auto border-r p-2">
+        <div className="grid min-h-[480px] grid-cols-[minmax(0,24rem)_minmax(0,1fr)] rounded-md border bg-white dark:bg-surface-950">
+          {/* The list sticks below the settings header (h-12) and top fade
+              (24px) and scrolls on its own; the detail pane scrolls with the
+              page, so a long SKILL.md never drags the list out of view. */}
+          <div className="sticky top-6 max-h-[calc(100dvh-5.5rem)] min-w-0 self-start overflow-y-auto overscroll-contain p-2">
             {grouped.map((group) => (
               <div className="mb-3" key={group.scope}>
                 <p className="px-3 py-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
@@ -363,7 +366,7 @@ export const SkillsSettingsSection = () => {
               </div>
             ))}
           </div>
-          <div className="min-w-0 space-y-4 overflow-y-auto p-4">
+          <div className="min-w-0 space-y-4 border-l p-4">
             {selectedSkill ? (
               <>
                 <div className="space-y-1">
