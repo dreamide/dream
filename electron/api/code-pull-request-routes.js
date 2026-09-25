@@ -125,6 +125,23 @@ function required(value, label) {
   return value;
 }
 
+// True when every commit on the local branch is already part of the PR head,
+// i.e. the branch tip equals the PR head or is behind it.
+async function branchHasNoWorkBeyond(cwd, branch, prHeadSha) {
+  if (!prHeadSha) return false;
+  const tip = await runGitCommand(cwd, ["rev-parse", `refs/heads/${branch}`], {
+    allowFailure: true,
+  });
+  if (!tip.ok) return false;
+  if (tip.stdout.trim() === prHeadSha) return true;
+  const ancestor = await runGitCommand(
+    cwd,
+    ["merge-base", "--is-ancestor", `refs/heads/${branch}`, prHeadSha],
+    { allowFailure: true },
+  );
+  return ancestor.ok;
+}
+
 async function execute(input) {
   const cwd = input.projectPath;
   await ensureProjectDirectory(cwd);
@@ -173,11 +190,20 @@ async function execute(input) {
           pr.head.repo?.full_name.toLowerCase() === headRepo.name.toLowerCase();
         const open = await get(`${base}/pulls?${query}&state=open`);
         current = open.find(exactHead) ?? null;
-        if (!current)
-          current =
-            (await get(`${base}/pulls?${query}&state=closed`)).find(
-              exactHead,
-            ) ?? null;
+        if (!current) {
+          // A closed or merged PR only belongs to this branch while the branch
+          // has no newer work. Long-lived branches (dev, release/...) keep
+          // being reused after their PR merges and must not show it forever.
+          const closed = (
+            await get(`${base}/pulls?${query}&state=closed`)
+          ).filter(exactHead);
+          for (const pr of closed) {
+            if (await branchHasNoWorkBeyond(cwd, branch, pr.head?.sha)) {
+              current = pr;
+              break;
+            }
+          }
+        }
       }
     }
     return {
