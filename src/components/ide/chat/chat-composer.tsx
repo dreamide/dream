@@ -1056,14 +1056,15 @@ export const ChatComposer = ({
                 <button
                   aria-label={`Reference ${item.path}`}
                   className={cn(
-                    "flex h-11 w-full min-w-0 items-center gap-3 rounded-md px-2 text-left transition-colors",
+                    "flex h-8 w-full min-w-0 items-center gap-2.5 rounded-md px-2 text-left",
                     index === highlightedReferenceIndex
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
+                      ? "bg-surface-100 text-foreground dark:bg-surface-900"
+                      : "text-muted-foreground",
                   )}
                   key={`${item.kind}:${item.path}`}
                   onClick={() => insertProjectReference(item)}
                   onMouseDown={(event) => event.preventDefault()}
+                  onMouseMove={() => setHighlightedReferenceIndex(index)}
                   type="button"
                 >
                   {item.kind === "folder" ? (
@@ -1101,14 +1102,15 @@ export const ChatComposer = ({
                   <button
                     aria-label={`Skill ${skill.name}`}
                     className={cn(
-                      "flex h-8 w-full min-w-0 items-center gap-8 rounded-md px-2 text-left transition-colors",
+                      "flex h-8 w-full min-w-0 items-center gap-8 rounded-md px-2 text-left",
                       index === highlightedSkillIndex
-                        ? "bg-muted text-foreground"
-                        : "text-muted-foreground hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-foreground",
+                        ? "bg-surface-100 text-foreground dark:bg-surface-900"
+                        : "text-muted-foreground",
                     )}
                     key={`${skill.source}:${skill.path || skill.name}`}
                     onClick={() => insertProviderSkill(skill)}
                     onMouseDown={(event) => event.preventDefault()}
+                    onMouseMove={() => setHighlightedSkillIndex(index)}
                     title={skill.path || undefined}
                     type="button"
                   >
