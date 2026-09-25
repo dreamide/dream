@@ -487,9 +487,6 @@ export const ChatPanel = ({
               canContinueInTerminal ? handleContinueInTerminal : undefined
             }
             onHeaderPointerDown={onHeaderPointerDown}
-            onRenameChat={(title) =>
-              updateChat(chat.id, (current) => ({ ...current, title }))
-            }
             title={chat.title}
           />
         ) : null}

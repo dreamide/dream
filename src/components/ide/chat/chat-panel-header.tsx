@@ -7,17 +7,14 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 
 export interface ChatPanelHeaderProps {
   canShowChatMenu: boolean;
@@ -32,7 +29,6 @@ export interface ChatPanelHeaderProps {
   onEditChat: () => void;
   onContinueInTerminal?: () => void;
   onHeaderPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onRenameChat?: (title: string) => void;
   title: string;
 }
 
@@ -48,44 +44,13 @@ export const ChatPanelHeader = ({
   onEditChat,
   onContinueInTerminal,
   onHeaderPointerDown,
-  onRenameChat,
   title,
 }: ChatPanelHeaderProps) => {
   const chatT = useTranslations("chat");
   const commonT = useTranslations("common");
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [draftTitle, setDraftTitle] = useState(title);
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const isShowingGeneratedTitlePlaceholder =
     isTitleGenerating && title.trim().toLowerCase() === "new chat";
   const titleText = isShowingGeneratedTitlePlaceholder ? "" : title;
-
-  useEffect(() => {
-    if (!editingTitle) {
-      setDraftTitle(title);
-    }
-  }, [editingTitle, title]);
-
-  useEffect(() => {
-    if (!editingTitle) {
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [editingTitle]);
-
-  const commitRename = useCallback(() => {
-    const nextTitle = draftTitle.trim();
-    if (nextTitle) {
-      onRenameChat?.(nextTitle);
-    }
-    setEditingTitle(false);
-  }, [draftTitle, onRenameChat]);
 
   return (
     <div className="shrink-0 px-2 pt-2">
@@ -104,40 +69,14 @@ export const ChatPanelHeader = ({
                   {chatT("generatingTitle")}
                 </Shimmer>
               </span>
-            ) : editingTitle ? (
-              <Input
-                ref={inputRef}
-                className="h-6 min-w-0 flex-1 rounded-none border-0 border-b border-surface-300 bg-transparent px-0 py-0 font-medium text-sm leading-5 shadow-none focus-visible:ring-0 dark:border-surface-700"
-                onBlur={commitRename}
-                onChange={(event) => setDraftTitle(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    commitRename();
-                  }
-
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    setDraftTitle(title);
-                    setEditingTitle(false);
-                  }
-                }}
-                onPointerDown={(event) => event.stopPropagation()}
-                value={draftTitle}
-              />
             ) : titleText ? (
               <button
                 className="block h-6 min-w-0 flex-1 truncate border-b border-transparent p-0 text-left font-medium text-sm leading-5"
                 data-chat-header-drag-handle="true"
                 onDoubleClick={(event) => {
-                  if (!onRenameChat) {
-                    return;
-                  }
-
                   event.preventDefault();
                   event.stopPropagation();
-                  setDraftTitle(title);
-                  setEditingTitle(true);
+                  onEditChat();
                 }}
                 title={chatT("doubleClickToRename")}
                 type="button"
@@ -173,29 +112,23 @@ export const ChatPanelHeader = ({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   {onContinueInTerminal ? (
-                    <>
-                      <DropdownMenuItem
-                        disabled={continueInTerminalDisabled}
-                        onClick={onContinueInTerminal}
-                      >
-                        <SquareTerminal className="size-4" />
-                        {chatT("continueInTerminal")}
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
+                    <DropdownMenuItem
+                      disabled={continueInTerminalDisabled}
+                      onClick={onContinueInTerminal}
+                    >
+                      <SquareTerminal className="size-4" />
+                      {chatT("continueInTerminal")}
+                    </DropdownMenuItem>
                   ) : null}
                   <DropdownMenuItem onClick={onEditChat}>
                     <FilePenLine className="size-4" />
                     {commonT("edit")}
                   </DropdownMenuItem>
                   {onDeleteChat ? (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={onDeleteChat}>
-                        <Archive className="size-4" />
-                        {commonT("archive")}
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem onClick={onDeleteChat}>
+                      <Archive className="size-4" />
+                      {commonT("archive")}
+                    </DropdownMenuItem>
                   ) : null}
                 </DropdownMenuContent>
               </DropdownMenu>
