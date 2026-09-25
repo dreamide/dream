@@ -412,6 +412,7 @@ export const registerChatRoutes = (app) => {
         messages,
         model,
         modelSpeed,
+        projectId,
         projectReferencesPrompt,
         projectPath: resolvedProjectPath,
         reasoningEffort,

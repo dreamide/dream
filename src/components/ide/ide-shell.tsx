@@ -23,6 +23,7 @@ import {
   hasTerminalScrollback,
   publishTerminalOutput,
 } from "./terminal-scrollback";
+import { useBrowserAgentCommands } from "./use-browser-agent-commands";
 
 const SettingsWorkspace = lazy(() =>
   import("./settings-workspace").then((module) => ({
@@ -57,6 +58,9 @@ export const IdeShell = () => {
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
 
   // ── Effects ─────────────────────────────────────────────────────────
+
+  // Agent browser tools (main process) ask the renderer to open/show tabs.
+  useBrowserAgentCommands();
 
   // Detect macOS and Electron
   useEffect(() => {

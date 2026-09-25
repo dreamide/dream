@@ -178,6 +178,15 @@ contextBridge.exposeInMainWorld("dream", {
   onBrowserError: (listener) => subscribe("browser:error", listener),
   onBrowserPageState: (listener) => subscribe("browser:page-state", listener),
   onBrowserStatus: (listener) => subscribe("browser:status", listener),
+  // Agent browser control: the renderer registers mounted <webview> guests
+  // and answers commands (open/activate/close tab) that only it can perform.
+  reportBrowserGuestAttached: (payload) =>
+    ipcRenderer.send("browser:guest-attached", payload),
+  reportBrowserGuestDetached: (payload) =>
+    ipcRenderer.send("browser:guest-detached", payload),
+  onBrowserCommand: (listener) => subscribe("browser:command", listener),
+  sendBrowserCommandResult: (payload) =>
+    ipcRenderer.send("browser:command-result", payload),
 
   detectEditors: () => ipcRenderer.invoke("editors:detect"),
   openInEditor: (payload) => ipcRenderer.invoke("editors:open", payload),

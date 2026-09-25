@@ -16,6 +16,11 @@ import {
 import { resolveCliCommandPath } from "../shared/cli.js";
 import { waitForToolApproval } from "../tool-approvals.js";
 import {
+  BROWSER_MCP_SERVER_NAME,
+  BROWSER_READ_ONLY_TOOL_IDS,
+  createBrowserMcpServer,
+} from "./browser-tools.js";
+import {
   buildCodexMessageFilePartsSummary,
   getLatestUserMessage,
 } from "./codex-prompt.js";
@@ -441,6 +446,7 @@ export const streamClaudeResponse = async ({
   messages,
   model,
   modelSpeed,
+  projectId,
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
@@ -459,6 +465,10 @@ export const streamClaudeResponse = async ({
         ? "bypass"
         : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
+  // Dream's built-in browser is exposed as an in-process MCP server so the
+  // agent can open tabs, navigate, inspect and interact with the same
+  // <webview> tabs the user sees. Absent when there is no project context.
+  const browserMcpServer = createBrowserMcpServer({ projectId });
   let claudeCompactionId = null;
   let resumeSessionId = null;
   if (
@@ -547,7 +557,16 @@ export const streamClaudeResponse = async ({
       // Only Dream-managed MCP servers are loaded; strict mode keeps the
       // user's ~/.claude.json and project .mcp.json entries out of scope
       // (users import those explicitly from Settings > MCP servers).
-      mcpServers: toClaudeMcpServers(mcpServers),
+      mcpServers: {
+        ...toClaudeMcpServers(mcpServers),
+        ...(browserMcpServer
+          ? { [BROWSER_MCP_SERVER_NAME]: browserMcpServer }
+          : {}),
+      },
+      // Read-only browser tools (list tabs, snapshot, screenshot, console
+      // logs, wait) are pre-allowed like Read/Glob so looking at the page
+      // never prompts; every mutating browser tool still reaches canUseTool.
+      ...(browserMcpServer ? { allowedTools: BROWSER_READ_ONLY_TOOL_IDS } : {}),
       strictMcpConfig: true,
       // The provider defaults to `settingSources: []`, which isolates the SDK
       // from all filesystem config. Opt in so the user's ~/.claude/settings.json

@@ -305,6 +305,43 @@ export interface BrowserPageStateEvent {
   zoomFactor: number;
 }
 
+/** Renderer -> main: a `<webview>` guest is mounted for a browser tab. */
+export interface BrowserGuestPayload {
+  projectId: string;
+  tabId: string;
+  webContentsId?: number;
+}
+
+export type BrowserAgentCommandType =
+  | "list-tabs"
+  | "show-tab"
+  | "open-tab"
+  | "close-tab";
+
+/** Main -> renderer: a request from an agent browser tool. */
+export interface BrowserAgentCommand {
+  id: string;
+  payload?: { tabId?: string; url?: string };
+  projectId: string;
+  type: BrowserAgentCommandType;
+}
+
+export interface BrowserAgentTabInfo {
+  active: boolean;
+  id: string;
+  title: string;
+  url: string;
+}
+
+export type BrowserAgentCommandResult = Record<string, unknown>;
+
+export interface BrowserAgentCommandResponse {
+  error?: string;
+  id: string;
+  ok: boolean;
+  result?: BrowserAgentCommandResult;
+}
+
 export type UpdateState =
   | "idle"
   | "disabled"
@@ -796,6 +833,12 @@ export interface DesktopApi {
   onBrowserStatus: (
     listener: (event: BrowserStatusEvent) => void,
   ) => () => void;
+  reportBrowserGuestAttached: (payload: BrowserGuestPayload) => void;
+  reportBrowserGuestDetached: (payload: BrowserGuestPayload) => void;
+  onBrowserCommand: (
+    listener: (command: BrowserAgentCommand) => void,
+  ) => () => void;
+  sendBrowserCommandResult: (payload: BrowserAgentCommandResponse) => void;
 
   detectEditors: () => Promise<DetectedEditor[]>;
   openInEditor: (payload: {

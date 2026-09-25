@@ -157,6 +157,7 @@ type BrowserWebviewProps = {
     webview: ElectronWebviewElement,
     overrides?: Partial<BrowserTabState>,
   ) => void;
+  projectId: string;
   tab: BrowserTabState;
 };
 
@@ -167,9 +168,45 @@ const BrowserWebview = memo(
     onLoadingChange,
     onRef,
     onStateChange,
+    projectId,
     tab,
   }: BrowserWebviewProps) => {
     const webviewRef = useRef<ElectronWebviewElement | null>(null);
+
+    // Register the guest with the main process so agent browser tools can
+    // drive this tab through its webContents. The id is only readable once
+    // the guest has attached; dom-ready re-registers after each navigation,
+    // which is harmless (idempotent) and covers guest process swaps.
+    useEffect(() => {
+      const webview = webviewRef.current;
+      const desktopApi = getDesktopApi();
+      if (!webview || !desktopApi?.reportBrowserGuestAttached) {
+        return;
+      }
+
+      const tabId = tab.id;
+      const report = () => {
+        try {
+          desktopApi.reportBrowserGuestAttached({
+            projectId,
+            tabId,
+            webContentsId: webview.getWebContentsId(),
+          });
+        } catch {
+          // Not attached yet; the next event will retry.
+        }
+      };
+
+      webview.addEventListener("did-attach", report);
+      webview.addEventListener("dom-ready", report);
+      report();
+
+      return () => {
+        webview.removeEventListener("did-attach", report);
+        webview.removeEventListener("dom-ready", report);
+        desktopApi.reportBrowserGuestDetached?.({ projectId, tabId });
+      };
+    }, [projectId, tab.id]);
 
     const setWebviewRef = useCallback<RefCallback<ElectronWebviewElement>>(
       (node) => {
@@ -1063,6 +1100,7 @@ const BrowserPanelImpl = ({
               onLoadingChange={handleWebviewLoadingChange}
               onRef={handleWebviewRef(activeTab.id)}
               onStateChange={handleWebviewStateChange}
+              projectId={projectId}
               tab={activeTab}
             />
           ) : null}

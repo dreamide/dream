@@ -14,11 +14,13 @@ import {
   WebContentsView,
 } from "electron";
 import getPort from "get-port";
+import { setBrowserBridge } from "./api/browser-bridge.js";
 import { stopCodexAppServer } from "./api/chat/codex-app-server-client.js";
 import {
   configureApplicationMenu,
   toggleWebContentsDevToolsDetached,
 } from "./app-menu.js";
+import { createBrowserAgentBridge } from "./browser-agent-bridge.js";
 import { createBrowserSessionManager } from "./browser-sessions.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import { getHelloUrl } from "./hello.js";
@@ -175,6 +177,11 @@ const browserSessionManager = createBrowserSessionManager({
   getMainWindow: () => mainWindow,
   sendToRenderer,
 });
+
+// Lets agent tools (electron/api/chat/browser-tools.js) drive the renderer's
+// browser tabs. The API layer reads it through the browser-bridge holder.
+const browserAgentBridge = createBrowserAgentBridge({ sendToRenderer });
+setBrowserBridge(browserAgentBridge);
 
 const processSessionManager = createProcessSessionManager({
   sendToRenderer,
@@ -532,6 +539,7 @@ async function createMainWindow() {
     }
     helloView = null;
     browserSessionManager.reset();
+    browserAgentBridge.reset();
     mainWindow = null;
   });
 
