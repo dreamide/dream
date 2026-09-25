@@ -1228,15 +1228,15 @@ export const ChatComposer = ({
     }
     switch (skill.scope) {
       case "project":
-        return { icon: FolderGit2, label: skillsT("badgeProject") };
+        return { icon: FolderGit2, label: skillsT("scopeProject") };
       case "system":
-        return { icon: LaptopMinimal, label: skillsT("badgeSystem") };
+        return { icon: LaptopMinimal, label: skillsT("scopeSystem") };
       case "plugin":
-        return { icon: Grid2x2, label: skillsT("badgeApp") };
+        return { icon: Grid2x2, label: skillsT("scopePlugin") };
       case "admin":
-        return { icon: Settings2, label: skillsT("badgeManaged") };
+        return { icon: Settings2, label: skillsT("scopeAdmin") };
       default:
-        return { icon: UserRound, label: skillsT("badgePersonal") };
+        return { icon: UserRound, label: skillsT("scopeUser") };
     }
   };
 

@@ -3,11 +3,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "SKILL.md wird geladen…",
       previewFailed: "Vorschau konnte nicht geladen werden.",
-      badgeApp: "App",
-      badgePersonal: "Persönlich",
-      badgeSystem: "System",
-      badgeProject: "Projekt",
-      badgeManaged: "Verwaltet",
       badgeCommand: "Befehl",
       title: "Skills",
       description:
@@ -611,11 +606,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "Loading SKILL.md…",
       previewFailed: "The preview could not be loaded.",
-      badgeApp: "App",
-      badgePersonal: "Personal",
-      badgeSystem: "System",
-      badgeProject: "Project",
-      badgeManaged: "Managed",
       badgeCommand: "Command",
       title: "Skills",
       description:
@@ -1204,11 +1194,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "Cargando SKILL.md…",
       previewFailed: "No se pudo cargar la vista previa.",
-      badgeApp: "App",
-      badgePersonal: "Personal",
-      badgeSystem: "Sistema",
-      badgeProject: "Proyecto",
-      badgeManaged: "Gestionado",
       badgeCommand: "Comando",
       title: "Skills",
       description:
@@ -1806,11 +1791,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "Chargement de SKILL.md…",
       previewFailed: "L'aperçu n'a pas pu être chargé.",
-      badgeApp: "App",
-      badgePersonal: "Personnel",
-      badgeSystem: "Système",
-      badgeProject: "Projet",
-      badgeManaged: "Géré",
       badgeCommand: "Commande",
       title: "Skills",
       description:
@@ -2409,11 +2389,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "Caricamento di SKILL.md…",
       previewFailed: "Impossibile caricare l'anteprima.",
-      badgeApp: "App",
-      badgePersonal: "Personale",
-      badgeSystem: "Sistema",
-      badgeProject: "Progetto",
-      badgeManaged: "Gestita",
       badgeCommand: "Comando",
       title: "Skill",
       description:
@@ -3011,11 +2986,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "SKILL.md を読み込み中…",
       previewFailed: "プレビューを読み込めませんでした。",
-      badgeApp: "アプリ",
-      badgePersonal: "個人",
-      badgeSystem: "システム",
-      badgeProject: "プロジェクト",
-      badgeManaged: "管理",
       badgeCommand: "コマンド",
       title: "スキル",
       description:
@@ -3604,11 +3574,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "SKILL.md 불러오는 중…",
       previewFailed: "미리보기를 불러오지 못했습니다.",
-      badgeApp: "앱",
-      badgePersonal: "개인",
-      badgeSystem: "시스템",
-      badgeProject: "프로젝트",
-      badgeManaged: "관리",
       badgeCommand: "명령",
       title: "스킬",
       description:
@@ -4187,11 +4152,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "Carregando SKILL.md…",
       previewFailed: "Não foi possível carregar a pré-visualização.",
-      badgeApp: "App",
-      badgePersonal: "Pessoal",
-      badgeSystem: "Sistema",
-      badgeProject: "Projeto",
-      badgeManaged: "Gerenciado",
       badgeCommand: "Comando",
       title: "Skills",
       description:
@@ -4783,11 +4743,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "Đang tải SKILL.md…",
       previewFailed: "Không thể tải bản xem trước.",
-      badgeApp: "Ứng dụng",
-      badgePersonal: "Cá nhân",
-      badgeSystem: "Hệ thống",
-      badgeProject: "Dự án",
-      badgeManaged: "Được quản lý",
       badgeCommand: "Lệnh",
       title: "Kỹ năng",
       description:
@@ -5373,11 +5328,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "正在加载 SKILL.md…",
       previewFailed: "无法加载预览。",
-      badgeApp: "应用",
-      badgePersonal: "个人",
-      badgeSystem: "系统",
-      badgeProject: "项目",
-      badgeManaged: "托管",
       badgeCommand: "命令",
       title: "技能",
       description:
@@ -5938,11 +5888,6 @@ export const supplementalMessages = {
     skills: {
       previewLoading: "正在載入 SKILL.md…",
       previewFailed: "無法載入預覽。",
-      badgeApp: "應用",
-      badgePersonal: "個人",
-      badgeSystem: "系統",
-      badgeProject: "專案",
-      badgeManaged: "受管理",
       badgeCommand: "命令",
       title: "技能",
       description:
