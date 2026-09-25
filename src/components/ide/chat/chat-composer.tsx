@@ -1077,10 +1077,10 @@ export const ChatComposer = ({
                       path={item.path}
                     />
                   )}
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="font-medium text-sm">{item.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs">
+                    <span className="font-medium">{item.name}</span>
                     {item.parentPath ? (
-                      <span className="ml-2 truncate text-muted-foreground text-sm">
+                      <span className="ml-2 truncate text-muted-foreground">
                         {item.parentPath}
                       </span>
                     ) : null}
