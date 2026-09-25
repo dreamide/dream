@@ -442,8 +442,8 @@ export const SkillsSettingsSection = () => {
                 </p>
                 {selectedSkill.path ? (
                   <div className="space-y-2 border-t pt-4">
-                    <p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-                      {t("previewTitle")}
+                    <p className="font-medium font-mono text-muted-foreground text-xs">
+                      {selectedSkill.path.split(/[\\/]/).pop()}
                     </p>
                     {preview?.contents ? (
                       <div className="rounded-md border border-surface-200 bg-surface-50 p-4 text-sm dark:border-surface-800 dark:bg-surface-900">
