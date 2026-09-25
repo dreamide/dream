@@ -205,7 +205,10 @@
     "revertAllChanges": "Alle Änderungen verwerfen",
     "searchFiles": "Dateien durchsuchen",
     "splitDiff": "Geteiltes Diff",
-    "unifiedDiff": "Vereinheitlichtes Diff"
+    "unifiedDiff": "Vereinheitlichtes Diff",
+    "saveChangesTitle": "Möchten Sie die Änderungen an {name} speichern?",
+    "saveChangesDescription": "Ihre Änderungen gehen verloren, wenn Sie sie nicht speichern.",
+    "dontSave": "Nicht speichern"
   },
   "theme": {
     "accentColor": "Akzentfarbe",

@@ -32,6 +32,16 @@ import {
   CodeBlockContainer,
   CodeBlockCopyButton,
 } from "@/components/ai-elements/code-block";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -852,17 +862,6 @@ const FileExplorerPanelImpl = ({
     projectId && selectedFilePath
       ? (filePreviewMessagesByProject[projectId]?.[selectedFilePath] ?? null)
       : null;
-  const dirtyBufferCount = useMemo(
-    () =>
-      projectId
-        ? Object.entries(fileBuffers).filter(
-            ([key, buffer]) =>
-              key.startsWith(`${projectId}\0`) &&
-              buffer.draftContent !== buffer.diskContent,
-          ).length
-        : 0,
-    [fileBuffers, projectId],
-  );
   useEffect(
     () => () => {
       if (selectedImagePreviewUrlRef.current) {
@@ -1172,16 +1171,36 @@ const FileExplorerPanelImpl = ({
     [projectId, resetEditorChrome],
   );
 
+  const closeFileTab = useCallback(
+    (tabProjectId: string, path: string) => {
+      dispatchFileTab({ type: "close", projectId: tabProjectId, path });
+      resetEditorChrome();
+    },
+    [resetEditorChrome],
+  );
+
+  // Closing a tab with unsaved changes asks Save / Don't Save / Cancel first,
+  // so a draft never outlives its tab.
+  const [pendingCloseTab, setPendingCloseTab] = useState<{
+    projectId: string;
+    path: string;
+  } | null>(null);
+
   const handleCloseTab = useCallback(
     (path: string) => {
       if (!projectId) {
         return;
       }
 
-      dispatchFileTab({ type: "close", projectId, path });
-      resetEditorChrome();
+      const buffer = fileBuffers[getFileBufferKey(projectId, path)];
+      if (buffer && buffer.draftContent !== buffer.diskContent) {
+        setPendingCloseTab({ projectId, path });
+        return;
+      }
+
+      closeFileTab(projectId, path);
     },
-    [projectId, resetEditorChrome],
+    [closeFileTab, fileBuffers, projectId],
   );
 
   const handleReorderTabs = useCallback(
@@ -1253,12 +1272,6 @@ const FileExplorerPanelImpl = ({
     [fileBuffers, projectFileTabs.tabs, projectId],
   );
 
-  const handleDiscardChanges = useCallback(() => {
-    if (selectedFileBufferKey) {
-      dispatchFileBuffer({ type: "discard", key: selectedFileBufferKey });
-    }
-  }, [selectedFileBufferKey]);
-
   const handleReloadFromDisk = useCallback(() => {
     if (!selectedFileBufferKey) {
       return;
@@ -1276,75 +1289,119 @@ const FileExplorerPanelImpl = ({
     setFileError(null);
   }, [selectedFileBufferKey]);
 
+  const fileBuffersRef = useRef(fileBuffers);
+  fileBuffersRef.current = fileBuffers;
+  const fileMetadataRef = useRef(fileMetadata);
+  fileMetadataRef.current = fileMetadata;
+
+  // Saves one open file's draft. Resolves true only when it reached disk.
+  const saveFileBuffer = useCallback(
+    async (targetFilePath: string): Promise<boolean> => {
+      if (!projectId || !projectPath) {
+        return false;
+      }
+
+      const targetProjectId = projectId;
+      const targetBufferKey = getFileBufferKey(projectId, targetFilePath);
+      const targetBuffer = fileBuffersRef.current[targetBufferKey];
+      if (
+        !targetBuffer ||
+        targetBuffer.status !== "dirty" ||
+        !fileMetadataRef.current[targetBufferKey]?.writable
+      ) {
+        return false;
+      }
+
+      dispatchFileBuffer({ type: "save-start", key: targetBufferKey });
+
+      try {
+        const response = await fetch("/api/project-file", {
+          body: JSON.stringify({
+            content: targetBuffer.draftContent,
+            expectedContent: targetBuffer.diskContent,
+            filePath: targetFilePath,
+            projectPath,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "PUT",
+        });
+
+        if (!response.ok) {
+          const error = await readResponseText(
+            response,
+            uiT("requestFailedStatus", { status: response.status }),
+          );
+          dispatchFileBuffer({
+            type: response.status === 409 ? "save-conflict" : "save-failure",
+            key: targetBufferKey,
+            error,
+          });
+          return false;
+        }
+
+        const payload = (await response.json()) as ProjectFileWriteResponse;
+        dispatchFileBuffer({
+          type: "save-success",
+          key: targetBufferKey,
+          content: payload.content,
+        });
+        useIdeStore.getState().bumpProjectGitRefreshKey(targetProjectId);
+        return true;
+      } catch (error) {
+        dispatchFileBuffer({
+          type: "save-failure",
+          key: targetBufferKey,
+          error:
+            error instanceof Error
+              ? error.message
+              : panelsT("failedToSaveFile"),
+        });
+        return false;
+      }
+    },
+    [panelsT, projectId, projectPath, uiT],
+  );
+
   const handleSaveEditing = useCallback(async () => {
-    if (
-      !projectId ||
-      !projectPath ||
-      !selectedFilePath ||
-      !selectedFileBufferKey ||
-      !selectedFileBuffer ||
-      selectedFileBuffer.status !== "dirty" ||
-      !selectedFileMetadata?.writable
-    ) {
+    if (selectedFilePath) {
+      await saveFileBuffer(selectedFilePath);
+    }
+  }, [saveFileBuffer, selectedFilePath]);
+
+  const handleSaveAndClosePendingTab = useCallback(async () => {
+    const pending = pendingCloseTab;
+    setPendingCloseTab(null);
+    if (!pending || pending.projectId !== projectId) {
       return;
     }
 
-    const targetBuffer = selectedFileBuffer;
-    const targetBufferKey = selectedFileBufferKey;
-    const targetFilePath = selectedFilePath;
-    const targetProjectId = projectId;
-    dispatchFileBuffer({ type: "save-start", key: targetBufferKey });
-
-    try {
-      const response = await fetch("/api/project-file", {
-        body: JSON.stringify({
-          content: targetBuffer.draftContent,
-          expectedContent: targetBuffer.diskContent,
-          filePath: targetFilePath,
-          projectPath,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "PUT",
-      });
-
-      if (!response.ok) {
-        const error = await readResponseText(
-          response,
-          uiT("requestFailedStatus", { status: response.status }),
-        );
-        dispatchFileBuffer({
-          type: response.status === 409 ? "save-conflict" : "save-failure",
-          key: targetBufferKey,
-          error,
-        });
-        return;
-      }
-
-      const payload = (await response.json()) as ProjectFileWriteResponse;
-      dispatchFileBuffer({
-        type: "save-success",
-        key: targetBufferKey,
-        content: payload.content,
-      });
-      useIdeStore.getState().bumpProjectGitRefreshKey(targetProjectId);
-    } catch (error) {
-      dispatchFileBuffer({
-        type: "save-failure",
-        key: targetBufferKey,
-        error:
-          error instanceof Error ? error.message : panelsT("failedToSaveFile"),
-      });
+    if (await saveFileBuffer(pending.path)) {
+      closeFileTab(pending.projectId, pending.path);
+    } else {
+      // Keep the tab and show it so the save error or conflict is visible.
+      handleActivateTab(pending.path);
     }
   }, [
-    panelsT,
+    closeFileTab,
+    handleActivateTab,
+    pendingCloseTab,
     projectId,
-    projectPath,
-    selectedFileBuffer,
-    selectedFileBufferKey,
-    selectedFileMetadata?.writable,
-    selectedFilePath,
-    uiT,
+    saveFileBuffer,
   ]);
+
+  const handleDiscardAndClosePendingTab = useCallback(() => {
+    const pending = pendingCloseTab;
+    setPendingCloseTab(null);
+    if (!pending) {
+      return;
+    }
+
+    dispatchFileBuffer({
+      type: "discard",
+      key: getFileBufferKey(pending.projectId, pending.path),
+    });
+    closeFileTab(pending.projectId, pending.path);
+  }, [closeFileTab, pendingCloseTab]);
 
   const handleEditorKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1420,14 +1477,6 @@ const FileExplorerPanelImpl = ({
         <div className="flex min-w-0 items-center gap-2">
           <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
           <div className="truncate text-sm font-medium">{commonT("files")}</div>
-          {dirtyBufferCount > 0 ? (
-            <span
-              className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 font-medium text-amber-700 text-[10px] dark:text-amber-300"
-              title={`${dirtyBufferCount} file${dirtyBufferCount === 1 ? "" : "s"} with unsaved changes`}
-            >
-              {dirtyBufferCount} unsaved
-            </span>
-          ) : null}
         </div>
         <button
           className="min-w-0 max-w-full justify-self-center truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
@@ -1533,17 +1582,6 @@ const FileExplorerPanelImpl = ({
               selectedFileBufferKey &&
               !isImageFile(selectedFilePath) ? (
                 <div className="ml-2 flex shrink-0 items-center gap-1">
-                  {selectedFileBuffer.status === "dirty" ||
-                  selectedFileBuffer.status === "conflict" ? (
-                    <Button
-                      onClick={handleDiscardChanges}
-                      size="xs"
-                      type="button"
-                      variant="ghost"
-                    >
-                      Discard changes
-                    </Button>
-                  ) : null}
                   <Button
                     aria-label={uiT("searchCurrentFile")}
                     aria-pressed={isEditorSearchOpen}
@@ -1705,6 +1743,41 @@ const FileExplorerPanelImpl = ({
           </div>
         </div>
       </div>
+      <AlertDialog
+        open={pendingCloseTab !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingCloseTab(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {panelsT("saveChangesTitle", {
+                name: pendingCloseTab?.path.split("/").pop() ?? "",
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {panelsT("saveChangesDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{commonT("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="outline"
+              onClick={handleDiscardAndClosePendingTab}
+            >
+              {panelsT("dontSave")}
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => void handleSaveAndClosePendingTab()}
+            >
+              {commonT("save")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

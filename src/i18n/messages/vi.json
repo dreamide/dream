@@ -205,7 +205,10 @@
     "revertAllChanges": "Hoàn tác tất cả thay đổi",
     "searchFiles": "Tìm kiếm tệp",
     "splitDiff": "Diff chia đôi",
-    "unifiedDiff": "Diff thống nhất"
+    "unifiedDiff": "Diff thống nhất",
+    "saveChangesTitle": "Bạn có muốn lưu các thay đổi đã thực hiện với {name} không?",
+    "saveChangesDescription": "Các thay đổi sẽ bị mất nếu bạn không lưu.",
+    "dontSave": "Không lưu"
   },
   "theme": {
     "accentColor": "Màu nhấn",

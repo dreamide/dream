@@ -205,7 +205,10 @@
     "revertAllChanges": "Annuler toutes les modifications",
     "searchFiles": "Rechercher des fichiers",
     "splitDiff": "Diff côte à côte",
-    "unifiedDiff": "Diff unifié"
+    "unifiedDiff": "Diff unifié",
+    "saveChangesTitle": "Voulez-vous enregistrer les modifications apportées à {name} ?",
+    "saveChangesDescription": "Vos modifications seront perdues si vous ne les enregistrez pas.",
+    "dontSave": "Ne pas enregistrer"
   },
   "theme": {
     "accentColor": "Couleur d’accent",

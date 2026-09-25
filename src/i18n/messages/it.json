@@ -207,7 +207,10 @@
     "revertAllChanges": "Annulla tutte le modifiche",
     "searchFiles": "Cerca file",
     "splitDiff": "Diff diviso",
-    "unifiedDiff": "Diff unificato"
+    "unifiedDiff": "Diff unificato",
+    "saveChangesTitle": "Vuoi salvare le modifiche apportate a {name}?",
+    "saveChangesDescription": "Le modifiche andranno perse se non le salvi.",
+    "dontSave": "Non salvare"
   },
   "theme": {
     "accentColor": "Colore accento",

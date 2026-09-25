@@ -205,7 +205,10 @@
     "revertAllChanges": "すべての変更を元に戻す",
     "searchFiles": "ファイルを検索",
     "splitDiff": "分割 diff",
-    "unifiedDiff": "統一 diff"
+    "unifiedDiff": "統一 diff",
+    "saveChangesTitle": "{name} に加えた変更を保存しますか?",
+    "saveChangesDescription": "保存しないと変更内容は失われます。",
+    "dontSave": "保存しない"
   },
   "theme": {
     "accentColor": "アクセントカラー",

@@ -203,7 +203,10 @@
     "refreshFiles": "重新整理檔案",
     "revertAllChanges": "還原所有變更",
     "splitDiff": "並排差異",
-    "unifiedDiff": "統一差異"
+    "unifiedDiff": "統一差異",
+    "saveChangesTitle": "是否要儲存對 {name} 的變更?",
+    "saveChangesDescription": "如果不儲存,你的變更將會遺失。",
+    "dontSave": "不要儲存"
   },
   "theme": {
     "accentColor": "強調色",

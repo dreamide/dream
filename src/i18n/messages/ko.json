@@ -205,7 +205,10 @@
     "revertAllChanges": "모든 변경 사항 되돌리기",
     "searchFiles": "파일 검색",
     "splitDiff": "분할 diff",
-    "unifiedDiff": "통합 diff"
+    "unifiedDiff": "통합 diff",
+    "saveChangesTitle": "{name}에 대한 변경 내용을 저장하시겠습니까?",
+    "saveChangesDescription": "저장하지 않으면 변경 내용이 손실됩니다.",
+    "dontSave": "저장 안 함"
   },
   "theme": {
     "accentColor": "강조 색상",

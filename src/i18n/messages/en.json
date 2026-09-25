@@ -207,7 +207,10 @@
     "revertAllChanges": "Revert all changes",
     "searchFiles": "Search files",
     "splitDiff": "Split diff",
-    "unifiedDiff": "Unified diff"
+    "unifiedDiff": "Unified diff",
+    "saveChangesTitle": "Do you want to save the changes you made to {name}?",
+    "saveChangesDescription": "Your changes will be lost if you don’t save them.",
+    "dontSave": "Don’t Save"
   },
   "theme": {
     "accentColor": "Accent color",
