@@ -2,6 +2,7 @@ import type { ChatStatus, LanguageModelUsage } from "ai";
 import {
   Blocks,
   FolderGit2,
+  LaptopMinimal,
   Package,
   Settings2,
   Trash2,
@@ -1035,7 +1036,7 @@ export const ChatComposer = ({
       case "project":
         return { icon: FolderGit2, label: skillsT("badgeProject") };
       case "system":
-        return { icon: Settings2, label: skillsT("badgeSystem") };
+        return { icon: LaptopMinimal, label: skillsT("badgeSystem") };
       case "plugin":
         return { icon: Blocks, label: skillsT("badgeApp") };
       case "admin":
@@ -1116,7 +1117,7 @@ export const ChatComposer = ({
                         {getSkillLabel(skill)}
                       </span>
                       {description ? (
-                        <span className="ml-2 text-muted-foreground">
+                        <span className="ml-3 text-muted-foreground">
                           {description}
                         </span>
                       ) : null}
