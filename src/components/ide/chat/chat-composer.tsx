@@ -144,6 +144,43 @@ const REFERENCE_ICON_TEXT_SLOT = "      ";
 const getReferenceMentionText = (reference: ProjectReference) =>
   `${REFERENCE_ICON_TEXT_SLOT}${reference.name}`;
 
+/**
+ * Picked skills are inserted as `<slot>$name`: the slot plus the `$` are about
+ * as wide as a file mention's slot, so the overlay can draw the icon there and
+ * skills line up with files. The slot is stripped again before sending.
+ */
+const SKILL_ICON_TEXT_SLOT = "    ";
+
+type SkillMentionSpan = SkillMentionRange & { slotStart: number };
+
+const getSkillMentionSpans = (
+  text: string,
+  mentions: SkillMentionRange[],
+): SkillMentionSpan[] =>
+  mentions.map((mention) => {
+    const slotStart = mention.start - SKILL_ICON_TEXT_SLOT.length;
+    return {
+      ...mention,
+      slotStart:
+        slotStart >= 0 &&
+        text.slice(slotStart, mention.start) === SKILL_ICON_TEXT_SLOT
+          ? slotStart
+          : mention.start,
+    };
+  });
+
+const stripSkillIconSlots = (text: string, spans: SkillMentionSpan[]) => {
+  let output = "";
+  let index = 0;
+  for (const span of [...spans].sort(
+    (left, right) => left.start - right.start,
+  )) {
+    output += text.slice(index, span.slotStart);
+    index = span.start;
+  }
+  return output + text.slice(index);
+};
+
 const isReferenceMentionRange = (
   text: string,
   start: number,
@@ -193,20 +230,17 @@ const getReferenceMentionRanges = (
     return ranges;
   });
 
-const getReferenceDeletionRange = ({
+const getMentionDeletionRange = ({
   key,
-  references,
+  ranges,
   selectionEnd,
   selectionStart,
-  text,
 }: {
   key: "Backspace" | "Delete";
-  references: ProjectReference[];
+  ranges: { end: number; start: number }[];
   selectionEnd: number;
   selectionStart: number;
-  text: string;
 }) => {
-  const ranges = getReferenceMentionRanges(text, references);
   if (ranges.length === 0) {
     return null;
   }
@@ -416,7 +450,7 @@ const InlineProjectReferenceMentions = ({
   text,
 }: {
   references: ProjectReference[];
-  skillMentions: SkillMentionRange[];
+  skillMentions: SkillMentionSpan[];
   text: string;
 }) => {
   if (!text || (references.length === 0 && skillMentions.length === 0)) {
@@ -424,7 +458,7 @@ const InlineProjectReferenceMentions = ({
   }
 
   const skillMentionStarts = new Map(
-    skillMentions.map((mention) => [mention.start, mention] as const),
+    skillMentions.map((mention) => [mention.slotStart, mention] as const),
   );
 
   const sortedReferences = [...references].sort(
@@ -454,23 +488,25 @@ const InlineProjectReferenceMentions = ({
     if (skillMention) {
       flushText();
       nodes.push(
-        // The textarea still holds `$name` (that is what invokes the skill),
-        // so the invisible copy keeps the caret aligned while the badge is
-        // drawn over the same width.
-        <span
-          className="relative inline-block"
-          key={`skill-${skillMention.name}:${index}`}
-        >
-          <span className="invisible">
+        skillMention.slotStart < skillMention.start ? (
+          <span
+            className="text-info-foreground dark:text-info-foreground"
+            key={`skill-${skillMention.name}:${index}`}
+          >
+            <span className="relative inline-block text-transparent">
+              {text.slice(skillMention.slotStart, skillMention.start + 1)}
+              <Package className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-info-foreground dark:text-info-foreground" />
+            </span>
+            {text.slice(skillMention.start + 1, skillMention.end)}
+          </span>
+        ) : (
+          <span
+            className="text-info-foreground dark:text-info-foreground"
+            key={`skill-${skillMention.name}:${index}`}
+          >
             {text.slice(skillMention.start, skillMention.end)}
           </span>
-          <span className="-inset-x-0.5 absolute inset-y-0 flex items-center justify-center">
-            <span className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-sm bg-info-foreground/10 text-info-foreground">
-              <Package className="size-3 shrink-0" />
-              {text.slice(skillMention.start + 1, skillMention.end)}
-            </span>
-          </span>
-        </span>,
+        ),
       );
       index = skillMention.end;
       continue;
@@ -774,7 +810,12 @@ export const ChatComposer = ({
     skillResults.length > 0;
   const skillMentions = useMemo(
     () =>
-      skillsSupported ? findSkillMentions(promptText, providerSkills) : [],
+      skillsSupported
+        ? getSkillMentionSpans(
+            promptText,
+            findSkillMentions(promptText, providerSkills),
+          )
+        : [],
     [promptText, providerSkills, skillsSupported],
   );
   const hasInlineOverlay =
@@ -862,7 +903,7 @@ export const ChatComposer = ({
 
       const before = promptText.slice(0, activeSkillToken.start);
       const after = promptText.slice(activeSkillToken.end);
-      const mentionText = `$${skill.name}`;
+      const mentionText = `${SKILL_ICON_TEXT_SLOT}$${skill.name}`;
       const nextCharacter = after.at(0);
       const separator =
         nextCharacter !== undefined && /\s/.test(nextCharacter) ? "" : " ";
@@ -886,7 +927,18 @@ export const ChatComposer = ({
     async (prompt: PromptInputMessage) => {
       await onSubmit({
         ...prompt,
-        text: expandReferenceMentionsForSubmit(prompt.text, selectedReferences),
+        text: expandReferenceMentionsForSubmit(
+          stripSkillIconSlots(
+            prompt.text,
+            skillsSupported
+              ? getSkillMentionSpans(
+                  prompt.text,
+                  findSkillMentions(prompt.text, providerSkills),
+                )
+              : [],
+          ),
+          selectedReferences,
+        ),
         references: selectedReferences,
         skills: [
           ...new Set(skillMentions.map((mention) => mention.skill.name)),
@@ -898,7 +950,13 @@ export const ChatComposer = ({
       setActiveSkillToken(null);
       setHighlightedSkillIndex(0);
     },
-    [onSubmit, selectedReferences, skillMentions],
+    [
+      onSubmit,
+      providerSkills,
+      selectedReferences,
+      skillMentions,
+      skillsSupported,
+    ],
   );
 
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> =
@@ -913,14 +971,23 @@ export const ChatComposer = ({
 
         if (
           (event.key === "Backspace" || event.key === "Delete") &&
-          selectedReferences.length > 0
+          (selectedReferences.length > 0 || skillMentions.length > 0)
         ) {
-          const deletionRange = getReferenceDeletionRange({
+          const deletionRange = getMentionDeletionRange({
             key: event.key,
-            references: selectedReferences,
+            ranges: [
+              ...getReferenceMentionRanges(promptText, selectedReferences),
+              // Picked skills delete as one unit, like files; a hand-typed
+              // `$name` stays ordinary editable text.
+              ...skillMentions
+                .filter((mention) => mention.slotStart < mention.start)
+                .map((mention) => ({
+                  end: mention.end,
+                  start: mention.slotStart,
+                })),
+            ],
             selectionEnd: event.currentTarget.selectionEnd,
             selectionStart: event.currentTarget.selectionStart,
-            text: promptText,
           });
 
           if (deletionRange) {
@@ -1035,6 +1102,7 @@ export const ChatComposer = ({
         selectedReferences,
         showReferenceResults,
         showSkillResults,
+        skillMentions,
         skillResults,
       ],
     );
