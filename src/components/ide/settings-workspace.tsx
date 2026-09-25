@@ -543,21 +543,6 @@ export const SettingsWorkspace = () => {
             <button
               className={cn(
                 "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
-                settingsSection === "mcp"
-                  ? "font-semibold text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setSettingsSection("mcp")}
-              type="button"
-            >
-              <span className="flex items-center gap-2">
-                <Server className="size-4" />
-                {settingsT("mcpServers")}
-              </span>
-            </button>
-            <button
-              className={cn(
-                "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
                 settingsSection === "prompts"
                   ? "font-semibold text-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -583,6 +568,21 @@ export const SettingsWorkspace = () => {
               <span className="flex items-center gap-2">
                 <Package className="size-4" />
                 {skillsT("title")}
+              </span>
+            </button>
+            <button
+              className={cn(
+                "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
+                settingsSection === "mcp"
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setSettingsSection("mcp")}
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                <Server className="size-4" />
+                {settingsT("mcpServers")}
               </span>
             </button>
             <button

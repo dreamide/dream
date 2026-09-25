@@ -174,7 +174,6 @@ export function MergePrDialog({
         ) : null}
         <DialogFooter>
           <Button
-            className="text-xs"
             size="sm"
             variant="ghost"
             disabled={merging}
@@ -184,7 +183,6 @@ export function MergePrDialog({
           </Button>
           {error ? (
             <Button
-              className="text-xs"
               size="sm"
               variant="outline"
               disabled={loading || merging}
@@ -194,7 +192,6 @@ export function MergePrDialog({
             </Button>
           ) : null}
           <Button
-            className="text-xs"
             size="sm"
             disabled={loading || merging || !info?.commit || Boolean(blocked)}
             onClick={merge}

@@ -569,12 +569,7 @@ function PageFooter({
       {data.loading ? (
         <PullRequestLoading />
       ) : data.hasMore ? (
-        <Button
-          size="sm"
-          className="text-xs"
-          variant="outline"
-          onClick={data.more}
-        >
+        <Button size="sm" variant="outline" onClick={data.more}>
           Load more
         </Button>
       ) : null}
@@ -855,7 +850,6 @@ function PullRequestFileRow({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-xs"
                     onClick={() => setReply(root.id)}
                   >
                     Reply
@@ -1399,7 +1393,6 @@ export function PullRequestsPanel({
         {current?.state === "open" ? (
           <Button
             size="sm"
-            className="text-xs"
             disabled={current.draft || !repository}
             onClick={() => {
               if (repository)
@@ -1441,12 +1434,7 @@ export function PullRequestsPanel({
           <p className="text-destructive whitespace-pre-wrap">
             {context.error}
           </p>
-          <Button
-            size="sm"
-            className="text-xs"
-            variant="outline"
-            onClick={refresh}
-          >
+          <Button size="sm" variant="outline" onClick={refresh}>
             Retry
           </Button>
         </div>
@@ -1475,12 +1463,7 @@ export function PullRequestsPanel({
               : "Check out a branch to view its pull request."}
           </p>
           {context.data?.branch ? (
-            <Button
-              size="sm"
-              className="text-xs"
-              variant="outline"
-              onClick={() => setCreate(true)}
-            >
+            <Button size="sm" variant="outline" onClick={() => setCreate(true)}>
               Create pull request
             </Button>
           ) : null}
