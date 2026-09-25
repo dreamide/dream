@@ -149,7 +149,7 @@ const getReferenceMentionText = (reference: ProjectReference) =>
  * as wide as a file mention's slot, so the overlay can draw the icon there and
  * skills line up with files. The slot is stripped again before sending.
  */
-const SKILL_ICON_TEXT_SLOT = "    ";
+const SKILL_ICON_TEXT_SLOT = "   ";
 
 type SkillMentionSpan = SkillMentionRange & { slotStart: number };
 
