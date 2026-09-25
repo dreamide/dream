@@ -12,22 +12,8 @@
     {
       "idx": 1,
       "version": "6",
-      "when": 1789972139653,
-      "tag": "0001_tasks_table",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1790047956426,
-      "tag": "0002_chat_task_id",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1790227320958,
-      "tag": "0003_saved_tasks",
+      "when": 1790306296429,
+      "tag": "0001_saved_prompts",
       "breakpoints": true
     }
   ]

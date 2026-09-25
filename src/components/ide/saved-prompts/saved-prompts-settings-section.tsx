@@ -10,34 +10,37 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Task } from "@/types/ide";
+import type { SavedPrompt } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
-import { TaskDialog } from "./task-dialog";
+import { SavedPromptDialog } from "./saved-prompt-dialog";
 
-type DialogState = { mode: "create" } | { mode: "edit"; task: Task } | null;
+type DialogState =
+  | { mode: "create" }
+  | { mode: "edit"; savedPrompt: SavedPrompt }
+  | null;
 
 /**
- * Settings > Tasks: the app-wide list of saved prompts. Tasks are run from the
- * Tasks menu in a chat's composer, not from here.
+ * Settings > Prompts: the app-wide list of saved prompts. They are run from the
+ * Run prompt menu in a chat's composer, not from here.
  */
-export const TasksSettingsSection = () => {
-  const t = useTranslations("tasks");
+export const SavedPromptsSettingsSection = () => {
+  const t = useTranslations("savedPrompts");
   const commonT = useTranslations("common");
-  const tasks = useIdeStore((state) => state.tasks);
-  const addTask = useIdeStore((state) => state.addTask);
-  const updateTask = useIdeStore((state) => state.updateTask);
-  const deleteTask = useIdeStore((state) => state.deleteTask);
-  const moveTask = useIdeStore((state) => state.moveTask);
+  const savedPrompts = useIdeStore((state) => state.savedPrompts);
+  const addSavedPrompt = useIdeStore((state) => state.addSavedPrompt);
+  const updateSavedPrompt = useIdeStore((state) => state.updateSavedPrompt);
+  const deleteSavedPrompt = useIdeStore((state) => state.deleteSavedPrompt);
+  const moveSavedPrompt = useIdeStore((state) => state.moveSavedPrompt);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Deleting asks for a second click on the same button.
-  const handleDelete = (task: Task) => {
-    if (pendingDeleteId !== task.id) {
-      setPendingDeleteId(task.id);
+  const handleDelete = (savedPrompt: SavedPrompt) => {
+    if (pendingDeleteId !== savedPrompt.id) {
+      setPendingDeleteId(savedPrompt.id);
       return;
     }
-    deleteTask(task.id);
+    deleteSavedPrompt(savedPrompt.id);
     setPendingDeleteId(null);
   };
 
@@ -54,36 +57,36 @@ export const TasksSettingsSection = () => {
           type="button"
         >
           <Plus className="size-4" />
-          {t("newTask")}
+          {t("newPrompt")}
         </Button>
       </div>
 
-      {tasks.length === 0 ? (
+      {savedPrompts.length === 0 ? (
         <div className="flex min-h-[200px] items-center justify-center rounded-md border border-dashed p-4 text-center">
-          <p className="text-muted-foreground text-sm">{t("empty")}</p>
+          <p className="text-muted-foreground text-sm">{t("emptyShort")}</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-md border bg-white dark:bg-surface-950">
           <Table className="table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead>{t("titleLabel")}</TableHead>
+                <TableHead>{t("nameLabel")}</TableHead>
                 <TableHead className="w-44" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tasks.map((task, index) => (
+              {savedPrompts.map((savedPrompt, index) => (
                 <TableRow
-                  data-task={task.id}
-                  key={task.id}
-                  onDoubleClick={() => setDialog({ mode: "edit", task })}
+                  data-saved-prompt={savedPrompt.id}
+                  key={savedPrompt.id}
+                  onDoubleClick={() => setDialog({ mode: "edit", savedPrompt })}
                 >
                   <TableCell className="min-w-0 whitespace-normal">
                     <div className="truncate font-medium text-sm">
-                      {task.title}
+                      {savedPrompt.name}
                     </div>
                     <div className="mt-0.5 line-clamp-2 whitespace-pre-line text-muted-foreground text-xs leading-5">
-                      {task.prompt}
+                      {savedPrompt.prompt}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -91,7 +94,9 @@ export const TasksSettingsSection = () => {
                       <Button
                         aria-label={t("moveUp")}
                         disabled={index === 0}
-                        onClick={() => moveTask(task.id, index - 1)}
+                        onClick={() =>
+                          moveSavedPrompt(savedPrompt.id, index - 1)
+                        }
                         size="icon-sm"
                         title={t("moveUp")}
                         type="button"
@@ -101,8 +106,10 @@ export const TasksSettingsSection = () => {
                       </Button>
                       <Button
                         aria-label={t("moveDown")}
-                        disabled={index === tasks.length - 1}
-                        onClick={() => moveTask(task.id, index + 1)}
+                        disabled={index === savedPrompts.length - 1}
+                        onClick={() =>
+                          moveSavedPrompt(savedPrompt.id, index + 1)
+                        }
                         size="icon-sm"
                         title={t("moveDown")}
                         type="button"
@@ -112,7 +119,7 @@ export const TasksSettingsSection = () => {
                       </Button>
                       <Button
                         aria-label={commonT("edit")}
-                        onClick={() => setDialog({ mode: "edit", task })}
+                        onClick={() => setDialog({ mode: "edit", savedPrompt })}
                         size="icon-sm"
                         title={commonT("edit")}
                         type="button"
@@ -124,17 +131,21 @@ export const TasksSettingsSection = () => {
                         aria-label={commonT("delete")}
                         onBlur={() =>
                           setPendingDeleteId((current) =>
-                            current === task.id ? null : current,
+                            current === savedPrompt.id ? null : current,
                           )
                         }
-                        onClick={() => handleDelete(task)}
-                        size={pendingDeleteId === task.id ? "sm" : "icon-sm"}
+                        onClick={() => handleDelete(savedPrompt)}
+                        size={
+                          pendingDeleteId === savedPrompt.id ? "sm" : "icon-sm"
+                        }
                         type="button"
                         variant={
-                          pendingDeleteId === task.id ? "destructive" : "ghost"
+                          pendingDeleteId === savedPrompt.id
+                            ? "destructive"
+                            : "ghost"
                         }
                       >
-                        {pendingDeleteId === task.id ? (
+                        {pendingDeleteId === savedPrompt.id ? (
                           t("deleteConfirm")
                         ) : (
                           <Trash2 className="size-4" />
@@ -150,15 +161,15 @@ export const TasksSettingsSection = () => {
       )}
 
       {dialog ? (
-        <TaskDialog
-          initialValue={dialog.mode === "edit" ? dialog.task : null}
-          key={dialog.mode === "edit" ? dialog.task.id : "create"}
+        <SavedPromptDialog
+          initialValue={dialog.mode === "edit" ? dialog.savedPrompt : null}
+          key={dialog.mode === "edit" ? dialog.savedPrompt.id : "create"}
           onClose={() => setDialog(null)}
           onSubmit={(value) => {
             if (dialog.mode === "edit") {
-              updateTask(dialog.task.id, value);
+              updateSavedPrompt(dialog.savedPrompt.id, value);
             } else {
-              addTask(value);
+              addSavedPrompt(value);
             }
             setDialog(null);
           }}

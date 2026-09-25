@@ -64,7 +64,7 @@ import {
 import { useIdeStore } from "./ide-store";
 import { MODEL_SPEED_OPTIONS, REASONING_EFFORT_OPTIONS } from "./ide-types";
 import { ProjectBranchFooter } from "./project-status-bar";
-import { RunTaskSubmenu } from "./tasks/run-task-submenu";
+import { RunSavedPromptSubmenu } from "./saved-prompts/run-saved-prompt-submenu";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
@@ -661,11 +661,7 @@ export const ChatPanel = ({
             status={status}
             todoSummary={todoSummary}
             actionMenuItems={
-              <RunTaskSubmenu
-                branch={currentGitBranch}
-                chatId={chat.id}
-                projectId={project.id}
-              />
+              <RunSavedPromptSubmenu chatId={chat.id} projectId={project.id} />
             }
           />
         )}

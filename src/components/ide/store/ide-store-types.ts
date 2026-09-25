@@ -14,8 +14,8 @@ import type {
   ProjectGitWorktreeCleanupResponse,
   ProjectWorktreeInfo,
   RightPanelView,
+  SavedPrompt,
   StashItem,
-  Task,
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
 
@@ -43,7 +43,7 @@ export interface IdeState {
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
   appView: AppView;
-  tasks: Task[];
+  savedPrompts: SavedPrompt[];
   chats: ChatConfig[];
   chatSort: ChatSortOrder;
   settings: AppSettings;
@@ -189,24 +189,27 @@ export interface IdeState {
   queueChatSubmit: (chatId: string, submission: PendingChatSubmit) => boolean;
   takePendingChatSubmit: (chatId: string) => PendingChatSubmit | null;
 
-  // Actions - tasks
-  /** Saves a new task at the end of the list. Returns its id. */
-  addTask: (task: { prompt: string; title: string }) => string | null;
-  updateTask: (
-    taskId: string,
-    updates: { prompt?: string; title?: string },
+  // Actions - saved prompts
+  /** Saves a new saved prompt at the end of the list. Returns its id. */
+  addSavedPrompt: (savedPrompt: {
+    name: string;
+    prompt: string;
+  }) => string | null;
+  updateSavedPrompt: (
+    promptId: string,
+    updates: { name?: string; prompt?: string },
   ) => void;
-  deleteTask: (taskId: string) => void;
-  moveTask: (taskId: string, index: number) => void;
+  deleteSavedPrompt: (promptId: string) => void;
+  moveSavedPrompt: (promptId: string, index: number) => void;
   /**
-   * Sends a task's prompt, with its placeholders filled, to `chatId` in
+   * Sends a saved prompt's text, as written, to `chatId` in
    * `projectId`. Returns whether it was sent (it is not when the chat is
    * busy).
    */
-  runTask: (
+  runSavedPrompt: (
     projectId: string,
-    taskId: string,
-    options: { branch?: string | null; chatId: string },
+    promptId: string,
+    chatId: string,
   ) => boolean;
 
   // Actions - panels

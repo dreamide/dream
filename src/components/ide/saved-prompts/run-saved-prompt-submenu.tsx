@@ -8,31 +8,28 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useIdeStore } from "../ide-store";
-import { useChatAcceptsTask } from "./use-chat-accepts-task";
+import { useChatAcceptsSavedPrompt } from "./use-chat-accepts-saved-prompt";
 
-export interface RunTaskSubmenuProps {
-  /** The chat whose composer this sits in; a picked task is sent to it. */
+export interface RunSavedPromptSubmenuProps {
+  /** The chat whose composer this sits in; a picked saved prompt is sent to it. */
   chatId: string;
-  /** Fills `{{branch}}`. */
-  branch: string | null;
   projectId: string;
 }
 
 /**
- * "Run task" in the composer's + menu: sends a saved task to this chat. Tasks
- * themselves are managed in Settings.
+ * "Run prompt" in the composer's + menu: sends a saved prompt to this chat. The
+ * prompts themselves are managed in Settings.
  */
-export const RunTaskSubmenu = ({
-  branch,
+export const RunSavedPromptSubmenu = ({
   chatId,
   projectId,
-}: RunTaskSubmenuProps) => {
-  const t = useTranslations("tasks");
-  const tasks = useIdeStore((state) => state.tasks);
-  const runTask = useIdeStore((state) => state.runTask);
+}: RunSavedPromptSubmenuProps) => {
+  const t = useTranslations("savedPrompts");
+  const savedPrompts = useIdeStore((state) => state.savedPrompts);
+  const runSavedPrompt = useIdeStore((state) => state.runSavedPrompt);
   const setSettingsSection = useIdeStore((state) => state.setSettingsSection);
   const setSettingsOpen = useIdeStore((state) => state.setSettingsOpen);
-  const accepts = useChatAcceptsTask(chatId);
+  const accepts = useChatAcceptsSavedPrompt(chatId);
 
   return (
     <DropdownMenuSub>
@@ -42,25 +39,25 @@ export const RunTaskSubmenu = ({
         title={accepts ? undefined : t("chatBusy")}
       >
         <Play className="mr-2 size-3.5" />
-        <span className="truncate">{t("runTask")}</span>
+        <span className="truncate">{t("runPrompt")}</span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-max min-w-56 max-w-80">
-        {tasks.length === 0 ? (
+        {savedPrompts.length === 0 ? (
           <DropdownMenuItem className="text-xs" disabled>
             {t("emptyShort")}
           </DropdownMenuItem>
         ) : (
-          tasks.map((task) => (
+          savedPrompts.map((savedPrompt) => (
             <DropdownMenuItem
               className="flex-col items-start gap-0.5 text-xs"
-              key={task.id}
-              onClick={() => runTask(projectId, task.id, { branch, chatId })}
+              key={savedPrompt.id}
+              onClick={() => runSavedPrompt(projectId, savedPrompt.id, chatId)}
             >
               <span className="max-w-72 truncate font-medium">
-                {task.title}
+                {savedPrompt.name}
               </span>
               <span className="line-clamp-1 max-w-72 text-muted-foreground">
-                {task.prompt}
+                {savedPrompt.prompt}
               </span>
             </DropdownMenuItem>
           ))
@@ -69,12 +66,12 @@ export const RunTaskSubmenu = ({
         <DropdownMenuItem
           className="text-xs"
           onClick={() => {
-            setSettingsSection("tasks");
+            setSettingsSection("prompts");
             setSettingsOpen(true);
           }}
         >
           <Settings2 className="mr-2 size-3.5" />
-          {t("manageTasks")}
+          {t("managePrompts")}
         </DropdownMenuItem>
       </DropdownMenuSubContent>
     </DropdownMenuSub>

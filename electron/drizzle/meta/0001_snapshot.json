@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "14f7b246-813a-410d-9bf5-109df9d65440",
+  "id": "da102529-6fac-4447-b333-c7e441c6f2e1",
   "prevId": "ea34110d-ce03-4010-ac65-4b0e863d6451",
   "tables": {
     "chat_messages": {
@@ -322,8 +322,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "tasks": {
-      "name": "tasks",
+    "saved_prompts": {
+      "name": "saved_prompts",
       "columns": {
         "id": {
           "name": "id",
@@ -332,27 +332,20 @@
           "notNull": true,
           "autoincrement": false
         },
-        "project_id": {
-          "name": "project_id",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "step": {
-          "name": "step",
+        "prompt": {
+          "name": "prompt",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'backlog'"
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
+          "default": "''"
         },
         "sort_order": {
           "name": "sort_order",
@@ -361,14 +354,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
-        },
-        "payload": {
-          "name": "payload",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'{}'"
         },
         "created_at": {
           "name": "created_at",
@@ -386,36 +371,16 @@
         }
       },
       "indexes": {
-        "idx_tasks_order": {
-          "name": "idx_tasks_order",
+        "idx_saved_prompts_order": {
+          "name": "idx_saved_prompts_order",
           "columns": ["sort_order"],
           "isUnique": false
-        },
-        "idx_tasks_project": {
-          "name": "idx_tasks_project",
-          "columns": ["project_id"],
-          "isUnique": false
         }
       },
-      "foreignKeys": {
-        "tasks_project_id_projects_id_fk": {
-          "name": "tasks_project_id_projects_id_fk",
-          "tableFrom": "tasks",
-          "tableTo": "projects",
-          "columnsFrom": ["project_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "tasks_payload_json": {
-          "name": "tasks_payload_json",
-          "value": "json_valid(\"tasks\".\"payload\")"
-        }
-      }
+      "checkConstraints": {}
     }
   },
   "views": {},

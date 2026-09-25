@@ -305,11 +305,11 @@ const createState = (project, overrides = {}) => ({
   ...overrides,
 });
 
-const createStoredTask = (id, timestamp, overrides = {}) => ({
+const createStoredSavedPrompt = (id, timestamp, overrides = {}) => ({
   createdAt: timestamp,
   id,
   prompt: `Prompt for ${id}`,
-  title: id,
+  name: id,
   updatedAt: timestamp,
   ...overrides,
 });
@@ -352,60 +352,79 @@ test("the retired Tasks workspace loads as Code", async () => {
   }
 });
 
-test("tasks survive a relational persistence round trip, app-wide and in order", async () => {
+test("saved prompts survive a relational persistence round trip, app-wide and in order", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
   const timestamp = "2026-09-01T12:00:00.000Z";
   const project = createProject("project-one", timestamp);
-  const tasks = [
-    createStoredTask("task-two", timestamp, {
+  const savedPrompts = [
+    createStoredSavedPrompt("prompt-two", timestamp, {
       prompt: "Address the review comments on {{branch}}",
-      title: "Address review",
+      name: "Address review",
       updatedAt: "2026-09-02T12:00:00.000Z",
     }),
-    createStoredTask("task-one", timestamp),
+    createStoredSavedPrompt("prompt-one", timestamp),
   ];
 
   try {
-    savePersistedState(createState(project, { tasks }), { databasePath });
-    assert.deepEqual(loadPersistedState({ databasePath }).tasks, tasks);
-
-    // Tasks belong to no project, so they outlive every project.
-    savePersistedState(
-      createState(project, { activeProjectId: null, projects: [], tasks }),
-      { databasePath },
-    );
-    assert.deepEqual(loadPersistedState({ databasePath }).tasks, tasks);
-
-    // Deleting and reordering is a save of the new list.
-    savePersistedState(createState(project, { tasks: [tasks[1]] }), {
+    savePersistedState(createState(project, { savedPrompts }), {
       databasePath,
     });
-    assert.deepEqual(loadPersistedState({ databasePath }).tasks, [tasks[1]]);
+    assert.deepEqual(
+      loadPersistedState({ databasePath }).savedPrompts,
+      savedPrompts,
+    );
 
-    // A state that says nothing about tasks leaves them alone.
+    // Saved prompts belong to no project, so they outlive every project.
+    savePersistedState(
+      createState(project, {
+        activeProjectId: null,
+        projects: [],
+        savedPrompts,
+      }),
+      { databasePath },
+    );
+    assert.deepEqual(
+      loadPersistedState({ databasePath }).savedPrompts,
+      savedPrompts,
+    );
+
+    // Deleting and reordering is a save of the new list.
+    savePersistedState(
+      createState(project, { savedPrompts: [savedPrompts[1]] }),
+      {
+        databasePath,
+      },
+    );
+    assert.deepEqual(loadPersistedState({ databasePath }).savedPrompts, [
+      savedPrompts[1],
+    ]);
+
+    // A state that says nothing about saved prompts leaves them alone.
     savePersistedState(createState(project), { databasePath });
-    assert.deepEqual(loadPersistedState({ databasePath }).tasks, [tasks[1]]);
+    assert.deepEqual(loadPersistedState({ databasePath }).savedPrompts, [
+      savedPrompts[1],
+    ]);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
   }
 });
 
-test("tasks without a prompt or with a duplicate id are not saved", async () => {
+test("saved prompts without a prompt or with a duplicate id are not saved", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
   const timestamp = "2026-09-01T12:00:00.000Z";
   const project = createProject("project-one", timestamp);
-  const valid = createStoredTask("task-one", timestamp);
+  const valid = createStoredSavedPrompt("prompt-one", timestamp);
 
   try {
     savePersistedState(
       createState(project, {
-        tasks: [
+        savedPrompts: [
           valid,
-          { ...valid, title: "Duplicate" },
-          // A pipeline task from before tasks were saved prompts.
+          { ...valid, name: "Duplicate" },
+          // No prompt text.
           {
             createdAt: timestamp,
             description: "Old",
@@ -421,7 +440,9 @@ test("tasks without a prompt or with a duplicate id are not saved", async () => 
       { databasePath },
     );
 
-    assert.deepEqual(loadPersistedState({ databasePath }).tasks, [valid]);
+    assert.deepEqual(loadPersistedState({ databasePath }).savedPrompts, [
+      valid,
+    ]);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
@@ -446,7 +467,7 @@ test("task pipeline data carried on projects is dropped on save", async () => {
     savePersistedState(createState(project), { databasePath });
 
     const loaded = loadPersistedState({ databasePath });
-    assert.deepEqual(loaded.tasks, []);
+    assert.deepEqual(loaded.savedPrompts, []);
     const database = getPersistedStateDatabase({ databasePath });
     const { ui } = JSON.parse(
       database
@@ -469,7 +490,7 @@ test("task pipeline data carried on projects is dropped on save", async () => {
   }
 });
 
-test("the schema stores tasks as prompts, and chats no longer link to tasks", async () => {
+test("the schema stores saved prompts, and chats no longer link to tasks", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
   const databasePath = path.join(directory, "state.db");
 
@@ -482,15 +503,126 @@ test("the schema stores tasks as prompts, and chats no longer link to tasks", as
         .map((column) => column.name)
         .sort();
 
-    assert.deepEqual(columnsOf("tasks"), [
+    assert.deepEqual(columnsOf("saved_prompts"), [
       "created_at",
       "id",
+      "name",
       "prompt",
       "sort_order",
-      "title",
       "updated_at",
     ]);
+    assert.deepEqual(columnsOf("tasks"), []);
     assert.equal(columnsOf("chats").includes("task_id"), false);
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+// Puts a migrated database back to how it looked before saved prompts, so the
+// saved prompts migration runs again on the next open.
+const rewindSavedPromptsMigration = (databasePath, tasksTableSql) => {
+  const database = getPersistedStateDatabase({ databasePath });
+  database.exec(`
+    DROP TABLE saved_prompts;
+    ${tasksTableSql}
+    DELETE FROM __drizzle_migrations
+      WHERE created_at = (SELECT MAX(created_at) FROM __drizzle_migrations);
+  `);
+  return database;
+};
+
+test("a v0.21.0 database drops the task pipeline on upgrade", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-09-01T12:00:00.000Z";
+  const project = createProject("project-one", timestamp);
+
+  try {
+    savePersistedState(createState(project), { databasePath });
+    const database = rewindSavedPromptsMigration(
+      databasePath,
+      `
+        CREATE TABLE tasks (
+          id text PRIMARY KEY NOT NULL,
+          project_id text NOT NULL,
+          step text DEFAULT 'backlog' NOT NULL,
+          title text NOT NULL,
+          sort_order integer DEFAULT 0 NOT NULL,
+          payload text DEFAULT '{}' NOT NULL,
+          created_at text NOT NULL,
+          updated_at text NOT NULL
+        );
+        ALTER TABLE chats ADD COLUMN task_id TEXT NULL;
+        CREATE INDEX idx_chats_task ON chats (task_id);
+      `,
+    );
+    database
+      .prepare(
+        `
+          INSERT INTO tasks (id, project_id, step, title, created_at, updated_at)
+          VALUES (?, ?, 'plan', 'Old', ?, ?)
+        `,
+      )
+      .run("task-pipeline", project.id, timestamp, timestamp);
+    closePersistedStateDatabase();
+
+    assert.deepEqual(loadPersistedState({ databasePath }).savedPrompts, []);
+    const upgraded = getPersistedStateDatabase({ databasePath });
+    const columnsOf = (table) =>
+      upgraded
+        .prepare(`PRAGMA table_info(${table})`)
+        .all()
+        .map((column) => column.name);
+    assert.deepEqual(columnsOf("tasks"), []);
+    assert.equal(columnsOf("chats").includes("task_id"), false);
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});
+
+test("saved tasks from a pre-release build carry over as saved prompts", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const timestamp = "2026-09-01T12:00:00.000Z";
+
+  try {
+    savePersistedState(createState(createProject("project-one", timestamp)), {
+      databasePath,
+    });
+    const database = rewindSavedPromptsMigration(
+      databasePath,
+      `
+        CREATE TABLE tasks (
+          id text PRIMARY KEY NOT NULL,
+          title text NOT NULL,
+          prompt text DEFAULT '' NOT NULL,
+          sort_order integer DEFAULT 0 NOT NULL,
+          created_at text NOT NULL,
+          updated_at text NOT NULL
+        );
+      `,
+    );
+    database
+      .prepare(
+        `
+          INSERT INTO tasks (id, title, prompt, sort_order, created_at, updated_at)
+          VALUES (?, ?, ?, 0, ?, ?)
+        `,
+      )
+      .run("prompt-one", "Review", "Address the review", timestamp, timestamp);
+    closePersistedStateDatabase();
+
+    assert.deepEqual(loadPersistedState({ databasePath }).savedPrompts, [
+      {
+        createdAt: timestamp,
+        id: "prompt-one",
+        name: "Review",
+        prompt: "Address the review",
+        updatedAt: timestamp,
+      },
+    ]);
   } finally {
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });

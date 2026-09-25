@@ -12,7 +12,7 @@ import type { IdeState } from "./ide-store-types";
 const createEmptyPersistedState = (): PersistedIdeState => ({
   activeProjectId: null,
   appView: "code",
-  tasks: [],
+  savedPrompts: [],
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -97,7 +97,7 @@ export const createPersistedIdeState = ({
   chatSort,
   closedProjects,
   messagesByChatId,
-  tasks,
+  savedPrompts,
   projects,
   settings,
 }: Pick<
@@ -105,7 +105,7 @@ export const createPersistedIdeState = ({
   | "activeBrowserTabIdByProject"
   | "activeProjectId"
   | "appView"
-  | "tasks"
+  | "savedPrompts"
   | "browserTabsByProject"
   | "chats"
   | "chatSort"
@@ -183,7 +183,7 @@ export const createPersistedIdeState = ({
   return {
     activeProjectId: ensureActiveProject(projects, activeProjectId),
     appView,
-    tasks,
+    savedPrompts,
     activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,
     browserTabsByProject: persistedBrowserTabsByProject,
     chats: persistedChats,

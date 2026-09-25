@@ -87,18 +87,18 @@ export const chatMessages = sqliteTable(
 );
 
 /**
- * Saved tasks: prompts the user runs in a project's chat whenever needed.
+ * Saved prompts the user runs in a project's chat whenever needed.
  * App-wide, so every project sees the same list.
  */
-export const tasks = sqliteTable(
-  "tasks",
+export const savedPrompts = sqliteTable(
+  "saved_prompts",
   {
     id: text("id").primaryKey(),
-    title: text("title").notNull(),
+    name: text("name").notNull(),
     prompt: text("prompt").notNull().default(""),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
-  (table) => [index("idx_tasks_order").on(table.sortOrder)],
+  (table) => [index("idx_saved_prompts_order").on(table.sortOrder)],
 );

@@ -1,10 +1,10 @@
 import { useIdeStore } from "../ide-store";
 
 /**
- * Whether a task can be sent to `chatId` right now: the chat exists and is not
+ * Whether a saved prompt can be sent to `chatId` right now: the chat exists and is not
  * already streaming or holding a queued prompt. Mirrors `queueChatSubmit`.
  */
-export const useChatAcceptsTask = (chatId: string | null): boolean =>
+export const useChatAcceptsSavedPrompt = (chatId: string | null): boolean =>
   useIdeStore((state) => {
     if (chatId === null) {
       return false;

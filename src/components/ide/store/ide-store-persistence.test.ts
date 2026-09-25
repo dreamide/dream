@@ -3,16 +3,16 @@ import { test } from "vitest";
 import {
   createChatConfig,
   createProjectConfig,
-  createTask,
+  createSavedPrompt,
   DEFAULT_SETTINGS,
 } from "@/lib/ide-defaults";
-import type { ChatConfig, ProjectConfig, Task } from "@/types/ide";
+import type { ChatConfig, ProjectConfig, SavedPrompt } from "@/types/ide";
 import { createPersistedIdeState } from "./ide-store-persistence";
 
 const persist = (
   project: ProjectConfig,
   chats: ChatConfig[],
-  tasks: Task[] = [],
+  savedPrompts: SavedPrompt[] = [],
 ) =>
   createPersistedIdeState({
     activeBrowserTabIdByProject: {},
@@ -25,7 +25,7 @@ const persist = (
     messagesByChatId: {},
     projects: [project],
     settings: DEFAULT_SETTINGS,
-    tasks,
+    savedPrompts,
   });
 
 test("empty draft chats are dropped unless they are the open chat", () => {
@@ -48,14 +48,17 @@ test("empty draft chats are dropped unless they are the open chat", () => {
   );
 });
 
-test("tasks are saved app-wide, independent of any project", () => {
+test("saved prompts are stored app-wide, independent of any project", () => {
   const project = createProjectConfig("/workspace/source", DEFAULT_SETTINGS);
-  const tasks = [
-    createTask({ prompt: "Address the review comments", title: "Review" }),
-    createTask({ prompt: "Run the tests", title: "Test" }),
+  const savedPrompts = [
+    createSavedPrompt({
+      prompt: "Address the review comments",
+      name: "Review",
+    }),
+    createSavedPrompt({ prompt: "Run the tests", name: "Test" }),
   ];
 
-  const persisted = persist(project, [], tasks);
+  const persisted = persist(project, [], savedPrompts);
 
-  assert.deepEqual(persisted.tasks, tasks);
+  assert.deepEqual(persisted.savedPrompts, savedPrompts);
 });

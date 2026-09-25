@@ -114,7 +114,7 @@ export const IdeShell = () => {
       activeBrowserTabIdByProject:
         useIdeStore.getState().activeBrowserTabIdByProject,
       appView: useIdeStore.getState().appView,
-      tasks: useIdeStore.getState().tasks,
+      savedPrompts: useIdeStore.getState().savedPrompts,
       browserTabsByProject: useIdeStore.getState().browserTabsByProject,
       chatSort: useIdeStore.getState().chatSort,
       chats: useIdeStore.getState().chats,
@@ -154,7 +154,7 @@ export const IdeShell = () => {
         activeProjectId: state.activeProjectId,
         activeBrowserTabIdByProject: state.activeBrowserTabIdByProject,
         appView: state.appView,
-        tasks: state.tasks,
+        savedPrompts: state.savedPrompts,
         browserTabsByProject: state.browserTabsByProject,
         chatSort: state.chatSort,
         chats: state.chats,
@@ -179,7 +179,7 @@ export const IdeShell = () => {
         next.settings !== prev.settings ||
         next.chatSort !== prev.chatSort ||
         next.appView !== prev.appView ||
-        next.tasks !== prev.tasks
+        next.savedPrompts !== prev.savedPrompts
       ) {
         const isActiveProjectSelectionOnly =
           next.activeProjectId !== prev.activeProjectId &&
@@ -191,7 +191,7 @@ export const IdeShell = () => {
           next.settings === prev.settings &&
           next.chatSort === prev.chatSort &&
           next.appView === prev.appView &&
-          next.tasks === prev.tasks &&
+          next.savedPrompts === prev.savedPrompts &&
           areProjectListsEqualExceptLastUsedAt(prev.projects, next.projects);
         prev = next;
         if (state.stateHydrated) {

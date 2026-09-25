@@ -15,8 +15,8 @@ import type {
   ProjectConfig,
   ProjectUiState,
   ReasoningEffort,
+  SavedPrompt,
   StashItem,
-  Task,
 } from "@/types/ide";
 
 export const DEFAULT_PROVIDER: AiProvider = "openai";
@@ -116,7 +116,7 @@ export const DEFAULT_PROJECT_UI: ProjectUiState = {
 export const createEmptyState = (): PersistedIdeState => ({
   activeProjectId: null,
   appView: "code",
-  tasks: [],
+  savedPrompts: [],
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -231,14 +231,16 @@ export const createStashItem = (
   };
 };
 
-export const createTask = (values: Pick<Task, "prompt" | "title">): Task => {
+export const createSavedPrompt = (
+  values: Pick<SavedPrompt, "name" | "prompt">,
+): SavedPrompt => {
   const timestamp = new Date().toISOString();
 
   return {
     createdAt: timestamp,
     id: crypto.randomUUID(),
     prompt: values.prompt.trim(),
-    title: values.title.trim(),
+    name: values.name.trim(),
     updatedAt: timestamp,
   };
 };

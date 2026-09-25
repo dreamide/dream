@@ -15,7 +15,7 @@ const appRoot = path.resolve(__dirname, "..");
 const DEFAULT_PERSISTED_STATE = {
   activeProjectId: null,
   appView: "code",
-  tasks: [],
+  savedPrompts: [],
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -294,78 +294,78 @@ function nonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
-function saveTasksToRelationalDatabase(database, tasks, now) {
+function saveSavedPromptsToRelationalDatabase(database, savedPrompts, now) {
   const existingCreatedAt = new Map(
     database
-      .prepare("SELECT id, created_at FROM tasks")
+      .prepare("SELECT id, created_at FROM saved_prompts")
       .all()
       .map((row) => [row.id, row.created_at]),
   );
-  const insertTask = database.prepare(
+  const insertSavedPrompt = database.prepare(
     `
-      INSERT INTO tasks (id, title, prompt, sort_order, created_at, updated_at)
+      INSERT INTO saved_prompts (id, name, prompt, sort_order, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
-        title = excluded.title,
+        name = excluded.name,
         prompt = excluded.prompt,
         sort_order = excluded.sort_order,
         updated_at = excluded.updated_at
     `,
   );
-  const persistedTaskIds = [];
+  const persistedIds = [];
 
-  for (const task of tasks) {
+  for (const savedPrompt of savedPrompts) {
     if (
-      !isRecord(task) ||
-      typeof task.id !== "string" ||
-      !task.id.trim() ||
-      // Pipeline tasks from before tasks were saved prompts have no prompt,
-      // and are dropped rather than converted.
-      typeof task.prompt !== "string" ||
-      persistedTaskIds.includes(task.id)
+      !isRecord(savedPrompt) ||
+      typeof savedPrompt.id !== "string" ||
+      !savedPrompt.id.trim() ||
+      typeof savedPrompt.prompt !== "string" ||
+      persistedIds.includes(savedPrompt.id)
     ) {
       continue;
     }
 
     const createdAt =
-      nonEmptyString(task.createdAt) ?? existingCreatedAt.get(task.id) ?? now;
-    insertTask.run(
-      task.id,
-      typeof task.title === "string" ? task.title : "",
-      task.prompt,
-      persistedTaskIds.length,
+      nonEmptyString(savedPrompt.createdAt) ??
+      existingCreatedAt.get(savedPrompt.id) ??
+      now;
+    insertSavedPrompt.run(
+      savedPrompt.id,
+      typeof savedPrompt.name === "string" ? savedPrompt.name : "",
+      savedPrompt.prompt,
+      persistedIds.length,
       createdAt,
-      nonEmptyString(task.updatedAt) ?? createdAt,
+      nonEmptyString(savedPrompt.updatedAt) ?? createdAt,
     );
-    persistedTaskIds.push(task.id);
+    persistedIds.push(savedPrompt.id);
   }
 
-  if (persistedTaskIds.length === 0) {
-    database.prepare("DELETE FROM tasks").run();
+  if (persistedIds.length === 0) {
+    database.prepare("DELETE FROM saved_prompts").run();
   } else {
     database
       .prepare(
-        `DELETE FROM tasks WHERE id NOT IN (${persistedTaskIds
+        `DELETE FROM saved_prompts WHERE id NOT IN (${persistedIds
           .map(() => "?")
           .join(", ")})`,
       )
-      .run(...persistedTaskIds);
+      .run(...persistedIds);
   }
 }
 
-function loadTasksFromRelationalDatabase(database) {
-  if (!tableExists(database, "tasks")) {
+function loadSavedPromptsFromRelationalDatabase(database) {
+  if (!tableExists(database, "saved_prompts")) {
     return [];
   }
 
   return database
-    .prepare("SELECT * FROM tasks ORDER BY sort_order, created_at, id")
+    .prepare("SELECT * FROM saved_prompts ORDER BY sort_order, created_at, id")
     .all()
     .map((row) => ({
       createdAt: row.created_at,
       id: row.id,
+      name: row.name,
       prompt: row.prompt,
-      title: row.title,
       updatedAt: row.updated_at,
     }));
 }
@@ -1080,8 +1080,8 @@ function saveStateToRelationalDatabase(database, state) {
     const knownProjectIds = new Set(
       projectsToPersist.map(({ project }) => project.id),
     );
-    if (Array.isArray(state.tasks)) {
-      saveTasksToRelationalDatabase(database, state.tasks, now);
+    if (Array.isArray(state.savedPrompts)) {
+      saveSavedPromptsToRelationalDatabase(database, state.savedPrompts, now);
     }
 
     const messagesByChatId = isRecord(state.messagesByChatId)
@@ -1389,13 +1389,13 @@ function loadStateFromRelationalDatabase(database) {
     };
   }
 
-  const tasks = loadTasksFromRelationalDatabase(database);
+  const savedPrompts = loadSavedPromptsFromRelationalDatabase(database);
 
   const activeProjectId =
     typeof config.activeProjectId === "string" ? config.activeProjectId : null;
   return {
     activeProjectId,
-    tasks,
+    savedPrompts,
     appView: "code",
     activeBrowserTabIdByProject: isRecord(config.activeBrowserTabIdByProject)
       ? config.activeBrowserTabIdByProject

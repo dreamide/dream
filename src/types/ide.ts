@@ -90,15 +90,15 @@ export interface StashItem {
 
 /**
  * A saved prompt the user can run in any project's chat, as often as needed.
- * Tasks are app-wide: none belongs to a project.
+ * Saved prompts are app-wide: none belongs to a project.
  */
-export interface Task {
+export interface SavedPrompt {
   createdAt: string;
   /** A random UUID, unique across the app. */
   id: string;
-  /** Sent to the agent as written, after `{{variable}}` placeholders are filled. */
+  name: string;
+  /** Sent to the agent as written. */
   prompt: string;
-  title: string;
   updatedAt: string;
 }
 
@@ -231,8 +231,8 @@ export interface PersistedIdeState {
   closedProjects: ProjectConfig[];
   activeProjectId: string | null;
   appView: AppView;
-  /** Every saved task in the app, in the order the Tasks panel lists them. */
-  tasks: Task[];
+  /** Every saved prompt in the app, in the order Settings > Prompts lists them. */
+  savedPrompts: SavedPrompt[];
   activeBrowserTabIdByProject: Record<string, string | null>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
   settings: AppSettings;

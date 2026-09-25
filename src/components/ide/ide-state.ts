@@ -35,8 +35,8 @@ import type {
   ProjectUiState,
   ProjectWorktreeInfo,
   RightPanelView,
+  SavedPrompt,
   StashItem,
-  Task,
 } from "@/types/ide";
 import { normalizeChatPermissionMode } from "../../../electron/shared/chat-permissions.js";
 import {
@@ -49,7 +49,7 @@ import { DEFAULT_APP_VIEW, normalizeAppView } from "./workspaces/registry";
 export const emptyState: PersistedIdeState = {
   activeProjectId: null,
   appView: DEFAULT_APP_VIEW,
-  tasks: [],
+  savedPrompts: [],
   activeBrowserTabIdByProject: {},
   browserTabsByProject: {},
   chats: [],
@@ -716,43 +716,40 @@ export const sanitizeProjectUiForChats = (
   };
 };
 
-/**
- * Saved tasks, dropping anything that is not one: pipeline tasks from before
- * tasks were saved prompts have no `prompt`, and are not carried over.
- */
-const normalizeTasks = (value: unknown): Task[] => {
+/** Saved prompts, dropping anything without an id or prompt text. */
+const normalizeSavedPrompts = (value: unknown): SavedPrompt[] => {
   if (!Array.isArray(value)) {
     return [];
   }
 
   const seenIds = new Set<string>();
-  const tasks: Task[] = [];
+  const savedPrompts: SavedPrompt[] = [];
   for (const raw of value) {
     if (!raw || typeof raw !== "object") {
       continue;
     }
-    const task = raw as Partial<Record<keyof Task, unknown>>;
-    const id = typeof task.id === "string" ? task.id.trim() : "";
-    if (!id || seenIds.has(id) || typeof task.prompt !== "string") {
+    const savedPrompt = raw as Partial<Record<keyof SavedPrompt, unknown>>;
+    const id = typeof savedPrompt.id === "string" ? savedPrompt.id.trim() : "";
+    if (!id || seenIds.has(id) || typeof savedPrompt.prompt !== "string") {
       continue;
     }
     seenIds.add(id);
     const createdAt =
-      typeof task.createdAt === "string" && task.createdAt
-        ? task.createdAt
+      typeof savedPrompt.createdAt === "string" && savedPrompt.createdAt
+        ? savedPrompt.createdAt
         : new Date().toISOString();
-    tasks.push({
+    savedPrompts.push({
       createdAt,
       id,
-      prompt: task.prompt,
-      title: typeof task.title === "string" ? task.title : "",
+      name: typeof savedPrompt.name === "string" ? savedPrompt.name : "",
+      prompt: savedPrompt.prompt,
       updatedAt:
-        typeof task.updatedAt === "string" && task.updatedAt
-          ? task.updatedAt
+        typeof savedPrompt.updatedAt === "string" && savedPrompt.updatedAt
+          ? savedPrompt.updatedAt
           : createdAt,
     });
   }
-  return tasks;
+  return savedPrompts;
 };
 
 export const mergePersistedState = (
@@ -1059,7 +1056,7 @@ export const mergePersistedState = (
   return {
     activeProjectId,
     appView: normalizeAppView(state.appView) ?? DEFAULT_APP_VIEW,
-    tasks: normalizeTasks(state.tasks),
+    savedPrompts: normalizeSavedPrompts(state.savedPrompts),
     activeBrowserTabIdByProject,
     browserTabsByProject,
     chats,

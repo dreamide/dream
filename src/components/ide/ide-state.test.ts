@@ -126,37 +126,40 @@ test("mergePersistedState preserves the project changes diff word-wrap preferenc
   assert.equal(merged.projects[0].ui.changesDiffWordWrap, true);
 });
 
-test("mergePersistedState keeps saved tasks and drops invalid ones", () => {
+test("mergePersistedState keeps saved prompts and drops invalid ones", () => {
   const merged = mergePersistedState({
-    tasks: [
+    savedPrompts: [
       {
         createdAt: "2026-09-01T12:00:00.000Z",
-        id: "task-one",
+        id: "prompt-one",
         prompt: "Address the review comments on {{branch}}",
-        title: "Address review",
+        name: "Address review",
         updatedAt: "2026-09-02T12:00:00.000Z",
       },
-      { id: "task-two", prompt: "No dates" },
+      { id: "prompt-two", prompt: "No dates" },
       { id: "", prompt: "No id" },
-      { id: "task-one", prompt: "Duplicate", title: "Duplicate" },
-      // A pipeline task from before tasks were saved prompts.
-      { id: "task-pipeline", runs: [], step: "plan", title: "Old" },
+      { id: "prompt-one", prompt: "Duplicate", name: "Duplicate" },
+      // No prompt text.
+      { id: "prompt-three", name: "Old" },
     ] as never,
   });
 
   assert.deepEqual(
-    merged.tasks.map((task) => task.id),
-    ["task-one", "task-two"],
+    merged.savedPrompts.map((savedPrompt) => savedPrompt.id),
+    ["prompt-one", "prompt-two"],
   );
-  assert.deepEqual(merged.tasks[0], {
+  assert.deepEqual(merged.savedPrompts[0], {
     createdAt: "2026-09-01T12:00:00.000Z",
-    id: "task-one",
+    id: "prompt-one",
     prompt: "Address the review comments on {{branch}}",
-    title: "Address review",
+    name: "Address review",
     updatedAt: "2026-09-02T12:00:00.000Z",
   });
-  assert.equal(merged.tasks[1].title, "");
-  assert.equal(merged.tasks[1].updatedAt, merged.tasks[1].createdAt);
+  assert.equal(merged.savedPrompts[1].name, "");
+  assert.equal(
+    merged.savedPrompts[1].updatedAt,
+    merged.savedPrompts[1].createdAt,
+  );
 });
 
 test("mergePersistedState drops pipeline tasks and step settings stored on projects", () => {
@@ -174,7 +177,7 @@ test("mergePersistedState drops pipeline tasks and step settings stored on proje
     ],
   });
 
-  assert.deepEqual(merged.tasks, []);
+  assert.deepEqual(merged.savedPrompts, []);
   for (const key of [
     "kanbanCards",
     "pipelineTasks",

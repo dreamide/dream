@@ -2,7 +2,7 @@ import {
   Archive,
   ArrowLeft,
   Bot,
-  ListChecks,
+  MessageSquareText,
   Monitor,
   Moon,
   RotateCcw,
@@ -65,6 +65,7 @@ import { PERMISSION_MODE_OPTIONS } from "./chat/permission-selector";
 import { WindowControls } from "./header/window-controls";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS } from "./ide-types";
+import { SavedPromptsSettingsSection } from "./saved-prompts/saved-prompts-settings-section";
 import {
   formatDeletedDate,
   MCP_LIST_VIEW,
@@ -76,7 +77,6 @@ import {
   SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
-import { TasksSettingsSection } from "./tasks/tasks-settings-section";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const getAccentColorSwatch = (color: AccentColor) =>
@@ -144,7 +144,7 @@ export const SettingsWorkspace = () => {
   const localeT = useTranslations("locale");
   const providerT = useTranslations("provider");
   const settingsT = useTranslations("settings");
-  const tasksT = useTranslations("tasks");
+  const promptsT = useTranslations("savedPrompts");
   const themeT = useTranslations("theme");
   const uiT = useTranslations("ui");
   const getColorLabel = (color: AccentColor | BaseColor) =>
@@ -554,16 +554,16 @@ export const SettingsWorkspace = () => {
             <button
               className={cn(
                 "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
-                settingsSection === "tasks"
+                settingsSection === "prompts"
                   ? "font-semibold text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
-              onClick={() => setSettingsSection("tasks")}
+              onClick={() => setSettingsSection("prompts")}
               type="button"
             >
               <span className="flex items-center gap-2">
-                <ListChecks className="size-4" />
-                {tasksT("title")}
+                <MessageSquareText className="size-4" />
+                {promptsT("title")}
               </span>
             </button>
             <button
@@ -1342,7 +1342,9 @@ export const SettingsWorkspace = () => {
                 <McpServersSection setView={setMcpView} view={mcpView} />
               ) : null}
 
-              {settingsSection === "tasks" ? <TasksSettingsSection /> : null}
+              {settingsSection === "prompts" ? (
+                <SavedPromptsSettingsSection />
+              ) : null}
 
               {settingsSection === "chats" ? (
                 <div className="space-y-8">
