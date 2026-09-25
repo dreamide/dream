@@ -11,6 +11,11 @@
 import { randomBytes } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { setBrowserMcpEndpoint } from "./browser-bridge.js";
+import {
+  BROWSER_MCP_PATH,
+  registerBrowserMcpRoutes,
+} from "./browser-mcp-routes.js";
 import { registerChatRoutes } from "./chat-routes.js";
 import { registerCheckpointRoutes } from "./checkpoint-routes.js";
 import { registerCodePullRequestRoutes } from "./code-pull-request-routes.js";
@@ -55,6 +60,7 @@ function createApiApp(apiToken) {
   registerCodePullRequestRoutes(guardedApp);
   registerCheckpointRoutes(guardedApp);
   registerMcpServerRoutes(guardedApp);
+  registerBrowserMcpRoutes(guardedApp);
 
   return guardedApp;
 }
@@ -71,6 +77,12 @@ export function startApiServer({ port, apiToken }) {
       },
       (info) => {
         console.log(`API server listening on http://127.0.0.1:${info.port}`);
+        // External agent CLIs reach the browser tools here; the token guard
+        // on /api/* applies, so the header travels with the server config.
+        setBrowserMcpEndpoint({
+          headers: { [API_SESSION_TOKEN_HEADER]: apiToken },
+          url: `http://127.0.0.1:${info.port}${BROWSER_MCP_PATH}`,
+        });
         resolve(info.port);
       },
     );

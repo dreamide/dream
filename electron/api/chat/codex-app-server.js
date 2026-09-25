@@ -3,6 +3,7 @@ import {
   getProjectGitDiff,
   listProjectGitChanges,
 } from "../project-git-service.js";
+import { beginBrowserTurn } from "./active-browser-turns.js";
 import { getCodexAppServerClient } from "./codex-app-server-client.js";
 import {
   chooseCodexApprovalDecision,
@@ -450,6 +451,7 @@ export const streamCodexAppServerResponse = ({
   messages,
   model,
   modelSpeed,
+  projectId,
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
@@ -461,6 +463,10 @@ export const streamCodexAppServerResponse = ({
   systemPrompt,
   chatId,
 }) => {
+  // The shared Codex app-server reaches Dream's browser tools through a
+  // project-agnostic MCP URL; this lets the endpoint map its calls back to
+  // the project whose turn is running.
+  const endBrowserTurn = beginBrowserTurn({ projectId, provider: "openai" });
   const stream = createUIMessageStream({
     originalMessages: messages,
     onError: (error) =>
@@ -488,6 +494,7 @@ export const streamCodexAppServerResponse = ({
         const finish = (callback) => {
           if (finished) return;
           finished = true;
+          endBrowserTurn();
           abortSignal?.removeEventListener("abort", handleAbort);
           unregisterThread?.();
           unregisterThread = null;

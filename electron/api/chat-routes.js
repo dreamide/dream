@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import { resolvePersistedProjectPath } from "../persisted-state.js";
+import { appendBrowserMcpServer } from "./chat/browser-tools.js";
 import { streamClaudeResponse } from "./chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
 import { streamCursorResponse } from "./chat/cursor-stream.js";
@@ -314,9 +315,15 @@ export const registerChatRoutes = (app) => {
           abortSignal: c.req.raw.signal,
           chatId: resolvedChatId,
           permissionMode,
-          mcpServers,
+          // Shared app-server: project-agnostic browser URL keeps its MCP
+          // config (and process) stable across projects.
+          mcpServers: appendBrowserMcpServer(mcpServers, {
+            projectId,
+            scope: "shared",
+          }),
           messages,
           model,
+          projectId,
           projectReferencesPrompt,
           projectPath: resolvedProjectPath,
           modelSpeed,
@@ -339,7 +346,10 @@ export const registerChatRoutes = (app) => {
           abortSignal: c.req.raw.signal,
 
           permissionMode,
-          mcpServers,
+          mcpServers: appendBrowserMcpServer(mcpServers, {
+            projectId,
+            scope: "project",
+          }),
           messages,
           model,
           modelSpeed,
@@ -388,7 +398,10 @@ export const registerChatRoutes = (app) => {
           abortSignal: c.req.raw.signal,
 
           permissionMode,
-          mcpServers,
+          mcpServers: appendBrowserMcpServer(mcpServers, {
+            projectId,
+            scope: "project",
+          }),
           messages,
           model,
           projectReferencesPrompt,

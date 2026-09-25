@@ -7,9 +7,24 @@
  */
 
 let browserBridge = null;
+let browserMcpEndpoint = null;
 
 export const setBrowserBridge = (bridge) => {
   browserBridge = bridge ?? null;
 };
 
 export const getBrowserBridge = () => browserBridge;
+
+/**
+ * Where external agent CLIs (Codex, OpenCode, ACP adapters) reach the browser
+ * tools over Streamable HTTP. Set by the API server once it is listening.
+ * `{ url, headers }`; `url` has no trailing slash and no project segment.
+ */
+export const setBrowserMcpEndpoint = (endpoint) => {
+  browserMcpEndpoint =
+    endpoint && typeof endpoint.url === "string" && endpoint.url
+      ? { headers: { ...(endpoint.headers ?? {}) }, url: endpoint.url }
+      : null;
+};
+
+export const getBrowserMcpEndpoint = () => browserMcpEndpoint;

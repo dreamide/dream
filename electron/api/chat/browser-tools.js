@@ -1,6 +1,6 @@
 import { createCustomMcpServer } from "ai-sdk-provider-claude-code";
 import { z } from "zod";
-import { getBrowserBridge } from "../browser-bridge.js";
+import { getBrowserBridge, getBrowserMcpEndpoint } from "../browser-bridge.js";
 import {
   buildEvaluateScript,
   buildFocusForTypingScript,
@@ -268,12 +268,39 @@ const locatorFields = {
     .describe("CSS selector, used when no ref is given."),
 };
 
+/**
+ * @param {object} options
+ * @param {object|null} options.bridge - main-process browser agent bridge
+ * @param {string|(() => string|null)} options.projectId - the project whose
+ *   browser tabs these tools drive, or a resolver evaluated per call (used by
+ *   the shared HTTP endpoint, where the project depends on the running turn).
+ */
 export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
+  const resolveProjectId = () => {
+    const resolved = typeof projectId === "function" ? projectId() : projectId;
+    if (typeof resolved !== "string" || resolved.length === 0) {
+      throw new Error(
+        "No Dream project is associated with this agent turn, so its browser cannot be used.",
+      );
+    }
+    return resolved;
+  };
+
+  /** The bridge, bound to whichever project this call belongs to. */
   const requireBridge = () => {
     if (!bridge) {
       throw new Error("The Dream browser is not available in this session.");
     }
-    return bridge;
+    return {
+      getConsoleEntries: (guest, options) =>
+        bridge.getConsoleEntries(guest, options),
+      getGuest: (tabId) => bridge.getGuest(resolveProjectId(), tabId),
+      sendCommand: (type, payload) =>
+        bridge.sendCommand(resolveProjectId(), type, payload),
+      waitForGuest: (tabId, timeoutMs) =>
+        bridge.waitForGuest(resolveProjectId(), tabId, timeoutMs),
+      waitForLoad: (guest, options) => bridge.waitForLoad(guest, options),
+    };
   };
 
   /** Ask the renderer which tab is active (and make sure the panel exists). */
@@ -281,7 +308,7 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
     if (tabId) {
       return tabId;
     }
-    const result = await requireBridge().sendCommand(projectId, "list-tabs");
+    const result = await requireBridge().sendCommand("list-tabs");
     const active = result?.tabs?.find((tab) => tab.active) ?? result?.tabs?.[0];
     if (!active) {
       throw new Error(
@@ -297,11 +324,11 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
    */
   const acquireGuest = async (tabId) => {
     const resolvedTabId = await resolveTabId(tabId);
-    const existing = requireBridge().getGuest(projectId, resolvedTabId);
+    const existing = requireBridge().getGuest(resolvedTabId);
     if (existing) {
       return { guest: existing, tabId: resolvedTabId };
     }
-    const shown = await requireBridge().sendCommand(projectId, "show-tab", {
+    const shown = await requireBridge().sendCommand("show-tab", {
       tabId: resolvedTabId,
     });
     if (!shown?.url) {
@@ -309,7 +336,7 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
         `Tab ${resolvedTabId} has no URL yet. Use browser_navigate with a url to load a page.`,
       );
     }
-    const guest = await requireBridge().waitForGuest(projectId, resolvedTabId);
+    const guest = await requireBridge().waitForGuest(resolvedTabId);
     return { guest, tabId: resolvedTabId };
   };
 
@@ -341,15 +368,12 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
       description:
         "List the tabs open in Dream's built-in browser panel for this project, with ids, URLs, titles, and which one is active.",
       handler: withErrors(async () => {
-        const result = await requireBridge().sendCommand(
-          projectId,
-          "list-tabs",
-        );
+        const result = await requireBridge().sendCommand("list-tabs");
         return textResult({
           panelOpen: Boolean(result?.panelOpen),
           tabs: (result?.tabs ?? []).map((tab) => ({
             ...tab,
-            mounted: Boolean(requireBridge().getGuest(projectId, tab.id)),
+            mounted: Boolean(requireBridge().getGuest(tab.id)),
           })),
         });
       }),
@@ -364,18 +388,14 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
         if (!normalized) {
           return errorResult("A url is required.");
         }
-        const opened = await requireBridge().sendCommand(
-          projectId,
-          "open-tab",
-          {
-            url: normalized,
-          },
-        );
+        const opened = await requireBridge().sendCommand("open-tab", {
+          url: normalized,
+        });
         const tabId = opened?.tabId;
         if (!tabId) {
           return errorResult("The browser panel did not report a new tab.");
         }
-        const guest = await requireBridge().waitForGuest(projectId, tabId);
+        const guest = await requireBridge().waitForGuest(tabId);
         return settleAndSummarize(guest, tabId, {
           extra: { reusedEmptyTab: Boolean(opened?.reused) },
         });
@@ -397,11 +417,11 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
           return errorResult("A url is required.");
         }
         const resolvedTabId = await resolveTabId(tabId);
-        const existing = requireBridge().getGuest(projectId, resolvedTabId);
+        const existing = requireBridge().getGuest(resolvedTabId);
         if (existing) {
           // Mounted already: bring it to front and drive the guest directly.
           // The renderer's did-navigate listeners keep tab state in sync.
-          await requireBridge().sendCommand(projectId, "show-tab", {
+          await requireBridge().sendCommand("show-tab", {
             tabId: resolvedTabId,
           });
           void existing.loadURL(normalized).catch(() => {
@@ -411,14 +431,11 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
         }
         // The tab is not mounted (empty URL or hidden panel): let the renderer
         // set the URL, which mounts the <webview> and starts the load itself.
-        await requireBridge().sendCommand(projectId, "show-tab", {
+        await requireBridge().sendCommand("show-tab", {
           tabId: resolvedTabId,
           url: normalized,
         });
-        const guest = await requireBridge().waitForGuest(
-          projectId,
-          resolvedTabId,
-        );
+        const guest = await requireBridge().waitForGuest(resolvedTabId);
         return settleAndSummarize(guest, resolvedTabId);
       }),
       inputSchema: z.object({
@@ -481,13 +498,9 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
       description:
         "Switch the browser panel to a tab so it is visible and interactive.",
       handler: withErrors(async ({ tabId }) => {
-        const result = await requireBridge().sendCommand(
-          projectId,
-          "show-tab",
-          {
-            tabId,
-          },
-        );
+        const result = await requireBridge().sendCommand("show-tab", {
+          tabId,
+        });
         return textResult(result ?? { tabId });
       }),
       inputSchema: z.object({ tabId: z.string().min(1) }),
@@ -497,13 +510,9 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
       description:
         "Close a browser tab. Closing the last tab leaves an empty tab in the panel.",
       handler: withErrors(async ({ tabId }) => {
-        const result = await requireBridge().sendCommand(
-          projectId,
-          "close-tab",
-          {
-            tabId,
-          },
-        );
+        const result = await requireBridge().sendCommand("close-tab", {
+          tabId,
+        });
         return textResult(result ?? { closed: tabId });
       }),
       inputSchema: z.object({ tabId: z.string().min(1) }),
@@ -930,4 +939,50 @@ export const createBrowserMcpServer = ({ projectId }) => {
     tools: createBrowserToolDefinitions({ bridge, projectId }),
     version: "1.0.0",
   });
+};
+
+/**
+ * Append Dream's browser MCP endpoint to a user-configured MCP server list,
+ * for providers that consume external (HTTP) MCP servers.
+ *
+ * - `scope: "project"` (OpenCode, ACP): per-session config, so the URL
+ *   carries the project id. Skipped when there is no project.
+ * - `scope: "shared"` (Codex): one long-lived app-server whose config must
+ *   stay stable, so the URL is project-agnostic and the endpoint resolves the
+ *   project from the running Codex turn.
+ *
+ * Returns the input list unchanged when the endpoint or bridge is missing.
+ */
+export const appendBrowserMcpServer = (
+  mcpServers,
+  { projectId, scope = "project" } = {},
+) => {
+  const list = Array.isArray(mcpServers) ? mcpServers : [];
+  const endpoint = getBrowserMcpEndpoint();
+  if (!endpoint || !getBrowserBridge()) {
+    return list;
+  }
+  const hasProject = typeof projectId === "string" && projectId.length > 0;
+  if (scope === "project" && !hasProject) {
+    return list;
+  }
+  const url =
+    scope === "project"
+      ? `${endpoint.url}/${encodeURIComponent(projectId)}`
+      : endpoint.url;
+  return [
+    ...list.filter((server) => server?.name !== BROWSER_MCP_SERVER_NAME),
+    {
+      args: [],
+      command: "",
+      createdAt: new Date(0).toISOString(),
+      enabled: true,
+      env: {},
+      headers: { ...endpoint.headers },
+      id: BROWSER_MCP_SERVER_NAME,
+      name: BROWSER_MCP_SERVER_NAME,
+      transport: "http",
+      url,
+    },
+  ];
 };
