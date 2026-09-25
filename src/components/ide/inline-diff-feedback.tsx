@@ -41,7 +41,7 @@ export function InlineDiffFeedback({
   target,
 }: {
   fileDiff: FileDiffMetadata;
-  options: FileDiffProps<undefined>["options"];
+  options: FileDiffProps<undefined, undefined>["options"];
   target: DiffFeedbackTarget;
 }) {
   const chatT = useTranslations("chat");

@@ -1,9 +1,14 @@
-import type { SelectedLineRange } from "@pierre/diffs";
+import {
+  getFiletypeFromFileName,
+  preloadHighlighter,
+  type SelectedLineRange,
+} from "@pierre/diffs";
 import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
   type DiffFeedbackTarget,
@@ -11,8 +16,8 @@ import {
 } from "./inline-diff-feedback";
 
 type DiffViewMode = "unified" | "split";
-type PierreDiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
-type ParsedFileDiff = FileDiffProps<undefined>["fileDiff"];
+type PierreDiffOptions = NonNullable<FileDiffProps<undefined, undefined>["options"]>;
+type ParsedFileDiff = FileDiffProps<undefined, undefined>["fileDiff"];
 
 export const DIFF_RENDER_CHANGED_LINE_LIMIT = 500;
 
@@ -107,6 +112,48 @@ export const IdeDiffViewer = ({
   const [renderAnyway, setRenderAnyway] = useState(false);
   const resolvedChangedLineCount =
     changedLineCount ?? getFileDiffChangedLineCount(fileDiff);
+  const guarded =
+    largeDiffGuardEnabled &&
+    resolvedChangedLineCount > renderChangedLineLimit &&
+    !renderAnyway;
+  const languages = useMemo(
+    () =>
+      fileDiff.lang
+        ? [fileDiff.lang]
+        : [
+            ...new Set([
+              getFiletypeFromFileName(fileDiff.prevName ?? fileDiff.name),
+              getFiletypeFromFileName(fileDiff.name),
+            ]),
+          ],
+    [fileDiff.lang, fileDiff.name, fileDiff.prevName],
+  );
+  const [loadedLanguages, setLoadedLanguages] = useState<
+    typeof languages | null
+  >(null);
+  const [highlightError, setHighlightError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (guarded) return;
+    let cancelled = false;
+    setHighlightError(null);
+    // A cold FileDiff mount can leave an empty <pre> that StrictMode's
+    // remount hydrates as finished content. Load resources before mounting.
+    void preloadHighlighter({
+      themes: ["github-dark", "github-light"],
+      langs: languages,
+    }).then(
+      () => {
+        if (!cancelled) setLoadedLanguages(languages);
+      },
+      (error: unknown) => {
+        if (!cancelled) setHighlightError(String(error));
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [guarded, languages]);
   const diffOptions = useMemo<PierreDiffOptions>(
     () => ({
       diffIndicators: "bars",
@@ -132,11 +179,7 @@ export const IdeDiffViewer = ({
     [diffStyle, resolvedTheme, wordWrap, onLineComment],
   );
 
-  if (
-    largeDiffGuardEnabled &&
-    resolvedChangedLineCount > renderChangedLineLimit &&
-    !renderAnyway
-  ) {
+  if (guarded) {
     return (
       <div className={cn("dream-diff-surface", className)}>
         <LargeDiffGuard
@@ -144,6 +187,20 @@ export const IdeDiffViewer = ({
           limit={renderChangedLineLimit}
           onRenderAnyway={() => setRenderAnyway(true)}
         />
+      </div>
+    );
+  }
+
+  if (loadedLanguages !== languages) {
+    return (
+      <div className={cn("dream-diff-surface p-4", className)}>
+        {highlightError ? (
+          <p role="alert" className="text-sm text-destructive">
+            {highlightError}
+          </p>
+        ) : (
+          <Spinner className="size-4 text-muted-foreground" />
+        )}
       </div>
     );
   }
