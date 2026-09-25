@@ -226,8 +226,6 @@ export const supplementalMessages = {
       searchHistory: "Suchverlauf...",
     },
     worktrees: {
-      pullRequestOpen: "Pull Request #{number} ist offen.",
-      useOpenPullRequest: "Pull Request #{number} verwenden",
       baseRef: "Basisreferenz",
       createDescription:
         "Erstellen Sie einen separaten Projektbereich aus diesem Repository.",
@@ -258,13 +256,7 @@ export const supplementalMessages = {
       cleanupFailed: "Der Worktree konnte nicht entfernt werden.",
       commitChangesFirst: "Änderungen committen...",
       commitsAheadBehind: "{ahead} vorne, {behind} hinten",
-      completeDescription:
-        "Prüfe diesen Branch und merge ihn, öffne einen Pull Request oder entferne den Worktree.",
-      completeWorktree: "Worktree abschließen",
-      completeWorktreeLabel: "Worktree {branch} abschließen",
       conflictingFiles: "Konfliktdateien",
-      continueToPr: "Weiter zum Pull Request",
-      createPullRequest: "Pull Request erstellen",
       uncommittedStay:
         "Nicht committete Änderungen bleiben im Worktree und werden nicht zusammengeführt.",
       dirtyFiles:
@@ -273,7 +265,6 @@ export const supplementalMessages = {
       discardWarning:
         "Diese Änderungen gehen beim Entfernen des Worktrees dauerhaft verloren.",
       done: "Fertig",
-      ghMissing: "GitHub CLI (gh) ist nicht verfügbar.",
       mainCheckout: "Haupt-Checkout",
       mainNowOn: "Der Haupt-Checkout ist jetzt auf {base}.",
       mainOperationInProgress: "Im Haupt-Checkout läuft ein Merge oder Rebase.",
@@ -288,10 +279,7 @@ export const supplementalMessages = {
       mergedWithCommit: "{branch} in {base} gemergt ({hash}).",
       merging: "Merge in {base}...",
       noCommits: "Keine Commits vor {base}.",
-      noRemote: "Kein Git-Remote konfiguriert.",
       nothingToMerge: "Dieser Branch hat keine Commits vor {base}.",
-      pullRequestCreated: "Pull Request erstellt.",
-      removeWorktreeOnly: "Nur Worktree entfernen",
       removingWorktree: "Worktree wird entfernt...",
       retryRemoval: "Entfernen erneut versuchen",
       unableToCompare: "Worktree kann nicht verglichen werden.",
@@ -300,8 +288,15 @@ export const supplementalMessages = {
       uncommittedChanges:
         "{count, plural, one {# nicht committete Datei} other {# nicht committete Dateien}}",
       unrelatedHistories: "Dieser Branch teilt keine Historie mit {base}.",
-      viewPullRequest: "Pull Request anzeigen",
       worktreeRemoved: "Worktree entfernt.",
+      keepWorktree: "Worktree behalten",
+      removeAfterMergeDescription:
+        "Die Änderungen sind jetzt im Basis-Branch. Du kannst den Worktree entfernen und {branch} löschen oder ihn behalten.",
+      removeWorktreeAndBranch: "Worktree und Branch entfernen",
+      removeWorktreeSummary:
+        "Löscht den Worktree-Ordner und schließt seinen Tab. Der Branch {branch} bleibt erhalten.",
+      unmergedCommitsKept:
+        "{branch} hat {count, plural, one {# Commit} other {# Commits}}, die noch nicht in {base} sind. Sie bleiben auf dem Branch erhalten.",
     },
     git: {
       actions: "Git-Aktionen",
@@ -766,8 +761,6 @@ export const supplementalMessages = {
       searchHistory: "Search history...",
     },
     worktrees: {
-      pullRequestOpen: "Pull request #{number} is open.",
-      useOpenPullRequest: "Use pull request #{number}",
       baseRef: "Base ref",
       createDescription:
         "Create a separate project space from this repository.",
@@ -797,13 +790,7 @@ export const supplementalMessages = {
       cleanupFailed: "The worktree could not be removed.",
       commitChangesFirst: "Commit changes...",
       commitsAheadBehind: "{ahead} ahead, {behind} behind",
-      completeDescription:
-        "Review this branch, then merge it, open a pull request, or remove the worktree.",
-      completeWorktree: "Complete worktree",
-      completeWorktreeLabel: "Complete worktree {branch}",
       conflictingFiles: "Conflicting files",
-      continueToPr: "Continue to pull request",
-      createPullRequest: "Create pull request",
       uncommittedStay:
         "Uncommitted changes stay in the worktree and are not merged.",
       dirtyFiles:
@@ -812,7 +799,6 @@ export const supplementalMessages = {
       discardWarning:
         "These changes will be permanently lost when the worktree is removed.",
       done: "Done",
-      ghMissing: "GitHub CLI (gh) is not available.",
       mainCheckout: "Main checkout",
       mainNowOn: "The main checkout is now on {base}.",
       mainOperationInProgress:
@@ -828,10 +814,7 @@ export const supplementalMessages = {
       mergedWithCommit: "Merged {branch} into {base} ({hash}).",
       merging: "Merging into {base}...",
       noCommits: "No commits ahead of {base}.",
-      noRemote: "No Git remote is configured.",
       nothingToMerge: "This branch has no commits ahead of {base}.",
-      pullRequestCreated: "Pull request created.",
-      removeWorktreeOnly: "Remove worktree only",
       removingWorktree: "Removing worktree...",
       retryRemoval: "Retry removal",
       unableToCompare: "Unable to compare worktree.",
@@ -840,8 +823,15 @@ export const supplementalMessages = {
       uncommittedChanges:
         "{count, plural, one {# uncommitted file} other {# uncommitted files}}",
       unrelatedHistories: "This branch shares no history with {base}.",
-      viewPullRequest: "View pull request",
       worktreeRemoved: "Worktree removed.",
+      keepWorktree: "Keep worktree",
+      removeAfterMergeDescription:
+        "The changes are now in the base branch. You can remove the worktree and delete {branch}, or keep it.",
+      removeWorktreeAndBranch: "Remove worktree and branch",
+      removeWorktreeSummary:
+        "Deletes the worktree folder and closes its tab. The branch {branch} is kept.",
+      unmergedCommitsKept:
+        "{branch} has {count, plural, one {# commit} other {# commits}} not yet in {base}. They stay on the branch.",
     },
     git: {
       actions: "Git actions",
@@ -1300,8 +1290,6 @@ export const supplementalMessages = {
       searchHistory: "Historial de búsqueda...",
     },
     worktrees: {
-      pullRequestOpen: "El pull request #{number} está abierto.",
-      useOpenPullRequest: "Usar el pull request #{number}",
       baseRef: "Referencia base",
       createDescription:
         "Crea un espacio de proyecto separado de este repositorio.",
@@ -1331,13 +1319,7 @@ export const supplementalMessages = {
       cleanupFailed: "No se pudo eliminar el worktree.",
       commitChangesFirst: "Confirmar cambios...",
       commitsAheadBehind: "{ahead} adelante, {behind} detrás",
-      completeDescription:
-        "Revisa esta rama y luego fusiónala, abre un pull request o elimina el worktree.",
-      completeWorktree: "Completar worktree",
-      completeWorktreeLabel: "Completar worktree {branch}",
       conflictingFiles: "Archivos en conflicto",
-      continueToPr: "Continuar al pull request",
-      createPullRequest: "Crear pull request",
       uncommittedStay:
         "Los cambios sin confirmar permanecen en el worktree y no se fusionan.",
       dirtyFiles:
@@ -1346,7 +1328,6 @@ export const supplementalMessages = {
       discardWarning:
         "Estos cambios se perderán permanentemente al eliminar el worktree.",
       done: "Listo",
-      ghMissing: "GitHub CLI (gh) no está disponible.",
       mainCheckout: "Checkout principal",
       mainNowOn: "El checkout principal ahora está en {base}.",
       mainOperationInProgress:
@@ -1362,11 +1343,8 @@ export const supplementalMessages = {
       mergedWithCommit: "{branch} fusionada en {base} ({hash}).",
       merging: "Fusionando en {base}...",
       noCommits: "Sin confirmaciones por delante de {base}.",
-      noRemote: "No hay un remoto de Git configurado.",
       nothingToMerge:
         "Esta rama no tiene confirmaciones por delante de {base}.",
-      pullRequestCreated: "Pull request creado.",
-      removeWorktreeOnly: "Solo eliminar worktree",
       removingWorktree: "Eliminando worktree...",
       retryRemoval: "Reintentar eliminación",
       unableToCompare: "No se puede comparar el worktree.",
@@ -1375,8 +1353,15 @@ export const supplementalMessages = {
       uncommittedChanges:
         "{count, plural, one {# archivo sin confirmar} other {# archivos sin confirmar}}",
       unrelatedHistories: "Esta rama no comparte historial con {base}.",
-      viewPullRequest: "Ver pull request",
       worktreeRemoved: "Worktree eliminado.",
+      keepWorktree: "Conservar worktree",
+      removeAfterMergeDescription:
+        "Los cambios ya están en la rama base. Puedes eliminar el worktree y borrar {branch}, o conservarlo.",
+      removeWorktreeAndBranch: "Eliminar worktree y rama",
+      removeWorktreeSummary:
+        "Elimina la carpeta del worktree y cierra su pestaña. La rama {branch} se conserva.",
+      unmergedCommitsKept:
+        "{branch} tiene {count, plural, one {# confirmación} other {# confirmaciones}} que aún no están en {base}. Se conservan en la rama.",
     },
     git: {
       actions: "Acciones de Git",
@@ -1844,8 +1829,6 @@ export const supplementalMessages = {
       searchHistory: "Historique des recherches...",
     },
     worktrees: {
-      pullRequestOpen: "La pull request #{number} est ouverte.",
-      useOpenPullRequest: "Utiliser la pull request #{number}",
       baseRef: "Réf de base",
       createDescription:
         "Créez un espace de projet distinct à partir de ce référentiel.",
@@ -1876,13 +1859,7 @@ export const supplementalMessages = {
       cleanupFailed: "Le worktree n'a pas pu être supprimé.",
       commitChangesFirst: "Valider les modifications...",
       commitsAheadBehind: "{ahead} devant, {behind} derrière",
-      completeDescription:
-        "Vérifiez cette branche, puis fusionnez-la, ouvrez une pull request ou supprimez le worktree.",
-      completeWorktree: "Terminer le worktree",
-      completeWorktreeLabel: "Terminer le worktree {branch}",
       conflictingFiles: "Fichiers en conflit",
-      continueToPr: "Continuer vers la pull request",
-      createPullRequest: "Créer une pull request",
       uncommittedStay:
         "Les modifications non validées restent dans le worktree et ne sont pas fusionnées.",
       dirtyFiles:
@@ -1891,7 +1868,6 @@ export const supplementalMessages = {
       discardWarning:
         "Ces modifications seront définitivement perdues lors de la suppression du worktree.",
       done: "Terminé",
-      ghMissing: "GitHub CLI (gh) n'est pas disponible.",
       mainCheckout: "Checkout principal",
       mainNowOn: "Le checkout principal est maintenant sur {base}.",
       mainOperationInProgress:
@@ -1907,10 +1883,7 @@ export const supplementalMessages = {
       mergedWithCommit: "{branch} fusionnée dans {base} ({hash}).",
       merging: "Fusion dans {base}...",
       noCommits: "Aucun commit en avance sur {base}.",
-      noRemote: "Aucun dépôt distant Git n'est configuré.",
       nothingToMerge: "Cette branche n'a aucun commit en avance sur {base}.",
-      pullRequestCreated: "Pull request créée.",
-      removeWorktreeOnly: "Supprimer uniquement le worktree",
       removingWorktree: "Suppression du worktree...",
       retryRemoval: "Réessayer la suppression",
       unableToCompare: "Impossible de comparer le worktree.",
@@ -1920,8 +1893,15 @@ export const supplementalMessages = {
         "{count, plural, one {# fichier non validé} other {# fichiers non validés}}",
       unrelatedHistories:
         "Cette branche ne partage aucun historique avec {base}.",
-      viewPullRequest: "Voir la pull request",
       worktreeRemoved: "Worktree supprimé.",
+      keepWorktree: "Conserver le worktree",
+      removeAfterMergeDescription:
+        "Les modifications sont maintenant dans la branche de base. Vous pouvez supprimer le worktree et la branche {branch}, ou le conserver.",
+      removeWorktreeAndBranch: "Supprimer le worktree et la branche",
+      removeWorktreeSummary:
+        "Supprime le dossier du worktree et ferme son onglet. La branche {branch} est conservée.",
+      unmergedCommitsKept:
+        "{branch} a {count, plural, one {# commit} other {# commits}} qui ne sont pas encore dans {base}. Ils restent sur la branche.",
     },
     git: {
       actions: "Actions Git",
@@ -2387,8 +2367,6 @@ export const supplementalMessages = {
       searchHistory: "Cronologia ricerche...",
     },
     worktrees: {
-      pullRequestOpen: "La pull request #{number} è aperta.",
-      useOpenPullRequest: "Usa la pull request #{number}",
       baseRef: "Rif. base",
       createDescription:
         "Crea uno spazio progetto separato da questo repository.",
@@ -2418,13 +2396,7 @@ export const supplementalMessages = {
       cleanupFailed: "Impossibile rimuovere il worktree.",
       commitChangesFirst: "Esegui il commit delle modifiche...",
       commitsAheadBehind: "{ahead} avanti, {behind} indietro",
-      completeDescription:
-        "Rivedi questo branch, poi uniscilo, apri una pull request o rimuovi il worktree.",
-      completeWorktree: "Completa worktree",
-      completeWorktreeLabel: "Completa worktree {branch}",
       conflictingFiles: "File in conflitto",
-      continueToPr: "Continua alla pull request",
-      createPullRequest: "Crea pull request",
       uncommittedStay:
         "Le modifiche non committate restano nel worktree e non vengono unite.",
       dirtyFiles:
@@ -2433,7 +2405,6 @@ export const supplementalMessages = {
       discardWarning:
         "Queste modifiche andranno perse definitivamente alla rimozione del worktree.",
       done: "Fatto",
-      ghMissing: "GitHub CLI (gh) non è disponibile.",
       mainCheckout: "Checkout principale",
       mainNowOn: "Il checkout principale ora è su {base}.",
       mainOperationInProgress:
@@ -2449,10 +2420,7 @@ export const supplementalMessages = {
       mergedWithCommit: "{branch} unito in {base} ({hash}).",
       merging: "Unione in {base}...",
       noCommits: "Nessun commit avanti rispetto a {base}.",
-      noRemote: "Nessun remoto Git configurato.",
       nothingToMerge: "Questo branch non ha commit avanti rispetto a {base}.",
-      pullRequestCreated: "Pull request creata.",
-      removeWorktreeOnly: "Rimuovi solo il worktree",
       removingWorktree: "Rimozione del worktree...",
       retryRemoval: "Riprova la rimozione",
       unableToCompare: "Impossibile confrontare il worktree.",
@@ -2462,8 +2430,15 @@ export const supplementalMessages = {
         "{count, plural, one {# file senza commit} other {# file senza commit}}",
       unrelatedHistories:
         "Questo branch non condivide alcuna cronologia con {base}.",
-      viewPullRequest: "Vedi pull request",
       worktreeRemoved: "Worktree rimosso.",
+      keepWorktree: "Mantieni il worktree",
+      removeAfterMergeDescription:
+        "Le modifiche sono ora nel branch di base. Puoi rimuovere il worktree ed eliminare {branch}, oppure mantenerlo.",
+      removeWorktreeAndBranch: "Rimuovi worktree e branch",
+      removeWorktreeSummary:
+        "Elimina la cartella del worktree e chiude la sua scheda. Il branch {branch} viene mantenuto.",
+      unmergedCommitsKept:
+        "{branch} ha {count, plural, one {# commit} other {# commit}} non ancora in {base}. Restano sul branch.",
     },
     git: {
       actions: "Azioni Git",
@@ -2927,8 +2902,6 @@ export const supplementalMessages = {
       searchHistory: "検索履歴...",
     },
     worktrees: {
-      pullRequestOpen: "プルリクエスト #{number} はオープンです。",
-      useOpenPullRequest: "プルリクエスト #{number} を使用",
       baseRef: "基本参照",
       createDescription:
         "このリポジトリから別のプロジェクト スペースを作成します。",
@@ -2957,13 +2930,7 @@ export const supplementalMessages = {
       cleanupFailed: "ワークツリーを削除できませんでした。",
       commitChangesFirst: "変更をコミット...",
       commitsAheadBehind: "{ahead} 進み、{behind} 遅れ",
-      completeDescription:
-        "このブランチを確認してから、マージ、プルリクエストの作成、またはワークツリーの削除を行います。",
-      completeWorktree: "ワークツリーを完了",
-      completeWorktreeLabel: "ワークツリー {branch} を完了",
       conflictingFiles: "競合しているファイル",
-      continueToPr: "プルリクエストへ進む",
-      createPullRequest: "プルリクエストを作成",
       uncommittedStay:
         "未コミットの変更はワークツリーに残り、マージされません。",
       dirtyFiles: "未コミットのファイル {count} 件",
@@ -2971,7 +2938,6 @@ export const supplementalMessages = {
       discardWarning:
         "ワークツリーを削除すると、これらの変更は完全に失われます。",
       done: "完了",
-      ghMissing: "GitHub CLI (gh) が利用できません。",
       mainCheckout: "メインチェックアウト",
       mainNowOn: "メインチェックアウトは現在 {base} にあります。",
       mainOperationInProgress:
@@ -2988,11 +2954,8 @@ export const supplementalMessages = {
       mergedWithCommit: "{branch} を {base} にマージしました ({hash})。",
       merging: "{base} にマージ中...",
       noCommits: "{base} より進んだコミットはありません。",
-      noRemote: "Git リモートが設定されていません。",
       nothingToMerge:
         "このブランチには {base} より進んだコミットがありません。",
-      pullRequestCreated: "プルリクエストを作成しました。",
-      removeWorktreeOnly: "ワークツリーのみ削除",
       removingWorktree: "ワークツリーを削除中...",
       retryRemoval: "削除を再試行",
       unableToCompare: "ワークツリーを比較できません。",
@@ -3000,8 +2963,15 @@ export const supplementalMessages = {
       unableToMerge: "ワークツリーをマージできません。",
       uncommittedChanges: "未コミットのファイル {count} 件",
       unrelatedHistories: "このブランチは {base} と履歴を共有していません。",
-      viewPullRequest: "プルリクエストを表示",
       worktreeRemoved: "ワークツリーを削除しました。",
+      keepWorktree: "ワークツリーを残す",
+      removeAfterMergeDescription:
+        "変更はベースブランチに取り込まれました。ワークツリーを削除して {branch} を削除するか、残しておくことができます。",
+      removeWorktreeAndBranch: "ワークツリーとブランチを削除",
+      removeWorktreeSummary:
+        "ワークツリーのフォルダーを削除し、そのタブを閉じます。ブランチ {branch} は保持されます。",
+      unmergedCommitsKept:
+        "{branch} には {base} にまだ含まれていないコミットが {count} 件あります。これらはブランチに残ります。",
     },
     git: {
       actions: "Git アクション",
@@ -3458,8 +3428,6 @@ export const supplementalMessages = {
       searchHistory: "검색 기록...",
     },
     worktrees: {
-      pullRequestOpen: "풀 리퀘스트 #{number}이(가) 열려 있습니다.",
-      useOpenPullRequest: "풀 리퀘스트 #{number} 사용",
       baseRef: "기본 참조",
       createDescription: "이 저장소에서 별도의 프로젝트 공간을 만듭니다.",
       createWorktree: "작업트리 생성",
@@ -3487,13 +3455,7 @@ export const supplementalMessages = {
       cleanupFailed: "워크트리를 제거할 수 없습니다.",
       commitChangesFirst: "변경 사항 커밋...",
       commitsAheadBehind: "{ahead} 앞섬, {behind} 뒤처짐",
-      completeDescription:
-        "이 브랜치를 검토한 다음 병합하거나, 풀 리퀘스트를 열거나, 워크트리를 제거하세요.",
-      completeWorktree: "워크트리 완료",
-      completeWorktreeLabel: "워크트리 {branch} 완료",
       conflictingFiles: "충돌 파일",
-      continueToPr: "풀 리퀘스트로 계속",
-      createPullRequest: "풀 리퀘스트 만들기",
       uncommittedStay:
         "커밋되지 않은 변경 사항은 워크트리에 남으며 병합되지 않습니다.",
       dirtyFiles: "커밋되지 않은 파일 {count}개",
@@ -3501,7 +3463,6 @@ export const supplementalMessages = {
       discardWarning:
         "워크트리를 제거하면 이 변경 사항은 영구적으로 사라집니다.",
       done: "완료",
-      ghMissing: "GitHub CLI(gh)를 사용할 수 없습니다.",
       mainCheckout: "메인 체크아웃",
       mainNowOn: "메인 체크아웃이 이제 {base}에 있습니다.",
       mainOperationInProgress:
@@ -3517,10 +3478,7 @@ export const supplementalMessages = {
       mergedWithCommit: "{branch}을(를) {base}에 병합했습니다 ({hash}).",
       merging: "{base}에 병합 중...",
       noCommits: "{base}보다 앞선 커밋이 없습니다.",
-      noRemote: "구성된 Git 원격이 없습니다.",
       nothingToMerge: "이 브랜치에는 {base}보다 앞선 커밋이 없습니다.",
-      pullRequestCreated: "풀 리퀘스트가 생성되었습니다.",
-      removeWorktreeOnly: "워크트리만 제거",
       removingWorktree: "워크트리 제거 중...",
       retryRemoval: "제거 다시 시도",
       unableToCompare: "워크트리를 비교할 수 없습니다.",
@@ -3528,8 +3486,15 @@ export const supplementalMessages = {
       unableToMerge: "워크트리를 병합할 수 없습니다.",
       uncommittedChanges: "커밋되지 않은 파일 {count}개",
       unrelatedHistories: "이 브랜치는 {base}와(과) 기록을 공유하지 않습니다.",
-      viewPullRequest: "풀 리퀘스트 보기",
       worktreeRemoved: "워크트리가 제거되었습니다.",
+      keepWorktree: "워크트리 유지",
+      removeAfterMergeDescription:
+        "변경 사항이 이제 기본 브랜치에 있습니다. 워크트리를 제거하고 {branch}을(를) 삭제하거나 유지할 수 있습니다.",
+      removeWorktreeAndBranch: "워크트리 및 브랜치 제거",
+      removeWorktreeSummary:
+        "워크트리 폴더를 삭제하고 해당 탭을 닫습니다. 브랜치 {branch}은(는) 유지됩니다.",
+      unmergedCommitsKept:
+        "{branch}에 아직 {base}에 없는 커밋이 {count}개 있습니다. 이 커밋은 브랜치에 남습니다.",
     },
     git: {
       actions: "Git 작업",
@@ -3988,8 +3953,6 @@ export const supplementalMessages = {
       searchHistory: "Histórico de pesquisa...",
     },
     worktrees: {
-      pullRequestOpen: "O pull request #{number} está aberto.",
-      useOpenPullRequest: "Usar o pull request #{number}",
       baseRef: "Referência básica",
       createDescription:
         "Crie um espaço de projeto separado deste repositório.",
@@ -4019,13 +3982,7 @@ export const supplementalMessages = {
       cleanupFailed: "Não foi possível remover o worktree.",
       commitChangesFirst: "Fazer commit das alterações...",
       commitsAheadBehind: "{ahead} à frente, {behind} atrás",
-      completeDescription:
-        "Revise este branch e depois faça o merge, abra um pull request ou remova o worktree.",
-      completeWorktree: "Concluir worktree",
-      completeWorktreeLabel: "Concluir worktree {branch}",
       conflictingFiles: "Arquivos em conflito",
-      continueToPr: "Continuar para o pull request",
-      createPullRequest: "Criar pull request",
       uncommittedStay:
         "Alterações não confirmadas permanecem no worktree e não são mescladas.",
       dirtyFiles:
@@ -4034,7 +3991,6 @@ export const supplementalMessages = {
       discardWarning:
         "Essas alterações serão perdidas permanentemente quando o worktree for removido.",
       done: "Concluído",
-      ghMissing: "GitHub CLI (gh) não está disponível.",
       mainCheckout: "Checkout principal",
       mainNowOn: "O checkout principal agora está em {base}.",
       mainOperationInProgress:
@@ -4050,10 +4006,7 @@ export const supplementalMessages = {
       mergedWithCommit: "{branch} mesclado em {base} ({hash}).",
       merging: "Fazendo merge em {base}...",
       noCommits: "Nenhum commit à frente de {base}.",
-      noRemote: "Nenhum remoto Git configurado.",
       nothingToMerge: "Este branch não tem commits à frente de {base}.",
-      pullRequestCreated: "Pull request criado.",
-      removeWorktreeOnly: "Remover apenas o worktree",
       removingWorktree: "Removendo worktree...",
       retryRemoval: "Tentar remover novamente",
       unableToCompare: "Não foi possível comparar o worktree.",
@@ -4062,8 +4015,15 @@ export const supplementalMessages = {
       uncommittedChanges:
         "{count, plural, one {# arquivo sem commit} other {# arquivos sem commit}}",
       unrelatedHistories: "Este branch não compartilha histórico com {base}.",
-      viewPullRequest: "Ver pull request",
       worktreeRemoved: "Worktree removido.",
+      keepWorktree: "Manter worktree",
+      removeAfterMergeDescription:
+        "As alterações agora estão no branch base. Você pode remover o worktree e excluir {branch}, ou mantê-lo.",
+      removeWorktreeAndBranch: "Remover worktree e branch",
+      removeWorktreeSummary:
+        "Exclui a pasta do worktree e fecha sua aba. O branch {branch} é mantido.",
+      unmergedCommitsKept:
+        "{branch} tem {count, plural, one {# commit} other {# commits}} que ainda não estão em {base}. Eles permanecem no branch.",
     },
     git: {
       actions: "Ações do Git",
@@ -4525,8 +4485,6 @@ export const supplementalMessages = {
       searchHistory: "Lịch sử tìm kiếm...",
     },
     worktrees: {
-      pullRequestOpen: "Pull request #{number} đang mở.",
-      useOpenPullRequest: "Dùng pull request #{number}",
       baseRef: "Tham chiếu cơ sở",
       createDescription:
         "Tạo một không gian dự án riêng biệt từ kho lưu trữ này.",
@@ -4555,13 +4513,7 @@ export const supplementalMessages = {
       cleanupFailed: "Không thể gỡ bỏ worktree.",
       commitChangesFirst: "Commit thay đổi...",
       commitsAheadBehind: "{ahead} trước, {behind} sau",
-      completeDescription:
-        "Xem lại nhánh này, sau đó hợp nhất, mở pull request hoặc gỡ bỏ worktree.",
-      completeWorktree: "Hoàn tất worktree",
-      completeWorktreeLabel: "Hoàn tất worktree {branch}",
       conflictingFiles: "Tệp xung đột",
-      continueToPr: "Tiếp tục tới pull request",
-      createPullRequest: "Tạo pull request",
       uncommittedStay:
         "Các thay đổi chưa commit vẫn ở trong worktree và không được hợp nhất.",
       dirtyFiles: "{count} tệp chưa commit",
@@ -4569,7 +4521,6 @@ export const supplementalMessages = {
       discardWarning:
         "Những thay đổi này sẽ bị mất vĩnh viễn khi worktree bị gỡ bỏ.",
       done: "Xong",
-      ghMissing: "GitHub CLI (gh) không khả dụng.",
       mainCheckout: "Checkout chính",
       mainNowOn: "Checkout chính hiện đang ở {base}.",
       mainOperationInProgress:
@@ -4585,10 +4536,7 @@ export const supplementalMessages = {
       mergedWithCommit: "Đã hợp nhất {branch} vào {base} ({hash}).",
       merging: "Đang hợp nhất vào {base}...",
       noCommits: "Không có commit nào trước {base}.",
-      noRemote: "Chưa cấu hình remote Git.",
       nothingToMerge: "Nhánh này không có commit nào trước {base}.",
-      pullRequestCreated: "Đã tạo pull request.",
-      removeWorktreeOnly: "Chỉ gỡ bỏ worktree",
       removingWorktree: "Đang gỡ bỏ worktree...",
       retryRemoval: "Thử gỡ bỏ lại",
       unableToCompare: "Không thể so sánh worktree.",
@@ -4596,8 +4544,15 @@ export const supplementalMessages = {
       unableToMerge: "Không thể hợp nhất worktree.",
       uncommittedChanges: "{count} tệp chưa commit",
       unrelatedHistories: "Nhánh này không có lịch sử chung với {base}.",
-      viewPullRequest: "Xem pull request",
       worktreeRemoved: "Đã gỡ bỏ worktree.",
+      keepWorktree: "Giữ worktree",
+      removeAfterMergeDescription:
+        "Các thay đổi giờ đã có trong nhánh cơ sở. Bạn có thể xóa worktree và xóa {branch}, hoặc giữ lại.",
+      removeWorktreeAndBranch: "Xóa worktree và nhánh",
+      removeWorktreeSummary:
+        "Xóa thư mục worktree và đóng tab của nó. Nhánh {branch} được giữ lại.",
+      unmergedCommitsKept:
+        "{branch} có {count} commit chưa có trong {base}. Chúng vẫn được giữ trên nhánh.",
     },
     git: {
       actions: "Hành động Git",
@@ -5042,8 +4997,6 @@ export const supplementalMessages = {
       searchHistory: "搜索历史记录...",
     },
     worktrees: {
-      pullRequestOpen: "拉取请求 #{number} 处于打开状态。",
-      useOpenPullRequest: "使用拉取请求 #{number}",
       baseRef: "基本参考",
       createDescription: "从此存储库创建一个单独的项目空间。",
       createWorktree: "创建工作树",
@@ -5070,18 +5023,12 @@ export const supplementalMessages = {
       cleanupFailed: "无法移除工作树。",
       commitChangesFirst: "提交更改...",
       commitsAheadBehind: "领先 {ahead}，落后 {behind}",
-      completeDescription: "检查此分支，然后合并、创建拉取请求或移除工作树。",
-      completeWorktree: "完成工作树",
-      completeWorktreeLabel: "完成工作树 {branch}",
       conflictingFiles: "冲突文件",
-      continueToPr: "继续创建拉取请求",
-      createPullRequest: "创建拉取请求",
       uncommittedStay: "未提交的更改会保留在工作树中，不会被合并。",
       dirtyFiles: "{count} 个未提交文件",
       discardUncommitted: "丢弃未提交的更改",
       discardWarning: "移除工作树后，这些更改将永久丢失。",
       done: "完成",
-      ghMissing: "GitHub CLI (gh) 不可用。",
       mainCheckout: "主检出",
       mainNowOn: "主检出现在位于 {base}。",
       mainOperationInProgress: "主检出中有正在进行的合并或变基。",
@@ -5095,10 +5042,7 @@ export const supplementalMessages = {
       mergedWithCommit: "已将 {branch} 合并到 {base}（{hash}）。",
       merging: "正在合并到 {base}...",
       noCommits: "没有领先于 {base} 的提交。",
-      noRemote: "未配置 Git 远程。",
       nothingToMerge: "此分支没有领先于 {base} 的提交。",
-      pullRequestCreated: "已创建拉取请求。",
-      removeWorktreeOnly: "仅移除工作树",
       removingWorktree: "正在移除工作树...",
       retryRemoval: "重试移除",
       unableToCompare: "无法比较工作树。",
@@ -5106,8 +5050,15 @@ export const supplementalMessages = {
       unableToMerge: "无法合并工作树。",
       uncommittedChanges: "{count} 个未提交文件",
       unrelatedHistories: "此分支与 {base} 没有共同历史。",
-      viewPullRequest: "查看拉取请求",
       worktreeRemoved: "已移除工作树。",
+      keepWorktree: "保留工作树",
+      removeAfterMergeDescription:
+        "更改现已合入基础分支。你可以删除工作树并删除 {branch}，也可以保留它。",
+      removeWorktreeAndBranch: "删除工作树和分支",
+      removeWorktreeSummary:
+        "删除工作树文件夹并关闭其标签页。分支 {branch} 会被保留。",
+      unmergedCommitsKept:
+        "{branch} 有 {count} 个提交尚未进入 {base}。它们会保留在该分支上。",
     },
     git: {
       actions: "Git 操作",
@@ -5550,8 +5501,6 @@ export const supplementalMessages = {
       searchHistory: "搜尋記錄...",
     },
     worktrees: {
-      pullRequestOpen: "拉取請求 #{number} 處於開啟狀態。",
-      useOpenPullRequest: "使用拉取請求 #{number}",
       baseRef: "基本參考",
       createDescription: "從此儲存庫建立一個單獨的專案空間。",
       createWorktree: "建立工作樹",
@@ -5578,18 +5527,12 @@ export const supplementalMessages = {
       cleanupFailed: "無法移除工作樹。",
       commitChangesFirst: "提交變更...",
       commitsAheadBehind: "領先 {ahead}，落後 {behind}",
-      completeDescription: "檢查此分支，然後合併、建立拉取請求或移除工作樹。",
-      completeWorktree: "完成工作樹",
-      completeWorktreeLabel: "完成工作樹 {branch}",
       conflictingFiles: "衝突檔案",
-      continueToPr: "繼續建立拉取請求",
-      createPullRequest: "建立拉取請求",
       uncommittedStay: "未提交的變更會保留在工作樹中，不會被合併。",
       dirtyFiles: "{count} 個未提交檔案",
       discardUncommitted: "捨棄未提交的變更",
       discardWarning: "移除工作樹後，這些變更將永久遺失。",
       done: "完成",
-      ghMissing: "GitHub CLI (gh) 無法使用。",
       mainCheckout: "主檢出",
       mainNowOn: "主檢出目前位於 {base}。",
       mainOperationInProgress: "主檢出中有正在進行的合併或變基。",
@@ -5603,10 +5546,7 @@ export const supplementalMessages = {
       mergedWithCommit: "已將 {branch} 合併到 {base}（{hash}）。",
       merging: "正在合併到 {base}...",
       noCommits: "沒有領先於 {base} 的提交。",
-      noRemote: "未設定 Git 遠端。",
       nothingToMerge: "此分支沒有領先於 {base} 的提交。",
-      pullRequestCreated: "已建立拉取請求。",
-      removeWorktreeOnly: "僅移除工作樹",
       removingWorktree: "正在移除工作樹...",
       retryRemoval: "重試移除",
       unableToCompare: "無法比較工作樹。",
@@ -5614,8 +5554,15 @@ export const supplementalMessages = {
       unableToMerge: "無法合併工作樹。",
       uncommittedChanges: "{count} 個未提交檔案",
       unrelatedHistories: "此分支與 {base} 沒有共同歷史。",
-      viewPullRequest: "檢視拉取請求",
       worktreeRemoved: "已移除工作樹。",
+      keepWorktree: "保留工作樹",
+      removeAfterMergeDescription:
+        "變更現已併入基礎分支。你可以刪除工作樹並刪除 {branch}，也可以保留它。",
+      removeWorktreeAndBranch: "刪除工作樹和分支",
+      removeWorktreeSummary:
+        "刪除工作樹資料夾並關閉其分頁。分支 {branch} 會被保留。",
+      unmergedCommitsKept:
+        "{branch} 有 {count} 個提交尚未進入 {base}。它們會保留在該分支上。",
     },
     git: {
       actions: "Git 操作",

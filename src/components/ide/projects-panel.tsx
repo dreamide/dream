@@ -20,13 +20,17 @@ import type {
   ProjectConfig,
   ProjectGitWorktreeInfo,
   ProjectGitWorktreesResponse,
+  ProjectWorktreeInfo,
 } from "@/types/ide";
 import { formatLastActiveTime } from "./activity-time";
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 
+type WorktreeRepoPaths = { mainWorktreePath: string; repoRoot: string };
+
 const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
   const [worktrees, setWorktrees] = useState<ProjectGitWorktreeInfo[]>([]);
+  const [repoPaths, setRepoPaths] = useState<WorktreeRepoPaths | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -43,6 +47,7 @@ const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
         });
         if (!response.ok) {
           setWorktrees([]);
+          setRepoPaths(null);
           return;
         }
 
@@ -51,6 +56,14 @@ const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
           return;
         }
 
+        setRepoPaths(
+          payload.repoRoot && payload.mainWorktreePath
+            ? {
+                mainWorktreePath: payload.mainWorktreePath,
+                repoRoot: payload.repoRoot,
+              }
+            : null,
+        );
         setWorktrees(
           payload.worktrees
             .filter((worktree) => worktree.appManaged && !worktree.bare)
@@ -63,6 +76,7 @@ const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           setWorktrees([]);
+          setRepoPaths(null);
         }
       } finally {
         if (!abortController.signal.aborted) {
@@ -77,7 +91,7 @@ const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
     return () => abortController.abort();
   }, [projectPath, refreshKey]);
 
-  return { loading, worktrees };
+  return { loading, repoPaths, worktrees };
 };
 
 export const ProjectSidebar = ({
@@ -116,10 +130,11 @@ export const ProjectSidebar = ({
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
-  const { loading: worktreesLoading, worktrees } = useAppManagedWorktrees(
-    project.path,
-    gitRefreshKey,
-  );
+  const {
+    loading: worktreesLoading,
+    repoPaths,
+    worktrees,
+  } = useAppManagedWorktrees(project.path, gitRefreshKey);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [removingWorktreePath, setRemovingWorktreePath] = useState<
@@ -169,11 +184,34 @@ export const ProjectSidebar = ({
   );
 
   const handleWorktreeSelect = useCallback(
-    (worktreePath: string) => {
-      addProject(worktreePath);
+    (worktree: ProjectGitWorktreeInfo) => {
+      // Open it as a worktree project, so it gets the worktree footer and the
+      // Complete worktree action, rather than as a plain folder.
+      let worktreeInfo: ProjectWorktreeInfo | undefined;
+      if (repoPaths && worktree.branch) {
+        const mainPathKey = normalizeProjectPathKey(repoPaths.mainWorktreePath);
+        const parentProject = useIdeStore
+          .getState()
+          .projects.find(
+            (item) =>
+              !item.worktree &&
+              normalizeProjectPathKey(item.path) === mainPathKey,
+          );
+        worktreeInfo = {
+          baseRef: null,
+          branch: worktree.branch,
+          createdAt: new Date().toISOString(),
+          kind: "worktree",
+          mainWorktreePath: repoPaths.mainWorktreePath,
+          managed: worktree.appManaged,
+          parentProjectId: parentProject?.id ?? null,
+          repoRoot: repoPaths.repoRoot,
+        };
+      }
+      addProject(worktree.path, { worktree: worktreeInfo });
       onChatSelect?.();
     },
-    [addProject, onChatSelect],
+    [addProject, onChatSelect, repoPaths],
   );
 
   const handleRemoveWorktree = useCallback(async () => {
@@ -262,7 +300,7 @@ export const ProjectSidebar = ({
                     <button
                       className="w-full rounded-[inherit] px-3 py-2 text-left"
                       onClick={(event) => {
-                        handleWorktreeSelect(worktree.path);
+                        handleWorktreeSelect(worktree);
                         if (event.detail > 0) {
                           event.currentTarget.blur();
                         }

@@ -519,8 +519,6 @@ export interface ProjectGitWorktreeCleanupResponse {
   removed: true;
 }
 
-export type WorktreeCompletionAction = "merge" | "pr" | "remove";
-
 export interface ProjectGitDiffResponse {
   branch: string | null;
   diff: string;

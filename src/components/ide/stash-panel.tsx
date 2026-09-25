@@ -414,7 +414,7 @@ const StashPanelImpl = ({
             <AppShellPlaceholder message={stashT("empty")} />
           </div>
         ) : (
-          <div className="flex flex-col pt-2">
+          <div className="flex flex-col pt-3">
             {stashItems.map((item) => (
               <StashItemComposer
                 allModelOptions={allModelOptions}

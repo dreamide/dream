@@ -12,6 +12,7 @@ import type {
   PendingChatSubmit,
   ProjectConfig,
   ProjectGitWorktreeCleanupResponse,
+  ProjectWorktreeInfo,
   RightPanelView,
   StashItem,
   Task,
@@ -102,7 +103,18 @@ export interface IdeState {
   // Actions - projects
   setProjects: (projects: ProjectConfig[]) => void;
   setActiveProjectId: (id: string | null) => void;
-  addProject: (path: string, options?: { activate?: boolean }) => void;
+  addProject: (
+    path: string,
+    options?: {
+      activate?: boolean;
+      /**
+       * Marks the project as a Git worktree. Only fills in projects that do
+       * not already carry worktree info, so details recorded at creation
+       * (base branch, creation time) are kept.
+       */
+      worktree?: ProjectWorktreeInfo;
+    },
+  ) => void;
   createWorktreeProject: (
     parentProjectId: string,
     options: {

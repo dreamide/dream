@@ -14,6 +14,7 @@ import {
   listProjectGitChanges,
   listProjectGitWorktrees,
   parseSingleFileDiff,
+  removeEmptyAppWorktreeParent,
   runGhCommand,
   runGitCommand,
 } from "./core.js";
@@ -628,6 +629,7 @@ const finishCleanupOfForgottenWorktree = async ({
   } catch {
     // Not empty, or already gone.
   }
+  await removeEmptyAppWorktreeParent(targetPath);
 
   const branchExists = await hasGitRef(commandCwd, `refs/heads/${branch}`);
   const deletion =
@@ -709,6 +711,7 @@ export const cleanupProjectGitWorktree = async (
     await runGitCommand(commandCwd, ["worktree", "prune"]);
     pruned = true;
   }
+  await removeEmptyAppWorktreeParent(targetPath);
 
   let branchDeleted = false;
   let branchDeleteError = null;

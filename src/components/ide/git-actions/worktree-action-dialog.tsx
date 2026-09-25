@@ -3,13 +3,11 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  ExternalLink,
   FolderTree,
   FolderX,
   GitBranch,
   GitCommitHorizontal,
   GitMerge,
-  GitPullRequest,
   Home,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
@@ -28,7 +26,6 @@ import type {
   ProjectGitWorktreeCompareResponse,
   ProjectGitWorktreeMergeResponse,
   ProjectWorktreeInfo,
-  WorktreeCompletionAction,
 } from "@/types/ide";
 import {
   DIFF_RENDER_CHANGED_LINE_LIMIT,
@@ -40,18 +37,18 @@ import { useIdeStore } from "../ide-store";
 import { MaterialFileIcon } from "../material-file-icon";
 import { isMissingWorktreeError } from "../store/project-lifecycle-actions";
 import { CommitDialog } from "./commit-dialog";
-import { CreatePrDialog } from "./create-pr-dialog";
-import {
-  ActionError,
-  DialogMetricRow,
-  GitDialogHeader,
-  NextStepSelector,
-} from "./dialog-layout";
+import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
 import { GitChangesDeltaSummary } from "./summary";
 import { postJson } from "./utils";
 
 type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
-type Phase = "review" | "commit" | "pr" | "working" | "done";
+/** Which worktree action the dialog performs. */
+export type WorktreeDialogAction = "merge" | "remove";
+/**
+ * `merged` is the pause after a successful merge, where the worktree can be
+ * kept or removed. `done` follows a removal attempt.
+ */
+type Phase = "review" | "commit" | "working" | "merged" | "done";
 type DiffState = {
   diff: ProjectGitDiffResponse | null;
   error: string | null;
@@ -218,26 +215,52 @@ const InfoLine = ({
   </div>
 );
 
-export interface WorktreeCompletionResult {
-  action: WorktreeCompletionAction;
-  mergeCommit: string | null;
-  prUrl: string | null;
-}
+const MergeResultLine = ({
+  result,
+}: {
+  result: Extract<ProjectGitWorktreeMergeResponse, { status: "merged" }>;
+}) => {
+  const worktreeT = useTranslations("worktrees");
+  return (
+    <div className="flex items-start gap-2">
+      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+      <div className="space-y-1">
+        <div>
+          {result.fastForward
+            ? worktreeT("mergedFastForward", {
+                base: result.baseBranch,
+                branch: result.branch,
+              })
+            : worktreeT("mergedWithCommit", {
+                base: result.baseBranch,
+                branch: result.branch,
+                hash: result.mergeCommit.slice(0, 7),
+              })}
+        </div>
+        {result.previousMainBranch !== result.baseBranch ? (
+          <div className="text-muted-foreground text-xs">
+            {worktreeT("mainNowOn", { base: result.baseBranch })}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+};
 
-export const CompleteWorktreeDialog = ({
-  onCompleted,
+/**
+ * Merges a worktree's branch into its base branch in the main checkout, or
+ * removes the worktree. Opened from the Git actions menu of a worktree project.
+ */
+export const WorktreeActionDialog = ({
+  action,
   onOpenChange,
   open,
   project,
-  removeOnly = false,
 }: {
-  /** Called once when the dialog closes after the chosen action succeeded. */
-  onCompleted?: (result: WorktreeCompletionResult) => void;
+  action: WorktreeDialogAction;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   project: WorktreeProject;
-  /** Only offer removing the worktree: no merge, no pull request. */
-  removeOnly?: boolean;
 }) => {
   const commonT = useTranslations("common");
   const gitT = useTranslations("git");
@@ -254,7 +277,6 @@ export const CompleteWorktreeDialog = ({
   const bumpProjectGitRefreshKey = useIdeStore(
     (s) => s.bumpProjectGitRefreshKey,
   );
-  const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
   const purgeWorktreeProject = useIdeStore((s) => s.purgeWorktreeProject);
   const stopProjectTerminals = useIdeStore((s) => s.stopProjectTerminals);
   const mainWorktreePathKey = normalizeProjectPathKey(
@@ -275,8 +297,6 @@ export const CompleteWorktreeDialog = ({
     useState<ProjectGitWorktreeCompareResponse | null>(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
-  const [action, setAction] = useState<WorktreeCompletionAction>("remove");
-  const [actionTouched, setActionTouched] = useState(false);
   const [discardUncommitted, setDiscardUncommitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictingFiles, setConflictingFiles] = useState<string[]>([]);
@@ -285,12 +305,10 @@ export const CompleteWorktreeDialog = ({
     ProjectGitWorktreeMergeResponse,
     { status: "merged" }
   > | null>(null);
-  const [prUrl, setPrUrl] = useState<string | null>(null);
   const [cleanupResult, setCleanupResult] =
     useState<ProjectGitWorktreeCleanupResponse | null>(null);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [retryingCleanup, setRetryingCleanup] = useState(false);
-  const prHandoffRef = useRef(false);
   const cleanupOptionsRef = useRef<{ deleteBranch: boolean }>({
     deleteBranch: false,
   });
@@ -301,16 +319,12 @@ export const CompleteWorktreeDialog = ({
     }
 
     setPhase("review");
-    setAction("remove");
-    setActionTouched(false);
     setDiscardUncommitted(false);
     setError(null);
     setConflictingFiles([]);
     setMergeResult(null);
-    setPrUrl(null);
     setCleanupResult(null);
     setCleanupError(null);
-    prHandoffRef.current = false;
   }, [open]);
 
   useEffect(() => {
@@ -366,10 +380,6 @@ export const CompleteWorktreeDialog = ({
 
   const dirtyCount = compare?.worktreeStatus.fileCount ?? 0;
   const isDirty = dirtyCount > 0;
-  // A pull request opened outside this dialog (Code, gh, the website) still
-  // counts: the branch is the source of truth.
-  const existingPr = compare?.pullRequest ?? null;
-  const prOpen = existingPr?.state === "open";
   const mergeDisabledReason = !compare
     ? null
     : compare.aheadCount === 0
@@ -384,34 +394,7 @@ export const CompleteWorktreeDialog = ({
                 count: compare.mainDirtyCount,
               })
             : null;
-  const prDisabledReason = !compare
-    ? null
-    : !compare.remoteName
-      ? worktreeT("noRemote")
-      : !compare.ghAvailable
-        ? worktreeT("ghMissing")
-        : prOpen
-          ? null
-          : compare.aheadCount === 0 && !isDirty
-            ? worktreeT("nothingToMerge", { base: compare.baseBranch })
-            : null;
   const mergeEnabled = Boolean(compare) && !mergeDisabledReason;
-  const prEnabled = Boolean(compare) && !prDisabledReason;
-
-  useEffect(() => {
-    if (!compare || actionTouched) {
-      return;
-    }
-    setAction(
-      removeOnly
-        ? "remove"
-        : mergeEnabled
-          ? "merge"
-          : prEnabled
-            ? "pr"
-            : "remove",
-    );
-  }, [actionTouched, compare, mergeEnabled, prEnabled, removeOnly]);
 
   const runCleanup = useCallback(
     async ({ deleteBranch }: { deleteBranch: boolean }) => {
@@ -493,7 +476,7 @@ export const CompleteWorktreeDialog = ({
       if (parentProjectId) {
         bumpProjectGitRefreshKey(parentProjectId);
       }
-      setPhase("done");
+      setPhase("merged");
     } catch (mergeFailure) {
       setError(
         mergeFailure instanceof Error
@@ -511,18 +494,8 @@ export const CompleteWorktreeDialog = ({
     worktreeT,
   ]);
 
-  const notifyCompleted = useCallback(() => {
-    onCompleted?.({
-      action,
-      mergeCommit: mergeResult?.mergeCommit ?? null,
-      prUrl,
-    });
-  }, [action, mergeResult, onCompleted, prUrl]);
-
   const finish = useCallback(() => {
     onOpenChange(false);
-    // Report before a purge deletes the worktree project and its chats.
-    notifyCompleted();
     if (cleanupResult) {
       purgeWorktreeProject(project.path, {
         activateProjectId: parentProjectId,
@@ -530,7 +503,6 @@ export const CompleteWorktreeDialog = ({
     }
   }, [
     cleanupResult,
-    notifyCompleted,
     onOpenChange,
     parentProjectId,
     project.path,
@@ -546,7 +518,7 @@ export const CompleteWorktreeDialog = ({
       if (phase === "working") {
         return;
       }
-      if (phase === "done") {
+      if (phase === "merged" || phase === "done") {
         finish();
         return;
       }
@@ -560,20 +532,8 @@ export const CompleteWorktreeDialog = ({
       void runMerge();
       return;
     }
-    if (action === "pr") {
-      if (existingPr && prOpen) {
-        // The pull request already exists: hand it over as is.
-        prHandoffRef.current = true;
-        setPrUrl(existingPr.url);
-        setPhase("done");
-        return;
-      }
-      prHandoffRef.current = false;
-      setPhase("pr");
-      return;
-    }
     void runCleanup({ deleteBranch: false });
-  }, [action, existingPr, prOpen, runCleanup, runMerge]);
+  }, [action, runCleanup, runMerge]);
 
   const handleRetryCleanup = useCallback(async () => {
     setRetryingCleanup(true);
@@ -583,21 +543,6 @@ export const CompleteWorktreeDialog = ({
       setRetryingCleanup(false);
     }
   }, [runCleanup]);
-
-  const primaryDisabled =
-    compareLoading ||
-    (action !== "remove" && !compare) ||
-    (action === "merge" && !mergeEnabled) ||
-    (action === "pr" && !prEnabled) ||
-    (isDirty && action === "remove" && !discardUncommitted);
-  const primaryLabel =
-    action === "merge"
-      ? worktreeT("merge")
-      : action === "pr"
-        ? prOpen && existingPr
-          ? worktreeT("useOpenPullRequest", { number: existingPr.number })
-          : worktreeT("continueToPr")
-        : worktreeT("removeWorktree");
 
   if (phase === "commit") {
     return (
@@ -623,56 +568,36 @@ export const CompleteWorktreeDialog = ({
     );
   }
 
-  if (phase === "pr") {
-    return (
-      <CreatePrDialog
-        baseBranch={compare?.baseBranch ?? null}
-        branch={project.worktree.branch}
-        model={model}
-        modelSpeed={modelSpeed}
-        onCompleted={(url, openPage) => {
-          prHandoffRef.current = true;
-          setPrUrl(url);
-          if (url && openPage) {
-            openExternalUrl(url);
-          }
-          if (parentProjectId) {
-            bumpProjectGitRefreshKey(parentProjectId);
-          }
-          setPhase("done");
-        }}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen && !prHandoffRef.current) {
-            setPhase("review");
-          }
-        }}
-        open
-        projectPath={project.path}
-        provider={provider}
-        reasoningEffort={reasoningEffort}
-        refreshToken={gitRefreshKey}
-        status={compare?.worktreeStatus ?? null}
-      />
-    );
-  }
-
+  const isMerge = action === "merge";
+  const primaryDisabled =
+    compareLoading ||
+    (isMerge ? !mergeEnabled : isDirty && !discardUncommitted);
+  const baseBranch = compare?.baseBranch ?? null;
+  const mergeLabel = baseBranch
+    ? worktreeT("mergeInto", { base: baseBranch })
+    : worktreeT("merge");
   const dirtyChanges = compare?.worktreeStatus.changes ?? [];
+  // Commits that only exist on the worktree branch. Unrelated histories have
+  // no meaningful count.
+  const unmergedCommits =
+    compare && compare.mergeBase !== null ? compare.aheadCount : 0;
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
-      <DialogContent className="flex max-h-[85vh] flex-col gap-5 sm:max-w-2xl">
+      <DialogContent
+        className={cn(
+          "flex max-h-[85vh] flex-col gap-5",
+          isMerge ? "sm:max-w-2xl" : "sm:max-w-lg",
+        )}
+      >
         <GitDialogHeader
-          icon={<FolderTree />}
+          icon={isMerge ? <GitMerge /> : <FolderX />}
           subtitle={
-            compare
-              ? `${compare.branch} -> ${compare.baseBranch}`
+            isMerge && baseBranch
+              ? `${project.worktree.branch} -> ${baseBranch}`
               : project.worktree.branch
           }
-          title={
-            removeOnly
-              ? worktreeT("removeWorktree")
-              : worktreeT("completeWorktree")
-          }
+          title={isMerge ? mergeLabel : worktreeT("removeWorktree")}
         />
 
         {phase === "working" ? (
@@ -680,62 +605,39 @@ export const CompleteWorktreeDialog = ({
             <Spinner className="size-4" />
             <span>{workingLabel}</span>
           </div>
+        ) : phase === "merged" && mergeResult ? (
+          <div className="space-y-4">
+            <div className="space-y-2 rounded-md border border-surface-200 bg-surface-50 px-3 py-3 text-sm dark:border-surface-800 dark:bg-surface-900">
+              <MergeResultLine result={mergeResult} />
+            </div>
+            {isDirty ? (
+              <InfoLine>{worktreeT("uncommittedStay")}</InfoLine>
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                {worktreeT("removeAfterMergeDescription", {
+                  branch: mergeResult.branch,
+                })}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button onClick={finish} type="button" variant="ghost">
+                {worktreeT("keepWorktree")}
+              </Button>
+              {isDirty ? null : (
+                <Button
+                  onClick={() => void runCleanup({ deleteBranch: true })}
+                  type="button"
+                  variant="destructive"
+                >
+                  {worktreeT("removeWorktreeAndBranch")}
+                </Button>
+              )}
+            </div>
+          </div>
         ) : phase === "done" ? (
           <div className="space-y-4">
             <div className="space-y-2 rounded-md border border-surface-200 bg-surface-50 px-3 py-3 text-sm dark:border-surface-800 dark:bg-surface-900">
-              {mergeResult ? (
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-                  <div className="space-y-1">
-                    <div>
-                      {mergeResult.fastForward
-                        ? worktreeT("mergedFastForward", {
-                            base: mergeResult.baseBranch,
-                            branch: mergeResult.branch,
-                          })
-                        : worktreeT("mergedWithCommit", {
-                            base: mergeResult.baseBranch,
-                            branch: mergeResult.branch,
-                            hash: mergeResult.mergeCommit.slice(0, 7),
-                          })}
-                    </div>
-                    {mergeResult.previousMainBranch !==
-                    mergeResult.baseBranch ? (
-                      <div className="text-muted-foreground text-xs">
-                        {worktreeT("mainNowOn", {
-                          base: mergeResult.baseBranch,
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              {prUrl !== null || (action === "pr" && prHandoffRef.current) ? (
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                    <span>
-                      {existingPr && prUrl === existingPr.url
-                        ? worktreeT("pullRequestOpen", {
-                            number: existingPr.number,
-                          })
-                        : worktreeT("pullRequestCreated")}
-                    </span>
-                    {prUrl ? (
-                      <Button
-                        className="h-7 gap-1 px-2 text-xs"
-                        onClick={() => openExternalUrl(prUrl)}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        <ExternalLink className="size-3.5" />
-                        {worktreeT("viewPullRequest")}
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
+              {mergeResult ? <MergeResultLine result={mergeResult} /> : null}
               {cleanupResult ? (
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
@@ -801,6 +703,25 @@ export const CompleteWorktreeDialog = ({
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-5">
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
+              {!isMerge ? (
+                <div className="space-y-1.5">
+                  <p className="text-muted-foreground text-sm">
+                    {worktreeT("removeWorktreeSummary", {
+                      branch: project.worktree.branch,
+                    })}
+                  </p>
+                  {compare && unmergedCommits > 0 ? (
+                    <InfoLine>
+                      {worktreeT("unmergedCommitsKept", {
+                        base: compare.baseBranch,
+                        branch: project.worktree.branch,
+                        count: unmergedCommits,
+                      })}
+                    </InfoLine>
+                  ) : null}
+                </div>
+              ) : null}
+
               {compareLoading && !compare ? (
                 <div className="flex items-center gap-2 py-4 text-muted-foreground text-sm">
                   <Spinner className="size-4" />
@@ -808,7 +729,7 @@ export const CompleteWorktreeDialog = ({
               ) : null}
               {compareError ? <ActionError error={compareError} /> : null}
 
-              {compare ? (
+              {isMerge && compare ? (
                 <>
                   <div className="space-y-2">
                     <DialogMetricRow
@@ -924,11 +845,7 @@ export const CompleteWorktreeDialog = ({
                         </div>
                       ) : null}
                     </div>
-                  ) : (
-                    <InfoLine>
-                      {worktreeT("noCommits", { base: compare.baseBranch })}
-                    </InfoLine>
-                  )}
+                  ) : null}
 
                   {compare.files.length > 0 ? (
                     <div className="overflow-hidden rounded-md border border-surface-200 bg-surface-50 dark:border-surface-800 dark:bg-surface-900">
@@ -944,121 +861,78 @@ export const CompleteWorktreeDialog = ({
                       </div>
                     </div>
                   ) : null}
-
-                  {isDirty ? (
-                    <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="font-medium">
-                            {worktreeT("uncommittedChanges", {
-                              count: dirtyCount,
-                            })}
-                          </div>
-                          <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
-                            {dirtyChanges
-                              .slice(0, MAX_DIRTY_FILES_SHOWN)
-                              .map((change) => (
-                                <li className="truncate" key={change.path}>
-                                  {change.path}
-                                </li>
-                              ))}
-                            {dirtyChanges.length > MAX_DIRTY_FILES_SHOWN ? (
-                              <li>
-                                {worktreeT("andMoreFiles", {
-                                  count:
-                                    dirtyChanges.length - MAX_DIRTY_FILES_SHOWN,
-                                })}
-                              </li>
-                            ) : null}
-                          </ul>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        {action === "remove" ? (
-                          <label
-                            className="flex cursor-pointer items-center gap-2 text-xs"
-                            htmlFor="complete-worktree-discard"
-                          >
-                            <Checkbox
-                              checked={discardUncommitted}
-                              id="complete-worktree-discard"
-                              onCheckedChange={(checked) =>
-                                setDiscardUncommitted(checked === true)
-                              }
-                            />
-                            <span>{worktreeT("discardUncommitted")}</span>
-                          </label>
-                        ) : (
-                          <InfoLine>{worktreeT("uncommittedStay")}</InfoLine>
-                        )}
-                        <Button
-                          className="h-7 px-2 text-xs"
-                          onClick={() => setPhase("commit")}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          <GitCommitHorizontal className="size-3.5" />
-                          {worktreeT("commitChangesFirst")}
-                        </Button>
-                      </div>
-                      {action === "remove" && discardUncommitted ? (
-                        <InfoLine tone="warning">
-                          {worktreeT("discardWarning")}
-                        </InfoLine>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </>
               ) : null}
 
-              {removeOnly ? null : (
-                <div className="space-y-2">
-                  <div className="font-medium text-muted-foreground text-xs">
-                    {gitT("nextSteps")}
+              {isDirty ? (
+                <div className="space-y-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="font-medium">
+                        {worktreeT("uncommittedChanges", {
+                          count: dirtyCount,
+                        })}
+                      </div>
+                      <ul className="space-y-0.5 font-mono text-xs text-muted-foreground">
+                        {dirtyChanges
+                          .slice(0, MAX_DIRTY_FILES_SHOWN)
+                          .map((change) => (
+                            <li className="truncate" key={change.path}>
+                              {change.path}
+                            </li>
+                          ))}
+                        {dirtyChanges.length > MAX_DIRTY_FILES_SHOWN ? (
+                          <li>
+                            {worktreeT("andMoreFiles", {
+                              count:
+                                dirtyChanges.length - MAX_DIRTY_FILES_SHOWN,
+                            })}
+                          </li>
+                        ) : null}
+                      </ul>
+                    </div>
                   </div>
-                  <NextStepSelector<WorktreeCompletionAction>
-                    idPrefix="complete-worktree"
-                    onValueChange={(value) => {
-                      setActionTouched(true);
-                      setAction(value);
-                    }}
-                    options={[
-                      {
-                        disabled: !mergeEnabled,
-                        icon: <GitMerge />,
-                        label: worktreeT("mergeInto", {
-                          base: compare?.baseBranch ?? "",
-                        }),
-                        value: "merge",
-                      },
-                      {
-                        disabled: !prEnabled,
-                        icon: <GitPullRequest />,
-                        label:
-                          prOpen && existingPr
-                            ? worktreeT("useOpenPullRequest", {
-                                number: existingPr.number,
-                              })
-                            : worktreeT("createPullRequest"),
-                        value: "pr",
-                      },
-                      {
-                        icon: <FolderX />,
-                        label: worktreeT("removeWorktreeOnly"),
-                        value: "remove" as const,
-                      },
-                    ]}
-                    value={action}
-                  />
-                  {action === "merge" && mergeDisabledReason ? (
-                    <InfoLine tone="warning">{mergeDisabledReason}</InfoLine>
-                  ) : action === "pr" && prDisabledReason ? (
-                    <InfoLine tone="warning">{prDisabledReason}</InfoLine>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {isMerge ? (
+                      <InfoLine>{worktreeT("uncommittedStay")}</InfoLine>
+                    ) : (
+                      <label
+                        className="flex cursor-pointer items-center gap-2 text-xs"
+                        htmlFor="worktree-action-discard"
+                      >
+                        <Checkbox
+                          checked={discardUncommitted}
+                          id="worktree-action-discard"
+                          onCheckedChange={(checked) =>
+                            setDiscardUncommitted(checked === true)
+                          }
+                        />
+                        <span>{worktreeT("discardUncommitted")}</span>
+                      </label>
+                    )}
+                    <Button
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPhase("commit")}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      <GitCommitHorizontal className="size-3.5" />
+                      {worktreeT("commitChangesFirst")}
+                    </Button>
+                  </div>
+                  {!isMerge && discardUncommitted ? (
+                    <InfoLine tone="warning">
+                      {worktreeT("discardWarning")}
+                    </InfoLine>
                   ) : null}
                 </div>
-              )}
+              ) : null}
+
+              {isMerge && mergeDisabledReason ? (
+                <InfoLine tone="warning">{mergeDisabledReason}</InfoLine>
+              ) : null}
 
               {conflictingFiles.length > 0 ? (
                 <div className="space-y-2 rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-sm">
@@ -1092,9 +966,9 @@ export const CompleteWorktreeDialog = ({
                 disabled={primaryDisabled}
                 onClick={handlePrimary}
                 type="button"
-                variant={action === "remove" ? "destructive" : "default"}
+                variant={isMerge ? "default" : "destructive"}
               >
-                {primaryLabel}
+                {isMerge ? mergeLabel : worktreeT("removeWorktree")}
               </Button>
             </div>
           </div>

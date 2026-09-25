@@ -271,3 +271,65 @@ test("createWorktreeProject can open the worktree without taking focus", async (
     vi.unstubAllGlobals();
   }
 });
+
+const listedWorktreeInfo = (parentProjectId: string, repoRoot: string) => ({
+  baseRef: null,
+  branch: "listed",
+  createdAt: new Date().toISOString(),
+  kind: "worktree" as const,
+  mainWorktreePath: repoRoot,
+  managed: true,
+  parentProjectId,
+  repoRoot,
+});
+
+test("addProject marks a newly opened project as a worktree", () => {
+  const { parent, store } = createTestStore();
+  const listedPath = "/workspace/worktrees/source-listed";
+
+  store.getState().addProject(listedPath, {
+    worktree: listedWorktreeInfo(parent.id, parent.path),
+  });
+
+  const opened = store
+    .getState()
+    .projects.find((project) => project.path === listedPath);
+  assert.equal(opened?.worktree?.branch, "listed");
+  assert.equal(opened?.worktree?.parentProjectId, parent.id);
+  assert.equal(store.getState().activeProjectId, opened?.id);
+});
+
+test("addProject fills in worktree info on an open project that lacks it", () => {
+  const { parent, store } = createTestStore();
+  const listedPath = "/workspace/worktrees/source-listed";
+  store.getState().addProject(listedPath);
+  assert.equal(
+    store.getState().projects.find((project) => project.path === listedPath)
+      ?.worktree,
+    null,
+  );
+
+  store.getState().addProject(listedPath, {
+    worktree: listedWorktreeInfo(parent.id, parent.path),
+  });
+
+  assert.equal(
+    store.getState().projects.find((project) => project.path === listedPath)
+      ?.worktree?.branch,
+    "listed",
+  );
+});
+
+test("addProject keeps the worktree info recorded at creation", () => {
+  const { parent, store, worktree } = createTestStore();
+
+  store.getState().addProject(WORKTREE_PATH, {
+    worktree: listedWorktreeInfo(parent.id, parent.path),
+  });
+
+  const opened = store
+    .getState()
+    .projects.find((project) => project.id === worktree.id);
+  assert.equal(opened?.worktree?.branch, "feature");
+  assert.equal(opened?.worktree?.baseRef, "main");
+});

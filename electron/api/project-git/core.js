@@ -716,6 +716,41 @@ const isAppManagedWorktreePath = (worktreePath) =>
   isPathInsideDirectory(worktreePath, getAppWorktreesDirectory()) ||
   isPathInsideDirectory(worktreePath, getLegacyAppWorktreesDirectory());
 
+/**
+ * App-managed worktrees live at `<worktrees>/<repo>-<hash>/<name>`. Once the
+ * last worktree of a repository is removed, the `<repo>-<hash>` folder is left
+ * empty; remove it. `rmdir` only deletes empty folders, so anything still in
+ * it (another worktree, stray files) keeps it in place.
+ */
+export const removeEmptyAppWorktreeParent = async (worktreePath) => {
+  const parentPath = path.dirname(path.resolve(worktreePath));
+  // Only a direct child of a worktrees root. `path.relative` compares
+  // case-insensitively on Windows, where git and Electron disagree on case.
+  const isRepoFolder = [
+    getAppWorktreesDirectory(),
+    getLegacyAppWorktreesDirectory(),
+  ].some((root) => {
+    const relativePath = path.relative(path.resolve(root), parentPath);
+    return (
+      relativePath !== "" &&
+      !relativePath.startsWith("..") &&
+      !path.isAbsolute(relativePath) &&
+      !relativePath.includes(path.sep)
+    );
+  });
+  if (!isRepoFolder) {
+    return false;
+  }
+
+  try {
+    await fs.rmdir(parentPath);
+    return true;
+  } catch {
+    // Not empty, already gone, or still in use.
+    return false;
+  }
+};
+
 export const listProjectGitWorktrees = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
@@ -856,6 +891,7 @@ export const removeProjectGitWorktree = async (
     ...(force ? ["--force"] : []),
     targetPath,
   ]);
+  await removeEmptyAppWorktreeParent(targetPath);
 
   return {
     path: targetPath,

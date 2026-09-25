@@ -13,9 +13,8 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
-import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
+import type { ProjectConfig } from "@/types/ide";
 import { BranchSwitcher } from "./branch-switcher";
-import { CompleteWorktreeDialog } from "./git-actions/complete-worktree-dialog";
 import { useIdeStore } from "./ide-store";
 import { slugifyWorktreeBranchName, WorktreeFields } from "./worktree-fields";
 
@@ -136,7 +135,6 @@ export const ProjectBranchFooter = ({
     { detail: "summary" },
   );
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
-  const [completeWorktreeOpen, setCompleteWorktreeOpen] = useState(false);
 
   if (!project.worktree && !isRepo && !loading) {
     return null;
@@ -147,24 +145,16 @@ export const ProjectBranchFooter = ({
       <div className={cn("shrink-0 px-2 pt-1 pb-2", className)}>
         <div className="mx-auto flex w-full max-w-[700px] justify-end">
           {project?.worktree ? (
-            <Button
-              aria-label={worktreeT("completeWorktreeLabel", {
-                branch: project.worktree.branch,
-              })}
-              className="h-7 max-w-[280px] gap-1.5 px-2 text-xs text-muted-foreground"
-              onClick={() => setCompleteWorktreeOpen(true)}
-              size="sm"
-              title={worktreeT("completeWorktreeLabel", {
-                branch: project.worktree.branch,
-              })}
-              variant="ghost"
+            <div
+              className="flex h-7 max-w-[280px] items-center gap-1.5 px-2 text-xs text-muted-foreground"
+              title={project.worktree.branch}
             >
               <FolderTree className="size-3.5 shrink-0" />
               <span className="shrink-0">{worktreeT("worktree")}</span>
               <span className="truncate text-foreground">
                 {project.worktree.branch}
               </span>
-            </Button>
+            </div>
           ) : project ? (
             <BranchSwitcher
               onCreateWorktree={
@@ -183,13 +173,6 @@ export const ProjectBranchFooter = ({
         open={createWorktreeOpen}
         project={project}
       />
-      {project.worktree ? (
-        <CompleteWorktreeDialog
-          onOpenChange={setCompleteWorktreeOpen}
-          open={completeWorktreeOpen}
-          project={project as ProjectConfig & { worktree: ProjectWorktreeInfo }}
-        />
-      ) : null}
     </>
   );
 };

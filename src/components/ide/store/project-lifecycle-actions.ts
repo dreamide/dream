@@ -9,6 +9,7 @@ import type {
   ProjectConfig,
   ProjectGitCreateWorktreeResponse,
   ProjectGitWorktreeCleanupResponse,
+  ProjectWorktreeInfo,
 } from "@/types/ide";
 import { createBranchedChatConfig } from "../chat-branching";
 import {
@@ -148,9 +149,15 @@ export const createProjectLifecycleActions = (
       });
     },
 
-    addProject: (path: string, addOptions?: { activate?: boolean }) => {
+    addProject: (
+      path: string,
+      addOptions?: { activate?: boolean; worktree?: ProjectWorktreeInfo },
+    ) => {
       // `activate: false` opens the project without switching to it.
       const activate = addOptions?.activate !== false;
+      const worktree = addOptions?.worktree ?? null;
+      const withWorktree = <T extends ProjectConfig>(project: T): T =>
+        worktree && !project.worktree ? { ...project, worktree } : project;
       set((state) => {
         const pathKey = normalizeProjectPathKey(path);
         const lastUsedAt = new Date().toISOString();
@@ -187,7 +194,17 @@ export const createProjectLifecycleActions = (
             chats: nextChats,
             messagesByChatId: nextMessagesByChatId,
             projects: updateProjectUiInList(
-              touchProjectInList(state.projects, openProject.id, lastUsedAt),
+              touchProjectInList(
+                openProject.worktree || !worktree
+                  ? state.projects
+                  : updateProjectInList(
+                      state.projects,
+                      openProject.id,
+                      withWorktree,
+                    ),
+                openProject.id,
+                lastUsedAt,
+              ),
               openProject.id,
               (project) =>
                 sanitizeProjectUiForChats(
@@ -204,7 +221,11 @@ export const createProjectLifecycleActions = (
           (project) => normalizeProjectPathKey(project.path) === pathKey,
         );
         if (closedProject) {
-          const reopenedProject = { ...closedProject, lastUsedAt, path };
+          const reopenedProject = withWorktree({
+            ...closedProject,
+            lastUsedAt,
+            path,
+          });
           let nextChats = state.chats;
           let nextMessagesByChatId = state.messagesByChatId;
           let nextActiveChatId = ensureActiveChatForProject(
@@ -249,7 +270,9 @@ export const createProjectLifecycleActions = (
           };
         }
 
-        const nextProject = createProjectConfig(path, state.settings);
+        const nextProject = withWorktree(
+          createProjectConfig(path, state.settings),
+        );
         const nextChat = createChatConfig(nextProject, {
           permissionMode: state.settings.defaultPermissionMode,
         });
