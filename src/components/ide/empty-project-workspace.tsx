@@ -298,7 +298,7 @@ export const EmptyProjectWorkspace = () => {
                       type="button"
                     >
                       <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        {isWorktree ? (
+                        {isWorktree && project.icon?.source !== "custom" ? (
                           <FolderTree className="size-4" />
                         ) : project.icon ? (
                           <ProjectTabIcon

@@ -1,13 +1,6 @@
 import { FolderTree, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
 import { getDesktopApi } from "@/lib/electron";
@@ -17,7 +10,7 @@ import {
   type SparklesPaletteName,
 } from "@/lib/sparkles-palettes";
 import { useUiStore } from "@/lib/ui-store";
-import type { DetectedEditor } from "@/types/ide";
+import type { DetectedEditor, ProjectIconInfo } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
 import {
   moveTabItem,
@@ -103,10 +96,13 @@ const useProjectIconScanner = ({
 
     projectIconScanSignatureRef.current = projectIconScanSignature;
     const abortController = new AbortController();
-    const scanTargets = useIdeStore.getState().projects.map((project) => ({
-      id: project.id,
-      path: project.path,
-    }));
+    const scanTargets = useIdeStore
+      .getState()
+      .projects.filter((project) => project.icon?.source !== "custom")
+      .map((project) => ({
+        id: project.id,
+        path: project.path,
+      }));
 
     for (const project of scanTargets) {
       void fetch("/api/project-icon", {
@@ -134,6 +130,7 @@ const useProjectIconScanner = ({
 
           if (
             !currentProject ||
+            currentProject.icon?.source === "custom" ||
             currentProject.path !== project.path ||
             areProjectIconsEqual(currentProject.icon, nextIcon)
           ) {
@@ -255,9 +252,7 @@ export const ProjectTabs = () => {
   }, []);
 
   const handleEditSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-
+    (icon: ProjectIconInfo | null) => {
       const nextName = editValue.trim();
       if (!editTarget || !nextName) {
         return;
@@ -266,6 +261,7 @@ export const ProjectTabs = () => {
       updateProject(editTarget.id, (current) => ({
         ...current,
         name: nextName,
+        icon,
       }));
 
       closeEditDialog();
@@ -299,7 +295,7 @@ export const ProjectTabs = () => {
               color="green"
             />
           </span>
-        ) : project.worktree ? (
+        ) : project.worktree && project.icon?.source !== "custom" ? (
           <span
             className="flex size-4 shrink-0 items-center justify-center self-center leading-none text-muted-foreground"
             key={`${project.id}:worktree:${project.worktree.branch}`}
@@ -429,6 +425,9 @@ export const ProjectTabs = () => {
 
       <ProjectEditDialog
         key={editTarget?.id ?? "closed"}
+        project={
+          projects.find((project) => project.id === editTarget?.id) ?? null
+        }
         onClose={closeEditDialog}
         onSubmit={handleEditSubmit}
         onValueChange={setEditValue}

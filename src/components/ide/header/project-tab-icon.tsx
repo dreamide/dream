@@ -47,20 +47,26 @@ const loadProjectIcon = (projectPath: string, icon: ProjectIconInfo) => {
 };
 
 export function ProjectTabIcon({
+  className = "size-4",
   fallback = null,
   icon,
   projectName,
   projectPath,
 }: {
+  className?: string;
   fallback?: ReactNode;
   icon: ProjectIconInfo | null;
   projectName: string;
   projectPath: string;
 }) {
   const cacheKey = icon ? getProjectIconCacheKey(projectPath, icon) : null;
-  const cachedSrc = cacheKey
-    ? (projectIconObjectUrls.get(cacheKey) ?? null)
-    : null;
+  const uploadedSrc =
+    icon?.source === "custom" && icon.path.startsWith("data:image/png;base64,")
+      ? icon.path
+      : null;
+  const cachedSrc =
+    uploadedSrc ??
+    (cacheKey ? (projectIconObjectUrls.get(cacheKey) ?? null) : null);
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<{ key: string; src: string } | null>(
     null,
@@ -102,7 +108,7 @@ export function ProjectTabIcon({
     <img
       alt=""
       aria-hidden="true"
-      className="size-4 shrink-0 rounded-sm object-contain"
+      className={`${className} shrink-0 rounded-sm object-contain`}
       draggable={false}
       onError={() => setFailedKey(cacheKey)}
       src={src}

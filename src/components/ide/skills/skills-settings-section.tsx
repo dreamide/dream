@@ -472,16 +472,6 @@ export const SkillsSettingsSection = () => {
         </div>
       )}
 
-      {canToggle ? (
-        <p className="text-muted-foreground text-xs">
-          {provider === "anthropic"
-            ? t("claudeToggleNote")
-            : t("codexToggleNote")}
-        </p>
-      ) : (
-        <p className="text-muted-foreground text-xs">{t("noToggleNote")}</p>
-      )}
-
       {showCreateDialog ? (
         <CreateSkillDialog
           onClose={() => setShowCreateDialog(false)}
