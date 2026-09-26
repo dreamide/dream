@@ -132,7 +132,8 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     null;
   const browserPanelVisible = rightVisible && rightPanelView === "browser";
   const filesPanelVisible = rightVisible && rightPanelView === "explorer";
-  const expandablePanelVisible = browserPanelVisible || filesPanelVisible;
+  const expandablePanelVisible =
+    browserPanelVisible || filesPanelVisible || terminalPanelVisible;
   const panelExpanded = rightPanelExpandedRequested && expandablePanelVisible;
   const browserHiddenWithActiveTab =
     Boolean(activeBrowserTab?.url) && !browserPanelVisible;

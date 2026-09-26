@@ -430,7 +430,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "{name} schließen",
+      collapse: "Terminal einklappen",
       commandPrompt: "Eingabeaufforderung",
+      expand: "Terminal erweitern",
       openAnotherTerminal: "Öffnen Sie ein anderes Terminal",
       systemShell: "System-Shell",
       terminalNumber: "Terminal {number}",
@@ -1028,7 +1030,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "Close {name}",
+      collapse: "Collapse terminal",
       commandPrompt: "Command Prompt",
+      expand: "Expand terminal",
       openAnotherTerminal: "Open another terminal",
       systemShell: "system shell",
       terminalNumber: "Terminal {number}",
@@ -1630,7 +1634,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "Cerrar {name}",
+      collapse: "Contraer terminal",
       commandPrompt: "Símbolo del sistema",
+      expand: "Expandir terminal",
       openAnotherTerminal: "Abrir otra terminal",
       systemShell: "shell del sistema",
       terminalNumber: "Terminal {number}",
@@ -2235,7 +2241,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "Fermer {name}",
+      collapse: "Réduire le terminal",
       commandPrompt: "Invite de commandes",
+      expand: "Agrandir le terminal",
       openAnotherTerminal: "Ouvrir un autre terminal",
       systemShell: "shell système",
       terminalNumber: "Terminal {number}",
@@ -2839,7 +2847,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "Chiudi {name}",
+      collapse: "Comprimi terminale",
       commandPrompt: "Prompt dei comandi",
+      expand: "Espandi terminale",
       openAnotherTerminal: "Apri un altro terminale",
       systemShell: "shell di sistema",
       terminalNumber: "Terminale {number}",
@@ -3435,7 +3445,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "{name}を閉じる",
+      collapse: "ターミナルを折りたたむ",
       commandPrompt: "コマンド プロンプト",
+      expand: "ターミナルを展開",
       openAnotherTerminal: "別の端末を開く",
       systemShell: "システム シェル",
       terminalNumber: "ターミナル {number}",
@@ -4021,7 +4033,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "{name} 닫기",
+      collapse: "터미널 접기",
       commandPrompt: "명령 프롬프트",
+      expand: "터미널 펼치기",
       openAnotherTerminal: "다른 터미널 열기",
       systemShell: "시스템 쉘",
       terminalNumber: "터미널 {number}",
@@ -4618,7 +4632,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "Fechar {name}",
+      collapse: "Recolher terminal",
       commandPrompt: "Prompt de comando",
+      expand: "Expandir terminal",
       openAnotherTerminal: "Abra outro terminal",
       systemShell: "shell do sistema",
       terminalNumber: "Terminal {number}",
@@ -5210,7 +5226,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "Đóng {name}",
+      collapse: "Thu gọn terminal",
       commandPrompt: "Dấu nhắc lệnh",
+      expand: "Mở rộng terminal",
       openAnotherTerminal: "Mở một thiết bị đầu cuối khác",
       systemShell: "vỏ hệ thống",
       terminalNumber: "Thiết bị đầu cuối {number}",
@@ -5777,7 +5795,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "关闭{name}",
+      collapse: "折叠终端",
       commandPrompt: "命令提示符",
+      expand: "展开终端",
       openAnotherTerminal: "打开另一个终端",
       systemShell: "系统外壳",
       terminalNumber: "终端 {number}",
@@ -6343,7 +6363,9 @@ export const supplementalMessages = {
     },
     terminal: {
       closeNamedTerminal: "關閉{name}",
+      collapse: "收合終端",
       commandPrompt: "命令提示符",
+      expand: "展開終端",
       openAnotherTerminal: "開啟另一個終端",
       systemShell: "系統外殼",
       terminalNumber: "終端 {number}",

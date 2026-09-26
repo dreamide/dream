@@ -181,7 +181,9 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
                 <ProjectTerminalTabsPanel
                   active={props.active && props.open}
                   embedded={true}
+                  expanded={props.panelExpanded}
                   onClosePanel={props.onClosePanel}
+                  onToggleExpanded={props.onTogglePanelExpanded}
                   projectId={props.project.id}
                 />
               </RightPanelViewSlot>

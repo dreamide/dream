@@ -2,7 +2,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import { Plus, TerminalSquare, X } from "lucide-react";
+import { Maximize2, Minimize2, Plus, TerminalSquare, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { type HTMLAttributes, useEffect, useRef } from "react";
@@ -557,12 +557,16 @@ export const TerminalPanel = ({
 export const ProjectTerminalTabsPanel = ({
   active = true,
   embedded = false,
+  expanded = false,
   onClosePanel,
+  onToggleExpanded,
   projectId,
 }: {
   active?: boolean;
   embedded?: boolean;
+  expanded?: boolean;
   onClosePanel?: () => void;
+  onToggleExpanded?: () => void;
   projectId: string;
 }) => {
   const terminalT = useTranslations("terminal");
@@ -661,6 +665,22 @@ export const ProjectTerminalTabsPanel = ({
             renameOnDoubleClick={true}
           />
         </div>
+        {onToggleExpanded ? (
+          <button
+            aria-label={expanded ? terminalT("collapse") : terminalT("expand")}
+            aria-pressed={expanded}
+            className="mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-lg p-0 text-muted-foreground transition-colors hover:bg-surface-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:hover:bg-surface-800 dark:focus-visible:ring-surface-500"
+            onClick={onToggleExpanded}
+            title={expanded ? terminalT("collapse") : terminalT("expand")}
+            type="button"
+          >
+            {expanded ? (
+              <Minimize2 className="size-4" />
+            ) : (
+              <Maximize2 className="size-4" />
+            )}
+          </button>
+        ) : null}
       </div>
       <div className="relative min-h-0 flex-1">
         {sessionIds.map((sessionId, index) => {
