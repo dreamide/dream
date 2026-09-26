@@ -37,7 +37,6 @@ test("adds, updates, and deletes stash items", () => {
   const { project, store } = createTestStore();
 
   const itemId = store.getState().addStashItem(project.id, {
-    agentMode: "build",
     model: "gpt-5",
     modelSpeed: "standard",
     permissionMode: "full-access",
@@ -56,14 +55,12 @@ test("adds, updates, and deletes stash items", () => {
   store.getState().updateStashItem(project.id, itemId, (item) => ({
     ...item,
     text: "updated task",
-    agentMode: "plan",
   }));
 
   const updated = store
     .getState()
     .projects[0]?.ui.stashItems.find((item) => item.id === itemId);
   assert.equal(updated?.text, "updated task");
-  assert.equal(updated?.agentMode, "plan");
 
   store.getState().deleteStashItem(project.id, itemId);
   assert.deepEqual(store.getState().projects[0]?.ui.stashItems, []);
@@ -72,10 +69,9 @@ test("adds, updates, and deletes stash items", () => {
 test("executeStashItem opens a new chat and queues the prompt", () => {
   const { project, store } = createTestStore();
   const itemId = store.getState().addStashItem(project.id, {
-    agentMode: "plan",
     model: "gpt-5",
     modelSpeed: "fast",
-    permissionMode: "standard",
+    permissionMode: "ask",
     provider: "openai",
     reasoningEffort: "high",
     references: [],
@@ -90,10 +86,9 @@ test("executeStashItem opens a new chat and queues the prompt", () => {
 
   const state = store.getState();
   const chat = state.chats.find((item) => item.id === chatId);
-  assert.equal(chat?.agentMode, "plan");
   assert.equal(chat?.model, "gpt-5");
   assert.equal(chat?.modelSpeed, "fast");
-  assert.equal(chat?.permissionMode, "standard");
+  assert.equal(chat?.permissionMode, "ask");
   assert.deepEqual(state.pendingChatSubmitByChatId[chatId], {
     references: [],
     text: "run this later",
@@ -121,7 +116,6 @@ test("executeStashItem adds a chat beside open chats in multi-chat mode", () => 
   store.getState().addChatBeside(project.id);
 
   const itemId = store.getState().addStashItem(project.id, {
-    agentMode: "build",
     model: "gpt-5",
     modelSpeed: "standard",
     permissionMode: "full-access",

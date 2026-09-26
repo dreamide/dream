@@ -16,7 +16,9 @@ import {
 } from "./inline-diff-feedback";
 
 type DiffViewMode = "unified" | "split";
-type PierreDiffOptions = NonNullable<FileDiffProps<undefined, undefined>["options"]>;
+type PierreDiffOptions = NonNullable<
+  FileDiffProps<undefined, undefined>["options"]
+>;
 type ParsedFileDiff = FileDiffProps<undefined, undefined>["fileDiff"];
 
 export const DIFF_RENDER_CHANGED_LINE_LIMIT = 500;

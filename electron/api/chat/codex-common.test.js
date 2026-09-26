@@ -15,7 +15,7 @@ import {
 test("builds exec args for a new session with default permissions", () => {
   assert.deepEqual(
     buildCodexExecArgs({
-      codexPermissionMode: "default",
+      permissionMode: "ask",
       model: "gpt-5.4-codex",
       projectPath: "/proj",
     }),
@@ -28,9 +28,9 @@ test("builds exec args for a new session with default permissions", () => {
       "--model",
       "gpt-5.4-codex",
       "-c",
-      'sandbox_mode="workspace-write"',
+      'sandbox_mode="read-only"',
       "-c",
-      'approval_policy="on-request"',
+      'approval_policy="untrusted"',
       "-",
     ],
   );
@@ -39,7 +39,7 @@ test("builds exec args for a new session with default permissions", () => {
 test("builds resume exec args with full access, reasoning effort, and fast speed", () => {
   assert.deepEqual(
     buildCodexExecArgs({
-      codexPermissionMode: "full-access",
+      permissionMode: "full-access",
       modelSpeed: "fast",
       projectPath: "/proj",
       reasoningEffort: "high",
@@ -68,7 +68,7 @@ test("includes add-dir and image flags for new session exec args", () => {
   assert.deepEqual(
     buildCodexExecArgs({
       addDirs: ["/extra"],
-      codexPermissionMode: "auto-accept-edits",
+      permissionMode: "auto-accept-edits",
       imagePaths: ["/img.png"],
       projectPath: "/proj",
     }),
@@ -85,7 +85,7 @@ test("includes add-dir and image flags for new session exec args", () => {
       "-c",
       'sandbox_mode="workspace-write"',
       "-c",
-      'approval_policy="never"',
+      'approval_policy="on-request"',
       "-",
     ],
   );
@@ -119,24 +119,25 @@ test("chooses approval decisions based on approval, scope, and availability", ()
 });
 
 test("maps permission modes to app approval policy and sandbox mode", () => {
-  assert.equal(getCodexAppApprovalPolicy("default"), "untrusted");
+  assert.equal(getCodexAppApprovalPolicy("ask"), "untrusted");
   assert.equal(getCodexAppApprovalPolicy("full-access"), "never");
-  assert.equal(getCodexAppApprovalPolicy("auto-accept-edits"), "never");
+  assert.equal(getCodexAppApprovalPolicy("auto-accept-edits"), "on-request");
   assert.equal(getCodexAppSandboxMode("full-access"), "danger-full-access");
-  assert.equal(getCodexAppSandboxMode("default"), "workspace-write");
+  assert.equal(getCodexAppSandboxMode("ask"), "read-only");
+  assert.equal(getCodexAppSandboxMode("auto-accept-edits"), "workspace-write");
 });
 
 test("builds the turn sandbox policy for workspace and full access modes", () => {
   assert.deepEqual(
     getCodexAppTurnSandboxPolicy({
-      codexPermissionMode: "full-access",
+      permissionMode: "full-access",
       projectPath: "/proj",
     }),
     { type: "dangerFullAccess" },
   );
   assert.deepEqual(
     getCodexAppTurnSandboxPolicy({
-      codexPermissionMode: "default",
+      permissionMode: "auto-accept-edits",
       projectPath: "/proj",
     }),
     {

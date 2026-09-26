@@ -9,20 +9,14 @@ test("full access permission mode bypasses permissions regardless of agent mode"
       agentMode: "plan",
       permissionMode: "full-access",
     }),
-    {
-      claudePermissionMode: "bypass-permissions",
-      codexPermissionMode: "full-access",
-    },
+    { permissionMode: "full-access" },
   );
   assert.deepEqual(
     resolveChatPermissionModes({
       agentMode: "build",
       permissionMode: "full-access",
     }),
-    {
-      claudePermissionMode: "bypass-permissions",
-      codexPermissionMode: "full-access",
-    },
+    { permissionMode: "full-access" },
   );
 });
 
@@ -32,10 +26,7 @@ test("plan agent mode asks for permissions in standard mode", () => {
       agentMode: "plan",
       permissionMode: "standard",
     }),
-    {
-      claudePermissionMode: "ask-permissions",
-      codexPermissionMode: "default",
-    },
+    { permissionMode: "ask" },
   );
 });
 
@@ -45,10 +36,7 @@ test("build agent mode auto-accepts edits in standard mode", () => {
       agentMode: "build",
       permissionMode: "standard",
     }),
-    {
-      claudePermissionMode: "accept-edits",
-      codexPermissionMode: "auto-accept-edits",
-    },
+    { permissionMode: "auto-accept-edits" },
   );
 });
 
