@@ -883,6 +883,21 @@
   font-size: 12px;
 }
 
+/* Streamdown table header: match the app page background (ide-shell: bg-surface-50 dark:bg-surface-900) */
+[data-streamdown="table-header"] {
+  background-color: var(--surface-50);
+}
+
+.dark [data-streamdown="table-header"] {
+  background-color: var(--surface-900);
+}
+
+/* Fullscreen: the header is sticky, and collapsed table borders don't move with it,
+   so draw the divider as an inset shadow on the header cells. */
+[data-streamdown="table-fullscreen"] [data-streamdown="table-header-cell"] {
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
 /* Streamdown markdown list styling overrides */
 [data-streamdown="unordered-list"],
 [data-streamdown="ordered-list"] {

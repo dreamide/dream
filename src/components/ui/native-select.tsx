@@ -23,7 +23,7 @@ function NativeSelect({
       <select
         data-slot="native-select"
         data-size={size}
-        className="h-9 w-full min-w-0 appearance-none rounded-md border border-input bg-transparent py-1 pr-8 pl-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none select-none selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500 disabled:pointer-events-none disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive-border data-[size=sm]:h-8 dark:bg-surface-900 dark:hover:bg-surface-800 dark:aria-invalid:border-destructive-border-strong dark:aria-invalid:ring-destructive-border-strong"
+        className="h-9 w-full min-w-0 appearance-none rounded-md border border-input bg-surface-50 py-1 pr-8 pl-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none select-none selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500 disabled:pointer-events-none disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive-border data-[size=sm]:h-8 hover:bg-surface-100 dark:bg-surface-900 dark:hover:bg-surface-800 dark:aria-invalid:border-destructive-border-strong dark:aria-invalid:ring-destructive-border-strong"
         {...props}
       />
       <ChevronDownIcon
