@@ -1007,7 +1007,7 @@ export const SettingsWorkspace = () => {
                       runtimeLabel={providerT("codexCli")}
                       version={providerModels.openai.version}
                     >
-                      <div className="space-y-1.5 rounded-md p-1">
+                      <div className="space-y-1 rounded-md p-1">
                         {availableOpenAiModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             {settingsT("noCliModels")}
@@ -1018,7 +1018,7 @@ export const SettingsWorkspace = () => {
 
                             return (
                               <div
-                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
                                 key={model.id}
                               >
                                 <Label
@@ -1079,7 +1079,7 @@ export const SettingsWorkspace = () => {
                       runtimeLabel={providerT("claudeCodeCli")}
                       version={providerModels.anthropic.version}
                     >
-                      <div className="space-y-1.5 rounded-md p-1">
+                      <div className="space-y-1 rounded-md p-1">
                         {availableAnthropicModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             {settingsT("noCliModels")}
@@ -1092,7 +1092,7 @@ export const SettingsWorkspace = () => {
 
                             return (
                               <div
-                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
                                 key={model.id}
                               >
                                 <Label
@@ -1153,7 +1153,7 @@ export const SettingsWorkspace = () => {
                       runtimeLabel={providerT("opencodeCli")}
                       version={providerModels.opencode.version}
                     >
-                      <div className="space-y-1.5 rounded-md p-1">
+                      <div className="space-y-1 rounded-md p-1">
                         {availableOpenCodeModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             {settingsT("noOpenCodeModels")}
@@ -1166,7 +1166,7 @@ export const SettingsWorkspace = () => {
 
                             return (
                               <div
-                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
                                 key={model.id}
                               >
                                 <Label
@@ -1233,7 +1233,7 @@ export const SettingsWorkspace = () => {
                       runtimeLabel={providerT("cursorAgentCli")}
                       version={providerModels.cursor.version}
                     >
-                      <div className="space-y-1.5 rounded-md p-1">
+                      <div className="space-y-1 rounded-md p-1">
                         {availableCursorModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             {settingsT("noCliModels")}
@@ -1244,7 +1244,7 @@ export const SettingsWorkspace = () => {
 
                             return (
                               <div
-                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
                                 key={model.id}
                               >
                                 <Label
@@ -1311,7 +1311,7 @@ export const SettingsWorkspace = () => {
                       runtimeLabel="Grok Build CLI"
                       version={providerModels.grok.version}
                     >
-                      <div className="space-y-1.5 rounded-md p-1">
+                      <div className="space-y-1 rounded-md p-1">
                         {availableGrokModels.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             {settingsT("noCliModels")}
@@ -1322,7 +1322,7 @@ export const SettingsWorkspace = () => {
 
                             return (
                               <div
-                                className="flex items-center justify-between rounded-sm px-1.5 py-1 hover:bg-muted"
+                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
                                 key={model.id}
                               >
                                 <Label
