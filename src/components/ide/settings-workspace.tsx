@@ -46,7 +46,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { APP_LOCALES, type AppLocale, LOCALE_LABELS } from "@/i18n/config";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -54,6 +54,11 @@ import {
   getModelsForProvider,
   isProviderEnabled,
 } from "@/lib/ide-defaults";
+import {
+  DEFAULT_OPENCODE_MODEL_GROUP,
+  getOpenCodeModelName,
+  groupOpenCodeModels,
+} from "@/lib/opencode-model-groups";
 import { ACCENT_COLORS, BASE_COLORS, useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type {
@@ -297,6 +302,19 @@ export const SettingsWorkspace = () => {
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
   const availableOpenCodeModels = providerModels.opencode.models;
+  const openCodeModelGroups = useMemo(
+    () => groupOpenCodeModels(availableOpenCodeModels),
+    [availableOpenCodeModels],
+  );
+  const [openCodeModelGroup, setOpenCodeModelGroup] = useState<string>(
+    DEFAULT_OPENCODE_MODEL_GROUP,
+  );
+  // Fall back to the first tab when the chosen provider is not offered.
+  const activeOpenCodeModelGroup = openCodeModelGroups.some(
+    (group) => group.id === openCodeModelGroup,
+  )
+    ? openCodeModelGroup
+    : (openCodeModelGroups[0]?.id ?? DEFAULT_OPENCODE_MODEL_GROUP);
   const availableCursorModels = providerModels.cursor.models;
   const availableGrokModels = providerModels.grok.models;
 
@@ -1166,46 +1184,71 @@ export const SettingsWorkspace = () => {
                       version={providerModels.opencode.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
-                        {availableOpenCodeModels.length === 0 ? (
+                        {openCodeModelGroups.length === 0 ? (
                           <p className="px-2 py-1.5 text-muted-foreground text-sm">
                             {settingsT("noOpenCodeModels")}
                           </p>
                         ) : (
-                          availableOpenCodeModels.map((model) => {
-                            const isSelected = openCodeModels.includes(
-                              model.id,
-                            );
-
-                            return (
-                              <div
-                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
-                                key={model.id}
+                          <Tabs
+                            onValueChange={(value) =>
+                              setOpenCodeModelGroup(String(value))
+                            }
+                            value={activeOpenCodeModelGroup}
+                          >
+                            {/* Stays in view while the model list scrolls. */}
+                            <div className="sticky top-0 z-20 -mx-1 -mt-1 overflow-x-auto bg-white px-1 pt-1 pb-1 dark:bg-surface-950">
+                              <TabsList>
+                                {openCodeModelGroups.map((group) => (
+                                  <TabsTrigger key={group.id} value={group.id}>
+                                    {group.label}
+                                  </TabsTrigger>
+                                ))}
+                              </TabsList>
+                            </div>
+                            {openCodeModelGroups.map((group) => (
+                              <TabsContent
+                                className="space-y-1"
+                                key={group.id}
+                                value={group.id}
                               >
-                                <Label
-                                  className={cn(
-                                    "truncate pr-3 text-sm",
-                                    isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {model.label}
-                                </Label>
-                                <Switch
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked !== isSelected) {
-                                      toggleProviderModel(
-                                        "opencode",
-                                        model.id,
-                                        checked,
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
-                            );
-                          })
+                                {group.models.map((model) => {
+                                  const isSelected = openCodeModels.includes(
+                                    model.id,
+                                  );
+
+                                  return (
+                                    <div
+                                      className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                                      key={model.id}
+                                    >
+                                      <Label
+                                        className={cn(
+                                          "truncate pr-3 text-sm",
+                                          isSelected
+                                            ? "text-foreground"
+                                            : "text-muted-foreground",
+                                        )}
+                                      >
+                                        {getOpenCodeModelName(model)}
+                                      </Label>
+                                      <Switch
+                                        checked={isSelected}
+                                        onCheckedChange={(checked) => {
+                                          if (checked !== isSelected) {
+                                            toggleProviderModel(
+                                              "opencode",
+                                              model.id,
+                                              checked,
+                                            );
+                                          }
+                                        }}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </TabsContent>
+                            ))}
+                          </Tabs>
                         )}
                       </div>
                     </ProviderStatusCard>
