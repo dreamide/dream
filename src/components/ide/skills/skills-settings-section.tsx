@@ -299,20 +299,20 @@ export const SkillsSettingsSection = () => {
       ) : null}
 
       {skills.length === 0 ? (
-        <div className="flex min-h-[200px] items-center justify-center rounded-md border border-dashed p-4 text-center">
+        <div className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed border-surface-200 p-4 text-center dark:border-surface-800">
           <p className="text-muted-foreground text-sm">
             {isLoading ? t("loading") : t("empty")}
           </p>
         </div>
       ) : (
-        <div className="grid min-h-[480px] grid-cols-[minmax(0,24rem)_minmax(0,1fr)] rounded-md border bg-white dark:bg-surface-950">
+        <div className="grid min-h-[480px] grid-cols-[minmax(0,24rem)_minmax(0,1fr)] rounded-lg border border-surface-200 bg-white dark:border-surface-800 dark:bg-surface-950">
           {/* The list sticks below the settings header (h-12) and top fade
               (24px) and scrolls on its own; the detail pane scrolls with the
               page, so a long SKILL.md never drags the list out of view. */}
-          <div className="sticky top-6 max-h-[calc(100dvh-5.5rem)] min-w-0 self-start overflow-y-auto overscroll-contain p-2">
+          <div className="sticky top-6 max-h-[calc(100dvh-5.5rem)] min-w-0 self-start overflow-y-auto overscroll-contain px-2 pb-2">
             {grouped.map((group) => (
               <div className="mb-3" key={group.scope}>
-                <p className="px-3 py-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+                <p className="-mx-2 sticky top-0 z-10 bg-white px-5 py-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide dark:bg-surface-950">
                   {scopeLabel(group.scope)}
                 </p>
                 <ul className="space-y-1">
@@ -322,7 +322,7 @@ export const SkillsSettingsSection = () => {
                     return (
                       <li
                         className={cn(
-                          "flex items-center gap-1 rounded-md pr-2 transition-colors",
+                          "flex items-center gap-1 rounded-md pr-2",
                           isSelected && selectedSkill
                             ? "bg-muted"
                             : "bg-muted/50 hover:bg-muted",

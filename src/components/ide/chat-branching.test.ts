@@ -43,14 +43,14 @@ const messages = [
 ] as UIMessage[];
 
 const sourceChat = {
-  agentMode: "plan",
   branchedFrom: null,
   createdAt: "2026-08-05T12:00:00.000Z",
   deletedAt: null,
   id: "source-chat",
+  messageCount: 3,
   model: "gpt-5.6",
   modelSpeed: "fast",
-  permissionMode: "standard",
+  permissionMode: "ask",
   projectId: "source-project",
   provider: "openai",
   reasoningEffort: "high",
@@ -101,7 +101,6 @@ test("inherits chat settings while clearing provider session metadata", () => {
 
   assert.equal(branch.projectId, targetProject.id);
   assert.equal(branch.title, "Investigate persistence (branch)");
-  assert.equal(branch.agentMode, sourceChat.agentMode);
   assert.equal(branch.permissionMode, sourceChat.permissionMode);
   assert.equal(branch.provider, sourceChat.provider);
   assert.equal(branch.model, sourceChat.model);

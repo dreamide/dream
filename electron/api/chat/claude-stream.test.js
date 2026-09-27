@@ -72,12 +72,14 @@ test("accept-edits mode prompts for MCP tools instead of denying them", async ()
     projectPath: process.cwd(),
   });
 
-  const denied = await handler("Bash", { command: "ls" }, { toolUseID: "t1" });
-  assert.equal(denied.behavior, "deny");
-
   // The MCP call waits for interactive approval; only check that the
   // approval request was emitted rather than an immediate deny.
-  const pending = handler("mcp__github__list_issues", {}, { toolUseID: "t2" });
+  const controller = new AbortController();
+  const pending = handler(
+    "mcp__github__list_issues",
+    {},
+    { signal: controller.signal, toolUseID: "t1" },
+  );
   const settled = await Promise.race([
     pending.then(() => "settled"),
     new Promise((resolve) => setTimeout(() => resolve("pending"), 20)),
@@ -86,9 +88,11 @@ test("accept-edits mode prompts for MCP tools instead of denying them", async ()
   assert.ok(
     parts.some(
       (part) =>
-        part.type === "tool-approval-request" && part.toolCallId === "t2",
+        part.type === "tool-approval-request" && part.toolCallId === "t1",
     ),
   );
+  controller.abort();
+  await pending;
 });
 
 test("Skill tool invocations are allowed without an approval prompt", async () => {

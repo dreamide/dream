@@ -56,14 +56,22 @@ const createPersistedProject = (
 
 const createPersistedChat = (overrides: Partial<ChatConfig> = {}): ChatConfig =>
   ({
-    agentMode: "build",
+    branchedFrom: null,
     createdAt: "2026-07-19T12:00:00.000Z",
     deletedAt: null,
     id: "chat-one",
+    messageCount: 0,
     model: "gpt-5",
+    modelSpeed: "standard",
     permissionMode: "full-access",
     projectId: "project-one",
     provider: "openai",
+    reasoningEffort: null,
+    remoteConversationId: null,
+    remoteConversationModel: null,
+    remoteConversationModelSpeed: null,
+    remoteConversationProjectPath: null,
+    sparklesPalette: "blue",
     title: "First chat",
     updatedAt: "2026-07-19T12:00:00.000Z",
     ...overrides,
@@ -229,19 +237,18 @@ test("mergePersistedState preserves stash items and drops invalid ones", () => {
             { id: "", text: "missing id" },
             { id: "stash-one", text: "duplicate" },
           ],
-        } as ProjectConfig["ui"],
+        } as unknown as ProjectConfig["ui"],
       }),
     ],
   });
 
   assert.deepEqual(merged.projects[0].ui.stashItems, [
     {
-      agentMode: "plan",
       createdAt: "2026-08-15T12:00:00.000Z",
       id: "stash-one",
       model: "gpt-5",
       modelSpeed: "fast",
-      permissionMode: "standard",
+      permissionMode: "ask",
       provider: "openai",
       reasoningEffort: "high",
       references: [
@@ -268,7 +275,7 @@ test("mergePersistedState creates a default chat for projects without chats", ()
   assert.equal(merged.chats.length, 1);
   assert.equal(merged.chats[0].projectId, "project-one");
   assert.equal(merged.chats[0].title, "New chat");
-  assert.equal(merged.chats[0].permissionMode, "standard");
+  assert.equal(merged.chats[0].permissionMode, "full-access");
   assert.deepEqual(merged.messagesByChatId[merged.chats[0].id], []);
   assert.equal(merged.projects[0].ui.activeChatId, merged.chats[0].id);
 });
