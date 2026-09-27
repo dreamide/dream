@@ -292,6 +292,26 @@ async function reloadMainWindow(browserWindow, { ignoreCache = false } = {}) {
   return reloadMainWindowPromise;
 }
 
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+function isPngBytes(bytes) {
+  return (
+    bytes instanceof Uint8Array &&
+    bytes.length > PNG_SIGNATURE.length &&
+    PNG_SIGNATURE.every((value, index) => bytes[index] === value)
+  );
+}
+
+// Electron 44 removed clipboard.writeImage; images go through the
+// W3C-style clipboard.write([ClipboardItem]) API instead.
+function writePngToClipboard(png) {
+  return clipboard.write([
+    new ClipboardItem({
+      "image/png": new Blob([png], { type: "image/png" }),
+    }),
+  ]);
+}
+
 // Folder of the last saved screenshot, so the next Save dialog opens there.
 // Starts in the user's Pictures folder; not persisted across launches.
 let lastAppScreenshotDirectory = null;
@@ -739,14 +759,7 @@ ipcMain.handle("shell:open-path", async (_event, { path: targetPath }) => {
 ipcMain.handle("app:capture-screenshot", async () => {
   const result = await captureAppScreenshot({
     chooseSavePath: chooseAppScreenshotSavePath,
-    // Electron 44 removed clipboard.writeImage; images go through the
-    // W3C-style clipboard.write([ClipboardItem]) API instead.
-    copyPng: (png) =>
-      clipboard.write([
-        new ClipboardItem({
-          "image/png": new Blob([png], { type: "image/png" }),
-        }),
-      ]),
+    copyPng: writePngToClipboard,
     webContents: mainWindow?.webContents,
   });
 
@@ -779,6 +792,20 @@ ipcMain.handle("clipboard:write-text", (_event, { text }) => {
 
   clipboard.writeText(text);
   return true;
+});
+
+ipcMain.handle("clipboard:write-image", async (_event, { png }) => {
+  if (!isPngBytes(png)) {
+    return false;
+  }
+
+  try {
+    await writePngToClipboard(png);
+    return true;
+  } catch (error) {
+    console.error("Failed to copy image to clipboard:", error);
+    return false;
+  }
 });
 
 ipcMain.handle(

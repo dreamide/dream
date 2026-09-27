@@ -12,14 +12,10 @@ import {
 import { MessageResponse } from "@/components/ai-elements/message";
 import { usePromptInputAttachments } from "@/components/ai-elements/prompt-input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import type { ProjectReference } from "@/types/ide";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
+import { ImageLightboxContent } from "./image-lightbox-content";
 import {
   MarkdownFileLink,
   normalizeProjectFileLinksInMarkdown,
@@ -127,16 +123,10 @@ export const PromptAttachments = () => {
             <DialogTrigger render={<div className="cursor-pointer" />}>
               {attachment}
             </DialogTrigger>
-            <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none sm:max-w-[90vw]">
-              <DialogTitle className="sr-only">
-                {file.filename || assistantT("image")}
-              </DialogTitle>
-              <img
-                alt={file.filename || assistantT("image")}
-                className="mx-auto max-h-[85vh] w-auto rounded-lg object-contain shadow-md"
-                src={file.url}
-              />
-            </DialogContent>
+            <ImageLightboxContent
+              label={file.filename || assistantT("image")}
+              url={file.url}
+            />
           </Dialog>
         );
       })}
@@ -167,14 +157,7 @@ const ImageAttachmentPreview = ({
           src={url}
         />
       </DialogTrigger>
-      <DialogContent className="flex w-fit max-h-[90vh] max-w-[90vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none sm:max-w-[90vw]">
-        <DialogTitle className="sr-only">{label}</DialogTitle>
-        <img
-          alt={label}
-          className="mx-auto max-h-[85vh] w-auto rounded-lg object-contain shadow-md"
-          src={url}
-        />
-      </DialogContent>
+      <ImageLightboxContent label={label} url={url} />
     </Dialog>
   );
 };

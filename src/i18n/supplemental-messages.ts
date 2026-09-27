@@ -618,6 +618,11 @@ export const supplementalMessages = {
         "Screenshot kopiert, konnte aber nicht gespeichert werden",
       failed: "Screenshot konnte nicht erstellt werden",
     },
+    imageViewer: {
+      copyImage: "Bild kopieren",
+      copied: "Bild kopiert",
+      copyFailed: "Bild konnte nicht kopiert werden",
+    },
   },
   en: {
     skills: {
@@ -1222,6 +1227,11 @@ export const supplementalMessages = {
       showInFolder: "Show in folder",
       copiedNotSaved: "Screenshot copied, but it couldn't be saved",
       failed: "Couldn't capture screenshot",
+    },
+    imageViewer: {
+      copyImage: "Copy image",
+      copied: "Image copied",
+      copyFailed: "Couldn't copy image",
     },
   },
   es: {
@@ -1835,6 +1845,11 @@ export const supplementalMessages = {
       showInFolder: "Mostrar en la carpeta",
       copiedNotSaved: "Captura copiada, pero no se pudo guardar",
       failed: "No se pudo hacer la captura",
+    },
+    imageViewer: {
+      copyImage: "Copiar imagen",
+      copied: "Imagen copiada",
+      copyFailed: "No se pudo copiar la imagen",
     },
   },
   fr: {
@@ -2451,6 +2466,11 @@ export const supplementalMessages = {
         "Capture d'écran copiée, mais impossible de l'enregistrer",
       failed: "Impossible de faire la capture d'écran",
     },
+    imageViewer: {
+      copyImage: "Copier l'image",
+      copied: "Image copiée",
+      copyFailed: "Impossible de copier l'image",
+    },
   },
   it: {
     skills: {
@@ -3064,6 +3084,11 @@ export const supplementalMessages = {
       copiedNotSaved: "Screenshot copiato, ma non è stato possibile salvarlo",
       failed: "Impossibile acquisire lo screenshot",
     },
+    imageViewer: {
+      copyImage: "Copia immagine",
+      copied: "Immagine copiata",
+      copyFailed: "Impossibile copiare l'immagine",
+    },
   },
   ja: {
     skills: {
@@ -3669,6 +3694,11 @@ export const supplementalMessages = {
         "スクリーンショットをコピーしましたが、保存できませんでした",
       failed: "スクリーンショットを撮れませんでした",
     },
+    imageViewer: {
+      copyImage: "画像をコピー",
+      copied: "画像をコピーしました",
+      copyFailed: "画像をコピーできませんでした",
+    },
   },
   ko: {
     skills: {
@@ -4262,6 +4292,11 @@ export const supplementalMessages = {
       showInFolder: "폴더에서 보기",
       copiedNotSaved: "스크린샷을 복사했지만 저장하지 못했습니다",
       failed: "스크린샷을 캡처하지 못했습니다",
+    },
+    imageViewer: {
+      copyImage: "이미지 복사",
+      copied: "이미지를 복사했습니다",
+      copyFailed: "이미지를 복사하지 못했습니다",
     },
   },
   pt: {
@@ -4870,6 +4905,11 @@ export const supplementalMessages = {
       copiedNotSaved: "Captura de tela copiada, mas não foi possível salvá-la",
       failed: "Não foi possível capturar a tela",
     },
+    imageViewer: {
+      copyImage: "Copiar imagem",
+      copied: "Imagem copiada",
+      copyFailed: "Não foi possível copiar a imagem",
+    },
   },
   vi: {
     skills: {
@@ -5471,6 +5511,11 @@ export const supplementalMessages = {
       copiedNotSaved: "Đã sao chép ảnh chụp màn hình nhưng không lưu được",
       failed: "Không chụp được màn hình",
     },
+    imageViewer: {
+      copyImage: "Sao chép hình ảnh",
+      copied: "Đã sao chép hình ảnh",
+      copyFailed: "Không sao chép được hình ảnh",
+    },
   },
   "zh-Hans": {
     skills: {
@@ -6046,6 +6091,11 @@ export const supplementalMessages = {
       copiedNotSaved: "截图已复制，但无法保存",
       failed: "无法截图",
     },
+    imageViewer: {
+      copyImage: "复制图片",
+      copied: "图片已复制",
+      copyFailed: "无法复制图片",
+    },
   },
   "zh-Hant": {
     skills: {
@@ -6620,6 +6670,11 @@ export const supplementalMessages = {
       showInFolder: "在資料夾中顯示",
       copiedNotSaved: "截圖已複製，但無法儲存",
       failed: "無法截圖",
+    },
+    imageViewer: {
+      copyImage: "複製圖片",
+      copied: "圖片已複製",
+      copyFailed: "無法複製圖片",
     },
   },
 } as const;

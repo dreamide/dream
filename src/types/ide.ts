@@ -828,6 +828,8 @@ export interface DesktopApi {
   openExternal: (url: string) => Promise<boolean>;
   openPath: (path: string) => Promise<boolean>;
   writeClipboardText: (text: string) => Promise<boolean>;
+  /** Copies PNG bytes to the clipboard; false if not a PNG or the write failed. */
+  writeClipboardImage: (png: Uint8Array) => Promise<boolean>;
   saveTextFile: (payload: {
     contents: string;
     defaultPath?: string;

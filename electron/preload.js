@@ -135,6 +135,8 @@ contextBridge.exposeInMainWorld("dream", {
   openPath: (path) => ipcRenderer.invoke("shell:open-path", { path }),
   writeClipboardText: (text) =>
     ipcRenderer.invoke("clipboard:write-text", { text }),
+  writeClipboardImage: (png) =>
+    ipcRenderer.invoke("clipboard:write-image", { png }),
   saveTextFile: (payload) => ipcRenderer.invoke("files:save-text", payload),
 
   captureAppScreenshot: () => ipcRenderer.invoke("app:capture-screenshot"),
