@@ -807,6 +807,15 @@ export interface BrowserCaptureResult {
   width: number;
 }
 
+/** Result of the Ctrl/Cmd+Shift+S app screenshot. */
+export type AppScreenshotResult =
+  | { status: "saved"; filePath: string }
+  /** Copied to the clipboard; the Save dialog was cancelled. */
+  | { status: "cancelled" }
+  /** Copied to the clipboard, but writing the PNG file failed. */
+  | { status: "copied"; error: string }
+  | { status: "failed"; error: string };
+
 export interface DesktopApi {
   isElectron: true;
   apiSessionToken: string;
@@ -824,6 +833,10 @@ export interface DesktopApi {
     defaultPath?: string;
     title?: string;
   }) => Promise<boolean>;
+
+  captureAppScreenshot: () => Promise<AppScreenshotResult>;
+  showScreenshotInFolder: (path: string) => Promise<boolean>;
+  onAppScreenshotRequested: (listener: () => void) => () => void;
 
   windowMinimize: () => Promise<void>;
   windowMaximize: () => Promise<void>;

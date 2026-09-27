@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   app,
   BrowserWindow,
+  ClipboardItem,
   clipboard,
   dialog,
   ipcMain,
@@ -20,6 +21,10 @@ import {
   configureApplicationMenu,
   toggleWebContentsDevToolsDetached,
 } from "./app-menu.js";
+import {
+  captureAppScreenshot,
+  isAppScreenshotShortcut,
+} from "./app-screenshot.js";
 import { createBrowserAgentBridge } from "./browser-agent-bridge.js";
 import { createBrowserSessionManager } from "./browser-sessions.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
@@ -287,12 +292,59 @@ async function reloadMainWindow(browserWindow, { ignoreCache = false } = {}) {
   return reloadMainWindowPromise;
 }
 
+// Folder of the last saved screenshot, so the next Save dialog opens there.
+// Starts in the user's Pictures folder; not persisted across launches.
+let lastAppScreenshotDirectory = null;
+// Paths saved this session; "Show in folder" only reveals these.
+const savedAppScreenshotPaths = new Set();
+
+async function chooseAppScreenshotSavePath(defaultFileName) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return null;
+  }
+
+  const directory = lastAppScreenshotDirectory ?? app.getPath("pictures");
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: path.join(directory, defaultFileName),
+    filters: [{ extensions: ["png"], name: "PNG image" }],
+    title: "Save screenshot",
+  });
+
+  return result.canceled || !result.filePath ? null : result.filePath;
+}
+
+// True for the main renderer and for <webview> guests embedded in it (the
+// browser panel), so the shortcut works wherever focus is inside the app.
+function belongsToMainWindow(contents) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+
+  const mainContentsId = mainWindow.webContents.id;
+  return (
+    contents.id === mainContentsId ||
+    contents.hostWebContents?.id === mainContentsId
+  );
+}
+
+// The renderer runs the capture (via app:capture-screenshot) so it can first
+// hide its own screenshot toast and keep it out of the image.
+function requestAppScreenshot() {
+  sendToRenderer("app:screenshot-requested");
+}
+
 function configureDetachedDevToolsShortcuts() {
   app.on("web-contents-created", (_event, contents) => {
     contents.on("before-input-event", (event, input) => {
       if (isDevToolsShortcut(input)) {
         event.preventDefault();
         toggleWebContentsDevToolsDetached(contents);
+        return;
+      }
+
+      if (isAppScreenshotShortcut(input) && belongsToMainWindow(contents)) {
+        event.preventDefault();
+        requestAppScreenshot();
         return;
       }
 
@@ -684,6 +736,40 @@ ipcMain.handle("shell:open-path", async (_event, { path: targetPath }) => {
   return errorMessage === "";
 });
 
+ipcMain.handle("app:capture-screenshot", async () => {
+  const result = await captureAppScreenshot({
+    chooseSavePath: chooseAppScreenshotSavePath,
+    // Electron 44 removed clipboard.writeImage; images go through the
+    // W3C-style clipboard.write([ClipboardItem]) API instead.
+    copyPng: (png) =>
+      clipboard.write([
+        new ClipboardItem({
+          "image/png": new Blob([png], { type: "image/png" }),
+        }),
+      ]),
+    webContents: mainWindow?.webContents,
+  });
+
+  if (result.status === "saved") {
+    savedAppScreenshotPaths.add(result.filePath);
+    lastAppScreenshotDirectory = path.dirname(result.filePath);
+  }
+
+  return result;
+});
+
+ipcMain.handle(
+  "app:show-screenshot-in-folder",
+  (_event, { path: targetPath }) => {
+    if (!savedAppScreenshotPaths.has(targetPath) || !existsSync(targetPath)) {
+      return false;
+    }
+
+    shell.showItemInFolder(targetPath);
+    return true;
+  },
+);
+
 ipcMain.handle("terminal:detect-shells", detectAvailableTerminalShells);
 
 ipcMain.handle("clipboard:write-text", (_event, { text }) => {
@@ -806,6 +892,7 @@ ipcMain.handle("browser:capture-page", (_event, payload) =>
 app.whenReady().then(async () => {
   configureDetachedDevToolsShortcuts();
   configureApplicationMenu(app, APP_NAME, {
+    onCaptureScreenshot: requestAppScreenshot,
     onForceReload: (browserWindow) => {
       void reloadMainWindow(browserWindow, { ignoreCache: true });
     },

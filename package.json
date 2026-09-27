@@ -55,6 +55,7 @@
     "property-information": "7.1.0",
     "remark-breaks": "^4.0.0",
     "sirv": "^3.0.2",
+    "sonner": "^2.0.8",
     "space-separated-tokens": "2.0.2",
     "stringify-entities": "4.0.4",
     "zod": "^4.6.5",

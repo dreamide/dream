@@ -27,7 +27,7 @@ export function configureApplicationMenu(app, appName, options = {}) {
     return;
   }
 
-  const { onForceReload, onReload } = options;
+  const { onCaptureScreenshot, onForceReload, onReload } = options;
 
   app.setAboutPanelOptions({
     applicationName: appName,
@@ -95,6 +95,18 @@ export function configureApplicationMenu(app, appName, options = {}) {
               toggleFocusedDevToolsDetached(browserWindow);
             },
             label: "Toggle Developer Tools",
+          },
+          { type: "separator" },
+          {
+            // The keypress itself is handled in before-input-event (which
+            // suppresses this accelerator); this entry is for discoverability
+            // and mouse use.
+            accelerator: "Shift+CmdOrCtrl+S",
+            click: () => {
+              onCaptureScreenshot?.();
+            },
+            enabled: typeof onCaptureScreenshot === "function",
+            label: "Capture Screenshot",
           },
           { type: "separator" },
           { role: "resetZoom" },

@@ -137,6 +137,12 @@ contextBridge.exposeInMainWorld("dream", {
     ipcRenderer.invoke("clipboard:write-text", { text }),
   saveTextFile: (payload) => ipcRenderer.invoke("files:save-text", payload),
 
+  captureAppScreenshot: () => ipcRenderer.invoke("app:capture-screenshot"),
+  showScreenshotInFolder: (path) =>
+    ipcRenderer.invoke("app:show-screenshot-in-folder", { path }),
+  onAppScreenshotRequested: (listener) =>
+    subscribe("app:screenshot-requested", listener),
+
   windowMinimize: () => ipcRenderer.invoke("window:minimize"),
   windowMaximize: () => ipcRenderer.invoke("window:maximize"),
   windowClose: () => ipcRenderer.invoke("window:close"),

@@ -883,6 +883,11 @@
   font-size: 12px;
 }
 
+/* Keep toasts out of Ctrl/Cmd+Shift+S screenshots (see app-screenshot-toast.tsx) */
+[data-capturing-screenshot] [data-sonner-toaster] {
+  visibility: hidden;
+}
+
 /* Streamdown table header: match the app page background (ide-shell: bg-surface-50 dark:bg-surface-900) */
 [data-streamdown="table-header"] {
   background-color: var(--surface-50);

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useDeferredValue, useEffect } from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
+import { Toaster } from "@/components/ui/sonner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import {
   getConnectedProviders,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/ide-defaults";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
+import { AppScreenshotToast } from "./app-screenshot-toast";
 import { ChatRuntimeHost } from "./chat/chat-runtime-host";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
@@ -568,6 +570,9 @@ export const IdeShell = () => {
           </Suspense>
         </div>
       ) : null}
+
+      <AppScreenshotToast />
+      <Toaster />
     </div>
   );
 };

@@ -610,6 +610,14 @@ export const supplementalMessages = {
       updateFailedRetry:
         "Aktualisierung fehlgeschlagen: {error}. Klicken Sie, um es erneut zu versuchen.",
     },
+    screenshot: {
+      copied: "Screenshot kopiert",
+      saved: "Screenshot kopiert und gespeichert",
+      showInFolder: "Im Ordner anzeigen",
+      copiedNotSaved:
+        "Screenshot kopiert, konnte aber nicht gespeichert werden",
+      failed: "Screenshot konnte nicht erstellt werden",
+    },
   },
   en: {
     skills: {
@@ -1207,6 +1215,13 @@ export const supplementalMessages = {
       update: "Update",
       updateError: "Update error",
       updateFailedRetry: "Update failed: {error}. Click to retry.",
+    },
+    screenshot: {
+      copied: "Screenshot copied",
+      saved: "Screenshot copied and saved",
+      showInFolder: "Show in folder",
+      copiedNotSaved: "Screenshot copied, but it couldn't be saved",
+      failed: "Couldn't capture screenshot",
     },
   },
   es: {
@@ -1813,6 +1828,13 @@ export const supplementalMessages = {
       updateError: "Error de actualización",
       updateFailedRetry:
         "Error en la actualización: {error}. Haga clic para volver a intentarlo.",
+    },
+    screenshot: {
+      copied: "Captura copiada",
+      saved: "Captura copiada y guardada",
+      showInFolder: "Mostrar en la carpeta",
+      copiedNotSaved: "Captura copiada, pero no se pudo guardar",
+      failed: "No se pudo hacer la captura",
     },
   },
   fr: {
@@ -2421,6 +2443,14 @@ export const supplementalMessages = {
       updateFailedRetry:
         "Échec de la mise à jour : {error}. Cliquez pour réessayer.",
     },
+    screenshot: {
+      copied: "Capture d'écran copiée",
+      saved: "Capture d'écran copiée et enregistrée",
+      showInFolder: "Afficher dans le dossier",
+      copiedNotSaved:
+        "Capture d'écran copiée, mais impossible de l'enregistrer",
+      failed: "Impossible de faire la capture d'écran",
+    },
   },
   it: {
     skills: {
@@ -3027,6 +3057,13 @@ export const supplementalMessages = {
       updateFailedRetry:
         "Aggiornamento non riuscito: {error}. Fare clic per riprovare.",
     },
+    screenshot: {
+      copied: "Screenshot copiato",
+      saved: "Screenshot copiato e salvato",
+      showInFolder: "Mostra nella cartella",
+      copiedNotSaved: "Screenshot copiato, ma non è stato possibile salvarlo",
+      failed: "Impossibile acquisire lo screenshot",
+    },
   },
   ja: {
     skills: {
@@ -3624,6 +3661,14 @@ export const supplementalMessages = {
       updateFailedRetry:
         "更新に失敗しました: {error}。クリックして再試行してください。",
     },
+    screenshot: {
+      copied: "スクリーンショットをコピーしました",
+      saved: "スクリーンショットをコピーして保存しました",
+      showInFolder: "フォルダーに表示",
+      copiedNotSaved:
+        "スクリーンショットをコピーしましたが、保存できませんでした",
+      failed: "スクリーンショットを撮れませんでした",
+    },
   },
   ko: {
     skills: {
@@ -4210,6 +4255,13 @@ export const supplementalMessages = {
       update: "업데이트",
       updateError: "업데이트 오류",
       updateFailedRetry: "업데이트 실패: {error}. 다시 시도하려면 클릭하세요.",
+    },
+    screenshot: {
+      copied: "스크린샷을 복사했습니다",
+      saved: "스크린샷을 복사하고 저장했습니다",
+      showInFolder: "폴더에서 보기",
+      copiedNotSaved: "스크린샷을 복사했지만 저장하지 못했습니다",
+      failed: "스크린샷을 캡처하지 못했습니다",
     },
   },
   pt: {
@@ -4811,6 +4863,13 @@ export const supplementalMessages = {
       updateFailedRetry:
         "Falha na atualização: {error}. Clique para tentar novamente.",
     },
+    screenshot: {
+      copied: "Captura de tela copiada",
+      saved: "Captura de tela copiada e salva",
+      showInFolder: "Mostrar na pasta",
+      copiedNotSaved: "Captura de tela copiada, mas não foi possível salvá-la",
+      failed: "Não foi possível capturar a tela",
+    },
   },
   vi: {
     skills: {
@@ -5405,6 +5464,13 @@ export const supplementalMessages = {
       updateError: "Lỗi cập nhật",
       updateFailedRetry: "Cập nhật không thành công: {error}. Nhấp để thử lại.",
     },
+    screenshot: {
+      copied: "Đã sao chép ảnh chụp màn hình",
+      saved: "Đã sao chép và lưu ảnh chụp màn hình",
+      showInFolder: "Hiển thị trong thư mục",
+      copiedNotSaved: "Đã sao chép ảnh chụp màn hình nhưng không lưu được",
+      failed: "Không chụp được màn hình",
+    },
   },
   "zh-Hans": {
     skills: {
@@ -5973,6 +6039,13 @@ export const supplementalMessages = {
       updateError: "更新错误",
       updateFailedRetry: "更新失败：{error}。单击重试。",
     },
+    screenshot: {
+      copied: "截图已复制",
+      saved: "截图已复制并保存",
+      showInFolder: "在文件夹中显示",
+      copiedNotSaved: "截图已复制，但无法保存",
+      failed: "无法截图",
+    },
   },
   "zh-Hant": {
     skills: {
@@ -6540,6 +6613,13 @@ export const supplementalMessages = {
       update: "更新",
       updateError: "更新錯誤",
       updateFailedRetry: "更新失敗：{error}。單擊重試。",
+    },
+    screenshot: {
+      copied: "截圖已複製",
+      saved: "截圖已複製並儲存",
+      showInFolder: "在資料夾中顯示",
+      copiedNotSaved: "截圖已複製，但無法儲存",
+      failed: "無法截圖",
     },
   },
 } as const;
