@@ -12,8 +12,14 @@ const CURSOR_CLI_CACHE_TTL_MS = 30_000;
 let cachedCursorCli = null;
 let cachedCursorCliTimestamp = 0;
 
-const isLikelyCursorAgentHelp = (value) =>
-  /cursor/i.test(value) && /agent/i.test(value);
+/**
+ * Other tools also install a generic `agent` binary (Grok Build does, and its
+ * help even mentions a `cursor-worker` command), so matching words in the
+ * help text is not enough. Cursor Agent prints a date-based build as its
+ * version, e.g. `2026.05.28-a70ca7c`; Grok prints `grok 1.0.41 (...)`.
+ */
+export const isCursorAgentVersionOutput = (value) =>
+  /^\s*\d{4}\.\d{2}\.\d{2}-[0-9a-f]+\s*$/i.test(String(value ?? ""));
 
 const getCursorCliPathCandidates = () => {
   if (process.platform !== "win32") {
@@ -60,10 +66,11 @@ const isCursorCommandCandidate = async (commandName) => {
   }
 
   try {
-    const result = await execCliCommand(commandName, ["--help"], {
-      timeout: 3000,
+    const result = await execCliCommand(commandName, ["--version"], {
+      closeStdin: true,
+      timeout: 5000,
     });
-    return isLikelyCursorAgentHelp(`${result.stdout}\n${result.stderr}`);
+    return isCursorAgentVersionOutput(result.stdout || result.stderr);
   } catch {
     return false;
   }

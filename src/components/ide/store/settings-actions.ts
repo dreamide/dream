@@ -1,5 +1,10 @@
+import { extractCliVersion, isCliUpdateAvailable } from "@/lib/cli-version";
 import type { AiProvider } from "@/types/ide";
-import { ALL_PROVIDERS, type ProviderModelsResponse } from "../ide-types";
+import {
+  ALL_PROVIDERS,
+  type CliUpgradeResult,
+  type ProviderModelsResponse,
+} from "../ide-types";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import { writeCachedProviderModels } from "./provider-model-cache";
 import {
@@ -15,11 +20,26 @@ const PROVIDER_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const providerModelsRefreshPromises = new Map<string, Promise<void>>();
 const cliUpdateCheckPromises = new Map<string, Promise<void>>();
+const cliUpgradePromises = new Map<AiProvider, Promise<CliUpgradeResult>>();
 
 interface CliUpdatesResponse {
   checkedAt: string;
   latest: Partial<Record<AiProvider, string | null>>;
 }
+
+type CliUpgradeResponse =
+  | { ok: true; output: string }
+  | { ok: false; error: string };
+
+const setCliUpgradeRunning = (
+  set: IdeStoreSet,
+  provider: AiProvider,
+  running: boolean,
+) => {
+  set((state) => ({
+    cliUpgrades: { ...state.cliUpgrades, [provider]: running },
+  }));
+};
 
 const hasFreshProviderModels = (
   providerModels: IdeState["providerModels"],
@@ -49,6 +69,7 @@ export const createSettingsActions = (
   | "refreshProviderModels"
   | "setProviderModels"
   | "checkCliUpdates"
+  | "upgradeCli"
 > => ({
   setSettings: (updater) => {
     set((state) => {
@@ -204,5 +225,62 @@ export const createSettingsActions = (
 
     cliUpdateCheckPromises.set(checkKey, checkPromise);
     return checkPromise;
+  },
+
+  upgradeCli: (provider) => {
+    const existingUpgradePromise = cliUpgradePromises.get(provider);
+    if (existingUpgradePromise) {
+      return existingUpgradePromise;
+    }
+
+    const upgradePromise = (async (): Promise<CliUpgradeResult> => {
+      setCliUpgradeRunning(set, provider, true);
+      try {
+        const response = await fetch("/api/cli-upgrade", {
+          body: JSON.stringify({ provider }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          return {
+            error:
+              text.trim() || response.statusText || String(response.status),
+            status: "failed",
+          };
+        }
+
+        const result = (await response.json()) as CliUpgradeResponse;
+        if (!result.ok) {
+          return { error: result.error, status: "failed" };
+        }
+
+        // Re-read the installed version so the card (and this result) reflect
+        // what the updater actually did.
+        await get().refreshProviderModels({ force: true, provider });
+        const { cliLatestVersions, providerModels } = get();
+        const installedVersion = providerModels[provider].version;
+        return {
+          status: isCliUpdateAvailable(
+            installedVersion,
+            cliLatestVersions[provider],
+          )
+            ? "unchanged"
+            : "updated",
+          version: extractCliVersion(installedVersion),
+        };
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : String(error),
+          status: "failed",
+        };
+      } finally {
+        setCliUpgradeRunning(set, provider, false);
+        cliUpgradePromises.delete(provider);
+      }
+    })();
+
+    cliUpgradePromises.set(provider, upgradePromise);
+    return upgradePromise;
   },
 });

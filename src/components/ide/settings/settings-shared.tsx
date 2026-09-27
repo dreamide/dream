@@ -1,10 +1,14 @@
+import { CircleArrowUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { extractCliVersion, isCliUpdateAvailable } from "@/lib/cli-version";
 import { cn } from "@/lib/utils";
+import type { CliUpgradeResult } from "../ide-types";
 
 export const formatDeletedDate = (value: string) => {
   const timestamp = Date.parse(value);
@@ -27,7 +31,9 @@ export const ProviderStatusCard = ({
   logoSrc,
   loading,
   onEnabledChange,
+  onUpgrade,
   runtimeLabel,
+  upgrading = false,
   version,
 }: {
   action?: ReactNode;
@@ -41,7 +47,9 @@ export const ProviderStatusCard = ({
   logoSrc?: string;
   loading: boolean;
   onEnabledChange: (enabled: boolean) => void;
+  onUpgrade?: () => Promise<CliUpgradeResult>;
   runtimeLabel: string;
+  upgrading?: boolean;
   version: string | null;
 }) => {
   const uiT = useTranslations("ui");
@@ -52,6 +60,31 @@ export const ProviderStatusCard = ({
       : null;
   const statusMessage =
     error || (!loading && !installed ? uiT("cliNotDetected") : null);
+
+  const handleUpgrade = async () => {
+    if (!onUpgrade) {
+      return;
+    }
+
+    const result = await onUpgrade();
+    if (result.status === "updated") {
+      toast.success(
+        result.version
+          ? uiT("cliUpdated", { cli: runtimeLabel, version: result.version })
+          : uiT("cliUpdatedNoVersion", { cli: runtimeLabel }),
+      );
+    } else if (result.status === "unchanged") {
+      toast.warning(uiT("cliUpdateUnchanged", { cli: runtimeLabel }));
+    } else {
+      toast.error(uiT("cliUpdateFailed", { cli: runtimeLabel }), {
+        description: (
+          <span className="whitespace-pre-line font-mono text-xs">
+            {result.error}
+          </span>
+        ),
+      });
+    }
+  };
 
   return (
     <div className="rounded-lg border border-surface-200 bg-white p-4 dark:border-surface-800 dark:bg-surface-950">
@@ -76,10 +109,28 @@ export const ProviderStatusCard = ({
                 {displayVersion}
               </span>
             ) : null}
-            {updateVersion ? (
-              <span className="rounded-full border border-info-border bg-info-surface px-2 py-0.5 font-medium text-[11px] text-info-foreground leading-none">
-                {uiT("cliUpdateAvailable", { version: updateVersion })}
-              </span>
+            {updateVersion && onUpgrade ? (
+              <Button
+                // The border and pointer make it read as a button rather than a
+                // status badge; on hover only the border brightens. While
+                // updating it is unclickable but keeps full color: the spinner
+                // is the only sign the update is running.
+                className="cursor-pointer border-primary-border hover:border-primary hover:bg-primary-surface disabled:opacity-100"
+                disabled={upgrading}
+                onClick={() => void handleUpgrade()}
+                size={upgrading ? "icon-xs" : "xs"}
+                type="button"
+                variant="accent-subtle"
+              >
+                {upgrading ? (
+                  <Spinner className="size-3" />
+                ) : (
+                  <>
+                    <CircleArrowUp aria-hidden="true" />
+                    {uiT("cliUpdateAvailable", { version: updateVersion })}
+                  </>
+                )}
+              </Button>
             ) : null}
           </p>
         </div>

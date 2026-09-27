@@ -1,4 +1,5 @@
-import { getCliVersion } from "../shared/cli.js";
+import { execCliCommand, getCliVersion } from "../shared/cli.js";
+import { execCursorCliCommand } from "./cursor-cli.js";
 
 /**
  * Looks up the newest published release of each supported agent CLI so the
@@ -153,4 +154,83 @@ export const fetchLatestCliVersions = async ({ force = false, providers }) => {
     ]),
   );
   return Object.fromEntries(entries);
+};
+
+// Each CLI ships its own updater, which knows how it was installed (npm,
+// pnpm, Homebrew, native installer, ...), so Dream never has to guess.
+const UPGRADE_COMMANDS = {
+  anthropic: { command: "claude", args: ["update"] },
+  cursor: { args: ["update"] },
+  grok: { command: "grok", args: ["update"] },
+  openai: { command: "codex", args: ["update"] },
+  opencode: { command: "opencode", args: ["upgrade"] },
+};
+
+const UPGRADE_TIMEOUT_MS = 10 * 60 * 1000;
+const UPGRADE_OUTPUT_LINES = 12;
+
+const ANSI_ESCAPE_PATTERN = new RegExp(
+  `${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`,
+  "g",
+);
+
+/** The last few meaningful lines of an updater's output, for error toasts. */
+export const summarizeUpgradeOutput = (...outputs) =>
+  outputs
+    .map((output) => String(output ?? "").replace(ANSI_ESCAPE_PATTERN, ""))
+    .join("\n")
+    .split(/\r?\n|\r/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-UPGRADE_OUTPUT_LINES)
+    .join("\n");
+
+const runningUpgrades = new Map();
+
+const runUpgrade = async (provider) => {
+  const { args, command } = UPGRADE_COMMANDS[provider];
+  const options = {
+    closeStdin: true,
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: UPGRADE_TIMEOUT_MS,
+  };
+
+  try {
+    const result =
+      provider === "cursor"
+        ? await execCursorCliCommand(args, options)
+        : await execCliCommand(command, args, options);
+    return {
+      ok: true,
+      output: summarizeUpgradeOutput(result.stdout, result.stderr),
+    };
+  } catch (error) {
+    const output = summarizeUpgradeOutput(error?.stdout, error?.stderr);
+    const reason = error?.killed
+      ? "The update timed out."
+      : error instanceof Error
+        ? error.message
+        : "The update failed.";
+    return { error: output || reason, ok: false };
+  } finally {
+    // Whatever happened, the next lookups should see the new state.
+    latestVersionCache.clear();
+  }
+};
+
+/**
+ * Runs the CLI's own updater. Concurrent requests for the same provider share
+ * one run, so a second click (or a reloaded window) joins it.
+ */
+export const upgradeCli = (provider) => {
+  const running = runningUpgrades.get(provider);
+  if (running) {
+    return running;
+  }
+
+  const promise = runUpgrade(provider).finally(() => {
+    runningUpgrades.delete(provider);
+  });
+  runningUpgrades.set(provider, promise);
+  return promise;
 };

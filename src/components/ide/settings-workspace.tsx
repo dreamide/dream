@@ -169,6 +169,8 @@ export const SettingsWorkspace = () => {
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const cliLatestVersions = useIdeStore((s) => s.cliLatestVersions);
+  const cliUpgrades = useIdeStore((s) => s.cliUpgrades);
+  const upgradeCli = useIdeStore((s) => s.upgradeCli);
   const archiveInactiveChats = useIdeStore((s) => s.archiveInactiveChats);
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
@@ -1007,6 +1009,8 @@ export const SettingsWorkspace = () => {
                       }
                       runtimeLabel={providerT("codexCli")}
                       latestVersion={cliLatestVersions.openai}
+                      onUpgrade={() => upgradeCli("openai")}
+                      upgrading={cliUpgrades.openai === true}
                       version={providerModels.openai.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1080,6 +1084,8 @@ export const SettingsWorkspace = () => {
                       }
                       runtimeLabel={providerT("claudeCodeCli")}
                       latestVersion={cliLatestVersions.anthropic}
+                      onUpgrade={() => upgradeCli("anthropic")}
+                      upgrading={cliUpgrades.anthropic === true}
                       version={providerModels.anthropic.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1155,6 +1161,8 @@ export const SettingsWorkspace = () => {
                       }
                       runtimeLabel={providerT("opencodeCli")}
                       latestVersion={cliLatestVersions.opencode}
+                      onUpgrade={() => upgradeCli("opencode")}
+                      upgrading={cliUpgrades.opencode === true}
                       version={providerModels.opencode.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1236,6 +1244,8 @@ export const SettingsWorkspace = () => {
                       }
                       runtimeLabel={providerT("cursorAgentCli")}
                       latestVersion={cliLatestVersions.cursor}
+                      onUpgrade={() => upgradeCli("cursor")}
+                      upgrading={cliUpgrades.cursor === true}
                       version={providerModels.cursor.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1315,6 +1325,8 @@ export const SettingsWorkspace = () => {
                       }
                       runtimeLabel="Grok Build CLI"
                       latestVersion={cliLatestVersions.grok}
+                      onUpgrade={() => upgradeCli("grok")}
+                      upgrading={cliUpgrades.grok === true}
                       version={providerModels.grok.version}
                     >
                       <div className="space-y-1 rounded-md p-1">

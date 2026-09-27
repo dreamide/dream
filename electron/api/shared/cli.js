@@ -323,16 +323,28 @@ export const getCliVersion = async (commandName, { force = false } = {}) => {
   return promise;
 };
 
+/**
+ * `closeStdin` ends the child's stdin right away so a command that would
+ * prompt reads EOF instead of waiting for input that never comes.
+ */
 export const execCliCommand = async (commandName, args = [], options = {}) => {
   const env = await ensureCliEnvironment();
+  const { closeStdin = false, ...restOptions } = options;
   const execOptions = {
     encoding: "utf8",
     windowsHide: true,
-    ...options,
+    ...restOptions,
     env: {
       ...env,
-      ...(options.env ?? {}),
+      ...(restOptions.env ?? {}),
     },
+  };
+  const run = (file, fileArgs) => {
+    const promise = execFileAsync(file, fileArgs, execOptions);
+    if (closeStdin) {
+      promise.child?.stdin?.end();
+    }
+    return promise;
   };
 
   if (process.platform === "win32") {
@@ -347,9 +359,9 @@ export const execCliCommand = async (commandName, args = [], options = {}) => {
       ].join("; "),
     ];
 
-    return execFileAsync("powershell.exe", psArgs, execOptions);
+    return run("powershell.exe", psArgs);
   }
 
   const commandPath = await resolveCliCommandPath(commandName);
-  return execFileAsync(commandPath ?? commandName, args, execOptions);
+  return run(commandPath ?? commandName, args);
 };

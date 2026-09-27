@@ -6,6 +6,10 @@
     "addPhotosOrFiles": "Añadir fotos o archivos",
     "cliNotDetected": "CLI no detectada.",
     "cliUpdateAvailable": "Actualización disponible: {version}",
+    "cliUpdated": "{cli} actualizado a {version}",
+    "cliUpdatedNoVersion": "{cli} actualizado",
+    "cliUpdateUnchanged": "La actualización de {cli} terminó, pero aún indica una versión anterior.",
+    "cliUpdateFailed": "No se pudo actualizar {cli}",
     "enableProvider": "Activar {provider}",
     "colors": {
       "amber": "Ámbar",

@@ -1,30 +1,10 @@
-import { spawn } from "node:child_process";
-import { AcpConnection } from "../providers/acp-connection.js";
 import {
-  normalizeCursorCliModel,
-  resolveCursorCliLaunch,
-} from "../providers/cursor-cli.js";
+  authenticateCursorAcp,
+  resolveCursorAcpModelId,
+  spawnCursorAcp,
+} from "../providers/cursor-acp.js";
 import { streamAcpResponse } from "./acp-stream.js";
 import { writeCodexApprovalRequest } from "./codex-common.js";
-
-const spawnCursorAcp = async ({ cwd, permissionMode }) => {
-  const launch = await resolveCursorCliLaunch();
-  // Ask and Auto-accept edits must receive ACP permission requests. Never
-  // silently fall back to the old headless --force transport.
-  const args = [...launch.argsPrefix];
-  if (permissionMode === "full-access") args.push("--force");
-  args.push("acp");
-  return new AcpConnection(
-    spawn(launch.command, args, {
-      cwd,
-      env: process.env,
-      shell: launch.shell ?? false,
-      stdio: ["pipe", "pipe", "pipe"],
-      windowsHide: true,
-    }),
-    "Cursor",
-  );
-};
 
 const handleCursorRequest = async ({
   method,
@@ -134,8 +114,7 @@ export const streamCursorResponse = (options) =>
       provider: "cursor",
       label: "Cursor Agent",
       spawn: spawnCursorAcp,
-      authenticate: (connection) =>
-        connection.request("authenticate", { methodId: "cursor_login" }),
+      authenticate: authenticateCursorAcp,
       configureSession: async (
         connection,
         { sessionId, sessionState, model },
@@ -148,10 +127,18 @@ export const streamCursorResponse = (options) =>
             sessionId,
             modeId: agent.id,
           });
-        await connection.request("session/set_model", {
-          sessionId,
-          modelId: normalizeCursorCliModel(model),
-        });
+        const availableModels = sessionState?.models?.availableModels;
+        const modelId =
+          resolveCursorAcpModelId(model, availableModels) ??
+          // A session that lists no models (older Cursor, or some resumed
+          // sessions) gets the id as-is rather than a guess.
+          (Array.isArray(availableModels) ? null : String(model ?? "").trim());
+        if (!modelId) {
+          throw new Error(
+            `Cursor Agent does not offer the model "${model}". Choose another Cursor model.`,
+          );
+        }
+        await connection.request("session/set_model", { sessionId, modelId });
       },
       onRequest: handleCursorRequest,
     },

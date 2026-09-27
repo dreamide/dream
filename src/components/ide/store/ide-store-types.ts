@@ -17,7 +17,11 @@ import type {
   SavedPrompt,
   StashItem,
 } from "@/types/ide";
-import type { ProviderModelState, SettingsSection } from "../ide-types";
+import type {
+  CliUpgradeResult,
+  ProviderModelState,
+  SettingsSection,
+} from "../ide-types";
 
 export interface WorktreeInitialChatSeed {
   messageId: string;
@@ -101,6 +105,8 @@ export interface IdeState {
   };
   /** Newest published release of each installed agent CLI. */
   cliLatestVersions: Partial<Record<AiProvider, string | null>>;
+  /** Agent CLIs whose updater is currently running. */
+  cliUpgrades: Partial<Record<AiProvider, boolean>>;
 
   // Derived
   getActiveProject: () => ProjectConfig | null;
@@ -264,6 +270,7 @@ export interface IdeState {
     force?: boolean;
     provider?: AiProvider;
   }) => Promise<void>;
+  upgradeCli: (provider: AiProvider) => Promise<CliUpgradeResult>;
 
   // Actions - runtime
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;

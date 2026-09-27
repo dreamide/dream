@@ -6,6 +6,10 @@
     "addPhotosOrFiles": "写真またはファイルを追加",
     "cliNotDetected": "CLI が検出されませんでした。",
     "cliUpdateAvailable": "アップデートあり: {version}",
+    "cliUpdated": "{cli} を {version} に更新しました",
+    "cliUpdatedNoVersion": "{cli} を更新しました",
+    "cliUpdateUnchanged": "{cli} の更新は完了しましたが、まだ古いバージョンが表示されています。",
+    "cliUpdateFailed": "{cli} を更新できませんでした",
     "enableProvider": "{provider} を有効にする",
     "colors": {
       "amber": "アンバー",

@@ -4,8 +4,8 @@ import {
   isCliCommandAvailable,
 } from "../shared/cli.js";
 import { readCodexAccessToken, readCodexModelsCache } from "./codex-auth.js";
+import { fetchCursorAcpModels, toDreamCursorModelId } from "./cursor-acp.js";
 import {
-  execCursorCliCommand,
   getCursorCliUnavailableMessage,
   getCursorCliVersion,
   isCursorCliAvailable,
@@ -98,69 +98,9 @@ const parseOpenCodeModelsOutput = (value, contextWindows = new Map()) => {
   );
 };
 
-const formatCursorModelLabel = (id) => {
-  const trimmed = String(id ?? "").trim();
-  if (!trimmed || trimmed.toLowerCase() === CURSOR_AUTO_MODEL) {
-    return "Cursor Auto";
-  }
-
-  return trimmed;
-};
-
 const createCursorDefaultModels = () => [
   createModelOption("cursor", CURSOR_AUTO_MODEL, "Cursor Auto"),
 ];
-
-const parseCursorModelsOutput = (value) => {
-  const clean = stripAnsi(value);
-  const models = new Map();
-
-  for (const rawLine of clean.split(/\r?\n/)) {
-    const line = rawLine
-      .replace(/[│|]/g, " ")
-      .replace(/^[\s*>•\-*]+/, "")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!line) {
-      continue;
-    }
-
-    const modelCommandMatch = line.match(/^\/model\s+(.+)$/i);
-    const candidateLine = (modelCommandMatch?.[1] ?? line).trim();
-    const lower = candidateLine.toLowerCase();
-    if (
-      !candidateLine ||
-      lower.startsWith("available models") ||
-      lower.startsWith("tip:") ||
-      lower.startsWith("usage:") ||
-      lower.startsWith("commands:") ||
-      lower.startsWith("options:") ||
-      lower.includes("cursor-agent")
-    ) {
-      continue;
-    }
-
-    const modelMatch = candidateLine.match(
-      /^([a-zA-Z0-9][a-zA-Z0-9_.:/+-]*)(?:\s+-\s+(.+))?$/,
-    );
-    if (!modelMatch) {
-      continue;
-    }
-
-    const id = modelMatch[1].trim();
-    const label = modelMatch[2]?.trim();
-    models.set(
-      id,
-      id.toLowerCase() === CURSOR_AUTO_MODEL
-        ? "Cursor Auto"
-        : label || formatCursorModelLabel(id),
-    );
-  }
-
-  return Array.from(models.entries()).map(([id, label]) =>
-    createModelOption("cursor", id, label),
-  );
-};
 
 const getOpenAiModelContextWindow = (entry) => {
   for (const value of [
@@ -316,27 +256,36 @@ export const fetchCursorModels = async ({ force = false } = {}) => {
   }
   const version = await getCursorCliVersion({ force });
 
-  for (const args of [["models"], ["--list-models"]]) {
-    try {
-      const result = await execCursorCliCommand(args, {
-        maxBuffer: 1024 * 1024,
-        timeout: 10_000,
-      });
-      const models = dedupeAndSort(
-        parseCursorModelsOutput(`${result.stdout}\n${result.stderr}`),
-      );
-      if (models.length > 0) {
-        return {
-          installed: true,
-          models: sortCursorModelOptions(models),
-          source: "cli",
-          version,
-        };
-      }
-    } catch {
-      // Cursor does not currently document a stable model-listing command.
-      // Fall back to the CLI default model below.
+  // Chats run over ACP, which only accepts the model ids it lists itself, so
+  // the picker must offer those rather than the flat ids of `agent models`.
+  try {
+    const models = dedupeModelOptions(
+      (await fetchCursorAcpModels()).flatMap((entry) => {
+        const acpModelId =
+          typeof entry?.modelId === "string" ? entry.modelId.trim() : "";
+        if (!acpModelId) return [];
+        const id = toDreamCursorModelId(acpModelId);
+        const name = typeof entry.name === "string" ? entry.name.trim() : "";
+        return [
+          createModelOption(
+            "cursor",
+            id,
+            id === CURSOR_AUTO_MODEL ? "Cursor Auto" : name || acpModelId,
+          ),
+        ];
+      }),
+    );
+    if (models.length > 0) {
+      return {
+        installed: true,
+        models: sortCursorModelOptions(models),
+        source: "cli",
+        version,
+      };
     }
+  } catch {
+    // Not logged in, or an older Cursor without ACP model listing. Auto
+    // still works, so offer it alone.
   }
 
   return {

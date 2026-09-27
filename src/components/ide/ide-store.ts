@@ -74,6 +74,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // fetch returns; `refreshProviderModels` still runs on startup.
   providerModels: readCachedProviderModels(),
   cliLatestVersions: {},
+  cliUpgrades: {},
 
   // ── Getters ─────────────────────────────────────────────────────────
   getActiveProject: () => {

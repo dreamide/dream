@@ -6,6 +6,10 @@
     "addPhotosOrFiles": "Thêm ảnh hoặc tệp",
     "cliNotDetected": "Không phát hiện CLI.",
     "cliUpdateAvailable": "Có bản cập nhật: {version}",
+    "cliUpdated": "Đã cập nhật {cli} lên {version}",
+    "cliUpdatedNoVersion": "Đã cập nhật {cli}",
+    "cliUpdateUnchanged": "Đã cập nhật {cli} xong nhưng vẫn báo phiên bản cũ.",
+    "cliUpdateFailed": "Không thể cập nhật {cli}",
     "enableProvider": "Bật {provider}",
     "colors": {
       "amber": "Hổ phách",

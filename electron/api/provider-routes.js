@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CLI_UPDATE_PROVIDERS,
   fetchLatestCliVersions,
+  upgradeCli,
 } from "./providers/cli-updates.js";
 import {
   readCodexAccessToken,
@@ -59,7 +60,28 @@ const cliUpdatesRequestSchema = z.object({
   providers: z.array(z.enum(CLI_UPDATE_PROVIDERS)).max(10),
 });
 
+const cliUpgradeRequestSchema = z.object({
+  provider: z.enum(CLI_UPDATE_PROVIDERS),
+});
+
 export const registerProviderRoutes = (app) => {
+  // Long-running: resolves when the CLI's updater exits (up to 10 minutes).
+  app.post("/api/cli-upgrade", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON body.", 400);
+    }
+
+    const parsed = cliUpgradeRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text("Invalid CLI upgrade request.", 400);
+    }
+
+    return c.json(await upgradeCli(parsed.data.provider));
+  });
+
   app.post("/api/cli-updates", async (c) => {
     let rawBody;
     try {

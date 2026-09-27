@@ -6,6 +6,10 @@
     "addPhotosOrFiles": "添加照片或文件",
     "cliNotDetected": "未检测到 CLI。",
     "cliUpdateAvailable": "有可用更新：{version}",
+    "cliUpdated": "{cli} 已更新到 {version}",
+    "cliUpdatedNoVersion": "{cli} 已更新",
+    "cliUpdateUnchanged": "{cli} 更新已完成，但仍显示旧版本。",
+    "cliUpdateFailed": "无法更新 {cli}",
     "enableProvider": "启用 {provider}",
     "colors": {
       "amber": "琥珀色",

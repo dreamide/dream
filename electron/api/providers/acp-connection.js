@@ -1,4 +1,5 @@
 import readline from "node:readline";
+import { stopChildProcess } from "../../process-tree.js";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_STDERR_CHARS = 64_000;
@@ -138,6 +139,9 @@ export class AcpConnection {
     this.closed = true;
     this.reader.close();
     this.failPending(new Error(`${this.label} ACP connection closed.`));
-    this.child.kill();
+    // Kill the whole tree: on Windows a CLI launched through a .cmd shim runs
+    // as cmd.exe -> powershell -> node, and killing cmd.exe alone would leave
+    // the agent running.
+    void stopChildProcess(this.child);
   }
 }

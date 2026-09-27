@@ -6,6 +6,10 @@
     "addPhotosOrFiles": "Fotos oder Dateien hinzufügen",
     "cliNotDetected": "CLI nicht erkannt.",
     "cliUpdateAvailable": "Update verfügbar: {version}",
+    "cliUpdated": "{cli} auf {version} aktualisiert",
+    "cliUpdatedNoVersion": "{cli} aktualisiert",
+    "cliUpdateUnchanged": "Das Update von {cli} ist abgeschlossen, aber es meldet noch eine ältere Version.",
+    "cliUpdateFailed": "{cli} konnte nicht aktualisiert werden",
     "enableProvider": "{provider} aktivieren",
     "colors": {
       "amber": "Bernstein",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseCursorInstallScriptVersion,
   parseGrokChannel,
+  summarizeUpgradeOutput,
 } from "./cli-updates.js";
 
 describe("parseCursorInstallScriptVersion", () => {
@@ -41,5 +42,22 @@ describe("parseGrokChannel", () => {
     expect(parseGrokChannel("grok 1.0.41")).toBe("stable");
     expect(parseGrokChannel("grok 1.0.41 [nightly]")).toBe("stable");
     expect(parseGrokChannel(null)).toBe("stable");
+  });
+});
+
+describe("summarizeUpgradeOutput", () => {
+  it("strips colors and progress redraws", () => {
+    expect(
+      summarizeUpgradeOutput(
+        "\u001b[32mDownloading\u001b[0m 50%\r100%\n",
+        "\nUpdated to 2.1.283\n",
+      ),
+    ).toBe("Downloading 50%\n100%\nUpdated to 2.1.283");
+  });
+
+  it("keeps only the tail of long output", () => {
+    const lines = Array.from({ length: 30 }, (_, index) => `line ${index}`);
+    const summary = summarizeUpgradeOutput(lines.join("\n"), undefined);
+    expect(summary.split("\n")).toEqual(lines.slice(-12));
   });
 });

@@ -44,6 +44,13 @@ export interface ProviderModelsResponse {
   grok?: ProviderModelFetchResult;
 }
 
+export type CliUpgradeResult =
+  /** The updater ran and the CLI now reports the latest version. */
+  | { status: "updated"; version: string | null }
+  /** The updater exited cleanly but the CLI still reports an older version. */
+  | { status: "unchanged"; version: string | null }
+  | { status: "failed"; error: string };
+
 export interface ProviderModelState {
   installed: boolean;
   models: ModelOption[];
