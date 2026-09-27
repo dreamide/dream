@@ -5,6 +5,7 @@
   "ui": {
     "addPhotosOrFiles": "新增照片或檔案",
     "cliNotDetected": "未偵測到 CLI。",
+    "cliUpdateAvailable": "有可用更新：{version}",
     "enableProvider": "啟用 {provider}",
     "colors": {
       "amber": "琥珀色",

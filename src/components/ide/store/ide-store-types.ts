@@ -99,6 +99,8 @@ export interface IdeState {
     grok: ProviderModelState;
     fetchedAt: string | null;
   };
+  /** Newest published release of each installed agent CLI. */
+  cliLatestVersions: Partial<Record<AiProvider, string | null>>;
 
   // Derived
   getActiveProject: () => ProjectConfig | null;
@@ -258,6 +260,10 @@ export interface IdeState {
       | IdeState["providerModels"]
       | ((prev: IdeState["providerModels"]) => IdeState["providerModels"]),
   ) => void;
+  checkCliUpdates: (options?: {
+    force?: boolean;
+    provider?: AiProvider;
+  }) => Promise<void>;
 
   // Actions - runtime
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;

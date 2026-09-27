@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  CLI_UPDATE_PROVIDERS,
+  fetchLatestCliVersions,
+} from "./providers/cli-updates.js";
+import {
   readCodexAccessToken,
   readCodexChatGptAuthTokens,
 } from "./providers/codex-auth.js";
@@ -50,7 +54,33 @@ const providerModelsRequestSchema = z
   })
   .optional();
 
+const cliUpdatesRequestSchema = z.object({
+  force: z.boolean().optional(),
+  providers: z.array(z.enum(CLI_UPDATE_PROVIDERS)).max(10),
+});
+
 export const registerProviderRoutes = (app) => {
+  app.post("/api/cli-updates", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON body.", 400);
+    }
+
+    const parsed = cliUpdatesRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text("Invalid CLI updates request.", 400);
+    }
+
+    const latest = await fetchLatestCliVersions({
+      force: parsed.data.force ?? false,
+      providers: Array.from(new Set(parsed.data.providers)),
+    });
+
+    return c.json({ checkedAt: new Date().toISOString(), latest });
+  });
+
   app.post("/api/provider-models", async (c) => {
     let rawBody;
     try {

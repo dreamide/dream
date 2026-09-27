@@ -5,6 +5,7 @@
   "ui": {
     "addPhotosOrFiles": "Fotos oder Dateien hinzufügen",
     "cliNotDetected": "CLI nicht erkannt.",
+    "cliUpdateAvailable": "Update verfügbar: {version}",
     "enableProvider": "{provider} aktivieren",
     "colors": {
       "amber": "Bernstein",

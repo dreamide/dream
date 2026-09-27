@@ -73,6 +73,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // Seeded from the last session so pickers are complete before the first
   // fetch returns; `refreshProviderModels` still runs on startup.
   providerModels: readCachedProviderModels(),
+  cliLatestVersions: {},
 
   // ── Getters ─────────────────────────────────────────────────────────
   getActiveProject: () => {

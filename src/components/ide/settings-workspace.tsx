@@ -168,6 +168,7 @@ export const SettingsWorkspace = () => {
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
+  const cliLatestVersions = useIdeStore((s) => s.cliLatestVersions);
   const archiveInactiveChats = useIdeStore((s) => s.archiveInactiveChats);
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
@@ -1005,6 +1006,7 @@ export const SettingsWorkspace = () => {
                         setProviderEnabled("openai", enabled)
                       }
                       runtimeLabel={providerT("codexCli")}
+                      latestVersion={cliLatestVersions.openai}
                       version={providerModels.openai.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1077,6 +1079,7 @@ export const SettingsWorkspace = () => {
                         setProviderEnabled("anthropic", enabled)
                       }
                       runtimeLabel={providerT("claudeCodeCli")}
+                      latestVersion={cliLatestVersions.anthropic}
                       version={providerModels.anthropic.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1151,6 +1154,7 @@ export const SettingsWorkspace = () => {
                         setProviderEnabled("opencode", enabled)
                       }
                       runtimeLabel={providerT("opencodeCli")}
+                      latestVersion={cliLatestVersions.opencode}
                       version={providerModels.opencode.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1231,6 +1235,7 @@ export const SettingsWorkspace = () => {
                         setProviderEnabled("cursor", enabled)
                       }
                       runtimeLabel={providerT("cursorAgentCli")}
+                      latestVersion={cliLatestVersions.cursor}
                       version={providerModels.cursor.version}
                     >
                       <div className="space-y-1 rounded-md p-1">
@@ -1309,6 +1314,7 @@ export const SettingsWorkspace = () => {
                         setProviderEnabled("grok", enabled)
                       }
                       runtimeLabel="Grok Build CLI"
+                      latestVersion={cliLatestVersions.grok}
                       version={providerModels.grok.version}
                     >
                       <div className="space-y-1 rounded-md p-1">

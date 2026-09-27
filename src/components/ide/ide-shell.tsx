@@ -33,6 +33,8 @@ const SettingsWorkspace = lazy(() =>
   })),
 );
 
+const CLI_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
   const appReady = useIdeStore((s) => s.appReady);
@@ -58,6 +60,7 @@ export const IdeShell = () => {
   const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setBrowserError = useIdeStore((s) => s.setBrowserError);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
+  const checkCliUpdates = useIdeStore((s) => s.checkCliUpdates);
 
   // ── Effects ─────────────────────────────────────────────────────────
 
@@ -333,6 +336,17 @@ export const IdeShell = () => {
     setTerminalShell,
     setBrowserError,
   ]);
+
+  // Re-check for newer agent CLI releases while the app stays open. The first
+  // check runs after the startup provider models refresh.
+  useEffect(() => {
+    if (!appReady) return;
+    const interval = window.setInterval(
+      () => void checkCliUpdates(),
+      CLI_UPDATE_CHECK_INTERVAL_MS,
+    );
+    return () => window.clearInterval(interval);
+  }, [appReady, checkCliUpdates]);
 
   // Auto-refresh models when settings panel opens
   useEffect(() => {

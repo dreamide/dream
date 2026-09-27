@@ -3,15 +3,8 @@ import type { ReactNode } from "react";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { extractCliVersion, isCliUpdateAvailable } from "@/lib/cli-version";
 import { cn } from "@/lib/utils";
-
-const formatCliVersion = (version: string | null) => {
-  if (!version) {
-    return null;
-  }
-
-  return version.match(/\d+(?:\.\d+)+(?:[-+][\w.-]+)?/)?.[0] ?? version;
-};
 
 export const formatDeletedDate = (value: string) => {
   const timestamp = Date.parse(value);
@@ -30,6 +23,7 @@ export const ProviderStatusCard = ({
   icon,
   installed,
   label,
+  latestVersion,
   logoSrc,
   loading,
   onEnabledChange,
@@ -43,6 +37,7 @@ export const ProviderStatusCard = ({
   icon?: ReactNode;
   installed: boolean;
   label: string;
+  latestVersion?: string | null;
   logoSrc?: string;
   loading: boolean;
   onEnabledChange: (enabled: boolean) => void;
@@ -50,7 +45,11 @@ export const ProviderStatusCard = ({
   version: string | null;
 }) => {
   const uiT = useTranslations("ui");
-  const displayVersion = formatCliVersion(version);
+  const displayVersion = extractCliVersion(version);
+  const updateVersion =
+    installed && latestVersion && isCliUpdateAvailable(version, latestVersion)
+      ? latestVersion
+      : null;
   const statusMessage =
     error || (!loading && !installed ? uiT("cliNotDetected") : null);
 
@@ -75,6 +74,11 @@ export const ProviderStatusCard = ({
             {displayVersion ? (
               <span className="rounded-full border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-2 py-0.5 font-mono text-[11px] text-muted-foreground leading-none">
                 {displayVersion}
+              </span>
+            ) : null}
+            {updateVersion ? (
+              <span className="rounded-full border border-info-border bg-info-surface px-2 py-0.5 font-medium text-[11px] text-info-foreground leading-none">
+                {uiT("cliUpdateAvailable", { version: updateVersion })}
               </span>
             ) : null}
           </p>

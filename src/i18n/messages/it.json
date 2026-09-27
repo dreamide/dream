@@ -5,6 +5,7 @@
   "ui": {
     "addPhotosOrFiles": "Aggiungi foto o file",
     "cliNotDetected": "CLI non rilevata.",
+    "cliUpdateAvailable": "Aggiornamento disponibile: {version}",
     "enableProvider": "Attiva {provider}",
     "colors": {
       "amber": "Ambra",
