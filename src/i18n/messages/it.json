@@ -1,6 +1,9 @@
 {
   "app": {
-    "loadingDream": "Caricamento di Dream"
+    "loadingDream": "Caricamento di Dream",
+    "videoUnavailable": "Video non disponibile",
+    "working": "Elaborazione in corso",
+    "subwaySurfing": "Surf in metropolitana"
   },
   "ui": {
     "addPhotosOrFiles": "Aggiungi foto o file",
@@ -165,7 +168,11 @@
     "useThisWorkspace": "Questo spazio di lavoro",
     "useThisWorkspaceDescription": "Continua in una nuova chat senza modificare i file del progetto.",
     "worktreeRequiresGit": "Gli alberi di lavoro richiedono un repository Git.",
-    "worktreeSnapshotLimitation": "Il nuovo albero di lavoro rappresenta un riferimento Git, non lo stato esatto del file system al momento di questo messaggio."
+    "worktreeSnapshotLimitation": "Il nuovo albero di lavoro rappresenta un riferimento Git, non lo stato esatto del file system al momento di questo messaggio.",
+    "selectedLines": "Discuti delle righe selezionate",
+    "message": "Messaggio",
+    "sendMessage": "Invia messaggio",
+    "sendFailed": "Impossibile inviare il messaggio."
   },
   "browser": {
     "actions": "Azioni browser",
@@ -215,7 +222,11 @@
     "unifiedDiff": "Diff unificato",
     "saveChangesTitle": "Vuoi salvare le modifiche apportate a {name}?",
     "saveChangesDescription": "Le modifiche andranno perse se non le salvi.",
-    "dontSave": "Non salvare"
+    "dontSave": "Non salvare",
+    "unsavedChanges": "Modifiche non salvate",
+    "reloadDraftWarning": "Ricaricare dal disco sostituirà la bozza locale.",
+    "reloadFromDisk": "Ricarica dal disco",
+    "retryDirectory": "Riprova a caricare {directory}"
   },
   "theme": {
     "accentColor": "Colore accento",
@@ -289,5 +300,76 @@
     "opencode": "OpenCode",
     "opencodeCli": "OpenCode CLI",
     "claudeCodeCli": "Claude Code CLI"
+  },
+  "editorSearch": {
+    "find": "Cerca",
+    "previousMatch": "Corrispondenza precedente",
+    "nextMatch": "Corrispondenza successiva",
+    "selectAllMatches": "Seleziona tutte le corrispondenze",
+    "matchCase": "Distingui maiuscole e minuscole",
+    "regexp": "Usa espressione regolare",
+    "wholeWord": "Solo parole intere",
+    "replace": "Sostituisci",
+    "replaceAll": "Sostituisci tutto",
+    "replaceCurrent": "Sostituisci la corrispondenza corrente",
+    "replaceAllMatches": "Sostituisci tutte le corrispondenze",
+    "matchPosition": "Corrispondenza {current} di {total}",
+    "editing": "Modifica di {path}"
+  },
+  "pullRequests": {
+    "title": "Pull request",
+    "actions": "Azioni della pull request",
+    "views": "Viste della pull request",
+    "summary": "Riepilogo",
+    "open": "Aperta",
+    "closed": "Chiusa",
+    "merged": "Unita",
+    "checks": "Controlli",
+    "checksUnavailable": "Controlli non disponibili",
+    "noChecks": "Nessun controllo segnalato",
+    "checksAttention": "I controlli richiedono attenzione",
+    "checksPending": "Controlli in sospeso",
+    "checksPassed": "Tutti i controlli superati",
+    "failed": "Non riuscito",
+    "writeMarkdown": "Scrivi in Markdown…",
+    "editorMode": "Modalità di modifica: {label}",
+    "saving": "Salvataggio…",
+    "prTitle": "Titolo della PR",
+    "editTitle": "Modifica titolo",
+    "editDescription": "Modifica descrizione",
+    "updated": "Aggiornato {time}",
+    "notSubmitted": "Non inviato",
+    "old": "precedente",
+    "new": "nuovo",
+    "outdated": "obsoleto",
+    "comment": "Commento",
+    "comments": "Commenti",
+    "postComment": "Pubblica commento",
+    "postInlineComment": "Pubblica commento sulla riga",
+    "reviewThreads": "Discussioni di revisione",
+    "reply": "Rispondi",
+    "loadMore": "Carica altro",
+    "retry": "Riprova",
+    "oldLine": "Riga precedente {line}",
+    "newLine": "Nuova riga {line}",
+    "commented": "Commentato",
+    "changesRequested": "Modifiche richieste",
+    "dismissed": "Revocata",
+    "openGitHub": "Apri su GitHub",
+    "patchUnavailable": "Impossibile visualizzare questa patch. Aprila su GitHub per esaminarla.",
+    "noPatch": "Nessuna patch di testo disponibile. Il file potrebbe essere binario o troppo grande; aprilo su GitHub.",
+    "mergePr": "Unisci PR",
+    "mergeTitle": "Unisci PR #{number}",
+    "mergeDescription": "Unisci questa pull request nel branch di destinazione.",
+    "loadMergeFailed": "Impossibile caricare i dettagli dell’unione.",
+    "mergeFailed": "Impossibile unire questa PR.",
+    "noLongerOpen": "Questa pull request non è più aperta.",
+    "markReady": "Segna questa pull request come pronta prima di unirla.",
+    "mergeForbidden": "Non hai il permesso di unire questa pull request.",
+    "noMergeMethods": "Nessun metodo di unione è abilitato per questo repository.",
+    "mergeCommit": "Crea un commit di merge",
+    "squashMerge": "Comprimi i commit e unisci",
+    "rebaseMerge": "Esegui rebase e unisci",
+    "merging": "Unione in corso…"
   }
 }

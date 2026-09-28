@@ -1,5 +1,4 @@
 import { parsePatchFiles, type SelectedLineRange } from "@pierre/diffs";
-import { formatDistanceToNow } from "date-fns";
 import {
   ArrowRight,
   CheckCircle2,
@@ -20,7 +19,7 @@ import {
   Rows3,
   TextWrap,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import {
   type ReactNode,
   useCallback,
@@ -76,12 +75,13 @@ import {
 import { PrMarkdownImage } from "./markdown-image";
 import { MergePrDialog } from "./merge-pr-dialog";
 
-const message = (error: unknown) =>
-  error instanceof Error ? error.message : "Unable to complete the request.";
+const message = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 const draftKey = (repository: string, number: number, kind: string) =>
   `dream:code-pr:${repository}:${number}:${kind}`;
 
 function PullRequestStatus({ pr }: { pr: PullRequestSummary }) {
+  const t = useTranslations();
   const state = pr.state === "open" && pr.draft ? "draft" : pr.state;
   const styles = {
     open: "border-success-border bg-success-surface text-success-foreground",
@@ -93,7 +93,7 @@ function PullRequestStatus({ pr }: { pr: PullRequestSummary }) {
   return (
     <Badge variant="outline" className={styles[state]}>
       <GitPullRequest className="size-3" />
-      {state[0].toUpperCase() + state.slice(1)}
+      {state === "draft" ? t("git.draft") : t(`pullRequests.${state}`)}
     </Badge>
   );
 }
@@ -101,13 +101,13 @@ function PullRequestStatus({ pr }: { pr: PullRequestSummary }) {
 function checkSummary(checks: PullRequestDetail["checks"]) {
   if (checks === null)
     return {
-      label: "Checks unavailable",
+      labelKey: "checksUnavailable",
       className: "text-muted-foreground",
       icon: Clock3,
     };
   if (!checks.length)
     return {
-      label: "No checks",
+      labelKey: "noChecks",
       className: "text-muted-foreground",
       icon: CheckCircle2,
     };
@@ -133,7 +133,7 @@ function checkSummary(checks: PullRequestDetail["checks"]) {
     )
   )
     return {
-      label: checks.length === 1 ? "Failed" : "Checks need attention",
+      labelKey: checks.length === 1 ? "failed" : "checksAttention",
       className: "text-destructive",
       icon: CircleX,
     };
@@ -141,12 +141,12 @@ function checkSummary(checks: PullRequestDetail["checks"]) {
     states.some((state) => !["SUCCESS", "NEUTRAL", "SKIPPED"].includes(state))
   )
     return {
-      label: "Checks pending",
+      labelKey: "checksPending",
       className: "text-amber-700 dark:text-amber-300",
       icon: Clock3,
     };
   return {
-    label: "All checks passed",
+    labelKey: "checksPassed",
     className: "text-success-foreground",
     icon: CheckCircle2,
   };
@@ -189,6 +189,7 @@ function Composer({
   onSubmit: (body: string, version?: string) => Promise<boolean>;
   onCancel?: () => void;
 }) {
+  const t = useTranslations();
   const draft = usePrDraft(storageKey, initial, initialVersion);
   const [submitting, setSubmitting] = useState(false);
   return (
@@ -197,9 +198,11 @@ function Composer({
         <span className="text-xs text-muted-foreground">{label}</span>
       ) : null}
       <Tabs defaultValue="write">
-        <TabsList aria-label={`${label} editor mode`}>
-          <TabsTrigger value="write">Write</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
+        <TabsList aria-label={t("pullRequests.editorMode", { label })}>
+          <TabsTrigger value="write">
+            {t("assistant.toolGroup.write")}
+          </TabsTrigger>
+          <TabsTrigger value="preview">{t("aiElements.preview")}</TabsTrigger>
         </TabsList>
         <InlineEditor>
           <TabsContent value="write">
@@ -208,7 +211,7 @@ function Composer({
               value={draft.value}
               disabled={busy}
               onChange={(e) => draft.update(e.target.value)}
-              placeholder="Write Markdown…"
+              placeholder={t("pullRequests.writeMarkdown")}
               className="min-h-24 p-3 text-sm leading-relaxed md:leading-relaxed"
             />
           </TabsContent>
@@ -228,7 +231,7 @@ function Composer({
                   onCancel();
                 }}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
             ) : null}
             <Button
@@ -244,7 +247,7 @@ function Composer({
                 }
               }}
             >
-              {submitting ? "Saving…" : submitLabel}
+              {submitting ? t("pullRequests.saving") : submitLabel}
             </Button>
           </InlineEditorFooter>
         </InlineEditor>
@@ -276,14 +279,15 @@ function EditDescription({
   save: Save;
   close: () => void;
 }) {
+  const t = useTranslations();
   return (
     <Composer
       storageKey={draftKey(repository, pr.number, "description")}
       initial={pr.body}
       initialVersion={pr.updatedAt}
-      label="Description"
+      label={t("common.description")}
       showLabel={false}
-      submitLabel="Save"
+      submitLabel={t("common.save")}
       allowEmpty
       busy={busy}
       onCancel={close}
@@ -313,6 +317,7 @@ function EditTitle({
   save: Save;
   close: () => void;
 }) {
+  const t = useTranslations();
   const title = usePrDraft(
     draftKey(repository, pr.number, "title"),
     pr.title,
@@ -347,7 +352,7 @@ function EditTitle({
     >
       <InlineEditor>
         <Input
-          aria-label="PR title"
+          aria-label={t("pullRequests.prTitle")}
           value={title.value}
           disabled={busy}
           maxLength={256}
@@ -367,14 +372,14 @@ function EditTitle({
             disabled={busy}
             onClick={cancel}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             size="sm"
             type="submit"
             disabled={busy || !title.value.trim()}
           >
-            {submitting ? "Saving…" : "Save"}
+            {submitting ? t("pullRequests.saving") : t("common.save")}
           </Button>
         </InlineEditorFooter>
       </InlineEditor>
@@ -399,6 +404,18 @@ function Comment({
   inline?: boolean;
   children?: ReactNode;
 }) {
+  const t = useTranslations();
+  const format = useFormatter();
+  const reviewLabel = (state: string) => {
+    const keys: Record<string, string> = {
+      APPROVED: "assistant.approved",
+      CHANGES_REQUESTED: "pullRequests.changesRequested",
+      COMMENTED: "pullRequests.commented",
+      DISMISSED: "pullRequests.dismissed",
+      PENDING: "assistant.toolState.input-streaming",
+    };
+    return keys[state] ? t(keys[state]) : state;
+  };
   const [editing, setEditing] = useState(false);
   const date = comment.created_at ?? comment.submitted_at ?? comment.updated_at;
   const submitted = Boolean(date) && Number.isFinite(new Date(date).getTime());
@@ -416,15 +433,22 @@ function Comment({
             {comment.user.login}
           </strong>
           {comment.state ? (
-            <span>{comment.state.replaceAll("_", " ")}</span>
+            <span>{reviewLabel(comment.state)}</span>
           ) : null}
           <time
             dateTime={submitted ? date : undefined}
-            title={submitted ? new Date(date).toLocaleString() : undefined}
+            title={
+              submitted
+                ? format.dateTime(new Date(date), {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
+                : undefined
+            }
           >
             {submitted
-              ? formatDistanceToNow(new Date(date), { addSuffix: true })
-              : "Not submitted"}
+              ? format.relativeTime(new Date(date))
+              : t("pullRequests.notSubmitted")}
           </time>
           {!inline && !comment.state && comment.user.login === pr.viewer ? (
             <button
@@ -433,7 +457,7 @@ function Comment({
               className="ml-auto hover:text-foreground"
               onClick={() => setEditing(!editing)}
             >
-              Edit
+              {t("common.edit")}
             </button>
           ) : null}
         </div>
@@ -441,8 +465,10 @@ function Comment({
           {comment.path ? (
             <div className="break-all text-xs text-muted-foreground">
               {comment.path}:{comment.line ?? comment.original_line} ·{" "}
-              {comment.side === "LEFT" ? "old" : "new"}
-              {comment.line === null ? " · outdated" : ""}
+              {comment.side === "LEFT"
+                ? t("pullRequests.old")
+                : t("pullRequests.new")}
+              {comment.line === null ? ` · ${t("pullRequests.outdated")}` : ""}
             </div>
           ) : null}
           {editing ? (
@@ -455,9 +481,9 @@ function Comment({
               )}
               initial={comment.body}
               initialVersion={comment.updated_at}
-              label="Comment"
+              label={t("pullRequests.comment")}
               showLabel={false}
-              submitLabel="Save"
+              submitLabel={t("common.save")}
               busy={busy}
               onCancel={() => setEditing(false)}
               onSubmit={async (body, version) => {
@@ -490,6 +516,7 @@ function usePrPage<T>(
   revision: string,
   commit?: string,
 ) {
+  const t = useTranslations();
   const [items, setItems] = useState<T[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -521,7 +548,7 @@ function usePrPage<T>(
           setHasMore(pages[pages.length - 1]?.hasMore ?? false);
         },
         (error) => {
-          if (!cancelled) setError(message(error));
+          if (!cancelled) setError(message(error, t("ui.requestFailed")));
         },
       )
       .finally(() => {
@@ -530,7 +557,7 @@ function usePrPage<T>(
     return () => {
       cancelled = true;
     };
-  }, [projectPath, repository, number, action, page, revision, commit]);
+  }, [projectPath, repository, number, action, page, revision, commit, t]);
   return { items, error, loading, hasMore, more: () => setPage((p) => p + 1) };
 }
 
@@ -557,6 +584,7 @@ function PageFooter({
     more: () => void;
   };
 }) {
+  const t = useTranslations();
   return (
     <>
       {data.error ? (
@@ -568,7 +596,7 @@ function PageFooter({
         <PullRequestLoading />
       ) : data.hasMore ? (
         <Button size="sm" variant="outline" onClick={data.more}>
-          Load more
+          {t("pullRequests.loadMore")}
         </Button>
       ) : null}
     </>
@@ -576,6 +604,7 @@ function PageFooter({
 }
 
 function SummaryComments(props: SectionProps) {
+  const t = useTranslations();
   const { projectPath, repository, pr, revision, busy, save } = props;
   const comments = usePrPage<PrComment>(
     projectPath,
@@ -599,7 +628,7 @@ function SummaryComments(props: SectionProps) {
   return (
     <Collapsible defaultOpen>
       <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        Comments
+        {t("pullRequests.comments")}
         <ChevronDown className="size-3 transition-transform group-aria-expanded:rotate-180" />
       </CollapsibleTrigger>
       <CollapsibleContent keepMounted className="space-y-4 pt-3">
@@ -616,7 +645,7 @@ function SummaryComments(props: SectionProps) {
         <PageFooter data={reviews} />
         <Composer
           storageKey={draftKey(repository, pr.number, "new-comment")}
-          label="Post comment"
+          label={t("pullRequests.postComment")}
           showLabel={false}
           busy={busy}
           onSubmit={(body) => save({ action: "comment", body })}
@@ -673,6 +702,7 @@ function FileDiff({
   mode,
   wordWrap,
 }: SectionProps & PrDiffOptions & { file: PrFile }) {
+  const t = useTranslations();
   const fileDiff = useMemo(() => parsePullRequestDiff(file), [file]);
   const [selection, setSelection] = useState<{
     line: number;
@@ -716,14 +746,19 @@ function FileDiff({
       ) : (
         <p className="text-sm text-muted-foreground">
           {file.patch
-            ? "This patch could not be displayed. Open on GitHub to inspect it."
-            : "No text patch available. This file may be binary or too large; use Open on GitHub to inspect it."}
+            ? t("pullRequests.patchUnavailable")
+            : t("pullRequests.noPatch")}
         </p>
       )}
       {selection ? (
         <div className="rounded-md border p-3">
           <p className="mb-2 text-xs text-muted-foreground">
-            {selection.side === "LEFT" ? "Old" : "New"} line {selection.line} ·{" "}
+            {t(
+              selection.side === "LEFT"
+                ? "pullRequests.oldLine"
+                : "pullRequests.newLine",
+              { line: selection.line },
+            )} ·{" "}
             {pr.commit.slice(0, 8)}
           </p>
           <Composer
@@ -733,7 +768,7 @@ function FileDiff({
               pr.number,
               `${pr.commit}:${file.filename}:${selection.side}:${selection.line}`,
             )}
-            label="Post inline comment"
+            label={t("pullRequests.postInlineComment")}
             busy={busy}
             onCancel={() => setSelection(null)}
             onSubmit={async (body) => {
@@ -767,6 +802,7 @@ function PullRequestFileRow({
     expanded: boolean;
     onExpandedChange: (expanded: boolean) => void;
   }) {
+  const t = useTranslations();
   const { repository, pr, busy, save } = props;
   const [reply, setReply] = useState<number | null>(null);
   const roots = threads.filter(
@@ -805,7 +841,9 @@ function PullRequestFileRow({
         <FileDiff file={file} {...props} />
         {roots.length > 0 ? (
           <div className="space-y-3 p-4">
-            <h3 className="font-medium text-sm">Review threads</h3>
+            <h3 className="font-medium text-sm">
+              {t("pullRequests.reviewThreads")}
+            </h3>
             {roots.map((root) => (
               <Comment
                 key={root.id}
@@ -831,7 +869,7 @@ function PullRequestFileRow({
                       pr.number,
                       `reply-${root.id}`,
                     )}
-                    label="Reply"
+                    label={t("pullRequests.reply")}
                     busy={busy}
                     onCancel={() => setReply(null)}
                     onSubmit={async (body) => {
@@ -850,7 +888,7 @@ function PullRequestFileRow({
                     size="sm"
                     onClick={() => setReply(root.id)}
                   >
-                    Reply
+                    {t("pullRequests.reply")}
                   </Button>
                 )}
               </Comment>
@@ -866,6 +904,7 @@ function Files({
   onRefresh,
   ...props
 }: SectionProps & { onRefresh: () => void }) {
+  const t = useTranslations();
   const panelsT = useTranslations("panels");
   const [mode, setMode] = useState<DiffViewMode>("unified");
   const [wordWrap, setWordWrap] = useState(false);
@@ -904,7 +943,9 @@ function Files({
   return (
     <div>
       <div className="flex items-center gap-3 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
-        <span className="min-w-0 flex-1 text-sm font-medium">Files</span>
+        <span className="min-w-0 flex-1 text-sm font-medium">
+          {t("common.files")}
+        </span>
         <SegmentedToggle<DiffViewMode>
           aria-label={`${panelsT("unifiedDiff")} / ${panelsT("splitDiff")}`}
           value={mode}
@@ -950,7 +991,7 @@ function Files({
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={onRefresh}>
               <RotateCw className="size-4" />
-              Refresh
+              {t("common.refresh")}
             </DropdownMenuItem>
             <DropdownMenuCheckboxItem
               checked={wordWrap}
@@ -1003,6 +1044,8 @@ function Detail({
   number: number;
   refreshKey: string;
 }) {
+  const t = useTranslations();
+  const format = useFormatter();
   const [pr, setPr] = useState<PullRequestDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -1033,7 +1076,7 @@ function Detail({
           }
         },
         (error) => {
-          if (!cancelled) setError(message(error));
+          if (!cancelled) setError(message(error, t("ui.requestFailed")));
         },
       )
       .finally(() => {
@@ -1042,7 +1085,7 @@ function Detail({
     return () => {
       cancelled = true;
     };
-  }, [projectPath, repository, number, revision, refreshKey, active]);
+  }, [projectPath, repository, number, revision, refreshKey, active, t]);
   const save: Save = async (input) => {
     if (writing.current) return false;
     writing.current = true;
@@ -1070,7 +1113,7 @@ function Detail({
       setRevision((n) => n + 1);
       return true;
     } catch (error) {
-      setError(message(error));
+      setError(message(error, t("ui.requestFailed")));
       return false;
     } finally {
       writing.current = false;
@@ -1102,7 +1145,7 @@ function Detail({
                 type="button"
                 onClick={() => openExternalUrl(pr.url)}
                 className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                title="Open on GitHub"
+                title={t("pullRequests.openGitHub")}
               >
                 <span className="truncate">
                   {repository.split("/").slice(1).join("/")}
@@ -1126,8 +1169,8 @@ function Detail({
                 {pr.canEdit ? (
                   <button
                     type="button"
-                    aria-label="Edit title"
-                    title="Edit title"
+                    aria-label={t("pullRequests.editTitle")}
+                    title={t("pullRequests.editTitle")}
                     disabled={busy}
                     className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100 focus-visible:opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => setEditingTitle(true)}
@@ -1156,11 +1199,13 @@ function Detail({
               <span>·</span>
               <time
                 dateTime={pr.updatedAt}
-                title={new Date(pr.updatedAt).toLocaleString()}
+                title={format.dateTime(new Date(pr.updatedAt), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
               >
-                Updated{" "}
-                {formatDistanceToNow(new Date(pr.updatedAt), {
-                  addSuffix: true,
+                {t("pullRequests.updated", {
+                  time: format.relativeTime(new Date(pr.updatedAt)),
                 })}
               </time>
 
@@ -1177,7 +1222,7 @@ function Detail({
                 </div>
                 <span className="flex shrink-0 items-center gap-2 font-mono tabular-nums">
                   <File className="size-3" />
-                  {pr.changedFiles} {pr.changedFiles === 1 ? "file" : "files"}
+                  {t("ui.fileCount", { count: pr.changedFiles })}
                   <span className="text-emerald-600">+{pr.additions}</span>
                   <span className="text-rose-600">−{pr.deletions}</span>
                 </span>
@@ -1185,9 +1230,13 @@ function Detail({
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-200 dark:border-surface-800 px-3 py-2">
-            <TabsList aria-label="Pull request views">
-              <TabsTrigger value="overview">Summary</TabsTrigger>
-              <TabsTrigger value="files">Code</TabsTrigger>
+            <TabsList aria-label={t("pullRequests.views")}>
+              <TabsTrigger value="overview">
+                {t("pullRequests.summary")}
+              </TabsTrigger>
+              <TabsTrigger value="files">
+                {t("workspace.workspaceCode")}
+              </TabsTrigger>
             </TabsList>
             {checks ? (
               <div
@@ -1197,7 +1246,7 @@ function Detail({
                 )}
               >
                 <checks.icon className="size-3.5" />
-                {checks.label}
+                {t(`pullRequests.${checks.labelKey}`)}
               </div>
             ) : null}
           </div>
@@ -1228,14 +1277,14 @@ function Detail({
               >
                 <div className="flex items-center justify-between gap-2">
                   <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    Description
+                    {t("common.description")}
                     <ChevronDown className="size-3 transition-transform group-aria-expanded:rotate-180" />
                   </CollapsibleTrigger>
                   {pr.canEdit && !editing ? (
                     <button
                       type="button"
-                      aria-label="Edit description"
-                      title="Edit description"
+                      aria-label={t("pullRequests.editDescription")}
+                      title={t("pullRequests.editDescription")}
                       className="flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/description:opacity-100 focus-visible:opacity-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => {
                         setDescriptionOpen(true);
@@ -1260,17 +1309,17 @@ function Detail({
               </Collapsible>
               <Collapsible defaultOpen>
                 <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  Checks
+                  {t("pullRequests.checks")}
                   <ChevronDown className="size-3 transition-transform group-aria-expanded:rotate-180" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-3">
                   {pr.checks === null ? (
                     <p className="text-xs text-muted-foreground">
-                      Checks unavailable.
+                      {t("pullRequests.checksUnavailable")}
                     </p>
                   ) : !pr.checks.length ? (
                     <p className="text-xs text-muted-foreground">
-                      No checks reported.
+                      {t("pullRequests.noChecks")}
                     </p>
                   ) : (
                     pr.checks.map((check) => {
@@ -1289,7 +1338,9 @@ function Detail({
                             />
                             {check.name ?? check.context}
                           </span>
-                          <span className="sr-only">{status.label}</span>
+                          <span className="sr-only">
+                            {t(`pullRequests.${status.labelKey}`)}
+                          </span>
                         </div>
                       );
                     })
@@ -1322,6 +1373,7 @@ export function PullRequestsPanel({
   active?: boolean;
   onClosePanel: () => void;
 }) {
+  const t = useTranslations();
   const refreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[project.id] ?? 0,
   );
@@ -1346,7 +1398,7 @@ export function PullRequestsPanel({
           onClose={onClosePanel}
         />
         <span className="flex-1 truncate text-sm font-medium">
-          Pull request
+          {t("pullRequests.title")}
         </span>
         {current?.state === "open" ? (
           <Button
@@ -1358,12 +1410,12 @@ export function PullRequestsPanel({
             }}
             title={
               current.draft
-                ? "Mark this PR ready before merging"
-                : "Merge pull request"
+                ? t("pullRequests.markReady")
+                : t("pullRequests.mergePr")
             }
           >
             <GitMerge className="size-3.5" />
-            Merge
+            {t("worktrees.merge")}
           </Button>
         ) : null}
         <DropdownMenu>
@@ -1372,8 +1424,8 @@ export function PullRequestsPanel({
               <button
                 type="button"
                 className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[popup-open]:bg-muted data-[popup-open]:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                title="Pull request actions"
-                aria-label="Pull request actions"
+                title={t("pullRequests.actions")}
+                aria-label={t("pullRequests.actions")}
               />
             }
           >
@@ -1382,7 +1434,7 @@ export function PullRequestsPanel({
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={refresh}>
               <RotateCw className="size-4" />
-              Refresh
+              {t("common.refresh")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1393,7 +1445,7 @@ export function PullRequestsPanel({
             {context.error}
           </p>
           <Button size="sm" variant="outline" onClick={refresh}>
-            Retry
+            {t("pullRequests.retry")}
           </Button>
         </div>
       ) : !repository ? (

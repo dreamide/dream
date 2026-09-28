@@ -754,7 +754,7 @@ const ProjectFileTree = ({
                 {directory}: {message}
               </span>
               <button
-                aria-label={`Retry loading ${directory}`}
+                aria-label={panelsT("retryDirectory", { directory })}
                 className="shrink-0 rounded p-0.5 hover:bg-destructive/10"
                 onClick={() =>
                   void loader.load(directory).catch(() => undefined)
@@ -1258,7 +1258,7 @@ const FileExplorerPanelImpl = ({
               leading: isDirty ? (
                 <span
                   className="size-2 shrink-0 rounded-full bg-amber-500"
-                  title="Unsaved changes"
+                  title={panelsT("unsavedChanges")}
                 />
               ) : (
                 <FileIcon
@@ -1269,7 +1269,7 @@ const FileExplorerPanelImpl = ({
             };
           })
         : [],
-    [fileBuffers, projectFileTabs.tabs, projectId],
+    [fileBuffers, projectFileTabs.tabs, projectId, panelsT],
   );
 
   const handleReloadFromDisk = useCallback(() => {
@@ -1685,7 +1685,7 @@ const FileExplorerPanelImpl = ({
                         <div>{selectedFileBuffer.error}</div>
                         {selectedFileBuffer.status === "conflict" ? (
                           <div className="mt-1 font-medium">
-                            Reloading from disk will replace your local draft.
+                            {panelsT("reloadDraftWarning")}
                           </div>
                         ) : null}
                       </div>
@@ -1697,7 +1697,7 @@ const FileExplorerPanelImpl = ({
                           type="button"
                           variant="outline"
                         >
-                          Reload from disk
+                          {panelsT("reloadFromDisk")}
                         </Button>
                       ) : null}
                     </div>

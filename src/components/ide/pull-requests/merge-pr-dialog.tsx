@@ -1,4 +1,5 @@
 import { GitBranch, GitCommitHorizontal, GitMerge } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ export function MergePrDialog({
   onClose: () => void;
   onMerged: () => void;
 }) {
+  const t = useTranslations();
   const [info, setInfo] = useState<MergeInfo | null>(null);
   const [method, setMethod] = useState<MergeMethod>("merge");
   const [loading, setLoading] = useState(true);
@@ -61,7 +63,7 @@ export function MergePrDialog({
           setError(
             error instanceof Error
               ? error.message
-              : "Unable to load merge details.",
+              : t("pullRequests.loadMergeFailed"),
           );
       })
       .finally(() => {
@@ -70,18 +72,18 @@ export function MergePrDialog({
     return () => {
       cancelled = true;
     };
-  }, [projectPath, repository, number, revision]);
+  }, [projectPath, repository, number, revision, t]);
 
   const blocked =
     info &&
     (info.state !== "open"
-      ? "This pull request is no longer open."
+      ? t("pullRequests.noLongerOpen")
       : info.draft
-        ? "Mark this pull request ready before merging."
+        ? t("pullRequests.markReady")
         : !info.canMerge
-          ? "You do not have permission to merge this pull request."
+          ? t("pullRequests.mergeForbidden")
           : !info.methods.length
-            ? "No merge methods are enabled for this repository."
+            ? t("pullRequests.noMergeMethods")
             : null);
   const merge = async () => {
     if (!info?.commit || loading || merging || blocked) return;
@@ -99,7 +101,7 @@ export function MergePrDialog({
       onClose();
     } catch (error) {
       setError(
-        error instanceof Error ? error.message : "Unable to merge this PR.",
+        error instanceof Error ? error.message : t("pullRequests.mergeFailed"),
       );
     } finally {
       setMerging(false);
@@ -116,10 +118,10 @@ export function MergePrDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
             <GitMerge className="size-4" />
-            Merge PR #{number}
+            {t("pullRequests.mergeTitle", { number })}
           </DialogTitle>
           <DialogDescription>
-            {info?.title ?? "Merge this pull request into its target branch."}
+            {info?.title ?? t("pullRequests.mergeDescription")}
           </DialogDescription>
         </DialogHeader>
         {loading ? (
@@ -141,17 +143,17 @@ export function MergePrDialog({
               options={[
                 {
                   value: "merge",
-                  label: "Create a merge commit",
+                  label: t("pullRequests.mergeCommit"),
                   icon: <GitMerge />,
                 },
                 {
                   value: "squash",
-                  label: "Squash and merge",
+                  label: t("pullRequests.squashMerge"),
                   icon: <GitCommitHorizontal />,
                 },
                 {
                   value: "rebase",
-                  label: "Rebase and merge",
+                  label: t("pullRequests.rebaseMerge"),
                   icon: <GitBranch />,
                 },
               ].map((option) => ({
@@ -179,7 +181,7 @@ export function MergePrDialog({
             disabled={merging}
             onClick={onClose}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           {error ? (
             <Button
@@ -188,7 +190,7 @@ export function MergePrDialog({
               disabled={loading || merging}
               onClick={() => setRevision((value) => value + 1)}
             >
-              Refresh
+              {t("common.refresh")}
             </Button>
           ) : null}
           <Button
@@ -201,7 +203,7 @@ export function MergePrDialog({
             ) : (
               <GitMerge className="size-3.5" />
             )}
-            {merging ? "Merging…" : "Merge PR"}
+            {merging ? t("pullRequests.merging") : t("pullRequests.mergePr")}
           </Button>
         </DialogFooter>
       </DialogContent>

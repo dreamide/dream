@@ -45,6 +45,7 @@ export function InlineDiffFeedback({
   target: DiffFeedbackTarget;
 }) {
   const chatT = useTranslations("chat");
+  const browserT = useTranslations("browser");
   // Keep the live highlight separate from the committed comment range so the
   // form does not move or steal focus while the user is dragging.
   const [selection, setSelection] = useState<SelectedLineRange | null>(null);
@@ -163,7 +164,7 @@ export function InlineDiffFeedback({
       cancel();
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Unable to send the message.",
+        cause instanceof Error ? cause.message : chatT("sendFailed"),
       );
     }
   };
@@ -205,10 +206,10 @@ export function InlineDiffFeedback({
           className="w-96 max-w-[calc(100vw-24px)] gap-0 overflow-hidden rounded-lg border border-surface-300 bg-surface-50 p-0 shadow-md ring-0 dark:border-surface-700 dark:bg-surface-900"
           initialFocus={commentInput}
           finalFocus={false}
-          aria-label="Chat about selected lines"
+          aria-label={chatT("selectedLines")}
         >
           <form
-            aria-label="Chat about selected lines"
+            aria-label={chatT("selectedLines")}
             className="font-sans text-sm text-foreground"
             onKeyDownCapture={(event) => {
               if (event.key === "Escape") {
@@ -237,7 +238,7 @@ export function InlineDiffFeedback({
             <div className="relative z-10 -mx-px -mt-px flex w-[calc(100%+2px)] items-end gap-1 overflow-hidden rounded-lg border border-surface-300 bg-background py-1.5 dark:border-surface-700">
               <Textarea
                 ref={commentInput}
-                aria-label="Message"
+                aria-label={chatT("message")}
                 placeholder={chatT("askAnything")}
                 className="min-h-0 max-h-48 min-w-0 flex-1 resize-none rounded-none border-none bg-transparent px-3 py-2 text-sm shadow-none caret-foreground focus-visible:ring-0 selection:bg-foreground/20 selection:text-foreground dark:bg-transparent"
                 rows={1}
@@ -246,8 +247,8 @@ export function InlineDiffFeedback({
               />
               <div className="flex shrink-0 items-center self-end pr-2 pb-0.5">
                 <PromptInputSubmit
-                  aria-label="Send message"
-                  title={busy ? "Chat busy" : "Send message"}
+                  aria-label={chatT("sendMessage")}
+                  title={busy ? browserT("feedbackChatBusy") : chatT("sendMessage")}
                   className="size-8 rounded-md bg-surface-900 text-surface-50 hover:bg-surface-800 dark:bg-surface-200 dark:text-surface-900 dark:hover:bg-surface-300"
                   disabled={!comment.trim() || !destination || busy}
                 />
@@ -272,7 +273,7 @@ export function InlineDiffFeedback({
                     setError(null);
                   }}
                 />
-                New chat
+                {browserT("feedbackNewChat")}
               </label>
             </div>
           </form>

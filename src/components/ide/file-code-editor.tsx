@@ -18,6 +18,7 @@ import CodeMirror, {
   type Extension,
   type ReactCodeMirrorRef,
 } from "@uiw/react-codemirror";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
@@ -167,6 +168,8 @@ const FileCodeEditor = ({
   wordWrap = false,
 }: FileCodeEditorProps) => {
   const { resolvedTheme } = useTheme();
+  const t = useTranslations();
+  const translateRef = useRef(t);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const previousSearchRequestRef = useRef(searchRequest);
   const editorValue = useMemo(
@@ -183,14 +186,26 @@ const FileCodeEditor = ({
       fileEditorTheme,
       search({
         createPanel: (view) =>
-          createFileCodeSearchPanel(view, onSearchOpenChange),
+          createFileCodeSearchPanel(
+            view,
+            onSearchOpenChange,
+            () => translateRef.current,
+          ),
         top: true,
       }),
-      EditorView.contentAttributes.of({ "aria-label": `Editing ${filePath}` }),
+      EditorView.contentAttributes.of({
+        "aria-label": t("editorSearch.editing", { path: filePath }),
+      }),
       ...(wordWrap ? [EditorView.lineWrapping] : []),
       ...(language ? [language] : []),
     ];
-  }, [filePath, onSearchOpenChange, wordWrap]);
+  }, [filePath, onSearchOpenChange, wordWrap, t]);
+
+  useEffect(() => {
+    // The search panel has its own React root, so refresh its translated labels.
+    translateRef.current = t;
+    editorRef.current?.view?.dispatch({});
+  }, [t]);
 
   useEffect(() => {
     if (previousSearchRequestRef.current === searchRequest) {

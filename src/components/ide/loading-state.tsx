@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { type ComponentProps, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -122,10 +123,11 @@ export function LoadingState({
   "aria-label": ariaLabel,
   className,
 }: LoadingStateProps) {
+  const t = useTranslations("app");
   const surfer = variant === "Surfer";
   const elapsed = useElapsed(!compact);
   const reducedMotion = usePrefersReducedMotion();
-  const resolvedLabel = label ?? (surfer ? "Subway surfing" : "Churning");
+  const resolvedLabel = label ?? (surfer ? t("subwaySurfing") : t("working"));
   const [videoOk, setVideoOk] = useState(true);
   const { delays, dur, round } = PATTERNS[surfer ? "Drive" : variant];
   const statusLabel = ariaLabel ?? resolvedLabel;
@@ -211,7 +213,7 @@ export function LoadingState({
               <div className="flex h-full w-full flex-col items-center justify-center gap-1.5">
                 <LoaderGrid reducedMotion={reducedMotion} {...PATTERNS.Drive} />
                 <span className="px-3 text-center font-mono text-[10px] text-muted-foreground">
-                  Video unavailable
+                  {t("videoUnavailable")}
                 </span>
               </div>
             )}

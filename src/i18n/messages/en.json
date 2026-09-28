@@ -1,6 +1,9 @@
 {
   "app": {
-    "loadingDream": "Loading Dream"
+    "loadingDream": "Loading Dream",
+    "videoUnavailable": "Video unavailable",
+    "working": "Working",
+    "subwaySurfing": "Subway surfing"
   },
   "ui": {
     "addPhotosOrFiles": "Add photos or files",
@@ -165,7 +168,11 @@
     "useThisWorkspace": "This workspace",
     "useThisWorkspaceDescription": "Continue in a new chat without changing project files.",
     "worktreeRequiresGit": "Worktrees require a Git repository.",
-    "worktreeSnapshotLimitation": "The new worktree represents a Git ref, not the exact filesystem state at this message."
+    "worktreeSnapshotLimitation": "The new worktree represents a Git ref, not the exact filesystem state at this message.",
+    "selectedLines": "Chat about selected lines",
+    "message": "Message",
+    "sendMessage": "Send message",
+    "sendFailed": "Unable to send the message."
   },
   "browser": {
     "actions": "Browser actions",
@@ -215,7 +222,11 @@
     "unifiedDiff": "Unified diff",
     "saveChangesTitle": "Do you want to save the changes you made to {name}?",
     "saveChangesDescription": "Your changes will be lost if you don’t save them.",
-    "dontSave": "Don’t Save"
+    "dontSave": "Don’t Save",
+    "unsavedChanges": "Unsaved changes",
+    "reloadDraftWarning": "Reloading from disk will replace your local draft.",
+    "reloadFromDisk": "Reload from disk",
+    "retryDirectory": "Retry loading {directory}"
   },
   "theme": {
     "accentColor": "Accent color",
@@ -289,5 +300,76 @@
     "opencode": "OpenCode",
     "opencodeCli": "OpenCode CLI",
     "claudeCodeCli": "Claude Code CLI"
+  },
+  "editorSearch": {
+    "find": "Find",
+    "previousMatch": "Previous match",
+    "nextMatch": "Next match",
+    "selectAllMatches": "Select all matches",
+    "matchCase": "Match case",
+    "regexp": "Use regular expression",
+    "wholeWord": "Match whole word",
+    "replace": "Replace",
+    "replaceAll": "Replace all",
+    "replaceCurrent": "Replace current match",
+    "replaceAllMatches": "Replace all matches",
+    "matchPosition": "{current} of {total} matches",
+    "editing": "Editing {path}"
+  },
+  "pullRequests": {
+    "title": "Pull request",
+    "actions": "Pull request actions",
+    "views": "Pull request views",
+    "summary": "Summary",
+    "open": "Open",
+    "closed": "Closed",
+    "merged": "Merged",
+    "checks": "Checks",
+    "checksUnavailable": "Checks unavailable",
+    "noChecks": "No checks reported",
+    "checksAttention": "Checks need attention",
+    "checksPending": "Checks pending",
+    "checksPassed": "All checks passed",
+    "failed": "Failed",
+    "writeMarkdown": "Write Markdown…",
+    "editorMode": "{label} editor mode",
+    "saving": "Saving…",
+    "prTitle": "PR title",
+    "editTitle": "Edit title",
+    "editDescription": "Edit description",
+    "updated": "Updated {time}",
+    "notSubmitted": "Not submitted",
+    "old": "old",
+    "new": "new",
+    "outdated": "outdated",
+    "comment": "Comment",
+    "comments": "Comments",
+    "postComment": "Post comment",
+    "postInlineComment": "Post inline comment",
+    "reviewThreads": "Review threads",
+    "reply": "Reply",
+    "loadMore": "Load more",
+    "retry": "Retry",
+    "oldLine": "Old line {line}",
+    "newLine": "New line {line}",
+    "commented": "Commented",
+    "changesRequested": "Changes requested",
+    "dismissed": "Dismissed",
+    "openGitHub": "Open on GitHub",
+    "patchUnavailable": "This patch could not be displayed. Open on GitHub to inspect it.",
+    "noPatch": "No text patch available. This file may be binary or too large; open it on GitHub to inspect it.",
+    "mergePr": "Merge PR",
+    "mergeTitle": "Merge PR #{number}",
+    "mergeDescription": "Merge this pull request into its target branch.",
+    "loadMergeFailed": "Unable to load merge details.",
+    "mergeFailed": "Unable to merge this PR.",
+    "noLongerOpen": "This pull request is no longer open.",
+    "markReady": "Mark this pull request ready before merging.",
+    "mergeForbidden": "You do not have permission to merge this pull request.",
+    "noMergeMethods": "No merge methods are enabled for this repository.",
+    "mergeCommit": "Create a merge commit",
+    "squashMerge": "Squash and merge",
+    "rebaseMerge": "Rebase and merge",
+    "merging": "Merging…"
   }
 }

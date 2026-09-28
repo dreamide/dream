@@ -20,6 +20,7 @@ import {
   Replace as ReplaceIcon,
   WholeWord,
 } from "lucide-react";
+import type { useTranslations } from "next-intl";
 import type { KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
@@ -27,7 +28,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
 
+type Translate = ReturnType<typeof useTranslations>;
+
 interface FileCodeSearchPanelContentProps {
+  t: Translate;
   matchPosition: { current: number; total: number } | null;
   onCaseSensitiveChange: (pressed: boolean) => void;
   onClose: () => void;
@@ -45,6 +49,7 @@ interface FileCodeSearchPanelContentProps {
 }
 
 const FileCodeSearchPanelContent = ({
+  t,
   matchPosition,
   onCaseSensitiveChange,
   onClose,
@@ -101,12 +106,12 @@ const FileCodeSearchPanelContent = ({
         <div className="relative min-w-32 flex-1">
           <Input
             aria-invalid={query.search.length > 0 && !query.valid}
-            aria-label="Find"
+            aria-label={t("editorSearch.find")}
             autoComplete="off"
             className="h-8 bg-surface-50 pr-14 text-xs text-foreground md:text-xs dark:bg-surface-900"
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={handleSearchKeyDown}
-            placeholder="Find"
+            placeholder={t("editorSearch.find")}
             ref={(element) => element?.setAttribute("main-field", "true")}
             spellCheck={false}
             value={query.search}
@@ -114,40 +119,40 @@ const FileCodeSearchPanelContent = ({
           {matchPosition ? (
             <span
               className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center font-mono text-[11px] text-muted-foreground tabular-nums"
-              title={`${matchPosition.current} of ${matchPosition.total} matches`}
+              title={t("editorSearch.matchPosition", matchPosition)}
             >
               {matchPosition.current}/{matchPosition.total}
             </span>
           ) : null}
         </div>
         <Button
-          aria-label="Previous match"
+          aria-label={t("editorSearch.previousMatch")}
           disabled={!query.valid}
           onClick={onFindPrevious}
           size="icon-sm"
-          title="Previous match"
+          title={t("editorSearch.previousMatch")}
           type="button"
           variant="ghost"
         >
           <ChevronUp />
         </Button>
         <Button
-          aria-label="Next match"
+          aria-label={t("editorSearch.nextMatch")}
           disabled={!query.valid}
           onClick={onFindNext}
           size="icon-sm"
-          title="Next match"
+          title={t("editorSearch.nextMatch")}
           type="button"
           variant="ghost"
         >
           <ChevronDown />
         </Button>
         <Button
-          aria-label="Select all matches"
+          aria-label={t("editorSearch.selectAllMatches")}
           disabled={!query.valid}
           onClick={onSelectAll}
           size="icon-sm"
-          title="Select all matches"
+          title={t("editorSearch.selectAllMatches")}
           type="button"
           variant="ghost"
         >
@@ -155,29 +160,29 @@ const FileCodeSearchPanelContent = ({
         </Button>
         <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />
         <Toggle
-          aria-label="Match case"
+          aria-label={t("editorSearch.matchCase")}
           onPressedChange={onCaseSensitiveChange}
           pressed={query.caseSensitive}
           size="sm"
-          title="Match case"
+          title={t("editorSearch.matchCase")}
         >
           <CaseSensitive />
         </Toggle>
         <Toggle
-          aria-label="Use regular expression"
+          aria-label={t("editorSearch.regexp")}
           onPressedChange={onRegexpChange}
           pressed={query.regexp}
           size="sm"
-          title="Use regular expression"
+          title={t("editorSearch.regexp")}
         >
           <RegexIcon />
         </Toggle>
         <Toggle
-          aria-label="Match whole word"
+          aria-label={t("editorSearch.wholeWord")}
           onPressedChange={onWholeWordChange}
           pressed={query.wholeWord}
           size="sm"
-          title="Match whole word"
+          title={t("editorSearch.wholeWord")}
         >
           <WholeWord />
         </Toggle>
@@ -186,12 +191,12 @@ const FileCodeSearchPanelContent = ({
       {!readOnly ? (
         <div className="flex min-w-0 items-center gap-1.5">
           <Input
-            aria-label="Replace"
+            aria-label={t("editorSearch.replace")}
             autoComplete="off"
             className="h-8 min-w-32 flex-1 bg-surface-50 text-xs text-foreground md:text-xs dark:bg-surface-900"
             onChange={(event) => onReplaceChange(event.target.value)}
             onKeyDown={handleReplaceKeyDown}
-            placeholder="Replace"
+            placeholder={t("editorSearch.replace")}
             spellCheck={false}
             value={query.replace}
           />
@@ -200,24 +205,24 @@ const FileCodeSearchPanelContent = ({
             disabled={!query.valid}
             onClick={onReplace}
             size="sm"
-            title="Replace current match"
+            title={t("editorSearch.replaceCurrent")}
             type="button"
             variant="outline"
           >
             <ReplaceIcon />
-            Replace
+            {t("editorSearch.replace")}
           </Button>
           <Button
             className="text-xs"
             disabled={!query.valid}
             onClick={onReplaceAll}
             size="sm"
-            title="Replace all matches"
+            title={t("editorSearch.replaceAllMatches")}
             type="button"
             variant="outline"
           >
             <ReplaceAllIcon />
-            Replace all
+            {t("editorSearch.replaceAll")}
           </Button>
         </div>
       ) : null}
@@ -231,11 +236,19 @@ class FileCodeSearchPanel implements Panel {
 
   private readonly onOpenChange: (open: boolean) => void;
   private readonly root: Root;
+  private readonly getTranslate: () => Translate;
+  private t: Translate;
   private query: SearchQuery;
   private readOnly: boolean;
   private view: EditorView;
 
-  constructor(view: EditorView, onOpenChange: (open: boolean) => void) {
+  constructor(
+    view: EditorView,
+    onOpenChange: (open: boolean) => void,
+    getTranslate: () => Translate,
+  ) {
+    this.getTranslate = getTranslate;
+    this.t = getTranslate();
     this.view = view;
     this.onOpenChange = onOpenChange;
     this.query = getSearchQuery(view.state);
@@ -259,7 +272,9 @@ class FileCodeSearchPanel implements Panel {
     this.view = update.view;
     const query = getSearchQuery(update.state);
     const readOnly = update.state.readOnly;
+    const t = this.getTranslate();
     if (
+      t === this.t &&
       query.eq(this.query) &&
       readOnly === this.readOnly &&
       !update.docChanged &&
@@ -268,6 +283,7 @@ class FileCodeSearchPanel implements Panel {
       return;
     }
 
+    this.t = t;
     this.query = query;
     this.readOnly = readOnly;
     this.render();
@@ -301,6 +317,7 @@ class FileCodeSearchPanel implements Panel {
 
     this.root.render(
       <FileCodeSearchPanelContent
+        t={this.t}
         matchPosition={matchPosition}
         onCaseSensitiveChange={(caseSensitive) =>
           this.updateQuery({ caseSensitive })
@@ -360,4 +377,5 @@ class FileCodeSearchPanel implements Panel {
 export const createFileCodeSearchPanel = (
   view: EditorView,
   onOpenChange: (open: boolean) => void,
-): Panel => new FileCodeSearchPanel(view, onOpenChange);
+  getTranslate: () => Translate,
+): Panel => new FileCodeSearchPanel(view, onOpenChange, getTranslate);
