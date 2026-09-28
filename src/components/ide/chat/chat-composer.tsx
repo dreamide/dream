@@ -72,6 +72,7 @@ import type {
 } from "@/types/ide";
 import { PromptAttachments } from "../chat";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
+import { ChatComposerInsertContext } from "./chat-composer-insert-context";
 import {
   type ActiveSkillToken,
   findSkillMentions,
@@ -795,6 +796,28 @@ export const ChatComposer = ({
   const modelT = useTranslations("models");
   const settingsT = useTranslations("settings");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Set when a + menu item inserted text, so closing the menu lands the caret
+  // at the end of the prompt instead of back on the + button.
+  const focusPromptOnActionMenuCloseRef = useRef(false);
+  const insertPromptText = useCallback(
+    (text: string) => {
+      const existing = promptText.trimEnd();
+      onPromptTextChange(existing ? [existing, text].join("\n\n") : text);
+      focusPromptOnActionMenuCloseRef.current = true;
+    },
+    [onPromptTextChange, promptText],
+  );
+  const resolveActionMenuFinalFocus = useCallback(() => {
+    if (!focusPromptOnActionMenuCloseRef.current) {
+      return true;
+    }
+    focusPromptOnActionMenuCloseRef.current = false;
+    const textarea = textareaRef.current;
+    requestAnimationFrame(() => {
+      textarea?.setSelectionRange(textarea.value.length, textarea.value.length);
+    });
+    return textarea;
+  }, []);
   const todoPanelId = useId();
   const [projectReferences, setProjectReferences] = useState<
     ProjectReferenceItem[]
@@ -1359,9 +1382,14 @@ export const ChatComposer = ({
                         className="text-muted-foreground hover:text-foreground"
                         tooltip={chatT("attachFile")}
                       />
-                      <PromptInputActionMenuContent side="top">
+                      <PromptInputActionMenuContent
+                        finalFocus={resolveActionMenuFinalFocus}
+                        side="top"
+                      >
                         <PromptInputActionAddAttachments />
-                        {actionMenuItems}
+                        <ChatComposerInsertContext value={insertPromptText}>
+                          {actionMenuItems}
+                        </ChatComposerInsertContext>
                       </PromptInputActionMenuContent>
                     </PromptInputActionMenu>
                   </PromptInputTools>

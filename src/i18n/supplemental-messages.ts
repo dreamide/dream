@@ -82,8 +82,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "Was soll der Agent tun? Der Text wird unverändert an den Chat gesendet.",
       create: "Erstellen",
-      runPrompt: "Prompt ausführen",
-      chatBusy: "Der Chat ist gerade beschäftigt",
+      addPrompt: "Prompt hinzufügen",
+      runPromptHint: "{key}+Klick zum sofortigen Ausführen",
       moveUp: "Nach oben",
       moveDown: "Nach unten",
       deleteConfirm: "Löschen bestätigen",
@@ -282,7 +282,8 @@ export const supplementalMessages = {
       resetIcon: "Zurücksetzen",
       iconUploadHint:
         "Bild hochladen (max. 5 MB). Ohne eigenes Symbol wird automatisch gesucht.",
-      iconSaveFailed: "Symbol konnte nicht geladen werden. Wähle eine gültige Bilddatei bis 5 MB.",
+      iconSaveFailed:
+        "Symbol konnte nicht geladen werden. Wähle eine gültige Bilddatei bis 5 MB.",
       removeIcon: "Symbol entfernen",
       noChatsForProject: "Noch keine Chats für dieses Projekt.",
       noMatchingChats: "Keine passenden Chats gefunden.",
@@ -400,7 +401,8 @@ export const supplementalMessages = {
       pushChanges: "Änderungen pushen",
       sameBranchPrError:
         "Es kann keine Pull-Anfrage von {head} nach {base} erstellt werden. Übertragen Sie stattdessen Änderungen oder wechseln Sie zu einem Feature-Branch.",
-      showingCommits: "Die ersten {shown} von {total} Commits werden angezeigt.",
+      showingCommits:
+        "Die ersten {shown} von {total} Commits werden angezeigt.",
       unableToCommit: "Änderungen können nicht übernommen werden.",
       unableToCommitAndPush:
         "Änderungen können nicht festgeschrieben und übertragen werden.",
@@ -712,8 +714,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "What should the agent do? This is sent to the chat as written.",
       create: "Create",
-      runPrompt: "Run prompt",
-      chatBusy: "The chat is busy",
+      addPrompt: "Add prompt",
+      runPromptHint: "{key}+click to run it now",
       moveUp: "Move up",
       moveDown: "Move down",
       deleteConfirm: "Confirm delete",
@@ -1331,8 +1333,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "¿Qué debe hacer el agente? Se envía al chat tal como está escrito.",
       create: "Crear",
-      runPrompt: "Ejecutar prompt",
-      chatBusy: "El chat está ocupado",
+      addPrompt: "Añadir prompt",
+      runPromptHint: "{key}+clic para ejecutarlo ahora",
       moveUp: "Subir",
       moveDown: "Bajar",
       deleteConfirm: "Confirmar eliminación",
@@ -1526,7 +1528,8 @@ export const supplementalMessages = {
       resetIcon: "Restablecer",
       iconUploadHint:
         "Sube una imagen (hasta 5 MB). Sin icono personalizado, se busca automáticamente.",
-      iconSaveFailed: "No se pudo cargar el icono. Elige una imagen válida de hasta 5 MB.",
+      iconSaveFailed:
+        "No se pudo cargar el icono. Elige una imagen válida de hasta 5 MB.",
       removeIcon: "Quitar icono",
       noChatsForProject: "Aún no hay chats para este proyecto.",
       noMatchingChats: "No se encontraron chats coincidentes.",
@@ -1614,13 +1617,11 @@ export const supplementalMessages = {
       actions: "Acciones de Git",
       aheadAndBehind: "adelante, {behind} detrás",
       autoGenerateMessage: "Generar mensaje automáticamente",
-      autoGeneratePrDetails:
-        "Generar detalles de PR automáticamente",
+      autoGeneratePrDetails: "Generar detalles de PR automáticamente",
       commit: "Confirmar",
       commitAndPush: "Confirmar y enviar",
       commitMessage: "Mensaje de confirmación",
-      commitPushAndCreatePr:
-        "Confirmar, enviar y crear PR",
+      commitPushAndCreatePr: "Confirmar, enviar y crear PR",
       commitTitle: "Confirma tus cambios",
       commits: "Confirmaciones",
       createPr: "Crear PR",
@@ -1646,7 +1647,8 @@ export const supplementalMessages = {
       pushChanges: "Enviar cambios",
       sameBranchPrError:
         "No se puede crear una solicitud de extracción desde {head} a {base}. En su lugar, envíe cambios o cambie a una rama de funciones.",
-      showingCommits: "Mostrando las primeras {shown} de {total} confirmaciones.",
+      showingCommits:
+        "Mostrando las primeras {shown} de {total} confirmaciones.",
       unableToCommit: "No se pueden confirmar los cambios.",
       unableToCommitAndPush: "No se pueden confirmar ni enviar cambios.",
       unableToCreatePr: "No se puede crear una solicitud de extracción.",
@@ -1957,8 +1959,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "Que doit faire l'agent ? Le texte est envoyé tel quel au chat.",
       create: "Créer",
-      runPrompt: "Exécuter un prompt",
-      chatBusy: "Le chat est occupé",
+      addPrompt: "Ajouter un prompt",
+      runPromptHint: "{key}+clic pour l’exécuter maintenant",
       moveUp: "Monter",
       moveDown: "Descendre",
       deleteConfirm: "Confirmer la suppression",
@@ -2153,7 +2155,8 @@ export const supplementalMessages = {
       resetIcon: "Réinitialiser",
       iconUploadHint:
         "Importez une image (5 Mo maximum). Sans icône personnalisée, la recherche est automatique.",
-      iconSaveFailed: "Impossible de charger l’icône. Choisissez une image valide de 5 Mo maximum.",
+      iconSaveFailed:
+        "Impossible de charger l’icône. Choisissez une image valide de 5 Mo maximum.",
       removeIcon: "Supprimer l’icône",
       noChatsForProject: "Aucune discussion pour l'instant pour ce projet.",
       noMatchingChats: "Aucune discussion correspondante trouvée.",
@@ -2583,8 +2586,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "Cosa deve fare l'agente? Il testo viene inviato alla chat così com'è.",
       create: "Crea",
-      runPrompt: "Esegui prompt",
-      chatBusy: "La chat è occupata",
+      addPrompt: "Aggiungi prompt",
+      runPromptHint: "{key}+clic per eseguirlo subito",
       moveUp: "Sposta su",
       moveDown: "Sposta giù",
       deleteConfirm: "Conferma eliminazione",
@@ -2780,7 +2783,8 @@ export const supplementalMessages = {
       resetIcon: "Ripristina",
       iconUploadHint:
         "Carica un’immagine (massimo 5 MB). Senza icona personalizzata, la ricerca è automatica.",
-      iconSaveFailed: "Impossibile caricare l’icona. Scegli un’immagine valida fino a 5 MB.",
+      iconSaveFailed:
+        "Impossibile caricare l’icona. Scegli un’immagine valida fino a 5 MB.",
       removeIcon: "Rimuovi icona",
       noChatsForProject: "Nessuna chat ancora per questo progetto.",
       noMatchingChats: "Nessuna chat corrispondente trovata.",
@@ -3052,7 +3056,8 @@ export const supplementalMessages = {
       estimated: "Stimato",
       exact: "Esatto",
       exitFullscreen: "Esci dalla modalità a schermo intero",
-      failedCount: "{count, plural, one {# non riuscito} other {# non riusciti}}",
+      failedCount:
+        "{count, plural, one {# non riuscito} other {# non riusciti}}",
       input: "Ingresso",
       instructions: "Istruzioni",
       largeMessagePreview:
@@ -3208,8 +3213,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "エージェントに何をさせますか？入力した内容がそのままチャットに送信されます。",
       create: "作成",
-      runPrompt: "プロンプトを実行",
-      chatBusy: "チャットは処理中です",
+      addPrompt: "プロンプトを追加",
+      runPromptHint: "{key}+クリックですぐに実行",
       moveUp: "上へ移動",
       moveDown: "下へ移動",
       deleteConfirm: "削除を確認",
@@ -3361,8 +3366,7 @@ export const supplementalMessages = {
     panels: {
       collapseAll: "すべて折りたたむ",
       collapseFileDiff: "ファイルの差分を折りたたむ",
-      diffLineLimit:
-        "変更行数の上限: {limit} 行。現在: {current} 行。",
+      diffLineLimit: "変更行数の上限: {limit} 行。現在: {current} 行。",
       diffTooLarge: "差分が大きすぎてレンダリングできません",
       expandAll: "すべて展開",
       expandFileDiff: "ファイルの差分を展開します",
@@ -3402,7 +3406,8 @@ export const supplementalMessages = {
       resetIcon: "リセット",
       iconUploadHint:
         "画像をアップロード（最大5 MB）。未設定の場合は自動検索します。",
-      iconSaveFailed: "アイコンを読み込めませんでした。5 MB 以下の有効な画像を選択してください。",
+      iconSaveFailed:
+        "アイコンを読み込めませんでした。5 MB 以下の有効な画像を選択してください。",
       removeIcon: "アイコンを削除",
       noChatsForProject: "このプロジェクトにはまだチャットがありません。",
       noMatchingChats: "一致するチャットが見つかりません。",
@@ -3825,8 +3830,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "에이전트가 무엇을 해야 하나요? 작성한 그대로 채팅에 전송됩니다.",
       create: "만들기",
-      runPrompt: "프롬프트 실행",
-      chatBusy: "채팅이 처리 중입니다",
+      addPrompt: "프롬프트 추가",
+      runPromptHint: "{key}+클릭하면 바로 실행",
       moveUp: "위로 이동",
       moveDown: "아래로 이동",
       deleteConfirm: "삭제 확인",
@@ -3975,8 +3980,7 @@ export const supplementalMessages = {
     panels: {
       collapseAll: "모두 접기",
       collapseFileDiff: "파일 차이점 축소",
-      diffLineLimit:
-        "변경된 줄 수 제한: {limit}줄. 현재: {current}줄.",
+      diffLineLimit: "변경된 줄 수 제한: {limit}줄. 현재: {current}줄.",
       diffTooLarge: "차이가 너무 커서 렌더링할 수 없음",
       expandAll: "모두 펼치기",
       expandFileDiff: "파일 차이점 확장",
@@ -4016,7 +4020,8 @@ export const supplementalMessages = {
       resetIcon: "재설정",
       iconUploadHint:
         "이미지를 업로드하세요(최대 5 MB). 설정하지 않으면 자동 검색합니다.",
-      iconSaveFailed: "아이콘을 불러올 수 없습니다. 5 MB 이하의 올바른 이미지 파일을 선택하세요.",
+      iconSaveFailed:
+        "아이콘을 불러올 수 없습니다. 5 MB 이하의 올바른 이미지 파일을 선택하세요.",
       removeIcon: "아이콘 제거",
       noChatsForProject: "이 프로젝트에 대한 채팅이 아직 없습니다.",
       noMatchingChats: "일치하는 채팅이 없습니다.",
@@ -4434,8 +4439,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "O que o agente deve fazer? O texto é enviado ao chat como está escrito.",
       create: "Criar",
-      runPrompt: "Executar prompt",
-      chatBusy: "O chat está ocupado",
+      addPrompt: "Adicionar prompt",
+      runPromptHint: "{key}+clique para executar agora",
       moveUp: "Mover para cima",
       moveDown: "Mover para baixo",
       deleteConfirm: "Confirmar exclusão",
@@ -4629,7 +4634,8 @@ export const supplementalMessages = {
       resetIcon: "Redefinir",
       iconUploadHint:
         "Envie uma imagem (até 5 MB). Sem ícone personalizado, a busca é automática.",
-      iconSaveFailed: "Não foi possível carregar o ícone. Escolha uma imagem válida de até 5 MB.",
+      iconSaveFailed:
+        "Não foi possível carregar o ícone. Escolha uma imagem válida de até 5 MB.",
       removeIcon: "Remover ícone",
       noChatsForProject: "Ainda não há chats para este projeto.",
       noMatchingChats: "Nenhum bate-papo correspondente encontrado.",
@@ -5053,8 +5059,8 @@ export const supplementalMessages = {
       promptPlaceholder:
         "Tác nhân cần làm gì? Nội dung được gửi vào trò chuyện đúng như đã viết.",
       create: "Tạo",
-      runPrompt: "Chạy prompt",
-      chatBusy: "Cuộc trò chuyện đang bận",
+      addPrompt: "Thêm prompt",
+      runPromptHint: "{key}+nhấp để chạy ngay",
       moveUp: "Chuyển lên",
       moveDown: "Chuyển xuống",
       deleteConfirm: "Xác nhận xóa",
@@ -5248,7 +5254,8 @@ export const supplementalMessages = {
       resetIcon: "Đặt lại",
       iconUploadHint:
         "Tải ảnh lên (tối đa 5 MB). Nếu chưa đặt, biểu tượng sẽ được tìm tự động.",
-      iconSaveFailed: "Không thể tải biểu tượng. Chọn tệp ảnh hợp lệ tối đa 5 MB.",
+      iconSaveFailed:
+        "Không thể tải biểu tượng. Chọn tệp ảnh hợp lệ tối đa 5 MB.",
       removeIcon: "Xóa biểu tượng",
       noChatsForProject: "Chưa có cuộc trò chuyện nào cho dự án này.",
       noMatchingChats: "Không tìm thấy cuộc trò chuyện phù hợp.",
@@ -5661,8 +5668,8 @@ export const supplementalMessages = {
       promptLabel: "提示词",
       promptPlaceholder: "智能体要做什么？内容会原样发送到聊天。",
       create: "创建",
-      runPrompt: "运行提示词",
-      chatBusy: "聊天正忙",
+      addPrompt: "添加提示词",
+      runPromptHint: "{key}+点击立即运行",
       moveUp: "上移",
       moveDown: "下移",
       deleteConfirm: "确认删除",
@@ -6250,8 +6257,8 @@ export const supplementalMessages = {
       promptLabel: "提示詞",
       promptPlaceholder: "代理程式要做什麼？內容會原樣傳送到聊天。",
       create: "建立",
-      runPrompt: "執行提示詞",
-      chatBusy: "聊天忙碌中",
+      addPrompt: "新增提示詞",
+      runPromptHint: "{key}+點擊立即執行",
       moveUp: "上移",
       moveDown: "下移",
       deleteConfirm: "確認刪除",
@@ -6384,7 +6391,8 @@ export const supplementalMessages = {
       tasksProgress: "任務{progress}",
       alreadyStreaming: "聊天回覆已開始傳輸。",
       enableModelFirst: "首先在「設定」中啟用至少一個模型。",
-      notInActiveProject: "此聊天已不在目前使用中的專案內。請切換回該專案並重試。",
+      notInActiveProject:
+        "此聊天已不在目前使用中的專案內。請切換回該專案並重試。",
       providerCliUnavailable: "{provider} CLI 不可用。檢查設定 > 提供者。",
       unableToContinueInTerminal: "無法在終端機中繼續此聊天。",
       unexpectedError: "發生意外錯誤。檢查開發者控制台以了解詳細資訊。",

@@ -1,4 +1,4 @@
-import { Play, Settings2 } from "lucide-react";
+import { MessageSquarePlus, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   DropdownMenuItem,
@@ -7,18 +7,26 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useChatComposerInsert } from "../chat/chat-composer-insert-context";
 import { useIdeStore } from "../ide-store";
 import { useChatAcceptsSavedPrompt } from "./use-chat-accepts-saved-prompt";
 
+const RUN_MODIFIER_KEY =
+  typeof navigator !== "undefined" && /Mac/i.test(navigator.platform)
+    ? "Cmd"
+    : "Ctrl";
+
 export interface RunSavedPromptSubmenuProps {
-  /** The chat whose composer this sits in; a picked saved prompt is sent to it. */
+  /** The chat whose composer this sits in; Ctrl+click sends a saved prompt to it. */
   chatId: string;
   projectId: string;
 }
 
 /**
- * "Run prompt" in the composer's + menu: sends a saved prompt to this chat. The
- * prompts themselves are managed in Settings.
+ * "Add prompt" in the composer's + menu: inserts a saved prompt into the composer
+ * so it can be edited before sending. Ctrl+click (Cmd+click on macOS) sends it to
+ * this chat right away instead, when the chat can take it. The prompts themselves
+ * are managed in Settings.
  */
 export const RunSavedPromptSubmenu = ({
   chatId,
@@ -30,16 +38,13 @@ export const RunSavedPromptSubmenu = ({
   const setSettingsSection = useIdeStore((state) => state.setSettingsSection);
   const setSettingsOpen = useIdeStore((state) => state.setSettingsOpen);
   const accepts = useChatAcceptsSavedPrompt(chatId);
+  const insertPromptText = useChatComposerInsert();
 
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger
-        className="min-w-44 whitespace-nowrap"
-        disabled={!accepts}
-        title={accepts ? undefined : t("chatBusy")}
-      >
-        <Play className="mr-2 size-3.5" />
-        <span className="truncate">{t("runPrompt")}</span>
+      <DropdownMenuSubTrigger className="min-w-44 whitespace-nowrap">
+        <MessageSquarePlus className="mr-2 size-3.5" />
+        <span className="truncate">{t("addPrompt")}</span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-max min-w-56 max-w-80">
         {savedPrompts.length === 0 ? (
@@ -51,7 +56,16 @@ export const RunSavedPromptSubmenu = ({
             <DropdownMenuItem
               className="flex-col items-start gap-0.5 text-xs"
               key={savedPrompt.id}
-              onClick={() => runSavedPrompt(projectId, savedPrompt.id, chatId)}
+              onClick={(event) => {
+                // A busy chat cannot take a run, so Ctrl+click falls back to
+                // inserting rather than dropping the prompt.
+                if ((event.ctrlKey || event.metaKey) && accepts) {
+                  runSavedPrompt(projectId, savedPrompt.id, chatId);
+                } else {
+                  insertPromptText?.(savedPrompt.prompt);
+                }
+              }}
+              title={t("runPromptHint", { key: RUN_MODIFIER_KEY })}
             >
               <span className="max-w-72 truncate font-medium">
                 {savedPrompt.name}
