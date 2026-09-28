@@ -1637,7 +1637,7 @@ const FileExplorerPanelImpl = ({
           <div className="min-h-0 flex-1 overflow-hidden">
             {!selectedFilePath ? (
               <div className="h-full p-3">
-                <AppShellPlaceholder message={panelsT("selectFileToOpen")} />
+                <AppShellPlaceholder message={panelsT("noFileSelected")} />
               </div>
             ) : selectedFilePreviewMessage ? (
               <div className="h-full p-3">

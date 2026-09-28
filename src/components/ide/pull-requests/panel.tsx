@@ -16,7 +16,7 @@ import {
   GitMerge,
   GitPullRequest,
   Pencil,
-  RefreshCw,
+  RotateCw,
   Rows3,
   TextWrap,
 } from "lucide-react";
@@ -54,14 +54,12 @@ import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useProjectGitStatus } from "@/hooks/use-project-git-status";
-import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig, ProjectGitStatusEntry } from "@/types/ide";
 import type { DiffViewMode } from "../changes";
 import { FileChangeHeader } from "../changes/file-change-header";
 import { IdeDiffViewer } from "../diff-viewer";
-import { CreatePrDialog } from "../git-actions/create-pr-dialog";
+import { AppShellPlaceholder } from "../ide-helpers";
 import { useIdeStore } from "../ide-store";
 import { RightPanelHeaderIconButton } from "../right-panel-header-icon-button";
 import {
@@ -951,7 +949,7 @@ function Files({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={onRefresh}>
-              <RefreshCw className="size-4" />
+              <RotateCw className="size-4" />
               Refresh
             </DropdownMenuItem>
             <DropdownMenuCheckboxItem
@@ -1315,46 +1313,6 @@ function Detail({
   );
 }
 
-function CreatePullRequest({
-  project,
-  close,
-  completed,
-}: {
-  project: ProjectConfig;
-  close: () => void;
-  completed: () => void;
-}) {
-  const settings = useIdeStore((s) => s.settings);
-  const refreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
-  );
-  const selection = getDefaultGitGenerationModelSelection(settings);
-  const { branch, status } = useProjectGitStatus(project.path, refreshKey, {
-    detail: "full",
-  });
-  const bump = useIdeStore((s) => s.bumpProjectGitRefreshKey);
-  const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
-  return (
-    <CreatePrDialog
-      open
-      branch={branch}
-      status={status}
-      projectPath={project.path}
-      refreshToken={refreshKey}
-      {...selection}
-      onOpenChange={(open) => {
-        if (!open) close();
-      }}
-      onCompleted={(url, openOnGitHub) => {
-        bump(project.id);
-        if (url && openOnGitHub) openExternalUrl(url);
-        completed();
-        close();
-      }}
-    />
-  );
-}
-
 export function PullRequestsPanel({
   project,
   active = true,
@@ -1369,7 +1327,6 @@ export function PullRequestsPanel({
   );
   const context = usePullRequestContext(project.path, refreshKey, active);
   const [revision, setRevision] = useState(0);
-  const [create, setCreate] = useState(false);
   const [mergeTarget, setMergeTarget] = useState<{
     repository: string;
     number: number;
@@ -1380,6 +1337,7 @@ export function PullRequestsPanel({
     context.refresh();
     setRevision((n) => n + 1);
   };
+  const panelsT = useTranslations("panels");
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-[50px] shrink-0 items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-2">
@@ -1423,7 +1381,7 @@ export function PullRequestsPanel({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuItem onClick={refresh}>
-              <RefreshCw className="size-4" />
+              <RotateCw className="size-4" />
               Refresh
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -1452,21 +1410,8 @@ export function PullRequestsPanel({
           />
         </div>
       ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-          <GitPullRequest className="size-8 text-muted-foreground/50" />
-          <h2 className="text-sm font-medium">
-            No pull request for this branch
-          </h2>
-          <p className="max-w-xs break-words text-xs text-muted-foreground">
-            {context.data?.branch
-              ? `Create a pull request for ${context.data.branch} to review it here.`
-              : "Check out a branch to view its pull request."}
-          </p>
-          {context.data?.branch ? (
-            <Button size="sm" variant="outline" onClick={() => setCreate(true)}>
-              Create pull request
-            </Button>
-          ) : null}
+        <div className="flex-1 min-h-0">
+          <AppShellPlaceholder message={panelsT("noPullRequestForBranch")} />
         </div>
       )}
       {mergeTarget ? (
@@ -1477,13 +1422,6 @@ export function PullRequestsPanel({
           number={mergeTarget.number}
           onClose={() => setMergeTarget(null)}
           onMerged={refresh}
-        />
-      ) : null}
-      {create ? (
-        <CreatePullRequest
-          project={project}
-          close={() => setCreate(false)}
-          completed={refresh}
         />
       ) : null}
     </div>

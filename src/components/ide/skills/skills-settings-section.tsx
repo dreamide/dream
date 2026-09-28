@@ -1,4 +1,4 @@
-import { FolderGit2, FolderOpen, Package, Plus, RefreshCw } from "lucide-react";
+import { FolderGit2, FolderOpen, Package, Plus, RotateCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
@@ -217,7 +217,7 @@ export const SkillsSettingsSection = () => {
             {isLoading ? (
               <Spinner className="size-4" />
             ) : (
-              <RefreshCw className="size-4" />
+              <RotateCw className="size-4" />
             )}
             {t("refresh")}
           </Button>
