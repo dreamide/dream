@@ -500,8 +500,8 @@ export const ChatPanel = ({
             id={conversationContentDomId}
             className={
               messages.length === 0
-                ? "mx-auto flex min-h-full w-full max-w-[700px] flex-col px-0 pt-3"
-                : "relative mx-auto block w-full max-w-[700px] px-0 pt-3"
+                ? "mx-auto flex min-h-full w-full max-w-[700px] flex-col px-0 pt-6"
+                : "relative mx-auto block w-full max-w-[700px] px-0 pt-6"
             }
             style={{ paddingBottom: CHAT_CONTENT_BOTTOM_PADDING_PX }}
           >
