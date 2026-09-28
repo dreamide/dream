@@ -10,6 +10,7 @@ export const createPanelActions = (
   | "setPanelSizes"
   | "setProjectPanelSizes"
   | "setProjectChatHistoryPanelOpen"
+  | "setProjectGitLogPanelOpen"
   | "setProjectRightPanelOpen"
   | "setProjectRightPanelView"
   | "setAppView"
@@ -102,6 +103,23 @@ export const createPanelActions = (
         chatHistoryPanelOpen: open,
       })),
     }));
+  },
+
+  setProjectGitLogPanelOpen: (projectId, open) => {
+    set((state) => {
+      if (
+        (state.projectGitLogPanelOpenByProject[projectId] ?? false) === open
+      ) {
+        return state;
+      }
+
+      return {
+        projectGitLogPanelOpenByProject: {
+          ...state.projectGitLogPanelOpenByProject,
+          [projectId]: open,
+        },
+      };
+    });
   },
 
   setProjectRightPanelOpen: (projectId, open) => {

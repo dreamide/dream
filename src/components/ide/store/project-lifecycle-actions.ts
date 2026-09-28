@@ -693,11 +693,15 @@ export const createProjectLifecycleActions = (
         const nextProjectTerminalPanelOpenByProject = {
           ...state.projectTerminalPanelOpenByProject,
         };
+        const nextProjectGitLogPanelOpenByProject = {
+          ...state.projectGitLogPanelOpenByProject,
+        };
         const nextBrowserLoading = { ...state.browserLoading };
         const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
         const browserTabs = state.browserTabsByProject[projectId] ?? [];
 
         delete nextProjectGitRefreshKeys[projectId];
+        delete nextProjectGitLogPanelOpenByProject[projectId];
         delete nextProjectFilesRefreshKeys[projectId];
         delete nextProjectFileOpenRequests[projectId];
         delete nextTerminalOrdinalByProject[projectId];
@@ -768,6 +772,7 @@ export const createProjectLifecycleActions = (
             nextActiveTerminalSessionIdByProject,
           projectTerminalPanelOpenByProject:
             nextProjectTerminalPanelOpenByProject,
+          projectGitLogPanelOpenByProject: nextProjectGitLogPanelOpenByProject,
           browserLoading: nextBrowserLoading,
           draftChatIdByProject: nextDraftChatIdByProject,
           projectGitRefreshKeys: nextProjectGitRefreshKeys,

@@ -132,6 +132,12 @@ export const projectGitPushPreviewRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
 
+export const projectGitLogRequestSchema = z.object({
+  limit: z.number().int().min(1).max(500).optional().default(100),
+  projectPath: z.string().min(1),
+  skip: z.number().int().min(0).optional().default(0),
+});
+
 export const projectGitCreatePullRequestSchema = z.object({
   baseBranch: nullableTrimmedStringSchema,
   commitMessage: nullableTrimmedStringSchema,

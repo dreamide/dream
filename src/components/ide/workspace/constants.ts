@@ -16,6 +16,10 @@ export const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 export const CHAT_HISTORY_PANEL_DEFAULT_WIDTH_PX = 400;
 export const CHAT_HISTORY_PANEL_MAX_WIDTH_PX = 500;
 export const CHAT_HISTORY_PANEL_MIN_WIDTH_PX = 200;
+export const GIT_LOG_PANEL_DEFAULT_WIDTH_PX =
+  DEFAULT_PANEL_SIZES.gitLogPanelWidth;
+export const GIT_LOG_PANEL_MAX_WIDTH_PX = 600;
+export const GIT_LOG_PANEL_MIN_WIDTH_PX = 260;
 
 /** Duration (ms) for panel slide animations. */
 export const PANEL_TRANSITION_MS = 200;
@@ -29,6 +33,12 @@ export const SLIDING_PANEL_TRANSITION = `transform ${PANEL_TRANSITION_MS}ms cubi
 // Keep the active chat, a small recent set, and every actively streaming chat.
 // Open split-view chats are retained separately by useMountedProjectChats.
 export const CHAT_KEEP_ALIVE_LIMIT = 3;
+
+export const clampGitLogPanelWidth = (width: number) =>
+  Math.max(
+    GIT_LOG_PANEL_MIN_WIDTH_PX,
+    Math.min(GIT_LOG_PANEL_MAX_WIDTH_PX, width),
+  );
 
 export const clampChatHistoryPanelWidth = (width: number) =>
   Math.max(

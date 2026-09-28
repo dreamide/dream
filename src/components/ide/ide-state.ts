@@ -310,6 +310,14 @@ const normalizePanelSizes = (
         200,
       ),
     ),
+    gitLogPanelWidth: Math.min(
+      600,
+      normalizePanelSize(
+        (panelSizes as Partial<typeof DEFAULT_PANEL_SIZES>).gitLogPanelWidth,
+        fallback.gitLogPanelWidth,
+        260,
+      ),
+    ),
     leftSidebarWidth: normalizePanelSize(
       (panelSizes as Partial<typeof DEFAULT_PANEL_SIZES>).leftSidebarWidth,
       fallback.leftSidebarWidth,

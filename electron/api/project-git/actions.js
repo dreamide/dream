@@ -946,6 +946,75 @@ export const readGitPushPreviewCommits = async (repoRoot, rangeRef) => {
     .map(parseGitPushPreviewCommit);
 };
 
+const GIT_LOG_FIELD_SEPARATOR = "\x1f";
+const GIT_LOG_RECORD_SEPARATOR = "\x1e";
+
+const parseGitLogRefs = (value) =>
+  value
+    .split(",")
+    .map((ref) => ref.trim())
+    .filter(Boolean)
+    .map((ref) => ref.replace(/^HEAD -> /, ""))
+    .filter((ref) => ref !== "HEAD" && !ref.endsWith("/HEAD"));
+
+const parseGitLogRecord = (record) => {
+  const [
+    hash = "",
+    shortHash = "",
+    subject = "",
+    authorName = "",
+    authorEmail = "",
+    authorDate = "",
+    refs = "",
+  ] = record.split(GIT_LOG_FIELD_SEPARATOR);
+
+  return {
+    authorDate,
+    authorEmail,
+    authorName,
+    hash,
+    refs: parseGitLogRefs(refs),
+    shortHash,
+    subject,
+  };
+};
+
+export const getProjectGitLog = async (
+  projectPath,
+  { limit = 100, skip = 0 } = {},
+) => {
+  const repoInfo = await ensureProjectGitRepository(projectPath);
+  // Read one extra commit to learn whether another page exists.
+  const result = await runGitCommand(
+    repoInfo.repoRoot,
+    [
+      "log",
+      `--max-count=${limit + 1}`,
+      `--skip=${skip}`,
+      "--decorate=short",
+      `--pretty=format:%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%aI%x1f%D%x1e`,
+      "HEAD",
+    ],
+    { allowFailure: true },
+  );
+
+  // A repository without commits has no HEAD to walk.
+  if (!result.ok) {
+    return { commits: [], hasMore: false };
+  }
+
+  const commits = result.stdout
+    .split(GIT_LOG_RECORD_SEPARATOR)
+    .map((record) => record.replace(/^\r?\n/, ""))
+    .filter((record) => record.trim())
+    .map(parseGitLogRecord);
+
+  return {
+    commits: commits.slice(0, limit),
+    hasMore: commits.length > limit,
+  };
+};
+
 export const getProjectGitPushPreview = async (
   projectPath,
   { branch: requestedBranch = "" } = {},

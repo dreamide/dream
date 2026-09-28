@@ -94,6 +94,7 @@ export const DEFAULT_PANEL_VISIBILITY: PanelVisibility = {
 
 export const DEFAULT_PANEL_SIZES: PanelSizes = {
   chatHistoryPanelWidth: 400,
+  gitLogPanelWidth: 400,
   leftSidebarWidth: 240,
   rightPanelWidth: 520,
   terminalHeight: 260,

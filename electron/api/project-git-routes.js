@@ -13,6 +13,7 @@ import {
   generateProjectPullRequestDetails,
   getProjectGitDiff,
   getProjectGitFileAtHead,
+  getProjectGitLog,
   getProjectGitPushPreview,
   getProjectGitWorktreeCompareDiff,
   listProjectDirectory,
@@ -33,6 +34,7 @@ import {
   projectGitCreatePullRequestSchema,
   projectGitCreateWorktreeRequestSchema,
   projectGitDiffRequestSchema,
+  projectGitLogRequestSchema,
   projectGitPullRequestDetailsRequestSchema,
   projectGitPushPreviewRequestSchema,
   projectGitPushRequestSchema,
@@ -614,6 +616,31 @@ export const registerProjectGitRoutes = (app) => {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unable to preview push.";
+      return c.text(message, 400);
+    }
+  });
+
+  app.post("/api/project-git-log", async (c) => {
+    let rawBody;
+    try {
+      rawBody = await c.req.json();
+    } catch {
+      return c.text("Invalid JSON payload.", 400);
+    }
+
+    const parsed = projectGitLogRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return c.text(parsed.error.message, 400);
+    }
+
+    const { limit, projectPath, skip } = parsed.data;
+
+    try {
+      await ensureProjectDirectory(projectPath);
+      return c.json(await getProjectGitLog(projectPath, { limit, skip }));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to read Git history.";
       return c.text(message, 400);
     }
   });

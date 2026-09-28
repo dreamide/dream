@@ -601,6 +601,11 @@ function buildProjectMetadata(project) {
       "chatHistoryPanelWidth",
       getNestedNumber(existingPanelSizes, "chatHistoryPanelWidth", 400),
     ),
+    gitLogPanelWidth: getNestedNumber(
+      projectPanelSizes,
+      "gitLogPanelWidth",
+      getNestedNumber(existingPanelSizes, "gitLogPanelWidth", 400),
+    ),
     leftSidebarWidth: getNestedNumber(
       projectPanelSizes,
       "leftSidebarWidth",
@@ -1247,6 +1252,11 @@ function loadStateFromRelationalDatabase(database) {
         chatHistoryPanelWidth: getNestedNumber(
           getNestedRecord(ui, "panelSizes"),
           "chatHistoryPanelWidth",
+          400,
+        ),
+        gitLogPanelWidth: getNestedNumber(
+          getNestedRecord(ui, "panelSizes"),
+          "gitLogPanelWidth",
           400,
         ),
         leftSidebarWidth: getNestedNumber(

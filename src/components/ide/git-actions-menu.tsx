@@ -4,6 +4,7 @@ import {
   GitCommitHorizontal,
   GitMerge,
   GitPullRequest,
+  SquareText,
   UploadCloud,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -153,6 +154,12 @@ const GitActionsMenuImpl = ({
   const setProjectRightPanelView = useIdeStore(
     (s) => s.setProjectRightPanelView,
   );
+  const setProjectChatHistoryPanelOpen = useIdeStore(
+    (s) => s.setProjectChatHistoryPanelOpen,
+  );
+  const setProjectGitLogPanelOpen = useIdeStore(
+    (s) => s.setProjectGitLogPanelOpen,
+  );
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
   const settings = useIdeStore((s) => s.settings);
   const gitGenerationModelSelection = useMemo(
@@ -186,6 +193,11 @@ const GitActionsMenuImpl = ({
     setProjectRightPanelView(projectId, "changes");
     setProjectRightPanelOpen(projectId, true);
   }, [projectId, setProjectRightPanelOpen, setProjectRightPanelView]);
+
+  const handleOpenLog = useCallback(() => {
+    setProjectChatHistoryPanelOpen(projectId, false);
+    setProjectGitLogPanelOpen(projectId, true);
+  }, [projectId, setProjectChatHistoryPanelOpen, setProjectGitLogPanelOpen]);
 
   const handleMenuOpenChange = useCallback(
     (open: boolean) => {
@@ -267,6 +279,11 @@ const GitActionsMenuImpl = ({
             {commonT("changes")}
             <GitMenuDeltaSummary status={status} />
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleOpenLog}>
+            <SquareText className="size-4" />
+            {gitT("viewLog")}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={!hasGitChanges}
             onClick={() => handleOpenDialog("commit")}

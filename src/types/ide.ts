@@ -235,6 +235,7 @@ export interface PanelVisibility {
 
 export interface PanelSizes {
   chatHistoryPanelWidth: number;
+  gitLogPanelWidth: number;
   leftSidebarWidth: number;
   rightPanelWidth: number;
   terminalHeight: number;
@@ -678,6 +679,21 @@ export interface ProjectGitPushPreviewCommit {
   hash: string;
   shortHash: string;
   subject: string;
+}
+
+export interface ProjectGitLogCommit {
+  authorDate: string;
+  authorEmail: string;
+  authorName: string;
+  hash: string;
+  refs: string[];
+  shortHash: string;
+  subject: string;
+}
+
+export interface ProjectGitLogResponse {
+  commits: ProjectGitLogCommit[];
+  hasMore: boolean;
 }
 
 export interface ProjectGitPushPreviewResponse {
