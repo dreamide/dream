@@ -66,7 +66,7 @@ export const SavedPromptsSettingsSection = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h3 className="font-medium text-sm">{t("title")}</h3>
+          <h3 className="font-medium text-base">{t("title")}</h3>
           <p className="text-muted-foreground text-sm">{t("description")}</p>
         </div>
         <Button

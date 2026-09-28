@@ -976,7 +976,7 @@ export const SettingsWorkspace = () => {
                 <div className="space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h3 className="font-medium text-sm">
+                      <h3 className="font-medium text-base">
                         {commonT("providers")}
                       </h3>
                       {providerModels.fetchedAt ? (
@@ -1433,7 +1433,7 @@ export const SettingsWorkspace = () => {
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="space-y-1">
-                        <h3 className="font-medium text-sm">
+                        <h3 className="font-medium text-base">
                           {settingsT("archivedChats")}
                         </h3>
                         <p className="text-muted-foreground text-sm">

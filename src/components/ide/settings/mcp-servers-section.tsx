@@ -120,7 +120,7 @@ export const McpServersSection = ({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h3 className="font-medium text-sm">{settingsT("mcpServers")}</h3>
+          <h3 className="font-medium text-base">{settingsT("mcpServers")}</h3>
           <p className="text-muted-foreground text-sm">
             {settingsT("mcpServersDescription")}
           </p>
