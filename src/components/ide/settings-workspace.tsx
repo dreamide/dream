@@ -637,7 +637,7 @@ export const SettingsWorkspace = () => {
             style={SETTINGS_CONTENT_TOP_FADE_STYLE}
           />
           <div className="h-full overflow-y-auto">
-            <div className="mx-auto w-full max-w-5xl space-y-4 p-3 pt-6">
+            <div className="mx-auto w-full max-w-5xl space-y-4 p-3 pt-6 pb-12">
               {settingsSection === "mcp" && mcpView.kind !== "list" ? (
                 <button
                   className="-ml-3 rounded-md border border-transparent px-3 py-2 text-left font-medium text-muted-foreground text-sm outline-none transition-colors hover:text-foreground focus-visible:border-ring"

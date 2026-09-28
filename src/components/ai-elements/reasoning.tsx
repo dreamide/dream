@@ -237,14 +237,6 @@ export const ReasoningContent = memo(
     );
     const [animateStreamedText, setAnimateStreamedText] = useState(false);
 
-    // Track whether this component was ever in a streaming state so that
-    // already-visible text keeps its animation styles after streaming stops,
-    // while historical messages (never streamed) render instantly.
-    const hasStreamedRef = useRef(isStreaming);
-    if (isStreaming) {
-      hasStreamedRef.current = true;
-    }
-
     const keepTextAnimationActive = useCallback(
       (settleAfterFinalTick: boolean) => {
         if (animationTimeoutIdRef.current !== null) {
@@ -264,48 +256,44 @@ export const ReasoningContent = memo(
       [],
     );
 
+    // Flush synchronously when a later part arrives, even inside a collapsible
+    // group or while a reveal transition is still pending.
+    const renderedChildren = isStreaming ? visibleChildren : children;
+    const isTextAnimating = isStreaming && animateStreamedText;
     const markdownText = useMemo(
-      () => normalizeCodeFenceLanguageMarkers(visibleChildren),
-      [visibleChildren],
+      () => normalizeCodeFenceLanguageMarkers(renderedChildren),
+      [renderedChildren],
     );
-    const rawMarkdownAnimationStartOffset = animationStartOffsetRef.current;
+    const rawMarkdownAnimationStartOffset = isTextAnimating
+      ? animationStartOffsetRef.current
+      : renderedChildren.length;
     const markdownAnimationStartOffset = useMemo(
       () =>
         normalizeCodeFenceLanguageMarkers(
-          visibleChildren.slice(0, rawMarkdownAnimationStartOffset),
+          renderedChildren.slice(0, rawMarkdownAnimationStartOffset),
         ).length,
-      [rawMarkdownAnimationStartOffset, visibleChildren],
+      [rawMarkdownAnimationStartOffset, renderedChildren],
     );
     const streamingMarkdownBlockContext: StreamingMarkdownBlockContextValue = {
-      animateStreamedText,
+      animateStreamedText: isTextAnimating,
       markdownAnimationStartOffset,
       markdownText,
     };
 
     useEffect(() => {
-      if (isStreaming) {
-        hasStreamedRef.current = true;
-      }
-
       if (revealTimeoutIdRef.current !== null) {
         clearTimeout(revealTimeoutIdRef.current);
         revealTimeoutIdRef.current = null;
-      }
-
-      if (!hasStreamedRef.current) {
-        if (visibleChildrenRef.current !== children) {
-          animationStartOffsetRef.current = children.length;
-          visibleChildrenRef.current = children;
-          setVisibleChildren(children);
-        }
-        setAnimateStreamedText(false);
-        return;
       }
 
       // A reasoning part stops being the active streaming part as soon as a
       // later tool call or text part arrives. Flush any reveal backlog at that
       // point so newer content never renders ahead of older reasoning text.
       if (!isStreaming) {
+        if (animationTimeoutIdRef.current !== null) {
+          clearTimeout(animationTimeoutIdRef.current);
+          animationTimeoutIdRef.current = null;
+        }
         animationStartOffsetRef.current = children.length;
         visibleChildrenRef.current = children;
         setVisibleChildren(children);
@@ -330,9 +318,6 @@ export const ReasoningContent = memo(
         const currentText = visibleChildrenRef.current;
 
         if (currentText === children) {
-          if (!isStreaming) {
-            keepTextAnimationActive(true);
-          }
           return;
         }
 
@@ -349,14 +334,6 @@ export const ReasoningContent = memo(
         const frame = getNextStreamingFrame(currentText, children, isStreaming);
 
         if (frame.nextText === currentText) {
-          if (!isStreaming) {
-            animationStartOffsetRef.current = children.length;
-            visibleChildrenRef.current = children;
-            keepTextAnimationActive(true);
-            startTransition(() => {
-              setVisibleChildren(children);
-            });
-          }
           return;
         }
 
@@ -419,7 +396,7 @@ export const ReasoningContent = memo(
           >
             <StreamdownReasoningRenderer
               BlockComponent={StreamingMarkdownBlock}
-              isAnimating={animateStreamedText}
+              isAnimating={isTextAnimating}
             >
               {markdownText}
             </StreamdownReasoningRenderer>

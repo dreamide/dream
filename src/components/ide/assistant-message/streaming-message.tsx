@@ -982,7 +982,6 @@ export const StreamingMessageResponse = ({
   projectPath: string;
   text: string;
 }) => {
-  const hasStreamedRef = useRef(isStreaming);
   const visibleTextRef = useRef(isStreaming ? "" : text);
   const animationStartOffsetRef = useRef(0);
   const animationTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -1011,14 +1010,15 @@ export const StreamingMessageResponse = ({
   );
 
   useEffect(() => {
-    if (isStreaming) {
-      hasStreamedRef.current = true;
-    }
-    if (!hasStreamedRef.current) {
-      if (visibleTextRef.current !== text) {
-        visibleTextRef.current = text;
-        setVisibleText(text);
+    if (!isStreaming) {
+      if (animationTimeoutIdRef.current !== null) {
+        clearTimeout(animationTimeoutIdRef.current);
+        animationTimeoutIdRef.current = null;
       }
+      animationStartOffsetRef.current = text.length;
+      visibleTextRef.current = text;
+      setVisibleText(text);
+      setAnimateStreamedText(false);
       return;
     }
 
@@ -1060,25 +1060,32 @@ export const StreamingMessageResponse = ({
     };
   }, []);
 
+  // A later part (including a grouped tool call) must flush this part in the
+  // same render. Do not wait for effects or a pending text transition.
+  const renderedText = isStreaming ? visibleText : text;
+  const isTextAnimating = isStreaming && animateStreamedText;
+  const animationStartOffset = isTextAnimating
+    ? animationStartOffsetRef.current
+    : renderedText.length;
   const markdownText = useMemo(
     () =>
-      visibleText.length > MAX_STREAMDOWN_MARKDOWN_CHARS
-        ? visibleText
-        : normalizeProjectFileLinksInMarkdown(visibleText, projectPath),
-    [projectPath, visibleText],
+      renderedText.length > MAX_STREAMDOWN_MARKDOWN_CHARS
+        ? renderedText
+        : normalizeProjectFileLinksInMarkdown(renderedText, projectPath),
+    [projectPath, renderedText],
   );
   const markdownAnimationStartOffset = useMemo(
     () =>
-      visibleText.length > MAX_STREAMDOWN_MARKDOWN_CHARS
+      renderedText.length > MAX_STREAMDOWN_MARKDOWN_CHARS
         ? 0
         : normalizeProjectFileLinksInMarkdown(
-            visibleText.slice(0, animationStartOffsetRef.current),
+            renderedText.slice(0, animationStartOffset),
             projectPath,
           ).length,
-    [projectPath, visibleText],
+    [animationStartOffset, projectPath, renderedText],
   );
   const streamingMarkdownBlockContext: StreamingMarkdownBlockContextValue = {
-    animateStreamedText,
+    animateStreamedText: isTextAnimating,
     markdownAnimationStartOffset,
     markdownText,
   };
@@ -1099,7 +1106,7 @@ export const StreamingMessageResponse = ({
       <MessageResponse
         BlockComponent={StreamingMarkdownBlock}
         components={markdownComponents}
-        isAnimating={animateStreamedText}
+        isAnimating={isTextAnimating}
       >
         {markdownText}
       </MessageResponse>
