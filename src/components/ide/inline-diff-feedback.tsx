@@ -163,9 +163,7 @@ export function InlineDiffFeedback({
       });
       cancel();
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : chatT("sendFailed"),
-      );
+      setError(cause instanceof Error ? cause.message : chatT("sendFailed"));
     }
   };
 
@@ -248,7 +246,9 @@ export function InlineDiffFeedback({
               <div className="flex shrink-0 items-center self-end pr-2 pb-0.5">
                 <PromptInputSubmit
                   aria-label={chatT("sendMessage")}
-                  title={busy ? browserT("feedbackChatBusy") : chatT("sendMessage")}
+                  title={
+                    busy ? browserT("feedbackChatBusy") : chatT("sendMessage")
+                  }
                   className="size-8 rounded-md bg-surface-900 text-surface-50 hover:bg-surface-800 dark:bg-surface-200 dark:text-surface-900 dark:hover:bg-surface-300"
                   disabled={!comment.trim() || !destination || busy}
                 />

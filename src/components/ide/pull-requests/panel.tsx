@@ -432,9 +432,7 @@ function Comment({
           <strong className="font-medium text-foreground">
             {comment.user.login}
           </strong>
-          {comment.state ? (
-            <span>{reviewLabel(comment.state)}</span>
-          ) : null}
+          {comment.state ? <span>{reviewLabel(comment.state)}</span> : null}
           <time
             dateTime={submitted ? date : undefined}
             title={
@@ -758,8 +756,8 @@ function FileDiff({
                 ? "pullRequests.oldLine"
                 : "pullRequests.newLine",
               { line: selection.line },
-            )} ·{" "}
-            {pr.commit.slice(0, 8)}
+            )}{" "}
+            · {pr.commit.slice(0, 8)}
           </p>
           <Composer
             key={`${pr.commit}:${file.filename}:${selection.side}:${selection.line}`}
