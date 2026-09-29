@@ -105,7 +105,7 @@ const TOOL_GROUP_META: Record<
   mcp: {
     Icon: NetworkIcon,
     labelKey: "mcp",
-    tone: "sky",
+    tone: "teal",
   },
   read: {
     Icon: EyeIcon,

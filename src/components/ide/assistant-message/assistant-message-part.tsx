@@ -555,7 +555,7 @@ const GenericToolChip = ({
           )}
           hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
-          tone={tone}
+          tone={isAskUserQuestion ? "amber" : tone}
           type="button"
         >
           <ToolIcon className="size-3.5 shrink-0" />
@@ -596,8 +596,17 @@ const GenericToolChip = ({
 
       {expanded ? (
         <div
-          className={getExpandedChipClasses(tone, hasError)}
-          style={{ borderColor: "currentColor" }}
+          className={cn(
+            getExpandedChipClasses(tone, hasError),
+            isAskUserQuestion &&
+              !hasError &&
+              "border-amber-300 dark:border-amber-700",
+          )}
+          style={
+            isAskUserQuestion && !hasError
+              ? undefined
+              : { borderColor: "currentColor" }
+          }
         >
           {hasAskUserQuestionSummary ? (
             <AskUserQuestionSummary items={askUserQuestionSummary} />

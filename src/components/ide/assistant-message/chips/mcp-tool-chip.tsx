@@ -61,7 +61,7 @@ export const McpToolChip = ({
           )}
           hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
-          tone="sky"
+          tone="teal"
           type="button"
         >
           <NetworkIcon className="size-3.5 shrink-0" />
@@ -92,7 +92,7 @@ export const McpToolChip = ({
       ) : null}
       {expanded ? (
         <div
-          className={getExpandedChipClasses("sky", hasError)}
+          className={getExpandedChipClasses("teal", hasError)}
           style={{ borderColor: "currentColor" }}
         >
           {isRecord(part.input) ? (

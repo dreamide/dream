@@ -38,7 +38,7 @@ const STATUS_BADGE_CLASSNAMES: Record<CheckpointChangeStatus, string> = {
   deleted:
     "bg-rose-50 text-rose-600 ring-rose-200 dark:bg-destructive-surface dark:text-rose-300 dark:ring-destructive-border-strong",
   modified:
-    "bg-surface-100 text-muted-foreground ring-surface-300 dark:bg-surface-800 dark:ring-surface-700",
+    "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-900",
   renamed:
     "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:ring-sky-900",
 };
