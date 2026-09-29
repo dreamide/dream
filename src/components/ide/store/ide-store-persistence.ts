@@ -130,7 +130,7 @@ export const createPersistedIdeState = ({
 
     const messageCount =
       messagesByChatId[chat.id]?.length ?? chat.messageCount ?? 0;
-    if (messageCount > 0) {
+    if (messageCount > 0 || chat.pinned) {
       return true;
     }
 

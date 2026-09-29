@@ -168,6 +168,7 @@ export const ChatPanel = ({
   const providerModels = useIdeStore((s) => s.providerModels);
   const updateChat = useIdeStore((s) => s.updateChat);
   const deleteChat = useIdeStore((s) => s.deleteChat);
+  const toggleChatPinned = useIdeStore((s) => s.toggleChatPinned);
   const addProjectTerminal = useIdeStore((s) => s.addProjectTerminal);
   const localError = useChatRuntimeStore(
     (s) => s.errorByChatId[chat.id] ?? null,
@@ -479,6 +480,8 @@ export const ChatPanel = ({
             chatMenuOpen={chatMenuOpen}
             continueInTerminalDisabled={isProcessing}
             isTitleGenerating={isTitleGenerating}
+            isPinned={chat.pinned}
+            onTogglePinned={() => toggleChatPinned(chat.id)}
             onCloseChat={onCloseChat}
             onChatMenuOpenChange={setChatMenuOpen}
             onDeleteChat={() => deleteChat(chat.id)}

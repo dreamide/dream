@@ -601,6 +601,7 @@ const normalizeChat = (
     rawChat.metadata && typeof rawChat.metadata === "object"
       ? (rawChat.metadata as {
           branchedFrom?: unknown;
+          pinned?: unknown;
           permissions?: { mode?: unknown };
           modelSelection?: { agentMode?: unknown };
           sparklesPalette?: unknown;
@@ -648,6 +649,7 @@ const normalizeChat = (
       legacyPermissionMode,
     ),
     projectId: chat.projectId,
+    pinned: (rawChat.pinned ?? rawMetadata.pinned) === true,
     provider,
     reasoningEffort: normalizeReasoningEffort(chat.reasoningEffort),
     remoteConversationId:

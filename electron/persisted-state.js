@@ -707,6 +707,7 @@ function buildChatMetadata(chat) {
         : 0,
     modelSelection,
     permissions,
+    pinned: (chat.pinned ?? metadata.pinned) === true,
     remoteConversation,
     sparklesPalette: normalizeSparklesPaletteName(
       chat.sparklesPalette ?? metadata.sparklesPalette,
@@ -1340,6 +1341,7 @@ function loadStateFromRelationalDatabase(database) {
               getNestedString(modelSelection, "agentMode", "build"),
             ),
       projectId: row.project_id,
+      pinned: metadata.pinned === true,
       provider: getNestedString(modelSelection, "provider", "openai"),
       reasoningEffort: getNestedString(modelSelection, "reasoningEffort", null),
       remoteConversationId: getNestedNullableString(remoteConversation, "id"),

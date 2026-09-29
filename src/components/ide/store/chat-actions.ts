@@ -31,6 +31,7 @@ export const createChatActions = (
   | "setActiveChatId"
   | "updateChat"
   | "archiveInactiveChats"
+  | "toggleChatPinned"
   | "deleteChat"
   | "permanentlyDeleteChats"
   | "restoreChats"
@@ -342,6 +343,11 @@ export const createChatActions = (
     }));
   },
 
+  toggleChatPinned: (chatId: string) => {
+    get().updateChat(chatId, (chat) => ({ ...chat, pinned: !chat.pinned }));
+    get().persist();
+  },
+
   archiveInactiveChats: () => {
     const state = get();
     const days = state.settings.archiveChatsAfterDays;
@@ -354,6 +360,7 @@ export const createChatActions = (
       .filter((chat) => {
         if (
           chat.deletedAt !== null ||
+          chat.pinned ||
           state.streamingChatIds[chat.id] ||
           state.titleGeneratingChatIds[chat.id]
         ) {

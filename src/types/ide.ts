@@ -48,6 +48,7 @@ export interface ChatConfig {
   id: string;
   messageCount: number;
   permissionMode: ChatPermissionMode;
+  pinned: boolean;
   projectId: string;
   title: string;
   provider: AiProvider;

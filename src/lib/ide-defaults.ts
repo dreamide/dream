@@ -182,6 +182,7 @@ export const createChatConfig = (
     model: overrides?.model ?? project.model,
     modelSpeed: overrides?.modelSpeed ?? project.modelSpeed,
     permissionMode: overrides?.permissionMode ?? "full-access",
+    pinned: false,
     projectId: project.id,
     provider: overrides?.provider ?? project.provider,
     reasoningEffort:

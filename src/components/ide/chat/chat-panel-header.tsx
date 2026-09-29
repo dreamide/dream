@@ -2,6 +2,8 @@ import {
   Archive,
   Ellipsis,
   FilePenLine,
+  Pin,
+  PinOff,
   SquareTerminal,
   X,
 } from "lucide-react";
@@ -22,6 +24,8 @@ export interface ChatPanelHeaderProps {
   chatMenuOpen: boolean;
   continueInTerminalDisabled?: boolean;
   isTitleGenerating?: boolean;
+  isPinned: boolean;
+  onTogglePinned: () => void;
   onCloseChat?: () => void;
   onChatMenuOpenChange: (open: boolean) => void;
   /** Absent when the chat cannot be deleted on its own (task chats). */
@@ -38,6 +42,8 @@ export const ChatPanelHeader = ({
   chatMenuOpen,
   continueInTerminalDisabled = false,
   isTitleGenerating = false,
+  isPinned,
+  onTogglePinned,
   onCloseChat,
   onChatMenuOpenChange,
   onDeleteChat,
@@ -48,6 +54,7 @@ export const ChatPanelHeader = ({
 }: ChatPanelHeaderProps) => {
   const chatT = useTranslations("chat");
   const commonT = useTranslations("common");
+  const projectsT = useTranslations("projects");
   const isShowingGeneratedTitlePlaceholder =
     isTitleGenerating && title.trim().toLowerCase() === "new chat";
   const titleText = isShowingGeneratedTitlePlaceholder ? "" : title;
@@ -123,6 +130,14 @@ export const ChatPanelHeader = ({
                   <DropdownMenuItem onClick={onEditChat}>
                     <FilePenLine className="size-4" />
                     {commonT("edit")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onTogglePinned}>
+                    {isPinned ? (
+                      <PinOff className="size-4" />
+                    ) : (
+                      <Pin className="size-4" />
+                    )}
+                    {projectsT(isPinned ? "unpinChat" : "pinChat")}
                   </DropdownMenuItem>
                   {onDeleteChat ? (
                     <DropdownMenuItem onClick={onDeleteChat}>

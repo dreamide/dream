@@ -180,6 +180,7 @@ export interface IdeState {
     updater: (chat: ChatConfig) => ChatConfig,
   ) => void;
   archiveInactiveChats: () => number;
+  toggleChatPinned: (chatId: string) => void;
   deleteChat: (chatId: string) => void;
   permanentlyDeleteChats: (chatIds: string[]) => void;
   restoreChats: (chatIds: string[]) => void;

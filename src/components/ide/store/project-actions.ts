@@ -26,6 +26,7 @@ export const createProjectActions = (
   | "setActiveChatId"
   | "updateChat"
   | "archiveInactiveChats"
+  | "toggleChatPinned"
   | "deleteChat"
   | "permanentlyDeleteChats"
   | "restoreChats"

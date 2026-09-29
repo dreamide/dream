@@ -1,4 +1,4 @@
-import { Archive, FolderTree, FolderX } from "lucide-react";
+import { Archive, FolderTree, FolderX, Pin, PinOff } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,7 @@ export const ProjectSidebar = ({
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
   const deleteChat = useIdeStore((s) => s.deleteChat);
+  const toggleChatPinned = useIdeStore((s) => s.toggleChatPinned);
   const addProject = useIdeStore((s) => s.addProject);
   const removeWorktreeProject = useIdeStore((s) => s.removeWorktreeProject);
   const bumpProjectGitRefreshKey = useIdeStore(
@@ -150,9 +151,12 @@ export const ProjectSidebar = ({
         (chat) =>
           chat.projectId === project.id &&
           chat.deletedAt === null &&
-          chat.messageCount > 0,
+          (chat.messageCount > 0 || chat.pinned),
       )
       .sort((left, right) => {
+        const pinnedOrder =
+          Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
+        if (pinnedOrder !== 0) return pinnedOrder;
         const leftUpdated = Date.parse(left.updatedAt);
         const rightUpdated = Date.parse(right.updatedAt);
         if (Number.isNaN(leftUpdated) || Number.isNaN(rightUpdated)) {
@@ -406,7 +410,13 @@ export const ProjectSidebar = ({
                       }}
                       type="button"
                     >
-                      <div className="flex min-w-0 items-center gap-2 pr-12">
+                      <div className="flex min-w-0 items-center gap-2 pr-16">
+                        {chat.pinned ? (
+                          <Pin
+                            aria-label={projectsT("pinnedChat")}
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                          />
+                        ) : null}
                         {statusIndicator ? (
                           <div className="flex size-4 shrink-0 items-center justify-center">
                             {statusIndicator}
@@ -426,6 +436,31 @@ export const ProjectSidebar = ({
                       </span>
                     </button>
                     <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+                      <Button
+                        aria-label={projectsT(
+                          chat.pinned ? "unpinNamedChat" : "pinNamedChat",
+                          { name: chat.title },
+                        )}
+                        aria-pressed={chat.pinned}
+                        className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (event.detail > 0) {
+                            event.currentTarget.blur();
+                          }
+                          toggleChatPinned(chat.id);
+                        }}
+                        size="icon-sm"
+                        title={projectsT(chat.pinned ? "unpinChat" : "pinChat")}
+                        type="button"
+                        variant="ghost"
+                      >
+                        {chat.pinned ? (
+                          <PinOff className="size-3.5" />
+                        ) : (
+                          <Pin className="size-3.5" />
+                        )}
+                      </Button>
                       <Button
                         aria-label={projectsT("archiveNamedChat", {
                           name: chat.title,
