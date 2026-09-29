@@ -21,7 +21,7 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
-  getExpandedChipClasses,
+  ChipContent,
   getNumberFromPaths,
   getStringFromPaths,
   inferLanguage,
@@ -174,10 +174,7 @@ export const ReadFileChip = ({
         ) : null}
       </ChipButton>
       {expanded ? (
-        <div
-          className={getExpandedChipClasses("emerald", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="emerald">
           {hasError ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
               {part.errorText}
@@ -233,7 +230,7 @@ export const ReadFileChip = ({
           ) : hasRawOutput ? (
             <JsonBlock value={output} />
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

@@ -18,7 +18,7 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
-  getExpandedChipClasses,
+  ChipContent,
   getStringFromPaths,
   isRecord,
   isString,
@@ -102,10 +102,7 @@ export const TaskOutputChip = ({
         ) : null}
       </ChipButton>
       {expanded ? (
-        <div
-          className={getExpandedChipClasses("cyan", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="cyan">
           {parametersCode !== null || resultCode !== null ? (
             <div className="overflow-hidden rounded-md border bg-background">
               {parametersCode !== null ? (
@@ -151,7 +148,7 @@ export const TaskOutputChip = ({
               ) : null}
             </div>
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

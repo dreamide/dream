@@ -12,7 +12,7 @@ import {
   ApprovalStatusLabel,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
-  getExpandedChipClasses,
+  ChipContent,
   getStringFromPaths,
   isRecord,
   isString,
@@ -156,10 +156,7 @@ export const WebFetchChip = ({
         </ActionApproval>
       ) : null}
       {expanded ? (
-        <div
-          className={getExpandedChipClasses("indigo", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="indigo">
           {isRecord(part.input) ? (
             <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -197,7 +194,7 @@ export const WebFetchChip = ({
           ) : hasRawOutput ? (
             <JsonBlock value={part.output} />
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

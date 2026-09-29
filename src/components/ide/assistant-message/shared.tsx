@@ -284,11 +284,26 @@ export const CHIP_TONE_CLASSES = {
 export type ChipTone = keyof typeof CHIP_TONE_CLASSES;
 export const getChipToneClasses = (tone: ChipTone, hasError: boolean) =>
   hasError ? CHIP_ERROR_CLASSES : CHIP_TONE_CLASSES[tone].button;
-export const getExpandedChipClasses = (tone: ChipTone, hasError: boolean) =>
-  cn(
-    "mt-2 space-y-2 border-l pl-2",
-    hasError ? "text-destructive" : CHIP_TONE_CLASSES[tone].expanded,
-  );
+export const ChipContent = ({
+  className,
+  hasError = false,
+  style,
+  tone,
+  ...props
+}: ComponentProps<"div"> & {
+  hasError?: boolean;
+  tone: ChipTone;
+}) => (
+  <div
+    {...props}
+    className={cn(
+      "mt-2 space-y-2 border-l pl-2",
+      hasError ? "text-destructive" : CHIP_TONE_CLASSES[tone].expanded,
+      className,
+    )}
+    style={{ ...style, borderColor: "currentColor" }}
+  />
+);
 export const CHIP_DETAIL_HEADER_CLASSES =
   "shrink-0 border-0 bg-transparent px-3 py-2 text-[12px]";
 export const RUN_COMMAND_HEADER_CLASSES =

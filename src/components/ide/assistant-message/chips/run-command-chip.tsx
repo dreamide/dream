@@ -18,8 +18,8 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
+  ChipContent,
   getCommandWithoutShellPrefix,
-  getExpandedChipClasses,
   isRecord,
   isString,
   JsonBlock,
@@ -152,10 +152,7 @@ export const RunCommandChip = ({
         </ActionApproval>
       ) : null}
       {expanded ? (
-        <div
-          className={getExpandedChipClasses("lime", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="lime">
           {hasError ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
               {part.errorText}
@@ -206,7 +203,7 @@ export const RunCommandChip = ({
           ) : hasRawOutput ? (
             <JsonBlock value={output} />
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

@@ -11,8 +11,8 @@ import {
   ApprovalStatusLabel,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
+  ChipContent,
   formatToolName,
-  getExpandedChipClasses,
   isRecord,
   isString,
   JsonBlock,
@@ -91,10 +91,7 @@ export const McpToolChip = ({
         </ActionApproval>
       ) : null}
       {expanded ? (
-        <div
-          className={getExpandedChipClasses("teal", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="teal">
           {isRecord(part.input) ? (
             <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -131,7 +128,7 @@ export const McpToolChip = ({
               )}
             </div>
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

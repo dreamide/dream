@@ -35,9 +35,9 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
+  ChipContent,
   formatWriteOutputMessage,
   getDiffStats,
-  getExpandedChipClasses,
   getFilePathFromOutputText,
   getStringFromPaths,
   getWriteFileStateLabel,
@@ -840,10 +840,7 @@ export const WriteFileChip = ({
         </ActionApproval>
       ) : null}
       {showFileDetails ? (
-        <div
-          className={getExpandedChipClasses("violet", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="violet">
           {/* Error */}
           {hasError ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
@@ -1040,7 +1037,7 @@ export const WriteFileChip = ({
           ) : hasOutput ? (
             <JsonBlock value={output} />
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

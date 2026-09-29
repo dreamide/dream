@@ -10,9 +10,9 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
+  ChipContent,
   formatToolName,
   getAgentOutputText,
-  getExpandedChipClasses,
   getStringFromPaths,
   isRecord,
   isString,
@@ -88,10 +88,7 @@ export const AgentChip = ({
         ) : null}
       </ChipButton>
       {expanded ? (
-        <div
-          className={getExpandedChipClasses("slate", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="slate">
           {hasInput ? (
             <div className="space-y-2 rounded-md bg-surface-50 dark:bg-surface-900 p-3">
               <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -126,7 +123,7 @@ export const AgentChip = ({
           ) : hasRawOutput ? (
             <JsonBlock value={part.output} />
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

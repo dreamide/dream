@@ -37,8 +37,8 @@ import {
   ActionApproval,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
+  ChipContent,
   formatToolName,
-  getExpandedChipClasses,
   getStringFromPaths,
   isRecord,
   isString,
@@ -466,7 +466,7 @@ const GenericToolChip = ({
     : isPlanModeTool
       ? MapIcon
       : WrenchIcon;
-  const tone = isAskUserQuestion ? "base" : "slate";
+  const tone = isAskUserQuestion ? "amber" : "slate";
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const isCompleted = state === "output-available" || state === "output-error";
@@ -555,7 +555,7 @@ const GenericToolChip = ({
           )}
           hasError={hasError}
           onClick={() => canExpand && setExpanded(!expanded)}
-          tone={isAskUserQuestion ? "amber" : tone}
+          tone={tone}
           type="button"
         >
           <ToolIcon className="size-3.5 shrink-0" />
@@ -595,19 +595,7 @@ const GenericToolChip = ({
       ) : null}
 
       {expanded ? (
-        <div
-          className={cn(
-            getExpandedChipClasses(tone, hasError),
-            isAskUserQuestion &&
-              !hasError &&
-              "border-amber-300 dark:border-amber-700",
-          )}
-          style={
-            isAskUserQuestion && !hasError
-              ? undefined
-              : { borderColor: "currentColor" }
-          }
-        >
+        <ChipContent hasError={hasError} tone={tone}>
           {hasAskUserQuestionSummary ? (
             <AskUserQuestionSummary items={askUserQuestionSummary} />
           ) : parametersCode !== null || outputCode !== null ? (
@@ -633,7 +621,7 @@ const GenericToolChip = ({
               ) : null}
             </div>
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );

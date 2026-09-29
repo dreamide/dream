@@ -8,9 +8,9 @@ import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
+  ChipContent,
   FileTree,
   FileTreeNodeView,
-  getExpandedChipClasses,
   isRecord,
   isString,
   JsonBlock,
@@ -147,10 +147,7 @@ export const ListFilesChip = ({
         ) : null}
       </ChipButton>
       {expanded ? (
-        <div
-          className={getExpandedChipClasses("amber", hasError)}
-          style={{ borderColor: "currentColor" }}
-        >
+        <ChipContent hasError={hasError} tone="amber">
           {hasError ? (
             <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md bg-destructive-surface p-3 text-destructive text-xs">
               {part.errorText}
@@ -168,7 +165,7 @@ export const ListFilesChip = ({
           ) : hasRawOutput ? (
             <JsonBlock value={output} />
           ) : null}
-        </div>
+        </ChipContent>
       ) : null}
     </div>
   );
