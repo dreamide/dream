@@ -74,8 +74,9 @@ const getAskUserQuestionPayloadFromPart = (part: MessagePart) => {
 
 /**
  * Carries answers the user already gave (found in `sourceMessages`) over to
- * `messages`, so a final assistant message from the stream does not reset an
- * answered question back to pending.
+ * `messages`, so stream updates and persisted history merges do not reset an
+ * answered question back to pending. Already synchronized parts retain their
+ * references to avoid redundant transcript flushes.
  */
 export const preserveAskUserQuestionAnswers = (
   messages: UIMessage[],
@@ -118,6 +119,16 @@ export const preserveAskUserQuestionAnswers = (
       const approvalId = getAskUserQuestionApprovalId(part);
       const payload = approvalId ? answersByApprovalId.get(approvalId) : null;
       if (!approvalId || !payload) {
+        return part;
+      }
+
+      const currentPayload = getAskUserQuestionPayloadFromPart(part);
+      if (
+        part.state === "output-available" &&
+        part.approval?.approved === true &&
+        currentPayload?.answers === payload.answers &&
+        (!payload.reason || part.approval.reason === payload.reason)
+      ) {
         return part;
       }
 

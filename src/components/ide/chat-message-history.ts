@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { preserveAskUserQuestionAnswers } from "./chat/ask-user-question-answers";
 
 const getPartTextLength = (part: UIMessage["parts"][number]) => {
   if ("text" in part && typeof part.text === "string") {
@@ -74,7 +75,7 @@ const canAcceptNextHistory = (
   });
 };
 
-export const mergeChatMessageHistories = (
+const mergeMessageHistoriesByContent = (
   previousMessages: UIMessage[] | undefined,
   nextMessages: UIMessage[],
 ) => {
@@ -126,4 +127,22 @@ export const mergeChatMessageHistories = (
   }
 
   return changed ? mergedMessages : previousMessages;
+};
+
+export const mergeChatMessageHistories = (
+  previousMessages: UIMessage[] | undefined,
+  nextMessages: UIMessage[],
+) => {
+  const mergedMessages = mergeMessageHistoriesByContent(
+    previousMessages,
+    nextMessages,
+  );
+
+  // An answer can be shorter than the original question input. Preserve it
+  // whichever history wins the content-length comparison, including when a
+  // stale stream snapshot arrives after the answer has already been saved.
+  return preserveAskUserQuestionAnswers(mergedMessages, [
+    ...(previousMessages ?? []),
+    ...nextMessages,
+  ]);
 };
