@@ -1103,11 +1103,54 @@ const normalizeClaudeUsageWindow = (entry, label) => {
   };
 };
 
-const normalizeClaudeUsageLimits = (payload) =>
-  [
+const getClaudeScopedLimitName = (scope) => {
+  const name =
+    scope?.model?.display_name ??
+    scope?.model?.id ??
+    scope?.surface?.display_name ??
+    scope?.surface?.id ??
+    scope?.surface;
+  return typeof name === "string" && name.trim() ? name.trim() : null;
+};
+
+// Model-scoped weekly limits (e.g. Fable) only appear in the `limits` array.
+const normalizeClaudeScopedWeeklyLimits = (limits) => {
+  if (!Array.isArray(limits)) {
+    return [];
+  }
+
+  return limits
+    .filter((entry) => entry?.kind === "weekly_scoped")
+    .map((entry) => {
+      const name = getClaudeScopedLimitName(entry.scope);
+      if (!name) {
+        return null;
+      }
+
+      return normalizeClaudeUsageWindow(
+        { resets_at: entry.resets_at, utilization: entry.percent },
+        `${name} weekly limit`,
+      );
+    })
+    .filter(Boolean);
+};
+
+export const normalizeClaudeUsageLimits = (payload) => {
+  const windows = [
     normalizeClaudeUsageWindow(payload?.five_hour, "5h limit"),
     normalizeClaudeUsageWindow(payload?.seven_day, "Weekly limit"),
+    ...normalizeClaudeScopedWeeklyLimits(payload?.limits),
   ].filter(Boolean);
+  const seenLabels = new Set();
+
+  return windows.filter((window) => {
+    if (seenLabels.has(window.label)) {
+      return false;
+    }
+    seenLabels.add(window.label);
+    return true;
+  });
+};
 
 export const fetchAnthropicUsageLimits = async () => {
   const credentials = await readClaudeCredentials();

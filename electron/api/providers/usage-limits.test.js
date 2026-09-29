@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
+  normalizeClaudeUsageLimits,
   normalizeGrokUsageLimits,
   normalizeOpenCodeGoUsageLimits,
 } from "./usage-limits.js";
@@ -167,4 +168,61 @@ test("normalizes OpenCode Go usage payload into limit windows", () => {
 test("returns no OpenCode Go limit windows for an empty payload", () => {
   assert.deepEqual(normalizeOpenCodeGoUsageLimits(null), []);
   assert.deepEqual(normalizeOpenCodeGoUsageLimits({ usage: {} }), []);
+});
+
+test("includes Claude model-scoped weekly limits such as Fable", () => {
+  const result = normalizeClaudeUsageLimits({
+    five_hour: {
+      resets_at: "2026-09-29T00:20:00.493021+00:00",
+      utilization: 8,
+    },
+    limits: [
+      {
+        group: "session",
+        kind: "session",
+        percent: 8,
+        resets_at: "2026-09-29T00:20:00.493021+00:00",
+        scope: null,
+      },
+      {
+        group: "weekly",
+        kind: "weekly_all",
+        percent: 31,
+        resets_at: "2026-10-01T14:00:00.493051+00:00",
+        scope: null,
+      },
+      {
+        group: "weekly",
+        kind: "weekly_scoped",
+        percent: 34,
+        resets_at: "2026-10-01T14:00:00.493271+00:00",
+        scope: { model: { display_name: "Fable", id: null }, surface: null },
+      },
+    ],
+    seven_day: {
+      resets_at: "2026-10-01T14:00:00.493051+00:00",
+      utilization: 31,
+    },
+  });
+
+  assert.deepEqual(result, [
+    {
+      label: "5h limit",
+      resetAfterSeconds: null,
+      resetAt: "2026-09-29T00:20:00.493Z",
+      usedPercent: 8,
+    },
+    {
+      label: "Weekly limit",
+      resetAfterSeconds: null,
+      resetAt: "2026-10-01T14:00:00.493Z",
+      usedPercent: 31,
+    },
+    {
+      label: "Fable weekly limit",
+      resetAfterSeconds: null,
+      resetAt: "2026-10-01T14:00:00.493Z",
+      usedPercent: 34,
+    },
+  ]);
 });
