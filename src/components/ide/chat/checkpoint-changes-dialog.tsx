@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { ApiError, apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type {
   CheckpointChangeEntry,
@@ -24,10 +25,8 @@ import type {
   CheckpointChangesResponse,
   CheckpointDiffResponse,
   CheckpointRestoreMode,
-  CheckpointRestoreResponse,
   CheckpointRestoreResult,
 } from "@/types/ide";
-import { readResponseText } from "../changes/changes-row";
 import { IdeDiffViewer } from "../diff-viewer";
 import { MaterialFileIcon } from "../material-file-icon";
 import { flushProjectPanelRefresh } from "../project-panel-refresh";
@@ -58,13 +57,6 @@ type DiffState = {
   error: string | null;
   loading: boolean;
 };
-
-const postJson = (route: string, body: unknown) =>
-  fetch(route, {
-    body: JSON.stringify(body),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
 
 export interface CheckpointChangesDialogProps {
   chatId: string;
@@ -111,16 +103,7 @@ export const CheckpointChangesDialog = ({
       setLoadError(null);
       setNotFound(false);
       try {
-        const response = await postJson("/api/checkpoint-changes", requestBody);
-        if (response.status === 404) {
-          setNotFound(true);
-          setChanges(null);
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(await readResponseText(response, t("loadFailed")));
-        }
-        const data = (await response.json()) as CheckpointChangesResponse;
+        const data = await apiClient.checkpointChanges(requestBody);
         setChanges(data);
         if (resetSelection) {
           setSelected(
@@ -138,7 +121,12 @@ export const CheckpointChangesDialog = ({
         }
       } catch (error) {
         setChanges(null);
-        setLoadError(error instanceof Error ? error.message : t("loadFailed"));
+        // The checkpoint's snapshots were cleaned up.
+        if (error instanceof ApiError && error.status === 404) {
+          setNotFound(true);
+          return;
+        }
+        setLoadError(getApiErrorMessage(error, t("loadFailed")));
       } finally {
         setLoading(false);
       }
@@ -164,15 +152,11 @@ export const CheckpointChangesDialog = ({
         [file.filePath]: { data: null, error: null, loading: true },
       }));
       try {
-        const response = await postJson("/api/checkpoint-diff", {
+        const data = await apiClient.checkpointDiff({
           ...requestBody,
           filePath: file.filePath,
           previousPath: file.previousPath,
         });
-        if (!response.ok) {
-          throw new Error(await readResponseText(response, t("loadFailed")));
-        }
-        const data = (await response.json()) as CheckpointDiffResponse;
         setDiffs((previous) => ({
           ...previous,
           [file.filePath]: { data, error: null, loading: false },
@@ -182,7 +166,7 @@ export const CheckpointChangesDialog = ({
           ...previous,
           [file.filePath]: {
             data: null,
-            error: error instanceof Error ? error.message : t("loadFailed"),
+            error: getApiErrorMessage(error, t("loadFailed")),
             loading: false,
           },
         }));
@@ -231,15 +215,11 @@ export const CheckpointChangesDialog = ({
       setRestoring(true);
       setRestoreError(null);
       try {
-        const response = await postJson("/api/checkpoint-restore", {
+        const data = await apiClient.checkpointRestore({
           ...requestBody,
           filePaths,
           mode,
         });
-        if (!response.ok) {
-          throw new Error(await readResponseText(response, t("restoreFailed")));
-        }
-        const data = (await response.json()) as CheckpointRestoreResponse;
         setResults((previous) => {
           const byPath = new Map(previous.map((r) => [r.filePath, r]));
           for (const result of data.results) {
@@ -253,9 +233,7 @@ export const CheckpointChangesDialog = ({
           await loadChanges({ resetSelection: false });
         }
       } catch (error) {
-        setRestoreError(
-          error instanceof Error ? error.message : t("restoreFailed"),
-        );
+        setRestoreError(getApiErrorMessage(error, t("restoreFailed")));
       } finally {
         setRestoring(false);
       }

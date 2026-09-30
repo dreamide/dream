@@ -1,7 +1,7 @@
+import { apiClient } from "@/lib/api-client";
 import type {
   AiProvider,
   ModelSpeed,
-  ProjectGitCommitMessageResponse,
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
   ReasoningEffort,
@@ -39,11 +39,6 @@ type WarmCommitMessageForStatusParams = WarmCommitMessageParams & {
 
 const commitMessageCache = new Map<string, string>();
 const commitMessageRequests = new Map<string, Promise<string>>();
-
-const readResponseText = async (response: Response): Promise<string> => {
-  const text = await response.text();
-  return text.trim() || response.statusText || String(response.status);
-};
 
 export const getCommitChanges = (
   status: ProjectGitStatusResponse | null,
@@ -114,24 +109,14 @@ export const generateCachedProjectCommitMessage = (
   }
 
   const request = (async () => {
-    const response = await fetch("/api/project-git-commit-message", {
-      body: JSON.stringify({
-        includeUnstaged: params.includeUnstaged,
-        model: params.model,
-        modelSpeed: params.modelSpeed,
-        projectPath: params.projectPath,
-        provider: params.provider,
-        reasoningEffort: params.reasoningEffort,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
+    const payload = await apiClient.gitCommitMessage({
+      includeUnstaged: params.includeUnstaged,
+      model: params.model,
+      modelSpeed: params.modelSpeed,
+      projectPath: params.projectPath,
+      provider: params.provider,
+      reasoningEffort: params.reasoningEffort,
     });
-
-    if (!response.ok) {
-      throw new Error(await readResponseText(response));
-    }
-
-    const payload = (await response.json()) as ProjectGitCommitMessageResponse;
     return payload.commitMessage.trim();
   })();
 
@@ -195,16 +180,6 @@ export const warmProjectCommitMessage = async ({
   refreshToken,
 }: WarmCommitMessageParams) => {
   try {
-    const statusResponse = await fetch("/api/project-git-status", {
-      body: JSON.stringify({ projectPath }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-
-    if (!statusResponse.ok) {
-      throw new Error(await readResponseText(statusResponse));
-    }
-
     return await warmProjectCommitMessageForStatus({
       includeUnstaged,
       model,
@@ -213,7 +188,7 @@ export const warmProjectCommitMessage = async ({
       provider,
       reasoningEffort,
       refreshToken,
-      status: (await statusResponse.json()) as ProjectGitStatusResponse,
+      status: await apiClient.gitStatus({ projectPath }),
     });
   } catch {
     return "";

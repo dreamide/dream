@@ -17,10 +17,12 @@ import {
 } from ".";
 import { requestChatCheckpointCleanup } from "./checkpoint-cleanup";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type { StoreActionDependencies } from "./project-lifecycle-actions";
 
 export const createChatActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
+  { api }: StoreActionDependencies = {},
 ): Pick<
   IdeState,
   | "addChat"
@@ -463,6 +465,7 @@ export const createChatActions = (
       requestChatCheckpointCleanup(
         current.chats.filter((chat) => idsToDelete.has(chat.id)),
         [...current.projects, ...current.closedProjects],
+        api,
       );
     }
 

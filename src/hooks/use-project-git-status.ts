@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
+import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import type { ProjectGitStatusResponse } from "@/types/ide";
 
 type ProjectGitStatusCacheEntry = {
@@ -41,14 +42,6 @@ const subscribeToGitStatusCache = (cacheKey: string, listener: () => void) => {
       gitStatusCacheListeners.delete(cacheKey);
     }
   };
-};
-
-const readResponseText = async (
-  response: Response,
-  fallback: string,
-): Promise<string> => {
-  const text = await response.text();
-  return text.trim() || fallback;
 };
 
 const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
@@ -114,35 +107,21 @@ export const useProjectGitStatus = (
         if (!request || force) {
           request = (async () => {
             try {
-              const response = await fetch("/api/project-git-status", {
-                body: JSON.stringify({ detail, projectPath }),
-                headers: { "Content-Type": "application/json" },
-                method: "POST",
-              });
-
-              if (!response.ok) {
-                throw new Error(
-                  await readResponseText(
-                    response,
-                    uiT("requestFailedStatus", { status: response.status }),
-                  ),
-                );
-              }
-
               const entry: ProjectGitStatusCacheEntry = {
                 error: null,
                 refreshToken,
-                status: (await response.json()) as ProjectGitStatusResponse,
+                status: await apiClient.gitStatus({ detail, projectPath }),
               };
               gitStatusCache.set(cacheKey, entry);
               notifyGitStatusCacheListeners(cacheKey);
               return entry;
             } catch (error) {
               const entry: ProjectGitStatusCacheEntry = {
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : uiT("failedToReadGitStatus"),
+                error: getApiErrorMessage(
+                  error,
+                  uiT("failedToReadGitStatus"),
+                  (status) => uiT("requestFailedStatus", { status }),
+                ),
                 refreshToken,
                 status: null,
               };

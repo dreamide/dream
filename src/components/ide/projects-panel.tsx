@@ -14,12 +14,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusDot } from "@/components/ui/status-dot";
+import { apiClient, isAbortError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type {
   ChatConfig,
   ProjectConfig,
   ProjectGitWorktreeInfo,
-  ProjectGitWorktreesResponse,
   ProjectWorktreeInfo,
 } from "@/types/ide";
 import { formatLastActiveTime } from "./activity-time";
@@ -39,19 +39,10 @@ const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
     const loadWorktrees = async () => {
       setLoading(true);
       try {
-        const response = await fetch("/api/project-git-worktrees", {
-          body: JSON.stringify({ projectPath }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: abortController.signal,
-        });
-        if (!response.ok) {
-          setWorktrees([]);
-          setRepoPaths(null);
-          return;
-        }
-
-        const payload = (await response.json()) as ProjectGitWorktreesResponse;
+        const payload = await apiClient.gitWorktrees(
+          { projectPath },
+          { signal: abortController.signal },
+        );
         if (abortController.signal.aborted) {
           return;
         }
@@ -74,7 +65,8 @@ const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
             ),
         );
       } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
+        // Not a repository, or git failed: no worktrees to list.
+        if (!isAbortError(error)) {
           setWorktrees([]);
           setRepoPaths(null);
         }

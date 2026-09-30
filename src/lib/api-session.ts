@@ -51,8 +51,10 @@ function setHeader(
 
 /**
  * Patches `window.fetch` so that same-origin `/api/*` requests automatically
- * include the per-launch API session token header. This is installed once at
- * renderer startup; existing fetch call sites do not need to change.
+ * include the per-launch API session token header. Installed once at
+ * renderer startup. The route client (api-client.ts) sets the header itself;
+ * this covers the requests it does not make: the AI SDK chat transport and
+ * raw file loads.
  */
 export function installApiSessionGuard(): void {
   if (typeof window === "undefined") {

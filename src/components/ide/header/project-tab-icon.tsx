@@ -1,8 +1,6 @@
 import { type ReactNode, useEffect, useState } from "react";
+import { fetchApiBlob, getProjectFileRawUrl } from "@/lib/api-client";
 import type { ProjectIconInfo } from "@/types/ide";
-
-const getProjectIconUrl = (projectPath: string, iconPath: string) =>
-  `/api/project-file-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(iconPath)}`;
 
 const getProjectIconCacheKey = (projectPath: string, icon: ProjectIconInfo) =>
   `${projectPath}\x00${icon.path}\x00${icon.mtimeMs}`;
@@ -25,14 +23,7 @@ const loadProjectIcon = (projectPath: string, icon: ProjectIconInfo) => {
     return pendingLoad;
   }
 
-  const load = fetch(getProjectIconUrl(projectPath, icon.path))
-    .then(async (response) => {
-      if (!response.ok) {
-        throw new Error(`Unable to load project icon: ${response.status}`);
-      }
-
-      return response.blob();
-    })
+  const load = fetchApiBlob(getProjectFileRawUrl(projectPath, icon.path))
     .then((blob) => {
       const objectUrl = URL.createObjectURL(blob);
       projectIconObjectUrls.set(cacheKey, objectUrl);

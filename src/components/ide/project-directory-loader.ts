@@ -1,14 +1,13 @@
-export type ProjectDirectoryEntryKind = "directory" | "file" | "symlink";
+import type {
+  ProjectDirectoryEntry,
+  ProjectDirectoryResponse,
+} from "@/lib/api-client";
 
-export interface ProjectDirectoryEntry {
-  kind: ProjectDirectoryEntryKind;
-  path: string;
-}
-
-export interface ProjectDirectoryResponse {
-  directory: string;
-  entries: ProjectDirectoryEntry[];
-}
+export type {
+  ProjectDirectoryEntry,
+  ProjectDirectoryEntryKind,
+  ProjectDirectoryResponse,
+} from "@/lib/api-client";
 
 export interface ProjectDirectoryLoadContext {
   generation: number;

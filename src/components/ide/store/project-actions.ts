@@ -1,12 +1,16 @@
 import { createChatActions } from "./chat-actions";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { createProjectLifecycleActions } from "./project-lifecycle-actions";
+import {
+  createProjectLifecycleActions,
+  type StoreActionDependencies,
+} from "./project-lifecycle-actions";
 import { createSavedPromptActions } from "./saved-prompt-actions";
 import { createStashActions } from "./stash-actions";
 
 export const createProjectActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
+  dependencies: StoreActionDependencies = {},
 ): Pick<
   IdeState,
   | "setProjects"
@@ -44,8 +48,8 @@ export const createProjectActions = (
   | "moveSavedPrompt"
   | "runSavedPrompt"
 > => ({
-  ...createProjectLifecycleActions(set, get),
-  ...createChatActions(set, get),
+  ...createProjectLifecycleActions(set, get, dependencies),
+  ...createChatActions(set, get, dependencies),
   ...createStashActions(set, get),
   ...createSavedPromptActions(set, get),
 });

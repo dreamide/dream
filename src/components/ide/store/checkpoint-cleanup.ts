@@ -1,15 +1,8 @@
+import { type ApiClient, apiClient } from "@/lib/api-client";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
 
-const postJson = async (route: string, body: unknown) => {
-  try {
-    await fetch(route, {
-      body: JSON.stringify(body),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    });
-  } catch {
-    // Checkpoint cleanup is best-effort; leftover snapshots are harmless.
-  }
+const ignoreFailure = () => {
+  // Checkpoint cleanup is best-effort; leftover snapshots are harmless.
 };
 
 /**
@@ -19,8 +12,9 @@ const postJson = async (route: string, body: unknown) => {
 export const requestChatCheckpointCleanup = (
   chats: ChatConfig[],
   projects: ProjectConfig[],
+  api: ApiClient = apiClient,
 ) => {
-  if (chats.length === 0 || typeof fetch !== "function") {
+  if (chats.length === 0) {
     return;
   }
 
@@ -39,7 +33,7 @@ export const requestChatCheckpointCleanup = (
   }
 
   for (const [projectPath, chatIds] of chatIdsByProjectPath) {
-    void postJson("/api/checkpoint-delete-chats", { chatIds, projectPath });
+    api.checkpointDeleteChats({ chatIds, projectPath }).catch(ignoreFailure);
   }
 };
 
@@ -47,9 +41,12 @@ export const requestChatCheckpointCleanup = (
  * Drops every checkpoint snapshot for a project whose directory is going away
  * (for example a removed worktree).
  */
-export const requestProjectCheckpointCleanup = (projectPath: string) => {
-  if (!projectPath || typeof fetch !== "function") {
+export const requestProjectCheckpointCleanup = (
+  projectPath: string,
+  api: ApiClient = apiClient,
+) => {
+  if (!projectPath) {
     return;
   }
-  void postJson("/api/checkpoint-delete-project", { projectPath });
+  api.checkpointDeleteProject({ projectPath }).catch(ignoreFailure);
 };

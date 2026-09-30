@@ -9,13 +9,13 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { apiClient, getApiErrorMessage, isAbortError } from "@/lib/api-client";
 import type {
   ProjectGitPushPreviewResponse,
-  ProjectGitPushResponse,
   ProjectGitStatusResponse,
 } from "@/types/ide";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
-import { hasPushableCommits, postJson, readResponseText } from "./utils";
+import { hasPushableCommits } from "./utils";
 
 export const PushDialog = ({
   branch,
@@ -75,33 +75,20 @@ export const PushDialog = ({
 
     void (async () => {
       try {
-        const response = await fetch("/api/project-git-push-preview", {
-          body: JSON.stringify({ branch: targetBranch, projectPath }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            await readResponseText(response, gitT("unableToPreviewCommits")),
-          );
-        }
-
-        const payload =
-          (await response.json()) as ProjectGitPushPreviewResponse;
+        const payload = await apiClient.gitPushPreview(
+          { branch: targetBranch, projectPath },
+          { signal: controller.signal },
+        );
         if (!controller.signal.aborted) {
           setPreview(payload);
         }
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
+        if (isAbortError(error)) {
           return;
         }
         if (!controller.signal.aborted) {
           setPreviewError(
-            error instanceof Error
-              ? error.message
-              : gitT("unableToPreviewCommits"),
+            getApiErrorMessage(error, gitT("unableToPreviewCommits")),
           );
         }
       } finally {
@@ -126,21 +113,17 @@ export const PushDialog = ({
       setSubmitting(true);
       setError(null);
       try {
-        await postJson<ProjectGitPushResponse>(
-          "/api/project-git-push",
-          {
-            branch: targetBranch,
-            commitMessage: null,
-            includeUnstaged: true,
-            nextStep: "push",
-            projectPath,
-          },
-          gitT("unableToPush"),
-        );
+        await apiClient.gitPush({
+          branch: targetBranch,
+          commitMessage: null,
+          includeUnstaged: true,
+          nextStep: "push",
+          projectPath,
+        });
         onCompleted();
         onOpenChange(false);
       } catch (error) {
-        setError(error instanceof Error ? error.message : gitT("unableToPush"));
+        setError(getApiErrorMessage(error, gitT("unableToPush")));
       } finally {
         setSubmitting(false);
       }

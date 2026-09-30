@@ -23,11 +23,12 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
+import { apiClient } from "@/lib/api-client";
 import type {
   ProjectGitDiffResponse,
   ProjectGitStatusEntry,
 } from "@/types/ide";
-import { ChangesRow, type DiffViewMode, readResponseText } from "./changes";
+import { ChangesRow, type DiffViewMode } from "./changes";
 import { toggleExpandedPathForProject } from "./changes/expansion-state";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
@@ -62,7 +63,6 @@ const ChangesPanelImpl = ({
 }: ChangesPanelProps) => {
   const commonT = useTranslations("common");
   const panelsT = useTranslations("panels");
-  const uiT = useTranslations("ui");
   const activeProject = useIdeStore((s) =>
     requestedProjectId
       ? (s.projects.find((project) => project.id === requestedProjectId) ??
@@ -282,27 +282,12 @@ const ChangesPanelImpl = ({
         throw new Error(panelsT("noDiffOutput"));
       }
 
-      const response = await fetch("/api/project-git-diff", {
-        body: JSON.stringify({
-          filePath: nextFilePath,
-          previousPath: change.previousPath,
-          projectPath,
-          status: change.status,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
+      const payload = await apiClient.gitDiff({
+        filePath: nextFilePath,
+        previousPath: change.previousPath,
+        projectPath,
+        status: change.status,
       });
-
-      if (!response.ok) {
-        throw new Error(
-          await readResponseText(
-            response,
-            uiT("requestFailedStatus", { status: response.status }),
-          ),
-        );
-      }
-
-      const payload = (await response.json()) as ProjectGitDiffResponse;
       if (queuedProjectIdRef.current !== projectId) {
         return;
       }
@@ -391,7 +376,7 @@ const ChangesPanelImpl = ({
         void processQueuedDiffLoads();
       }
     }
-  }, [panelsT, projectId, projectPath, uiT]);
+  }, [panelsT, projectId, projectPath]);
 
   const queueDiffLoad = useCallback(
     (filePath: string, priority = false, force = false) => {
@@ -636,25 +621,12 @@ const ChangesPanelImpl = ({
       }));
 
       try {
-        const response = await fetch("/api/project-git-revert-file", {
-          body: JSON.stringify({
-            filePath: change.path,
-            previousPath: change.previousPath,
-            projectPath,
-            status: change.status,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
+        await apiClient.gitRevertFile({
+          filePath: change.path,
+          previousPath: change.previousPath,
+          projectPath,
+          status: change.status,
         });
-
-        if (!response.ok) {
-          throw new Error(
-            await readResponseText(
-              response,
-              uiT("requestFailedStatus", { status: response.status }),
-            ),
-          );
-        }
 
         bumpProjectGitRefreshKey(projectId);
       } catch (error) {
@@ -675,7 +647,6 @@ const ChangesPanelImpl = ({
       projectId,
       projectPath,
       revertingPaths,
-      uiT,
     ],
   );
 
@@ -722,20 +693,7 @@ const ChangesPanelImpl = ({
     }));
 
     try {
-      const response = await fetch("/api/project-git-revert-all", {
-        body: JSON.stringify({ projectPath }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          await readResponseText(
-            response,
-            uiT("requestFailedStatus", { status: response.status }),
-          ),
-        );
-      }
+      await apiClient.gitRevertAll({ projectPath });
     } catch (error) {
       console.error("[changes] Failed to revert all changes", error);
       // Show the files again so the user can see what's still changed.
@@ -757,7 +715,6 @@ const ChangesPanelImpl = ({
     projectId,
     projectPath,
     revertingPaths,
-    uiT,
     visibleChanges,
   ]);
 

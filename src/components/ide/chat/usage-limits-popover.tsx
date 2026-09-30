@@ -9,27 +9,15 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  apiClient,
+  type UsageLimitsResponse,
+  type UsageLimitWindow,
+} from "@/lib/api-client";
 import type { ChatConfig } from "@/types/ide";
 import { PROVIDER_LABELS } from "./chat-message";
 
 const USAGE_LIMIT_PERCENT_MAX = 100;
-
-type UsageLimitWindow = {
-  label: string;
-  resetAfterSeconds?: number | null;
-  resetAt?: string | null;
-  usedPercent: number;
-};
-
-type UsageLimitsResponse = {
-  error?: string | null;
-  fetchedAt?: string;
-  limits?: UsageLimitWindow[];
-  note?: string | null;
-  provider?: ChatConfig["provider"];
-  source?: string;
-  status?: "ok" | "unavailable";
-};
 
 type UsageLimitsState = {
   data: UsageLimitsResponse | null;
@@ -173,18 +161,7 @@ export const UsageLimitsPopover = ({
     }));
 
     try {
-      const response = await fetch("/api/provider-usage-limits", {
-        body: JSON.stringify({
-          provider,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-      if (!response.ok) {
-        throw new Error(`Usage limits request failed (${response.status}).`);
-      }
-
-      const data = (await response.json()) as UsageLimitsResponse;
+      const data = await apiClient.providerUsageLimits({ provider });
       setUsageLimits({
         data,
         error: data.status === "unavailable" ? (data.error ?? null) : null,

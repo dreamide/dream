@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { apiClient } from "@/lib/api-client";
 import type { ProjectConfig, ProjectIconInfo } from "@/types/ide";
 import { normalizeProjectIconResponse } from "./project-icon";
 import { ProjectTabIcon } from "./project-tab-icon";
@@ -57,15 +58,9 @@ export const ProjectEditDialog = ({
         onSubmit(selectedIcon);
         return;
       }
-      const response = await fetch("/api/project-icon", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectPath: project.path,
-        }),
+      const payload = await apiClient.projectIcon({
+        projectPath: project.path,
       });
-      if (!response.ok) throw new Error(projectsT("iconSaveFailed"));
-      const payload = await response.json();
       onSubmit(normalizeProjectIconResponse(payload.icon));
     } catch {
       setError(projectsT("iconSaveFailed"));
@@ -78,13 +73,9 @@ export const ProjectEditDialog = ({
     setUploading(true);
     setError(null);
     try {
-      const response = await fetch("/api/project-icon", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectPath: project.path }),
+      const payload = await apiClient.projectIcon({
+        projectPath: project.path,
       });
-      if (!response.ok) throw new Error("Unable to detect icon");
-      const payload = await response.json();
       setAutomaticIcon(normalizeProjectIconResponse(payload.icon));
       setSelectedIcon(null);
     } catch {

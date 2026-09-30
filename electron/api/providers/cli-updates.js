@@ -1,5 +1,8 @@
 import { execCliCommand, getCliVersion } from "../shared/cli.js";
 import { execCursorCliCommand } from "./cursor-cli.js";
+import { CLI_UPDATE_PROVIDERS } from "./schemas.js";
+
+export { CLI_UPDATE_PROVIDERS };
 
 /**
  * Looks up the newest published release of each supported agent CLI so the
@@ -10,14 +13,6 @@ import { execCursorCliCommand } from "./cursor-cli.js";
 const LATEST_VERSION_TTL_MS = 60 * 60 * 1000;
 const LATEST_VERSION_FAILURE_TTL_MS = 15 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 8000;
-
-export const CLI_UPDATE_PROVIDERS = [
-  "anthropic",
-  "cursor",
-  "grok",
-  "openai",
-  "opencode",
-];
 
 const NPM_PACKAGES = {
   anthropic: "@anthropic-ai/claude-code",

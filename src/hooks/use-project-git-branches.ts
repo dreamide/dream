@@ -1,9 +1,7 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
-import type {
-  ProjectGitBranchesResponse,
-  ProjectGitCheckoutResponse,
-} from "@/types/ide";
+import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import type { ProjectGitBranchesResponse } from "@/types/ide";
 
 type ProjectGitBranchesCacheEntry = {
   error: string | null;
@@ -16,14 +14,6 @@ const gitBranchesInflightRequests = new Map<
   string,
   Promise<ProjectGitBranchesCacheEntry>
 >();
-
-const readResponseText = async (
-  response: Response,
-  fallback: string,
-): Promise<string> => {
-  const text = await response.text();
-  return text.trim() || fallback;
-};
 
 const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
   projectPath?.trim() ?? "";
@@ -76,34 +66,20 @@ export const useProjectGitBranches = (
         if (!request || force) {
           request = (async () => {
             try {
-              const response = await fetch("/api/project-git-branches", {
-                body: JSON.stringify({ projectPath }),
-                headers: { "Content-Type": "application/json" },
-                method: "POST",
-              });
-
-              if (!response.ok) {
-                throw new Error(
-                  await readResponseText(
-                    response,
-                    uiT("requestFailedStatus", { status: response.status }),
-                  ),
-                );
-              }
-
               const entry: ProjectGitBranchesCacheEntry = {
                 error: null,
                 refreshToken,
-                status: (await response.json()) as ProjectGitBranchesResponse,
+                status: await apiClient.gitBranches({ projectPath }),
               };
               gitBranchesCache.set(cacheKey, entry);
               return entry;
             } catch (error) {
               const entry: ProjectGitBranchesCacheEntry = {
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : uiT("failedToReadGitBranches"),
+                error: getApiErrorMessage(
+                  error,
+                  uiT("failedToReadGitBranches"),
+                  (status) => uiT("requestFailedStatus", { status }),
+                ),
                 refreshToken,
                 status: null,
               };
@@ -154,26 +130,11 @@ export const useProjectGitBranches = (
       setError(null);
 
       try {
-        const response = await fetch("/api/project-git-checkout", {
-          body: JSON.stringify({
-            branchName,
-            create,
-            projectPath,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
+        const payload = await apiClient.gitCheckout({
+          branchName,
+          create,
+          projectPath,
         });
-
-        if (!response.ok) {
-          throw new Error(
-            await readResponseText(
-              response,
-              uiT("requestFailedStatus", { status: response.status }),
-            ),
-          );
-        }
-
-        const payload = (await response.json()) as ProjectGitCheckoutResponse;
         if (cacheKey) {
           gitBranchesCache.set(cacheKey, {
             error: null,
@@ -184,10 +145,11 @@ export const useProjectGitBranches = (
         setStatus(payload);
         return payload;
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : uiT("failedToSwitchGitBranches");
+        const message = getApiErrorMessage(
+          error,
+          uiT("failedToSwitchGitBranches"),
+          (status) => uiT("requestFailedStatus", { status }),
+        );
         setError(message);
         throw new Error(message);
       } finally {

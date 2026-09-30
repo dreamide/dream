@@ -63,6 +63,7 @@ import { useIdeStore } from "../ide-store";
 import { RightPanelHeaderIconButton } from "../right-panel-header-icon-button";
 import {
   type Page,
+  type PrAction,
   type PrComment,
   type PrFile,
   type PullRequestDetail,
@@ -256,7 +257,9 @@ function Composer({
   );
 }
 
-type Save = (input: Record<string, unknown>) => Promise<boolean>;
+type Save = (
+  input: Omit<PrAction, "number" | "repository">,
+) => Promise<boolean>;
 interface SectionProps {
   projectPath: string;
   repository: string;
@@ -510,7 +513,7 @@ function usePrPage<T>(
   projectPath: string,
   repository: string,
   number: number,
-  action: string,
+  action: PrAction["action"],
   revision: string,
   commit?: string,
 ) {

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import type { UIMessage } from "ai";
-import { test, vi } from "vitest";
+import { test } from "vitest";
 import { createStore } from "zustand/vanilla";
+import {
+  createFakeApiClient,
+  type FakeApiHandlers,
+  fakeApiError,
+} from "@/lib/api-client-fake";
 import {
   createChatConfig,
   createProjectConfig,
@@ -11,7 +16,8 @@ import { createChatActions } from "./chat-actions";
 import type { IdeState } from "./ide-store-types";
 import { createProjectLifecycleActions } from "./project-lifecycle-actions";
 
-const createTestStore = () => {
+const createTestStore = (handlers: FakeApiHandlers = {}) => {
+  const api = createFakeApiClient(handlers).client;
   const project = createProjectConfig("/workspace/source", DEFAULT_SETTINGS);
   const sourceChat = {
     ...createChatConfig(project, { title: "Source chat" }),
@@ -59,8 +65,8 @@ const createTestStore = () => {
       }) as unknown as IdeState,
   );
   store.setState({
-    ...createProjectLifecycleActions(store.setState, store.getState),
-    ...createChatActions(store.setState, store.getState),
+    ...createProjectLifecycleActions(store.setState, store.getState, { api }),
+    ...createChatActions(store.setState, store.getState, { api }),
   });
 
   return { messages, project, sourceChat, store };
@@ -115,21 +121,17 @@ test("branch failures and streaming leave chat state unchanged", () => {
 });
 
 test("worktree creation adds exactly one seeded branch chat", async () => {
-  const { project, sourceChat, store } = createTestStore();
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
-      Response.json({
-        baseRef: "main",
-        branch: "source-branch",
-        mainWorktreePath: "/workspace/source",
-        path: "/workspace/worktrees/source-branch",
-        repoRoot: "/workspace/source",
-      }),
-    ),
-  );
+  const { project, sourceChat, store } = createTestStore({
+    gitWorktreeCreate: () => ({
+      baseRef: "main",
+      branch: "source-branch",
+      mainWorktreePath: "/workspace/source",
+      path: "/workspace/worktrees/source-branch",
+      repoRoot: "/workspace/source",
+    }),
+  });
 
-  try {
+  {
     const result = await store.getState().createWorktreeProject(project.id, {
       baseRef: "main",
       branchName: "source-branch",
@@ -153,32 +155,25 @@ test("worktree creation adds exactly one seeded branch chat", async () => {
     });
     assert.equal(state.messagesByChatId[branch?.id ?? ""]?.length, 2);
     assert.equal(state.draftChatIdByProject[result?.projectId ?? ""], null);
-  } finally {
-    vi.unstubAllGlobals();
   }
 });
 
 test("a failed worktree request leaves project and chat state unchanged", async () => {
-  const { project, store } = createTestStore();
+  const { project, store } = createTestStore({
+    gitWorktreeCreate: () => {
+      throw fakeApiError("gitWorktreeCreate", 409, "branch exists");
+    },
+  });
   const originalState = store.getState();
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => new Response("branch exists", { status: 409 })),
+  await assert.rejects(() =>
+    store.getState().createWorktreeProject(project.id, {
+      branchName: "existing-branch",
+    }),
   );
-
-  try {
-    await assert.rejects(() =>
-      store.getState().createWorktreeProject(project.id, {
-        branchName: "existing-branch",
-      }),
-    );
-    assert.equal(store.getState().projects, originalState.projects);
-    assert.equal(store.getState().chats, originalState.chats);
-    assert.equal(
-      store.getState().messagesByChatId,
-      originalState.messagesByChatId,
-    );
-  } finally {
-    vi.unstubAllGlobals();
-  }
+  assert.equal(store.getState().projects, originalState.projects);
+  assert.equal(store.getState().chats, originalState.chats);
+  assert.equal(
+    store.getState().messagesByChatId,
+    originalState.messagesByChatId,
+  );
 });

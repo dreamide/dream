@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 import type {
   AiProvider,
   ModelSpeed,
@@ -39,11 +40,6 @@ const pullRequestDetailsRequests = new Map<
   string,
   Promise<PullRequestDetails>
 >();
-
-const readResponseText = async (response: Response): Promise<string> => {
-  const text = await response.text();
-  return text.trim() || response.statusText || String(response.status);
-};
 
 const setPullRequestDetailsCacheEntry = (
   key: string,
@@ -118,26 +114,16 @@ export const generateCachedProjectPullRequestDetails = (
 
   const request = (async () => {
     try {
-      const response = await fetch("/api/project-git-pull-request-details", {
-        body: JSON.stringify({
-          baseBranch: params.baseBranch,
-          includeUnstaged: params.includeUnstaged,
-          model: params.model,
-          modelSpeed: params.modelSpeed,
-          nextStep: params.nextStep,
-          projectPath: params.projectPath,
-          provider: params.provider,
-          reasoningEffort: params.reasoningEffort,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
+      return await apiClient.gitPullRequestDetails({
+        baseBranch: params.baseBranch,
+        includeUnstaged: params.includeUnstaged,
+        model: params.model,
+        modelSpeed: params.modelSpeed,
+        nextStep: params.nextStep,
+        projectPath: params.projectPath,
+        provider: params.provider,
+        reasoningEffort: params.reasoningEffort,
       });
-
-      if (!response.ok) {
-        throw new Error(await readResponseText(response));
-      }
-
-      return (await response.json()) as ProjectGitPullRequestDetailsResponse;
     } catch {
       return emptyPullRequestDetails;
     }

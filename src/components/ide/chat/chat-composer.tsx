@@ -56,6 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Sparkles from "@/components/ui/sparkles";
+import { apiClient, isAbortError } from "@/lib/api-client";
 import {
   createAccentSparklesPalette,
   type SparklesPaletteName,
@@ -102,11 +103,6 @@ import { useProviderSkills } from "./use-provider-skills";
 
 export type { ChatPanelModelOption } from "./chat-model-selection";
 
-type ProjectFilesListResponse = {
-  count: number;
-  files: string[];
-};
-
 const PROJECT_REFERENCE_FILE_LIMIT = 2500;
 
 /** The project's files and folders, for the `@` menu. */
@@ -118,24 +114,17 @@ const useProjectReferenceIndex = (projectPath: string) => {
 
     const load = async () => {
       try {
-        const response = await fetch("/api/project-files", {
-          body: JSON.stringify({
+        const payload = await apiClient.projectFiles(
+          {
             directory: ".",
             maxResults: PROJECT_REFERENCE_FILE_LIMIT,
             projectPath,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: abortController.signal,
-        });
-        if (!response.ok) {
-          setIndex([]);
-          return;
-        }
-        const payload = (await response.json()) as ProjectFilesListResponse;
+          },
+          { signal: abortController.signal },
+        );
         setIndex(buildProjectReferenceIndex(payload.files));
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
+        if (isAbortError(error)) {
           return;
         }
         setIndex([]);

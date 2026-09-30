@@ -11,12 +11,11 @@ import {
 } from "@/components/ai-elements/code-block";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
+import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type {
   ProjectGitChangeStatus,
-  ProjectGitDiffResponse,
   ProjectGitStatusEntry,
-  ProjectGitStatusResponse,
 } from "@/types/ide";
 import {
   getChipToolKind,
@@ -412,11 +411,6 @@ const getChangeStateLabel = (status: string | null): string | null => {
   return null;
 };
 
-const readResponseText = async (response: Response, fallback: string) => {
-  const text = await response.text();
-  return text.trim() || response.statusText || fallback;
-};
-
 const WRITE_CHIP_PREVIEW_CLASSES = "max-h-96 overflow-auto";
 const WRITE_CHIP_HEADER_CLASSES = cn(
   CHIP_DETAIL_HEADER_CLASSES,
@@ -677,21 +671,10 @@ export const WriteFileChip = ({
       setGitDiffLoading(true);
 
       try {
-        const statusResponse = await fetch("/api/project-git-status", {
-          body: JSON.stringify({ projectPath }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: abortController.signal,
-        });
-
-        if (!statusResponse.ok) {
-          throw new Error(
-            await readResponseText(statusResponse, uiT("requestFailed")),
-          );
-        }
-
-        const status =
-          (await statusResponse.json()) as ProjectGitStatusResponse;
+        const status = await apiClient.gitStatus(
+          { projectPath },
+          { signal: abortController.signal },
+        );
         const normalizedTarget = normalizePathForCompare(
           projectRelativeFilePath,
         );
@@ -704,25 +687,15 @@ export const WriteFileChip = ({
           matchingChange?.status ?? inferProjectGitStatus(changeStatus);
         const previousPath = matchingChange?.previousPath ?? null;
 
-        const diffResponse = await fetch("/api/project-git-diff", {
-          body: JSON.stringify({
+        const payload = await apiClient.gitDiff(
+          {
             filePath: matchingChange?.path ?? projectRelativeFilePath,
             previousPath,
             projectPath,
             status: diffStatus,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: abortController.signal,
-        });
-
-        if (!diffResponse.ok) {
-          throw new Error(
-            await readResponseText(diffResponse, uiT("requestFailed")),
-          );
-        }
-
-        const payload = (await diffResponse.json()) as ProjectGitDiffResponse;
+          },
+          { signal: abortController.signal },
+        );
 
         setGitDiff({
           diff: payload.diff,
@@ -736,10 +709,11 @@ export const WriteFileChip = ({
 
         setGitDiffError({
           filePath: projectRelativeFilePath,
-          message:
-            error instanceof Error
-              ? error.message
-              : assistantT("failedToLoadDiff"),
+          message: getApiErrorMessage(
+            error,
+            assistantT("failedToLoadDiff"),
+            () => uiT("requestFailed"),
+          ),
         });
       } finally {
         if (!abortController.signal.aborted) {

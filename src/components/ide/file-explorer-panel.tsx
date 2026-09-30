@@ -52,6 +52,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  ApiError,
+  apiClient,
+  fetchApiBlob,
+  getApiErrorMessage,
+  getProjectFileRawUrl,
+} from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
 import {
   type FileBuffersState,
@@ -68,7 +75,6 @@ import { useIdeStore } from "./ide-store";
 import { useMaterialFileTreeIcons } from "./material-file-icon";
 import {
   ProjectDirectoryLoader,
-  type ProjectDirectoryResponse,
   resolveSelectedProjectFile,
   toProjectTreePath,
 } from "./project-directory-loader";
@@ -95,19 +101,6 @@ export interface FileExplorerPanelProps {
   onToggleExpanded?: () => void;
   projectId?: string | null;
 }
-
-type ProjectFileReadResponse = {
-  content: string;
-  filePath: string;
-  lineEnding: "crlf" | "lf";
-  readOnlyReason: string | null;
-  writable: boolean;
-};
-
-type ProjectFileWriteResponse = Pick<
-  ProjectFileReadResponse,
-  "content" | "filePath" | "lineEnding"
->;
 
 interface ProjectFileMetadata {
   lineEnding: "crlf" | "lf";
@@ -147,9 +140,6 @@ const isImageFile = (filePath: string): boolean => {
   return IMAGE_EXTENSIONS.has(extension);
 };
 
-const getProjectFileRawUrl = (projectPath: string, filePath: string) =>
-  `/api/project-file-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
-
 const inferLanguage = (filePath: string): BundledLanguage => {
   const extension = filePath.split(".").pop()?.toLowerCase() ?? "";
   const languages: Record<string, BundledLanguage> = {
@@ -176,14 +166,6 @@ const inferLanguage = (filePath: string): BundledLanguage => {
   };
 
   return languages[extension] ?? "log";
-};
-
-const readResponseText = async (
-  response: Response,
-  fallback: string,
-): Promise<string> => {
-  const text = await response.text();
-  return text.trim() || fallback;
 };
 
 const isMissingPathError = (message: string | null) =>
@@ -341,26 +323,11 @@ const ProjectFileTree = ({
     () =>
       new ProjectFileSearchIndex({
         fetchFiles: async () => {
-          const response = await fetch("/api/project-files", {
-            body: JSON.stringify({
-              directory: ".",
-              maxResults: PROJECT_SEARCH_INDEX_LIMIT,
-              projectPath,
-            }),
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
+          const payload = await apiClient.projectFiles({
+            directory: ".",
+            maxResults: PROJECT_SEARCH_INDEX_LIMIT,
+            projectPath,
           });
-
-          if (!response.ok) {
-            throw new Error(
-              await readResponseText(
-                response,
-                `Request failed (${response.status}).`,
-              ),
-            );
-          }
-
-          const payload = (await response.json()) as { files?: string[] };
           return payload.files ?? [];
         },
       }),
@@ -370,24 +337,8 @@ const ProjectFileTree = ({
   const loader = useMemo(
     () =>
       new ProjectDirectoryLoader({
-        fetchDirectory: async (directory) => {
-          const response = await fetch("/api/project-directory", {
-            body: JSON.stringify({ directory, projectPath }),
-            headers: { "Content-Type": "application/json" },
-            method: "POST",
-          });
-
-          if (!response.ok) {
-            throw new Error(
-              await readResponseText(
-                response,
-                `Request failed (${response.status}).`,
-              ),
-            );
-          }
-
-          return (await response.json()) as ProjectDirectoryResponse;
-        },
+        fetchDirectory: (directory) =>
+          apiClient.projectDirectory({ directory, projectPath }),
         onDirectoryError: (directory, error) => {
           const message =
             error instanceof Error
@@ -976,40 +927,10 @@ const FileExplorerPanelImpl = ({
       setFileError(null);
 
       try {
-        const response = await fetch("/api/project-file", {
-          body: JSON.stringify({
-            filePath: selectedFilePath,
-            projectPath,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
+        const payload = await apiClient.readProjectFile({
+          filePath: selectedFilePath,
+          projectPath,
         });
-
-        if (isFilePreviewUnavailableStatus(response.status) && !cancelled) {
-          const message = await readResponseText(
-            response,
-            uiT("requestFailedStatus", { status: response.status }),
-          );
-          setFilePreviewMessagesByProject((current) => ({
-            ...current,
-            [projectId]: {
-              ...(current[projectId] ?? {}),
-              [selectedFilePath]: message,
-            },
-          }));
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            await readResponseText(
-              response,
-              uiT("requestFailedStatus", { status: response.status }),
-            ),
-          );
-        }
-
-        const payload = (await response.json()) as ProjectFileReadResponse;
         if (cancelled) {
           return;
         }
@@ -1029,13 +950,29 @@ const FileExplorerPanelImpl = ({
           },
         }));
       } catch (error) {
-        if (!cancelled) {
-          setFileError(
-            error instanceof Error
-              ? error.message
-              : panelsT("failedToReadFile"),
-          );
+        if (cancelled) {
+          return;
         }
+        const message = getApiErrorMessage(
+          error,
+          panelsT("failedToReadFile"),
+          (status) => uiT("requestFailedStatus", { status }),
+        );
+        // Too large or binary: a notice in place of the preview, not an error.
+        if (
+          error instanceof ApiError &&
+          isFilePreviewUnavailableStatus(error.status)
+        ) {
+          setFilePreviewMessagesByProject((current) => ({
+            ...current,
+            [projectId]: {
+              ...(current[projectId] ?? {}),
+              [selectedFilePath]: message,
+            },
+          }));
+          return;
+        }
+        setFileError(message);
       } finally {
         if (!cancelled) {
           setFileLoading(false);
@@ -1078,20 +1015,9 @@ const FileExplorerPanelImpl = ({
       replaceSelectedImagePreviewUrl(null);
 
       try {
-        const response = await fetch(
+        const blob = await fetchApiBlob(
           getProjectFileRawUrl(projectPath, selectedFilePath),
         );
-
-        if (!response.ok) {
-          throw new Error(
-            await readResponseText(
-              response,
-              uiT("requestFailedStatus", { status: response.status }),
-            ),
-          );
-        }
-
-        const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
 
         if (cancelled) {
@@ -1103,9 +1029,9 @@ const FileExplorerPanelImpl = ({
       } catch (error) {
         if (!cancelled) {
           setFileError(
-            error instanceof Error
-              ? error.message
-              : panelsT("failedToReadImage"),
+            getApiErrorMessage(error, panelsT("failedToReadImage"), (status) =>
+              uiT("requestFailedStatus", { status }),
+            ),
           );
         }
       } finally {
@@ -1315,31 +1241,12 @@ const FileExplorerPanelImpl = ({
       dispatchFileBuffer({ type: "save-start", key: targetBufferKey });
 
       try {
-        const response = await fetch("/api/project-file", {
-          body: JSON.stringify({
-            content: targetBuffer.draftContent,
-            expectedContent: targetBuffer.diskContent,
-            filePath: targetFilePath,
-            projectPath,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "PUT",
+        const payload = await apiClient.writeProjectFile({
+          content: targetBuffer.draftContent,
+          expectedContent: targetBuffer.diskContent,
+          filePath: targetFilePath,
+          projectPath,
         });
-
-        if (!response.ok) {
-          const error = await readResponseText(
-            response,
-            uiT("requestFailedStatus", { status: response.status }),
-          );
-          dispatchFileBuffer({
-            type: response.status === 409 ? "save-conflict" : "save-failure",
-            key: targetBufferKey,
-            error,
-          });
-          return false;
-        }
-
-        const payload = (await response.json()) as ProjectFileWriteResponse;
         dispatchFileBuffer({
           type: "save-success",
           key: targetBufferKey,
@@ -1349,12 +1256,17 @@ const FileExplorerPanelImpl = ({
         return true;
       } catch (error) {
         dispatchFileBuffer({
-          type: "save-failure",
+          // 409: the file changed on disk since it was opened.
+          type:
+            error instanceof ApiError && error.status === 409
+              ? "save-conflict"
+              : "save-failure",
           key: targetBufferKey,
-          error:
-            error instanceof Error
-              ? error.message
-              : panelsT("failedToSaveFile"),
+          error: getApiErrorMessage(
+            error,
+            panelsT("failedToSaveFile"),
+            (status) => uiT("requestFailedStatus", { status }),
+          ),
         });
         return false;
       }

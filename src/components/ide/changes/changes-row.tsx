@@ -3,6 +3,11 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { CodeBlockCopyButton } from "@/components/ai-elements/code-block";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  fetchApiBlob,
+  getApiErrorMessage,
+  getProjectGitFileAtHeadRawUrl,
+} from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type {
   ProjectGitDiffResponse,
@@ -52,17 +57,6 @@ const isImageFile = (filePath: string) => {
   return IMAGE_EXTENSIONS.has(extension);
 };
 
-const getDeletedFileRawUrl = (projectPath: string, filePath: string) =>
-  `/api/project-git-file-at-head-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
-
-export const readResponseText = async (
-  response: Response,
-  fallback: string,
-): Promise<string> => {
-  const text = await response.text();
-  return text.trim() || fallback;
-};
-
 const DeletedImagePreview = ({
   filePath,
   projectPath,
@@ -84,19 +78,10 @@ const DeletedImagePreview = ({
       setImageUrl(null);
 
       try {
-        const response = await fetch(
-          getDeletedFileRawUrl(projectPath, filePath),
+        const blob = await fetchApiBlob(
+          getProjectGitFileAtHeadRawUrl(projectPath, filePath),
         );
-        if (!response.ok) {
-          throw new Error(
-            await readResponseText(
-              response,
-              uiT("requestFailedStatus", { status: response.status }),
-            ),
-          );
-        }
-
-        objectUrl = URL.createObjectURL(await response.blob());
+        objectUrl = URL.createObjectURL(blob);
         if (cancelled) {
           URL.revokeObjectURL(objectUrl);
           objectUrl = null;
@@ -106,9 +91,11 @@ const DeletedImagePreview = ({
       } catch (loadError) {
         if (!cancelled) {
           setError(
-            loadError instanceof Error
-              ? loadError.message
-              : panelsT("failedToReadImage"),
+            getApiErrorMessage(
+              loadError,
+              panelsT("failedToReadImage"),
+              (status) => uiT("requestFailedStatus", { status }),
+            ),
           );
         }
       }

@@ -858,47 +858,6 @@ export const createProjectGitWorktree = async (
   };
 };
 
-export const removeProjectGitWorktree = async (
-  projectPath,
-  { force = false, worktreePath = "" } = {},
-) => {
-  const repoInfo = await getGitRepositoryInfo(projectPath);
-  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
-    throw new Error("Project is not a Git repository.");
-  }
-
-  const targetPath = path.resolve(worktreePath);
-  const worktreesInfo = await listProjectGitWorktrees(projectPath);
-  const matchingWorktree = worktreesInfo.worktrees.find(
-    (worktree) => path.resolve(worktree.path) === targetPath,
-  );
-  if (!matchingWorktree) {
-    throw new Error("Worktree was not found for this repository.");
-  }
-
-  if (
-    worktreesInfo.mainWorktreePath &&
-    path.resolve(worktreesInfo.mainWorktreePath) === targetPath
-  ) {
-    throw new Error("Cannot remove the main worktree.");
-  }
-
-  const commandCwd = worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot;
-
-  await runGitCommand(commandCwd, [
-    "worktree",
-    "remove",
-    ...(force ? ["--force"] : []),
-    targetPath,
-  ]);
-  await removeEmptyAppWorktreeParent(targetPath);
-
-  return {
-    path: targetPath,
-    removed: true,
-  };
-};
-
 export const checkoutProjectGitBranch = async (
   projectPath,
   branchName,

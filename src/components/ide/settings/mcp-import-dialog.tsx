@@ -12,30 +12,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { apiClient, type McpImportCandidate } from "@/lib/api-client";
 import {
   describeMcpServerTarget,
   type McpServerInput,
 } from "@/lib/mcp-servers";
-import type { McpServerTransport } from "@/types/ide";
-
-export type McpImportSourceKind =
-  | "claudeUser"
-  | "claudeProject"
-  | "codexUser"
-  | "cursorUser"
-  | "cursorProject";
-
-export type McpImportCandidate = {
-  args: string[];
-  command: string;
-  env: Record<string, string>;
-  headers: Record<string, string>;
-  name: string;
-  sources: { kind: McpImportSourceKind; path: string }[];
-  transport: McpServerTransport;
-  url: string;
-  warnings: string[];
-};
 
 export const McpImportDialog = ({
   existingNames,
@@ -70,18 +51,9 @@ export const McpImportDialog = ({
     setError(null);
     setCandidates([]);
     setSelected(new Set());
-    void fetch("/api/mcp-servers/import-candidates", {
-      body: JSON.stringify({ projectPath: projectPath ?? undefined }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-        const payload = (await response.json()) as {
-          candidates: McpImportCandidate[];
-        };
+    void apiClient
+      .mcpImportCandidates({ projectPath: projectPath ?? undefined })
+      .then((payload) => {
         if (cancelled) {
           return;
         }

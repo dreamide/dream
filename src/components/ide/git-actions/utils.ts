@@ -3,32 +3,6 @@ import type {
   ProjectGitStatusResponse,
 } from "@/types/ide";
 
-export const readResponseText = async (
-  response: Response,
-  fallback: string,
-): Promise<string> => {
-  const text = await response.text();
-  return text.trim() || fallback;
-};
-
-export const postJson = async <T>(
-  url: string,
-  body: unknown,
-  fallback: string,
-): Promise<T> => {
-  const response = await fetch(url, {
-    body: JSON.stringify(body),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    throw new Error(await readResponseText(response, fallback));
-  }
-
-  return (await response.json()) as T;
-};
-
 export const formatDelta = (value: number, prefix: "+" | "-") =>
   `${prefix}${value}`;
 

@@ -4,31 +4,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
+import { apiClient, type McpImportCandidate } from "@/lib/api-client";
 import {
   describeMcpServerTarget,
   type McpServerInput,
 } from "@/lib/mcp-servers";
-import type { McpServerTransport } from "@/types/ide";
 import { McpSubviewHeader } from "./mcp-server-form";
-
-export type McpImportSourceKind =
-  | "claudeUser"
-  | "claudeProject"
-  | "codexUser"
-  | "cursorUser"
-  | "cursorProject";
-
-export type McpImportCandidate = {
-  args: string[];
-  command: string;
-  env: Record<string, string>;
-  headers: Record<string, string>;
-  name: string;
-  sources: { kind: McpImportSourceKind; path: string }[];
-  transport: McpServerTransport;
-  url: string;
-  warnings: string[];
-};
 
 const describeCandidate = (candidate: McpImportCandidate) =>
   describeMcpServerTarget({
@@ -67,18 +48,9 @@ export const McpImportPanel = ({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void fetch("/api/mcp-servers/import-candidates", {
-      body: JSON.stringify({ projectPath: projectPath ?? undefined }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-        const payload = (await response.json()) as {
-          candidates: McpImportCandidate[];
-        };
+    void apiClient
+      .mcpImportCandidates({ projectPath: projectPath ?? undefined })
+      .then((payload) => {
         if (cancelled) {
           return;
         }

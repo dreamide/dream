@@ -1,6 +1,7 @@
 // Pending tool approvals: a turn asks the user through the agent-turn writer
 // and waits here; the client answers through the route below.
 import { z } from "zod";
+import { handleJsonRoute } from "./shared/json-route.js";
 
 const pendingToolApprovals = new Map();
 
@@ -8,7 +9,7 @@ const registerPendingToolApproval = ({ id, provider, request, respond }) => {
   pendingToolApprovals.set(id, { provider, request, respond });
 };
 
-const toolApprovalResponseSchema = z.object({
+export const toolApprovalResponseSchema = z.object({
   approved: z.boolean(),
   id: z.string().min(1),
   reason: z.string().nullable().optional(),
@@ -73,24 +74,10 @@ export const resolveToolApproval = async (payload) => {
 };
 
 export const registerToolApprovalRoutes = (app) => {
-  app.post("/api/tool-approval-response", async (c) => {
-    let payload;
-    try {
-      payload = toolApprovalResponseSchema.parse(await c.req.json());
-    } catch (error) {
-      return c.text(
-        error instanceof Error ? error.message : "Invalid approval response.",
-        400,
-      );
-    }
-
-    try {
-      return c.json(await resolveToolApproval(payload));
-    } catch (error) {
-      return c.text(
-        error instanceof Error ? error.message : "Failed to resolve approval.",
-        500,
-      );
-    }
-  });
+  app.post("/api/tool-approval-response", (c) =>
+    handleJsonRoute(c, toolApprovalResponseSchema, resolveToolApproval, {
+      errorMessage: "Failed to resolve approval.",
+      errorStatus: 500,
+    }),
+  );
 };

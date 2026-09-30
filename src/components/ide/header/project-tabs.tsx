@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
+import { apiClient } from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
 import {
   createAccentSparklesPalette,
@@ -105,19 +106,13 @@ const useProjectIconScanner = ({
       }));
 
     for (const project of scanTargets) {
-      void fetch("/api/project-icon", {
-        body: JSON.stringify({ projectPath: project.path }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-        signal: abortController.signal,
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            return null;
-          }
-
-          return (await response.json()) as { icon?: unknown };
-        })
+      void apiClient
+        .projectIcon(
+          { projectPath: project.path },
+          { signal: abortController.signal },
+        )
+        // Icon detection is best effort; the tab keeps its current icon.
+        .catch(() => null)
         .then((payload) => {
           if (!payload || abortController.signal.aborted) {
             return;

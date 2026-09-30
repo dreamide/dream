@@ -12,10 +12,11 @@
 import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { create } from "zustand";
+import { apiClient } from "@/lib/api-client";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { resolveEffectiveMcpServers } from "@/lib/mcp-servers";
 import type {
-  ChatTitleResponse,
+  AiProvider,
   PendingChatSubmit,
   ProjectReference,
 } from "@/types/ide";
@@ -515,18 +516,16 @@ export const respondToToolApproval = (
     });
   }
 
-  void fetch("/api/tool-approval-response", {
-    body: JSON.stringify({
+  apiClient
+    .toolApprovalResponse({
       approved: response.approved,
       id: response.id,
       reason: response.reason ?? null,
       scope: response.scope ?? "once",
-    }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  }).catch((error) => {
-    console.error("[tool approval response]", error);
-  });
+    })
+    .catch((error) => {
+      console.error("[tool approval response]", error);
+    });
 };
 
 // ── Submitting ──────────────────────────────────────────────────────────
@@ -556,22 +555,13 @@ const generateChatTitle = ({
   fallbackModel: string;
   projectPath: string;
   promptText: string;
-  provider: string;
+  provider: AiProvider;
   titleBeforeGeneration: string;
 }) => {
   useIdeStore.getState().setChatTitleGenerating(chatId, true);
-  void fetch("/api/chat-title", {
-    body: JSON.stringify({ fallbackModel, projectPath, promptText, provider }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        return "";
-      }
-      const payload = (await response.json()) as ChatTitleResponse;
-      return payload.title.trim();
-    })
+  void apiClient
+    .chatTitle({ fallbackModel, projectPath, promptText, provider })
+    .then((payload) => payload.title.trim())
     .then((generatedTitle) => {
       if (!generatedTitle) {
         return;

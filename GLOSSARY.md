@@ -105,3 +105,21 @@ it.
 The skills a provider can load for a project, fetched from the main process
 and cached briefly (`provider-skills.ts`). Not to be confused with a skill
 _mention_, which is text in a draft.
+
+## Route client
+
+The renderer's one way to call the main process's JSON routes
+(`src/lib/api-client.ts`): one method per route, named in `API_ROUTES`.
+Request types are inferred from the zod schemas the routes validate with,
+so the contract lives in the schema files (`electron/api/**/schemas.js`).
+A failed call throws `ApiError` with the server's plain-text reason.
+Behind it sit two transports: HTTP to the local API server, and an in-memory
+fake (`createFakeApiClient`) that store tests inject through the action
+creators' `api` dependency.
+
+## Route handler
+
+The server side of the same seam (`electron/api/shared/json-route.js`):
+parse the JSON body, validate it, run the route, answer with JSON or a
+plain-text error whose status comes from a `RouteError` (or the route's
+default).

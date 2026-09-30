@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import {
+  type ApiRequestOf,
+  apiClient,
+  getApiErrorMessage,
+} from "@/lib/api-client";
 
 export interface PullRequestSummary {
   number: number;
@@ -68,14 +73,26 @@ export interface Page<T> {
   hasMore: boolean;
 }
 
+/** One GitHub pull request action, as the route validates it. */
+export type PrAction = Omit<ApiRequestOf<"codePullRequests">, "projectPath">;
+
+/**
+ * `refreshKey` and `revision` only key the read cache, so bumping one
+ * refetches; they are not sent.
+ */
+export type PrRequestInput = PrAction & {
+  refreshKey?: number | string;
+  revision?: number | string;
+};
+
 const reads = new Map<string, { time: number; promise: Promise<unknown> }>();
 export async function prRequest<T>(
   projectPath: string,
-  input: Record<string, unknown>,
+  { refreshKey, revision, ...input }: PrRequestInput,
   fresh = false,
 ): Promise<T> {
   const payload = { projectPath, ...input };
-  const key = JSON.stringify(payload);
+  const key = JSON.stringify({ ...payload, refreshKey, revision });
   const read = [
     "context",
     "list",
@@ -90,14 +107,12 @@ export async function prRequest<T>(
   if (read && !fresh && cached && Date.now() - cached.time < 15000)
     return cached.promise as Promise<T>;
   const promise = (async () => {
-    const response = await fetch("/api/code-pull-requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok)
-      throw new Error((await response.text()) || "Unable to access GitHub.");
-    return response.json() as Promise<T>;
+    try {
+      // The route answers each action with its own shape; the caller names it.
+      return (await apiClient.codePullRequests(payload)) as T;
+    } catch (error) {
+      throw new Error(getApiErrorMessage(error, "Unable to access GitHub."));
+    }
   })();
   if (read) {
     if (reads.size > 150) reads.clear();

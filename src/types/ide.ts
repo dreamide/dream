@@ -492,29 +492,12 @@ export interface ProjectGitWorktreesResponse {
   worktrees: ProjectGitWorktreeInfo[];
 }
 
-export interface ProjectGitCreateWorktreeRequest {
-  baseRef?: string | null;
-  branchName: string;
-  projectPath: string;
-}
-
 export interface ProjectGitCreateWorktreeResponse {
   baseRef: string | null;
   branch: string;
   mainWorktreePath: string;
   path: string;
   repoRoot: string;
-}
-
-export interface ProjectGitRemoveWorktreeRequest {
-  force?: boolean;
-  projectPath: string;
-  worktreePath: string;
-}
-
-export interface ProjectGitRemoveWorktreeResponse {
-  removed: boolean;
-  path: string;
 }
 
 /** A pull request GitHub has for a branch, as `gh` reports it. */
@@ -524,11 +507,6 @@ export interface ProjectGitPullRequest {
   number: number;
   state: "open" | "closed" | "merged";
   url: string;
-}
-
-export interface ProjectGitWorktreeCompareRequest {
-  baseRef?: string | null;
-  projectPath: string;
 }
 
 export interface ProjectGitWorktreeCompareResponse {
@@ -557,19 +535,6 @@ export interface ProjectGitWorktreeCompareResponse {
   worktreeStatus: ProjectGitStatusResponse;
 }
 
-export interface ProjectGitWorktreeCompareDiffRequest
-  extends ProjectGitWorktreeCompareRequest {
-  filePath: string;
-  previousPath: string | null;
-  status: ProjectGitChangeStatus;
-}
-
-export interface ProjectGitWorktreeMergeRequest {
-  acknowledgeUncommitted: boolean;
-  baseRef?: string | null;
-  projectPath: string;
-}
-
 export type ProjectGitWorktreeMergeResponse =
   | {
       baseBranch: string;
@@ -588,13 +553,6 @@ export type ProjectGitWorktreeMergeResponse =
       previousMainBranch: string | null;
       status: "conflict";
     };
-
-export interface ProjectGitWorktreeCleanupRequest {
-  deleteBranch: boolean;
-  force: boolean;
-  projectPath: string;
-  worktreePath: string;
-}
 
 export interface ProjectGitWorktreeCleanupResponse {
   branch: string | null;
@@ -656,13 +614,6 @@ export interface CheckpointRestoreResponse {
   results: CheckpointRestoreResult[];
 }
 
-export interface ProjectGitCommitRequest {
-  customInstructions?: string | null;
-  includeUnstaged: boolean;
-  message?: string | null;
-  projectPath: string;
-}
-
 export interface ProjectGitCommitResponse {
   commitHash: string | null;
   commitMessage: string;
@@ -710,16 +661,6 @@ export interface ProjectGitPushPreviewResponse {
   upstreamBranch: string | null;
 }
 
-export type ProjectGitPushNextStep = "push" | "commit-push";
-
-export interface ProjectGitPushRequest {
-  commitMessage?: string | null;
-  customInstructions?: string | null;
-  includeUnstaged: boolean;
-  nextStep: ProjectGitPushNextStep;
-  projectPath: string;
-}
-
 export interface ProjectGitPushResponse {
   branch: string;
   commit: ProjectGitCommitResponse | null;
@@ -733,19 +674,6 @@ export type ProjectGitCreatePrNextStep =
   | "push-create"
   | "commit-push-create";
 
-export interface ProjectGitCreatePrRequest {
-  baseBranch?: string | null;
-  commitMessage?: string | null;
-  customInstructions?: string | null;
-  description?: string | null;
-  draft: boolean;
-  includeUnstaged: boolean;
-  nextStep: ProjectGitCreatePrNextStep;
-  openPrPage: boolean;
-  projectPath: string;
-  title?: string | null;
-}
-
 export interface ProjectGitCreatePrResponse {
   baseBranch: string;
   commit: ProjectGitCommitResponse | null;
@@ -755,16 +683,6 @@ export interface ProjectGitCreatePrResponse {
   status: ProjectGitStatusResponse;
   title: string;
   url: string | null;
-}
-
-export interface ProjectGitPullRequestDetailsRequest {
-  baseBranch?: string | null;
-  customInstructions?: string | null;
-  includeUnstaged: boolean;
-  model?: string | null;
-  nextStep: ProjectGitCreatePrNextStep;
-  projectPath: string;
-  provider: AiProvider;
 }
 
 export interface ProjectGitPullRequestDetailsResponse {

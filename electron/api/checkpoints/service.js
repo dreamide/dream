@@ -68,6 +68,8 @@ export class CheckpointNotFoundError extends Error {
   constructor(message = "Checkpoint not found.") {
     super(message);
     this.name = "CheckpointNotFoundError";
+    /** Read by the route handler (shared/json-route.js). */
+    this.httpStatus = 404;
   }
 }
 

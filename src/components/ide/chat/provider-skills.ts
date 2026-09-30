@@ -1,3 +1,4 @@
+import { apiClient } from "@/lib/api-client";
 // The provider's skill catalog: which skills a provider can load for a
 // project, fetched from the main process and cached briefly. How skills are
 // mentioned in the composer's text lives in composer-draft.ts.
@@ -60,15 +61,11 @@ export const fetchProviderSkills = async (
 
   const pending = (async () => {
     try {
-      const response = await fetch("/api/skills", {
-        body: JSON.stringify({ force, projectPath, provider }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
+      const payload = await apiClient.skills({
+        force,
+        projectPath,
+        provider,
       });
-      if (!response.ok) {
-        return empty;
-      }
-      const payload = (await response.json()) as ProviderSkillsResponse;
       return {
         errors: Array.isArray(payload.errors) ? payload.errors : [],
         provider,

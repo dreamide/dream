@@ -1,14 +1,11 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { z } from "zod";
+import { mcpImportCandidatesRequestSchema } from "./mcp-servers/schemas.js";
 import { parseTomlLite } from "./mcp-servers/toml-lite.js";
+import { handleJsonRoute } from "./shared/json-route.js";
 
 const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
-
-const importCandidatesRequestSchema = z.object({
-  projectPath: z.string().optional(),
-});
 
 const isRecord = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -285,21 +282,20 @@ export const mergeMcpImportCandidates = (sources) => {
 };
 
 export const registerMcpServerRoutes = (app) => {
-  app.post("/api/mcp-servers/import-candidates", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      rawBody = {};
-    }
-
-    const parsed = importCandidatesRequestSchema.safeParse(rawBody ?? {});
-    if (!parsed.success) {
-      return c.text("Invalid MCP import request.", 400);
-    }
-
-    const projectPath = parsed.data.projectPath?.trim() || undefined;
-    const sources = await collectMcpImportSources({ projectPath });
-    return c.json({ candidates: mergeMcpImportCandidates(sources) });
-  });
+  app.post("/api/mcp-servers/import-candidates", (c) =>
+    handleJsonRoute(
+      c,
+      mcpImportCandidatesRequestSchema,
+      async (data) => {
+        const projectPath = data.projectPath?.trim() || undefined;
+        const sources = await collectMcpImportSources({ projectPath });
+        return { candidates: mergeMcpImportCandidates(sources) };
+      },
+      {
+        errorStatus: 500,
+        invalidMessage: "Invalid MCP import request.",
+        missingBody: {},
+      },
+    ),
+  );
 };

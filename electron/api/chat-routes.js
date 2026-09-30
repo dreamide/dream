@@ -17,6 +17,7 @@ import {
   finalizeCheckpoint,
 } from "./checkpoints/service.js";
 import { getProvider } from "./providers/registry.js";
+import { handleJsonRoute, RouteError } from "./shared/json-route.js";
 
 const CHECKPOINT_CAPTURE_TIMEOUT_MS = 20_000;
 
@@ -84,46 +85,36 @@ const validateProjectPath = async (projectPath) => {
 };
 
 export const registerChatRoutes = (app) => {
-  app.post("/api/chat-title", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
+  app.post("/api/chat-title", (c) =>
+    handleJsonRoute(
+      c,
+      chatTitleRequestBodySchema,
+      async ({ fallbackModel, projectPath, promptText, provider }) => {
+        const projectPathError = await validateProjectPath(projectPath);
+        if (projectPathError) {
+          throw new RouteError(
+            projectPathError.message,
+            projectPathError.status,
+          );
+        }
 
-    const parsed = chatTitleRequestBodySchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
+        const readyError = await getProvider(provider).checkReady();
+        if (readyError) {
+          throw new RouteError(readyError.message, readyError.status);
+        }
 
-    const { fallbackModel, projectPath, promptText, provider } = parsed.data;
-    const projectPathError = await validateProjectPath(projectPath);
-    if (projectPathError) {
-      return c.text(projectPathError.message, projectPathError.status);
-    }
-
-    const readyError = await getProvider(provider).checkReady();
-    if (readyError) {
-      return c.text(readyError.message, readyError.status);
-    }
-
-    try {
-      const title = await generateChatTitle({
-        fallbackModel,
-        projectPath,
-        promptText,
-        provider,
-      });
-      return c.json({ title });
-    } catch (error) {
-      const detail =
-        error instanceof Error && error.message
-          ? error.message
-          : "Chat title generation failed.";
-      return c.text(detail, 500);
-    }
-  });
+        return {
+          title: await generateChatTitle({
+            fallbackModel,
+            projectPath,
+            promptText,
+            provider,
+          }),
+        };
+      },
+      { errorMessage: "Chat title generation failed.", errorStatus: 500 },
+    ),
+  );
 
   app.post("/api/chat", async (c) => {
     let rawBody;

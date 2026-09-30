@@ -66,12 +66,6 @@ export const projectGitCreateWorktreeRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
 
-export const projectGitRemoveWorktreeRequestSchema = z.object({
-  force: z.boolean().default(false),
-  projectPath: z.string().min(1),
-  worktreePath: z.string().min(1),
-});
-
 export const projectGitDiffRequestSchema = z.object({
   filePath: z.string().min(1),
   previousPath: z.string().min(1).nullable(),

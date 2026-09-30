@@ -1,3 +1,8 @@
+import {
+  type ApiRequestOf,
+  apiClient,
+  getApiErrorMessage,
+} from "@/lib/api-client";
 import type { AiProvider } from "@/types/ide";
 import { invalidateProviderSkills } from "../chat/provider-skills";
 
@@ -24,70 +29,43 @@ export const SKILL_TARGET_PROVIDERS: Record<SkillTarget, AiProvider[]> = {
 
 export const SKILL_TOGGLE_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
-const readError = async (response: Response, fallback: string) => {
-  const text = await response.text().catch(() => "");
-  return new Error(text.trim() || fallback);
+/** A failed skill request, with the server's reason or `fallback`. */
+const skillRequest = async <T>(
+  request: Promise<T>,
+  fallback: string,
+): Promise<T> => {
+  try {
+    return await request;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, fallback));
+  }
 };
 
-export const createSkillRequest = async (input: {
-  body: string;
-  description: string;
-  name: string;
-  projectPath?: string;
-  targets: SkillTarget[];
-  userInvocationOnly: boolean;
-}) => {
-  const response = await fetch("/api/skills/create", {
-    body: JSON.stringify(input),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) {
-    throw await readError(response, "Creating the skill failed.");
-  }
+export const createSkillRequest = async (
+  input: ApiRequestOf<"createSkill">,
+) => {
+  const result = await skillRequest(
+    apiClient.createSkill(input),
+    "Creating the skill failed.",
+  );
   invalidateProviderSkills();
-  return (await response.json()) as { paths: string[] };
+  return result;
 };
 
-export const setSkillEnabledRequest = async (input: {
-  enabled: boolean;
-  name: string;
-  path?: string;
-  provider: AiProvider;
-}) => {
-  const response = await fetch("/api/skills/set-enabled", {
-    body: JSON.stringify(input),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) {
-    throw await readError(response, "Updating the skill failed.");
-  }
+export const setSkillEnabledRequest = async (
+  input: ApiRequestOf<"setSkillEnabled">,
+) => {
+  await skillRequest(
+    apiClient.setSkillEnabled(input),
+    "Updating the skill failed.",
+  );
   invalidateProviderSkills();
 };
 
-export interface SkillFileContents {
-  attributes: Record<string, unknown>;
-  body: string;
-  path: string;
-  text: string;
-}
+export type { SkillFileContents } from "@/lib/api-client";
 
-export const readSkillFileRequest = async (input: {
-  path: string;
-  projectPath?: string;
-  provider: AiProvider;
-}): Promise<SkillFileContents> => {
-  const response = await fetch("/api/skills/read", {
-    body: JSON.stringify(input),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-  });
-  if (!response.ok) {
-    throw await readError(response, "Reading the skill failed.");
-  }
-  return (await response.json()) as SkillFileContents;
-};
+export const readSkillFileRequest = (input: ApiRequestOf<"readSkill">) =>
+  skillRequest(apiClient.readSkill(input), "Reading the skill failed.");
 
 export const toSkillName = (value: string) =>
   value

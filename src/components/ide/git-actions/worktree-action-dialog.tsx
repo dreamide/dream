@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
 import type {
@@ -39,7 +40,6 @@ import { isMissingWorktreeError } from "../store/project-lifecycle-actions";
 import { CommitDialog } from "./commit-dialog";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
 import { GitChangesDeltaSummary } from "./summary";
-import { postJson } from "./utils";
 
 type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
 /** Which worktree action the dialog performs. */
@@ -84,17 +84,13 @@ const CompareFileRow = ({
     setDiffState({ diff: null, error: null, loading: true });
     void (async () => {
       try {
-        const diff = await postJson<ProjectGitDiffResponse>(
-          "/api/project-git-worktree-compare-diff",
-          {
-            baseRef,
-            filePath: change.path,
-            previousPath: change.previousPath,
-            projectPath,
-            status: change.status,
-          },
-          worktreeT("unableToLoadDiff"),
-        );
+        const diff = await apiClient.gitWorktreeCompareDiff({
+          baseRef,
+          filePath: change.path,
+          previousPath: change.previousPath,
+          projectPath,
+          status: change.status,
+        });
         if (!cancelled) {
           setDiffState({ diff, error: null, loading: false });
         }
@@ -102,10 +98,7 @@ const CompareFileRow = ({
         if (!cancelled) {
           setDiffState({
             diff: null,
-            error:
-              error instanceof Error
-                ? error.message
-                : worktreeT("unableToLoadDiff"),
+            error: getApiErrorMessage(error, worktreeT("unableToLoadDiff")),
             loading: false,
           });
         }
@@ -338,21 +331,10 @@ export const WorktreeActionDialog = ({
 
     void (async () => {
       try {
-        const response = await fetch("/api/project-git-worktree-compare", {
-          body: JSON.stringify({
-            baseRef: project.worktree.baseRef,
-            projectPath: project.path,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text.trim() || worktreeT("unableToCompare"));
-        }
-        const payload =
-          (await response.json()) as ProjectGitWorktreeCompareResponse;
+        const payload = await apiClient.gitWorktreeCompare(
+          { baseRef: project.worktree.baseRef, projectPath: project.path },
+          { signal: controller.signal },
+        );
         if (!controller.signal.aborted) {
           setCompare(payload);
         }
@@ -362,9 +344,7 @@ export const WorktreeActionDialog = ({
         }
         setCompare(null);
         setCompareError(
-          loadError instanceof Error
-            ? loadError.message
-            : worktreeT("unableToCompare"),
+          getApiErrorMessage(loadError, worktreeT("unableToCompare")),
         );
       } finally {
         if (!controller.signal.aborted) {
@@ -404,23 +384,19 @@ export const WorktreeActionDialog = ({
       setCleanupError(null);
       stopProjectTerminals(project.id);
       try {
-        const result = await postJson<ProjectGitWorktreeCleanupResponse>(
-          "/api/project-git-worktree-cleanup",
-          {
-            branch: project.worktree.branch,
-            deleteBranch,
-            force: discardUncommitted,
-            projectPath: project.worktree.mainWorktreePath,
-            worktreePath: project.path,
-          },
-          worktreeT("unableToRemove"),
-        );
+        const result = await apiClient.gitWorktreeCleanup({
+          branch: project.worktree.branch,
+          deleteBranch,
+          force: discardUncommitted,
+          projectPath: project.worktree.mainWorktreePath,
+          worktreePath: project.path,
+        });
         setCleanupResult(result);
       } catch (cleanupFailure) {
-        const message =
-          cleanupFailure instanceof Error
-            ? cleanupFailure.message
-            : worktreeT("unableToRemove");
+        const message = getApiErrorMessage(
+          cleanupFailure,
+          worktreeT("unableToRemove"),
+        );
         if (isMissingWorktreeError(message)) {
           setCleanupResult({
             branch: project.worktree.branch,
@@ -454,17 +430,13 @@ export const WorktreeActionDialog = ({
     setError(null);
     setConflictingFiles([]);
     try {
-      const result = await postJson<ProjectGitWorktreeMergeResponse>(
-        "/api/project-git-worktree-merge",
-        {
-          // Uncommitted changes are neither merged nor lost: the worktree
-          // stays, so they stay with it.
-          acknowledgeUncommitted: true,
-          baseRef: project.worktree.baseRef,
-          projectPath: project.path,
-        },
-        worktreeT("unableToMerge"),
-      );
+      const result = await apiClient.gitWorktreeMerge({
+        // Uncommitted changes are neither merged nor lost: the worktree
+        // stays, so they stay with it.
+        acknowledgeUncommitted: true,
+        baseRef: project.worktree.baseRef,
+        projectPath: project.path,
+      });
       if (result.status === "conflict") {
         setError(worktreeT("mergeConflict", { base: result.baseBranch }));
         setConflictingFiles(result.conflictingFiles);
@@ -478,11 +450,7 @@ export const WorktreeActionDialog = ({
       }
       setPhase("merged");
     } catch (mergeFailure) {
-      setError(
-        mergeFailure instanceof Error
-          ? mergeFailure.message
-          : worktreeT("unableToMerge"),
-      );
+      setError(getApiErrorMessage(mergeFailure, worktreeT("unableToMerge")));
       setPhase("review");
     }
   }, [

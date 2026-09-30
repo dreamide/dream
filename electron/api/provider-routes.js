@@ -1,10 +1,5 @@
-import { z } from "zod";
-import { isProviderId, PROVIDER_IDS } from "../shared/provider-capabilities.js";
-import {
-  CLI_UPDATE_PROVIDERS,
-  fetchLatestCliVersions,
-  upgradeCli,
-} from "./providers/cli-updates.js";
+import { isProviderId } from "../shared/provider-capabilities.js";
+import { fetchLatestCliVersions, upgradeCli } from "./providers/cli-updates.js";
 import {
   readCodexAccessToken,
   readCodexChatGptAuthTokens,
@@ -16,10 +11,17 @@ import {
 } from "./providers/model-options.js";
 import { getProvider, listProviders } from "./providers/registry.js";
 import {
+  cliUpdatesRequestSchema,
+  cliUpgradeRequestSchema,
+  providerModelsRequestSchema,
+  providerUsageLimitsRequestSchema,
+} from "./providers/schemas.js";
+import {
   findRateLimitsObject,
   storeProviderUsageLimitSnapshot,
 } from "./providers/usage-limits.js";
 import { isCliCommandAvailable } from "./shared/cli.js";
+import { handleJsonRoute } from "./shared/json-route.js";
 
 export {
   CLAUDE_REASONING_EFFORT_MAP,
@@ -32,111 +34,71 @@ export {
   storeProviderUsageLimitSnapshot,
 };
 
-const providerIdSchema = z.enum(PROVIDER_IDS);
-
-const providerUsageLimitsRequestSchema = z.object({
-  provider: providerIdSchema,
-  projectPath: z.string().optional(),
-});
-
-const providerModelsRequestSchema = z
-  .object({
-    force: z.boolean().optional(),
-    provider: providerIdSchema.optional(),
-  })
-  .optional();
-
-const cliUpdatesRequestSchema = z.object({
-  force: z.boolean().optional(),
-  providers: z.array(z.enum(CLI_UPDATE_PROVIDERS)).max(10),
-});
-
-const cliUpgradeRequestSchema = z.object({
-  provider: z.enum(CLI_UPDATE_PROVIDERS),
-});
+// These routes never throw for a provider problem: each answers with its
+// own status in the body. A thrown error is a bug, so it is a 500.
+const PROVIDER_ROUTE = { errorStatus: 500 };
 
 export const registerProviderRoutes = (app) => {
   // Long-running: resolves when the CLI's updater exits (up to 10 minutes).
-  app.post("/api/cli-upgrade", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON body.", 400);
-    }
+  app.post("/api/cli-upgrade", (c) =>
+    handleJsonRoute(
+      c,
+      cliUpgradeRequestSchema,
+      ({ provider }) => upgradeCli(provider),
+      { ...PROVIDER_ROUTE, invalidMessage: "Invalid CLI upgrade request." },
+    ),
+  );
 
-    const parsed = cliUpgradeRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text("Invalid CLI upgrade request.", 400);
-    }
+  app.post("/api/cli-updates", (c) =>
+    handleJsonRoute(
+      c,
+      cliUpdatesRequestSchema,
+      async ({ force, providers }) => ({
+        checkedAt: new Date().toISOString(),
+        latest: await fetchLatestCliVersions({
+          force: force ?? false,
+          providers: Array.from(new Set(providers)),
+        }),
+      }),
+      { ...PROVIDER_ROUTE, invalidMessage: "Invalid CLI updates request." },
+    ),
+  );
 
-    return c.json(await upgradeCli(parsed.data.provider));
-  });
+  app.post("/api/provider-models", (c) =>
+    handleJsonRoute(
+      c,
+      providerModelsRequestSchema,
+      async (data) => {
+        const force = data?.force ?? false;
+        const providers = isProviderId(data?.provider)
+          ? [getProvider(data.provider)]
+          : listProviders();
+        const results = await Promise.all(
+          providers.map(async (provider) => [
+            provider.id,
+            await provider.fetchModels({ force }),
+          ]),
+        );
+        return {
+          ...Object.fromEntries(results),
+          fetchedAt: new Date().toISOString(),
+        };
+      },
+      {
+        ...PROVIDER_ROUTE,
+        invalidMessage: "Invalid provider models request.",
+        // No body asks for every provider.
+        missingBody: undefined,
+      },
+    ),
+  );
 
-  app.post("/api/cli-updates", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON body.", 400);
-    }
-
-    const parsed = cliUpdatesRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text("Invalid CLI updates request.", 400);
-    }
-
-    const latest = await fetchLatestCliVersions({
-      force: parsed.data.force ?? false,
-      providers: Array.from(new Set(parsed.data.providers)),
-    });
-
-    return c.json({ checkedAt: new Date().toISOString(), latest });
-  });
-
-  app.post("/api/provider-models", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      rawBody = undefined;
-    }
-
-    const parsed = providerModelsRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text("Invalid provider models request.", 400);
-    }
-
-    const force = parsed.data?.force ?? false;
-    const providers = isProviderId(parsed.data?.provider)
-      ? [getProvider(parsed.data.provider)]
-      : listProviders();
-    const results = await Promise.all(
-      providers.map(async (provider) => [
-        provider.id,
-        await provider.fetchModels({ force }),
-      ]),
-    );
-
-    return c.json({
-      ...Object.fromEntries(results),
-      fetchedAt: new Date().toISOString(),
-    });
-  });
-
-  app.post("/api/provider-usage-limits", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON body.", 400);
-    }
-
-    const parsed = providerUsageLimitsRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text("Invalid usage limits request.", 400);
-    }
-
-    return c.json(await getProvider(parsed.data.provider).fetchUsageLimits());
-  });
+  app.post("/api/provider-usage-limits", (c) =>
+    handleJsonRoute(
+      c,
+      providerUsageLimitsRequestSchema,
+      ({ provider }) => getProvider(provider).fetchUsageLimits(),
+      { ...PROVIDER_ROUTE, invalidMessage: "Invalid usage limits request." },
+    ),
+  );
 };

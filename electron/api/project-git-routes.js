@@ -38,7 +38,6 @@ import {
   projectGitPullRequestDetailsRequestSchema,
   projectGitPushPreviewRequestSchema,
   projectGitPushRequestSchema,
-  projectGitRemoveWorktreeRequestSchema,
   projectGitRevertAllRequestSchema,
   projectGitRevertFileRequestSchema,
   projectGitStatusRequestSchema,
@@ -49,11 +48,15 @@ import {
   projectGitWorktreesRequestSchema,
   projectIconRequestSchema,
   pushProjectGitChanges,
-  removeProjectGitWorktree,
   resolveProjectPath,
   revertAllProjectGitChanges,
   revertProjectGitFile,
 } from "./project-git-service.js";
+import {
+  handleJsonRoute,
+  postProjectRoute,
+  RouteError,
+} from "./shared/json-route.js";
 
 const PROJECT_FILE_PREVIEW_MAX_BYTES = 1024 * 1024;
 const PROJECT_FILE_BINARY_CONTROL_CHAR_RATIO = 0.1;
@@ -121,775 +124,341 @@ const getProjectFileWritability = async (absolutePath) => {
   }
 };
 
+const readProjectFile = async ({
+  endLine,
+  filePath,
+  projectPath,
+  startLine,
+}) => {
+  const absolutePath = await resolveRealProjectFilePath(projectPath, filePath);
+  const stats = await fs.stat(absolutePath);
+  if (!stats.isFile()) {
+    throw new RouteError(`Not a file: ${filePath}`, 400);
+  }
+
+  if (stats.size > PROJECT_FILE_PREVIEW_MAX_BYTES) {
+    throw new RouteError(
+      `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} are not previewed.`,
+      413,
+    );
+  }
+
+  const fullData = await fs.readFile(absolutePath);
+  if (isLikelyBinaryBuffer(fullData)) {
+    throw new RouteError("Binary files cannot be previewed.", 415);
+  }
+
+  const fullText = utf8Decoder.decode(fullData);
+  const lineEnding = detectProjectFileLineEnding(fullText);
+  const writability = await getProjectFileWritability(absolutePath);
+
+  if (!startLine && !endLine) {
+    return { content: fullText, filePath, lineEnding, ...writability };
+  }
+
+  const lines = fullText.split(/\r?\n/);
+  const safeStart = Math.max(1, startLine ?? 1);
+  const safeEnd = Math.min(lines.length, endLine ?? lines.length);
+  if (safeStart > safeEnd) {
+    throw new RouteError("startLine cannot be greater than endLine.", 400);
+  }
+
+  return {
+    content: lines.slice(safeStart - 1, safeEnd).join("\n"),
+    endLine: safeEnd,
+    filePath,
+    lineEnding,
+    startLine: safeStart,
+    ...writability,
+  };
+};
+
+const tooLargeToEdit = () =>
+  new RouteError(
+    `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} cannot be edited here.`,
+    413,
+  );
+
+const writeProjectFile = async ({
+  content,
+  expectedContent,
+  filePath,
+  projectPath,
+}) => {
+  // Checked before touching the disk, so an oversized save fails fast.
+  if (Buffer.byteLength(content, "utf8") > PROJECT_FILE_PREVIEW_MAX_BYTES) {
+    throw tooLargeToEdit();
+  }
+
+  await ensureProjectDirectory(projectPath);
+  const realAbsolutePath = await resolveRealProjectFilePath(
+    projectPath,
+    filePath,
+  );
+
+  const stats = await fs.stat(realAbsolutePath);
+  if (!stats.isFile()) {
+    throw new RouteError(`Not a file: ${filePath}`, 400);
+  }
+
+  if (stats.size > PROJECT_FILE_PREVIEW_MAX_BYTES) {
+    throw new RouteError(
+      "The file changed on disk and is now too large to edit here.",
+      409,
+    );
+  }
+
+  const writability = await getProjectFileWritability(realAbsolutePath);
+  if (!writability.writable) {
+    throw new RouteError(writability.readOnlyReason, 403);
+  }
+
+  const currentData = await fs.readFile(realAbsolutePath);
+  if (isLikelyBinaryBuffer(currentData)) {
+    throw new RouteError("Binary files cannot be edited.", 415);
+  }
+
+  const currentContent = utf8Decoder.decode(currentData);
+  if (currentContent !== expectedContent) {
+    throw new RouteError(
+      "The file changed on disk after editing began. Reopen it before saving.",
+      409,
+    );
+  }
+
+  const lineEnding = detectProjectFileLineEnding(currentContent);
+  const serializedContent = serializeProjectFileContent(content, lineEnding);
+  if (
+    Buffer.byteLength(serializedContent, "utf8") >
+    PROJECT_FILE_PREVIEW_MAX_BYTES
+  ) {
+    throw tooLargeToEdit();
+  }
+
+  await fs.writeFile(realAbsolutePath, serializedContent, "utf8");
+  return { content: serializedContent, filePath, lineEnding };
+};
+
 export const registerProjectGitRoutes = (app) => {
-  app.post("/api/project-directory", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
+  postProjectRoute(
+    app,
+    "/api/project-directory",
+    projectDirectoryRequestSchema,
+    ({ directory, projectPath }) =>
+      listProjectDirectory(projectPath, directory),
+    { errorMessage: "Unable to list directory." },
+  );
 
-    const parsed = projectDirectoryRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { directory, projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await listProjectDirectory(projectPath, directory));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to list directory.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-files", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectFilesRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { directory, maxResults, projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
+  postProjectRoute(
+    app,
+    "/api/project-files",
+    projectFilesRequestSchema,
+    async ({ directory, maxResults, projectPath }) => {
       const files = await listProjectFiles(projectPath, directory, maxResults);
-      return c.json({ count: files.length, files });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to list files.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-file", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectFileRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { endLine, filePath, projectPath, startLine } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      const absolutePath = await resolveRealProjectFilePath(
-        projectPath,
-        filePath,
-      );
-      const stats = await fs.stat(absolutePath);
-      if (!stats.isFile()) {
-        return c.text(`Not a file: ${filePath}`, 400);
-      }
-
-      if (stats.size > PROJECT_FILE_PREVIEW_MAX_BYTES) {
-        return c.text(
-          `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} are not previewed.`,
-          413,
-        );
-      }
-
-      const fullData = await fs.readFile(absolutePath);
-      if (isLikelyBinaryBuffer(fullData)) {
-        return c.text("Binary files cannot be previewed.", 415);
-      }
-
-      const fullText = utf8Decoder.decode(fullData);
-      const lineEnding = detectProjectFileLineEnding(fullText);
-      const writability = await getProjectFileWritability(absolutePath);
-
-      if (!startLine && !endLine) {
-        return c.json({
-          content: fullText,
-          filePath,
-          lineEnding,
-          ...writability,
-        });
-      }
-
-      const lines = fullText.split(/\r?\n/);
-      const safeStart = Math.max(1, startLine ?? 1);
-      const safeEnd = Math.min(lines.length, endLine ?? lines.length);
-      if (safeStart > safeEnd) {
-        return c.text("startLine cannot be greater than endLine.", 400);
-      }
-
-      return c.json({
-        content: lines.slice(safeStart - 1, safeEnd).join("\n"),
-        endLine: safeEnd,
-        filePath,
-        lineEnding,
-        startLine: safeStart,
-        ...writability,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to read file.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.put("/api/project-file", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectFileWriteRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { content, expectedContent, filePath, projectPath } = parsed.data;
-    if (Buffer.byteLength(content, "utf8") > PROJECT_FILE_PREVIEW_MAX_BYTES) {
-      return c.text(
-        `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} cannot be edited here.`,
-        413,
-      );
-    }
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      const realAbsolutePath = await resolveRealProjectFilePath(
-        projectPath,
-        filePath,
-      );
-
-      const stats = await fs.stat(realAbsolutePath);
-      if (!stats.isFile()) {
-        return c.text(`Not a file: ${filePath}`, 400);
-      }
-
-      if (stats.size > PROJECT_FILE_PREVIEW_MAX_BYTES) {
-        return c.text(
-          "The file changed on disk and is now too large to edit here.",
-          409,
-        );
-      }
-
-      const writability = await getProjectFileWritability(realAbsolutePath);
-      if (!writability.writable) {
-        return c.text(writability.readOnlyReason, 403);
-      }
-
-      const currentData = await fs.readFile(realAbsolutePath);
-      if (isLikelyBinaryBuffer(currentData)) {
-        return c.text("Binary files cannot be edited.", 415);
-      }
-
-      const currentContent = utf8Decoder.decode(currentData);
-      if (currentContent !== expectedContent) {
-        return c.text(
-          "The file changed on disk after editing began. Reopen it before saving.",
-          409,
-        );
-      }
-
-      const lineEnding = detectProjectFileLineEnding(currentContent);
-      const serializedContent = serializeProjectFileContent(
-        content,
-        lineEnding,
-      );
-      if (
-        Buffer.byteLength(serializedContent, "utf8") >
-        PROJECT_FILE_PREVIEW_MAX_BYTES
-      ) {
-        return c.text(
-          `Files larger than ${formatBytes(PROJECT_FILE_PREVIEW_MAX_BYTES)} cannot be edited here.`,
-          413,
-        );
-      }
-
-      await fs.writeFile(realAbsolutePath, serializedContent, "utf8");
-      return c.json({ content: serializedContent, filePath, lineEnding });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to save file.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-icon", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectIconRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    try {
-      await ensureProjectDirectory(parsed.data.projectPath);
-      return c.json({
-        icon: await detectProjectIcon(parsed.data.projectPath),
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to detect icon.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-status", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitStatusRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { detail, projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(
-        await listProjectGitChanges(projectPath, {
-          includeMetadata: detail === "full",
-          includeStats: detail === "full",
-          includeUntracked: detail === "full",
-        }),
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to read Git status.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-branches", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitBranchesRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await listProjectGitBranches(projectPath));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to read Git branches.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-checkout", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitCheckoutRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { branchName, create, projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(
-        await checkoutProjectGitBranch(projectPath, branchName, create),
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to switch Git branches.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-worktrees", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitWorktreesRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await listProjectGitWorktrees(projectPath));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to read worktrees.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-worktree-create", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitCreateWorktreeRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await createProjectGitWorktree(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to create worktree.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-worktree-remove", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitRemoveWorktreeRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await removeProjectGitWorktree(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to remove worktree.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-commit", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitCommitRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await commitProjectGitChanges(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to commit changes.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-commit-message", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitCommitMessageRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json({
-        commitMessage: await generateProjectGitCommitMessage(projectPath, {
-          ...options,
-          throwOnError: true,
-        }),
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to generate commit message.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-push", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitPushRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await pushProjectGitChanges(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to push changes.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-push-preview", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitPushPreviewRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { branch, projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await getProjectGitPushPreview(projectPath, { branch }));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to preview push.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-log", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitLogRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { limit, projectPath, skip } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await getProjectGitLog(projectPath, { limit, skip }));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to read Git history.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-create-pr", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitCreatePullRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await createProjectPullRequest(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to create a pull request.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-pull-request-details", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitPullRequestDetailsRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(
-        await generateProjectPullRequestDetails(projectPath, options),
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to generate pull request details.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-worktree-compare", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitWorktreeCompareRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await compareProjectGitWorktree(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to compare worktree.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-worktree-compare-diff", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed =
-      projectGitWorktreeCompareDiffRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(
-        await getProjectGitWorktreeCompareDiff(projectPath, options),
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to read worktree diff.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-worktree-merge", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitWorktreeMergeRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await mergeProjectGitWorktree(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to merge worktree.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-worktree-cleanup", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitWorktreeCleanupRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath, ...options } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await cleanupProjectGitWorktree(projectPath, options));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to remove worktree.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-diff", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitDiffRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { filePath, previousPath, projectPath, status } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(
-        await getProjectGitDiff(projectPath, filePath, {
-          previousPath,
-          status,
-        }),
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to read Git diff.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-revert-file", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitRevertFileRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { filePath, previousPath, projectPath, status } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(
-        await revertProjectGitFile(projectPath, filePath, {
-          previousPath,
-          status,
-        }),
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to revert file.";
-      return c.text(message, 400);
-    }
-  });
-
-  app.post("/api/project-git-revert-all", async (c) => {
-    let rawBody;
-    try {
-      rawBody = await c.req.json();
-    } catch {
-      return c.text("Invalid JSON payload.", 400);
-    }
-
-    const parsed = projectGitRevertAllRequestSchema.safeParse(rawBody);
-    if (!parsed.success) {
-      return c.text(parsed.error.message, 400);
-    }
-
-    const { projectPath } = parsed.data;
-
-    try {
-      await ensureProjectDirectory(projectPath);
-      return c.json(await revertAllProjectGitChanges(projectPath));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to revert changes.";
-      return c.text(message, 400);
-    }
-  });
+      return { count: files.length, files };
+    },
+    { errorMessage: "Unable to list files." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-file",
+    projectFileRequestSchema,
+    readProjectFile,
+    { errorMessage: "Unable to read file." },
+  );
+
+  app.put("/api/project-file", (c) =>
+    handleJsonRoute(c, projectFileWriteRequestSchema, writeProjectFile, {
+      errorMessage: "Unable to save file.",
+    }),
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-icon",
+    projectIconRequestSchema,
+    async ({ projectPath }) => ({
+      icon: await detectProjectIcon(projectPath),
+    }),
+    { errorMessage: "Unable to detect icon." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-status",
+    projectGitStatusRequestSchema,
+    ({ detail, projectPath }) =>
+      listProjectGitChanges(projectPath, {
+        includeMetadata: detail === "full",
+        includeStats: detail === "full",
+        includeUntracked: detail === "full",
+      }),
+    { errorMessage: "Unable to read Git status." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-branches",
+    projectGitBranchesRequestSchema,
+    ({ projectPath }) => listProjectGitBranches(projectPath),
+    { errorMessage: "Unable to read Git branches." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-checkout",
+    projectGitCheckoutRequestSchema,
+    ({ branchName, create, projectPath }) =>
+      checkoutProjectGitBranch(projectPath, branchName, create),
+    { errorMessage: "Unable to switch Git branches." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-worktrees",
+    projectGitWorktreesRequestSchema,
+    ({ projectPath }) => listProjectGitWorktrees(projectPath),
+    { errorMessage: "Unable to read worktrees." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-worktree-create",
+    projectGitCreateWorktreeRequestSchema,
+    ({ projectPath, ...options }) =>
+      createProjectGitWorktree(projectPath, options),
+    { errorMessage: "Unable to create worktree." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-commit",
+    projectGitCommitRequestSchema,
+    ({ projectPath, ...options }) =>
+      commitProjectGitChanges(projectPath, options),
+    { errorMessage: "Unable to commit changes." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-commit-message",
+    projectGitCommitMessageRequestSchema,
+    async ({ projectPath, ...options }) => ({
+      commitMessage: await generateProjectGitCommitMessage(projectPath, {
+        ...options,
+        throwOnError: true,
+      }),
+    }),
+    { errorMessage: "Unable to generate commit message." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-push",
+    projectGitPushRequestSchema,
+    ({ projectPath, ...options }) =>
+      pushProjectGitChanges(projectPath, options),
+    { errorMessage: "Unable to push changes." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-push-preview",
+    projectGitPushPreviewRequestSchema,
+    ({ branch, projectPath }) =>
+      getProjectGitPushPreview(projectPath, { branch }),
+    { errorMessage: "Unable to preview push." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-log",
+    projectGitLogRequestSchema,
+    ({ limit, projectPath, skip }) =>
+      getProjectGitLog(projectPath, { limit, skip }),
+    { errorMessage: "Unable to read Git history." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-create-pr",
+    projectGitCreatePullRequestSchema,
+    ({ projectPath, ...options }) =>
+      createProjectPullRequest(projectPath, options),
+    { errorMessage: "Unable to create a pull request." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-pull-request-details",
+    projectGitPullRequestDetailsRequestSchema,
+    ({ projectPath, ...options }) =>
+      generateProjectPullRequestDetails(projectPath, options),
+    { errorMessage: "Unable to generate pull request details." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-worktree-compare",
+    projectGitWorktreeCompareRequestSchema,
+    ({ projectPath, ...options }) =>
+      compareProjectGitWorktree(projectPath, options),
+    { errorMessage: "Unable to compare worktree." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-worktree-compare-diff",
+    projectGitWorktreeCompareDiffRequestSchema,
+    ({ projectPath, ...options }) =>
+      getProjectGitWorktreeCompareDiff(projectPath, options),
+    { errorMessage: "Unable to read worktree diff." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-worktree-merge",
+    projectGitWorktreeMergeRequestSchema,
+    ({ projectPath, ...options }) =>
+      mergeProjectGitWorktree(projectPath, options),
+    { errorMessage: "Unable to merge worktree." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-worktree-cleanup",
+    projectGitWorktreeCleanupRequestSchema,
+    ({ projectPath, ...options }) =>
+      cleanupProjectGitWorktree(projectPath, options),
+    { errorMessage: "Unable to remove worktree." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-diff",
+    projectGitDiffRequestSchema,
+    ({ filePath, previousPath, projectPath, status }) =>
+      getProjectGitDiff(projectPath, filePath, { previousPath, status }),
+    { errorMessage: "Unable to read Git diff." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-revert-file",
+    projectGitRevertFileRequestSchema,
+    ({ filePath, previousPath, projectPath, status }) =>
+      revertProjectGitFile(projectPath, filePath, { previousPath, status }),
+    { errorMessage: "Unable to revert file." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-revert-all",
+    projectGitRevertAllRequestSchema,
+    ({ projectPath }) => revertAllProjectGitChanges(projectPath),
+    { errorMessage: "Unable to revert changes." },
+  );
 
   app.get("/api/project-file-raw", async (c) => {
     const projectPath = c.req.query("projectPath");

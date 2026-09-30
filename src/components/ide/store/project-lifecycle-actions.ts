@@ -1,3 +1,8 @@
+import {
+  type ApiClient,
+  apiClient,
+  getApiErrorMessage,
+} from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
 import {
   createChatConfig,
@@ -7,8 +12,6 @@ import {
 import type {
   ChatConfig,
   ProjectConfig,
-  ProjectGitCreateWorktreeResponse,
-  ProjectGitWorktreeCleanupResponse,
   ProjectWorktreeInfo,
 } from "@/types/ide";
 import { createBranchedChatConfig } from "../chat-branching";
@@ -36,9 +39,15 @@ const touchProjectInList = (
     lastUsedAt,
   }));
 
+export interface StoreActionDependencies {
+  /** The route client; tests pass a fake (`createFakeApiClient`). */
+  api?: ApiClient;
+}
+
 export const createProjectLifecycleActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
+  { api = apiClient }: StoreActionDependencies = {},
 ): Pick<
   IdeState,
   | "setProjects"
@@ -322,25 +331,11 @@ export const createProjectLifecycleActions = (
         throw new Error();
       }
 
-      const response = await fetch("/api/project-git-worktree-create", {
-        body: JSON.stringify({
-          baseRef: options.baseRef ?? null,
-          branchName: options.branchName,
-          projectPath: parentProject.path,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
+      const payload = await api.gitWorktreeCreate({
+        baseRef: options.baseRef ?? null,
+        branchName: options.branchName,
+        projectPath: parentProject.path,
       });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(
-          text.trim() || response.statusText || String(response.status),
-        );
-      }
-
-      const payload =
-        (await response.json()) as ProjectGitCreateWorktreeResponse;
       let createdProjectId: string | null = null;
       let createdChatId: string | null = null;
 
@@ -545,7 +540,7 @@ export const createProjectLifecycleActions = (
         get().closeProject(openProject.id);
       }
 
-      requestProjectCheckpointCleanup(worktreePath);
+      requestProjectCheckpointCleanup(worktreePath, api);
 
       set((current) => {
         const removedProjectIds = new Set(
@@ -606,33 +601,24 @@ export const createProjectLifecycleActions = (
         get().stopProjectTerminals(openProject.id);
       }
 
-      const response = await fetch("/api/project-git-worktree-cleanup", {
-        body: JSON.stringify({
+      let payload: Awaited<ReturnType<ApiClient["gitWorktreeCleanup"]>>;
+      try {
+        payload = await api.gitWorktreeCleanup({
           deleteBranch,
           force,
           projectPath: mainWorktreePath,
           worktreePath,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        const message =
-          text.trim() || response.statusText || String(response.status);
-        if (!isMissingWorktreeError(message)) {
-          throw new Error(message);
+        });
+      } catch (error) {
+        // Git has already forgotten the worktree: drop it from the app too.
+        if (!isMissingWorktreeError(getApiErrorMessage(error, ""))) {
+          throw error;
         }
-
         get().purgeWorktreeProject(worktreePath, {
           activateProjectId: parentProjectId,
         });
         return null;
       }
-
-      const payload =
-        (await response.json()) as ProjectGitWorktreeCleanupResponse;
       get().purgeWorktreeProject(worktreePath, {
         activateProjectId: parentProjectId,
       });

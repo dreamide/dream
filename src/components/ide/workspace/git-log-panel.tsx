@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
+import { apiClient, getApiErrorMessage, isAbortError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type { ProjectGitLogCommit, ProjectGitLogResponse } from "@/types/ide";
 import { formatLastActiveTime } from "../activity-time";
@@ -33,25 +34,14 @@ const fetchGitLog = async (
   skip: number,
   signal: AbortSignal,
 ): Promise<ProjectGitLogResponse> => {
-  const response = await fetch("/api/project-git-log", {
-    body: JSON.stringify({ limit: GIT_LOG_PAGE_SIZE, projectPath, skip }),
-    headers: { "Content-Type": "application/json" },
-    method: "POST",
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error((await response.text()) || response.statusText);
-  }
-
-  return (await response.json()) as ProjectGitLogResponse;
+  return apiClient.gitLog(
+    { limit: GIT_LOG_PAGE_SIZE, projectPath, skip },
+    { signal },
+  );
 };
 
 // An empty message falls back to the translated generic error when rendered.
-const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "";
-
-const isAbortError = (error: unknown) =>
-  error instanceof DOMException && error.name === "AbortError";
+const getErrorMessage = (error: unknown) => getApiErrorMessage(error, "");
 
 const matchesCommit = (commit: ProjectGitLogCommit, query: string) =>
   commit.subject.toLowerCase().includes(query) ||

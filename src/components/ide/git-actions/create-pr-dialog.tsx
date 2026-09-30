@@ -18,11 +18,11 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import type {
   AiProvider,
   ModelSpeed,
   ProjectGitCreatePrNextStep,
-  ProjectGitCreatePrResponse,
   ProjectGitStatusResponse,
   ReasoningEffort,
 } from "@/types/ide";
@@ -38,7 +38,7 @@ import {
   NextStepSelector,
 } from "./dialog-layout";
 import { GitDeltaSummary } from "./summary";
-import { getStatusFileCount, postJson } from "./utils";
+import { getStatusFileCount } from "./utils";
 
 export const CreatePrDialog = ({
   baseBranch: baseBranchOverride = null,
@@ -204,28 +204,22 @@ export const CreatePrDialog = ({
       setSubmitting(true);
       setError(null);
       try {
-        const response = await postJson<ProjectGitCreatePrResponse>(
-          "/api/project-git-create-pr",
-          {
-            baseBranch,
-            commitMessage:
-              nextStep === "commit-push-create" ? generatedCommitMessage : null,
-            description,
-            draft,
-            includeUnstaged: true,
-            nextStep,
-            openPrPage: false,
-            projectPath,
-            title,
-          },
-          gitT("unableToCreatePr"),
-        );
+        const response = await apiClient.gitCreatePullRequest({
+          baseBranch,
+          commitMessage:
+            nextStep === "commit-push-create" ? generatedCommitMessage : null,
+          description,
+          draft,
+          includeUnstaged: true,
+          nextStep,
+          openPrPage: false,
+          projectPath,
+          title,
+        });
         onCompleted(response.url, false);
         onOpenChange(false);
       } catch (error) {
-        setError(
-          error instanceof Error ? error.message : gitT("unableToCreatePr"),
-        );
+        setError(getApiErrorMessage(error, gitT("unableToCreatePr")));
       } finally {
         setSubmitting(false);
       }

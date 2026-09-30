@@ -1,1 +1,1 @@
-export { ChangesRow, type DiffViewMode, readResponseText } from "./changes-row";
+export { ChangesRow, type DiffViewMode } from "./changes-row";

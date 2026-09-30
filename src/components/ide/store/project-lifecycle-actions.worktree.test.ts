@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import type { UIMessage } from "ai";
-import { test, vi } from "vitest";
+import { test } from "vitest";
 import { createStore } from "zustand/vanilla";
+import {
+  createFakeApiClient,
+  type FakeApiHandlers,
+  fakeApiError,
+} from "@/lib/api-client-fake";
 import {
   createChatConfig,
   createProjectConfig,
@@ -14,7 +19,11 @@ import { createRuntimeActions } from "./runtime-actions";
 
 const WORKTREE_PATH = "/workspace/worktrees/source-feature";
 
-const createTestStore = () => {
+const createTestStore = (handlers: FakeApiHandlers = {}) => {
+  const api = createFakeApiClient({
+    checkpointDeleteProject: () => ({ deleted: true }),
+    ...handlers,
+  });
   const parent = createProjectConfig("/workspace/source", DEFAULT_SETTINGS);
   const worktree = createProjectConfig(WORKTREE_PATH, DEFAULT_SETTINGS);
   worktree.worktree = {
@@ -70,22 +79,20 @@ const createTestStore = () => {
       }) as unknown as IdeState,
   );
   store.setState({
-    ...createProjectLifecycleActions(store.setState, store.getState),
+    ...createProjectLifecycleActions(store.setState, store.getState, {
+      api: api.client,
+    }),
     ...createRuntimeActions(store.setState),
   });
 
-  return { parent, parentChat, store, worktree, worktreeChat };
-};
-
-const stubFetch = (
-  handler: (input: RequestInfo | URL, init?: RequestInit) => Response,
-) => {
-  const fetchMock = vi.fn(
-    async (input: RequestInfo | URL, init?: RequestInit) =>
-      handler(input, init),
-  );
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+  return {
+    calls: api.calls,
+    parent,
+    parentChat,
+    store,
+    worktree,
+    worktreeChat,
+  };
 };
 
 const hasProjectPath = (state: IdeState, projectPath: string) =>
@@ -96,116 +103,107 @@ const hasProjectPath = (state: IdeState, projectPath: string) =>
   );
 
 test("removeWorktreeProject cleans up the worktree and activates the parent", async () => {
-  const { parent, parentChat, store, worktree, worktreeChat } =
-    createTestStore();
-  const fetchMock = stubFetch(() =>
-    Response.json({
-      branch: "feature",
-      branchDeleted: true,
-      branchDeleteError: null,
-      path: WORKTREE_PATH,
-      pruned: false,
-      removed: true,
-    }),
+  const { calls, parent, parentChat, store, worktree, worktreeChat } =
+    createTestStore({
+      gitWorktreeCleanup: () => ({
+        branch: "feature",
+        branchDeleted: true,
+        branchDeleteError: null,
+        path: WORKTREE_PATH,
+        pruned: false,
+        removed: true,
+      }),
+    });
+
+  const result = await store.getState().removeWorktreeProject({
+    deleteBranch: true,
+    mainWorktreePath: parent.path,
+    parentProjectId: parent.id,
+    worktreePath: worktree.path,
+  });
+
+  assert.equal(result?.branchDeleted, true);
+  assert.deepEqual(calls, [
+    {
+      name: "gitWorktreeCleanup",
+      request: {
+        deleteBranch: true,
+        force: false,
+        projectPath: parent.path,
+        worktreePath: worktree.path,
+      },
+    },
+    {
+      name: "checkpointDeleteProject",
+      request: { projectPath: worktree.path },
+    },
+  ]);
+
+  const state = store.getState();
+  assert.equal(hasProjectPath(state, WORKTREE_PATH), false);
+  assert.deepEqual(
+    state.projects.map((project) => project.id),
+    [parent.id],
   );
-
-  try {
-    const result = await store.getState().removeWorktreeProject({
-      deleteBranch: true,
-      mainWorktreePath: parent.path,
-      parentProjectId: parent.id,
-      worktreePath: worktree.path,
-    });
-
-    assert.equal(result?.branchDeleted, true);
-    assert.equal(fetchMock.mock.calls.length, 2);
-    const [url, init] = fetchMock.mock.calls[0] ?? [];
-    assert.equal(url, "/api/project-git-worktree-cleanup");
-    assert.deepEqual(JSON.parse(String(init?.body)), {
-      deleteBranch: true,
-      force: false,
-      projectPath: parent.path,
-      worktreePath: worktree.path,
-    });
-    const [cleanupUrl, cleanupInit] = fetchMock.mock.calls[1] ?? [];
-    assert.equal(cleanupUrl, "/api/checkpoint-delete-project");
-    assert.deepEqual(JSON.parse(String(cleanupInit?.body)), {
-      projectPath: worktree.path,
-    });
-
-    const state = store.getState();
-    assert.equal(hasProjectPath(state, WORKTREE_PATH), false);
-    assert.deepEqual(
-      state.projects.map((project) => project.id),
-      [parent.id],
-    );
-    assert.deepEqual(
-      state.chats.map((chat) => chat.id),
-      [parentChat.id],
-    );
-    assert.equal(state.messagesByChatId[worktreeChat.id], undefined);
-    assert.ok(state.messagesByChatId[parentChat.id]);
-    assert.equal(state.activeProjectId, parent.id);
-    assert.equal(state.projectGitRefreshKeys[parent.id], 1);
-  } finally {
-    vi.unstubAllGlobals();
-  }
+  assert.deepEqual(
+    state.chats.map((chat) => chat.id),
+    [parentChat.id],
+  );
+  assert.equal(state.messagesByChatId[worktreeChat.id], undefined);
+  assert.ok(state.messagesByChatId[parentChat.id]);
+  assert.equal(state.activeProjectId, parent.id);
+  assert.equal(state.projectGitRefreshKeys[parent.id], 1);
 });
 
 test("removeWorktreeProject purges state when git no longer knows the worktree", async () => {
-  const { parent, store, worktree } = createTestStore();
-  stubFetch(
-    () =>
-      new Response("Worktree was not found for this repository.", {
-        status: 400,
-      }),
-  );
+  const { parent, store, worktree } = createTestStore({
+    gitWorktreeCleanup: () => {
+      throw fakeApiError(
+        "gitWorktreeCleanup",
+        400,
+        "Worktree was not found for this repository.",
+      );
+    },
+  });
 
-  try {
-    const result = await store.getState().removeWorktreeProject({
-      mainWorktreePath: parent.path,
-      parentProjectId: parent.id,
-      worktreePath: worktree.path,
-    });
+  const result = await store.getState().removeWorktreeProject({
+    mainWorktreePath: parent.path,
+    parentProjectId: parent.id,
+    worktreePath: worktree.path,
+  });
 
-    assert.equal(result, null);
-    const state = store.getState();
-    assert.equal(hasProjectPath(state, WORKTREE_PATH), false);
-    assert.equal(state.activeProjectId, parent.id);
-  } finally {
-    vi.unstubAllGlobals();
-  }
+  assert.equal(result, null);
+  const state = store.getState();
+  assert.equal(hasProjectPath(state, WORKTREE_PATH), false);
+  assert.equal(state.activeProjectId, parent.id);
 });
 
 test("removeWorktreeProject rethrows other failures without touching state", async () => {
-  const { parent, store, worktree } = createTestStore();
-  stubFetch(
-    () =>
-      new Response(
+  const { parent, store, worktree } = createTestStore({
+    gitWorktreeCleanup: () => {
+      throw fakeApiError(
+        "gitWorktreeCleanup",
+        400,
         "fatal: 'feature' contains modified or untracked files, use --force to delete it",
-        { status: 400 },
-      ),
-  );
+      );
+    },
+  });
   const originalState = store.getState();
 
-  try {
-    await assert.rejects(
-      store.getState().removeWorktreeProject({
-        mainWorktreePath: parent.path,
-        parentProjectId: parent.id,
-        worktreePath: worktree.path,
-      }),
-      /modified or untracked files/,
-    );
+  await assert.rejects(
+    store.getState().removeWorktreeProject({
+      mainWorktreePath: parent.path,
+      parentProjectId: parent.id,
+      worktreePath: worktree.path,
+    }),
+    /modified or untracked files/,
+  );
 
-    const state = store.getState();
-    assert.equal(state.projects, originalState.projects);
-    assert.equal(state.chats, originalState.chats);
-    assert.equal(state.closedProjects, originalState.closedProjects);
-    assert.equal(state.activeProjectId, worktree.id);
-  } finally {
-    vi.unstubAllGlobals();
-  }
+  const state = store.getState();
+  assert.equal(state.projects, originalState.projects);
+  assert.equal(state.chats, originalState.chats);
+  assert.equal(state.closedProjects, originalState.closedProjects);
+  assert.equal(state.activeProjectId, worktree.id);
 });
 
 test("purgeWorktreeProject falls back when the activation target is missing", () => {
@@ -222,54 +220,43 @@ test("purgeWorktreeProject falls back when the activation target is missing", ()
 });
 
 test("createWorktreeProject can open the worktree without taking focus", async () => {
-  const { parent, store } = createTestStore();
-  store.setState({ activeProjectId: parent.id });
   const backgroundPath = "/workspace/background-worktree";
-  stubFetch(() =>
-    Response.json({
+  const { parent, store } = createTestStore({
+    gitWorktreeCreate: ({ branchName, projectPath }) => ({
       baseRef: "main",
-      branch: "background",
-      mainWorktreePath: parent.path,
-      path: backgroundPath,
-      repoRoot: parent.path,
+      branch: branchName,
+      mainWorktreePath: projectPath,
+      path:
+        branchName === "background"
+          ? backgroundPath
+          : "/workspace/foreground-worktree",
+      repoRoot: projectPath,
     }),
+  });
+  store.setState({ activeProjectId: parent.id });
+
+  const created = await store.getState().createWorktreeProject(parent.id, {
+    activate: false,
+    branchName: "background",
+  });
+
+  const state = store.getState();
+  assert.ok(created?.projectId);
+  assert.equal(hasProjectPath(state, backgroundPath), true);
+  assert.equal(state.activeProjectId, parent.id);
+  assert.equal(
+    state.projects.find((project) => project.id === created.projectId)?.worktree
+      ?.branch,
+    "background",
   );
+  store.getState().setActiveProjectId(created.projectId);
+  assert.equal(store.getState().activeProjectId, created.projectId);
 
-  try {
-    const created = await store.getState().createWorktreeProject(parent.id, {
-      activate: false,
-      branchName: "background",
-    });
-
-    const state = store.getState();
-    assert.ok(created?.projectId);
-    assert.equal(hasProjectPath(state, backgroundPath), true);
-    assert.equal(state.activeProjectId, parent.id);
-    assert.equal(
-      state.projects.find((project) => project.id === created.projectId)
-        ?.worktree?.branch,
-      "background",
-    );
-    store.getState().setActiveProjectId(created.projectId);
-    assert.equal(store.getState().activeProjectId, created.projectId);
-
-    // The default still switches to the new worktree.
-    stubFetch(() =>
-      Response.json({
-        baseRef: "main",
-        branch: "feature-two",
-        mainWorktreePath: parent.path,
-        path: "/workspace/foreground-worktree",
-        repoRoot: parent.path,
-      }),
-    );
-    const foreground = await store
-      .getState()
-      .createWorktreeProject(parent.id, { branchName: "feature-two" });
-    assert.equal(store.getState().activeProjectId, foreground?.projectId);
-  } finally {
-    vi.unstubAllGlobals();
-  }
+  // The default still switches to the new worktree.
+  const foreground = await store
+    .getState()
+    .createWorktreeProject(parent.id, { branchName: "feature-two" });
+  assert.equal(store.getState().activeProjectId, foreground?.projectId);
 });
 
 const listedWorktreeInfo = (parentProjectId: string, repoRoot: string) => ({

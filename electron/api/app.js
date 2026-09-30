@@ -1,9 +1,9 @@
 /**
  * Hono-based API server for Dream IDE.
  *
- * Migrated from Next.js App Router route handlers.  Each route keeps the same
- * Request/Response contract so the renderer `fetch("/api/…")` calls work
- * unchanged.
+ * JSON routes share one handler (shared/json-route.js) and validate with zod
+ * schemas; the renderer's route client (src/lib/api-client.ts) takes its
+ * request types from the same schemas.
  *
  * This file is loaded by the Electron main process at startup.
  */

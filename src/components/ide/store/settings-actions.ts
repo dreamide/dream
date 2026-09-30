@@ -1,11 +1,9 @@
+import { apiClient } from "@/lib/api-client";
 import { extractCliVersion, isCliUpdateAvailable } from "@/lib/cli-version";
 import type { AiProvider } from "@/types/ide";
-import {
-  ALL_PROVIDERS,
-  type CliUpgradeResult,
-  type ProviderModelsResponse,
-} from "../ide-types";
+import { ALL_PROVIDERS, type CliUpgradeResult } from "../ide-types";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type { StoreActionDependencies } from "./project-lifecycle-actions";
 import { writeCachedProviderModels } from "./provider-model-cache";
 import {
   areSettingsSelectionsEqual,
@@ -21,15 +19,6 @@ const PROVIDER_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
 const providerModelsRefreshPromises = new Map<string, Promise<void>>();
 const cliUpdateCheckPromises = new Map<string, Promise<void>>();
 const cliUpgradePromises = new Map<AiProvider, Promise<CliUpgradeResult>>();
-
-interface CliUpdatesResponse {
-  checkedAt: string;
-  latest: Partial<Record<AiProvider, string | null>>;
-}
-
-type CliUpgradeResponse =
-  | { ok: true; output: string }
-  | { ok: false; error: string };
 
 const setCliUpgradeRunning = (
   set: IdeStoreSet,
@@ -59,6 +48,7 @@ const hasFreshProviderModels = (
 export const createSettingsActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
+  { api = apiClient }: StoreActionDependencies = {},
 ): Pick<
   IdeState,
   | "setSettings"
@@ -122,20 +112,7 @@ export const createSettingsActions = (
       }
 
       try {
-        const response = await fetch("/api/provider-models", {
-          body: JSON.stringify({ force, provider }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(
-            text.trim() || response.statusText || String(response.status),
-          );
-        }
-
-        const payload = (await response.json()) as ProviderModelsResponse;
+        const payload = await api.providerModels({ force, provider });
         const providerModels = getProviderModelsFromResponse(
           payload,
           get().providerModels,
@@ -203,16 +180,7 @@ export const createSettingsActions = (
 
     const checkPromise = (async () => {
       try {
-        const response = await fetch("/api/cli-updates", {
-          body: JSON.stringify({ force, providers }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as CliUpdatesResponse;
+        const payload = await api.cliUpdates({ force, providers });
         set((state) => ({
           cliLatestVersions: { ...state.cliLatestVersions, ...payload.latest },
         }));
@@ -236,21 +204,7 @@ export const createSettingsActions = (
     const upgradePromise = (async (): Promise<CliUpgradeResult> => {
       setCliUpgradeRunning(set, provider, true);
       try {
-        const response = await fetch("/api/cli-upgrade", {
-          body: JSON.stringify({ provider }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          return {
-            error:
-              text.trim() || response.statusText || String(response.status),
-            status: "failed",
-          };
-        }
-
-        const result = (await response.json()) as CliUpgradeResponse;
+        const result = await api.cliUpgrade({ provider });
         if (!result.ok) {
           return { error: result.error, status: "failed" };
         }

@@ -13,11 +13,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import type {
   AiProvider,
   ModelSpeed,
-  ProjectGitCommitResponse,
-  ProjectGitPushResponse,
   ProjectGitStatusResponse,
   ReasoningEffort,
 } from "@/types/ide";
@@ -28,7 +27,7 @@ import {
 } from "../git-commit-message-cache";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
 import { GitChangesDeltaSummary } from "./summary";
-import { hasPushDestination, postJson } from "./utils";
+import { hasPushDestination } from "./utils";
 
 type CommitSubmitAction = "commit" | "commit-push";
 
@@ -193,36 +192,29 @@ export const CommitDialog = ({
       setError(null);
       try {
         if (action === "commit-push") {
-          await postJson<ProjectGitPushResponse>(
-            "/api/project-git-push",
-            {
-              commitMessage,
-              includeUnstaged,
-              nextStep: "commit-push",
-              projectPath,
-            },
-            gitT("unableToCommitAndPush"),
-          );
+          await apiClient.gitPush({
+            commitMessage,
+            includeUnstaged,
+            nextStep: "commit-push",
+            projectPath,
+          });
         } else {
-          await postJson<ProjectGitCommitResponse>(
-            "/api/project-git-commit",
-            {
-              includeUnstaged,
-              message: commitMessage,
-              projectPath,
-            },
-            gitT("unableToCommit"),
-          );
+          await apiClient.gitCommit({
+            includeUnstaged,
+            message: commitMessage,
+            projectPath,
+          });
         }
         onCompleted();
         onOpenChange(false);
       } catch (error) {
         setError(
-          error instanceof Error
-            ? error.message
-            : action === "commit-push"
+          getApiErrorMessage(
+            error,
+            action === "commit-push"
               ? gitT("unableToCommitAndPush")
               : gitT("unableToCommit"),
+          ),
         );
       } finally {
         setSubmittingAction(null);

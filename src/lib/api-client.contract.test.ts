@@ -1,0 +1,54 @@
+// The route client's paths against the routes the server registers: every
+// method the renderer can call is one the API server answers.
+import { Hono } from "hono";
+import { expect, test, vi } from "vitest";
+import { API_ROUTES } from "./api-client";
+
+vi.mock("electron", () => ({
+  app: { getPath: () => "/tmp/dream-test-user-data" },
+}));
+
+test("every client route is registered on the API server", async () => {
+  const [
+    { registerChatRoutes },
+    { registerCheckpointRoutes },
+    { registerCodePullRequestRoutes },
+    { registerMcpServerRoutes },
+    { registerProjectGitRoutes },
+    { registerProviderRoutes },
+    { registerSkillsRoutes },
+    { registerToolApprovalRoutes },
+  ] = await Promise.all([
+    import("../../electron/api/chat-routes.js"),
+    import("../../electron/api/checkpoint-routes.js"),
+    import("../../electron/api/code-pull-request-routes.js"),
+    import("../../electron/api/mcp-server-routes.js"),
+    import("../../electron/api/project-git-routes.js"),
+    import("../../electron/api/provider-routes.js"),
+    import("../../electron/api/skills-routes.js"),
+    import("../../electron/api/tool-approvals.js"),
+  ]);
+
+  const app = new Hono();
+  for (const register of [
+    registerChatRoutes,
+    registerCheckpointRoutes,
+    registerCodePullRequestRoutes,
+    registerMcpServerRoutes,
+    registerProjectGitRoutes,
+    registerProviderRoutes,
+    registerSkillsRoutes,
+    registerToolApprovalRoutes,
+  ]) {
+    register(app);
+  }
+
+  const served = new Set(
+    app.routes.map((route) => `${route.method} ${route.path}`),
+  );
+  const missing = Object.entries(API_ROUTES)
+    .map(([name, route]) => ({ name, key: `${route.method} ${route.path}` }))
+    .filter(({ key }) => !served.has(key));
+
+  expect(missing).toEqual([]);
+});

@@ -1,51 +1,11 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { z } from "zod";
+import { codePullRequestRequestSchema } from "./code-pull-request-schemas.js";
 import { runGitCommand } from "./project-git/core.js";
 import { ensureProjectDirectory } from "./project-git-service.js";
 import { execFileAsync } from "./shared/cli.js";
-
-// Pull request lookups for the Code workspace PR panel.
-const requestSchema = z.object({
-  projectPath: z.string().min(1),
-  action: z.enum([
-    "context",
-    "list",
-    "detail",
-    "files",
-    "comments",
-    "reviews",
-    "threads",
-    "edit",
-    "comment",
-    "editComment",
-    "inline",
-    "reply",
-    "review",
-    "checkout",
-    "merge",
-    "mergeInfo",
-  ]),
-  repository: z.string().optional(),
-  number: z.number().int().positive().optional(),
-  page: z.number().int().min(1).max(1000).default(1),
-  state: z.enum(["open", "closed", "merged", "all"]).default("open"),
-  search: z.string().max(200).default(""),
-  title: z.string().trim().min(1).max(256).optional(),
-  body: z.string().max(65536).optional(),
-  commentId: z.number().int().positive().optional(),
-  path: z.string().min(1).optional(),
-  line: z.number().int().positive().optional(),
-  side: z.enum(["LEFT", "RIGHT"]).optional(),
-  commit: z
-    .string()
-    .regex(/^[a-f0-9]{40,64}$/)
-    .optional(),
-  updatedAt: z.string().optional(),
-  event: z.enum(["COMMENT", "APPROVE", "REQUEST_CHANGES"]).optional(),
-  mergeMethod: z.enum(["merge", "squash", "rebase"]).optional(),
-});
+import { handleJsonRoute } from "./shared/json-route.js";
 
 async function gh(cwd, args, json = true) {
   try {
@@ -404,15 +364,11 @@ async function execute(input) {
 }
 
 export function registerCodePullRequestRoutes(app) {
-  app.post("/api/code-pull-requests", async (c) => {
-    const parsed = requestSchema.safeParse(
-      await c.req.json().catch(() => null),
-    );
-    if (!parsed.success) return c.text("Invalid pull request request.", 400);
-    try {
-      return c.json(await execute(parsed.data));
-    } catch (error) {
-      return c.text(error.message || "Unable to access GitHub.", 400);
-    }
-  });
+  app.post("/api/code-pull-requests", (c) =>
+    handleJsonRoute(c, codePullRequestRequestSchema, execute, {
+      errorMessage: "Unable to access GitHub.",
+      invalidMessage: "Invalid pull request request.",
+      missingBody: null,
+    }),
+  );
 }
