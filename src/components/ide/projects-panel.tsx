@@ -20,7 +20,6 @@ import type {
   ChatConfig,
   ProjectConfig,
   ProjectGitWorktreeInfo,
-  ProjectWorktreeInfo,
 } from "@/types/ide";
 import { formatLastActiveTime } from "./activity-time";
 import { normalizeProjectPathKey } from "./ide-state";
@@ -116,7 +115,9 @@ export const ProjectSidebar = ({
   const deleteChat = useIdeStore((s) => s.deleteChat);
   const toggleChatPinned = useIdeStore((s) => s.toggleChatPinned);
   const addProject = useIdeStore((s) => s.addProject);
-  const removeWorktreeProject = useIdeStore((s) => s.removeWorktreeProject);
+  const attachWorktreeProject = useIdeStore((s) => s.attachWorktreeProject);
+  const forgetWorktree = useIdeStore((s) => s.forgetWorktree);
+  const purgeWorktreeProject = useIdeStore((s) => s.purgeWorktreeProject);
   const bumpProjectGitRefreshKey = useIdeStore(
     (s) => s.bumpProjectGitRefreshKey,
   );
@@ -183,31 +184,14 @@ export const ProjectSidebar = ({
     (worktree: ProjectGitWorktreeInfo) => {
       // Open it as a worktree project, so it gets the worktree footer and the
       // Complete worktree action, rather than as a plain folder.
-      let worktreeInfo: ProjectWorktreeInfo | undefined;
-      if (repoPaths && worktree.branch) {
-        const mainPathKey = normalizeProjectPathKey(repoPaths.mainWorktreePath);
-        const parentProject = useIdeStore
-          .getState()
-          .projects.find(
-            (item) =>
-              !item.worktree &&
-              normalizeProjectPathKey(item.path) === mainPathKey,
-          );
-        worktreeInfo = {
-          baseRef: null,
-          branch: worktree.branch,
-          createdAt: new Date().toISOString(),
-          kind: "worktree",
-          mainWorktreePath: repoPaths.mainWorktreePath,
-          managed: worktree.appManaged,
-          parentProjectId: parentProject?.id ?? null,
-          repoRoot: repoPaths.repoRoot,
-        };
+      if (repoPaths) {
+        attachWorktreeProject(worktree, repoPaths);
+      } else {
+        addProject(worktree.path);
       }
-      addProject(worktree.path, { worktree: worktreeInfo });
       onChatSelect?.();
     },
-    [addProject, onChatSelect, repoPaths],
+    [addProject, attachWorktreeProject, onChatSelect, repoPaths],
   );
 
   const handleRemoveWorktree = useCallback(async () => {
@@ -218,11 +202,12 @@ export const ProjectSidebar = ({
     setRemovingWorktreePath(pendingRemoveWorktree.path);
     setWorktreeError(null);
     try {
-      await removeWorktreeProject({
-        force: false,
+      await forgetWorktree({
+        branch: pendingRemoveWorktree.branch,
         mainWorktreePath: project.path,
         worktreePath: pendingRemoveWorktree.path,
       });
+      purgeWorktreeProject(pendingRemoveWorktree.path);
       setPendingRemoveWorktree(null);
     } catch (error) {
       setWorktreeError(
@@ -234,10 +219,11 @@ export const ProjectSidebar = ({
     }
   }, [
     bumpProjectGitRefreshKey,
+    forgetWorktree,
     pendingRemoveWorktree,
     project.id,
     project.path,
-    removeWorktreeProject,
+    purgeWorktreeProject,
     worktreeT,
   ]);
 

@@ -2,8 +2,12 @@ import { apiClient } from "@/lib/api-client";
 import { extractCliVersion, isCliUpdateAvailable } from "@/lib/cli-version";
 import type { AiProvider } from "@/types/ide";
 import { ALL_PROVIDERS, type CliUpgradeResult } from "../ide-types";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import type { StoreActionDependencies } from "./project-lifecycle-actions";
+import type {
+  IdeState,
+  IdeStoreGet,
+  IdeStoreSet,
+  StoreActionDependencies,
+} from "./ide-store-types";
 import { writeCachedProviderModels } from "./provider-model-cache";
 import {
   areSettingsSelectionsEqual,

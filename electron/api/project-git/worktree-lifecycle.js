@@ -1,5 +1,20 @@
+// The lifecycle of a linked git worktree as Dream manages it: list the
+// worktrees of a repository, create one on a new branch, compare and merge
+// its branch back into its base, and forget it (remove the checkout, the
+// branch once merged, and what Dream kept for the directory).
+//
+// Every step runs over the one git runner in core.js. Compare, merge and
+// forget resolve the worktree the same way, so "which repository, which
+// branch, which main checkout" is answered in one place.
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { app } from "electron";
+import {
+  forgetProjectDirectory,
+  releaseProjectDirectory,
+} from "../project-resources.js";
+import { RouteError } from "../shared/json-route.js";
 import {
   getPullRequestBaseRef,
   readGitCommitCount,
@@ -12,15 +27,259 @@ import {
   getProjectGitMetadata,
   gitRefExists,
   listProjectGitChanges,
-  listProjectGitWorktrees,
   parseSingleFileDiff,
-  removeEmptyAppWorktreeParent,
   runGhCommand,
   runGitCommand,
+  validateProjectGitBranchName,
 } from "./core.js";
-import { normalizePath, resolveProjectPath } from "./files.js";
+import { hashContent, normalizePath, resolveProjectPath } from "./files.js";
 
 const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/i;
+
+/**
+ * Git does not know the worktree, and nothing names the branch it was on,
+ * so there is nothing left to forget. Answered as 404 so the renderer can
+ * tell "already gone" from a failed removal without reading the message.
+ */
+export class WorktreeNotFoundError extends RouteError {
+  constructor() {
+    super("Worktree was not found for this repository.", 404);
+    this.name = "WorktreeNotFoundError";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Listing
+// ---------------------------------------------------------------------------
+
+const parseWorktreePorcelain = (output) => {
+  const worktrees = [];
+  let current = null;
+
+  const pushCurrent = () => {
+    if (current?.path) {
+      worktrees.push({
+        bare: current.bare === true,
+        branch: current.branch ?? null,
+        commit: current.commit ?? null,
+        detached: current.detached === true,
+        locked: current.locked === true,
+        path: current.path,
+        prunable: current.prunable === true,
+      });
+    }
+    current = null;
+  };
+
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) {
+      pushCurrent();
+      continue;
+    }
+
+    if (line.startsWith("worktree ")) {
+      pushCurrent();
+      current = { path: line.slice("worktree ".length).trim() };
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+
+    if (line.startsWith("HEAD ")) {
+      current.commit = line.slice("HEAD ".length).trim() || null;
+    } else if (line.startsWith("branch ")) {
+      current.branch =
+        line
+          .slice("branch ".length)
+          .trim()
+          .replace(/^refs\/heads\//, "") || null;
+    } else if (line === "detached") {
+      current.detached = true;
+    } else if (line === "bare") {
+      current.bare = true;
+    } else if (line.startsWith("locked")) {
+      current.locked = true;
+    } else if (line.startsWith("prunable")) {
+      current.prunable = true;
+    }
+  }
+
+  pushCurrent();
+  return worktrees;
+};
+
+const isPathInsideDirectory = (targetPath, directoryPath) => {
+  const relativePath = path.relative(
+    path.resolve(directoryPath),
+    path.resolve(targetPath),
+  );
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+};
+
+const getAppWorktreesDirectory = () =>
+  path.join(os.homedir(), ".dream", "worktrees");
+
+// Worktrees created before the move to ~/.dream/worktrees lived under the
+// app's userData folder. Keep recognising them as app-managed.
+const getLegacyAppWorktreesDirectory = () =>
+  path.join(app.getPath("userData"), "worktrees");
+
+const isAppManagedWorktreePath = (worktreePath) =>
+  isPathInsideDirectory(worktreePath, getAppWorktreesDirectory()) ||
+  isPathInsideDirectory(worktreePath, getLegacyAppWorktreesDirectory());
+
+/**
+ * App-managed worktrees live at `<worktrees>/<repo>-<hash>/<name>`. Once the
+ * last worktree of a repository is removed, the `<repo>-<hash>` folder is left
+ * empty; remove it. `rmdir` only deletes empty folders, so anything still in
+ * it (another worktree, stray files) keeps it in place.
+ */
+export const removeEmptyAppWorktreeParent = async (worktreePath) => {
+  const parentPath = path.dirname(path.resolve(worktreePath));
+  // Only a direct child of a worktrees root. `path.relative` compares
+  // case-insensitively on Windows, where git and Electron disagree on case.
+  const isRepoFolder = [
+    getAppWorktreesDirectory(),
+    getLegacyAppWorktreesDirectory(),
+  ].some((root) => {
+    const relativePath = path.relative(path.resolve(root), parentPath);
+    return (
+      relativePath !== "" &&
+      !relativePath.startsWith("..") &&
+      !path.isAbsolute(relativePath) &&
+      !relativePath.includes(path.sep)
+    );
+  });
+  if (!isRepoFolder) {
+    return false;
+  }
+
+  try {
+    await fs.rmdir(parentPath);
+    return true;
+  } catch {
+    // Not empty, already gone, or still in use.
+    return false;
+  }
+};
+
+export const listProjectGitWorktrees = async (projectPath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    return {
+      isRepo: false,
+      mainWorktreePath: null,
+      repoRoot: null,
+      worktrees: [],
+    };
+  }
+
+  const result = await runGitCommand(repoInfo.repoRoot, [
+    "worktree",
+    "list",
+    "--porcelain",
+  ]);
+  const worktrees = parseWorktreePorcelain(result.stdout).map((worktree) => ({
+    ...worktree,
+    appManaged: isAppManagedWorktreePath(worktree.path),
+  }));
+  const mainWorktreePath =
+    worktrees.find((worktree) => !worktree.bare)?.path ??
+    worktrees[0]?.path ??
+    repoInfo.repoRoot;
+
+  return {
+    isRepo: true,
+    mainWorktreePath,
+    repoRoot: repoInfo.repoRoot,
+    worktrees,
+  };
+};
+
+// ---------------------------------------------------------------------------
+// Create
+// ---------------------------------------------------------------------------
+
+const slugifyWorktreeBranch = (branchName) =>
+  branchName
+    .trim()
+    .replace(/^refs\/heads\//, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "worktree";
+
+const getDefaultWorktreePath = (repoRoot, mainWorktreePath, branchName) => {
+  const worktreesDirectory = getAppWorktreesDirectory();
+  const repoDirectoryName = `${path.basename(mainWorktreePath)}-${hashContent(
+    path.resolve(repoRoot),
+  ).slice(0, 10)}`;
+  const projectName = path.basename(mainWorktreePath);
+  return path.join(
+    worktreesDirectory,
+    repoDirectoryName,
+    `${projectName}-${slugifyWorktreeBranch(branchName)}`,
+  );
+};
+
+export const createProjectGitWorktree = async (
+  projectPath,
+  { baseRef = "", branchName = "" } = {},
+) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  const normalizedBranchName = await validateProjectGitBranchName(
+    repoInfo.repoRoot,
+    branchName,
+  );
+  const branchExists = await gitRefExists(
+    repoInfo.repoRoot,
+    `refs/heads/${normalizedBranchName}`,
+  );
+  if (branchExists) {
+    throw new Error(`Branch "${normalizedBranchName}" already exists.`);
+  }
+
+  const worktreesInfo = await listProjectGitWorktrees(projectPath);
+  const mainWorktreePath = worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot;
+  const targetPath = path.resolve(
+    getDefaultWorktreePath(
+      repoInfo.repoRoot,
+      mainWorktreePath,
+      normalizedBranchName,
+    ),
+  );
+  const normalizedBaseRef = baseRef?.trim() || repoInfo.branch || "HEAD";
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+
+  await runGitCommand(repoInfo.repoRoot, [
+    "worktree",
+    "add",
+    "-b",
+    normalizedBranchName,
+    targetPath,
+    normalizedBaseRef,
+  ]);
+
+  return {
+    baseRef: normalizedBaseRef,
+    branch: normalizedBranchName,
+    mainWorktreePath,
+    path: targetPath,
+    repoRoot: repoInfo.repoRoot,
+  };
+};
+
+// ---------------------------------------------------------------------------
+// Diff parsing
+// ---------------------------------------------------------------------------
 
 const mapNameStatusCode = (code) => {
   switch (code?.[0]) {
@@ -146,8 +405,16 @@ export const isUsableBaseBranchCandidate = (baseRef, worktreeBranch = null) => {
   return true;
 };
 
+// ---------------------------------------------------------------------------
+// Resolving a worktree
+// ---------------------------------------------------------------------------
+
 const isDetachedBranch = (branch) => !branch || branch.startsWith("HEAD ");
 
+/**
+ * The linked worktree at `projectPath`: its branch, its root and the main
+ * checkout it belongs to. Compare, merge and diff all start here.
+ */
 const resolveWorktreeContext = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
@@ -179,7 +446,7 @@ const resolveWorktreeContext = async (projectPath) => {
   };
 };
 
-export const resolveWorktreeBaseBranch = async (
+const resolveWorktreeBaseBranch = async (
   mainWorktreePath,
   { baseRef = null, worktreeBranch = null } = {},
 ) => {
@@ -297,7 +564,7 @@ const readCompareFiles = async (worktreeRoot, mergeBase) => {
  * The pull request GitHub has for `branch`, newest first, or `null` when
  * there is none or `gh` cannot say (not logged in, no GitHub remote, ...).
  */
-export const readBranchPullRequest = async (cwd, branch, base = null) => {
+const readBranchPullRequest = async (cwd, branch, base = null) => {
   const result = await runGhCommand(
     cwd,
     [
@@ -336,6 +603,10 @@ export const readBranchPullRequest = async (cwd, branch, base = null) => {
     return null;
   }
 };
+
+// ---------------------------------------------------------------------------
+// Compare
+// ---------------------------------------------------------------------------
 
 export const compareProjectGitWorktree = async (
   projectPath,
@@ -454,6 +725,10 @@ export const getProjectGitWorktreeCompareDiff = async (
   };
 };
 
+// ---------------------------------------------------------------------------
+// Merge
+// ---------------------------------------------------------------------------
+
 export const mergeProjectGitWorktree = async (
   projectPath,
   { acknowledgeUncommitted = false, baseRef = null } = {},
@@ -556,6 +831,10 @@ export const mergeProjectGitWorktree = async (
   };
 };
 
+// ---------------------------------------------------------------------------
+// Forget
+// ---------------------------------------------------------------------------
+
 const pathExists = async (targetPath) => {
   try {
     await fs.access(targetPath);
@@ -573,19 +852,12 @@ const isWorktreeDeleteFailure = (message) =>
 
 /**
  * On Windows a directory cannot be deleted while any process holds a handle
- * inside it. Agent processes that ran in the worktree are the usual holders, so
- * release the idle one, then delete with retries to ride out handles that are
- * still closing (exited CLIs, antivirus, the search indexer).
+ * inside it. Release what Dream's own agents hold, then delete with retries
+ * to ride out handles that are still closing (exited CLIs, antivirus, the
+ * search indexer).
  */
 const deleteLockedWorktreeDirectory = async (targetPath, gitMessage) => {
-  try {
-    const { stopIdleCodexAppServer } = await import(
-      "../chat/codex-app-server-client.js"
-    );
-    await stopIdleCodexAppServer();
-  } catch {
-    // Releasing the agent process is best effort.
-  }
+  await releaseProjectDirectory(targetPath);
 
   try {
     await fs.rm(targetPath, {
@@ -602,6 +874,49 @@ Another program is still using this folder. Close any terminal, editor, or file 
   }
 };
 
+/**
+ * Removes a worktree git still lists. Returns whether git's registration had
+ * to be pruned by hand because `worktree remove` could not finish.
+ */
+const removeRegisteredWorktree = async (commandCwd, targetPath, force) => {
+  const removeResult = await runGitCommand(
+    commandCwd,
+    ["worktree", "remove", ...(force ? ["--force"] : []), targetPath],
+    { allowFailure: true },
+  );
+  if (removeResult.ok) {
+    return false;
+  }
+
+  if (await pathExists(targetPath)) {
+    const message = getGitCommandErrorMessage(removeResult.error);
+    // Git only reaches the delete stage after its own safety checks pass, so
+    // finishing the deletion ourselves cannot discard work it would refuse to.
+    if (!isWorktreeDeleteFailure(message)) {
+      throw new Error(message);
+    }
+    await deleteLockedWorktreeDirectory(targetPath, message);
+  }
+
+  await runGitCommand(commandCwd, ["worktree", "prune"]);
+  return true;
+};
+
+/**
+ * Tidies after a worktree git no longer lists (removed by hand, or its
+ * registration pruned). An empty leftover folder is removed; one with files
+ * in it is not ours to delete, since git is not vouching for what they are.
+ */
+const pruneForgottenWorktree = async (commandCwd, targetPath) => {
+  await runGitCommand(commandCwd, ["worktree", "prune"]);
+  try {
+    await fs.rmdir(targetPath);
+  } catch {
+    // Not empty, or already gone.
+  }
+  return true;
+};
+
 const deleteMergedBranch = async (commandCwd, branch) => {
   // `-d`, never `-D`: git refuses when the branch holds unmerged work.
   const result = await runGitCommand(commandCwd, ["branch", "-d", branch], {
@@ -615,38 +930,16 @@ const deleteMergedBranch = async (commandCwd, branch) => {
   };
 };
 
-const finishCleanupOfForgottenWorktree = async ({
-  branch,
-  commandCwd,
-  deleteBranch,
-  targetPath,
-}) => {
-  await runGitCommand(commandCwd, ["worktree", "prune"]);
-  // An empty leftover folder is removed; one with files in it is not ours to
-  // delete, since git is not vouching for what they are.
-  try {
-    await fs.rmdir(targetPath);
-  } catch {
-    // Not empty, or already gone.
-  }
-  await removeEmptyAppWorktreeParent(targetPath);
-
-  const branchExists = await hasGitRef(commandCwd, `refs/heads/${branch}`);
-  const deletion =
-    deleteBranch && branchExists
-      ? await deleteMergedBranch(commandCwd, branch)
-      : { branchDeleted: false, branchDeleteError: null };
-
-  return {
-    branch: branchExists ? branch : null,
-    ...deletion,
-    path: targetPath,
-    pruned: true,
-    removed: true,
-  };
-};
-
-export const cleanupProjectGitWorktree = async (
+/**
+ * Forgets a worktree: removes its checkout, deletes its branch when asked
+ * and the branch is merged, and drops what Dream kept for the directory.
+ *
+ * `branch` is the worktree's branch as the app recorded it. It lets the
+ * branch still be deleted when git has already forgotten the worktree; with
+ * neither, there is nothing to go on and the answer is
+ * `WorktreeNotFoundError`.
+ */
+export const forgetProjectGitWorktree = async (
   projectPath,
   {
     branch: knownBranch = null,
@@ -662,76 +955,39 @@ export const cleanupProjectGitWorktree = async (
 
   const targetPath = path.resolve(worktreePath);
   const worktreesInfo = await listProjectGitWorktrees(projectPath);
-  const entry = worktreesInfo.worktrees.find(
-    (worktree) => path.resolve(worktree.path) === targetPath,
-  );
-  if (!entry) {
-    // Git no longer knows the worktree (it was removed by hand, or its
-    // registration was pruned). What is left to clean up is the branch the
-    // caller names, and the folder if nothing is in it.
-    if (!knownBranch) {
-      throw new Error("Worktree was not found for this repository.");
-    }
-    return finishCleanupOfForgottenWorktree({
-      branch: knownBranch,
-      commandCwd: worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot,
-      deleteBranch,
-      targetPath,
-    });
-  }
-
-  if (
-    worktreesInfo.mainWorktreePath &&
-    path.resolve(worktreesInfo.mainWorktreePath) === targetPath
-  ) {
+  const commandCwd = worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot;
+  if (path.resolve(commandCwd) === targetPath) {
     throw new Error("Cannot remove the main worktree.");
   }
 
-  const commandCwd = worktreesInfo.mainWorktreePath ?? repoInfo.repoRoot;
-  const branch = entry.branch ?? null;
-  let pruned = false;
-
-  const removeResult = await runGitCommand(
-    commandCwd,
-    ["worktree", "remove", ...(force ? ["--force"] : []), targetPath],
-    { allowFailure: true },
-  );
-
-  if (!removeResult.ok) {
-    if (await pathExists(targetPath)) {
-      const message = getGitCommandErrorMessage(removeResult.error);
-      // Git only reaches the delete stage after its own safety checks pass, so
-      // finishing the deletion ourselves cannot discard work it would refuse to.
-      if (!isWorktreeDeleteFailure(message)) {
-        throw new Error(message);
-      }
-      await deleteLockedWorktreeDirectory(targetPath, message);
-    }
-
-    await runGitCommand(commandCwd, ["worktree", "prune"]);
-    pruned = true;
+  const entry =
+    worktreesInfo.worktrees.find(
+      (worktree) => path.resolve(worktree.path) === targetPath,
+    ) ?? null;
+  if (!entry && !knownBranch) {
+    // Still gone as far as the app is concerned: drop what Dream kept for it.
+    await forgetProjectDirectory(targetPath);
+    throw new WorktreeNotFoundError();
   }
+
+  const pruned = entry
+    ? await removeRegisteredWorktree(commandCwd, targetPath, force)
+    : await pruneForgottenWorktree(commandCwd, targetPath);
   await removeEmptyAppWorktreeParent(targetPath);
+  await forgetProjectDirectory(targetPath);
 
-  let branchDeleted = false;
-  let branchDeleteError = null;
-
-  if (deleteBranch && branch) {
-    const deleteResult = await runGitCommand(
-      commandCwd,
-      ["branch", "-d", branch],
-      { allowFailure: true },
-    );
-    branchDeleted = deleteResult.ok;
-    if (!deleteResult.ok) {
-      branchDeleteError = getGitCommandErrorMessage(deleteResult.error);
-    }
-  }
+  const branch = entry?.branch ?? knownBranch;
+  const branchExists = branch
+    ? await hasGitRef(commandCwd, `refs/heads/${branch}`)
+    : false;
+  const deletion =
+    deleteBranch && branchExists
+      ? await deleteMergedBranch(commandCwd, branch)
+      : { branchDeleted: false, branchDeleteError: null };
 
   return {
-    branch,
-    branchDeleted,
-    branchDeleteError,
+    branch: branchExists ? branch : null,
+    ...deletion,
     path: targetPath,
     pruned,
     removed: true,

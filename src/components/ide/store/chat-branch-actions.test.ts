@@ -15,6 +15,7 @@ import {
 import { createChatActions } from "./chat-actions";
 import type { IdeState } from "./ide-store-types";
 import { createProjectLifecycleActions } from "./project-lifecycle-actions";
+import { createWorktreeActions } from "./worktree-actions";
 
 const createTestStore = (handlers: FakeApiHandlers = {}) => {
   const api = createFakeApiClient(handlers).client;
@@ -65,7 +66,8 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
       }) as unknown as IdeState,
   );
   store.setState({
-    ...createProjectLifecycleActions(store.setState, store.getState, { api }),
+    ...createProjectLifecycleActions(store.setState, store.getState),
+    ...createWorktreeActions(store.setState, store.getState, { api }),
     ...createChatActions(store.setState, store.getState, { api }),
   });
 

@@ -13,9 +13,26 @@ reopened with its chats intact).
 ## Worktree
 
 A project that is a git worktree of another project's repository.
-`ProjectConfig.worktree` (`ProjectWorktreeInfo`) is non-null. Created,
-compared, merged and cleaned up by the git routes; the parent project is
-`parentProjectId`.
+`ProjectConfig.worktree` (`ProjectWorktreeInfo`) is non-null; the parent
+project is `parentProjectId`. Its lifecycle is one module on each side of
+the route seam. The main process's **worktree lifecycle**
+(`electron/api/project-git/worktree-lifecycle.js`) lists, creates,
+compares, merges and forgets worktrees over the one git runner. The store's
+**worktree actions** (`src/components/ide/store/worktree-actions.ts`)
+create, attach, complete, forget and purge worktree projects, and build the
+worktree record in one place. To **forget** a worktree is to remove its
+checkout, its branch once merged, and what Dream kept for the directory
+(checkpoints); to **purge** it is to drop the app's own record of it, chats
+included. A worktree git has already forgotten is answered as gone (404),
+never by matching the error text.
+
+## Project runtime state
+
+The maps the store keeps per project outside the project record: refresh
+keys, terminal sessions and their status, browser tab loading, the draft
+chat. They are registered in `store/project-runtime-state.ts`, which is
+what closing or purging a project drops; a new per-project map is added
+there, once.
 
 ## Chat
 

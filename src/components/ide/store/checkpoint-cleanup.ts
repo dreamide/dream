@@ -36,17 +36,3 @@ export const requestChatCheckpointCleanup = (
     api.checkpointDeleteChats({ chatIds, projectPath }).catch(ignoreFailure);
   }
 };
-
-/**
- * Drops every checkpoint snapshot for a project whose directory is going away
- * (for example a removed worktree).
- */
-export const requestProjectCheckpointCleanup = (
-  projectPath: string,
-  api: ApiClient = apiClient,
-) => {
-  if (!projectPath) {
-    return;
-  }
-  api.checkpointDeleteProject({ projectPath }).catch(ignoreFailure);
-};

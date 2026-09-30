@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import type { StoreApi } from "zustand";
+import type { ApiClient } from "@/lib/api-client";
 import type {
   AiProvider,
   AppSettings,
@@ -12,6 +13,8 @@ import type {
   PendingChatSubmit,
   ProjectConfig,
   ProjectGitWorktreeCleanupResponse,
+  ProjectGitWorktreeInfo,
+  ProjectGitWorktreeMergeResponse,
   ProjectWorktreeInfo,
   RightPanelView,
   SavedPrompt,
@@ -22,6 +25,11 @@ import type {
   ProviderModelState,
   SettingsSection,
 } from "../ide-types";
+
+export interface StoreActionDependencies {
+  /** The route client; tests pass a fake (`createFakeApiClient`). */
+  api?: ApiClient;
+}
 
 export interface WorktreeInitialChatSeed {
   messageId: string;
@@ -140,19 +148,46 @@ export interface IdeState {
       initialChatSeed?: WorktreeInitialChatSeed;
     },
   ) => Promise<WorktreeProjectCreationResult | null>;
-  closeProject: (projectId: string) => void;
-  stopProjectTerminals: (projectId: string) => void;
+  /**
+   * Opens a worktree git lists as a worktree project of its main checkout
+   * (a detached one opens as a plain folder).
+   */
+  attachWorktreeProject: (
+    worktree: ProjectGitWorktreeInfo,
+    repo: { mainWorktreePath: string; repoRoot: string },
+  ) => void;
+  /**
+   * Merges the worktree's branch into its base in the main checkout, and
+   * refreshes the parent's git status when it moved.
+   */
+  completeWorktreeProject: (
+    projectId: string,
+    options?: { acknowledgeUncommitted?: boolean },
+  ) => Promise<ProjectGitWorktreeMergeResponse>;
+  /**
+   * Has the main process remove the worktree (and delete its branch when
+   * asked and merged). A worktree git had already forgotten is answered as
+   * removed. The app's own record stays until `purgeWorktreeProject`.
+   */
+  forgetWorktree: (options: {
+    /** The branch as listed; resolved from the project record when omitted. */
+    branch?: string | null;
+    deleteBranch?: boolean;
+    force?: boolean;
+    mainWorktreePath: string;
+    worktreePath: string;
+  }) => Promise<ProjectGitWorktreeCleanupResponse>;
+  /**
+   * Drops every record of the worktree (open or closed project, chats,
+   * per-project state) and activates `activateProjectId`, by default the
+   * worktree's parent.
+   */
   purgeWorktreeProject: (
     worktreePath: string,
     options?: { activateProjectId?: string | null },
   ) => void;
-  removeWorktreeProject: (options: {
-    deleteBranch?: boolean;
-    force?: boolean;
-    mainWorktreePath: string;
-    parentProjectId?: string | null;
-    worktreePath: string;
-  }) => Promise<ProjectGitWorktreeCleanupResponse | null>;
+  closeProject: (projectId: string) => void;
+  stopProjectTerminals: (projectId: string) => void;
   updateProject: (
     projectId: string,
     updater: (project: ProjectConfig) => ProjectConfig,

@@ -49,7 +49,6 @@ import type { chatTitleRequestBodySchema } from "../../electron/api/chat/schema.
 import type {
   checkpointChangesRequestSchema,
   checkpointDeleteChatsRequestSchema,
-  checkpointDeleteProjectRequestSchema,
   checkpointDiffRequestSchema,
   checkpointRestoreRequestSchema,
 } from "../../electron/api/checkpoints/schemas.js";
@@ -150,10 +149,6 @@ export interface ProjectGitRevertAllResponse {
 
 export interface CheckpointDeleteChatsResponse {
   deletedRefs: number;
-}
-
-export interface CheckpointDeleteProjectResponse {
-  deleted: true;
 }
 
 export interface CliUpdatesResponse {
@@ -369,10 +364,6 @@ export const API_ROUTES = {
     Input<typeof checkpointDeleteChatsRequestSchema>,
     CheckpointDeleteChatsResponse
   >("/api/checkpoint-delete-chats"),
-  checkpointDeleteProject: post<
-    Input<typeof checkpointDeleteProjectRequestSchema>,
-    CheckpointDeleteProjectResponse
-  >("/api/checkpoint-delete-project"),
 
   // Providers
   providerModels: post<

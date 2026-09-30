@@ -16,8 +16,12 @@ import {
   updateProjectUiInList,
 } from ".";
 import { requestChatCheckpointCleanup } from "./checkpoint-cleanup";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import type { StoreActionDependencies } from "./project-lifecycle-actions";
+import type {
+  IdeState,
+  IdeStoreGet,
+  IdeStoreSet,
+  StoreActionDependencies,
+} from "./ide-store-types";
 
 export const createChatActions = (
   set: IdeStoreSet,

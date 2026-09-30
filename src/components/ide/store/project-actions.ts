@@ -1,11 +1,14 @@
 import { createChatActions } from "./chat-actions";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import {
-  createProjectLifecycleActions,
-  type StoreActionDependencies,
-} from "./project-lifecycle-actions";
+import type {
+  IdeState,
+  IdeStoreGet,
+  IdeStoreSet,
+  StoreActionDependencies,
+} from "./ide-store-types";
+import { createProjectLifecycleActions } from "./project-lifecycle-actions";
 import { createSavedPromptActions } from "./saved-prompt-actions";
 import { createStashActions } from "./stash-actions";
+import { createWorktreeActions } from "./worktree-actions";
 
 export const createProjectActions = (
   set: IdeStoreSet,
@@ -16,11 +19,13 @@ export const createProjectActions = (
   | "setProjects"
   | "setActiveProjectId"
   | "addProject"
-  | "createWorktreeProject"
   | "closeProject"
   | "stopProjectTerminals"
+  | "createWorktreeProject"
+  | "attachWorktreeProject"
+  | "completeWorktreeProject"
+  | "forgetWorktree"
   | "purgeWorktreeProject"
-  | "removeWorktreeProject"
   | "updateProject"
   | "addChat"
   | "addChatBeside"
@@ -48,7 +53,8 @@ export const createProjectActions = (
   | "moveSavedPrompt"
   | "runSavedPrompt"
 > => ({
-  ...createProjectLifecycleActions(set, get, dependencies),
+  ...createProjectLifecycleActions(set, get),
+  ...createWorktreeActions(set, get, dependencies),
   ...createChatActions(set, get, dependencies),
   ...createStashActions(set, get),
   ...createSavedPromptActions(set, get),

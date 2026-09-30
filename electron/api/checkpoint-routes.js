@@ -1,13 +1,11 @@
 import {
   checkpointChangesRequestSchema,
   checkpointDeleteChatsRequestSchema,
-  checkpointDeleteProjectRequestSchema,
   checkpointDiffRequestSchema,
   checkpointRestoreRequestSchema,
 } from "./checkpoints/schemas.js";
 import {
   deleteChatCheckpoints,
-  deleteProjectCheckpoints,
   getCheckpointFileDiff,
   listCheckpointChanges,
   restoreCheckpointFiles,
@@ -54,17 +52,6 @@ export const registerCheckpointRoutes = (app) => {
         deletedRefs += await deleteChatCheckpoints({ chatId, projectPath });
       }
       return { deletedRefs };
-    },
-    CLEANUP_OPTIONS,
-  );
-
-  postProjectRoute(
-    app,
-    "/api/checkpoint-delete-project",
-    checkpointDeleteProjectRequestSchema,
-    async ({ projectPath }) => {
-      await deleteProjectCheckpoints(projectPath);
-      return { deleted: true };
     },
     CLEANUP_OPTIONS,
   );

@@ -10,7 +10,7 @@ const {
   parseConflictingFiles,
   parseGitNameStatusZ,
   parseGitNumstatZ,
-} = await import("./worktree-completion.js");
+} = await import("./worktree-lifecycle.js");
 
 test("parses name-status output including renames and copies", () => {
   const output = [

@@ -12,7 +12,9 @@ vi.mock("electron", () => ({
   app: { getPath: () => userDataDir },
 }));
 
-const { removeEmptyAppWorktreeParent } = await import("./core.js");
+const { removeEmptyAppWorktreeParent } = await import(
+  "./worktree-lifecycle.js"
+);
 
 // The legacy root: `<userData>/worktrees`.
 const worktreesRoot = path.join(userDataDir, "worktrees");

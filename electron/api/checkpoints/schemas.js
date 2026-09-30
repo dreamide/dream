@@ -19,10 +19,6 @@ export const checkpointDeleteChatsRequestSchema = z.object({
   projectPath: z.string().min(1),
 });
 
-export const checkpointDeleteProjectRequestSchema = z.object({
-  projectPath: z.string().min(1),
-});
-
 export const checkpointRestoreRequestSchema =
   checkpointChangesRequestSchema.extend({
     filePaths: z.array(z.string().min(1)).min(1).max(500),

@@ -2,13 +2,13 @@ import { promises as fs, constants as fsConstants } from "node:fs";
 import { TextDecoder } from "node:util";
 import {
   checkoutProjectGitBranch,
-  cleanupProjectGitWorktree,
   commitProjectGitChanges,
   compareProjectGitWorktree,
   createProjectGitWorktree,
   createProjectPullRequest,
   detectProjectIcon,
   ensureProjectDirectory,
+  forgetProjectGitWorktree,
   generateProjectGitCommitMessage,
   generateProjectPullRequestDetails,
   getProjectGitDiff,
@@ -430,7 +430,7 @@ export const registerProjectGitRoutes = (app) => {
     "/api/project-git-worktree-cleanup",
     projectGitWorktreeCleanupRequestSchema,
     ({ projectPath, ...options }) =>
-      cleanupProjectGitWorktree(projectPath, options),
+      forgetProjectGitWorktree(projectPath, options),
     { errorMessage: "Unable to remove worktree." },
   );
 

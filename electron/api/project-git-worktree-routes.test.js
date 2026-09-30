@@ -311,7 +311,7 @@ gitTest(
     const unnamed = await cleanup(app, repoPath, worktreePath, {
       deleteBranch: true,
     });
-    assert.equal(unnamed.status, 400);
+    assert.equal(unnamed.status, 404);
     assert.match(await unnamed.text(), /worktree was not found/i);
 
     const payload = await expectJson(
@@ -431,6 +431,6 @@ gitTest("cleanup reports unknown worktrees", async () => {
     repoPath,
     path.join(repoPath, "does-not-exist"),
   );
-  assert.equal(response.status, 400);
+  assert.equal(response.status, 404);
   assert.match(await response.text(), /worktree was not found/i);
 });

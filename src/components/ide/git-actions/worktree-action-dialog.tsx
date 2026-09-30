@@ -33,10 +33,8 @@ import {
   IdeDiffViewer,
   LargeDiffGuard,
 } from "../diff-viewer";
-import { normalizeProjectPathKey } from "../ide-state";
 import { useIdeStore } from "../ide-store";
 import { MaterialFileIcon } from "../material-file-icon";
-import { isMissingWorktreeError } from "../store/project-lifecycle-actions";
 import { CommitDialog } from "./commit-dialog";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
 import { GitChangesDeltaSummary } from "./summary";
@@ -270,20 +268,9 @@ export const WorktreeActionDialog = ({
   const bumpProjectGitRefreshKey = useIdeStore(
     (s) => s.bumpProjectGitRefreshKey,
   );
+  const completeWorktreeProject = useIdeStore((s) => s.completeWorktreeProject);
+  const forgetWorktree = useIdeStore((s) => s.forgetWorktree);
   const purgeWorktreeProject = useIdeStore((s) => s.purgeWorktreeProject);
-  const stopProjectTerminals = useIdeStore((s) => s.stopProjectTerminals);
-  const mainWorktreePathKey = normalizeProjectPathKey(
-    project.worktree.mainWorktreePath,
-  );
-  const parentProjectId = useIdeStore(
-    (s) =>
-      s.projects.find((item) => item.id === project.worktree.parentProjectId)
-        ?.id ??
-      s.projects.find(
-        (item) => normalizeProjectPathKey(item.path) === mainWorktreePathKey,
-      )?.id ??
-      null,
-  );
 
   const [phase, setPhase] = useState<Phase>("review");
   const [compare, setCompare] =
@@ -382,44 +369,28 @@ export const WorktreeActionDialog = ({
       setPhase("working");
       setWorkingLabel(worktreeT("removingWorktree"));
       setCleanupError(null);
-      stopProjectTerminals(project.id);
       try {
-        const result = await apiClient.gitWorktreeCleanup({
-          branch: project.worktree.branch,
-          deleteBranch,
-          force: discardUncommitted,
-          projectPath: project.worktree.mainWorktreePath,
-          worktreePath: project.path,
-        });
-        setCleanupResult(result);
-      } catch (cleanupFailure) {
-        const message = getApiErrorMessage(
-          cleanupFailure,
-          worktreeT("unableToRemove"),
+        setCleanupResult(
+          await forgetWorktree({
+            deleteBranch,
+            force: discardUncommitted,
+            mainWorktreePath: project.worktree.mainWorktreePath,
+            worktreePath: project.path,
+          }),
         );
-        if (isMissingWorktreeError(message)) {
-          setCleanupResult({
-            branch: project.worktree.branch,
-            branchDeleted: false,
-            branchDeleteError: null,
-            path: project.path,
-            pruned: true,
-            removed: true,
-          });
-        } else {
-          setCleanupError(message);
-        }
+      } catch (cleanupFailure) {
+        setCleanupError(
+          getApiErrorMessage(cleanupFailure, worktreeT("unableToRemove")),
+        );
       } finally {
         setPhase("done");
       }
     },
     [
       discardUncommitted,
-      project.id,
+      forgetWorktree,
       project.path,
-      project.worktree.branch,
       project.worktree.mainWorktreePath,
-      stopProjectTerminals,
       worktreeT,
     ],
   );
@@ -430,12 +401,10 @@ export const WorktreeActionDialog = ({
     setError(null);
     setConflictingFiles([]);
     try {
-      const result = await apiClient.gitWorktreeMerge({
+      const result = await completeWorktreeProject(project.id, {
         // Uncommitted changes are neither merged nor lost: the worktree
         // stays, so they stay with it.
         acknowledgeUncommitted: true,
-        baseRef: project.worktree.baseRef,
-        projectPath: project.path,
       });
       if (result.status === "conflict") {
         setError(worktreeT("mergeConflict", { base: result.baseBranch }));
@@ -445,37 +414,19 @@ export const WorktreeActionDialog = ({
       }
 
       setMergeResult(result);
-      if (parentProjectId) {
-        bumpProjectGitRefreshKey(parentProjectId);
-      }
       setPhase("merged");
     } catch (mergeFailure) {
       setError(getApiErrorMessage(mergeFailure, worktreeT("unableToMerge")));
       setPhase("review");
     }
-  }, [
-    bumpProjectGitRefreshKey,
-    compare?.baseBranch,
-    parentProjectId,
-    project.path,
-    project.worktree.baseRef,
-    worktreeT,
-  ]);
+  }, [compare?.baseBranch, completeWorktreeProject, project.id, worktreeT]);
 
   const finish = useCallback(() => {
     onOpenChange(false);
     if (cleanupResult) {
-      purgeWorktreeProject(project.path, {
-        activateProjectId: parentProjectId,
-      });
+      purgeWorktreeProject(project.path);
     }
-  }, [
-    cleanupResult,
-    onOpenChange,
-    parentProjectId,
-    project.path,
-    purgeWorktreeProject,
-  ]);
+  }, [cleanupResult, onOpenChange, project.path, purgeWorktreeProject]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
