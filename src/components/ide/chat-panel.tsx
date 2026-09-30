@@ -62,7 +62,6 @@ import {
   getTranscriptWindow,
 } from "./chat/transcript-window";
 import { useIdeStore } from "./ide-store";
-import { MODEL_SPEED_OPTIONS, REASONING_EFFORT_OPTIONS } from "./ide-types";
 import { ProjectBranchFooter } from "./project-status-bar";
 import { RunSavedPromptSubmenu } from "./saved-prompts/run-saved-prompt-submenu";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
@@ -147,7 +146,6 @@ export const ChatPanel = ({
 }) => {
   const chatT = useTranslations("chat");
   const commonT = useTranslations("common");
-  const modelT = useTranslations("models");
   const workspaceT = useTranslations("workspace");
   const panelDomId = `chat-panel-${chat.id}`;
   const conversationDomId = `chat-conversation-${chat.id}`;
@@ -194,18 +192,12 @@ export const ChatPanel = ({
     () => getChatModelOptions(settings, providerModels),
     [providerModels, settings],
   );
-  const {
-    availableModelSpeedTiers,
-    availableReasoningEfforts,
-    selectedModel,
-    selectedModelOption,
-    selectedModelSpeed,
-    selectedProvider,
-    selectedReasoningEffort,
-  } = useMemo(
+  const modelSelection = useMemo(
     () => resolveChatModelSelection(chat, allModelOptions),
     [allModelOptions, chat],
   );
+  const { selectedModel, selectedModelOption, selectedProvider } =
+    modelSelection;
   const isProviderInstalled =
     providerModels[selectedProvider]?.installed ?? false;
   const [promptText, setPromptText] = useState("");
@@ -252,21 +244,6 @@ export const ChatPanel = ({
     (response) => respondToToolApproval(chat.id, response),
     [chat.id],
   );
-
-  const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
-  const selectedModelValue = selectedModelOption?.id;
-  const speedOptions = MODEL_SPEED_OPTIONS.filter((option) =>
-    availableModelSpeedTiers.includes(option.value),
-  );
-  const selectedModelSpeedLabel = modelT(selectedModelSpeed);
-  const reasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter((option) =>
-    availableReasoningEfforts.includes(option.value),
-  );
-  const selectedReasoningEffortForControl = selectedReasoningEffort ?? "medium";
-  const selectedReasoningLabel =
-    selectedReasoningEffort === null
-      ? modelT("reasoning")
-      : modelT(selectedReasoningEffort);
 
   const latestAssistantMetadata = useMemo(
     () => getLatestAssistantMetadata(messages),
@@ -590,7 +567,6 @@ export const ChatPanel = ({
 
         {readOnly ? null : (
           <ChatComposer
-            allModelOptions={allModelOptions}
             chatProvider={chat.provider}
             contextWindow={contextWindow}
             contextUsage={contextUsage}
@@ -599,6 +575,7 @@ export const ChatPanel = ({
             isProcessing={isProcessing}
             isProviderInstalled={isProviderInstalled}
             modelId={modelId}
+            modelSelection={modelSelection}
             onModelChange={(nextOption) => {
               updateChat(chat.id, (current) => ({
                 ...current,
@@ -650,16 +627,6 @@ export const ChatPanel = ({
             promptText={promptText}
             permissionMode={chat.permissionMode}
             projectPath={project.path}
-            reasoningEffortOptions={reasoningEffortOptions}
-            speedOptions={speedOptions}
-            selectedModel={selectedModel}
-            selectedModelLabel={selectedModelLabel}
-            selectedModelValue={selectedModelValue}
-            selectedModelSpeed={selectedModelSpeed}
-            selectedModelSpeedLabel={selectedModelSpeedLabel}
-            selectedProvider={selectedProvider}
-            selectedReasoningEffort={selectedReasoningEffortForControl}
-            selectedReasoningLabel={selectedReasoningLabel}
             sparklesPalette={chat.sparklesPalette}
             status={status}
             todoSummary={todoSummary}

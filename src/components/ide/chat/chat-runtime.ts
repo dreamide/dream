@@ -45,7 +45,13 @@ import {
   getChatModelOptions,
   resolveChatModelSelection,
 } from "./chat-model-selection";
+import {
+  hasPossibleSkillMention,
+  type SerializedComposerDraft,
+  serializeComposerDraft,
+} from "./composer-draft";
 import type { ChatMessageMetadata } from "./message-footer";
+import { fetchProviderSkills, providerSupportsSkills } from "./provider-skills";
 import { projectMessagesForRequest } from "./request-context";
 import type { ToolApprovalResponder } from "./tool-call-groups";
 
@@ -787,6 +793,38 @@ const restoreDraft = (chatId: string, submission: PendingChatSubmit) => {
   }));
 };
 
+/**
+ * A queued prompt (a saved prompt, a stash item, review feedback) is sent
+ * through the same serialization as the composer, so its `$skill` mentions
+ * are recognised and shown on the message. Queued text is already
+ * serialized; this recovers the skills. The catalog is only fetched when the
+ * text could mention one, as the composer does.
+ */
+const serializeQueuedSubmission = async (
+  chatId: string,
+  submission: PendingChatSubmit,
+): Promise<SerializedComposerDraft> => {
+  const draft = { references: submission.references, text: submission.text };
+  const state = useIdeStore.getState();
+  const config = state.chats.find((item) => item.id === chatId);
+  const project = config
+    ? state.projects.find((item) => item.id === config.projectId)
+    : undefined;
+  if (!config || !project || !hasPossibleSkillMention(draft.text)) {
+    return { ...draft, skills: [] };
+  }
+
+  const { selectedProvider } = resolveChatModelSelection(
+    config,
+    getChatModelOptions(state.settings, state.providerModels),
+  );
+  if (!providerSupportsSkills(selectedProvider)) {
+    return { ...draft, skills: [] };
+  }
+  const { skills } = await fetchProviderSkills(selectedProvider, project.path);
+  return serializeComposerDraft(draft, skills);
+};
+
 const drainPendingSubmit = async (chatId: string) => {
   if (draining.has(chatId)) {
     return;
@@ -812,10 +850,10 @@ const drainPendingSubmit = async (chatId: string) => {
     }
 
     try {
+      const serialized = await serializeQueuedSubmission(chatId, submission);
       const submitted = submitChatPrompt(chatId, {
         files: submission.files ?? [],
-        references: submission.references,
-        text: submission.text,
+        ...serialized,
       });
       if (!submitted) {
         restoreDraft(chatId, submission);

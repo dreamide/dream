@@ -10,9 +10,23 @@ import type {
   ModelSpeed,
   ReasoningEffort,
 } from "@/types/ide";
-import { normalizeModelSpeed, normalizeReasoningEffort } from "../ide-types";
+import {
+  MODEL_SPEED_OPTIONS,
+  normalizeModelSpeed,
+  normalizeReasoningEffort,
+  REASONING_EFFORT_OPTIONS,
+} from "../ide-types";
 import type { IdeState } from "../store/ide-store-types";
-import type { ChatPanelModelOption } from "./chat-composer";
+
+/** A model the composer's picker offers. */
+export interface ChatPanelModelOption {
+  contextWindow?: number;
+  id: string;
+  label: string;
+  provider: AiProvider;
+  reasoningEfforts: ReasoningEffort[];
+  speedTiers: ModelSpeed[];
+}
 
 export interface ChatModelSelection {
   allModelOptions: ChatPanelModelOption[];
@@ -26,6 +40,15 @@ export interface ChatModelSelection {
   /** `null` when the model has no reasoning control. */
   selectedReasoningEffort: ReasoningEffort | null;
 }
+
+/**
+ * The saved choices a model selection is resolved from. Chats and stash
+ * items both carry these.
+ */
+export type ChatModelChoice = Pick<
+  ChatConfig,
+  "model" | "modelSpeed" | "provider" | "reasoningEffort"
+>;
 
 export const getChatModelOptions = (
   settings: AppSettings,
@@ -49,13 +72,11 @@ export const getChatModelOptions = (
 /**
  * The model, speed and reasoning effort a chat actually runs with: its saved
  * choices, narrowed to what is currently connected and supported. Shared by
- * the chat panel (what the controls show) and the chat runtime (what is sent).
+ * the chat panel and the stash (what the controls show) and the chat runtime
+ * (what is sent).
  */
 export const resolveChatModelSelection = (
-  chat: Pick<
-    ChatConfig,
-    "model" | "modelSpeed" | "provider" | "reasoningEffort"
-  >,
+  chat: ChatModelChoice,
   allModelOptions: ChatPanelModelOption[],
 ): ChatModelSelection => {
   const selectedModelOption =
@@ -102,4 +123,35 @@ export const resolveChatModelSelection = (
     selectedProvider,
     selectedReasoningEffort,
   };
+};
+
+/** What the composer's model, effort and speed pickers show for a selection. */
+export const getModelSelectionControls = (selection: ChatModelSelection) => ({
+  modelLabel: selection.selectedModelOption?.label ?? selection.selectedModel,
+  modelValue: selection.selectedModelOption?.id,
+  /** Offered efforts, in the app's canonical order. */
+  reasoningEfforts: REASONING_EFFORT_OPTIONS.map(({ value }) => value).filter(
+    (value) => selection.availableReasoningEfforts.includes(value),
+  ),
+  /** The effort control's value; models with no control never show it. */
+  reasoningEffort: selection.selectedReasoningEffort ?? "medium",
+  speeds: MODEL_SPEED_OPTIONS.map(({ value }) => value).filter((value) =>
+    selection.availableModelSpeedTiers.includes(value),
+  ),
+});
+
+/**
+ * The option a model picker's value names. Two providers can offer the same
+ * model id; the chat's current provider wins the tie.
+ */
+export const findModelOption = (
+  allModelOptions: ChatPanelModelOption[],
+  id: string,
+  preferredProvider: AiProvider,
+) => {
+  const matching = allModelOptions.filter((option) => option.id === id);
+  return (
+    matching.find((option) => option.provider === preferredProvider) ??
+    matching[0]
+  );
 };

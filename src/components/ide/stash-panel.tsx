@@ -1,20 +1,9 @@
 import type { ChatStatus } from "ai";
 import { Inbox } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  type KeyboardEventHandler,
-  memo,
-  useCallback,
-  useMemo,
-  useState,
-} from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { PromptInputMessage } from "@/components/ai-elements/prompt-input";
-import {
-  getConnectedProviders,
-  getDefaultModelSelection,
-  getModelOptionsForProvider,
-} from "@/lib/ide-defaults";
-import { getModelReasoningEfforts, getModelSpeedTiers } from "@/lib/models";
+import { getDefaultModelSelection } from "@/lib/ide-defaults";
 import { DEFAULT_SPARKLES_PALETTE } from "@/lib/sparkles-palettes";
 import type {
   ChatPermissionMode,
@@ -23,21 +12,15 @@ import type {
   ReasoningEffort,
   StashItem,
 } from "@/types/ide";
+import { ChatComposer } from "./chat/chat-composer";
 import {
-  ChatComposer,
   type ChatPanelModelOption,
-  type ChatPanelReasoningOption,
-  type ChatPanelSpeedOption,
-} from "./chat/chat-composer";
+  getChatModelOptions,
+  resolveChatModelSelection,
+} from "./chat/chat-model-selection";
 import type { ChatTodoSummary } from "./chat/todo-list";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
-import {
-  MODEL_SPEED_OPTIONS,
-  normalizeModelSpeed,
-  normalizeReasoningEffort,
-  REASONING_EFFORT_OPTIONS,
-} from "./ide-types";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 
 const EMPTY_TODO_SUMMARY: ChatTodoSummary = {
@@ -50,8 +33,6 @@ const EMPTY_TODO_SUMMARY: ChatTodoSummary = {
 
 const READY_STATUS: ChatStatus = "ready";
 
-const noopPromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = () => {};
-
 export interface StashPanelProps {
   active?: boolean;
   onClosePanel: () => void;
@@ -61,94 +42,10 @@ export interface StashPanelProps {
 const useStashModelOptions = () => {
   const settings = useIdeStore((state) => state.settings);
   const providerModels = useIdeStore((state) => state.providerModels);
-  const connectedProviders = getConnectedProviders(settings);
-
-  return useMemo<ChatPanelModelOption[]>(
-    () =>
-      connectedProviders.flatMap((provider) =>
-        getModelOptionsForProvider(
-          provider,
-          settings,
-          providerModels[provider].models,
-        ).map((model) => ({
-          contextWindow: model.contextWindow,
-          id: model.id,
-          label: model.label,
-          provider,
-          reasoningEfforts: model.reasoningEfforts ?? [],
-          speedTiers: model.speedTiers ?? [],
-        })),
-      ),
-    [connectedProviders, providerModels, settings],
+  return useMemo(
+    () => getChatModelOptions(settings, providerModels),
+    [providerModels, settings],
   );
-};
-
-const resolveComposerSelection = (
-  allModelOptions: ChatPanelModelOption[],
-  selection: {
-    model: string;
-    modelSpeed: ModelSpeed;
-    provider: StashItem["provider"];
-    reasoningEffort: ReasoningEffort | null;
-  },
-  modelT: (key: string) => string,
-) => {
-  const selectedModelOption =
-    allModelOptions.find(
-      (option) =>
-        option.provider === selection.provider && option.id === selection.model,
-    ) ?? allModelOptions[0];
-  const selectedProvider = selectedModelOption?.provider ?? selection.provider;
-  const selectedModel = selectedModelOption?.id ?? "";
-  const selectedModelLabel = selectedModelOption?.label ?? selectedModel;
-  const availableModelSpeedTiers = selectedModelOption?.speedTiers?.length
-    ? selectedModelOption.speedTiers
-    : getModelSpeedTiers(selectedProvider, selectedModel);
-  const speedOptions = MODEL_SPEED_OPTIONS.filter((option) =>
-    availableModelSpeedTiers.includes(option.value),
-  );
-  const normalizedModelSpeed = normalizeModelSpeed(selection.modelSpeed);
-  const selectedModelSpeed =
-    availableModelSpeedTiers.length === 0
-      ? "standard"
-      : availableModelSpeedTiers.includes(normalizedModelSpeed)
-        ? normalizedModelSpeed
-        : "standard";
-  const availableReasoningEfforts = selectedModelOption?.reasoningEfforts
-    ?.length
-    ? selectedModelOption.reasoningEfforts
-    : getModelReasoningEfforts(selectedProvider, selectedModel);
-  const reasoningEffortOptions = REASONING_EFFORT_OPTIONS.filter((option) =>
-    availableReasoningEfforts.includes(option.value),
-  );
-  const normalizedReasoningEffort = normalizeReasoningEffort(
-    selection.reasoningEffort,
-  );
-  const selectedReasoningEffort =
-    availableReasoningEfforts.length === 0
-      ? null
-      : normalizedReasoningEffort &&
-          availableReasoningEfforts.includes(normalizedReasoningEffort)
-        ? normalizedReasoningEffort
-        : availableReasoningEfforts.includes("medium")
-          ? "medium"
-          : availableReasoningEfforts[0];
-
-  return {
-    reasoningEffortOptions,
-    selectedModel,
-    selectedModelLabel,
-    selectedModelSpeed,
-    selectedModelSpeedLabel: modelT(selectedModelSpeed),
-    selectedModelValue: selectedModelOption?.id,
-    selectedProvider,
-    selectedReasoningEffort: selectedReasoningEffort ?? "medium",
-    selectedReasoningLabel:
-      selectedReasoningEffort === null
-        ? modelT("reasoning")
-        : modelT(selectedReasoningEffort),
-    speedOptions,
-  };
 };
 
 const StashItemComposer = ({
@@ -170,8 +67,7 @@ const StashItemComposer = ({
   onUpdate: (updater: (current: StashItem) => StashItem) => void;
   projectPath: string;
 }) => {
-  const modelT = useTranslations("models");
-  const selection = resolveComposerSelection(allModelOptions, item, modelT);
+  const selection = resolveChatModelSelection(item, allModelOptions);
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
@@ -187,7 +83,6 @@ const StashItemComposer = ({
 
   return (
     <ChatComposer
-      allModelOptions={allModelOptions}
       chatProvider={item.provider}
       className="px-3 pb-3"
       contextWindow={0}
@@ -197,6 +92,7 @@ const StashItemComposer = ({
       isProcessing={false}
       isProviderInstalled={isProviderInstalled}
       modelId=""
+      modelSelection={selection}
       onDelete={onDelete}
       onModelChange={(nextOption) =>
         onUpdate((current) => ({
@@ -213,7 +109,6 @@ const StashItemComposer = ({
       onPermissionModeChange={(permissionMode) =>
         onUpdate((current) => ({ ...current, permissionMode }))
       }
-      onPromptKeyDown={noopPromptKeyDown}
       onPromptTextChange={(text) =>
         onUpdate((current) => ({ ...current, text }))
       }
@@ -224,27 +119,13 @@ const StashItemComposer = ({
             reasoningEffort === "medium" ? null : reasoningEffort,
         }))
       }
-      onSparklesPaletteChange={() => {}}
-      onStop={() => {}}
       onSubmit={handleSubmit}
       permissionMode={item.permissionMode}
       projectPath={projectPath}
       promptDomId={`stash-item-${item.id}`}
       promptInputDomId={`stash-item-input-${item.id}`}
       promptText={item.text}
-      reasoningEffortOptions={
-        selection.reasoningEffortOptions as ChatPanelReasoningOption[]
-      }
-      selectedModel={selection.selectedModel}
-      selectedModelLabel={selection.selectedModelLabel}
-      selectedModelSpeed={selection.selectedModelSpeed}
-      selectedModelSpeedLabel={selection.selectedModelSpeedLabel}
-      selectedModelValue={selection.selectedModelValue}
-      selectedProvider={selection.selectedProvider}
-      selectedReasoningEffort={selection.selectedReasoningEffort}
-      selectedReasoningLabel={selection.selectedReasoningLabel}
       sparklesPalette={DEFAULT_SPARKLES_PALETTE}
-      speedOptions={selection.speedOptions as ChatPanelSpeedOption[]}
       status={READY_STATUS}
       todoSummary={EMPTY_TODO_SUMMARY}
     />
@@ -262,7 +143,6 @@ const StashDraftComposer = ({
   onSubmit: (item: Omit<StashItem, "createdAt" | "id" | "updatedAt">) => void;
   project: ProjectConfig;
 }) => {
-  const modelT = useTranslations("models");
   const settings = useIdeStore((state) => state.settings);
   const providerModels = useIdeStore((state) => state.providerModels);
   const defaultSelection = getDefaultModelSelection(settings);
@@ -283,10 +163,9 @@ const StashDraftComposer = ({
         ? defaultSelection.reasoningEffort
         : project.reasoningEffort,
     );
-  const selection = resolveComposerSelection(
-    allModelOptions,
+  const selection = resolveChatModelSelection(
     { model, modelSpeed, provider, reasoningEffort },
-    modelT,
+    allModelOptions,
   );
   const isProviderInstalled =
     providerModels[selection.selectedProvider]?.installed ?? false;
@@ -325,7 +204,6 @@ const StashDraftComposer = ({
 
   return (
     <ChatComposer
-      allModelOptions={allModelOptions}
       chatProvider={provider}
       className="px-3 pb-3"
       contextWindow={0}
@@ -335,6 +213,7 @@ const StashDraftComposer = ({
       isProcessing={false}
       isProviderInstalled={isProviderInstalled}
       modelId=""
+      modelSelection={selection}
       onModelChange={(nextOption) => {
         setProvider(nextOption.provider);
         setModel(nextOption.id);
@@ -343,32 +222,17 @@ const StashDraftComposer = ({
       }}
       onModelSpeedChange={setModelSpeed}
       onPermissionModeChange={setPermissionMode}
-      onPromptKeyDown={noopPromptKeyDown}
       onPromptTextChange={setPromptText}
       onReasoningEffortChange={(effort) =>
         setReasoningEffort(effort === "medium" ? null : effort)
       }
-      onSparklesPaletteChange={() => {}}
-      onStop={() => {}}
       onSubmit={handleSubmit}
       permissionMode={permissionMode}
       projectPath={project.path}
       promptDomId="stash-draft"
       promptInputDomId="stash-draft-input"
       promptText={promptText}
-      reasoningEffortOptions={
-        selection.reasoningEffortOptions as ChatPanelReasoningOption[]
-      }
-      selectedModel={selection.selectedModel}
-      selectedModelLabel={selection.selectedModelLabel}
-      selectedModelSpeed={selection.selectedModelSpeed}
-      selectedModelSpeedLabel={selection.selectedModelSpeedLabel}
-      selectedModelValue={selection.selectedModelValue}
-      selectedProvider={selection.selectedProvider}
-      selectedReasoningEffort={selection.selectedReasoningEffort}
-      selectedReasoningLabel={selection.selectedReasoningLabel}
       sparklesPalette={DEFAULT_SPARKLES_PALETTE}
-      speedOptions={selection.speedOptions as ChatPanelSpeedOption[]}
       status={READY_STATUS}
       todoSummary={EMPTY_TODO_SUMMARY}
     />

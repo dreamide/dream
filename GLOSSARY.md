@@ -88,3 +88,20 @@ The translator from one provider's native events to agent-turn calls
 (`*-stream.js`). ACP providers share one translator with a smaller
 per-provider adapter behind it (`acp-stream.js` with `cursor-stream.js`
 and `grok-stream.js`).
+
+## Composer draft
+
+The chat composer's text read as a mention-aware document
+(`src/components/ide/chat/composer-draft.ts`). A **mention** is a picked
+file or folder (a _reference_), a **picked skill** (both encoded as an icon
+slot, six spaces, then the name), or a **typed skill** (plain `$name`).
+Serializing a draft turns references into `@path` and picked skills into
+`$name`, giving `{ text, references, skills }`. The composer, the stash and
+queued prompts (saved prompts, stash runs, feedback) all serialize through
+it.
+
+## Skill catalog
+
+The skills a provider can load for a project, fetched from the main process
+and cached briefly (`provider-skills.ts`). Not to be confused with a skill
+_mention_, which is text in a draft.

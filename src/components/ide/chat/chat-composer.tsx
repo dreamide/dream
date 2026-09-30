@@ -74,598 +74,156 @@ import { PromptAttachments } from "../chat";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
 import { ChatComposerInsertContext } from "./chat-composer-insert-context";
 import {
-  type ActiveSkillToken,
-  findSkillMentions,
-  getActiveSkillToken,
+  type ChatModelSelection,
+  type ChatPanelModelOption,
+  findModelOption,
+  getModelSelectionControls,
+} from "./chat-model-selection";
+import {
+  applyComposerEdit,
+  buildProjectReferenceIndex,
+  type ComposerCatalog,
+  type ComposerEdit,
+  type ComposerEditResult,
+  type ComposerSegment,
+  type ComposerState,
+  composerNeedsSkillCatalog,
   getSkillLabel,
-  hasPossibleSkillMention,
-  isSkillOfferedInMenu,
-  providerSupportsSkills,
-  type SkillMentionRange,
-  searchProviderSkills,
-} from "./provider-skills";
+  handleComposerKey,
+  MENTION_ICON_SLOT,
+  readComposerDraft,
+  serializeComposerDraft,
+} from "./composer-draft";
+import { providerSupportsSkills } from "./provider-skills";
 import type { ChatTodoSummary } from "./todo-list";
 import { TodoListPopover } from "./todo-list-popover";
 import { UsageLimitsPopover } from "./usage-limits-popover";
 import { useProviderSkills } from "./use-provider-skills";
 
-export interface ChatPanelModelOption {
-  contextWindow?: number;
-  id: string;
-  label: string;
-  provider: AiProvider;
-  reasoningEfforts: ReasoningEffort[];
-  speedTiers: ModelSpeed[];
-}
-
-export interface ChatPanelReasoningOption {
-  value: ReasoningEffort;
-}
-
-export interface ChatPanelSpeedOption {
-  value: ModelSpeed;
-}
-
-type ProjectReferenceItem = ProjectReference;
+export type { ChatPanelModelOption } from "./chat-model-selection";
 
 type ProjectFilesListResponse = {
   count: number;
   files: string[];
 };
 
-type ActiveReferenceToken = {
-  end: number;
-  query: string;
-  start: number;
-};
-
-const PROJECT_REFERENCE_RESULT_LIMIT = 8;
 const PROJECT_REFERENCE_FILE_LIMIT = 2500;
 
-const normalizeProjectPath = (path: string) => path.replace(/\\/g, "/");
+/** The project's files and folders, for the `@` menu. */
+const useProjectReferenceIndex = (projectPath: string) => {
+  const [index, setIndex] = useState<ProjectReference[]>([]);
 
-const getReferenceName = (path: string) => {
-  const normalized = normalizeProjectPath(path);
-  return normalized.split("/").pop() || normalized;
-};
+  useEffect(() => {
+    const abortController = new AbortController();
 
-const getReferenceParentPath = (path: string) => {
-  const normalized = normalizeProjectPath(path);
-  const index = normalized.lastIndexOf("/");
-  return index === -1 ? "" : normalized.slice(0, index);
-};
-
-const isReferenceMentionBoundary = (character: string | undefined) =>
-  !character || /\s|[),.;:!?]/.test(character);
-
-const getTextCharacter = (text: string, index: number) =>
-  index >= 0 && index < text.length ? text[index] : undefined;
-
-const REFERENCE_ICON_TEXT_SLOT = "      ";
-
-const getReferenceMentionText = (reference: ProjectReference) =>
-  `${REFERENCE_ICON_TEXT_SLOT}${reference.name}`;
-
-const isReferenceMentionRange = (
-  text: string,
-  start: number,
-  mentionLength: number,
-) =>
-  (/\s/.test(getTextCharacter(text, start) ?? "") ||
-    isReferenceMentionBoundary(getTextCharacter(text, start - 1))) &&
-  isReferenceMentionBoundary(getTextCharacter(text, start + mentionLength));
-
-const hasReferenceMention = (text: string, reference: ProjectReference) => {
-  const mention = getReferenceMentionText(reference);
-  let index = text.indexOf(mention);
-
-  while (index !== -1) {
-    if (isReferenceMentionRange(text, index, mention.length)) {
-      return true;
-    }
-    index = text.indexOf(mention, index + mention.length);
-  }
-
-  return false;
-};
-
-type ReferenceMentionRange = {
-  end: number;
-  reference: ProjectReference;
-  start: number;
-};
-
-const getReferenceMentionRanges = (
-  text: string,
-  references: ProjectReference[],
-) =>
-  references.flatMap((reference): ReferenceMentionRange[] => {
-    const mention = getReferenceMentionText(reference);
-    const ranges: ReferenceMentionRange[] = [];
-    let index = text.indexOf(mention);
-
-    while (index !== -1) {
-      const end = index + mention.length;
-      if (isReferenceMentionRange(text, index, mention.length)) {
-        ranges.push({ end, reference, start: index });
+    const load = async () => {
+      try {
+        const response = await fetch("/api/project-files", {
+          body: JSON.stringify({
+            directory: ".",
+            maxResults: PROJECT_REFERENCE_FILE_LIMIT,
+            projectPath,
+          }),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+          signal: abortController.signal,
+        });
+        if (!response.ok) {
+          setIndex([]);
+          return;
+        }
+        const payload = (await response.json()) as ProjectFilesListResponse;
+        setIndex(buildProjectReferenceIndex(payload.files));
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setIndex([]);
       }
-      index = text.indexOf(mention, index + mention.length);
-    }
-
-    return ranges;
-  });
-
-/**
- * A skill picked from the `$` menu sits in the textarea like a file mention:
- * the icon slot plus its display name ("      PDF"). It is read back from the
- * text (not held in state, so drafts and remounts keep it) and expanded to
- * `$name` on send, which is what the providers look for.
- */
-type PickedSkillRange = { end: number; skill: ProviderSkill; start: number };
-
-const isSameSkill = (left: ProviderSkill, right: ProviderSkill) =>
-  left.source === right.source &&
-  left.name === right.name &&
-  left.path === right.path;
-
-const getPickedSkillMentionTexts = (skills: ProviderSkill[]) => {
-  const offered = skills.filter(isSkillOfferedInMenu);
-  const labelCounts = new Map<string, number>();
-  for (const skill of offered) {
-    const label = getSkillLabel(skill);
-    labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
-  }
-  const byText = new Map<string, ProviderSkill>();
-  for (const skill of offered) {
-    const label = getSkillLabel(skill);
-    // Two skills sharing a display name fall back to their unique names.
-    const shown = (labelCounts.get(label) ?? 0) > 1 ? skill.name : label;
-    const mentionText = `${REFERENCE_ICON_TEXT_SLOT}${shown}`;
-    if (!byText.has(mentionText)) {
-      byText.set(mentionText, skill);
-    }
-  }
-  return byText;
-};
-
-const getPickedSkillMentionText = (
-  skill: ProviderSkill,
-  mentionTexts: Map<string, ProviderSkill>,
-) => {
-  for (const [mentionText, candidate] of mentionTexts) {
-    if (isSameSkill(candidate, skill)) {
-      return mentionText;
-    }
-  }
-  return `${REFERENCE_ICON_TEXT_SLOT}${skill.name}`;
-};
-
-const findPickedSkillRanges = (
-  text: string,
-  mentionTexts: Map<string, ProviderSkill>,
-  taken: { end: number; start: number }[],
-): PickedSkillRange[] => {
-  if (mentionTexts.size === 0 || !text.includes(REFERENCE_ICON_TEXT_SLOT)) {
-    return [];
-  }
-
-  const ranges: PickedSkillRange[] = [];
-  // Longest first, so "PDF Tools" wins over "PDF".
-  const candidates = [...mentionTexts.keys()].sort(
-    (left, right) => right.length - left.length,
-  );
-  for (const mentionText of candidates) {
-    const skill = mentionTexts.get(mentionText);
-    if (!skill) {
-      continue;
-    }
-    let index = text.indexOf(mentionText);
-    while (index !== -1) {
-      const start = index;
-      const end = start + mentionText.length;
-      if (
-        isReferenceMentionRange(text, start, mentionText.length) &&
-        ![...taken, ...ranges].some(
-          (range) => start < range.end && end > range.start,
-        )
-      ) {
-        ranges.push({ end, skill, start });
-      }
-      index = text.indexOf(mentionText, index + 1);
-    }
-  }
-  return ranges.sort((left, right) => left.start - right.start);
-};
-
-const expandPickedSkillMentionsForSubmit = (
-  text: string,
-  ranges: PickedSkillRange[],
-) => {
-  let output = "";
-  let index = 0;
-  for (const range of ranges) {
-    // Only pad when the skill would otherwise touch a word; the backend
-    // matches `$name` after whitespace or an opening bracket.
-    const previous = getTextCharacter(text, range.start - 1);
-    const prefix = previous && !/[\s([{]/.test(previous) ? " " : "";
-    output += `${text.slice(index, range.start)}${prefix}$${range.skill.name}`;
-    index = range.end;
-  }
-  return output + text.slice(index);
-};
-
-/** Icon slot text that is not a selected file: likely a picked skill. */
-const hasUnclaimedMentionSlot = (
-  text: string,
-  references: ProjectReference[],
-) => {
-  if (!text.includes(REFERENCE_ICON_TEXT_SLOT)) {
-    return false;
-  }
-  const taken = getReferenceMentionRanges(text, references);
-  let index = text.indexOf(REFERENCE_ICON_TEXT_SLOT);
-  while (index !== -1) {
-    const at = index;
-    if (!taken.some((range) => at >= range.start && at < range.end)) {
-      return true;
-    }
-    index = text.indexOf(REFERENCE_ICON_TEXT_SLOT, index + 1);
-  }
-  return false;
-};
-
-const getMentionDeletionRange = ({
-  key,
-  ranges,
-  selectionEnd,
-  selectionStart,
-}: {
-  key: "Backspace" | "Delete";
-  ranges: { end: number; start: number }[];
-  selectionEnd: number;
-  selectionStart: number;
-}) => {
-  if (ranges.length === 0) {
-    return null;
-  }
-
-  if (selectionStart !== selectionEnd) {
-    const overlappingRanges = ranges.filter(
-      (range) => selectionStart < range.end && selectionEnd > range.start,
-    );
-    if (overlappingRanges.length === 0) {
-      return null;
-    }
-
-    return {
-      end: Math.max(
-        selectionEnd,
-        ...overlappingRanges.map((range) => range.end),
-      ),
-      start: Math.min(
-        selectionStart,
-        ...overlappingRanges.map((range) => range.start),
-      ),
     };
-  }
 
-  return ranges.find((range) =>
-    key === "Backspace"
-      ? selectionStart > range.start && selectionStart <= range.end
-      : selectionStart >= range.start && selectionStart < range.end,
-  );
+    void load();
+    return () => abortController.abort();
+  }, [projectPath]);
+
+  return index;
 };
 
-const removeReferenceMentionRange = (
-  text: string,
-  range: { end: number; start: number },
-) => {
-  let { end, start } = range;
+const MENTION_CLASS_NAME =
+  "text-foreground [-webkit-text-stroke:0.35px_currentColor]";
+const MENTION_ICON_CLASS_NAME =
+  "absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2";
 
-  if (
-    getTextCharacter(text, start - 1) === " " &&
-    getTextCharacter(text, end) === " "
-  ) {
-    end += 1;
-  } else if (start === 0 && getTextCharacter(text, end) === " ") {
-    end += 1;
-  } else if (
-    getTextCharacter(text, start - 1) === " " &&
-    (end === text.length ||
-      isReferenceMentionBoundary(getTextCharacter(text, end)))
-  ) {
-    start -= 1;
-  }
+const MentionIconSlot = ({ children }: { children: ReactNode }) => (
+  <span className="relative inline-block text-transparent">
+    {MENTION_ICON_SLOT}
+    {children}
+  </span>
+);
 
-  return {
-    nextCaretIndex: start,
-    nextText: `${text.slice(0, start)}${text.slice(end)}`,
-  };
-};
-
-const expandReferenceMentionsForSubmit = (
-  text: string,
-  references: ProjectReference[],
-) => {
-  if (!text || references.length === 0) {
-    return text;
-  }
-
-  const sortedReferences = [...references].sort(
-    (left, right) =>
-      getReferenceMentionText(right).length -
-      getReferenceMentionText(left).length,
-  );
-  let output = "";
-  let index = 0;
-
-  while (index < text.length) {
-    const reference = sortedReferences.find((item) => {
-      const mention = getReferenceMentionText(item);
+const renderSegment = (segment: ComposerSegment) => {
+  switch (segment.kind) {
+    case "text":
       return (
-        text.startsWith(mention, index) &&
-        isReferenceMentionRange(text, index, mention.length)
-      );
-    });
-
-    if (!reference) {
-      output += text[index];
-      index += 1;
-      continue;
-    }
-
-    const mention = getReferenceMentionText(reference);
-    output += `${index > 0 ? " " : ""}@${reference.path}`;
-    index += mention.length;
-  }
-
-  return output;
-};
-
-const getActiveReferenceToken = (
-  text: string,
-  caretIndex: number,
-): ActiveReferenceToken | null => {
-  const beforeCaret = text.slice(0, caretIndex);
-  const atIndex = beforeCaret.lastIndexOf("@");
-
-  if (atIndex === -1) {
-    return null;
-  }
-
-  const characterBeforeAt = atIndex > 0 ? beforeCaret.at(atIndex - 1) : "";
-  if (characterBeforeAt && !/\s|[([{]/.test(characterBeforeAt)) {
-    return null;
-  }
-
-  const query = beforeCaret.slice(atIndex + 1);
-  if (/\s/.test(query)) {
-    return null;
-  }
-
-  return {
-    end: caretIndex,
-    query,
-    start: atIndex,
-  };
-};
-
-const buildProjectReferences = (files: string[]): ProjectReferenceItem[] => {
-  const folders = new Set<string>();
-  const normalizedFiles = files.map(normalizeProjectPath);
-
-  for (const filePath of normalizedFiles) {
-    const segments = filePath.split("/").filter(Boolean);
-    for (let index = 1; index < segments.length; index += 1) {
-      folders.add(segments.slice(0, index).join("/"));
-    }
-  }
-
-  return [
-    ...[...folders].map((path) => ({
-      kind: "folder" as const,
-      name: getReferenceName(path),
-      parentPath: getReferenceParentPath(path),
-      path,
-    })),
-    ...normalizedFiles.map((path) => ({
-      kind: "file" as const,
-      name: getReferenceName(path),
-      parentPath: getReferenceParentPath(path),
-      path,
-    })),
-  ].sort((left, right) => {
-    if (left.kind !== right.kind) {
-      return left.kind === "folder" ? -1 : 1;
-    }
-
-    return left.path.localeCompare(right.path);
-  });
-};
-
-const getReferenceScore = (item: ProjectReferenceItem, query: string) => {
-  if (!query) {
-    return item.kind === "folder" ? 1 : 2;
-  }
-
-  const normalizedQuery = query.toLowerCase();
-  const name = item.name.toLowerCase();
-  const path = item.path.toLowerCase();
-
-  if (name === normalizedQuery) {
-    return 0;
-  }
-  if (name.startsWith(normalizedQuery)) {
-    return 1;
-  }
-  if (path.startsWith(normalizedQuery)) {
-    return 2;
-  }
-  if (name.includes(normalizedQuery)) {
-    return 3;
-  }
-  if (path.includes(normalizedQuery)) {
-    return 4;
-  }
-
-  return null;
-};
-
-const searchProjectReferences = (
-  items: ProjectReferenceItem[],
-  query: string,
-) =>
-  items
-    .flatMap((item) => {
-      const score = getReferenceScore(item, query);
-      return score === null ? [] : [{ item, score }];
-    })
-    .sort(
-      (left, right) =>
-        left.score - right.score ||
-        left.item.path.localeCompare(right.item.path),
-    )
-    .slice(0, PROJECT_REFERENCE_RESULT_LIMIT)
-    .map(({ item }) => item);
-
-const InlineProjectReferenceMentions = ({
-  pickedSkills,
-  references,
-  skillMentions,
-  text,
-}: {
-  pickedSkills: PickedSkillRange[];
-  references: ProjectReference[];
-  skillMentions: SkillMentionRange[];
-  text: string;
-}) => {
-  if (
-    !text ||
-    (references.length === 0 &&
-      skillMentions.length === 0 &&
-      pickedSkills.length === 0)
-  ) {
-    return null;
-  }
-
-  const pickedSkillStarts = new Map(
-    pickedSkills.map((range) => [range.start, range] as const),
-  );
-  const skillMentionStarts = new Map(
-    skillMentions.map((mention) => [mention.start, mention] as const),
-  );
-
-  const sortedReferences = [...references].sort(
-    (left, right) =>
-      getReferenceMentionText(right).length -
-      getReferenceMentionText(left).length,
-  );
-  const nodes: ReactNode[] = [];
-  let pendingText = "";
-  let index = 0;
-
-  const flushText = () => {
-    if (!pendingText) {
-      return;
-    }
-
-    nodes.push(
-      <span key={`text-${nodes.length}`} className="whitespace-pre-wrap">
-        {pendingText}
-      </span>,
-    );
-    pendingText = "";
-  };
-
-  while (index < text.length) {
-    const pickedSkill = pickedSkillStarts.get(index);
-    if (pickedSkill) {
-      flushText();
-      nodes.push(
-        <span
-          className="text-foreground [-webkit-text-stroke:0.35px_currentColor]"
-          key={`picked-skill-${pickedSkill.skill.name}:${index}`}
-        >
-          <span className="relative inline-block text-transparent">
-            {REFERENCE_ICON_TEXT_SLOT}
-            <Package className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          </span>
-          {text.slice(
-            pickedSkill.start + REFERENCE_ICON_TEXT_SLOT.length,
-            pickedSkill.end,
-          )}
-        </span>,
-      );
-      index = pickedSkill.end;
-      continue;
-    }
-
-    const skillMention = skillMentionStarts.get(index);
-    if (skillMention) {
-      flushText();
-      nodes.push(
-        <span
-          className="text-foreground [-webkit-text-stroke:0.35px_currentColor]"
-          key={`skill-${skillMention.name}:${index}`}
-        >
-          {text.slice(skillMention.start, skillMention.end)}
-        </span>,
-      );
-      index = skillMention.end;
-      continue;
-    }
-
-    const reference = sortedReferences.find((item) => {
-      const mention = getReferenceMentionText(item);
-      return (
-        text.startsWith(mention, index) &&
-        isReferenceMentionRange(text, index, mention.length)
-      );
-    });
-
-    if (!reference) {
-      pendingText += text[index];
-      index += 1;
-      continue;
-    }
-
-    flushText();
-    nodes.push(
-      <span
-        className="text-foreground [-webkit-text-stroke:0.35px_currentColor]"
-        key={`reference-${reference.kind}:${reference.path}:${index}`}
-      >
-        <span className="relative inline-block text-transparent">
-          {REFERENCE_ICON_TEXT_SLOT}
-          {reference.kind === "folder" ? (
-            <MaterialFolderIcon
-              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2"
-              name={reference.name}
-            />
-          ) : (
-            <MaterialFileIcon
-              className="absolute left-0.5 top-1/2 size-3.5 -translate-y-1/2"
-              path={reference.path}
-            />
-          )}
+        <span className="whitespace-pre-wrap" key={`text-${segment.start}`}>
+          {segment.text}
         </span>
-        {reference.name}
-      </span>,
-    );
-    index += getReferenceMentionText(reference).length;
+      );
+    case "typed-skill":
+      return (
+        <span className={MENTION_CLASS_NAME} key={`skill-${segment.start}`}>
+          {segment.text}
+        </span>
+      );
+    case "picked-skill":
+      return (
+        <span
+          className={MENTION_CLASS_NAME}
+          key={`picked-skill-${segment.start}`}
+        >
+          <MentionIconSlot>
+            <Package
+              className={cn(MENTION_ICON_CLASS_NAME, "text-muted-foreground")}
+            />
+          </MentionIconSlot>
+          {segment.label}
+        </span>
+      );
+    case "reference":
+      return (
+        <span className={MENTION_CLASS_NAME} key={`reference-${segment.start}`}>
+          <MentionIconSlot>
+            {segment.reference.kind === "folder" ? (
+              <MaterialFolderIcon
+                className={MENTION_ICON_CLASS_NAME}
+                name={segment.reference.name}
+              />
+            ) : (
+              <MaterialFileIcon
+                className={MENTION_ICON_CLASS_NAME}
+                path={segment.reference.path}
+              />
+            )}
+          </MentionIconSlot>
+          {segment.reference.name}
+        </span>
+      );
   }
-
-  flushText();
-
-  return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-3 py-2 text-sm leading-normal"
-    >
-      {nodes}
-    </div>
-  );
 };
+
+/** Draws the draft's mentions over the (then transparent) textarea text. */
+const ComposerMentionOverlay = ({
+  segments,
+}: {
+  segments: ComposerSegment[];
+}) => (
+  <div
+    aria-hidden="true"
+    className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-3 py-2 text-sm leading-normal"
+  >
+    {segments.map(renderSegment)}
+  </div>
+);
 
 const ChatComposerSubmitButton = ({
   isActive,
@@ -707,7 +265,7 @@ const ChatComposerSubmitButton = ({
 };
 
 export interface ChatComposerProps {
-  allModelOptions: ChatPanelModelOption[];
+  /** The chat's saved provider; wins a tie between same-id models. */
   chatProvider: AiProvider;
   className?: string;
   contextWindow: number;
@@ -718,31 +276,24 @@ export interface ChatComposerProps {
   isProcessing: boolean;
   isProviderInstalled: boolean;
   modelId: string;
+  /** The model, effort and speed the pickers show, and what they offer. */
+  modelSelection: ChatModelSelection;
   onDelete?: () => void;
   onModelChange: (option: ChatPanelModelOption) => void;
   onModelSpeedChange: (speed: ModelSpeed) => void;
   onPermissionModeChange: (mode: ChatPermissionMode) => void;
-  onPromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
+  /** Keys the draft leaves alone (Enter to send, prompt history). */
+  onPromptKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>;
   onPromptTextChange: (value: string) => void;
   onReasoningEffortChange: (effort: ReasoningEffort) => void;
-  onSparklesPaletteChange: (palette: SparklesPaletteName) => void;
-  onStop: () => void;
+  onSparklesPaletteChange?: (palette: SparklesPaletteName) => void;
+  onStop?: () => void;
   onSubmit: (prompt: PromptInputMessage) => void | Promise<void>;
   promptDomId: string;
   promptInputDomId: string;
   promptText: string;
   permissionMode: ChatPermissionMode;
   projectPath: string;
-  reasoningEffortOptions: ChatPanelReasoningOption[];
-  speedOptions: ChatPanelSpeedOption[];
-  selectedModel: string;
-  selectedModelLabel: string;
-  selectedModelValue: string | undefined;
-  selectedProvider: AiProvider;
-  selectedModelSpeed: ModelSpeed;
-  selectedModelSpeedLabel: string;
-  selectedReasoningEffort: ReasoningEffort;
-  selectedReasoningLabel: string;
   sparklesPalette: SparklesPaletteName;
   status: ChatStatus;
   todoSummary: ChatTodoSummary;
@@ -750,8 +301,13 @@ export interface ChatComposerProps {
   actionMenuItems?: ReactNode;
 }
 
+type ComposerLocalState = Pick<ComposerState, "references" | "token">;
+
+const EMPTY_LOCAL_STATE: ComposerLocalState = { references: [], token: null };
+
+const noop = () => {};
+
 export const ChatComposer = ({
-  allModelOptions,
   chatProvider,
   className,
   contextWindow,
@@ -762,6 +318,7 @@ export const ChatComposer = ({
   isProcessing,
   isProviderInstalled,
   modelId,
+  modelSelection,
   onDelete,
   onModelChange,
   onModelSpeedChange,
@@ -769,24 +326,14 @@ export const ChatComposer = ({
   onPromptKeyDown,
   onPromptTextChange,
   onReasoningEffortChange,
-  onSparklesPaletteChange,
-  onStop,
+  onSparklesPaletteChange = noop,
+  onStop = noop,
   onSubmit,
   promptDomId,
   promptInputDomId,
   promptText,
   permissionMode,
   projectPath,
-  reasoningEffortOptions,
-  speedOptions,
-  selectedModel,
-  selectedModelLabel,
-  selectedModelValue,
-  selectedProvider,
-  selectedModelSpeed,
-  selectedModelSpeedLabel,
-  selectedReasoningEffort,
-  selectedReasoningLabel,
   sparklesPalette,
   status,
   todoSummary,
@@ -795,6 +342,7 @@ export const ChatComposer = ({
   const chatT = useTranslations("chat");
   const modelT = useTranslations("models");
   const settingsT = useTranslations("settings");
+  const skillsT = useTranslations("skills");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // Set when a + menu item inserted text, so closing the menu lands the caret
   // at the end of the prompt instead of back on the + button.
@@ -819,32 +367,34 @@ export const ChatComposer = ({
     return textarea;
   }, []);
   const todoPanelId = useId();
-  const [projectReferences, setProjectReferences] = useState<
-    ProjectReferenceItem[]
-  >([]);
   const [isTodoPanelOpen, setIsTodoPanelOpen] = useState(false);
-  const [activeReferenceToken, setActiveReferenceToken] =
-    useState<ActiveReferenceToken | null>(null);
-  const [highlightedReferenceIndex, setHighlightedReferenceIndex] = useState(0);
-  const [selectedReferences, setSelectedReferences] = useState<
-    ProjectReference[]
-  >([]);
-  const [activeSkillToken, setActiveSkillToken] =
-    useState<ActiveSkillToken | null>(null);
-  const [highlightedSkillIndex, setHighlightedSkillIndex] = useState(0);
+
+  // The draft: the text is the caller's (it is the saved chat draft); the
+  // picked files and the token at the caret are held here.
+  const [local, setLocal] = useState<ComposerLocalState>(EMPTY_LOCAL_STATE);
+  const draft = useMemo<ComposerState>(
+    () => ({ ...local, text: promptText }),
+    [local, promptText],
+  );
+
+  const { selectedProvider } = modelSelection;
   const skillsSupported = providerSupportsSkills(selectedProvider);
-  // Discovery can start a provider process (Codex), so it only runs once
-  // the user reaches for a skill or the draft already mentions one.
-  const { skills: providerSkills } = useProviderSkills({
-    enabled:
-      skillsSupported &&
-      (activeSkillToken !== null ||
-        hasPossibleSkillMention(promptText) ||
-        hasUnclaimedMentionSlot(promptText, selectedReferences)),
+  const { skills } = useProviderSkills({
+    enabled: composerNeedsSkillCatalog(draft, skillsSupported),
     projectPath,
     provider: selectedProvider,
   });
-  const skillsT = useTranslations("skills");
+  const projectReferences = useProjectReferenceIndex(projectPath);
+  const catalog = useMemo<ComposerCatalog>(
+    () => ({ projectReferences, skills, skillsSupported }),
+    [projectReferences, skills, skillsSupported],
+  );
+  const view = useMemo(
+    () => readComposerDraft(draft, catalog),
+    [catalog, draft],
+  );
+  const { menu } = view;
+
   const accentColor = useUiStore((s) => s.accentColor);
   const accentSparklesPalette = useMemo(
     () => createAccentSparklesPalette(accentColor),
@@ -853,51 +403,11 @@ export const ChatComposer = ({
   const resolvedSparklesPalette =
     sparklesPalette === "accent" ? accentSparklesPalette : sparklesPalette;
 
+  // Sent or cleared from outside: nothing is picked any more.
   useEffect(() => {
-    const abortController = new AbortController();
-
-    const loadProjectReferences = async () => {
-      try {
-        const response = await fetch("/api/project-files", {
-          body: JSON.stringify({
-            directory: ".",
-            maxResults: PROJECT_REFERENCE_FILE_LIMIT,
-            projectPath,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-          setProjectReferences([]);
-          return;
-        }
-
-        const payload = (await response.json()) as ProjectFilesListResponse;
-        setProjectReferences(buildProjectReferences(payload.files));
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-        setProjectReferences([]);
-      }
-    };
-
-    void loadProjectReferences();
-
-    return () => abortController.abort();
-  }, [projectPath]);
-
-  useEffect(() => {
-    if (promptText !== "") {
-      return;
+    if (promptText === "") {
+      setLocal(EMPTY_LOCAL_STATE);
     }
-
-    setActiveReferenceToken(null);
-    setHighlightedReferenceIndex(0);
-    setActiveSkillToken(null);
-    setHighlightedSkillIndex(0);
   }, [promptText]);
 
   useEffect(() => {
@@ -906,344 +416,96 @@ export const ChatComposer = ({
     }
   }, [todoSummary.totalCount]);
 
-  const referenceResults = useMemo(
-    () =>
-      activeReferenceToken
-        ? searchProjectReferences(projectReferences, activeReferenceToken.query)
-        : [],
-    [activeReferenceToken, projectReferences],
-  );
-  const activeTokenIsSelectedReference =
-    activeReferenceToken !== null &&
-    selectedReferences.some(
-      (reference) => reference.name === activeReferenceToken.query,
-    );
-
-  const showReferenceResults =
-    activeReferenceToken !== null &&
-    !activeTokenIsSelectedReference &&
-    referenceResults.length > 0;
-
-  const skillResults = useMemo(
-    () =>
-      activeSkillToken
-        ? searchProviderSkills(providerSkills, activeSkillToken.query)
-        : [],
-    [activeSkillToken, providerSkills],
-  );
-  const showSkillResults =
-    !showReferenceResults &&
-    activeSkillToken !== null &&
-    skillResults.length > 0;
-  const skillMentions = useMemo(
-    () =>
-      skillsSupported ? findSkillMentions(promptText, providerSkills) : [],
-    [promptText, providerSkills, skillsSupported],
-  );
-  const pickedSkillMentionTexts = useMemo(
-    () =>
-      skillsSupported
-        ? getPickedSkillMentionTexts(providerSkills)
-        : new Map<string, ProviderSkill>(),
-    [providerSkills, skillsSupported],
-  );
-  const pickedSkills = useMemo(
-    () =>
-      findPickedSkillRanges(
-        promptText,
-        pickedSkillMentionTexts,
-        getReferenceMentionRanges(promptText, selectedReferences),
-      ),
-    [pickedSkillMentionTexts, promptText, selectedReferences],
-  );
-  const hasInlineOverlay =
-    selectedReferences.length > 0 ||
-    skillMentions.length > 0 ||
-    pickedSkills.length > 0;
-
-  const updateActiveReferenceToken = useCallback(
-    (text: string, caretIndex: number | null | undefined) => {
-      const referenceToken =
-        typeof caretIndex === "number"
-          ? getActiveReferenceToken(text, caretIndex)
-          : null;
-      setActiveReferenceToken(referenceToken);
-      setHighlightedReferenceIndex(0);
-      setActiveSkillToken(
-        !referenceToken && skillsSupported && typeof caretIndex === "number"
-          ? getActiveSkillToken(text, caretIndex)
-          : null,
+  const commit = useCallback(
+    ({ caret, state }: ComposerEditResult) => {
+      if (state.text !== promptText) {
+        onPromptTextChange(state.text);
+      }
+      setLocal((current) =>
+        current.references === state.references && current.token === state.token
+          ? current
+          : { references: state.references, token: state.token },
       );
-      setHighlightedSkillIndex(0);
+      if (caret !== undefined) {
+        requestAnimationFrame(() => {
+          textareaRef.current?.focus();
+          textareaRef.current?.setSelectionRange(caret, caret);
+        });
+      }
     },
-    [skillsSupported],
+    [onPromptTextChange, promptText],
+  );
+
+  const edit = useCallback(
+    (composerEdit: ComposerEdit) =>
+      commit(applyComposerEdit(draft, composerEdit, catalog)),
+    [catalog, commit, draft],
   );
 
   const handlePromptChange: ChangeEventHandler<HTMLTextAreaElement> =
     useCallback(
-      (event) => {
-        const nextValue = event.currentTarget.value;
-        onPromptTextChange(nextValue);
-        setSelectedReferences((current) =>
-          current.filter((reference) =>
-            hasReferenceMention(nextValue, reference),
-          ),
-        );
-        updateActiveReferenceToken(
-          nextValue,
-          event.currentTarget.selectionStart,
-        );
-      },
-      [onPromptTextChange, updateActiveReferenceToken],
+      (event) =>
+        edit({
+          caret: event.currentTarget.selectionStart,
+          text: event.currentTarget.value,
+          type: "input",
+        }),
+      [edit],
     );
 
-  const insertProjectReference = useCallback(
-    (item: ProjectReferenceItem) => {
-      if (!activeReferenceToken) {
-        return;
-      }
-
-      const before = promptText.slice(0, activeReferenceToken.start);
-      const after = promptText.slice(activeReferenceToken.end);
-      const mentionText = getReferenceMentionText(item);
-      const nextCharacter = after.at(0);
-      const separator =
-        nextCharacter !== undefined && isReferenceMentionBoundary(nextCharacter)
-          ? ""
-          : " ";
-      const nextValue = `${before}${mentionText}${separator}${after}`;
-      const nextCaretIndex =
-        before.length + mentionText.length + separator.length;
-
-      onPromptTextChange(nextValue);
-      setSelectedReferences((current) =>
-        current.some(
-          (reference) =>
-            reference.kind === item.kind && reference.path === item.path,
-        )
-          ? current
-          : [...current, item],
-      );
-      setActiveReferenceToken(null);
-      setHighlightedReferenceIndex(0);
-
-      requestAnimationFrame(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(nextCaretIndex, nextCaretIndex);
-      });
-    },
-    [activeReferenceToken, onPromptTextChange, promptText],
-  );
-
-  const insertProviderSkill = useCallback(
-    (skill: ProviderSkill) => {
-      if (!activeSkillToken) {
-        return;
-      }
-
-      const before = promptText.slice(0, activeSkillToken.start);
-      const after = promptText.slice(activeSkillToken.end);
-      const mentionText = getPickedSkillMentionText(
-        skill,
-        pickedSkillMentionTexts,
-      );
-      const nextCharacter = after.at(0);
-      const separator =
-        nextCharacter !== undefined && isReferenceMentionBoundary(nextCharacter)
-          ? ""
-          : " ";
-      const nextValue = `${before}${mentionText}${separator}${after}`;
-      const nextCaretIndex =
-        before.length + mentionText.length + separator.length;
-
-      onPromptTextChange(nextValue);
-      setActiveSkillToken(null);
-      setHighlightedSkillIndex(0);
-
-      requestAnimationFrame(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(nextCaretIndex, nextCaretIndex);
-      });
-    },
-    [activeSkillToken, onPromptTextChange, pickedSkillMentionTexts, promptText],
-  );
-
-  const handleComposerSubmit = useCallback(
-    async (prompt: PromptInputMessage) => {
-      const submittedPickedSkills = findPickedSkillRanges(
-        prompt.text,
-        pickedSkillMentionTexts,
-        getReferenceMentionRanges(prompt.text, selectedReferences),
-      );
-      await onSubmit({
-        ...prompt,
-        text: expandReferenceMentionsForSubmit(
-          expandPickedSkillMentionsForSubmit(
-            prompt.text,
-            submittedPickedSkills,
-          ),
-          selectedReferences,
-        ),
-        references: selectedReferences,
-        skills: [
-          ...new Set(
-            [...submittedPickedSkills, ...skillMentions].map(
-              (mention) => mention.skill.name,
-            ),
-          ),
-        ],
-      });
-      setSelectedReferences([]);
-      setActiveReferenceToken(null);
-      setHighlightedReferenceIndex(0);
-      setActiveSkillToken(null);
-      setHighlightedSkillIndex(0);
-    },
-    [onSubmit, pickedSkillMentionTexts, selectedReferences, skillMentions],
+  // Reads the textarea's own value: a select event can arrive before the
+  // parent's new text has rendered.
+  const handleCaretMove = useCallback(
+    ({ currentTarget }: { currentTarget: HTMLTextAreaElement }) =>
+      edit(
+        currentTarget.value === draft.text
+          ? { caret: currentTarget.selectionStart, type: "caret" }
+          : {
+              caret: currentTarget.selectionStart,
+              text: currentTarget.value,
+              type: "input",
+            },
+      ),
+    [draft.text, edit],
   );
 
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> =
     useCallback(
       (event) => {
-        if (event.key === "PageUp" || event.key === "PageDown") {
-          // Chromium can route these keys to the horizontally scrollable chat
-          // stack and move the entire active chat out of the viewport.
-          event.preventDefault();
-          return;
-        }
-
-        if (
-          (event.key === "Backspace" || event.key === "Delete") &&
-          (selectedReferences.length > 0 || pickedSkills.length > 0)
-        ) {
-          const deletionRange = getMentionDeletionRange({
+        const result = handleComposerKey(
+          draft,
+          {
             key: event.key,
-            ranges: [
-              ...getReferenceMentionRanges(promptText, selectedReferences),
-              // Picked skills delete as one unit, like files; a hand-typed
-              // `$name` stays ordinary editable text.
-              ...pickedSkills,
-            ],
             selectionEnd: event.currentTarget.selectionEnd,
             selectionStart: event.currentTarget.selectionStart,
-          });
-
-          if (deletionRange) {
-            event.preventDefault();
-            const { nextCaretIndex, nextText } = removeReferenceMentionRange(
-              promptText,
-              deletionRange,
-            );
-
-            onPromptTextChange(nextText);
-            setSelectedReferences((current) =>
-              current.filter((reference) =>
-                hasReferenceMention(nextText, reference),
-              ),
-            );
-            setActiveReferenceToken(null);
-            setHighlightedReferenceIndex(0);
-
-            requestAnimationFrame(() => {
-              textareaRef.current?.focus();
-              textareaRef.current?.setSelectionRange(
-                nextCaretIndex,
-                nextCaretIndex,
-              );
-            });
-            return;
-          }
-        }
-
-        if (showReferenceResults) {
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            setHighlightedReferenceIndex(
-              (current) => (current + 1) % referenceResults.length,
-            );
-            return;
-          }
-
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            setHighlightedReferenceIndex(
-              (current) =>
-                (current - 1 + referenceResults.length) %
-                referenceResults.length,
-            );
-            return;
-          }
-
-          if (event.key === "Enter" || event.key === "Tab") {
-            event.preventDefault();
-            const selected = referenceResults[highlightedReferenceIndex];
-            if (selected) {
-              insertProjectReference(selected);
-            }
-            return;
-          }
-        }
-
-        if (showSkillResults) {
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            setHighlightedSkillIndex(
-              (current) => (current + 1) % skillResults.length,
-            );
-            return;
-          }
-
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            setHighlightedSkillIndex(
-              (current) =>
-                (current - 1 + skillResults.length) % skillResults.length,
-            );
-            return;
-          }
-
-          if (event.key === "Enter" || event.key === "Tab") {
-            event.preventDefault();
-            const selected = skillResults[highlightedSkillIndex];
-            if (selected) {
-              insertProviderSkill(selected);
-            }
-            return;
-          }
-        }
-
-        if (
-          (activeReferenceToken || activeSkillToken) &&
-          event.key === "Escape"
-        ) {
+          },
+          catalog,
+        );
+        if (result) {
           event.preventDefault();
-          setActiveReferenceToken(null);
-          setHighlightedReferenceIndex(0);
-          setActiveSkillToken(null);
-          setHighlightedSkillIndex(0);
+          commit(result);
           return;
         }
-
-        onPromptKeyDown(event);
+        onPromptKeyDown?.(event);
       },
-      [
-        activeReferenceToken,
-        activeSkillToken,
-        highlightedReferenceIndex,
-        highlightedSkillIndex,
-        insertProjectReference,
-        insertProviderSkill,
-        onPromptKeyDown,
-        onPromptTextChange,
-        promptText,
-        referenceResults,
-        selectedReferences,
-        showReferenceResults,
-        pickedSkills,
-        showSkillResults,
-        skillResults,
-      ],
+      [catalog, commit, draft, onPromptKeyDown],
     );
+
+  const handleComposerSubmit = useCallback(
+    async (prompt: PromptInputMessage) => {
+      const sent = serializeComposerDraft(
+        { references: draft.references, text: prompt.text },
+        skills,
+        { skillsSupported },
+      );
+      await onSubmit({ ...prompt, ...sent });
+      edit({ type: "submitted" });
+    },
+    [draft.references, edit, onSubmit, skills, skillsSupported],
+  );
+
+  const controls = getModelSelectionControls(modelSelection);
+  const { allModelOptions } = modelSelection;
 
   const getSkillBadge = (skill: ProviderSkill) => {
     if (skill.kind === "command") {
@@ -1266,22 +528,24 @@ export const ChatComposer = ({
   return (
     <div id={promptDomId} className={cn("shrink-0 px-2 pb-2", className)}>
       <div className="@container/chat-composer mx-auto w-full max-w-[700px]">
-        {showReferenceResults ? (
+        {menu?.kind === "reference" ? (
           <div className="mb-2 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-700 bg-background text-foreground shadow-lg">
             <div className="max-h-80 overflow-y-auto p-1">
-              {referenceResults.map((item, index) => (
+              {menu.items.map((item, index) => (
                 <button
                   aria-label={`Reference ${item.path}`}
                   className={cn(
                     "flex h-8 w-full min-w-0 items-center gap-2.5 rounded-md px-2 text-left",
-                    index === highlightedReferenceIndex
+                    index === menu.highlighted
                       ? "bg-surface-100 text-foreground dark:bg-surface-900"
                       : "text-muted-foreground",
                   )}
                   key={`${item.kind}:${item.path}`}
-                  onClick={() => insertProjectReference(item)}
+                  onClick={() =>
+                    edit({ reference: item, type: "pick-reference" })
+                  }
                   onMouseDown={(event) => event.preventDefault()}
-                  onMouseMove={() => setHighlightedReferenceIndex(index)}
+                  onMouseMove={() => edit({ index, type: "highlight" })}
                   type="button"
                 >
                   {item.kind === "folder" ? (
@@ -1310,10 +574,10 @@ export const ChatComposer = ({
             </div>
           </div>
         ) : null}
-        {showSkillResults ? (
+        {menu?.kind === "skill" ? (
           <div className="mb-2 overflow-hidden rounded-lg border border-surface-200 dark:border-surface-700 bg-background text-foreground shadow-lg">
             <div className="max-h-80 overflow-y-auto p-1">
-              {skillResults.map((skill, index) => {
+              {menu.items.map((skill, index) => {
                 const badge = getSkillBadge(skill);
                 const BadgeIcon = badge.icon;
                 const description = skill.shortDescription || skill.description;
@@ -1322,14 +586,14 @@ export const ChatComposer = ({
                     aria-label={`Skill ${skill.name}`}
                     className={cn(
                       "flex h-8 w-full min-w-0 items-center gap-2.5 rounded-md px-2 text-left",
-                      index === highlightedSkillIndex
+                      index === menu.highlighted
                         ? "bg-surface-100 text-foreground dark:bg-surface-900"
                         : "text-muted-foreground",
                     )}
                     key={`${skill.source}:${skill.path || skill.name}`}
-                    onClick={() => insertProviderSkill(skill)}
+                    onClick={() => edit({ skill, type: "pick-skill" })}
                     onMouseDown={(event) => event.preventDefault()}
-                    onMouseMove={() => setHighlightedSkillIndex(index)}
+                    onMouseMove={() => edit({ index, type: "highlight" })}
                     title={skill.path || undefined}
                     type="button"
                   >
@@ -1394,33 +658,20 @@ export const ChatComposer = ({
                     </PromptInputActionMenu>
                   </PromptInputTools>
                   <div className="relative min-w-0 flex-1">
-                    <InlineProjectReferenceMentions
-                      references={selectedReferences}
-                      pickedSkills={pickedSkills}
-                      skillMentions={skillMentions}
-                      text={promptText}
-                    />
+                    {view.hasMentions ? (
+                      <ComposerMentionOverlay segments={view.segments} />
+                    ) : null}
                     <PromptInputTextarea
                       className={cn(
                         "relative min-h-0 border-none bg-transparent px-3 py-2 shadow-none caret-foreground focus-visible:ring-0 selection:bg-foreground/20 selection:text-foreground",
-                        hasInlineOverlay &&
+                        view.hasMentions &&
                           "text-transparent placeholder:text-muted-foreground selection:text-transparent",
                       )}
                       disabled={!isActive}
                       onChange={handlePromptChange}
-                      onClick={(event) =>
-                        updateActiveReferenceToken(
-                          event.currentTarget.value,
-                          event.currentTarget.selectionStart,
-                        )
-                      }
+                      onClick={handleCaretMove}
                       onKeyDown={handlePromptKeyDown}
-                      onSelect={(event) =>
-                        updateActiveReferenceToken(
-                          event.currentTarget.value,
-                          event.currentTarget.selectionStart,
-                        )
-                      }
+                      onSelect={handleCaretMove}
                       placeholder={chatT("askAnything")}
                       ref={textareaRef}
                       rows={1}
@@ -1440,8 +691,8 @@ export const ChatComposer = ({
                       isProviderInstalled={isProviderInstalled}
                       onStop={onStop}
                       promptText={promptText}
-                      selectedModel={selectedModel}
-                      selectedReferenceCount={selectedReferences.length}
+                      selectedModel={modelSelection.selectedModel}
+                      selectedReferenceCount={draft.references.length}
                       status={status}
                     />
                   </div>
@@ -1452,18 +703,16 @@ export const ChatComposer = ({
                 <Select
                   onValueChange={(value) => {
                     if (typeof value !== "string") return;
-                    const matchingOptions = allModelOptions.filter(
-                      (option) => option.id === value,
+                    const nextOption = findModelOption(
+                      allModelOptions,
+                      value,
+                      chatProvider,
                     );
-                    const nextOption =
-                      matchingOptions.find(
-                        (option) => option.provider === chatProvider,
-                      ) ?? matchingOptions[0];
-                    if (!nextOption) return;
-
-                    onModelChange(nextOption);
+                    if (nextOption) {
+                      onModelChange(nextOption);
+                    }
                   }}
-                  value={selectedModelValue}
+                  value={controls.modelValue}
                 >
                   <SelectTrigger
                     className="h-7 w-auto max-w-[260px] gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
@@ -1476,7 +725,7 @@ export const ChatComposer = ({
                           className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
                           provider={selectedProvider}
                         />
-                        <span className="truncate">{selectedModelLabel}</span>
+                        <span className="truncate">{controls.modelLabel}</span>
                       </span>
                     </SelectValue>
                   </SelectTrigger>
@@ -1506,33 +755,31 @@ export const ChatComposer = ({
                   </SelectContent>
                 </Select>
 
-                {reasoningEffortOptions.length > 0 ? (
+                {controls.reasoningEfforts.length > 0 ? (
                   <Select
                     onValueChange={(value) =>
                       onReasoningEffortChange(value as ReasoningEffort)
                     }
-                    value={selectedReasoningEffort}
+                    value={controls.reasoningEffort}
                   >
                     <SelectTrigger
                       className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
                       showChevron={false}
                     >
                       <span className="truncate">
-                        {selectedReasoningEffort
-                          ? modelT(selectedReasoningEffort)
-                          : selectedReasoningLabel}
+                        {modelT(controls.reasoningEffort)}
                       </span>
                     </SelectTrigger>
                     <SelectContent className="text-xs" side="top">
                       <SelectGroup>
                         <SelectLabel>{settingsT("effort")}</SelectLabel>
-                        {reasoningEffortOptions.map((option) => (
+                        {controls.reasoningEfforts.map((value) => (
                           <SelectItem
                             className="text-xs"
-                            key={option.value}
-                            value={option.value}
+                            key={value}
+                            value={value}
                           >
-                            {modelT(option.value)}
+                            {modelT(value)}
                           </SelectItem>
                         ))}
                       </SelectGroup>
@@ -1540,33 +787,31 @@ export const ChatComposer = ({
                   </Select>
                 ) : null}
 
-                {speedOptions.length > 0 ? (
+                {controls.speeds.length > 0 ? (
                   <Select
                     onValueChange={(value) =>
                       onModelSpeedChange(value as ModelSpeed)
                     }
-                    value={selectedModelSpeed}
+                    value={modelSelection.selectedModelSpeed}
                   >
                     <SelectTrigger
                       className="h-7 w-auto gap-1 border-none bg-transparent px-2 text-xs font-medium text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[popup-open]:bg-transparent dark:bg-transparent dark:hover:bg-surface-900 dark:data-[popup-open]:bg-transparent"
                       showChevron={false}
                     >
                       <span className="truncate">
-                        {selectedModelSpeed
-                          ? modelT(selectedModelSpeed)
-                          : selectedModelSpeedLabel}
+                        {modelT(modelSelection.selectedModelSpeed)}
                       </span>
                     </SelectTrigger>
                     <SelectContent className="text-xs" side="top">
                       <SelectGroup>
                         <SelectLabel>{settingsT("speed")}</SelectLabel>
-                        {speedOptions.map((option) => (
+                        {controls.speeds.map((value) => (
                           <SelectItem
                             className="text-xs"
-                            key={option.value}
-                            value={option.value}
+                            key={value}
+                            value={value}
                           >
-                            {modelT(option.value)}
+                            {modelT(value)}
                           </SelectItem>
                         ))}
                       </SelectGroup>
