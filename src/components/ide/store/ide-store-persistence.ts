@@ -1,27 +1,7 @@
 import type { UIMessage } from "ai";
 import { getDesktopApi } from "@/lib/electron";
-import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import type { PersistedIdeState, ProjectConfig } from "@/types/ide";
-import {
-  ensureActiveProject,
-  mergePersistedState,
-  sanitizeProjectUiForChats,
-} from "../ide-state";
-import type { IdeState } from "./ide-store-types";
-
-const createEmptyPersistedState = (): PersistedIdeState => ({
-  activeProjectId: null,
-  appView: "code",
-  savedPrompts: [],
-  activeBrowserTabIdByProject: {},
-  browserTabsByProject: {},
-  chats: [],
-  chatSort: "recent",
-  closedProjects: [],
-  messagesByChatId: {},
-  projects: [],
-  settings: DEFAULT_SETTINGS,
-});
+import type { PersistedIdeState } from "@/types/ide";
+import { createEmptyPersistedState } from "../../../../electron/shared/persisted-state-codec.js";
 
 const STATE_LOAD_TIMEOUT_MS = 8000;
 
@@ -55,16 +35,22 @@ const withTimeout = async <T>(
   }
 };
 
+/**
+ * The main process decodes persisted state once, with the shared codec,
+ * before it crosses the IPC seam; what arrives here is already valid.
+ */
 export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
   const desktopApi = requireDesktopApi();
 
   try {
-    const rawState = await withTimeout(
+    const state = await withTimeout(
       desktopApi.loadState(),
       STATE_LOAD_TIMEOUT_MS,
       "Timed out loading persisted Dream state.",
     );
-    return mergePersistedState(rawState);
+    return state && typeof state === "object"
+      ? state
+      : createEmptyPersistedState();
   } catch (error) {
     console.warn("Unable to load persisted Dream state.", error);
     return createEmptyPersistedState();
@@ -86,113 +72,6 @@ export const loadPersistedChatMessages = async (
     console.warn(`Unable to load messages for chat ${chatId}.`, error);
     throw error;
   }
-};
-
-export const createPersistedIdeState = ({
-  activeBrowserTabIdByProject,
-  activeProjectId,
-  appView,
-  browserTabsByProject,
-  chats,
-  chatSort,
-  closedProjects,
-  messagesByChatId,
-  savedPrompts,
-  projects,
-  settings,
-}: Pick<
-  IdeState,
-  | "activeBrowserTabIdByProject"
-  | "activeProjectId"
-  | "appView"
-  | "savedPrompts"
-  | "browserTabsByProject"
-  | "chats"
-  | "chatSort"
-  | "closedProjects"
-  | "messagesByChatId"
-  | "projects"
-  | "settings"
->): PersistedIdeState => {
-  const allProjects = [...projects, ...closedProjects];
-  const knownProjectIds = new Set(allProjects.map((project) => project.id));
-  const activeChatIdByProject = new Map(
-    allProjects.map((project) => [project.id, project.ui.activeChatId]),
-  );
-  const persistedChats = chats.filter((chat) => {
-    if (!knownProjectIds.has(chat.projectId)) {
-      return false;
-    }
-
-    if (chat.deletedAt !== null) {
-      return true;
-    }
-
-    const messageCount =
-      messagesByChatId[chat.id]?.length ?? chat.messageCount ?? 0;
-    if (messageCount > 0 || chat.pinned) {
-      return true;
-    }
-
-    // Keep an empty chat only while it is the chat currently open for its
-    // project so a freshly created chat survives an app restart. Any other
-    // empty draft chats are dropped from persistence.
-    return activeChatIdByProject.get(chat.projectId) === chat.id;
-  });
-  // A missing key means the transcript has not been loaded in this renderer.
-  // Preserve that distinction so metadata-only saves never erase lazy rows.
-  const persistedMessagesByChatId = Object.fromEntries(
-    persistedChats.flatMap((chat) =>
-      Object.hasOwn(messagesByChatId, chat.id)
-        ? [[chat.id, messagesByChatId[chat.id]]]
-        : [],
-    ),
-  );
-  const sanitizeProjectForPersistence = (project: ProjectConfig) => {
-    const ui = sanitizeProjectUiForChats(
-      persistedChats,
-      project.id,
-      project.ui,
-    );
-    return {
-      ...project,
-      ui,
-    };
-  };
-  const persistedProjects = projects.map(sanitizeProjectForPersistence);
-  const persistedClosedProjects = closedProjects.map(
-    sanitizeProjectForPersistence,
-  );
-  const persistedBrowserTabsByProject = Object.fromEntries(
-    Object.entries(browserTabsByProject).filter(
-      ([projectId, tabs]) => knownProjectIds.has(projectId) && tabs.length > 0,
-    ),
-  );
-  const persistedActiveBrowserTabIdByProject = Object.fromEntries(
-    Object.entries(persistedBrowserTabsByProject).map(([projectId, tabs]) => {
-      const activeTabId = activeBrowserTabIdByProject[projectId] ?? null;
-      return [
-        projectId,
-        activeTabId && tabs.some((tab) => tab.id === activeTabId)
-          ? activeTabId
-          : (tabs[0]?.id ?? null),
-      ];
-    }),
-  );
-
-  return {
-    activeProjectId: ensureActiveProject(projects, activeProjectId),
-    appView,
-    savedPrompts,
-    activeBrowserTabIdByProject: persistedActiveBrowserTabIdByProject,
-    browserTabsByProject: persistedBrowserTabsByProject,
-    chats: persistedChats,
-    chatSort,
-    closedProjects: persistedClosedProjects,
-    messagesByChatId: persistedMessagesByChatId,
-    projects: persistedProjects,
-    settings,
-  };
 };
 
 export const savePersistedIdeState = (state: PersistedIdeState) => {

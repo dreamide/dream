@@ -863,7 +863,7 @@ export interface DesktopApi {
 
   pickProjectDirectory: () => Promise<string | null>;
 
-  loadState: () => Promise<Partial<PersistedIdeState>>;
+  loadState: () => Promise<PersistedIdeState>;
   loadChatMessages: (chatId: string) => Promise<UIMessage[]>;
   saveState: (state: PersistedIdeState) => Promise<boolean>;
   saveChatMessages: (payload: {

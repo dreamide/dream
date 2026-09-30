@@ -6,6 +6,19 @@ import type {
   ReasoningEffort,
   RightPanelView,
 } from "@/types/ide";
+import {
+  ALL_PROVIDERS,
+  dedupeModels,
+  normalizeModelSpeed,
+  normalizeReasoningEffort,
+} from "../../../electron/shared/model-selection.js";
+
+export {
+  ALL_PROVIDERS,
+  dedupeModels,
+  normalizeModelSpeed,
+  normalizeReasoningEffort,
+};
 
 export type SettingsSection =
   | "appearance"
@@ -60,12 +73,6 @@ export interface ProviderModelState {
   version: string | null;
 }
 
-export const dedupeModels = (models: string[]): string[] => {
-  return Array.from(
-    new Set(models.map((model) => model.trim()).filter(Boolean)),
-  );
-};
-
 export const REASONING_EFFORT_OPTIONS: Array<{
   value: ReasoningEffort;
 }> = [
@@ -79,32 +86,6 @@ export const REASONING_EFFORT_OPTIONS: Array<{
 export const MODEL_SPEED_OPTIONS: Array<{
   value: ModelSpeed;
 }> = [{ value: "standard" }, { value: "fast" }];
-
-export const normalizeReasoningEffort = (
-  value: unknown,
-): ReasoningEffort | null => {
-  if (value === "medium") {
-    return null;
-  }
-
-  return REASONING_EFFORT_OPTIONS.some((option) => option.value === value)
-    ? (value as ReasoningEffort)
-    : null;
-};
-
-export const normalizeModelSpeed = (value: unknown): ModelSpeed => {
-  return MODEL_SPEED_OPTIONS.some((option) => option.value === value)
-    ? (value as ModelSpeed)
-    : "standard";
-};
-
-export const ALL_PROVIDERS: AiProvider[] = [
-  "openai",
-  "anthropic",
-  "opencode",
-  "cursor",
-  "grok",
-];
 
 export const getProviderLabel = (provider: AiProvider): string => {
   if (provider === "openai") return "OpenAI";

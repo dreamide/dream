@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import { encodePersistedState } from "../../../electron/shared/persisted-state-codec.js";
 import { ensureActiveProject, getChatsForProject } from "./ide-state";
 import { getBrowserTabsForProject, resolveActiveBrowserTab } from "./store";
 import { createBrowserActions } from "./store/browser-actions";
 import {
-  createPersistedIdeState,
   loadPersistedIdeState,
   savePersistedIdeState,
 } from "./store/ide-store-persistence";
@@ -199,7 +199,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     } = get();
     if (!stateHydrated) return;
 
-    const nextState = createPersistedIdeState({
+    const nextState = encodePersistedState({
       activeBrowserTabIdByProject,
       activeProjectId,
       appView,

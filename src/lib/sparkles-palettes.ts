@@ -1,3 +1,17 @@
+import {
+  DEFAULT_SPARKLES_PALETTE,
+  normalizeSparklesPaletteName,
+  SPARKLES_PALETTE_ORDER,
+  type SparklesPaletteName,
+} from "../../electron/shared/sparkles-palettes.js";
+
+export {
+  DEFAULT_SPARKLES_PALETTE,
+  normalizeSparklesPaletteName,
+  SPARKLES_PALETTE_ORDER,
+  type SparklesPaletteName,
+};
+
 export const SPARKLES_PALETTES = {
   aqua: ["#9bf2ff", "#6ac7ff", "#caf8ff", "#5ea3ff"],
   violet: ["#c4b5fd", "#8b5cf6", "#ede9fe", "#7c3aed"],
@@ -7,23 +21,10 @@ export const SPARKLES_PALETTES = {
   ember: ["#ffb347", "#ff6a4a", "#ffe7c2", "#ff4a7a"],
   rainbow: ["#ffe27a", "#9bf2ff", "#ff9ae5", "#c7a6ff", "#b6ffb2"],
   mono: ["#ffffff", "#e0e4ff", "#b8beff", "#9098c9"],
-} as const;
-
-export type SparklesPaletteName = keyof typeof SPARKLES_PALETTES | "accent";
-
-export const DEFAULT_SPARKLES_PALETTE: SparklesPaletteName = "aqua";
-
-export const SPARKLES_PALETTE_ORDER: SparklesPaletteName[] = [
-  "aqua",
-  "accent",
-  "violet",
-  "gold",
-  "magenta",
-  "emerald",
-  "ember",
-  "rainbow",
-  "mono",
-];
+} as const satisfies Record<
+  Exclude<SparklesPaletteName, "accent">,
+  readonly string[]
+>;
 
 export const createAccentSparklesPalette = (accentColor?: string) => {
   if (accentColor === "black-white") {
@@ -42,14 +43,3 @@ export const createAccentSparklesPalette = (accentColor?: string) => {
     "color-mix(in oklab, var(--accent-primary) 42%, var(--background))",
   ];
 };
-
-export const normalizeSparklesPaletteName = (
-  value: unknown,
-): SparklesPaletteName =>
-  value === "arctic"
-    ? "violet"
-    : value === "dream"
-      ? "aqua"
-      : SPARKLES_PALETTE_ORDER.includes(value as SparklesPaletteName)
-        ? (value as SparklesPaletteName)
-        : DEFAULT_SPARKLES_PALETTE;

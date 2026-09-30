@@ -1,19 +1,16 @@
 import { Code2, type LucideIcon } from "lucide-react";
 import type { AppView } from "@/types/ide";
+import {
+  APP_VIEWS,
+  DEFAULT_APP_VIEW,
+  normalizeAppView,
+} from "../../../../electron/shared/persisted-state-codec.js";
 
-export const APP_VIEWS = ["code"] as const satisfies readonly AppView[];
-
-export const DEFAULT_APP_VIEW: AppView = "code";
+// The app view is persisted, so which views exist is decided by the codec.
+export { APP_VIEWS, DEFAULT_APP_VIEW, normalizeAppView };
 
 export const isAppView = (value: unknown): value is AppView =>
-  typeof value === "string" && (APP_VIEWS as readonly string[]).includes(value);
-
-/**
- * Validates a saved app view. The retired Tasks workspace (also saved as
- * "pipeline" or "kanban") is not a view any more, so it reads as `null`.
- */
-export const normalizeAppView = (value: unknown): AppView | null =>
-  isAppView(value) ? value : null;
+  normalizeAppView(value) !== null;
 
 export interface AppViewDescriptor {
   /** Key inside the `workspace` i18n namespace. */

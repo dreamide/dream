@@ -1,3 +1,11 @@
+// SQLite storage for persisted state.
+//
+// This module is I/O only: opening the database, migrations, transactions and
+// the rows. What a project, a chat or a setting looks like, what deserves to
+// be saved, and how a stored value is repaired on load are all decided by the
+// shared codec (./shared/persisted-state-codec.js), which the renderer uses
+// too. Save writes what it is given; load decodes once, so the renderer
+// receives a valid state.
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -5,69 +13,30 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { readMigrationFiles } from "drizzle-orm/migrator";
-import { normalizeMcpServerList } from "./api/chat/mcp-servers.js";
-import { normalizeChatPermissionMode } from "./shared/chat-permissions.js";
+import {
+  chatFromRow,
+  chatToRow,
+  createEmptyPersistedState,
+  decodePersistedState,
+  encodePersistedState,
+  projectFromRow,
+  projectToRow,
+  stateFromConfig,
+  stateToConfig,
+} from "./shared/persisted-state-codec.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const appRoot = path.resolve(__dirname, "..");
 
-const DEFAULT_PERSISTED_STATE = {
-  activeProjectId: null,
-  appView: "code",
-  savedPrompts: [],
-  activeBrowserTabIdByProject: {},
-  browserTabsByProject: {},
-  chats: [],
-  closedProjects: [],
-  messagesByChatId: {},
-  projects: [],
-  settings: {
-    anthropicSelectedModels: [],
-    archiveChatsAfterDays: 30,
-    cursorSelectedModels: [],
-    grokSelectedModels: [],
-    defaultGitGenerationModel: "",
-    defaultGitGenerationModelSpeed: "standard",
-    defaultGitGenerationReasoningEffort: "low",
-    defaultModel: "",
-    defaultModelSpeed: "standard",
-    defaultPermissionMode: "full-access",
-    defaultReasoningEffort: null,
-    disabledProviders: [],
-    expandToolCalls: false,
-    groupToolCalls: false,
-    openAiSelectedModels: [],
-    openCodeSelectedModels: [],
-    showReasoningSummaries: true,
-    shellPath: "",
-  },
-  chatSort: "recent",
-};
 const RELATIONAL_SCHEMA_VERSION = 2;
 const STATE_DB_FILENAME = "dream.db";
 const STATE_DB_PATH_ENV_VAR = "DREAM_DB_PATH";
 const DRIZZLE_MIGRATIONS_FOLDER = path.join(__dirname, "drizzle");
 const INSTALL_ID_CONFIG_KEY = "installId";
 const THEME_PREFERENCES_CONFIG_KEY = "themePreferences";
-const DEFAULT_SPARKLES_PALETTE = "dream";
-const SPARKLES_PALETTE_NAMES = new Set([
-  "dream",
-  "accent",
-  "violet",
-  "gold",
-  "magenta",
-  "emerald",
-  "ember",
-  "rainbow",
-  "mono",
-]);
 let stateDatabase = null;
 let stateDatabasePath = null;
-
-function cloneDefaultPersistedState() {
-  return JSON.parse(JSON.stringify(DEFAULT_PERSISTED_STATE));
-}
 
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -96,16 +65,6 @@ function isUuidV4(value) {
       value,
     )
   );
-}
-
-function normalizeProjectPathKey(projectPath) {
-  const trimmed = typeof projectPath === "string" ? projectPath.trim() : "";
-  const withoutTrailingSeparators = trimmed.replace(/[\\/]+$/, "") || trimmed;
-  const normalized = withoutTrailingSeparators.replace(/\\/g, "/");
-  const isWindowsPath =
-    /^[a-zA-Z]:\//.test(normalized) || trimmed.includes("\\");
-
-  return isWindowsPath ? normalized.toLowerCase() : normalized;
 }
 
 function resolveConfiguredStateDatabasePath(configuredPath) {
@@ -138,14 +97,6 @@ export function resolveStateDatabasePath() {
   return path.join(app.getPath("userData"), STATE_DB_FILENAME);
 }
 
-function getProjectName(projectPath) {
-  const pathParts = String(projectPath || "")
-    .split(/[\\/]/)
-    .filter(Boolean);
-
-  return pathParts.at(-1) || "project";
-}
-
 function getMetadataObject(value) {
   if (isRecord(value)) {
     return { ...value };
@@ -159,135 +110,6 @@ function getMetadataObject(value) {
   }
 
   return {};
-}
-
-function getNestedRecord(parent, key) {
-  return isRecord(parent?.[key]) ? parent[key] : {};
-}
-
-function getNestedString(parent, key, fallback = "") {
-  return typeof parent?.[key] === "string" ? parent[key] : fallback;
-}
-
-function getNestedNullableString(parent, key) {
-  return typeof parent?.[key] === "string" && parent[key].trim()
-    ? parent[key]
-    : null;
-}
-
-function getNestedNumber(parent, key, fallback) {
-  return typeof parent?.[key] === "number" && Number.isFinite(parent[key])
-    ? parent[key]
-    : fallback;
-}
-
-function getNestedBoolean(parent, key, fallback) {
-  return typeof parent?.[key] === "boolean" ? parent[key] : fallback;
-}
-
-function getNestedWorktree(parent, key) {
-  const value = getNestedRecord(parent, key);
-  const repoRoot = getNestedString(value, "repoRoot", "");
-  const mainWorktreePath = getNestedString(value, "mainWorktreePath", "");
-  const branch = getNestedString(value, "branch", "");
-
-  if (value.kind !== "worktree" || !repoRoot || !mainWorktreePath || !branch) {
-    return null;
-  }
-
-  return {
-    baseRef: getNestedNullableString(value, "baseRef"),
-    branch,
-    createdAt:
-      getNestedString(value, "createdAt", "") || new Date().toISOString(),
-    kind: "worktree",
-    mainWorktreePath,
-    managed: getNestedBoolean(value, "managed", false),
-    parentProjectId: getNestedNullableString(value, "parentProjectId"),
-    repoRoot,
-  };
-}
-
-function getNestedTimestamp(parent, key) {
-  const value = getNestedString(parent, key, "");
-  return value && Number.isFinite(Date.parse(value)) ? value : null;
-}
-
-function getNestedStringArray(parent, key) {
-  const value = parent?.[key];
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const seen = new Set();
-  const strings = [];
-  for (const item of value) {
-    const stringValue = typeof item === "string" ? item.trim() : "";
-    if (!stringValue || seen.has(stringValue)) {
-      continue;
-    }
-
-    seen.add(stringValue);
-    strings.push(stringValue);
-  }
-
-  return strings;
-}
-
-function getNestedNumberRecord(parent, key) {
-  const value = parent?.[key];
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      ([recordKey, recordValue]) =>
-        typeof recordKey === "string" &&
-        recordKey.trim() &&
-        typeof recordValue === "number" &&
-        Number.isFinite(recordValue) &&
-        recordValue > 0,
-    ),
-  );
-}
-
-function getNestedRightPanelView(parent, key, fallback = "changes") {
-  const value = parent?.[key];
-  return value === "browser" ||
-    value === "explorer" ||
-    value === "changes" ||
-    value === "terminal" ||
-    value === "stash" ||
-    value === "pull-requests"
-    ? value
-    : fallback;
-}
-
-function getNestedStashItems(parent) {
-  const value = isRecord(parent) ? parent.stashItems : null;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const seenIds = new Set();
-  const items = [];
-
-  for (const rawItem of value) {
-    if (!isRecord(rawItem) || typeof rawItem.id !== "string") {
-      continue;
-    }
-
-    const id = rawItem.id.trim();
-    if (!id || seenIds.has(id)) {
-      continue;
-    }
-
-    seenIds.add(id);
-    items.push(rawItem);
-  }
-
-  return items;
 }
 
 function nonEmptyString(value) {
@@ -368,16 +190,6 @@ function loadSavedPromptsFromRelationalDatabase(database) {
       prompt: row.prompt,
       updatedAt: row.updated_at,
     }));
-}
-
-function normalizeSparklesPaletteName(value) {
-  if (value === "arctic") {
-    return "violet";
-  }
-
-  return typeof value === "string" && SPARKLES_PALETTE_NAMES.has(value)
-    ? value
-    : DEFAULT_SPARKLES_PALETTE;
 }
 
 function runInTransaction(database, callback) {
@@ -494,227 +306,6 @@ function writeConfig(database, key, value, updatedAt) {
     .run(key, toJson(value), updatedAt);
 }
 
-function buildProjectMetadata(project) {
-  const metadata = { ...getMetadataObject(project.metadata) };
-  delete metadata.mcpServerOverrides;
-  const worktree = getNestedWorktree(project, "worktree");
-  const projectIcon = isRecord(project.icon)
-    ? project.icon
-    : getNestedRecord(metadata, "icon");
-  const iconPath =
-    typeof projectIcon.path === "string" ? projectIcon.path.trim() : "";
-  const icon = iconPath
-    ? {
-        path: iconPath,
-        mimeType:
-          typeof projectIcon.mimeType === "string" &&
-          projectIcon.mimeType.trim()
-            ? projectIcon.mimeType.trim()
-            : "application/octet-stream",
-        source:
-          typeof projectIcon.source === "string" && projectIcon.source.trim()
-            ? projectIcon.source.trim()
-            : "unknown",
-        mtimeMs:
-          typeof projectIcon.mtimeMs === "number" ? projectIcon.mtimeMs : 0,
-      }
-    : null;
-  const modelSelection = {
-    ...getNestedRecord(metadata, "modelSelection"),
-    model: typeof project.model === "string" ? project.model : "",
-    modelSpeed:
-      typeof project.modelSpeed === "string" ? project.modelSpeed : "standard",
-    provider:
-      typeof project.provider === "string" ? project.provider : "openai",
-    reasoningEffort:
-      typeof project.reasoningEffort === "string"
-        ? project.reasoningEffort
-        : null,
-  };
-  const browser = {
-    ...getNestedRecord(metadata, "browser"),
-    url: typeof project.browserUrl === "string" ? project.browserUrl : "",
-  };
-  const lastUsedAt =
-    typeof project.lastUsedAt === "string" &&
-    Number.isFinite(Date.parse(project.lastUsedAt))
-      ? project.lastUsedAt
-      : getNestedTimestamp(metadata, "lastUsedAt");
-  const ui = {
-    ...getNestedRecord(metadata, "ui"),
-    activeChatId:
-      typeof project.ui?.activeChatId === "string"
-        ? project.ui.activeChatId
-        : null,
-    openChatIds: getNestedStringArray(project.ui, "openChatIds"),
-    chatColumnWidths: getNestedNumberRecord(project.ui, "chatColumnWidths"),
-    multiChat: getNestedBoolean(
-      project.ui,
-      "multiChat",
-      getNestedBoolean(getNestedRecord(metadata, "ui"), "multiChat", false),
-    ),
-  };
-  const existingPanelVisibility = getNestedRecord(ui, "panelVisibility");
-  const existingPanelSizes = getNestedRecord(ui, "panelSizes");
-  const projectUi = isRecord(project.ui) ? project.ui : {};
-  const projectPanelSizes = isRecord(projectUi.panelSizes)
-    ? projectUi.panelSizes
-    : existingPanelSizes;
-  const rightPanelOpen = getNestedBoolean(
-    projectUi,
-    "rightPanelOpen",
-    getNestedBoolean(existingPanelVisibility, "right", true),
-  );
-  const persistedPanelVisibility = { ...existingPanelVisibility };
-  delete persistedPanelVisibility.left;
-
-  ui.panelVisibility = {
-    ...persistedPanelVisibility,
-    middle: true,
-    right: rightPanelOpen,
-  };
-  ui.rightPanelView = getNestedRightPanelView(
-    projectUi,
-    "rightPanelView",
-    getNestedRightPanelView(ui, "rightPanelView", "changes"),
-  );
-  ui.chatHistoryPanelOpen = getNestedBoolean(
-    projectUi,
-    "chatHistoryPanelOpen",
-    getNestedBoolean(ui, "chatHistoryPanelOpen", false),
-  );
-  ui.stashItems = getNestedStashItems(
-    Object.hasOwn(projectUi, "stashItems") ? projectUi : ui,
-  );
-  // Drop retired feature data carried by older project metadata: goals, and
-  // the task pipeline's per-project tasks, step settings and workspace view.
-  delete ui.goals;
-  delete ui.kanbanCards;
-  delete ui.pipelineConfig;
-  delete ui.pipelineTasks;
-  delete ui.taskConfig;
-  delete ui.tasks;
-  delete ui.workspaceView;
-  ui.panelSizes = {
-    chatHistoryPanelWidth: getNestedNumber(
-      projectPanelSizes,
-      "chatHistoryPanelWidth",
-      getNestedNumber(existingPanelSizes, "chatHistoryPanelWidth", 400),
-    ),
-    gitLogPanelWidth: getNestedNumber(
-      projectPanelSizes,
-      "gitLogPanelWidth",
-      getNestedNumber(existingPanelSizes, "gitLogPanelWidth", 400),
-    ),
-    leftSidebarWidth: getNestedNumber(
-      projectPanelSizes,
-      "leftSidebarWidth",
-      getNestedNumber(existingPanelSizes, "leftSidebarWidth", 240),
-    ),
-    rightPanelWidth: getNestedNumber(
-      projectPanelSizes,
-      "rightPanelWidth",
-      getNestedNumber(existingPanelSizes, "rightPanelWidth", 520),
-    ),
-    terminalHeight: getNestedNumber(
-      projectPanelSizes,
-      "terminalHeight",
-      getNestedNumber(existingPanelSizes, "terminalHeight", 260),
-    ),
-  };
-
-  return {
-    ...metadata,
-    browser,
-    icon,
-    lastUsedAt,
-    modelSelection,
-    runCommand:
-      typeof project.runCommand === "string" ? project.runCommand : "pnpm dev",
-    ui,
-    worktree,
-  };
-}
-
-function buildChatMetadata(chat) {
-  const metadata = getMetadataObject(chat.metadata);
-  const branchedFrom =
-    chat.branchedFrom &&
-    typeof chat.branchedFrom === "object" &&
-    typeof chat.branchedFrom.chatId === "string" &&
-    chat.branchedFrom.chatId.trim() &&
-    typeof chat.branchedFrom.messageId === "string" &&
-    chat.branchedFrom.messageId.trim()
-      ? {
-          chatId: chat.branchedFrom.chatId,
-          messageId: chat.branchedFrom.messageId,
-        }
-      : null;
-  const permissions = {
-    ...getNestedRecord(metadata, "permissions"),
-    mode: normalizeChatPermissionMode(
-      chat.permissionMode ??
-        getNestedString(getNestedRecord(metadata, "permissions"), "mode", null),
-      chat.agentMode ??
-        getNestedString(
-          getNestedRecord(metadata, "modelSelection"),
-          "agentMode",
-          "build",
-        ),
-    ),
-  };
-  const remoteConversation = {
-    ...getNestedRecord(metadata, "remoteConversation"),
-    id:
-      typeof chat.remoteConversationId === "string" &&
-      chat.remoteConversationId.trim()
-        ? chat.remoteConversationId
-        : null,
-    model:
-      typeof chat.remoteConversationModel === "string" &&
-      chat.remoteConversationModel.trim()
-        ? chat.remoteConversationModel
-        : null,
-    modelSpeed:
-      typeof chat.remoteConversationModelSpeed === "string" &&
-      chat.remoteConversationModelSpeed.trim()
-        ? chat.remoteConversationModelSpeed
-        : null,
-    projectPath:
-      typeof chat.remoteConversationProjectPath === "string" &&
-      chat.remoteConversationProjectPath.trim()
-        ? chat.remoteConversationProjectPath
-        : null,
-  };
-  const { agentMode: _legacyAgentMode, ...savedModelSelection } =
-    getNestedRecord(metadata, "modelSelection");
-  const modelSelection = {
-    ...savedModelSelection,
-    model: typeof chat.model === "string" ? chat.model : "",
-    modelSpeed:
-      typeof chat.modelSpeed === "string" ? chat.modelSpeed : "standard",
-    provider: typeof chat.provider === "string" ? chat.provider : "openai",
-    reasoningEffort:
-      typeof chat.reasoningEffort === "string" ? chat.reasoningEffort : null,
-  };
-
-  return {
-    ...metadata,
-    branchedFrom,
-    messageCount:
-      Number.isInteger(chat.messageCount) && chat.messageCount >= 0
-        ? chat.messageCount
-        : 0,
-    modelSelection,
-    permissions,
-    pinned: (chat.pinned ?? metadata.pinned) === true,
-    remoteConversation,
-    sparklesPalette: normalizeSparklesPaletteName(
-      chat.sparklesPalette ?? metadata.sparklesPalette,
-    ),
-  };
-}
-
 function saveChatMessagesToRelationalDatabase(
   database,
   chatId,
@@ -798,7 +389,7 @@ function saveChatMessagesToRelationalDatabase(
 }
 
 function saveStateToRelationalDatabase(database, state) {
-  if (!state || typeof state !== "object") {
+  if (!isRecord(state)) {
     return false;
   }
 
@@ -818,187 +409,40 @@ function saveStateToRelationalDatabase(database, state) {
         .map((row) => [row.id, row.created_at]),
     );
 
-    const settings = isRecord(state.settings) ? state.settings : {};
-    writeConfig(
-      database,
-      "activeProjectId",
-      state.activeProjectId ?? null,
-      now,
-    );
-    writeConfig(database, "chatSort", state.chatSort ?? "recent", now);
-    // Code is the only workspace; the retired Tasks workspace (once "pipeline",
-    // "kanban") may still be the saved view, and reads as Code.
-    writeConfig(database, "appView", "code", now);
-    writeConfig(
-      database,
-      "browserTabsByProject",
-      isRecord(state.browserTabsByProject) ? state.browserTabsByProject : {},
-      now,
-    );
-    writeConfig(
-      database,
-      "activeBrowserTabIdByProject",
-      isRecord(state.activeBrowserTabIdByProject)
-        ? state.activeBrowserTabIdByProject
-        : {},
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.defaultModel",
-      settings.defaultModel ?? "",
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.defaultGitGenerationModel",
-      settings.defaultGitGenerationModel ?? "",
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.defaultGitGenerationModelSpeed",
-      settings.defaultGitGenerationModelSpeed ?? "standard",
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.defaultGitGenerationReasoningEffort",
-      settings.defaultGitGenerationReasoningEffort === undefined
-        ? "low"
-        : settings.defaultGitGenerationReasoningEffort,
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.defaultModelSpeed",
-      settings.defaultModelSpeed ?? "standard",
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.defaultPermissionMode",
-      settings.defaultPermissionMode ?? "full-access",
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.defaultReasoningEffort",
-      settings.defaultReasoningEffort ?? null,
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.openAiSelectedModels",
-      Array.isArray(settings.openAiSelectedModels)
-        ? settings.openAiSelectedModels
-        : [],
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.anthropicSelectedModels",
-      Array.isArray(settings.anthropicSelectedModels)
-        ? settings.anthropicSelectedModels
-        : [],
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.openCodeSelectedModels",
-      Array.isArray(settings.openCodeSelectedModels)
-        ? settings.openCodeSelectedModels
-        : [],
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.cursorSelectedModels",
-      Array.isArray(settings.cursorSelectedModels)
-        ? settings.cursorSelectedModels
-        : [],
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.grokSelectedModels",
-      Array.isArray(settings.grokSelectedModels)
-        ? settings.grokSelectedModels
-        : [],
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.archiveChatsAfterDays",
-      Number.isInteger(settings.archiveChatsAfterDays) &&
-        settings.archiveChatsAfterDays > 0
-        ? settings.archiveChatsAfterDays
-        : 30,
-      now,
-    );
-    writeConfig(database, "settings.shellPath", settings.shellPath ?? "", now);
-    writeConfig(
-      database,
-      "settings.disabledProviders",
-      Array.isArray(settings.disabledProviders)
-        ? settings.disabledProviders
-        : [],
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.expandToolCalls",
-      settings.expandToolCalls === true,
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.groupToolCalls",
-      settings.groupToolCalls === true,
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.showReasoningSummaries",
-      settings.showReasoningSummaries ?? true,
-      now,
-    );
-    writeConfig(
-      database,
-      "settings.mcpServers",
-      normalizeMcpServerList(settings.mcpServers),
-      now,
-    );
+    for (const [key, value] of Object.entries(stateToConfig(state))) {
+      writeConfig(database, key, value, now);
+    }
 
-    const rawProjects = Array.isArray(state.projects) ? state.projects : [];
-    const rawClosedProjects = Array.isArray(state.closedProjects)
-      ? state.closedProjects
-      : [];
-    const projectsToPersist = [];
+    const projectRows = [];
     const seenProjectIds = new Set();
     const seenProjectPaths = new Set();
-
     for (const [status, projects] of [
-      ["open", rawProjects],
-      ["closed", rawClosedProjects],
+      ["open", Array.isArray(state.projects) ? state.projects : []],
+      [
+        "closed",
+        Array.isArray(state.closedProjects) ? state.closedProjects : [],
+      ],
     ]) {
       for (const project of projects) {
-        if (!isRecord(project) || typeof project.id !== "string") {
-          continue;
-        }
-
-        const normalizedPath = normalizeProjectPathKey(project.path);
         if (
-          !project.id.trim() ||
-          seenProjectIds.has(project.id) ||
-          seenProjectPaths.has(normalizedPath)
+          !isRecord(project) ||
+          typeof project.id !== "string" ||
+          !project.id.trim()
         ) {
           continue;
         }
 
-        seenProjectIds.add(project.id);
-        seenProjectPaths.add(normalizedPath);
-        projectsToPersist.push({ project, status });
+        const row = projectToRow(project, status, projectRows.length);
+        if (
+          seenProjectIds.has(row.id) ||
+          seenProjectPaths.has(row.normalizedPath)
+        ) {
+          continue;
+        }
+
+        seenProjectIds.add(row.id);
+        seenProjectPaths.add(row.normalizedPath);
+        projectRows.push(row);
       }
     }
 
@@ -1009,9 +453,6 @@ function saveStateToRelationalDatabase(database, state) {
     // checked at commit rather than here (the pragma ends with the
     // transaction).
     const chats = Array.isArray(state.chats) ? state.chats : [];
-    const projectIdsToPersist = new Set(
-      projectsToPersist.map(({ project }) => project.id),
-    );
     database.exec("PRAGMA defer_foreign_keys = ON");
     const moveChat = database.prepare(
       "UPDATE chats SET project_id = ? WHERE id = ? AND project_id <> ?",
@@ -1021,22 +462,22 @@ function saveStateToRelationalDatabase(database, state) {
         isRecord(chat) &&
         typeof chat.id === "string" &&
         typeof chat.projectId === "string" &&
-        projectIdsToPersist.has(chat.projectId)
+        seenProjectIds.has(chat.projectId)
       ) {
         moveChat.run(chat.projectId, chat.id, chat.projectId);
       }
     }
 
-    if (projectsToPersist.length === 0) {
+    if (projectRows.length === 0) {
       database.prepare("DELETE FROM projects").run();
     } else {
       database
         .prepare(
-          `DELETE FROM projects WHERE id NOT IN (${projectsToPersist
+          `DELETE FROM projects WHERE id NOT IN (${projectRows
             .map(() => "?")
             .join(", ")})`,
         )
-        .run(...projectsToPersist.map(({ project }) => project.id));
+        .run(...projectRows.map((row) => row.id));
     }
 
     const insertProject = database.prepare(
@@ -1063,29 +504,21 @@ function saveStateToRelationalDatabase(database, state) {
           updated_at = excluded.updated_at
       `,
     );
-
-    projectsToPersist.forEach(({ project, status }, index) => {
-      const projectPath = typeof project.path === "string" ? project.path : "";
-      const metadata = buildProjectMetadata(project);
-
+    for (const row of projectRows) {
       insertProject.run(
-        project.id,
-        projectPath,
-        normalizeProjectPathKey(projectPath),
-        typeof project.name === "string" && project.name.trim()
-          ? project.name
-          : getProjectName(projectPath),
-        status,
-        index,
-        toJson(metadata),
-        existingProjectCreatedAt.get(project.id) ?? now,
+        row.id,
+        row.path,
+        row.normalizedPath,
+        row.name,
+        row.status,
+        row.sortOrder,
+        toJson(row.metadata),
+        existingProjectCreatedAt.get(row.id) ?? now,
         now,
       );
-    });
+    }
 
-    const knownProjectIds = new Set(
-      projectsToPersist.map(({ project }) => project.id),
-    );
+    // A state that says nothing about saved prompts leaves them alone.
     if (Array.isArray(state.savedPrompts)) {
       saveSavedPromptsToRelationalDatabase(database, state.savedPrompts, now);
     }
@@ -1119,44 +552,32 @@ function saveStateToRelationalDatabase(database, state) {
       if (
         !isRecord(chat) ||
         typeof chat.id !== "string" ||
-        typeof chat.projectId !== "string" ||
-        !knownProjectIds.has(chat.projectId)
+        !chat.id.trim() ||
+        !seenProjectIds.has(chat.projectId)
       ) {
         continue;
       }
 
+      const row = chatToRow(chat);
       const createdAt =
-        typeof chat.createdAt === "string" && chat.createdAt.trim()
-          ? chat.createdAt
-          : (existingChatCreatedAt.get(chat.id) ?? now);
-      const updatedAt =
-        typeof chat.updatedAt === "string" && chat.updatedAt.trim()
-          ? chat.updatedAt
-          : createdAt;
-
+        row.createdAt ?? existingChatCreatedAt.get(row.id) ?? now;
       insertChat.run(
-        chat.id,
-        chat.projectId,
-        typeof chat.title === "string" && chat.title.trim()
-          ? chat.title
-          : "New chat",
-        toJson(buildChatMetadata(chat)),
+        row.id,
+        row.projectId,
+        row.title,
+        toJson(row.metadata),
         createdAt,
-        updatedAt,
-        typeof chat.deletedAt === "string" && chat.deletedAt.trim()
-          ? chat.deletedAt
-          : null,
+        row.updatedAt ?? createdAt,
+        row.deletedAt,
       );
-      persistedChatIds.push(chat.id);
+      persistedChatIds.push(row.id);
 
-      if (
-        Object.hasOwn(messagesByChatId, chat.id) &&
-        Array.isArray(messagesByChatId[chat.id])
-      ) {
+      // A transcript key is present only when the renderer has it loaded.
+      if (Array.isArray(messagesByChatId[row.id])) {
         saveChatMessagesToRelationalDatabase(
           database,
-          chat.id,
-          messagesByChatId[chat.id],
+          row.id,
+          messagesByChatId[row.id],
           now,
         );
       }
@@ -1200,100 +621,19 @@ function loadStateFromRelationalDatabase(database) {
     .all();
 
   if (projectRows.length === 0 && Object.keys(config).length === 0) {
-    return cloneDefaultPersistedState();
+    return createEmptyPersistedState();
   }
 
   const projects = [];
   const closedProjects = [];
-  const allProjects = [];
   for (const row of projectRows) {
-    const metadata = getMetadataObject(row.metadata);
-    delete metadata.mcpServerOverrides;
-    const icon = getNestedRecord(metadata, "icon");
-    const iconPath = getNestedString(icon, "path", "");
-    const modelSelection = getNestedRecord(metadata, "modelSelection");
-    const browser = getNestedRecord(metadata, "browser");
-    const ui = getNestedRecord(metadata, "ui");
-    const worktree = getNestedWorktree(metadata, "worktree");
-    const lastUsedAt = getNestedTimestamp(metadata, "lastUsedAt");
-    const project = {
-      browserUrl: getNestedString(browser, "url", ""),
-      id: row.id,
-      icon: iconPath
-        ? {
-            path: iconPath,
-            mimeType: getNestedString(
-              icon,
-              "mimeType",
-              "application/octet-stream",
-            ),
-            source: getNestedString(icon, "source", "unknown"),
-            mtimeMs: getNestedNumber(icon, "mtimeMs", 0),
-          }
-        : null,
-      lastUsedAt,
-      metadata,
-      model: getNestedString(modelSelection, "model", ""),
-      modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
-      name: row.name || getProjectName(row.path),
-      path: row.path || "",
-      provider: getNestedString(modelSelection, "provider", "openai"),
-      reasoningEffort: getNestedString(modelSelection, "reasoningEffort", null),
-      runCommand: getNestedString(metadata, "runCommand", "pnpm dev"),
-      worktree,
-    };
-
-    project.ui = {
-      activeChatId: getNestedNullableString(ui, "activeChatId"),
-      openChatIds: getNestedStringArray(ui, "openChatIds"),
-      chatColumnWidths: getNestedNumberRecord(ui, "chatColumnWidths"),
-      chatHistoryPanelOpen: getNestedBoolean(ui, "chatHistoryPanelOpen", false),
-      multiChat: getNestedBoolean(ui, "multiChat", false),
-      panelSizes: {
-        chatHistoryPanelWidth: getNestedNumber(
-          getNestedRecord(ui, "panelSizes"),
-          "chatHistoryPanelWidth",
-          400,
-        ),
-        gitLogPanelWidth: getNestedNumber(
-          getNestedRecord(ui, "panelSizes"),
-          "gitLogPanelWidth",
-          400,
-        ),
-        leftSidebarWidth: getNestedNumber(
-          getNestedRecord(ui, "panelSizes"),
-          "leftSidebarWidth",
-          240,
-        ),
-        rightPanelWidth: getNestedNumber(
-          getNestedRecord(ui, "panelSizes"),
-          "rightPanelWidth",
-          520,
-        ),
-        terminalHeight: getNestedNumber(
-          getNestedRecord(ui, "panelSizes"),
-          "terminalHeight",
-          260,
-        ),
-      },
-      rightPanelOpen: getNestedBoolean(
-        getNestedRecord(ui, "panelVisibility"),
-        "right",
-        true,
-      ),
-      rightPanelView: getNestedRightPanelView(ui, "rightPanelView", "changes"),
-      stashItems: getNestedStashItems(ui),
-    };
-    allProjects.push(project);
-
-    if (row.status === "closed") {
-      closedProjects.push(project);
-    } else {
-      projects.push(project);
-    }
+    const project = projectFromRow({
+      ...row,
+      metadata: getMetadataObject(row.metadata),
+    });
+    (row.status === "closed" ? closedProjects : projects).push(project);
   }
 
-  const chats = [];
   const chatRows = database
     .prepare(
       `
@@ -1305,214 +645,19 @@ function loadStateFromRelationalDatabase(database) {
       `,
     )
     .all();
+  const chats = chatRows.map((row) =>
+    chatFromRow({ ...row, metadata: getMetadataObject(row.metadata) }),
+  );
 
-  for (const row of chatRows) {
-    const metadata = getMetadataObject(row.metadata);
-    const modelSelection = getNestedRecord(metadata, "modelSelection");
-    const permissions = getNestedRecord(metadata, "permissions");
-    const remoteConversation = getNestedRecord(metadata, "remoteConversation");
-    const branchedFrom = getNestedRecord(metadata, "branchedFrom");
-
-    chats.push({
-      branchedFrom:
-        getNestedString(branchedFrom, "chatId", "").trim() &&
-        getNestedString(branchedFrom, "messageId", "").trim()
-          ? {
-              chatId: getNestedString(branchedFrom, "chatId", ""),
-              messageId: getNestedString(branchedFrom, "messageId", ""),
-            }
-          : null,
-      createdAt: row.created_at,
-      deletedAt:
-        typeof row.deleted_at === "string" && row.deleted_at.trim()
-          ? row.deleted_at
-          : null,
-      id: row.id,
-      messageCount:
-        typeof row.message_count === "number" ? row.message_count : 0,
-      metadata,
-      model: getNestedString(modelSelection, "model", ""),
-      modelSpeed: getNestedString(modelSelection, "modelSpeed", "standard"),
-      permissionMode:
-        getNestedString(permissions, "mode", null) == null
-          ? null
-          : normalizeChatPermissionMode(
-              getNestedString(permissions, "mode", null),
-              getNestedString(modelSelection, "agentMode", "build"),
-            ),
-      projectId: row.project_id,
-      pinned: metadata.pinned === true,
-      provider: getNestedString(modelSelection, "provider", "openai"),
-      reasoningEffort: getNestedString(modelSelection, "reasoningEffort", null),
-      remoteConversationId: getNestedNullableString(remoteConversation, "id"),
-      remoteConversationModel: getNestedNullableString(
-        remoteConversation,
-        "model",
-      ),
-      remoteConversationModelSpeed: getNestedNullableString(
-        remoteConversation,
-        "modelSpeed",
-      ),
-      remoteConversationProjectPath: getNestedNullableString(
-        remoteConversation,
-        "projectPath",
-      ),
-      sparklesPalette: normalizeSparklesPaletteName(metadata.sparklesPalette),
-      title: row.title || "New chat",
-      updatedAt: row.updated_at,
-    });
-  }
-
-  // Transcripts are loaded per chat when a panel first opens.
-  const messagesByChatId = {};
-
-  for (const project of allProjects) {
-    const requestedChatId = project.ui.activeChatId;
-    const projectChats = chats.filter(
-      (chat) => chat.projectId === project.id && chat.deletedAt === null,
-    );
-    const availableChatIds = new Set(projectChats.map((chat) => chat.id));
-    const activeChatId = availableChatIds.has(requestedChatId)
-      ? requestedChatId
-      : (projectChats[0]?.id ?? null);
-    const openChatIds = project.ui.multiChat
-      ? project.ui.openChatIds.filter((chatId) => availableChatIds.has(chatId))
-      : [];
-    if (activeChatId) {
-      if (project.ui.multiChat) {
-        if (!openChatIds.includes(activeChatId)) {
-          openChatIds.push(activeChatId);
-        }
-      } else {
-        openChatIds.splice(0, openChatIds.length, activeChatId);
-      }
-    }
-    const openChatIdSet = new Set(openChatIds);
-
-    project.ui = {
-      ...project.ui,
-      activeChatId,
-      openChatIds,
-      chatColumnWidths: Object.fromEntries(
-        Object.entries(project.ui.chatColumnWidths).filter(([chatId]) =>
-          openChatIdSet.has(chatId),
-        ),
-      ),
-    };
-  }
-
-  const savedPrompts = loadSavedPromptsFromRelationalDatabase(database);
-
-  const activeProjectId =
-    typeof config.activeProjectId === "string" ? config.activeProjectId : null;
-  return {
-    activeProjectId,
-    savedPrompts,
-    appView: "code",
-    activeBrowserTabIdByProject: isRecord(config.activeBrowserTabIdByProject)
-      ? config.activeBrowserTabIdByProject
-      : {},
-    browserTabsByProject: isRecord(config.browserTabsByProject)
-      ? config.browserTabsByProject
-      : {},
+  return decodePersistedState({
+    ...stateFromConfig(config),
     chats,
-    chatSort: typeof config.chatSort === "string" ? config.chatSort : "recent",
     closedProjects,
-    messagesByChatId,
+    // Transcripts are loaded per chat when a panel first opens.
+    messagesByChatId: {},
     projects,
-    settings: {
-      anthropicSelectedModels: Array.isArray(
-        config["settings.anthropicSelectedModels"],
-      )
-        ? config["settings.anthropicSelectedModels"]
-        : [],
-      defaultModel:
-        typeof config["settings.defaultModel"] === "string"
-          ? config["settings.defaultModel"]
-          : "",
-      defaultGitGenerationModel:
-        typeof config["settings.defaultGitGenerationModel"] === "string"
-          ? config["settings.defaultGitGenerationModel"]
-          : "",
-      defaultGitGenerationModelSpeed:
-        typeof config["settings.defaultGitGenerationModelSpeed"] === "string"
-          ? config["settings.defaultGitGenerationModelSpeed"]
-          : "standard",
-      // A stored `null` is the explicit "medium" choice; a missing key is a
-      // profile from before the setting existed.
-      ...(config["settings.defaultGitGenerationReasoningEffort"] === undefined
-        ? {}
-        : {
-            defaultGitGenerationReasoningEffort:
-              typeof config["settings.defaultGitGenerationReasoningEffort"] ===
-              "string"
-                ? config["settings.defaultGitGenerationReasoningEffort"]
-                : null,
-          }),
-      defaultModelSpeed:
-        typeof config["settings.defaultModelSpeed"] === "string"
-          ? config["settings.defaultModelSpeed"]
-          : "standard",
-      ...(typeof config["settings.defaultPermissionMode"] === "string"
-        ? { defaultPermissionMode: config["settings.defaultPermissionMode"] }
-        : {}),
-      defaultReasoningEffort:
-        typeof config["settings.defaultReasoningEffort"] === "string"
-          ? config["settings.defaultReasoningEffort"]
-          : null,
-      autoAcceptPermissions:
-        typeof config["settings.autoAcceptPermissions"] === "boolean"
-          ? config["settings.autoAcceptPermissions"]
-          : false,
-      archiveChatsAfterDays:
-        Number.isInteger(config["settings.archiveChatsAfterDays"]) &&
-        config["settings.archiveChatsAfterDays"] > 0
-          ? config["settings.archiveChatsAfterDays"]
-          : Number.isInteger(config["settings.autoArchiveChatsAfterDays"]) &&
-              config["settings.autoArchiveChatsAfterDays"] > 0
-            ? config["settings.autoArchiveChatsAfterDays"]
-            : 30,
-      expandToolCalls:
-        typeof config["settings.expandToolCalls"] === "boolean"
-          ? config["settings.expandToolCalls"]
-          : config["settings.expandShellToolParts"] === true ||
-            config["settings.expandEditToolParts"] === true,
-      groupToolCalls:
-        typeof config["settings.groupToolCalls"] === "boolean"
-          ? config["settings.groupToolCalls"]
-          : false,
-      openAiSelectedModels: Array.isArray(
-        config["settings.openAiSelectedModels"],
-      )
-        ? config["settings.openAiSelectedModels"]
-        : [],
-      openCodeSelectedModels: Array.isArray(
-        config["settings.openCodeSelectedModels"],
-      )
-        ? config["settings.openCodeSelectedModels"]
-        : [],
-      cursorSelectedModels: Array.isArray(
-        config["settings.cursorSelectedModels"],
-      )
-        ? config["settings.cursorSelectedModels"]
-        : [],
-      grokSelectedModels: Array.isArray(config["settings.grokSelectedModels"])
-        ? config["settings.grokSelectedModels"]
-        : [],
-      mcpServers: normalizeMcpServerList(config["settings.mcpServers"]),
-      showReasoningSummaries:
-        typeof config["settings.showReasoningSummaries"] === "boolean"
-          ? config["settings.showReasoningSummaries"]
-          : true,
-      shellPath:
-        typeof config["settings.shellPath"] === "string"
-          ? config["settings.shellPath"]
-          : "",
-      disabledProviders: Array.isArray(config["settings.disabledProviders"])
-        ? config["settings.disabledProviders"]
-        : [],
-    },
-  };
+    savedPrompts: loadSavedPromptsFromRelationalDatabase(database),
+  });
 }
 
 function ensureTableColumn(database, tableName, columnName, columnDefinition) {
@@ -1635,6 +780,19 @@ function runDrizzleMigrations(database) {
   }
 }
 
+function importLegacyState(database, legacyState) {
+  // The pre-relational blob goes through the codec like any other input.
+  // It may predate saved prompts; a state that lacks them leaves the table
+  // alone rather than emptying it.
+  const encoded = encodePersistedState(decodePersistedState(legacyState));
+  saveStateToRelationalDatabase(
+    database,
+    Array.isArray(legacyState.savedPrompts)
+      ? encoded
+      : { ...encoded, savedPrompts: undefined },
+  );
+}
+
 function getStateDatabase(databasePath = resolveStateDatabasePath()) {
   const resolvedDatabasePath =
     resolveConfiguredStateDatabasePath(databasePath) ??
@@ -1657,7 +815,7 @@ function getStateDatabase(databasePath = resolveStateDatabasePath()) {
   runDrizzleMigrations(database);
 
   if (shouldImportLegacyState(database, legacyState, hadRelationalState)) {
-    saveStateToRelationalDatabase(database, legacyState);
+    importLegacyState(database, legacyState);
   }
 
   database
