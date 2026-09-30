@@ -83,6 +83,63 @@ const normalizeInlineProjectReferenceMentions = (
   return output;
 };
 
+const hasSkillMentionAt = (text: string, index: number, name: string) => {
+  const mention = `$${name}`;
+  return (
+    text.startsWith(mention, index) &&
+    isProjectReferenceMentionBoundary(text.at(index + mention.length))
+  );
+};
+
+const hasInlineSkillMention = (text: string, name: string) => {
+  const mention = `$${name}`;
+  let index = text.indexOf(mention);
+  while (index !== -1) {
+    if (
+      /^$|[\s([{]/.test(text.at(index - 1) ?? "") &&
+      hasSkillMentionAt(text, index, name)
+    ) {
+      return true;
+    }
+    index = text.indexOf(mention, index + mention.length);
+  }
+  return false;
+};
+
+/**
+ * A sent message carries its `$skill` mentions twice: in the text, and in
+ * metadata for the badges. Mentions that lead the message become badges and
+ * leave the text; mentions mid-sentence stay in the text, without a badge,
+ * so the sentence still reads.
+ */
+export const splitSkillMentions = (text: string, skillMentions: string[]) => {
+  const names = [...new Set(skillMentions)].sort(
+    (left, right) => right.length - left.length,
+  );
+  const badges: string[] = [];
+  let rest = text;
+
+  for (;;) {
+    const start = rest.length - rest.trimStart().length;
+    const name = names.find((item) => hasSkillMentionAt(rest, start, item));
+    if (!name) {
+      break;
+    }
+    if (!badges.includes(name)) {
+      badges.push(name);
+    }
+    rest = rest.slice(start + name.length + 1);
+  }
+
+  for (const name of names) {
+    if (!badges.includes(name) && !hasInlineSkillMention(rest, name)) {
+      badges.push(name);
+    }
+  }
+
+  return { badges, text: rest.trimStart() };
+};
+
 export const PromptAttachments = () => {
   const assistantT = useTranslations("assistant");
   const attachments = usePromptInputAttachments();
@@ -197,7 +254,6 @@ export const UserMessageContent = ({
       },
     ];
   });
-  const text = getMessageText(message);
   const metadata = message.metadata as
     | { projectReferences?: ProjectReference[]; skillMentions?: string[] }
     | undefined;
@@ -209,6 +265,10 @@ export const UserMessageContent = ({
         (name): name is string => typeof name === "string" && name.length > 0,
       )
     : [];
+  const { badges: skillBadges, text } = splitSkillMentions(
+    getMessageText(message),
+    skillMentions,
+  );
   const hasInlineProjectReferences = projectReferences.some((reference) =>
     hasInlineProjectReferenceMention(text, reference),
   );
@@ -218,9 +278,9 @@ export const UserMessageContent = ({
 
   return (
     <>
-      {skillMentions.length > 0 ? (
+      {skillBadges.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-2">
-          {skillMentions.map((name) => (
+          {skillBadges.map((name) => (
             <Badge
               className="max-w-full gap-1.5 rounded-full border border-info-border bg-info-surface px-2.5 py-1 font-medium text-info-foreground dark:text-info-foreground"
               key={`skill:${name}`}
