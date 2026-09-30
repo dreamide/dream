@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 import {
   CHIP_BUTTON_BASE_CLASSES,
@@ -83,7 +84,7 @@ const TOOL_GROUP_META: Record<
   ChipToolKind,
   {
     Icon: LucideIcon;
-    labelKey: string;
+    labelKey: keyof Messages["assistant"]["toolGroup"];
     tone: ChipTone;
   }
 > = {
@@ -367,7 +368,7 @@ export const ToolCallGroup = ({
             const { Icon, labelKey, tone } = isErrorSummary
               ? {
                   Icon: TriangleAlertIcon,
-                  labelKey: "error",
+                  labelKey: "error" as const,
                   tone: "stone" as const,
                 }
               : TOOL_GROUP_META[summary.kind];

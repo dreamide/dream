@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import { IdeShell } from "@/components/ide/ide-shell";
 import { ThemeProvider } from "@/components/theme-provider";
 import { type AppLocale, DEFAULT_LOCALE } from "@/i18n/config";
-import { loadMessages } from "@/i18n/messages";
+import { loadMessages, type Messages } from "@/i18n/messages";
 import { useIdeStore } from "./components/ide/ide-store";
 
 export const App = () => {
   const locale = useIdeStore((s) => s.settings.locale);
   const [loadedMessages, setLoadedMessages] = useState<{
     locale: AppLocale;
-    messages: Record<string, unknown>;
+    messages: Messages;
   } | null>(null);
 
   useEffect(() => {

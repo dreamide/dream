@@ -386,7 +386,7 @@ const inferProjectGitStatus = (
   return "modified";
 };
 
-const getChangeStateLabel = (status: string | null): string | null => {
+const getChangeStateLabel = (status: string | null) => {
   const normalizedStatus = status?.toLowerCase() ?? "";
 
   if (normalizedStatus.includes("add") || normalizedStatus.includes("create")) {

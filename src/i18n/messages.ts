@@ -1,30 +1,18 @@
 import type { AppLocale } from "./config";
+import type en from "./messages/en.json";
 
-type MessageObject = Record<string, unknown>;
-
-const isMessageObject = (value: unknown): value is MessageObject =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const mergeMessages = <Base extends MessageObject, Extra extends MessageObject>(
-  base: Base,
-  extra: Extra,
-): Base & Extra => {
-  const merged: MessageObject = { ...base };
-
-  for (const [key, value] of Object.entries(extra)) {
-    const baseValue = merged[key];
-    merged[key] =
-      isMessageObject(baseValue) && isMessageObject(value)
-        ? mergeMessages(baseValue, value)
-        : value;
-  }
-
-  return merged as Base & Extra;
-};
+/**
+ * Every UI string, keyed by namespace. English is the source of truth: each
+ * other locale's file must have exactly its keys, which the loader's type
+ * below enforces at compile time (a missing key fails `tsc`) and
+ * `messages.test.ts` enforces at test time (along with extra keys and ICU
+ * argument names).
+ */
+export type Messages = typeof en;
 
 const localeMessageLoaders: Record<
   AppLocale,
-  () => Promise<{ default: MessageObject }>
+  () => Promise<{ default: Messages }>
 > = {
   de: () => import("./messages/de.json"),
   en: () => import("./messages/en.json"),
@@ -39,19 +27,16 @@ const localeMessageLoaders: Record<
   "zh-Hant": () => import("./messages/zh-Hant.json"),
 };
 
-const messageCache = new Map<AppLocale, Promise<MessageObject>>();
+const messageCache = new Map<AppLocale, Promise<Messages>>();
 
-export const loadMessages = (locale: AppLocale): Promise<MessageObject> => {
+export const loadMessages = (locale: AppLocale): Promise<Messages> => {
   const cached = messageCache.get(locale);
   if (cached) {
     return cached;
   }
 
-  const messagesPromise = Promise.all([
-    localeMessageLoaders[locale](),
-    import("./supplemental-messages"),
-  ]).then(([baseMessages, { supplementalMessages }]) =>
-    mergeMessages(baseMessages.default, supplementalMessages[locale]),
+  const messagesPromise = localeMessageLoaders[locale]().then(
+    (module) => module.default,
   );
   messageCache.set(locale, messagesPromise);
   return messagesPromise;

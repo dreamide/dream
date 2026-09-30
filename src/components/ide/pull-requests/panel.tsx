@@ -14,6 +14,7 @@ import {
   GitBranch,
   GitMerge,
   GitPullRequest,
+  type LucideIcon,
   Pencil,
   RotateCw,
   Rows3,
@@ -53,6 +54,7 @@ import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig, ProjectGitStatusEntry } from "@/types/ide";
 import type { DiffViewMode } from "../changes";
@@ -99,7 +101,11 @@ function PullRequestStatus({ pr }: { pr: PullRequestSummary }) {
   );
 }
 
-function checkSummary(checks: PullRequestDetail["checks"]) {
+function checkSummary(checks: PullRequestDetail["checks"]): {
+  labelKey: keyof Messages["pullRequests"];
+  className: string;
+  icon: LucideIcon;
+} {
   if (checks === null)
     return {
       labelKey: "checksUnavailable",
@@ -410,14 +416,16 @@ function Comment({
   const t = useTranslations();
   const format = useFormatter();
   const reviewLabel = (state: string) => {
-    const keys: Record<string, string> = {
+    const keys = {
       APPROVED: "assistant.approved",
       CHANGES_REQUESTED: "pullRequests.changesRequested",
       COMMENTED: "pullRequests.commented",
       DISMISSED: "pullRequests.dismissed",
       PENDING: "assistant.toolState.input-streaming",
-    };
-    return keys[state] ? t(keys[state]) : state;
+    } as const;
+    return Object.hasOwn(keys, state)
+      ? t(keys[state as keyof typeof keys])
+      : state;
   };
   const [editing, setEditing] = useState(false);
   const date = comment.created_at ?? comment.submitted_at ?? comment.updated_at;

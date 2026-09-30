@@ -28,7 +28,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
 
-type Translate = ReturnType<typeof useTranslations>;
+// The root translator (no namespace): keys are written in full, "editorSearch.find".
+type Translate = ReturnType<typeof useTranslations<never>>;
 
 interface FileCodeSearchPanelContentProps {
   t: Translate;
