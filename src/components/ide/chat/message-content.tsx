@@ -287,7 +287,7 @@ export const UserMessageContent = ({
               variant="secondary"
             >
               <Package className="size-3 shrink-0" />
-              <span className="truncate font-mono text-xs">${name}</span>
+              <span className="truncate font-mono text-xs">{name}</span>
             </Badge>
           ))}
         </div>
