@@ -39,9 +39,28 @@ there, once.
 One conversation with an agent inside a project. `ChatConfig`, `chatId`.
 Every open project has at least one live chat, and the project's UI names
 which one is active. A chat is **soft-deleted** when `deletedAt` is set.
+A **draft chat** is an empty chat a project shows again on "new chat"
+instead of creating another (`draftChatIdByProject`); a chat stops being
+one once it has messages. A **default chat** is the chat a project gets
+when it has none, built by `createDefaultChatConfig` in the codec from the
+workspace's default model.
 
 Older code calls this a _thread_; the chat runtime calls a running one a
-_session_. Both mean chat.
+_session_; _remote conversation_ is the provider's id for it (see Remote
+session). All of them mean chat.
+
+## Workspace document
+
+The projects the user has open or closed, their chats and transcripts, the
+draft per project and which project is active:
+`store/workspace-document.ts`. Every operation on it (open, close, set and
+activate projects; add, add beside, branch, focus, delete, remove, restore
+chats; toggle multi-chat) is a pure function ending in `settle`, which
+enforces the one invariant the app relies on: every open project has a
+live chat, its active chat is one of them, its open chats are live chats of
+that project with the active one among them, and the active project is
+open. The zustand actions are thin wrappers around these operations; the
+main process settles persisted state with the same codec primitives.
 
 ## Remote session
 

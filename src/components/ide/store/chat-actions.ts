@@ -1,27 +1,36 @@
+// Chats within a project. The document operations live in
+// workspace-document.ts; these wrappers add the runtime side (streaming
+// guards, the "finished while away" marks, transcript persistence,
+// checkpoint cleanup).
 import type { UIMessage } from "ai";
-import { createChatConfig, getDefaultModelSelection } from "@/lib/ide-defaults";
-import type { ChatConfig, ChatSortOrder, ProjectUiState } from "@/types/ide";
+import type { ChatConfig, ChatSortOrder } from "@/types/ide";
 import {
   createBranchedChatConfig,
   getMessagesThroughBranchPoint,
 } from "../chat-branching";
 import { mergeChatMessageHistories } from "../chat-message-history";
-import {
-  ensureActiveChatForProject,
-  sanitizeProjectUiForChats,
-} from "../ide-state";
-import {
-  areMessagesEqual,
-  shouldTouchChatUpdatedAt,
-  updateProjectUiInList,
-} from ".";
 import { requestChatCheckpointCleanup } from "./checkpoint-cleanup";
+import { areMessagesEqual, shouldTouchChatUpdatedAt } from "./helpers";
 import type {
   IdeState,
   IdeStoreGet,
   IdeStoreSet,
   StoreActionDependencies,
 } from "./ide-store-types";
+import * as workspace from "./workspace-document";
+
+const withoutCompletedMarks = (
+  completedChatIds: IdeState["completedChatIds"],
+  chatIds: Iterable<string | null | undefined>,
+) => {
+  const next = { ...completedChatIds };
+  for (const chatId of chatIds) {
+    if (chatId) {
+      delete next[chatId];
+    }
+  }
+  return next;
+};
 
 export const createChatActions = (
   set: IdeStoreSet,
@@ -49,129 +58,26 @@ export const createChatActions = (
     title?: string,
     options?: { forceNew?: boolean },
   ) => {
-    let nextChatId: string | null = null;
-
+    let chatId: string | null = null;
     set((state) => {
-      const project = state.projects.find((item) => item.id === projectId);
-      if (!project) {
-        return state;
-      }
-
-      const existingDraftChatId = state.draftChatIdByProject[projectId] ?? null;
-      if (
-        !options?.forceNew &&
-        existingDraftChatId &&
-        state.chats.some((item) => item.id === existingDraftChatId)
-      ) {
-        nextChatId = existingDraftChatId;
-        return {
-          activeProjectId: projectId,
-          projects: updateProjectUiInList(
-            state.projects,
-            projectId,
-            (item) => ({
-              ...item.ui,
-              activeChatId: existingDraftChatId,
-              openChatIds: [existingDraftChatId],
-              chatColumnWidths: {},
-            }),
-          ),
-        };
-      }
-
-      const defaultSelection = getDefaultModelSelection(state.settings);
-      const nextChat = createChatConfig(project, {
-        model: defaultSelection.model || project.model,
-        modelSpeed: defaultSelection.model
-          ? defaultSelection.modelSpeed
-          : project.modelSpeed,
-        provider: defaultSelection.model
-          ? defaultSelection.provider
-          : project.provider,
-        permissionMode: state.settings.defaultPermissionMode,
-        reasoningEffort: defaultSelection.model
-          ? defaultSelection.reasoningEffort
-          : project.reasoningEffort,
+      const result = workspace.addChat(state, state.settings, projectId, {
+        forceNew: options?.forceNew,
         title,
       });
-      nextChatId = nextChat.id;
-
-      return {
-        activeProjectId: projectId,
-        projects: updateProjectUiInList(state.projects, projectId, (item) => ({
-          ...item.ui,
-          activeChatId: nextChat.id,
-          openChatIds: [nextChat.id],
-          chatColumnWidths: {},
-        })),
-        draftChatIdByProject: {
-          ...state.draftChatIdByProject,
-          [projectId]: nextChat.id,
-        },
-        messagesByChatId: {
-          ...state.messagesByChatId,
-          [nextChat.id]: [],
-        },
-        chats: [...state.chats, nextChat],
-      };
+      chatId = result.chatId;
+      return result.doc;
     });
-
-    return nextChatId;
+    return chatId;
   },
 
   addChatBeside: (projectId: string) => {
-    let nextChatId: string | null = null;
-
+    let chatId: string | null = null;
     set((state) => {
-      const project = state.projects.find((item) => item.id === projectId);
-      if (!project) {
-        return state;
-      }
-
-      const defaultSelection = getDefaultModelSelection(state.settings);
-      const nextChat = createChatConfig(project, {
-        model: defaultSelection.model || project.model,
-        modelSpeed: defaultSelection.model
-          ? defaultSelection.modelSpeed
-          : project.modelSpeed,
-        provider: defaultSelection.model
-          ? defaultSelection.provider
-          : project.provider,
-        permissionMode: state.settings.defaultPermissionMode,
-        reasoningEffort: defaultSelection.model
-          ? defaultSelection.reasoningEffort
-          : project.reasoningEffort,
-      });
-      nextChatId = nextChat.id;
-      const nextChats = [...state.chats, nextChat];
-
-      return {
-        activeProjectId: projectId,
-        projects: updateProjectUiInList(state.projects, projectId, (item) =>
-          sanitizeProjectUiForChats(
-            nextChats,
-            projectId,
-            {
-              ...item.ui,
-              multiChat: true,
-              openChatIds: [...item.ui.openChatIds, nextChat.id],
-            },
-            nextChat.id,
-          ),
-        ),
-        draftChatIdByProject: {
-          ...state.draftChatIdByProject,
-          [projectId]: nextChat.id,
-        },
-        messagesByChatId: {
-          ...state.messagesByChatId,
-          [nextChat.id]: [],
-        },
-        chats: nextChats,
-      };
+      const result = workspace.addChatBeside(state, state.settings, projectId);
+      chatId = result.chatId;
+      return result.doc;
     });
-
-    return nextChatId;
+    return chatId;
   },
 
   branchChatInWorkspace: ({ chatId, messageId }) => {
@@ -202,38 +108,14 @@ export const createChatActions = (
     );
     branchedChat.messageCount = messages.length;
 
-    set((current) => ({
-      activeProjectId: project.id,
-      chats: [...current.chats, branchedChat],
-      messagesByChatId: {
-        ...current.messagesByChatId,
-        [branchedChat.id]: messages,
-      },
-      projects: updateProjectUiInList(current.projects, project.id, (item) => {
-        const sourceIndex = item.ui.openChatIds.indexOf(sourceChat.id);
-        const insertionIndex =
-          sourceIndex >= 0 ? sourceIndex + 1 : item.ui.openChatIds.length;
-        const openChatIds = item.ui.multiChat
-          ? [
-              ...item.ui.openChatIds.slice(0, insertionIndex),
-              branchedChat.id,
-              ...item.ui.openChatIds.slice(insertionIndex),
-            ]
-          : [branchedChat.id];
-
-        return sanitizeProjectUiForChats(
-          [...current.chats, branchedChat],
-          project.id,
-          {
-            ...item.ui,
-            activeChatId: branchedChat.id,
-            chatColumnWidths: item.ui.multiChat ? item.ui.chatColumnWidths : {},
-            openChatIds,
-          },
-          branchedChat.id,
-        );
-      }),
-    }));
+    set((current) =>
+      workspace.branchChat(
+        current,
+        current.settings,
+        { chat: branchedChat, messages },
+        sourceChat.id,
+      ),
+    );
 
     void get().persistMessagesForChat?.(branchedChat.id);
 
@@ -282,62 +164,23 @@ export const createChatActions = (
   },
 
   toggleProjectMultiChatMode: (projectId: string) => {
-    set((state) => {
-      const project = state.projects.find((item) => item.id === projectId);
-      if (!project) {
-        return state;
-      }
-
-      const multiChat = !project.ui.multiChat;
-      const preferredActiveChatId =
-        project.ui.activeChatId ?? project.ui.openChatIds[0] ?? null;
-
-      return {
-        projects: updateProjectUiInList(state.projects, projectId, (item) =>
-          sanitizeProjectUiForChats(
-            state.chats,
-            projectId,
-            {
-              ...item.ui,
-              chatColumnWidths: multiChat ? item.ui.chatColumnWidths : {},
-              multiChat,
-            },
-            preferredActiveChatId,
-          ),
-        ),
-      };
-    });
+    set((state) => workspace.toggleMultiChat(state, state.settings, projectId));
   },
 
   setActiveChatId: (projectId: string, chatId: string | null) => {
     set((state) => {
-      const nextActiveChatId =
-        chatId &&
-        state.chats.some(
-          (chat) =>
-            chat.projectId === projectId &&
-            chat.id === chatId &&
-            chat.deletedAt === null,
-        )
-          ? chatId
-          : ensureActiveChatForProject(state.chats, projectId, chatId);
-
-      const nextCompletedChatIds = { ...state.completedChatIds };
-      if (nextActiveChatId) {
-        delete nextCompletedChatIds[nextActiveChatId];
-      }
-
-      return {
-        completedChatIds: nextCompletedChatIds,
-        projects: updateProjectUiInList(state.projects, projectId, (project) =>
-          sanitizeProjectUiForChats(
-            state.chats,
-            projectId,
-            project.ui,
-            nextActiveChatId,
-          ),
-        ),
-      };
+      const doc = workspace.focusChat(state, state.settings, projectId, chatId);
+      const activeChatId = doc.projects.find(
+        (project) => project.id === projectId,
+      )?.ui.activeChatId;
+      return activeChatId && state.completedChatIds[activeChatId]
+        ? {
+            ...doc,
+            completedChatIds: withoutCompletedMarks(state.completedChatIds, [
+              activeChatId,
+            ]),
+          }
+        : doc;
     });
   },
 
@@ -386,171 +229,54 @@ export const createChatActions = (
   },
 
   deleteChat: (chatId: string) => {
-    let projectIdNeedingNewChat: string | null = null;
-
     set((state) => {
-      const chat = state.chats.find((item) => item.id === chatId);
-      if (!chat) {
-        return state;
-      }
-
-      const deletedAt = new Date().toISOString();
-      const nextChats = state.chats.map((item) =>
-        item.id === chatId ? { ...item, deletedAt } : item,
-      );
-      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
-      if (nextDraftChatIdByProject[chat.projectId] === chatId) {
-        nextDraftChatIdByProject[chat.projectId] = null;
-      }
-      const sanitizeUiAfterDelete = (project: { ui: ProjectUiState }) => {
-        const deletedOpenIndex = project.ui.openChatIds.indexOf(chatId);
-        const openChatIds = project.ui.openChatIds.filter(
-          (openChatId) => openChatId !== chatId,
-        );
-        const preferredActiveChatId =
-          project.ui.activeChatId === chatId
-            ? (openChatIds[deletedOpenIndex] ??
-              openChatIds[deletedOpenIndex - 1] ??
-              null)
-            : project.ui.activeChatId;
-
-        if (project.ui.activeChatId === chatId && openChatIds.length === 0) {
-          projectIdNeedingNewChat = chat.projectId;
-        }
-
-        return sanitizeProjectUiForChats(
-          nextChats,
-          chat.projectId,
-          {
-            ...project.ui,
-            openChatIds,
-          },
-          preferredActiveChatId,
-        );
-      };
-
-      const nextCompletedChatIds = { ...state.completedChatIds };
-      delete nextCompletedChatIds[chatId];
-
-      return {
-        completedChatIds: nextCompletedChatIds,
-        projects: updateProjectUiInList(
-          state.projects,
-          chat.projectId,
-          sanitizeUiAfterDelete,
-        ),
-        closedProjects: updateProjectUiInList(
-          state.closedProjects,
-          chat.projectId,
-          sanitizeUiAfterDelete,
-        ),
-        draftChatIdByProject: nextDraftChatIdByProject,
-        chats: nextChats,
-      };
+      const doc = workspace.deleteChat(state, state.settings, chatId);
+      return doc === state
+        ? state
+        : {
+            ...doc,
+            completedChatIds: withoutCompletedMarks(state.completedChatIds, [
+              chatId,
+            ]),
+          };
     });
-
-    if (projectIdNeedingNewChat) {
-      get().addChat(projectIdNeedingNewChat);
-    }
   },
 
   permanentlyDeleteChats: (chatIds: string[]) => {
-    const idsToDelete = new Set(
-      get()
-        .chats.filter((chat) => chatIds.includes(chat.id))
-        .map((chat) => chat.id),
+    const current = get();
+    const deletedChats = current.chats.filter((chat) =>
+      chatIds.includes(chat.id),
     );
-    if (idsToDelete.size === 0) {
+    if (deletedChats.length === 0) {
       return;
     }
 
-    {
-      const current = get();
-      requestChatCheckpointCleanup(
-        current.chats.filter((chat) => idsToDelete.has(chat.id)),
-        [...current.projects, ...current.closedProjects],
-        api,
-      );
-    }
+    requestChatCheckpointCleanup(
+      deletedChats,
+      [...current.projects, ...current.closedProjects],
+      api,
+    );
 
+    const deletedChatIds = deletedChats.map((chat) => chat.id);
     set((state) => {
-      const deletedChats = state.chats.filter((chat) =>
-        idsToDelete.has(chat.id),
-      );
-      if (deletedChats.length === 0) {
-        return state;
-      }
-
-      const affectedProjectIds = new Set(
-        deletedChats.map((chat) => chat.projectId),
-      );
-      const nextChats = state.chats.filter((chat) => !idsToDelete.has(chat.id));
-      const nextMessagesByChatId = { ...state.messagesByChatId };
-      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
-      const nextCompletedChatIds = { ...state.completedChatIds };
-
-      for (const chat of deletedChats) {
-        delete nextMessagesByChatId[chat.id];
-        delete nextCompletedChatIds[chat.id];
-        if (nextDraftChatIdByProject[chat.projectId] === chat.id) {
-          nextDraftChatIdByProject[chat.projectId] = null;
-        }
-      }
-
-      return {
-        projects: state.projects.map((project) =>
-          affectedProjectIds.has(project.id)
-            ? {
-                ...project,
-                ui: sanitizeProjectUiForChats(
-                  nextChats,
-                  project.id,
-                  project.ui,
-                  ensureActiveChatForProject(
-                    nextChats,
-                    project.id,
-                    project.ui.activeChatId,
-                  ),
-                ),
-              }
-            : project,
-        ),
-        closedProjects: state.closedProjects.map((project) =>
-          affectedProjectIds.has(project.id)
-            ? {
-                ...project,
-                ui: sanitizeProjectUiForChats(
-                  nextChats,
-                  project.id,
-                  project.ui,
-                  ensureActiveChatForProject(
-                    nextChats,
-                    project.id,
-                    project.ui.activeChatId,
-                  ),
-                ),
-              }
-            : project,
-        ),
-        completedChatIds: nextCompletedChatIds,
-        draftChatIdByProject: nextDraftChatIdByProject,
-        messagesByChatId: nextMessagesByChatId,
-        chats: nextChats,
-      };
+      const doc = workspace.removeChats(state, state.settings, deletedChatIds);
+      return doc === state
+        ? state
+        : {
+            ...doc,
+            completedChatIds: withoutCompletedMarks(
+              state.completedChatIds,
+              deletedChatIds,
+            ),
+          };
     });
   },
 
   restoreChats: (chatIds: string[]) => {
-    const idsToRestore = new Set(chatIds);
-    if (idsToRestore.size === 0) {
+    if (chatIds.length === 0) {
       return;
     }
-
-    set((state) => ({
-      chats: state.chats.map((chat) =>
-        idsToRestore.has(chat.id) ? { ...chat, deletedAt: null } : chat,
-      ),
-    }));
+    set((state) => workspace.restoreChats(state, state.settings, chatIds));
   },
 
   setMessagesForChat: (chatId: string, messages: UIMessage[]) => {
@@ -579,6 +305,7 @@ export const createChatActions = (
         mergedMessages,
       );
 
+      // A draft stops being one once it has messages.
       const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
       if (
         mergedMessages.length > 0 &&

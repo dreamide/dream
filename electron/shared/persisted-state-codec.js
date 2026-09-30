@@ -25,6 +25,7 @@ import { normalizeLocalePreference } from "./locales.js";
 import {
   ALL_PROVIDERS,
   dedupeModels,
+  getDefaultModelSelection,
   getPreferredDefaultModel,
   normalizeClaudeCodeModelId,
   normalizeDefaultModelSettings,
@@ -972,6 +973,30 @@ export const createChatConfig = (project, overrides) => {
   };
 };
 
+/**
+ * The chat a project gets when it has none: the workspace default model,
+ * speed, provider and reasoning effort (the project's own when no default
+ * model is set) and the default permission mode. Both processes create
+ * default chats through this, so every "new chat" looks the same.
+ * @param {ProjectConfig} project
+ * @param {AppSettings} settings
+ * @param {Partial<Pick<ChatConfig, "title">>} [overrides]
+ * @returns {ChatConfig}
+ */
+export const createDefaultChatConfig = (project, settings, overrides) => {
+  const selection = getDefaultModelSelection(settings);
+  return createChatConfig(project, {
+    model: selection.model || project.model,
+    modelSpeed: selection.model ? selection.modelSpeed : project.modelSpeed,
+    permissionMode: settings.defaultPermissionMode,
+    provider: selection.model ? selection.provider : project.provider,
+    reasoningEffort: selection.model
+      ? selection.reasoningEffort
+      : project.reasoningEffort,
+    title: overrides?.title,
+  });
+};
+
 // ── Decode ────────────────────────────────────────────────────────────
 
 /**
@@ -1062,11 +1087,7 @@ export const decodePersistedState = (raw) => {
   const projectIdsWithChats = new Set(chats.map((chat) => chat.projectId));
   for (const project of projects) {
     if (!projectIdsWithChats.has(project.id)) {
-      chats.push(
-        createChatConfig(project, {
-          permissionMode: settings.defaultPermissionMode,
-        }),
-      );
+      chats.push(createDefaultChatConfig(project, settings));
       projectIdsWithChats.add(project.id);
     }
   }

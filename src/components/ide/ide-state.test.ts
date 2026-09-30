@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
-import type { UIMessage } from "ai";
 import { test } from "vitest";
 import type { ProjectConfig } from "@/types/ide";
 import {
   areProjectListsEqualExceptLastUsedAt,
   areProjectsEqualExceptLastUsedAt,
-  renderUserMessageText,
 } from "./ide-state";
 
 const project = {
@@ -15,9 +13,6 @@ const project = {
   path: "C:\\projects\\project-one",
   ui: {},
 } as ProjectConfig;
-
-const createUserMessage = (parts: UIMessage["parts"]): UIMessage =>
-  ({ id: "message-one", parts, role: "user" }) as UIMessage;
 
 test("project comparison ignores recency-only updates", () => {
   const touchedProject = {
@@ -40,25 +35,4 @@ test("project comparison keeps meaningful workspace changes", () => {
     }),
     false,
   );
-});
-
-test("renderUserMessageText joins text sections and labels attachments", () => {
-  const message = createUserMessage([
-    { text: "  First paragraph  ", type: "text" },
-    { text: "   ", type: "text" },
-    {
-      filename: "screenshot.png",
-      mediaType: "image/png",
-      type: "file",
-      url: "file:///tmp/screenshot.png",
-    },
-    { mediaType: "application/pdf", type: "file", url: "file:///tmp/doc.pdf" },
-    { state: "done", text: "thinking", type: "reasoning" },
-  ] as UIMessage["parts"]);
-
-  assert.equal(
-    renderUserMessageText(message),
-    "First paragraph\n\n[Attached file: screenshot.png]\n\n[Attached file: application/pdf]",
-  );
-  assert.equal(renderUserMessageText(createUserMessage([])), "");
 });

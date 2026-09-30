@@ -17,7 +17,7 @@ import {
   getTerminalOrdinalFromName,
   moveItem,
   updateProjectUiInList,
-} from ".";
+} from "./helpers";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 export const createTerminalActions = (

@@ -29,6 +29,7 @@ import {
 } from "../../electron/shared/model-selection.js";
 import {
   createChatConfig,
+  createDefaultChatConfig,
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_PROJECT_UI,
@@ -41,6 +42,7 @@ export {
   ALL_PROVIDERS,
   CLAUDE_CODE_MODEL_IDS,
   createChatConfig,
+  createDefaultChatConfig,
   DEFAULT_PANEL_SIZES,
   DEFAULT_PANEL_VISIBILITY,
   DEFAULT_PROJECT_UI,

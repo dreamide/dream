@@ -6,9 +6,7 @@
 // between the two to show the outcome; the projects panel runs them back to
 // back). The worktree record is built in one place, `createWorktreeRecord`.
 import { ApiError, apiClient } from "@/lib/api-client";
-import { createChatConfig, createProjectConfig } from "@/lib/ide-defaults";
 import type {
-  ChatConfig,
   ProjectConfig,
   ProjectGitWorktreeCleanupResponse,
   ProjectGitWorktreeInfo,
@@ -16,14 +14,15 @@ import type {
 } from "@/types/ide";
 import { createBranchedChatConfig } from "../chat-branching";
 import { normalizeProjectPathKey } from "../ide-state";
-import { updateProjectInList } from ".";
 import type {
   IdeState,
   IdeStoreGet,
   IdeStoreSet,
   StoreActionDependencies,
+  WorktreeProjectCreationResult,
 } from "./ide-store-types";
 import { dropPurgedProjectState } from "./project-runtime-state";
+import * as workspace from "./workspace-document";
 
 /** The one place a `ProjectWorktreeInfo` is built. */
 export const createWorktreeRecord = ({
@@ -89,7 +88,6 @@ export const createWorktreeActions = (
   | "purgeWorktreeProject"
 > => ({
   createWorktreeProject: async (parentProjectId, options) => {
-    const activate = options.activate !== false;
     const parentProject = get().projects.find(
       (project) => project.id === parentProjectId,
     );
@@ -111,141 +109,54 @@ export const createWorktreeActions = (
       repoRoot: payload.repoRoot,
     });
     const seed = options.initialChatSeed ?? null;
-    const seedChat = (project: ProjectConfig): ChatConfig | null => {
-      if (!seed) {
-        return null;
-      }
-      const chat = createBranchedChatConfig(
-        seed.sourceChat,
-        project,
-        seed.messageId,
-      );
-      chat.messageCount = seed.messages.length;
-      return chat;
+    const created: { value: WorktreeProjectCreationResult | null } = {
+      value: null,
     };
-    const focusChat = (
-      ui: ProjectConfig["ui"],
-      chatId: string,
-    ): ProjectConfig["ui"] => ({
-      ...ui,
-      activeChatId: chatId,
-      openChatIds: [chatId],
-      chatColumnWidths: {},
-    });
-    let createdProjectId: string | null = null;
-    let createdChatId: string | null = null;
 
     set((state) => {
-      const lastUsedAt = new Date().toISOString();
-      const existingProject = findProjectByPath(state.projects, payload.path);
-      if (existingProject) {
-        createdProjectId = existingProject.id;
-        const nextChat = seedChat(existingProject);
-        createdChatId = nextChat?.id ?? existingProject.ui.activeChatId;
-        return {
-          ...(activate ? { activeProjectId: existingProject.id } : {}),
-          chats: nextChat ? [...state.chats, nextChat] : state.chats,
-          messagesByChatId: nextChat
-            ? { ...state.messagesByChatId, [nextChat.id]: seed?.messages ?? [] }
-            : state.messagesByChatId,
-          projects: updateProjectInList(
-            state.projects,
-            existingProject.id,
-            (project) => ({
-              ...project,
-              lastUsedAt,
-              ui: nextChat ? focusChat(project.ui, nextChat.id) : project.ui,
-              worktree: project.worktree ?? worktree,
-            }),
-          ),
-        };
-      }
-
-      const closedProject = findProjectByPath(
-        state.closedProjects,
+      const opened = workspace.openProject(
+        state,
+        state.settings,
         payload.path,
-      );
-      if (closedProject) {
-        createdProjectId = closedProject.id;
-        const reopenedProject = {
-          ...closedProject,
-          lastUsedAt,
-          path: payload.path,
+        {
+          activate: options.activate,
+          // A new worktree project takes after its parent and opens on its
+          // changes, which are what the worktree is for.
+          create: (project) => ({
+            ...project,
+            browserUrl: parentProject.browserUrl,
+            model: parentProject.model,
+            modelSpeed: parentProject.modelSpeed,
+            name: `${parentProject.name} / ${payload.branch}`,
+            provider: parentProject.provider,
+            reasoningEffort: parentProject.reasoningEffort,
+            runCommand: parentProject.runCommand,
+            ui: { ...project.ui, rightPanelView: "changes" },
+          }),
+          replaceWorktree: true,
+          seed: seed
+            ? (project) => {
+                const chat = createBranchedChatConfig(
+                  seed.sourceChat,
+                  project,
+                  seed.messageId,
+                );
+                chat.messageCount = seed.messages.length;
+                return { chat, messages: seed.messages };
+              }
+            : undefined,
           worktree,
-        };
-        const nextChat = seedChat(reopenedProject);
-        createdChatId = nextChat?.id ?? reopenedProject.ui.activeChatId;
-        return {
-          ...(activate ? { activeProjectId: closedProject.id } : {}),
-          chats: nextChat ? [...state.chats, nextChat] : state.chats,
-          closedProjects: state.closedProjects.filter(
-            (project) => project.id !== closedProject.id,
-          ),
-          messagesByChatId: nextChat
-            ? { ...state.messagesByChatId, [nextChat.id]: seed?.messages ?? [] }
-            : state.messagesByChatId,
-          projects: [
-            ...state.projects,
-            {
-              ...reopenedProject,
-              ui: nextChat
-                ? focusChat(reopenedProject.ui, nextChat.id)
-                : reopenedProject.ui,
-            },
-          ],
-        };
-      }
-
-      const nextProject = {
-        ...createProjectConfig(payload.path, state.settings),
-        browserUrl: parentProject.browserUrl,
-        model: parentProject.model,
-        modelSpeed: parentProject.modelSpeed,
-        name: `${parentProject.name} / ${payload.branch}`,
-        provider: parentProject.provider,
-        reasoningEffort: parentProject.reasoningEffort,
-        runCommand: parentProject.runCommand,
-        worktree,
-      };
-      const nextChat =
-        seedChat(nextProject) ??
-        createChatConfig(nextProject, {
-          permissionMode: state.settings.defaultPermissionMode,
-        });
-      createdProjectId = nextProject.id;
-      createdChatId = nextChat.id;
-
-      return {
-        ...(activate ? { activeProjectId: nextProject.id } : {}),
-        draftChatIdByProject: {
-          ...state.draftChatIdByProject,
-          [nextProject.id]: seed ? null : nextChat.id,
         },
-        messagesByChatId: {
-          ...state.messagesByChatId,
-          [nextChat.id]: seed?.messages ?? [],
-        },
-        chats: [...state.chats, nextChat],
-        projects: [
-          ...state.projects,
-          {
-            ...nextProject,
-            ui: {
-              ...focusChat(nextProject.ui, nextChat.id),
-              rightPanelView: "changes",
-            },
-          },
-        ],
-      };
+      );
+      created.value = { chatId: opened.chatId, projectId: opened.projectId };
+      return opened.doc;
     });
 
-    if (createdChatId && seed) {
-      await get().persistMessagesForChat?.(createdChatId);
+    if (created.value?.chatId && seed) {
+      await get().persistMessagesForChat?.(created.value.chatId);
     }
 
-    return createdProjectId
-      ? { chatId: createdChatId, projectId: createdProjectId }
-      : null;
+    return created.value;
   },
 
   attachWorktreeProject: (

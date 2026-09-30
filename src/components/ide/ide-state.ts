@@ -9,21 +9,12 @@ import type {
   UIMessage,
 } from "ai";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
-import {
-  ensureActiveChatForProject,
-  ensureActiveProject,
-  normalizeProjectPathKey,
-  sanitizeProjectUiForChats,
-} from "../../../electron/shared/persisted-state-codec.js";
+import { normalizeProjectPathKey } from "../../../electron/shared/persisted-state-codec.js";
 
-// The shape of persisted state, its defaults and the project/chat invariants
-// are owned by the shared codec; the store reaches them through here.
-export {
-  ensureActiveChatForProject,
-  ensureActiveProject,
-  normalizeProjectPathKey,
-  sanitizeProjectUiForChats,
-};
+// Project paths compare through the shared codec's key, the same one the
+// main process dedupes projects with. The project/chat invariants are the
+// workspace document's (store/workspace-document.ts).
+export { normalizeProjectPathKey };
 
 export const areProjectsEqualExceptLastUsedAt = (
   previous: ProjectConfig,
@@ -62,35 +53,6 @@ export const getChatsForProject = (chats: ChatConfig[], projectId: string) =>
   chats.filter(
     (chat) => chat.projectId === projectId && chat.deletedAt === null,
   );
-
-export const renderUserMessageText = (message: UIMessage): string => {
-  const parts = Array.isArray(message.parts) ? message.parts : [];
-  const sections: string[] = [];
-
-  for (const part of parts) {
-    if (!part || typeof part !== "object") {
-      continue;
-    }
-
-    if (part.type === "text" && typeof part.text === "string") {
-      const text = part.text.trim();
-      if (text) {
-        sections.push(text);
-      }
-      continue;
-    }
-
-    if (part.type === "file") {
-      const label =
-        (typeof part.filename === "string" && part.filename.trim()) ||
-        (typeof part.mediaType === "string" && part.mediaType.trim()) ||
-        "attachment";
-      sections.push(`[Attached file: ${label}]`);
-    }
-  }
-
-  return sections.join("\n\n");
-};
 
 export const stringifyPart = (
   value:

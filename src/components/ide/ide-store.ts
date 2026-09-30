@@ -1,21 +1,31 @@
 import { create } from "zustand";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
-import { encodePersistedState } from "../../../electron/shared/persisted-state-codec.js";
-import { ensureActiveProject, getChatsForProject } from "./ide-state";
-import { getBrowserTabsForProject, resolveActiveBrowserTab } from "./store";
+import {
+  encodePersistedState,
+  ensureActiveProject,
+} from "../../../electron/shared/persisted-state-codec.js";
+import { getChatsForProject } from "./ide-state";
 import { createBrowserActions } from "./store/browser-actions";
+import { createChatActions } from "./store/chat-actions";
+import {
+  getBrowserTabsForProject,
+  resolveActiveBrowserTab,
+} from "./store/helpers";
 import {
   loadPersistedIdeState,
   savePersistedIdeState,
 } from "./store/ide-store-persistence";
 import type { IdeState } from "./store/ide-store-types";
 import { createPanelActions } from "./store/panel-actions";
-import { createProjectActions } from "./store/project-actions";
+import { createProjectLifecycleActions } from "./store/project-lifecycle-actions";
 import { readCachedProviderModels } from "./store/provider-model-cache";
 import { createRuntimeActions } from "./store/runtime-actions";
+import { createSavedPromptActions } from "./store/saved-prompt-actions";
 import { createSettingsActions } from "./store/settings-actions";
+import { createStashActions } from "./store/stash-actions";
 import { createTerminalActions } from "./store/terminal-actions";
 import { createTranscriptCache } from "./store/transcript-cache";
+import { createWorktreeActions } from "./store/worktree-actions";
 
 const transcriptCache = createTranscriptCache(
   () => useIdeStore.getState(),
@@ -124,8 +134,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     return resolveActiveBrowserTab(tabs, activeTabId);
   },
 
-  // ── Actions: projects ───────────────────────────────────────────────
-  ...createProjectActions(set, get),
+  // ── Actions: projects and chats ─────────────────────────────────────
+  ...createProjectLifecycleActions(set, get),
+  ...createWorktreeActions(set, get),
+  ...createChatActions(set, get),
+  ...createStashActions(set, get),
+  ...createSavedPromptActions(set, get),
 
   // ── Actions: panels ─────────────────────────────────────────────────
   ...createPanelActions(set),

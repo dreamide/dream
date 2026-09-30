@@ -1,6 +1,6 @@
 import { createStashItem } from "@/lib/ide-defaults";
 import type { StashItem } from "@/types/ide";
-import { updateProjectUiInList } from ".";
+import { updateProjectUiInList } from "./helpers";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 const getProjectStashItems = (

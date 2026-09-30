@@ -1,5 +1,5 @@
 import type { ProjectConfig } from "@/types/ide";
-import { updateProjectUiInList } from ".";
+import { updateProjectUiInList } from "./helpers";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
 
 export const createPanelActions = (
