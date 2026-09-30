@@ -4,18 +4,22 @@ import type {
   McpServerConfig,
   McpServerTransport,
 } from "@/types/ide";
+import {
+  PROVIDER_CAPABILITIES,
+  PROVIDER_IDS,
+} from "../../electron/shared/provider-capabilities.js";
 
 export const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const KEY_VALUE_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const MCP_TRANSPORTS: McpServerTransport[] = ["stdio", "http", "sse"];
 
-export const MCP_PROVIDER_SUPPORT: Record<AiProvider, boolean> = {
-  anthropic: true,
-  cursor: false,
-  grok: true,
-  openai: true,
-  opencode: true,
-};
+export const MCP_PROVIDER_SUPPORT: Record<AiProvider, boolean> =
+  Object.fromEntries(
+    PROVIDER_IDS.map((provider) => [
+      provider,
+      PROVIDER_CAPABILITIES[provider].mcp,
+    ]),
+  ) as Record<AiProvider, boolean>;
 
 export const isValidMcpServerName = (name: string): boolean =>
   MCP_SERVER_NAME_PATTERN.test(name);

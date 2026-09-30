@@ -1,9 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { createAgentTurn } from "./agent-turn.js";
 import {
   createClaudeAgentAttachmentHook,
+  createClaudePermissionHandler,
   keepClaudeAgentAttachedToTurn,
 } from "./claude-stream.js";
+
+const createTestTurn = () => {
+  const parts = [];
+  const turn = createAgentTurn({
+    provider: "anthropic",
+    writer: { merge: () => {}, write: (part) => parts.push(part) },
+  });
+  return { parts, turn };
+};
 
 test("keeps Claude Agent tool calls attached to the active turn", () => {
   assert.deepEqual(
@@ -64,10 +75,8 @@ test("PreToolUse hook passes through foreground Agent calls untouched", async ()
 });
 
 test("accept-edits mode prompts for MCP tools instead of denying them", async () => {
-  const { createClaudePermissionHandler } = await import("./claude-stream.js");
-  const parts = [];
-  const writer = { write: (part) => parts.push(part) };
-  const handler = createClaudePermissionHandler(writer, {
+  const { parts, turn } = createTestTurn();
+  const handler = createClaudePermissionHandler(turn, {
     mode: "accept-edits",
     projectPath: process.cwd(),
   });
@@ -88,7 +97,9 @@ test("accept-edits mode prompts for MCP tools instead of denying them", async ()
   assert.ok(
     parts.some(
       (part) =>
-        part.type === "tool-approval-request" && part.toolCallId === "t1",
+        part.type === "tool-approval-request" &&
+        part.toolCallId === "t1" &&
+        part.approvalId === "anthropic:t1",
     ),
   );
   controller.abort();
@@ -96,10 +107,8 @@ test("accept-edits mode prompts for MCP tools instead of denying them", async ()
 });
 
 test("Skill tool invocations are allowed without an approval prompt", async () => {
-  const { createClaudePermissionHandler } = await import("./claude-stream.js");
-  const parts = [];
-  const writer = { write: (part) => parts.push(part) };
-  const handler = createClaudePermissionHandler(writer, {
+  const { parts, turn } = createTestTurn();
+  const handler = createClaudePermissionHandler(turn, {
     mode: "ask",
     projectPath: process.cwd(),
   });

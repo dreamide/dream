@@ -1,20 +1,22 @@
+// The Claude Code translator. Claude runs through an AI SDK provider, so
+// its text, reasoning and tool parts arrive as an SDK stream merged into
+// the turn; Dream's own concerns (permission prompts, context compaction,
+// the session id, usage) go through the turn like every other provider.
 import {
   convertToModelMessages,
-  createUIMessageStream,
-  createUIMessageStreamResponse,
   isStepCount,
   streamText,
   toUIMessageStream,
 } from "ai";
 import { claudeCode, getSessionInfo } from "ai-sdk-provider-claude-code";
-import { resolveProjectPath } from "../project-git/files.js";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
   normalizeClaudeCodeModel,
-} from "../providers/model-options.js";
+} from "../../shared/model-options.js";
+import { resolveProjectPath } from "../project-git/files.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
-import { waitForToolApproval } from "../tool-approvals.js";
+import { streamAgentTurn } from "./agent-turn.js";
 import {
   BROWSER_MCP_SERVER_NAME,
   BROWSER_READ_ONLY_TOOL_IDS,
@@ -26,10 +28,7 @@ import {
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toClaudeMcpServers } from "./mcp-servers.js";
-import {
-  getProviderSessionMetadata,
-  shouldResumeProviderSession,
-} from "./provider-session.js";
+import { shouldResumeProviderSession } from "./provider-session.js";
 import {
   DEFAULT_TOOL_STEP_LIMIT,
   REASONING_TOOL_STEP_LIMIT,
@@ -241,10 +240,11 @@ const isPreloadedClaudeToolSearch = (input) => {
   return false;
 };
 
-export const createClaudePermissionHandler = (
-  writer,
-  { mode, projectPath },
-) => {
+/**
+ * The SDK's `canUseTool` callback: decides locally what the permission mode
+ * allows, and asks the user through the turn for everything else.
+ */
+export const createClaudePermissionHandler = (turn, { mode, projectPath }) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const attachedInput = keepClaudeAgentAttachedToTurn(toolName, input);
@@ -313,7 +313,6 @@ export const createClaudePermissionHandler = (
       typeof options?.toolUseID === "string" && options.toolUseID.length > 0
         ? options.toolUseID
         : `claude-tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const approvalId = `anthropic:${toolCallId}`;
     const title =
       typeof options?.displayName === "string" && options.displayName.length > 0
         ? options.displayName
@@ -335,32 +334,8 @@ export const createClaudePermissionHandler = (
         : {}),
     };
 
-    writer.write({
-      dynamic: true,
-      providerExecuted: true,
-      title,
-      toolCallId,
-      toolName,
-      type: "tool-input-start",
-    });
-    writer.write({
-      dynamic: true,
+    const response = await turn.approval({
       input: approvalInput,
-      providerExecuted: true,
-      title,
-      toolCallId,
-      toolName,
-      type: "tool-input-available",
-    });
-    writer.write({
-      approvalId,
-      toolCallId,
-      type: "tool-approval-request",
-    });
-
-    const response = await waitForToolApproval({
-      id: approvalId,
-      provider: "anthropic",
       request: {
         input: attachedInput,
         options: {
@@ -374,6 +349,9 @@ export const createClaudePermissionHandler = (
         toolName,
       },
       signal: options?.signal,
+      title,
+      toolCallId,
+      toolName,
     });
 
     if (response.approved) {
@@ -383,13 +361,7 @@ export const createClaudePermissionHandler = (
           : null;
 
       if (questionApproval) {
-        writer.write({
-          dynamic: true,
-          output: questionApproval,
-          providerExecuted: true,
-          toolCallId,
-          type: "tool-output-available",
-        });
+        turn.toolOutput(toolCallId, questionApproval);
       }
 
       return {
@@ -481,7 +453,6 @@ export const streamClaudeResponse = async ({
   // agent can open tabs, navigate, inspect and interact with the same
   // <webview> tabs the user sees. Absent when there is no project context.
   const browserMcpServer = createBrowserMcpServer({ projectId });
-  let claudeCompactionId = null;
   let resumeSessionId = null;
   if (
     shouldResumeProviderSession({
@@ -508,12 +479,13 @@ export const streamClaudeResponse = async ({
       );
     }
   }
-  const providerFactory = (modelId, writer) =>
-    claudeCode(normalizeClaudeCodeModel(modelId), {
+  const providerFactory = (modelId, turn) => {
+    let compactionId = null;
+    return claudeCode(normalizeClaudeCodeModel(modelId), {
       ...(claudeExecutablePath
         ? { pathToClaudeCodeExecutable: claudeExecutablePath }
         : {}),
-      canUseTool: createClaudePermissionHandler(writer, {
+      canUseTool: createClaudePermissionHandler(turn, {
         mode: claudePermissionHandlerMode,
         projectPath,
       }),
@@ -532,15 +504,11 @@ export const streamClaudeResponse = async ({
           {
             hooks: [
               async () => {
-                const id =
-                  claudeCompactionId ??
-                  `claude-context-compaction-${Date.now()}`;
-                writer.write({
-                  data: { state: "compacted" },
-                  id,
-                  type: "data-context-compaction",
-                });
-                claudeCompactionId = null;
+                turn.compaction(
+                  compactionId ?? `claude-context-compaction-${Date.now()}`,
+                  "compacted",
+                );
+                compactionId = null;
                 return { continue: true };
               },
             ],
@@ -556,12 +524,8 @@ export const streamClaudeResponse = async ({
           {
             hooks: [
               async () => {
-                claudeCompactionId = `claude-context-compaction-${Date.now()}`;
-                writer.write({
-                  data: { state: "compacting" },
-                  id: claudeCompactionId,
-                  type: "data-context-compaction",
-                });
+                compactionId = `claude-context-compaction-${Date.now()}`;
+                turn.compaction(compactionId, "compacting");
                 return { continue: true };
               },
             ],
@@ -601,6 +565,7 @@ export const streamClaudeResponse = async ({
         ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort ?? "medium"] }
         : {}),
     });
+  };
 
   let modelMessages;
   try {
@@ -619,27 +584,19 @@ export const streamClaudeResponse = async ({
     });
   }
 
-  const stream = createUIMessageStream({
-    originalMessages: messages,
-    onError: (error) => {
-      console.error("[chat stream error]", error);
-      return formatStreamError(error);
-    },
-    execute: ({ writer }) => {
-      let claudeSessionId = resumeSessionId;
-      const getClaudeResponseMetadata = () =>
-        claudeSessionId
-          ? getProviderSessionMetadata({
-              model,
-              modelSpeed,
-              projectPath,
-              responseMessageMetadata,
-              sessionId: claudeSessionId,
-            })
-          : responseMessageMetadata;
+  return streamAgentTurn({
+    label: "Claude Code",
+    messages,
+    model,
+    modelSpeed,
+    projectPath,
+    provider: "anthropic",
+    responseMessageMetadata,
+    execute: (turn) => {
+      turn.session(resumeSessionId, { emit: false });
       const textResult = streamText({
         messages: modelMessages,
-        model: providerFactory(model, writer),
+        model: providerFactory(model, turn),
         stopWhen: isStepCount(
           usesReasoningModel
             ? REASONING_TOOL_STEP_LIMIT
@@ -650,7 +607,7 @@ export const streamClaudeResponse = async ({
           : {}),
       });
 
-      writer.merge(
+      turn.merge(
         toUIMessageStream({
           stream: textResult.stream,
           messageMetadata: ({ part }) => {
@@ -658,20 +615,17 @@ export const streamClaudeResponse = async ({
               const sessionId =
                 part.providerMetadata?.["claude-code"]?.sessionId;
               if (typeof sessionId === "string" && sessionId.trim()) {
-                claudeSessionId = sessionId.trim();
-                return getClaudeResponseMetadata();
+                turn.session(sessionId, { emit: false });
+                return turn.buildMetadata();
               }
             }
 
             if (part.type === "finish") {
-              return {
-                ...getClaudeResponseMetadata(),
-                usage: part.totalUsage,
-              };
+              return turn.buildMetadata({ usage: part.totalUsage });
             }
 
             if (part.type === "start") {
-              return getClaudeResponseMetadata();
+              return turn.buildMetadata();
             }
 
             return undefined;
@@ -684,5 +638,4 @@ export const streamClaudeResponse = async ({
       );
     },
   });
-  return createUIMessageStreamResponse({ stream });
 };

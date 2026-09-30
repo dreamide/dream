@@ -13,15 +13,14 @@ import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { create } from "zustand";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
-import {
-  MCP_PROVIDER_SUPPORT,
-  resolveEffectiveMcpServers,
-} from "@/lib/mcp-servers";
+import { resolveEffectiveMcpServers } from "@/lib/mcp-servers";
 import type {
   ChatTitleResponse,
   PendingChatSubmit,
   ProjectReference,
 } from "@/types/ide";
+import { isAiSdkApproval } from "../../../../electron/shared/agent-turn-contract.js";
+import { getProviderCapabilities } from "../../../../electron/shared/provider-capabilities.js";
 import { getActivityAttention } from "../activity-status";
 import { useActivityStore } from "../activity-store";
 import { getChipToolKind } from "../assistant-message-tools";
@@ -498,7 +497,7 @@ export const respondToToolApproval = (
       .persistMessagesForChat(chatId, messagesWithAnswer);
   }
 
-  if (!response.id.startsWith("anthropic:")) {
+  if (!isAiSdkApproval(response.id)) {
     void Promise.resolve(
       chat.addToolApprovalResponse({
         approved: response.approved,
@@ -741,7 +740,7 @@ export const submitChatPrompt = (
 
           chatId,
           checkpointsEnabled: settings.changeCheckpoints,
-          mcpServers: MCP_PROVIDER_SUPPORT[activeProvider]
+          mcpServers: getProviderCapabilities(activeProvider).mcp
             ? resolveEffectiveMcpServers(settings)
             : [],
           permissionMode: config.permissionMode,

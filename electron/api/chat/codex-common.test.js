@@ -1,95 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
-  buildCodexExecArgs,
   chooseCodexApprovalDecision,
   getCodexAppApprovalPolicy,
   getCodexAppSandboxMode,
   getCodexAppTurnSandboxPolicy,
   getCodexReasoningEffort,
   getCodexTokenCountInfo,
-  getCodexTokenCountMetadata,
-  writeCodexContextCompactionPart,
+  getCodexTokenCountUsage,
 } from "./codex-common.js";
-
-test("builds exec args for a new session with default permissions", () => {
-  assert.deepEqual(
-    buildCodexExecArgs({
-      permissionMode: "ask",
-      model: "gpt-5.4-codex",
-      projectPath: "/proj",
-    }),
-    [
-      "exec",
-      "--json",
-      "--cd",
-      "/proj",
-      "--skip-git-repo-check",
-      "--model",
-      "gpt-5.4-codex",
-      "-c",
-      'sandbox_mode="read-only"',
-      "-c",
-      'approval_policy="untrusted"',
-      "-",
-    ],
-  );
-});
-
-test("builds resume exec args with full access, reasoning effort, and fast speed", () => {
-  assert.deepEqual(
-    buildCodexExecArgs({
-      permissionMode: "full-access",
-      modelSpeed: "fast",
-      projectPath: "/proj",
-      reasoningEffort: "high",
-      sessionId: "sess-1",
-    }),
-    [
-      "exec",
-      "resume",
-      "--json",
-      "--skip-git-repo-check",
-      "-c",
-      'sandbox_mode="danger-full-access"',
-      "-c",
-      'approval_policy="never"',
-      "-c",
-      'model_reasoning_effort="high"',
-      "-c",
-      'service_tier="fast"',
-      "sess-1",
-      "-",
-    ],
-  );
-});
-
-test("includes add-dir and image flags for new session exec args", () => {
-  assert.deepEqual(
-    buildCodexExecArgs({
-      addDirs: ["/extra"],
-      permissionMode: "auto-accept-edits",
-      imagePaths: ["/img.png"],
-      projectPath: "/proj",
-    }),
-    [
-      "exec",
-      "--json",
-      "--cd",
-      "/proj",
-      "--skip-git-repo-check",
-      "--add-dir",
-      "/extra",
-      "--image",
-      "/img.png",
-      "-c",
-      'sandbox_mode="workspace-write"',
-      "-c",
-      'approval_policy="on-request"',
-      "-",
-    ],
-  );
-});
 
 test("chooses approval decisions based on approval, scope, and availability", () => {
   assert.equal(chooseCodexApprovalDecision({ approved: false }), "decline");
@@ -178,39 +97,33 @@ test("extracts token count info from the supported event shapes", () => {
     { c: 3 },
   );
   assert.deepEqual(
-    getCodexTokenCountInfo({
-      method: "token_count",
-      params: { total_token_usage: {} },
-    }),
-    { total_token_usage: {} },
+    getCodexTokenCountInfo({ method: "token_count", params: { d: 4 } }),
+    { d: 4 },
   );
   assert.equal(getCodexTokenCountInfo({ type: "other" }), null);
   assert.equal(getCodexTokenCountInfo(null), null);
 });
 
-test("builds token count metadata with cache and reasoning details", () => {
+test("reads usage numbers with cache and reasoning details for the turn writer", () => {
   assert.deepEqual(
-    getCodexTokenCountMetadata({
+    getCodexTokenCountUsage({
       info: {
         last_token_usage: {
           cached_input_tokens: 20,
           input_tokens: 100,
-          output_tokens: 50,
+          output_tokens: 40,
           reasoning_output_tokens: 10,
-          total_tokens: 160,
         },
-        model_context_window: 272000,
+        model_context_window: 200_000,
       },
       type: "token_count",
     }),
     {
-      contextWindow: 272000,
+      contextWindow: 200_000,
       usage: {
-        cachedInputTokens: 20,
-        inputTokenDetails: { cacheReadTokens: 20 },
+        cacheReadTokens: 20,
         inputTokens: 100,
-        outputTokenDetails: { reasoningTokens: 10 },
-        outputTokens: 50,
+        outputTokens: 40,
         reasoningTokens: 10,
       },
     },
@@ -219,65 +132,22 @@ test("builds token count metadata with cache and reasoning details", () => {
 
 test("falls back to total tokens when detailed usage numbers are missing", () => {
   assert.deepEqual(
-    getCodexTokenCountMetadata({
-      info: { total_token_usage: { total_tokens: 500 } },
+    getCodexTokenCountUsage({
+      info: { total_token_usage: { total_tokens: 55 } },
       type: "token_count",
     }),
-    { usage: { inputTokens: 500, outputTokens: 0 } },
+    {
+      usage: {
+        cacheReadTokens: 0,
+        inputTokens: 55,
+        outputTokens: 0,
+        reasoningTokens: 0,
+      },
+    },
   );
   assert.equal(
-    getCodexTokenCountMetadata({ info: {}, type: "token_count" }),
+    getCodexTokenCountUsage({ info: {}, type: "token_count" }),
     null,
   );
-  assert.equal(getCodexTokenCountMetadata({ type: "other" }), null);
-});
-
-test("streams Codex context compaction lifecycle updates as one data part", () => {
-  const events = [];
-  const writeEvent = (event) => events.push(event);
-  const item = { id: "compact-1", type: "contextCompaction" };
-
-  assert.equal(
-    writeCodexContextCompactionPart(writeEvent, item, "compacting"),
-    true,
-  );
-  assert.equal(
-    writeCodexContextCompactionPart(writeEvent, item, "compacted"),
-    true,
-  );
-  assert.deepEqual(events, [
-    {
-      data: { state: "compacting" },
-      id: "compact-1",
-      type: "data-context-compaction",
-    },
-    {
-      data: { state: "compacted" },
-      id: "compact-1",
-      type: "data-context-compaction",
-    },
-  ]);
-});
-
-test("ignores malformed or unrelated context compaction items", () => {
-  const events = [];
-  const writeEvent = (event) => events.push(event);
-
-  assert.equal(
-    writeCodexContextCompactionPart(
-      writeEvent,
-      { id: "reason-1", type: "reasoning" },
-      "compacting",
-    ),
-    false,
-  );
-  assert.equal(
-    writeCodexContextCompactionPart(
-      writeEvent,
-      { type: "contextCompaction" },
-      "compacting",
-    ),
-    false,
-  );
-  assert.deepEqual(events, []);
+  assert.equal(getCodexTokenCountUsage({ type: "other" }), null);
 });

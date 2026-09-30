@@ -3,20 +3,13 @@ import type {
   ProviderSkill,
   ProviderSkillsResponse,
 } from "@/types/ide";
+import { getProviderCapabilities } from "../../../../electron/shared/provider-capabilities.js";
 
 export const SKILL_RESULT_LIMIT = 50;
 
-/** Providers whose CLIs load Agent Skills. */
-export const SKILL_PROVIDER_SUPPORT: Record<AiProvider, boolean> = {
-  anthropic: true,
-  cursor: true,
-  grok: false,
-  openai: true,
-  opencode: true,
-};
-
+/** Providers whose CLIs load Agent Skills (see provider-capabilities.js). */
 export const providerSupportsSkills = (provider: AiProvider) =>
-  SKILL_PROVIDER_SUPPORT[provider] ?? false;
+  getProviderCapabilities(provider).skills !== null;
 
 /**
  * `$name` mentions. Leaves currency amounts (`$50`, `$1.2k`) as prose: the

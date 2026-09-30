@@ -1,6 +1,7 @@
-import { waitForToolApproval } from "../tool-approvals.js";
-
-export const codexSessionsByChatId = new Map();
+// Codex policy: how Dream's permission modes and settings map onto the
+// Codex app-server's sandbox, approval and effort vocabulary, and how its
+// token counts are read. Nothing here writes to the chat stream; that is
+// the agent-turn writer's job.
 
 const toFiniteNumber = (value) =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined;
@@ -31,7 +32,12 @@ export const getCodexTokenCountInfo = (event) => {
   return null;
 };
 
-export const getCodexTokenCountMetadata = (event) => {
+/**
+ * The usage a Codex token-count event reports, as the numbers the turn
+ * writer formats: `{ contextWindow?, usage: { inputTokens, outputTokens,
+ * reasoningTokens, cacheReadTokens } }`, or null when the event is not one.
+ */
+export const getCodexTokenCountUsage = (event) => {
   const info = getCodexTokenCountInfo(event);
   if (!info) {
     return null;
@@ -47,205 +53,17 @@ export const getCodexTokenCountMetadata = (event) => {
   const reasoningTokens = toFiniteNumber(usage.reasoning_output_tokens) ?? 0;
   const totalTokens = toFiniteNumber(usage.total_tokens);
   const knownTokens = inputTokens + outputTokens + reasoningTokens;
-  const contextInputTokens =
-    knownTokens > 0 ? inputTokens : (totalTokens ?? inputTokens);
-  const cacheReadTokens = toFiniteNumber(usage.cached_input_tokens);
-  const modelContextWindow = toFiniteNumber(info.model_context_window);
+  const contextWindow = toFiniteNumber(info.model_context_window);
 
   return {
-    ...(modelContextWindow ? { contextWindow: modelContextWindow } : {}),
+    ...(contextWindow ? { contextWindow } : {}),
     usage: {
-      inputTokens: contextInputTokens,
+      cacheReadTokens: toFiniteNumber(usage.cached_input_tokens) ?? 0,
+      inputTokens: knownTokens > 0 ? inputTokens : (totalTokens ?? inputTokens),
       outputTokens,
-      ...(cacheReadTokens ? { cachedInputTokens: cacheReadTokens } : {}),
-      ...(cacheReadTokens ? { inputTokenDetails: { cacheReadTokens } } : {}),
-      ...(reasoningTokens ? { reasoningTokens } : {}),
-      ...(reasoningTokens ? { outputTokenDetails: { reasoningTokens } } : {}),
+      reasoningTokens,
     },
   };
-};
-
-export const writeCodexTextPart = (writeEvent, id, text, type) => {
-  if (!text) {
-    return;
-  }
-
-  writeEvent({ type: `${type}-start`, id });
-  writeEvent({ type: `${type}-delta`, delta: text, id });
-  writeEvent({ type: `${type}-end`, id });
-};
-
-const TODO_ARRAY_KEYS = [
-  "plan",
-  "todos",
-  "tasks",
-  "items",
-  "steps",
-  "entries",
-  "data",
-  "input",
-  "arguments",
-  "args",
-  "result",
-];
-
-const getArrayFromPayload = (payload, keys = TODO_ARRAY_KEYS, depth = 0) => {
-  if (depth > 4) {
-    return null;
-  }
-
-  if (typeof payload === "string") {
-    try {
-      return getArrayFromPayload(JSON.parse(payload), keys, depth + 1);
-    } catch {
-      return null;
-    }
-  }
-
-  if (Array.isArray(payload)) {
-    return payload;
-  }
-
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-
-  for (const key of keys) {
-    const todos = getArrayFromPayload(payload[key], keys, depth + 1);
-    if (todos) {
-      return todos;
-    }
-  }
-
-  return null;
-};
-
-const normalizeToolName = (toolName) =>
-  String(toolName ?? "")
-    .split(/[.:/]+/)
-    .pop()
-    .replace(/[\s_-]+/g, "")
-    .toLowerCase();
-
-const TODO_TOOL_NAMES = new Set([
-  "todo",
-  "todolist",
-  "todos",
-  "todowrite",
-  "updateplan",
-  "updatetodo",
-  "updatetodos",
-]);
-
-export const writeCodexTodoListPart = (writeEvent, payload) => {
-  const todos = getArrayFromPayload(payload);
-
-  if (!todos) {
-    return false;
-  }
-
-  writeEvent({
-    data: {
-      explanation:
-        payload && typeof payload === "object"
-          ? (payload.explanation ?? null)
-          : null,
-      todos,
-    },
-    id: "codex-todos",
-    type: "data-todos",
-  });
-
-  return true;
-};
-
-export const writeCodexTodoListPartFromResponseItem = (writeEvent, item) => {
-  const toolName = normalizeToolName(item?.name ?? item?.tool ?? item?.type);
-  if (!TODO_TOOL_NAMES.has(toolName)) {
-    return false;
-  }
-
-  return (
-    writeCodexTodoListPart(writeEvent, item?.arguments) ||
-    writeCodexTodoListPart(writeEvent, item?.input) ||
-    writeCodexTodoListPart(writeEvent, item)
-  );
-};
-
-export const writeCodexContextCompactionPart = (writeEvent, item, state) => {
-  if (
-    item?.type !== "contextCompaction" ||
-    typeof item.id !== "string" ||
-    !item.id.trim()
-  ) {
-    return false;
-  }
-
-  writeEvent({
-    data: { state },
-    id: item.id,
-    type: "data-context-compaction",
-  });
-
-  return true;
-};
-
-export const buildCodexExecArgs = ({
-  addDirs = [],
-  permissionMode,
-  imagePaths = [],
-  model,
-  modelSpeed = "standard",
-  projectPath,
-  reasoningEffort,
-  sessionId,
-}) => {
-  const sandboxMode = getCodexAppSandboxMode(permissionMode);
-  const approvalPolicy = getCodexAppApprovalPolicy(permissionMode);
-  const sandboxConfig = ["-c", `sandbox_mode=${JSON.stringify(sandboxMode)}`];
-  const approvalConfig = [
-    "-c",
-    `approval_policy=${JSON.stringify(approvalPolicy)}`,
-  ];
-  const addDirConfig = addDirs.flatMap((dir) => ["--add-dir", dir]);
-  const imageConfig = imagePaths.flatMap((imagePath) => ["--image", imagePath]);
-  const reasoningConfig = reasoningEffort
-    ? ["-c", `model_reasoning_effort=${JSON.stringify(reasoningEffort)}`]
-    : [];
-  const speedConfig =
-    modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : [];
-  if (sessionId) {
-    return [
-      "exec",
-      "resume",
-      "--json",
-      "--skip-git-repo-check",
-      ...(model ? ["--model", model] : []),
-      ...imageConfig,
-      ...sandboxConfig,
-      ...approvalConfig,
-      ...reasoningConfig,
-      ...speedConfig,
-      sessionId,
-      "-",
-    ];
-  }
-
-  return [
-    "exec",
-    "--json",
-    "--cd",
-    projectPath,
-    "--skip-git-repo-check",
-    ...(model ? ["--model", model] : []),
-    ...addDirConfig,
-    ...imageConfig,
-    ...sandboxConfig,
-    ...approvalConfig,
-    ...reasoningConfig,
-    ...speedConfig,
-    "-",
-  ];
 };
 
 export const getCodexAppSandboxMode = (permissionMode) => {
@@ -313,46 +131,4 @@ export const chooseCodexApprovalDecision = ({
   }
 
   return onceDecision;
-};
-
-export const writeCodexApprovalRequest = async ({
-  approvalId,
-  input,
-  provider,
-  request,
-  signal,
-  title,
-  toolCallId,
-  toolName,
-  writer,
-}) => {
-  writer.write({
-    dynamic: true,
-    providerExecuted: true,
-    title,
-    toolCallId,
-    toolName,
-    type: "tool-input-start",
-  });
-  writer.write({
-    dynamic: true,
-    input,
-    providerExecuted: true,
-    title,
-    toolCallId,
-    toolName,
-    type: "tool-input-available",
-  });
-  writer.write({
-    approvalId,
-    toolCallId,
-    type: "tool-approval-request",
-  });
-
-  return waitForToolApproval({
-    id: approvalId,
-    provider,
-    request,
-    signal,
-  });
 };

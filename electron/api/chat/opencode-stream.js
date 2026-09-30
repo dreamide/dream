@@ -1,11 +1,9 @@
+// The OpenCode translator: OpenCode server events become calls on the agent
+// turn. OpenCode names its own text and tool parts, so those ids are passed
+// through and the turn ends each part when OpenCode does.
 import { createOpencode } from "@opencode-ai/sdk";
-import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
-import { waitForToolApproval } from "../tool-approvals.js";
-import {
-  writeCodexContextCompactionPart,
-  writeCodexTextPart,
-  writeCodexTodoListPart,
-} from "./codex-common.js";
+import { parseOpenCodeModel } from "../providers/generate-text.js";
+import { streamAgentTurn } from "./agent-turn.js";
 import {
   buildCodexConversationPrompt,
   chunkTextInput,
@@ -15,13 +13,9 @@ import {
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toOpenCodeMcpConfig } from "./mcp-servers.js";
-import {
-  getProviderSessionMetadata,
-  shouldResumeProviderSession,
-} from "./provider-session.js";
+import { shouldResumeProviderSession } from "./provider-session.js";
 
 const OPENCODE_SERVER_TIMEOUT_MS = 10000;
-const MAX_OPENCODE_TEXT_CHARS = 250_000;
 const OPENCODE_WRITE_TOOL_NAMES = new Set([
   "apply-patch",
   "applypatch",
@@ -48,6 +42,11 @@ const OPENCODE_TODO_TOOL_NAMES = new Set([
   "updatetodos",
 ]);
 
+const GENERIC_ERRORS = new Set([
+  "An unknown error occurred.",
+  "An unexpected error occurred. Check the server console for details.",
+]);
+
 const getOpenCodeErrorDetail = (event) => {
   if (!event || typeof event !== "object") {
     return typeof event === "string" && event.trim() ? event.trim() : null;
@@ -68,11 +67,7 @@ const getOpenCodeErrorDetail = (event) => {
 
     if (value && typeof value === "object") {
       const detail = formatStreamError(value);
-      if (
-        detail !== "An unknown error occurred." &&
-        detail !==
-          "An unexpected error occurred. Check the server console for details."
-      ) {
+      if (!GENERIC_ERRORS.has(detail)) {
         return detail;
       }
     }
@@ -95,9 +90,7 @@ const describeOpenCodeRequestError = ({
     .filter(
       (detail, index, values) =>
         detail &&
-        detail !== "An unknown error occurred." &&
-        detail !==
-          "An unexpected error occurred. Check the server console for details." &&
+        !GENERIC_ERRORS.has(detail) &&
         values.indexOf(detail) === index,
     );
   const detail = details.join(" — ") || "OpenCode request failed.";
@@ -112,19 +105,6 @@ const describeOpenCodeRequestError = ({
   }
 
   return `OpenCode could not complete a network request while running ${model}. Technical detail: ${detail}.${sessionDetail} No provider HTTP response was available; this usually means the connection was refused, reset, timed out, blocked by DNS/proxy/TLS, or the local OpenCode server exited. Retry the request; if it repeats, run \`opencode debug paths\` and inspect the latest OpenCode log.`;
-};
-
-const parseOpenCodeModel = (model) => {
-  const [providerID, ...modelParts] = String(model ?? "").split("/");
-  const modelID = modelParts.join("/");
-
-  if (!providerID || !modelID) {
-    throw new Error(
-      "OpenCode model must use provider/model format, for example opencode-go/kimi-k2.6.",
-    );
-  }
-
-  return { modelID, providerID };
 };
 
 const getOpenCodePermissionConfig = (permissionMode) => {
@@ -264,7 +244,7 @@ const getOpenCodeToolStateInput = (part) => {
   return input && typeof input === "object" ? input : {};
 };
 
-const getOpenCodeDreamToolName = (toolName) => {
+export const getOpenCodeDreamToolName = (toolName) => {
   const normalized = normalizeOpenCodeToolName(toolName);
 
   if (
@@ -502,11 +482,17 @@ export const streamOpenCodeResponse = ({
   remoteConversationProjectPath,
   responseMessageMetadata,
   systemPrompt,
-}) => {
-  const stream = createUIMessageStream({
-    originalMessages: messages,
-    onError: (error) => formatStreamError(error),
-    execute: ({ writer }) =>
+}) =>
+  streamAgentTurn({
+    abortSignal,
+    label: "OpenCode",
+    messages,
+    model,
+    modelSpeed,
+    projectPath,
+    provider: "opencode",
+    responseMessageMetadata,
+    execute: (turn) =>
       new Promise((resolve, reject) => {
         let stderrBuffer = "";
         let finished = false;
@@ -516,60 +502,18 @@ export const streamOpenCodeResponse = ({
         let activeCompactionId = null;
         let submittedPrompt = "";
         const permissionIds = new Set();
-        const startedToolCalls = new Set();
-        const completedToolCalls = new Set();
         const streamedTextByPartId = new Map();
         const messageRoleById = new Map();
         const pendingPartEventsByMessageId = new Map();
-        const activeTextParts = new Map();
-        const completedTextParts = new Set();
         let hasWrittenText = false;
-        let streamedTextChars = 0;
-        let textLimitReached = false;
         let opencode = null;
         let eventsError = null;
         let openCodeError = null;
         const serverAbortController = new AbortController();
 
-        const getTextPartKey = (id, type) => `${type}:${id}`;
-
-        const startTextPart = (id, type) => {
-          const key = getTextPartKey(id, type);
-          if (completedTextParts.has(key)) {
-            return false;
-          }
-
-          if (!activeTextParts.has(key)) {
-            writer.write({ type: `${type}-start`, id });
-            activeTextParts.set(key, { id, type });
-          }
-
-          return true;
-        };
-
-        const closeTextPart = (id, type) => {
-          const key = getTextPartKey(id, type);
-          if (!activeTextParts.has(key)) {
-            return;
-          }
-
-          writer.write({ type: `${type}-end`, id });
-          activeTextParts.delete(key);
-          completedTextParts.add(key);
-        };
-
-        const closeActiveTextParts = () => {
-          for (const { id, type } of activeTextParts.values()) {
-            writer.write({ type: `${type}-end`, id });
-            completedTextParts.add(getTextPartKey(id, type));
-          }
-          activeTextParts.clear();
-        };
-
         const finish = (callback) => {
           if (finished) return;
           finished = true;
-          closeActiveTextParts();
           abortSignal?.removeEventListener("abort", handleAbort);
           serverAbortController.abort();
           preparedAttachments?.cleanup?.();
@@ -578,38 +522,26 @@ export const streamOpenCodeResponse = ({
         };
 
         const writeText = (text, idHint, type = "text", end = false) => {
-          if (!text || finished || abortSignal?.aborted || textLimitReached) {
-            return;
-          }
-          const remainingChars = MAX_OPENCODE_TEXT_CHARS - streamedTextChars;
-          if (remainingChars <= 0) {
-            textLimitReached = true;
-            finish(resolve);
+          if (!text || finished || abortSignal?.aborted || turn.textLimited) {
             return;
           }
           const id = idHint || `opencode-${type}-${++textPartIndex}`;
-          const nextText =
-            text.length > remainingChars ? text.slice(0, remainingChars) : text;
-          if (!startTextPart(id, type)) {
+          if (turn.hasEndedText(id, type)) {
             return;
           }
 
-          writer.write({ type: `${type}-delta`, delta: nextText, id });
-          streamedTextChars += nextText.length;
+          if (type === "reasoning") {
+            turn.reasoning(text, id);
+          } else {
+            turn.text(text, id);
+          }
           hasWrittenText = true;
 
           if (end) {
-            closeTextPart(id, type);
+            turn.endText(id, type);
           }
 
-          if (nextText.length < text.length) {
-            textLimitReached = true;
-            writeCodexTextPart(
-              (event) => writer.write(event),
-              `opencode-output-limit-${++textPartIndex}`,
-              `\n\n[OpenCode output stopped after ${MAX_OPENCODE_TEXT_CHARS.toLocaleString()} characters to keep Dream responsive.]`,
-              "text",
-            );
+          if (turn.textLimited) {
             finish(resolve);
           }
         };
@@ -665,95 +597,33 @@ export const streamOpenCodeResponse = ({
           }
         };
 
-        const ensureWriteToolStarted = (part) => {
-          const toolCallId = part?.callID || part?.id;
-          if (!toolCallId || startedToolCalls.has(toolCallId)) {
-            return;
-          }
-
-          startedToolCalls.add(toolCallId);
-          writer.write({
-            dynamic: true,
-            providerExecuted: true,
-            title: "File change",
-            toolCallId,
-            toolName: "writeFile",
-            type: "tool-input-start",
-          });
-          writer.write({
-            dynamic: true,
-            input: {
-              ...getOpenCodeToolStateInput(part),
-              title: part.state?.title ?? null,
-              tool: part.tool ?? null,
-            },
-            providerExecuted: true,
-            title: "File change",
-            toolCallId,
-            toolName: "writeFile",
-            type: "tool-input-available",
-          });
-        };
-
-        const ensureOpenCodeToolStarted = ({
-          input,
-          part,
-          title,
-          toolName,
-        }) => {
-          const toolCallId = part?.callID || part?.id;
-          if (!toolCallId || startedToolCalls.has(toolCallId)) {
-            return;
-          }
-
-          startedToolCalls.add(toolCallId);
-          writer.write({
-            dynamic: true,
-            providerExecuted: true,
-            title,
-            toolCallId,
-            toolName,
-            type: "tool-input-start",
-          });
-          writer.write({
-            dynamic: true,
-            input,
-            providerExecuted: true,
-            title,
-            toolCallId,
-            toolName,
-            type: "tool-input-available",
-          });
-        };
-
         const handleWriteToolPart = (part) => {
           if (!isOpenCodeWriteToolPart(part)) {
             return false;
           }
 
           const toolCallId = part.callID || part.id;
-          ensureWriteToolStarted(part);
+          if (!toolCallId) {
+            return true;
+          }
+          turn.toolStart({
+            input: {
+              ...getOpenCodeToolStateInput(part),
+              title: part.state?.title ?? null,
+              tool: part.tool ?? null,
+            },
+            title: "File change",
+            toolCallId,
+            toolName: "writeFile",
+          });
 
           const output = getOpenCodeToolOutput(part);
           if (output) {
             if (part.state?.status === "error") {
-              writer.write({
-                dynamic: true,
-                errorText: getOpenCodeToolErrorText(part),
-                providerExecuted: true,
-                toolCallId,
-                type: "tool-output-error",
-              });
+              turn.toolError(toolCallId, getOpenCodeToolErrorText(part));
               return true;
             }
-
-            writer.write({
-              dynamic: true,
-              output,
-              providerExecuted: true,
-              toolCallId,
-              type: "tool-output-available",
-            });
+            turn.toolOutput(toolCallId, output);
           }
 
           return true;
@@ -776,46 +646,22 @@ export const streamOpenCodeResponse = ({
             dreamToolName,
             getOpenCodeToolStateInput(part),
           );
-          const title =
-            part.state?.title ?? getOpenCodeDreamToolTitle(dreamToolName);
-
-          ensureOpenCodeToolStarted({
+          turn.toolStart({
             input,
-            part,
-            title,
+            title:
+              part.state?.title ?? getOpenCodeDreamToolTitle(dreamToolName),
+            toolCallId,
             toolName: dreamToolName,
           });
 
-          if (
-            part.state?.status !== "completed" &&
-            part.state?.status !== "error"
-          ) {
-            return true;
-          }
-
-          if (completedToolCalls.has(toolCallId)) {
-            return true;
-          }
-
-          completedToolCalls.add(toolCallId);
-          if (part.state.status === "error") {
-            writer.write({
-              dynamic: true,
-              errorText: getOpenCodeToolErrorText(part),
-              providerExecuted: true,
+          if (part.state?.status === "error") {
+            turn.toolError(toolCallId, getOpenCodeToolErrorText(part));
+          } else if (part.state?.status === "completed") {
+            turn.toolOutput(
               toolCallId,
-              type: "tool-output-error",
-            });
-            return true;
+              normalizeOpenCodeToolOutput(part, dreamToolName, input),
+            );
           }
-
-          writer.write({
-            dynamic: true,
-            output: normalizeOpenCodeToolOutput(part, dreamToolName, input),
-            providerExecuted: true,
-            toolCallId,
-            type: "tool-output-available",
-          });
 
           return true;
         };
@@ -825,15 +671,12 @@ export const streamOpenCodeResponse = ({
             return false;
           }
 
-          const writeTodoPart = (payload) =>
-            writeCodexTodoListPart((event) => writer.write(event), payload);
-
           return (
-            writeTodoPart(part.state?.input) ||
-            writeTodoPart(part.state?.structured) ||
-            writeTodoPart(part.state?.metadata) ||
-            writeTodoPart(part.metadata) ||
-            writeTodoPart(part.state?.output)
+            turn.todos(part.state?.input) ||
+            turn.todos(part.state?.structured) ||
+            turn.todos(part.state?.metadata) ||
+            turn.todos(part.metadata) ||
+            turn.todos(part.state?.output)
           );
         };
 
@@ -863,43 +706,15 @@ export const streamOpenCodeResponse = ({
             return;
           }
 
-          const toolCallId =
-            permission.callID || `opencode-permission-${permission.id}`;
-          const approvalId = `opencode:${permission.id}`;
           const input = createOpenCodePermissionInput(permission);
-
-          writer.write({
-            dynamic: true,
+          const toolName = permission.type || "permission";
+          const approval = await turn.approval({
             input,
-            providerExecuted: true,
+            request: { input, toolName },
             title: permission.title || "OpenCode permission",
-            toolCallId,
-            toolName: permission.type || "permission",
-            type: "tool-input-start",
-          });
-          writer.write({
-            dynamic: true,
-            input,
-            providerExecuted: true,
-            title: permission.title || "OpenCode permission",
-            toolCallId,
-            toolName: permission.type || "permission",
-            type: "tool-input-available",
-          });
-          writer.write({
-            approvalId,
-            toolCallId,
-            type: "tool-approval-request",
-          });
-
-          const approval = await waitForToolApproval({
-            id: approvalId,
-            provider: "opencode",
-            request: {
-              input,
-              toolName: permission.type || "permission",
-            },
-            signal: abortSignal,
+            toolCallId:
+              permission.callID || `opencode-permission-${permission.id}`,
+            toolName,
           });
 
           await replyToOpenCodePermission({
@@ -926,11 +741,7 @@ export const streamOpenCodeResponse = ({
 
           if (part.type === "compaction") {
             activeCompactionId = part.id;
-            writeCodexContextCompactionPart(
-              (streamEvent) => writer.write(streamEvent),
-              { id: part.id, type: "contextCompaction" },
-              "compacting",
-            );
+            turn.compaction(part.id, "compacting");
             return;
           }
 
@@ -974,7 +785,7 @@ export const streamOpenCodeResponse = ({
             streamedTextByPartId.set(id, text);
             writeText(event.properties.delta, id, type);
             if (isOpenCodePartFinished(part)) {
-              closeTextPart(id, type);
+              turn.endText(id, type);
             }
             return;
           }
@@ -982,7 +793,7 @@ export const streamOpenCodeResponse = ({
           const previousText = streamedTextByPartId.get(id) ?? "";
           if (previousText === text) {
             if (isOpenCodePartFinished(part)) {
-              closeTextPart(id, type);
+              turn.endText(id, type);
             }
             return;
           }
@@ -996,7 +807,7 @@ export const streamOpenCodeResponse = ({
             type,
           );
           if (isOpenCodePartFinished(part)) {
-            closeTextPart(id, type);
+            turn.endText(id, type);
           }
         };
 
@@ -1032,11 +843,7 @@ export const streamOpenCodeResponse = ({
             event.properties?.sessionID === activeSessionId &&
             activeCompactionId
           ) {
-            writeCodexContextCompactionPart(
-              (streamEvent) => writer.write(streamEvent),
-              { id: activeCompactionId, type: "contextCompaction" },
-              "compacted",
-            );
+            turn.compaction(activeCompactionId, "compacted");
             activeCompactionId = null;
             return;
           }
@@ -1051,10 +858,6 @@ export const streamOpenCodeResponse = ({
         };
 
         abortSignal?.addEventListener("abort", handleAbort, { once: true });
-        writer.write({
-          messageMetadata: responseMessageMetadata,
-          type: "message-metadata",
-        });
 
         void prepareCodexPromptAttachments(getLatestUserMessage(messages))
           .then(async (attachments) => {
@@ -1123,16 +926,7 @@ export const streamOpenCodeResponse = ({
               throw new Error("OpenCode did not return a session id.");
             }
 
-            writer.write({
-              messageMetadata: getProviderSessionMetadata({
-                model,
-                modelSpeed,
-                projectPath,
-                responseMessageMetadata,
-                sessionId: activeSessionId,
-              }),
-              type: "message-metadata",
-            });
+            turn.session(activeSessionId);
             const prompt = resumed ? currentTurnPrompt : fullPrompt;
             submittedPrompt = prompt;
 
@@ -1190,7 +984,7 @@ export const streamOpenCodeResponse = ({
               return;
             }
 
-            if (!hasWrittenText && !textLimitReached) {
+            if (!hasWrittenText && !turn.textLimited) {
               let wroteFallbackText = false;
               for (const part of promptResult.data?.parts ?? []) {
                 const text = extractOpenCodePartText(part);
@@ -1237,6 +1031,3 @@ export const streamOpenCodeResponse = ({
           });
       }),
   });
-
-  return createUIMessageStreamResponse({ stream });
-};

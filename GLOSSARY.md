@@ -53,3 +53,38 @@ the defaults, decodes anything shaped like persisted state (rows, an IPC
 payload, a legacy blob) into a valid `PersistedIdeState`, encodes live store
 state into what deserves to be saved, and maps projects, chats and settings
 to and from database rows. A persisted field is added there, once.
+
+## Agent turn
+
+One request to an agent provider and everything it streams back for a
+single assistant message: prose, reasoning, tool calls, approvals, plan
+updates, context compaction, the remote session id and usage. Written by
+the **agent-turn writer** (`electron/api/chat/agent-turn.js`), whose small
+interface every provider adapter translates its native events into. The
+writer owns the chunk shapes the client receives; adapters own only the
+translation.
+
+## Turn contract
+
+The two things in a turn's stream that are Dream's own rather than the AI
+SDK's, agreed by both sides in `electron/shared/agent-turn-contract.js`:
+the **approval id** (`<provider>:<toolCallId>`) a tool-approval request
+carries, and the `ChatMessageMetadata` stamped on the response message.
+
+## Provider
+
+One of the agent CLIs Dream can run a chat through: `openai` (Codex),
+`anthropic` (Claude Code), `opencode`, `cursor`, `grok`. `AiProvider`.
+Each has a record in the **provider registry**
+(`electron/api/providers/registry.js`: readiness, stream, one-shot text,
+title model, model and usage fetchers) built on its row in the shared
+**provider capabilities** (`electron/shared/provider-capabilities.js`:
+MCP, skill dispatch style, usage limits, browser-MCP scope), which the
+renderer reads too. Adding a provider is one row and one record.
+
+## Provider adapter
+
+The translator from one provider's native events to agent-turn calls
+(`*-stream.js`). ACP providers share one translator with a smaller
+per-provider adapter behind it (`acp-stream.js` with `cursor-stream.js`
+and `grok-stream.js`).

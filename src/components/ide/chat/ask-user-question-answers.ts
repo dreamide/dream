@@ -1,4 +1,5 @@
 import type { UIMessage } from "ai";
+import { formatApprovalId } from "../../../../electron/shared/agent-turn-contract.js";
 import {
   getToolName,
   isToolLikePart,
@@ -40,7 +41,7 @@ const getAskUserQuestionApprovalId = (part: MessagePart) => {
   return (
     part.approval?.id ??
     (typeof part.toolCallId === "string"
-      ? `anthropic:${part.toolCallId}`
+      ? formatApprovalId("anthropic", part.toolCallId)
       : null)
   );
 };

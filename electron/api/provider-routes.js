@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isProviderId, PROVIDER_IDS } from "../shared/provider-capabilities.js";
 import {
   CLI_UPDATE_PROVIDERS,
   fetchLatestCliVersions,
@@ -13,18 +14,8 @@ import {
   getModelReasoningEfforts,
   normalizeClaudeCodeModel,
 } from "./providers/model-options.js";
+import { getProvider, listProviders } from "./providers/registry.js";
 import {
-  fetchAnthropicModels,
-  fetchCursorModels,
-  fetchGrokModels,
-  fetchOpenAiModels,
-  fetchOpenCodeModels,
-} from "./providers/provider-models.js";
-import {
-  fetchAnthropicUsageLimits,
-  fetchGrokUsageLimits,
-  fetchOpenAiUsageLimits,
-  fetchOpenCodeUsageStats,
   findRateLimitsObject,
   storeProviderUsageLimitSnapshot,
 } from "./providers/usage-limits.js";
@@ -41,17 +32,17 @@ export {
   storeProviderUsageLimitSnapshot,
 };
 
+const providerIdSchema = z.enum(PROVIDER_IDS);
+
 const providerUsageLimitsRequestSchema = z.object({
-  provider: z.enum(["openai", "anthropic", "opencode", "cursor", "grok"]),
+  provider: providerIdSchema,
   projectPath: z.string().optional(),
 });
 
 const providerModelsRequestSchema = z
   .object({
     force: z.boolean().optional(),
-    provider: z
-      .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
-      .optional(),
+    provider: providerIdSchema.optional(),
   })
   .optional();
 
@@ -117,33 +108,19 @@ export const registerProviderRoutes = (app) => {
     }
 
     const force = parsed.data?.force ?? false;
-    const provider = parsed.data?.provider;
-    const [openai, anthropic, opencode, cursor, grok] =
-      provider === "openai"
-        ? [await fetchOpenAiModels({ force }), null, null, null, null]
-        : provider === "anthropic"
-          ? [null, await fetchAnthropicModels({ force }), null, null, null]
-          : provider === "opencode"
-            ? [null, null, await fetchOpenCodeModels({ force }), null, null]
-            : provider === "cursor"
-              ? [null, null, null, await fetchCursorModels({ force }), null]
-              : provider === "grok"
-                ? [null, null, null, null, await fetchGrokModels({ force })]
-                : await Promise.all([
-                    fetchOpenAiModels({ force }),
-                    fetchAnthropicModels({ force }),
-                    fetchOpenCodeModels({ force }),
-                    fetchCursorModels({ force }),
-                    fetchGrokModels({ force }),
-                  ]);
+    const providers = isProviderId(parsed.data?.provider)
+      ? [getProvider(parsed.data.provider)]
+      : listProviders();
+    const results = await Promise.all(
+      providers.map(async (provider) => [
+        provider.id,
+        await provider.fetchModels({ force }),
+      ]),
+    );
 
     return c.json({
-      ...(anthropic ? { anthropic } : {}),
-      ...(cursor ? { cursor } : {}),
+      ...Object.fromEntries(results),
       fetchedAt: new Date().toISOString(),
-      ...(openai ? { openai } : {}),
-      ...(opencode ? { opencode } : {}),
-      ...(grok ? { grok } : {}),
     });
   });
 
@@ -160,28 +137,6 @@ export const registerProviderRoutes = (app) => {
       return c.text("Invalid usage limits request.", 400);
     }
 
-    if (parsed.data.provider === "cursor") {
-      return c.json({
-        error: "Cursor CLI usage limits are unavailable.",
-        fetchedAt: new Date().toISOString(),
-        provider: "cursor",
-        status: "unavailable",
-      });
-    }
-
-    if (parsed.data.provider === "grok") {
-      return c.json(await fetchGrokUsageLimits());
-    }
-
-    if (parsed.data.provider === "opencode") {
-      return c.json(await fetchOpenCodeUsageStats());
-    }
-
-    const result =
-      parsed.data.provider === "openai"
-        ? await fetchOpenAiUsageLimits()
-        : await fetchAnthropicUsageLimits();
-
-    return c.json(result);
+    return c.json(await getProvider(parsed.data.provider).fetchUsageLimits());
   });
 };

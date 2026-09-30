@@ -1,7 +1,9 @@
+// The ACP (Agent Client Protocol) translator: one implementation for every
+// provider that speaks ACP, with the provider-specific policy behind the
+// `adapter` seam (Cursor and Grok today). ACP session updates become calls
+// on the agent turn.
 import path from "node:path";
-import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
-import { waitForToolApproval } from "../tool-approvals.js";
-import { writeCodexTodoListPart } from "./codex-common.js";
+import { streamAgentTurn } from "./agent-turn.js";
 import {
   buildCodexConversationPrompt,
   getLatestUserMessage,
@@ -11,9 +13,6 @@ import {
 import { toAcpMcpServers } from "./mcp-servers.js";
 import { shouldResumeProviderSession } from "./provider-session.js";
 import { applySkillSlashPrefix } from "./skill-dispatch.js";
-
-const MAX_ACP_TEXT_CHARS = 250_000;
-const ACP_TEXT_FLUSH_INTERVAL_MS = 50;
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -25,7 +24,7 @@ const getFirstString = (...values) => {
   return null;
 };
 
-const getDreamToolName = (toolCall) => {
+export const getDreamToolName = (toolCall) => {
   const kind = String(toolCall?.kind ?? "").toLowerCase();
   const title = String(toolCall?.title ?? "").toLowerCase();
 
@@ -38,7 +37,7 @@ const getDreamToolName = (toolCall) => {
   return "command";
 };
 
-const normalizeToolInput = (toolName, toolCall) => {
+export const normalizeToolInput = (toolName, toolCall) => {
   const rawInput = isRecord(toolCall?.rawInput) ? toolCall.rawInput : {};
   const firstLocation = Array.isArray(toolCall?.locations)
     ? toolCall.locations[0]
@@ -87,7 +86,7 @@ const extractToolOutput = (toolCall) => {
   return parts;
 };
 
-const choosePermissionOption = (options, approved, scope) => {
+export const choosePermissionOption = (options, approved, scope) => {
   const preferredKinds = approved
     ? scope === "session"
       ? ["allow_always", "allow_once"]
@@ -149,105 +148,25 @@ export const streamAcpResponse = ({
 }) => {
   const { provider, label } = adapter;
   const acpMcpServers = toAcpMcpServers(mcpServers);
-  const stream = createUIMessageStream({
-    originalMessages: messages,
-    onError: (error) =>
-      error instanceof Error ? error.message : `${label} request failed.`,
-    execute: async ({ writer }) => {
+
+  return streamAgentTurn({
+    abortSignal,
+    label,
+    messages,
+    model,
+    modelSpeed,
+    projectPath,
+    provider,
+    responseMessageMetadata,
+    execute: async (turn) => {
       let connection = null;
       let preparedAttachments = null;
       let sessionId = null;
-      let activeTextId = null;
-      let activeReasoningId = null;
-      let streamedChars = 0;
       let loadingSession = false;
       let loadedSession = false;
       let sessionState;
       const approvalController = new AbortController();
-      let pendingText = "";
-      let pendingTextType = null;
-      let pendingTextTimer = null;
       const toolCalls = new Map();
-      const completedToolCalls = new Set();
-
-      const writeMetadata = (metadata) =>
-        writer.write({ messageMetadata: metadata, type: "message-metadata" });
-
-      const writeTextDeltaNow = (text, type) => {
-        if (!text || abortSignal?.aborted) return;
-        const remaining = MAX_ACP_TEXT_CHARS - streamedChars;
-        if (remaining <= 0) return;
-        const delta = text.slice(0, remaining);
-        streamedChars += delta.length;
-
-        if (type === "reasoning") {
-          if (activeTextId) {
-            writer.write({ id: activeTextId, type: "text-end" });
-            activeTextId = null;
-          }
-          if (!activeReasoningId) {
-            activeReasoningId = `${provider}-reasoning-${Date.now()}`;
-            writer.write({ id: activeReasoningId, type: "reasoning-start" });
-          }
-          writer.write({
-            delta,
-            id: activeReasoningId,
-            type: "reasoning-delta",
-          });
-          return;
-        }
-
-        if (activeReasoningId) {
-          writer.write({ id: activeReasoningId, type: "reasoning-end" });
-          activeReasoningId = null;
-        }
-        if (!activeTextId) {
-          activeTextId = `${provider}-text-${Date.now()}`;
-          writer.write({ id: activeTextId, type: "text-start" });
-        }
-        writer.write({ delta, id: activeTextId, type: "text-delta" });
-      };
-
-      const flushPendingText = () => {
-        if (pendingTextTimer !== null) {
-          clearTimeout(pendingTextTimer);
-          pendingTextTimer = null;
-        }
-        if (!pendingText || !pendingTextType) return;
-
-        const text = pendingText;
-        const type = pendingTextType;
-        pendingText = "";
-        pendingTextType = null;
-        writeTextDeltaNow(text, type);
-      };
-
-      const closeTextParts = () => {
-        flushPendingText();
-        if (activeTextId) {
-          writer.write({ id: activeTextId, type: "text-end" });
-          activeTextId = null;
-        }
-        if (activeReasoningId) {
-          writer.write({ id: activeReasoningId, type: "reasoning-end" });
-          activeReasoningId = null;
-        }
-      };
-
-      const queueTextDelta = (text, type) => {
-        if (!text || abortSignal?.aborted) return;
-        if (pendingTextType && pendingTextType !== type) {
-          flushPendingText();
-        }
-        pendingTextType = type;
-        pendingText += text;
-        if (pendingTextTimer === null) {
-          pendingTextTimer = setTimeout(
-            flushPendingText,
-            ACP_TEXT_FLUSH_INTERVAL_MS,
-          );
-        }
-      };
 
       const ensureToolStarted = (toolCall) => {
         const toolCallId = toolCall?.toolCallId;
@@ -255,68 +174,34 @@ export const streamAcpResponse = ({
         const previous = toolCalls.get(toolCallId) ?? {};
         const merged = { ...previous, ...toolCall };
         toolCalls.set(toolCallId, merged);
-        if (previous.started) {
-          merged.toolName = getDreamToolName(merged);
-          merged.input = normalizeToolInput(merged.toolName, merged);
-          return merged;
+        merged.toolName = getDreamToolName(merged);
+        merged.input = normalizeToolInput(merged.toolName, merged);
+        if (!previous.started) {
+          turn.toolStart({
+            input: merged.input,
+            title: merged.title || `${label} tool`,
+            toolCallId,
+            toolName: merged.toolName,
+          });
+          merged.started = true;
         }
-
-        closeTextParts();
-        const toolName = getDreamToolName(merged);
-        const input = normalizeToolInput(toolName, merged);
-        const title = merged.title || `${label} tool`;
-        writer.write({
-          dynamic: true,
-          providerExecuted: true,
-          title,
-          toolCallId,
-          toolName,
-          type: "tool-input-start",
-        });
-        writer.write({
-          dynamic: true,
-          input,
-          providerExecuted: true,
-          title,
-          toolCallId,
-          toolName,
-          type: "tool-input-available",
-        });
-        merged.started = true;
-        merged.toolName = toolName;
-        merged.input = input;
         return merged;
       };
 
       const handleToolUpdate = (toolCall) => {
         const merged = ensureToolStarted(toolCall);
-        if (!merged?.toolCallId || completedToolCalls.has(merged.toolCallId)) {
-          return;
-        }
-        if (merged.status !== "completed" && merged.status !== "failed") return;
-
-        completedToolCalls.add(merged.toolCallId);
-        const output = extractToolOutput(merged);
+        if (!merged?.toolCallId) return;
         if (merged.status === "failed") {
-          writer.write({
-            dynamic: true,
-            errorText:
-              getFirstString(merged.rawOutput?.message, merged.rawOutput) ||
+          turn.toolError(
+            merged.toolCallId,
+            getFirstString(merged.rawOutput?.message, merged.rawOutput) ||
               `${merged.title || `${label} tool`} failed.`,
-            providerExecuted: true,
-            toolCallId: merged.toolCallId,
-            type: "tool-output-error",
-          });
+          );
           return;
         }
-
-        writer.write({
-          dynamic: true,
-          output,
-          providerExecuted: true,
-          toolCallId: merged.toolCallId,
-          type: "tool-output-available",
-        });
+        if (merged.status === "completed") {
+          turn.toolOutput(merged.toolCallId, extractToolOutput(merged));
+        }
       };
 
       const handleSessionUpdate = (params) => {
@@ -325,26 +210,21 @@ export const streamAcpResponse = ({
         if (!isRecord(update)) return;
 
         if (update.sessionUpdate === "agent_message_chunk") {
-          queueTextDelta(update.content?.text, "text");
+          turn.text(update.content?.text);
           return;
         }
         if (update.sessionUpdate === "agent_thought_chunk") {
-          queueTextDelta(update.content?.text, "reasoning");
+          turn.reasoning(update.content?.text);
           return;
         }
         if (update.sessionUpdate === "plan") {
-          flushPendingText();
-          writeCodexTodoListPart(
-            (event) => writer.write(event),
-            update.entries,
-          );
+          turn.todos(update.entries);
           return;
         }
         if (
           update.sessionUpdate === "tool_call" ||
           update.sessionUpdate === "tool_call_update"
         ) {
-          flushPendingText();
           handleToolUpdate(update);
         }
       };
@@ -375,21 +255,17 @@ export const streamAcpResponse = ({
             : { outcome: { outcome: "cancelled" } };
         }
 
-        const approvalId = `${provider}:${sessionId}:${toolCallId}`;
-        writer.write({
-          approvalId,
-          toolCallId,
-          type: "tool-approval-request",
-        });
-        const response = await waitForToolApproval({
-          id: approvalId,
-          provider,
+        const response = await turn.approval({
+          input: toolCall.input,
           request: {
             input: toolCall.input,
             options,
             toolName: toolCall.toolName,
           },
           signal: approvalController.signal,
+          title: toolCall.title || `${label} tool`,
+          toolCallId,
+          toolName: toolCall.toolName,
         });
 
         if (abortSignal?.aborted) {
@@ -423,7 +299,6 @@ export const streamAcpResponse = ({
       };
 
       abortSignal?.addEventListener("abort", handleAbort, { once: true });
-      writeMetadata(responseMessageMetadata);
 
       try {
         preparedAttachments = await prepareCodexPromptAttachments(
@@ -448,9 +323,9 @@ export const streamAcpResponse = ({
             adapter.onRequest?.({
               method,
               params,
-              writer,
               sessionId,
               signal: approvalController.signal,
+              turn,
             }) ??
             Promise.reject(
               new Error(`Unsupported ${label} ACP request: ${method}`),
@@ -515,13 +390,7 @@ export const streamAcpResponse = ({
         });
         if (stopIfAborted()) return;
 
-        writeMetadata({
-          ...responseMessageMetadata,
-          remoteConversationId: sessionId,
-          remoteConversationModel: model,
-          remoteConversationModelSpeed: modelSpeed,
-          remoteConversationProjectPath: projectPath,
-        });
+        turn.session(sessionId);
 
         const currentTurnAttachments = preparedAttachments?.promptText ?? null;
         const prompt = loadedSession
@@ -552,33 +421,16 @@ export const streamAcpResponse = ({
           { prompt: [{ text: dispatchedPrompt, type: "text" }], sessionId },
           30 * 60_000,
         );
-        const usage = adapter.getUsage?.(promptResult);
-        const contextWindow = adapter.getContextWindow?.(
-          initializeResult,
-          model,
+        turn.usage(
+          adapter.getUsage?.(promptResult),
+          adapter.getContextWindow?.(initializeResult, model),
         );
-        if (usage) {
-          writeMetadata({
-            ...responseMessageMetadata,
-            remoteConversationId: sessionId,
-            remoteConversationModel: model,
-            remoteConversationModelSpeed: modelSpeed,
-            remoteConversationProjectPath: projectPath,
-            ...(contextWindow ? { contextWindow } : {}),
-            usage,
-          });
-        }
-      } catch (error) {
-        if (!abortSignal?.aborted) throw error;
       } finally {
         approvalController.abort();
-        closeTextParts();
         abortSignal?.removeEventListener("abort", handleAbort);
         preparedAttachments?.cleanup?.();
         connection?.close();
       }
     },
   });
-
-  return createUIMessageStreamResponse({ stream });
 };

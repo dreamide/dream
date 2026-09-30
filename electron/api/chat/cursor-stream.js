@@ -4,14 +4,13 @@ import {
   spawnCursorAcp,
 } from "../providers/cursor-acp.js";
 import { streamAcpResponse } from "./acp-stream.js";
-import { writeCodexApprovalRequest } from "./codex-common.js";
 
 const handleCursorRequest = async ({
   method,
   params,
-  writer,
   sessionId,
   signal,
+  turn,
 }) => {
   if (method === "cursor/create_plan") {
     // Planning stays conversational in Dream; never accept a provider's
@@ -37,26 +36,18 @@ const handleCursorRequest = async ({
       description: "",
     })),
   }));
-  const toolCallId = params.toolCallId ?? `cursor-question-${Date.now()}`;
-  const response = await writeCodexApprovalRequest({
-    approvalId: `cursor:${sessionId}:${toolCallId}`,
+  const toolCallId =
+    params.toolCallId ?? `cursor-question-${sessionId}-${Date.now()}`;
+  const response = await turn.approval({
     input: { questions },
-    provider: "cursor",
     request: { method, params },
     signal,
     title: params.title || "Question",
     toolCallId,
     toolName: "ask-user-question",
-    writer,
   });
   if (!response.approved || signal.aborted) {
-    writer.write({
-      dynamic: true,
-      providerExecuted: true,
-      toolCallId,
-      type: "tool-output-error",
-      errorText: "Question cancelled.",
-    });
+    turn.toolError(toolCallId, "Question cancelled.");
     return { outcome: { outcome: "cancelled" } };
   }
   let values = {};
@@ -78,13 +69,7 @@ const handleCursorRequest = async ({
         .map((option) => option.id),
     };
   });
-  writer.write({
-    dynamic: true,
-    providerExecuted: true,
-    toolCallId,
-    type: "tool-output-available",
-    output: { answers: values },
-  });
+  turn.toolOutput(toolCallId, { answers: values });
   const hasFreeText = (params.questions ?? []).some((question) => {
     const raw = values[question.id] ?? values[question.prompt];
     const selected = Array.isArray(raw) ? raw : [raw];
@@ -107,39 +92,35 @@ const handleCursorRequest = async ({
   return { outcome: { outcome: "answered", answers } };
 };
 
+export const cursorAcpAdapter = {
+  provider: "cursor",
+  label: "Cursor Agent",
+  spawn: spawnCursorAcp,
+  authenticate: authenticateCursorAcp,
+  configureSession: async (connection, { sessionId, sessionState, model }) => {
+    // Reset a resumed native Plan/Ask session to ordinary tool-capable mode.
+    const modes = sessionState?.modes?.availableModes ?? [];
+    const agent = modes.find((mode) => mode.id === "agent");
+    if (agent)
+      await connection.request("session/set_mode", {
+        sessionId,
+        modeId: agent.id,
+      });
+    const availableModels = sessionState?.models?.availableModels;
+    const modelId =
+      resolveCursorAcpModelId(model, availableModels) ??
+      // A session that lists no models (older Cursor, or some resumed
+      // sessions) gets the id as-is rather than a guess.
+      (Array.isArray(availableModels) ? null : String(model ?? "").trim());
+    if (!modelId) {
+      throw new Error(
+        `Cursor Agent does not offer the model "${model}". Choose another Cursor model.`,
+      );
+    }
+    await connection.request("session/set_model", { sessionId, modelId });
+  },
+  onRequest: handleCursorRequest,
+};
+
 export const streamCursorResponse = (options) =>
-  streamAcpResponse({
-    ...options,
-    adapter: {
-      provider: "cursor",
-      label: "Cursor Agent",
-      spawn: spawnCursorAcp,
-      authenticate: authenticateCursorAcp,
-      configureSession: async (
-        connection,
-        { sessionId, sessionState, model },
-      ) => {
-        // Reset a resumed native Plan/Ask session to ordinary tool-capable mode.
-        const modes = sessionState?.modes?.availableModes ?? [];
-        const agent = modes.find((mode) => mode.id === "agent");
-        if (agent)
-          await connection.request("session/set_mode", {
-            sessionId,
-            modeId: agent.id,
-          });
-        const availableModels = sessionState?.models?.availableModels;
-        const modelId =
-          resolveCursorAcpModelId(model, availableModels) ??
-          // A session that lists no models (older Cursor, or some resumed
-          // sessions) gets the id as-is rather than a guess.
-          (Array.isArray(availableModels) ? null : String(model ?? "").trim());
-        if (!modelId) {
-          throw new Error(
-            `Cursor Agent does not offer the model "${model}". Choose another Cursor model.`,
-          );
-        }
-        await connection.request("session/set_model", { sessionId, modelId });
-      },
-      onRequest: handleCursorRequest,
-    },
-  });
+  streamAcpResponse({ ...options, adapter: cursorAcpAdapter });

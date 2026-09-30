@@ -1,9 +1,9 @@
-import type { LanguageModelUsage, UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import { CheckIcon, CopyIcon, HistoryIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import type { ProjectReference } from "@/types/ide";
+import type { ChatMessageMetadata } from "../../../../electron/shared/agent-turn-contract.js";
 import { CheckpointChangesDialog } from "./checkpoint-changes-dialog";
 import {
   ContinueChatPopover,
@@ -11,25 +11,8 @@ import {
 } from "./continue-chat-popover";
 import { getMessageText } from "./message-content";
 
-export type ChatMessageMetadata = {
-  checkpointId?: string;
-  completedAt?: string;
-  contextWindow?: number;
-  createdAt?: string;
-  model?: string;
-  modelLabel?: string;
-  modelSpeed?: string;
-  modelSpeedLabel?: string;
-  projectReferences?: ProjectReference[];
-  reasoningEffort?: string;
-  reasoningLabel?: string;
-  remoteConversationId?: string;
-  remoteConversationModel?: string;
-  remoteConversationModelSpeed?: string;
-  remoteConversationProjectPath?: string;
-  startedAt?: string;
-  usage?: LanguageModelUsage;
-};
+// The metadata contract is owned by the shared agent-turn contract.
+export type { ChatMessageMetadata };
 
 type FooterItem = {
   id: "model" | "reasoning" | "speed" | "time" | "duration";

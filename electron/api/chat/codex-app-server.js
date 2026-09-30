@@ -1,22 +1,20 @@
-import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
+// The Codex app-server translator: app-server notifications and requests
+// become calls on the agent turn. Codex names its own items, so text and
+// reasoning parts use item ids and end when their item completes.
 import {
   getProjectGitDiff,
   listProjectGitChanges,
 } from "../project-git-service.js";
 import { beginBrowserTurn } from "./active-browser-turns.js";
+import { streamAgentTurn } from "./agent-turn.js";
 import { getCodexAppServerClient } from "./codex-app-server-client.js";
 import {
   chooseCodexApprovalDecision,
-  codexSessionsByChatId,
   getCodexAppApprovalPolicy,
   getCodexAppSandboxMode,
   getCodexAppTurnSandboxPolicy,
   getCodexReasoningEffort,
-  getCodexTokenCountMetadata,
-  writeCodexApprovalRequest,
-  writeCodexContextCompactionPart,
-  writeCodexTodoListPart,
-  writeCodexTodoListPartFromResponseItem,
+  getCodexTokenCountUsage,
 } from "./codex-common.js";
 import {
   buildCodexAppServerConversationPrompt,
@@ -24,10 +22,7 @@ import {
   getLatestUserPrompt,
   prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
-import {
-  getProviderSessionMetadata,
-  shouldResumeProviderSession,
-} from "./provider-session.js";
+import { shouldResumeProviderSession } from "./provider-session.js";
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -169,7 +164,7 @@ const loadFileChangeDiff = async ({ change, gitChanges, projectPath }) => {
   };
 };
 
-const normalizeCodexUserInputQuestions = (questions) => {
+export const normalizeCodexUserInputQuestions = (questions) => {
   if (!Array.isArray(questions)) {
     return [];
   }
@@ -249,7 +244,7 @@ const getQuestionAnswerValues = (answers, question) => {
   return [];
 };
 
-const buildCodexUserInputResponse = ({ questions, reason }) => {
+export const buildCodexUserInputResponse = ({ questions, reason }) => {
   const approvalAnswers = parseQuestionApprovalAnswers(reason);
   const answers = {};
 
@@ -461,23 +456,24 @@ export const streamCodexAppServerResponse = ({
   remoteConversationProjectPath,
   responseMessageMetadata,
   systemPrompt,
-  chatId,
 }) => {
   // The shared Codex app-server reaches Dream's browser tools through a
   // project-agnostic MCP URL; this lets the endpoint map its calls back to
   // the project whose turn is running.
   const endBrowserTurn = beginBrowserTurn({ projectId, provider: "openai" });
-  const stream = createUIMessageStream({
-    originalMessages: messages,
-    onError: (error) =>
-      error instanceof Error
-        ? error.message
-        : "Codex app-server request failed.",
-    execute: ({ writer }) =>
+
+  return streamAgentTurn({
+    abortSignal,
+    label: "Codex",
+    messages,
+    model,
+    modelSpeed,
+    projectPath,
+    provider: "openai",
+    responseMessageMetadata,
+    execute: (turn) =>
       new Promise((resolve, reject) => {
         const commandOutputs = new Map();
-        const startedTextParts = new Set();
-        const startedToolCalls = new Set();
         const activeSubagentToolCalls = new Set();
         const subagentThreadsById = new Map();
         const subagentToolCallIdsByThreadId = new Map();
@@ -486,7 +482,6 @@ export const streamCodexAppServerResponse = ({
         let preparedAttachments = null;
         let rootThreadId = null;
         let rootTurnId = null;
-        let persistedThreadId = null;
         let appServerClient = null;
         let turnStartPromise = null;
         let unregisterThread = null;
@@ -500,36 +495,6 @@ export const streamCodexAppServerResponse = ({
           unregisterThread = null;
           preparedAttachments?.cleanup?.();
           callback();
-        };
-
-        const writeEvent = (event) => {
-          writer.write(event);
-        };
-
-        const writeSessionMetadata = (threadId) => {
-          if (!threadId || persistedThreadId === threadId) {
-            return;
-          }
-
-          persistedThreadId = threadId;
-          if (chatId) {
-            codexSessionsByChatId.set(chatId, {
-              model,
-              modelSpeed,
-              projectPath,
-              sessionId: threadId,
-            });
-          }
-          writer.write({
-            messageMetadata: getProviderSessionMetadata({
-              model,
-              modelSpeed,
-              projectPath,
-              responseMessageMetadata,
-              sessionId: threadId,
-            }),
-            type: "message-metadata",
-          });
         };
 
         const trackToolCompletion = (completion) => {
@@ -557,80 +522,28 @@ export const streamCodexAppServerResponse = ({
           appServerClient?.sendErrorResponse(id, message);
         };
 
-        const ensureTextStarted = (id, type = "text") => {
-          if (startedTextParts.has(id)) {
-            return;
-          }
-
-          startedTextParts.add(id);
-          writeEvent({ id, type: `${type}-start` });
-        };
-
-        const endTextPart = (id, type = "text") => {
-          if (!startedTextParts.has(id)) {
-            return;
-          }
-
-          writeEvent({ id, type: `${type}-end` });
-          startedTextParts.delete(id);
-        };
-
-        const ensureCommandToolStarted = (item) => {
-          if (!item?.id || startedToolCalls.has(item.id)) {
-            return;
-          }
-
-          startedToolCalls.add(item.id);
-          writeEvent({
-            dynamic: true,
-            providerExecuted: true,
-            title: "Command",
-            toolCallId: item.id,
-            toolName: "runCommand",
-            type: "tool-input-start",
-          });
-          writeEvent({
-            dynamic: true,
+        const ensureCommandToolStarted = (item) =>
+          turn.toolStart({
             input: {
               command: item.command ?? "",
               cwd: item.cwd ?? null,
               reason: item.reason ?? null,
             },
-            providerExecuted: true,
             title: "Command",
-            toolCallId: item.id,
+            toolCallId: item?.id,
             toolName: "runCommand",
-            type: "tool-input-available",
           });
-        };
 
-        const ensureFileToolStarted = (item) => {
-          if (!item?.id || startedToolCalls.has(item.id)) {
-            return;
-          }
-
-          startedToolCalls.add(item.id);
-          writeEvent({
-            dynamic: true,
-            providerExecuted: true,
-            title: "File change",
-            toolCallId: item.id,
-            toolName: "writeFile",
-            type: "tool-input-start",
-          });
-          writeEvent({
-            dynamic: true,
+        const ensureFileToolStarted = (item) =>
+          turn.toolStart({
             input: {
               changes: item.changes ?? [],
               reason: item.reason ?? null,
             },
-            providerExecuted: true,
             title: "File change",
-            toolCallId: item.id,
+            toolCallId: item?.id,
             toolName: "writeFile",
-            type: "tool-input-available",
           });
-        };
 
         const getSubagentToolCallId = (threadId, fallbackId) => {
           const existingToolCallId = threadId
@@ -648,29 +561,16 @@ export const streamCodexAppServerResponse = ({
         };
 
         const ensureAgentToolStarted = (toolCallId, input) => {
-          if (!toolCallId || startedToolCalls.has(toolCallId)) {
-            return toolCallId;
+          if (
+            turn.toolStart({
+              input,
+              title: "Agent task",
+              toolCallId,
+              toolName: "agent",
+            })
+          ) {
+            activeSubagentToolCalls.add(toolCallId);
           }
-
-          startedToolCalls.add(toolCallId);
-          activeSubagentToolCalls.add(toolCallId);
-          writeEvent({
-            dynamic: true,
-            providerExecuted: true,
-            title: "Agent task",
-            toolCallId,
-            toolName: "agent",
-            type: "tool-input-start",
-          });
-          writeEvent({
-            dynamic: true,
-            input,
-            providerExecuted: true,
-            title: "Agent task",
-            toolCallId,
-            toolName: "agent",
-            type: "tool-input-available",
-          });
 
           return toolCallId;
         };
@@ -719,23 +619,11 @@ export const streamCodexAppServerResponse = ({
           }
 
           activeSubagentToolCalls.delete(toolCallId);
-          writeEvent(
-            errorText
-              ? {
-                  dynamic: true,
-                  errorText,
-                  providerExecuted: true,
-                  toolCallId,
-                  type: "tool-output-error",
-                }
-              : {
-                  dynamic: true,
-                  output,
-                  providerExecuted: true,
-                  toolCallId,
-                  type: "tool-output-available",
-                },
-          );
+          if (errorText) {
+            turn.toolError(toolCallId, errorText);
+          } else {
+            turn.toolOutput(toolCallId, output);
+          }
         };
 
         const completeToolCall = async (item) => {
@@ -745,22 +633,16 @@ export const streamCodexAppServerResponse = ({
 
           if (item.type === "commandExecution") {
             ensureCommandToolStarted(item);
-            writeEvent({
-              dynamic: true,
-              output: {
-                command: item.command ?? "",
-                durationMs: item.durationMs ?? null,
-                exitCode:
-                  typeof item.exitCode === "number" ? item.exitCode : null,
-                output:
-                  item.aggregatedOutput ??
-                  commandOutputs.get(item.id)?.join("") ??
-                  "",
-                status: item.status ?? "completed",
-              },
-              providerExecuted: true,
-              toolCallId: item.id,
-              type: "tool-output-available",
+            turn.toolOutput(item.id, {
+              command: item.command ?? "",
+              durationMs: item.durationMs ?? null,
+              exitCode:
+                typeof item.exitCode === "number" ? item.exitCode : null,
+              output:
+                item.aggregatedOutput ??
+                commandOutputs.get(item.id)?.join("") ??
+                "",
+              status: item.status ?? "completed",
             });
             return;
           }
@@ -786,13 +668,7 @@ export const streamCodexAppServerResponse = ({
               return;
             }
 
-            writeEvent({
-              dynamic: true,
-              output,
-              providerExecuted: true,
-              toolCallId: item.id,
-              type: "tool-output-available",
-            });
+            turn.toolOutput(item.id, output);
           }
         };
 
@@ -802,22 +678,16 @@ export const streamCodexAppServerResponse = ({
           try {
             if (method === "item/commandExecution/requestApproval") {
               const toolCallId = params?.itemId ?? `codex-command-${id}`;
-              const approvalId = `codex:command:${params?.approvalId ?? toolCallId}`;
-              const command = params?.command ?? "";
-              const response = await writeCodexApprovalRequest({
-                approvalId,
+              const response = await turn.approval({
                 input: {
-                  command,
+                  command: params?.command ?? "",
                   cwd: params?.cwd ?? null,
                   reason: params?.reason ?? null,
                 },
-                provider: "openai",
                 request: { method, params },
-                signal: abortSignal,
                 title: "Command",
                 toolCallId,
                 toolName: "runCommand",
-                writer,
               });
               sendResponse(id, {
                 decision: chooseCodexApprovalDecision({
@@ -831,9 +701,7 @@ export const streamCodexAppServerResponse = ({
 
             if (method === "item/fileChange/requestApproval") {
               const toolCallId = params?.itemId ?? `codex-file-change-${id}`;
-              const approvalId = `codex:file:${toolCallId}`;
-              const response = await writeCodexApprovalRequest({
-                approvalId,
+              const response = await turn.approval({
                 input: {
                   grantRoot: params?.grantRoot ?? null,
                   reason: params?.reason ?? null,
@@ -841,13 +709,10 @@ export const streamCodexAppServerResponse = ({
                     ? `Allow writes under ${params.grantRoot}?`
                     : "Allow file changes?",
                 },
-                provider: "openai",
                 request: { method, params },
-                signal: abortSignal,
                 title: "File change",
                 toolCallId,
                 toolName: "writeFile",
-                writer,
               });
               sendResponse(id, {
                 decision: chooseCodexApprovalDecision({
@@ -860,22 +725,17 @@ export const streamCodexAppServerResponse = ({
 
             if (method === "item/permissions/requestApproval") {
               const toolCallId = params?.itemId ?? `codex-permissions-${id}`;
-              const approvalId = `codex:permissions:${toolCallId}`;
-              const response = await writeCodexApprovalRequest({
-                approvalId,
+              const response = await turn.approval({
                 input: {
                   cwd: params?.cwd ?? null,
                   permissions: params?.permissions ?? null,
                   reason: params?.reason ?? null,
                   title: "Allow additional permissions?",
                 },
-                provider: "openai",
                 request: { method, params },
-                signal: abortSignal,
                 title: "Permissions",
                 toolCallId,
                 toolName: "permissions",
-                writer,
               });
 
               sendResponse(id, {
@@ -893,56 +753,31 @@ export const streamCodexAppServerResponse = ({
                 params?.questions,
               );
               const toolCallId = params?.itemId ?? `codex-question-${id}`;
-              const approvalId = [
-                "codex",
-                "question",
-                params?.threadId,
-                params?.turnId,
-                toolCallId,
-              ]
-                .filter(Boolean)
-                .join(":");
-              const response = await writeCodexApprovalRequest({
-                approvalId,
+              const response = await turn.approval({
                 input: {
                   itemId: toolCallId,
                   questions,
                   threadId: params?.threadId ?? null,
                   turnId: params?.turnId ?? null,
                 },
-                provider: "openai",
                 request: { method, params },
-                signal: abortSignal,
                 title: "Question",
                 toolCallId,
                 toolName: "ask-user-question",
-                writer,
               });
 
               if (!response.approved) {
                 const message =
                   response.reason || "User cancelled the question request.";
-                writer.write({
-                  dynamic: true,
-                  errorText: message,
-                  providerExecuted: true,
-                  toolCallId,
-                  type: "tool-output-error",
-                });
+                turn.toolError(toolCallId, message);
                 sendErrorResponse(id, message);
                 return;
               }
 
-              writer.write({
-                dynamic: true,
-                output: buildQuestionUiOutput({
-                  questions,
-                  reason: response.reason,
-                }),
-                providerExecuted: true,
+              turn.toolOutput(
                 toolCallId,
-                type: "tool-output-available",
-              });
+                buildQuestionUiOutput({ questions, reason: response.reason }),
+              );
               sendResponse(
                 id,
                 buildCodexUserInputResponse({
@@ -974,12 +809,12 @@ export const streamCodexAppServerResponse = ({
           }
 
           if (method === "turn/plan/updated") {
-            writeCodexTodoListPart(writeEvent, params);
+            turn.todos(params);
             return;
           }
 
           if (method === "rawResponseItem/completed") {
-            writeCodexTodoListPartFromResponseItem(writeEvent, params?.item);
+            turn.todosFromTool(params?.item);
             return;
           }
 
@@ -1023,7 +858,7 @@ export const streamCodexAppServerResponse = ({
           }
 
           if (method === "thread/started" && params?.thread?.id) {
-            writeSessionMetadata(params.thread.id);
+            turn.session(params.thread.id);
             return;
           }
 
@@ -1038,12 +873,11 @@ export const streamCodexAppServerResponse = ({
 
           if (method === "item/started" && params?.item) {
             const item = params.item;
-            if (
-              writeCodexContextCompactionPart(writeEvent, item, "compacting")
-            ) {
+            if (item.type === "contextCompaction") {
+              turn.compaction(item.id, "compacting");
               return;
             }
-            if (writeCodexTodoListPartFromResponseItem(writeEvent, item)) {
+            if (turn.todosFromTool(item)) {
               return;
             }
 
@@ -1056,30 +890,20 @@ export const streamCodexAppServerResponse = ({
             } else if (item.type === "subAgentActivity") {
               ensureSubagentActivityToolStarted(item);
             } else if (item.type === "agentMessage") {
-              ensureTextStarted(item.id, "text");
+              turn.text("", item.id);
             } else if (item.type === "reasoning") {
-              ensureTextStarted(item.id, "reasoning");
+              turn.reasoning("", item.id);
             }
             return;
           }
 
           if (method === "item/agentMessage/delta" && params?.itemId) {
-            ensureTextStarted(params.itemId, "text");
-            writeEvent({
-              delta: params.delta ?? "",
-              id: params.itemId,
-              type: "text-delta",
-            });
+            turn.text(params.delta ?? "", params.itemId);
             return;
           }
 
           if (method === "item/reasoning/textDelta" && params?.itemId) {
-            ensureTextStarted(params.itemId, "reasoning");
-            writeEvent({
-              delta: params.delta ?? "",
-              id: params.itemId,
-              type: "reasoning-delta",
-            });
+            turn.reasoning(params.delta ?? "", params.itemId);
             return;
           }
 
@@ -1095,27 +919,21 @@ export const streamCodexAppServerResponse = ({
 
           if (method === "item/completed" && params?.item) {
             const item = params.item;
-            if (
-              writeCodexContextCompactionPart(writeEvent, item, "compacted")
-            ) {
+            if (item.type === "contextCompaction") {
+              turn.compaction(item.id, "compacted");
               return;
             }
-            if (writeCodexTodoListPartFromResponseItem(writeEvent, item)) {
+            if (turn.todosFromTool(item)) {
               return;
             }
 
             if (item.type === "agentMessage") {
-              endTextPart(item.id, "text");
+              turn.endText(item.id, "text");
             } else if (item.type === "reasoning") {
               if (Array.isArray(item.summary) && item.summary.length > 0) {
-                ensureTextStarted(item.id, "reasoning");
-                writeEvent({
-                  delta: item.summary.join("\n"),
-                  id: item.id,
-                  type: "reasoning-delta",
-                });
+                turn.reasoning(item.summary.join("\n"), item.id);
               }
-              endTextPart(item.id, "reasoning");
+              turn.endText(item.id, "reasoning");
             } else if (
               item.type === "subAgentActivity" &&
               item.kind === "interrupted"
@@ -1138,11 +956,11 @@ export const streamCodexAppServerResponse = ({
               return;
             }
 
-            const turn = params.turn;
-            if (turn.status === "failed") {
+            const turnResult = params.turn;
+            if (turnResult.status === "failed") {
               const turnError = new Error(
-                turn.error?.message ||
-                  turn.error?.additionalDetails ||
+                turnResult.error?.message ||
+                  turnResult.error?.additionalDetails ||
                   "Codex turn failed.",
               );
               finish(() => reject(turnError));
@@ -1164,15 +982,9 @@ export const streamCodexAppServerResponse = ({
             return;
           }
 
-          const tokenCountMetadata = getCodexTokenCountMetadata(message);
-          if (tokenCountMetadata) {
-            writer.write({
-              messageMetadata: {
-                ...responseMessageMetadata,
-                ...tokenCountMetadata,
-              },
-              type: "message-metadata",
-            });
+          const tokenCount = getCodexTokenCountUsage(message);
+          if (tokenCount) {
+            turn.usage(tokenCount.usage, tokenCount.contextWindow);
           }
 
           if (Object.hasOwn(message, "id") && message.method) {
@@ -1210,13 +1022,8 @@ export const streamCodexAppServerResponse = ({
         if (abortSignal?.aborted) {
           handleAbort();
           return;
-        } else {
-          abortSignal?.addEventListener("abort", handleAbort, { once: true });
         }
-        writer.write({
-          messageMetadata: responseMessageMetadata,
-          type: "message-metadata",
-        });
+        abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
         void getCodexAppServerClient({ mcpServers })
           .then(async (client) => {
@@ -1340,7 +1147,7 @@ export const streamCodexAppServerResponse = ({
               },
               onMessage: handleMessage,
             });
-            writeSessionMetadata(threadId);
+            turn.session(threadId);
             if (finished) {
               return;
             }
@@ -1379,6 +1186,4 @@ export const streamCodexAppServerResponse = ({
           });
       }),
   });
-
-  return createUIMessageStreamResponse({ stream });
 };

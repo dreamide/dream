@@ -1,3 +1,5 @@
+// Pending tool approvals: a turn asks the user through the agent-turn writer
+// and waits here; the client answers through the route below.
 import { z } from "zod";
 
 const pendingToolApprovals = new Map();
@@ -52,6 +54,24 @@ export const waitForToolApproval = ({ id, provider, request, signal }) =>
     signal?.addEventListener("abort", handleAbort, { once: true });
   });
 
+/**
+ * Answers a pending approval. Returns what the route reports: whether an
+ * approval with that id was waiting, and which provider owned it.
+ */
+export const resolveToolApproval = async (payload) => {
+  const pendingApproval = pendingToolApprovals.get(payload.id);
+  if (!pendingApproval) {
+    // AI SDK-owned approvals, such as the current Anthropic writeFile flow,
+    // are resolved in-process by useChat(). The shared endpoint intentionally
+    // treats unknown approvals as handled so the frontend can use one path.
+    return { handled: false, status: "not-found" };
+  }
+
+  pendingToolApprovals.delete(payload.id);
+  await pendingApproval.respond(payload);
+  return { handled: true, provider: pendingApproval.provider, status: "ok" };
+};
+
 export const registerToolApprovalRoutes = (app) => {
   app.post("/api/tool-approval-response", async (c) => {
     let payload;
@@ -64,29 +84,13 @@ export const registerToolApprovalRoutes = (app) => {
       );
     }
 
-    const pendingApproval = pendingToolApprovals.get(payload.id);
-    if (!pendingApproval) {
-      // AI SDK-owned approvals, such as the current Anthropic writeFile flow,
-      // are resolved in-process by useChat(). The shared endpoint intentionally
-      // treats unknown approvals as handled so the frontend can use one path.
-      return c.json({ handled: false, status: "not-found" });
-    }
-
-    pendingToolApprovals.delete(payload.id);
-
     try {
-      await pendingApproval.respond(payload);
+      return c.json(await resolveToolApproval(payload));
     } catch (error) {
       return c.text(
         error instanceof Error ? error.message : "Failed to resolve approval.",
         500,
       );
     }
-
-    return c.json({
-      handled: true,
-      provider: pendingApproval.provider,
-      status: "ok",
-    });
   });
 };

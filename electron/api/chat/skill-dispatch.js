@@ -8,18 +8,19 @@
  * loads it itself, which keeps progressive disclosure, `allowed-tools` and
  * script-relative paths intact.
  *
- * - Codex parses `$name` in user text itself, so the message is unchanged.
- * - Claude runs through an AI SDK provider that prefixes every user turn
- *   with `Human:`, so a leading `/name` never reaches the CLI's slash
- *   parser. Instead the message ends with an instruction to invoke the
- *   skill through the Skill tool (enabled by `skills: "all"`). Skills with
- *   `disable-model-invocation` cannot be loaded by that tool, so the model
- *   is pointed at the SKILL.md path to read instead.
- * - OpenCode loads skills through its `skill` tool the same way.
- * - Cursor expands `/name` at the start of a prompt; the ACP prompt is
- *   prefixed with it.
+ * How each provider takes the mention is data on its capabilities
+ * (electron/shared/provider-capabilities.js):
+ * - native: the CLI parses `$name` in user text itself (Codex).
+ * - instruction: the message ends with an instruction to load the skill
+ *   through the agent's own skill tool (Claude, OpenCode). Claude runs
+ *   through an AI SDK provider that prefixes every user turn with `Human:`,
+ *   so a leading `/name` would never reach its slash parser. Skills with
+ *   `disable-model-invocation` cannot be loaded by Claude's Skill tool, so
+ *   the model is pointed at the SKILL.md path to read instead.
+ * - slash: the prompt is prefixed with `/name` (Cursor).
  */
 
+import { getProviderCapabilities } from "../../shared/provider-capabilities.js";
 import { listProviderSkills } from "../skills/index.js";
 import { getLatestUserMessage } from "./codex-prompt.js";
 
@@ -75,28 +76,27 @@ const uniqueSkills = (mentions) => {
 const describeSkill = (skill) =>
   skill.description ? ` (${skill.description})` : "";
 
-export const buildClaudeSkillInstruction = (skills) => {
+/**
+ * The instruction appended for an "instruction" provider: load each skill
+ * with the provider's skill tool, or (when the provider cannot load skills
+ * the user alone may invoke) read the SKILL.md directly.
+ */
+export const buildSkillInstruction = (skills, style) => {
   const lines = ["Skills the user asked for in this message:"];
   for (const skill of skills) {
-    if (skill.userInvocationOnly && skill.path) {
+    if (
+      style.readUserInvocationOnly &&
+      skill.userInvocationOnly &&
+      skill.path
+    ) {
       lines.push(
         `- "${skill.name}"${describeSkill(skill)}: this skill only runs on user request, so read its instructions at ${skill.path} with the Read tool and follow them for this request.`,
       );
     } else {
       lines.push(
-        `- "${skill.name}"${describeSkill(skill)}: invoke it with the Skill tool before doing anything else, then follow its instructions for this request.`,
+        `- "${skill.name}"${describeSkill(skill)}: ${style.verb} it with ${style.toolLabel} before doing anything else, then follow its instructions for this request.`,
       );
     }
-  }
-  return lines.join("\n");
-};
-
-export const buildOpenCodeSkillInstruction = (skills) => {
-  const lines = ["Skills the user asked for in this message:"];
-  for (const skill of skills) {
-    lines.push(
-      `- "${skill.name}"${describeSkill(skill)}: load it with the skill tool before doing anything else, then follow its instructions for this request.`,
-    );
   }
   return lines.join("\n");
 };
@@ -111,33 +111,31 @@ export const buildOpenCodeSkillInstruction = (skills) => {
  * }}
  */
 export const planSkillDispatch = ({ provider, skills, text }) => {
+  const style = getProviderCapabilities(provider).skills;
+  if (!style) {
+    return null;
+  }
+
   const mentions = findSkillMentions(text, skills);
   if (mentions.length === 0) {
     return null;
   }
   const invoked = uniqueSkills(mentions);
 
-  switch (provider) {
-    case "anthropic":
+  switch (style.dispatch) {
+    case "instruction":
       return {
-        instruction: buildClaudeSkillInstruction(invoked),
+        instruction: buildSkillInstruction(invoked, style),
         skills: invoked,
       };
-    case "opencode":
-      return {
-        instruction: buildOpenCodeSkillInstruction(invoked),
-        skills: invoked,
-      };
-    case "cursor": {
-      // Cursor expands one slash command per prompt; the last mention wins,
-      // matching what a user typing `/name` in its composer would get.
+    case "slash": {
+      // One slash command per prompt; the last mention wins, matching what a
+      // user typing `/name` in the agent's own composer would get.
       const last = mentions[mentions.length - 1];
       return { skills: invoked, slashCommand: last.skill.name };
     }
-    case "openai":
-      return { skills: invoked };
     default:
-      return null;
+      return { skills: invoked };
   }
 };
 
@@ -184,6 +182,10 @@ export const resolveSkillDispatch = async ({
   projectPath,
   provider,
 }) => {
+  if (!getProviderCapabilities(provider).skills) {
+    return null;
+  }
+
   const text = getMessageText(getLatestUserMessage(messages));
   if (!text || !new RegExp(SKILL_MENTION_PATTERN.source).test(text)) {
     return null;

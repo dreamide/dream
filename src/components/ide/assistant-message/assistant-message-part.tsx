@@ -23,6 +23,7 @@ import {
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatApprovalId } from "../../../../electron/shared/agent-turn-contract.js";
 import {
   getToolName,
   isRedundantDirectWebToolSearchPart,
@@ -501,7 +502,7 @@ const GenericToolChip = ({
     : [];
   const askUserQuestionApprovalId =
     isAskUserQuestion && typeof part.toolCallId === "string"
-      ? (part.approval?.id ?? `anthropic:${part.toolCallId}`)
+      ? (part.approval?.id ?? formatApprovalId("anthropic", part.toolCallId))
       : null;
   const askUserQuestionSummary = isAskUserQuestion
     ? getAskUserQuestionSummary(

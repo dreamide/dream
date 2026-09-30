@@ -1,11 +1,6 @@
 import { promises as fs } from "node:fs";
 import { resolvePersistedProjectPath } from "../persisted-state.js";
 import { appendBrowserMcpServer } from "./chat/browser-tools.js";
-import { streamClaudeResponse } from "./chat/claude-stream.js";
-import { streamCodexAppServerResponse } from "./chat/codex-app-server.js";
-import { streamCursorResponse } from "./chat/cursor-stream.js";
-import { streamGrokResponse } from "./chat/grok-stream.js";
-import { streamOpenCodeResponse } from "./chat/opencode-stream.js";
 import {
   chatRequestBodySchema,
   chatTitleRequestBodySchema,
@@ -21,12 +16,7 @@ import {
   createCheckpoint,
   finalizeCheckpoint,
 } from "./checkpoints/service.js";
-import { readCodexAccessToken } from "./providers/codex-auth.js";
-import {
-  getCursorCliUnavailableMessage,
-  isCursorCliAvailable,
-} from "./providers/cursor-cli.js";
-import { isCliCommandAvailable } from "./shared/cli.js";
+import { getProvider } from "./providers/registry.js";
 
 const CHECKPOINT_CAPTURE_TIMEOUT_MS = 20_000;
 
@@ -93,75 +83,6 @@ const validateProjectPath = async (projectPath) => {
   }
 };
 
-const validateCodexReady = async () => {
-  const codexInstalled = await isCliCommandAvailable("codex");
-  if (!codexInstalled) {
-    return {
-      message: "Codex CLI is not installed or not available on PATH.",
-      status: 400,
-    };
-  }
-
-  const accessToken = await readCodexAccessToken();
-  if (!accessToken) {
-    return {
-      message: "Codex login not found. Run `codex login` and try again.",
-      status: 401,
-    };
-  }
-
-  return null;
-};
-
-const validateClaudeReady = async () => {
-  const claudeInstalled = await isCliCommandAvailable("claude");
-  if (!claudeInstalled) {
-    return {
-      message: "Claude Code CLI is not installed or not available on PATH.",
-      status: 400,
-    };
-  }
-
-  return null;
-};
-
-const validateOpenCodeReady = async () => {
-  const openCodeInstalled = await isCliCommandAvailable("opencode");
-  if (!openCodeInstalled) {
-    return {
-      message: "OpenCode CLI is not installed or not available on PATH.",
-      status: 400,
-    };
-  }
-
-  return null;
-};
-
-const validateCursorReady = async () => {
-  const cursorInstalled = await isCursorCliAvailable();
-  if (!cursorInstalled) {
-    return {
-      message: getCursorCliUnavailableMessage(),
-      status: 400,
-    };
-  }
-
-  return null;
-};
-
-const validateGrokReady = async () => {
-  const grokInstalled = await isCliCommandAvailable("grok");
-  if (!grokInstalled) {
-    return {
-      message:
-        "Grok Build CLI is not installed or not available on PATH. Install it, then run `grok login`.",
-      status: 400,
-    };
-  }
-
-  return null;
-};
-
 export const registerChatRoutes = (app) => {
   app.post("/api/chat-title", async (c) => {
     let rawBody;
@@ -182,31 +103,9 @@ export const registerChatRoutes = (app) => {
       return c.text(projectPathError.message, projectPathError.status);
     }
 
-    if (provider === "openai") {
-      const codexError = await validateCodexReady();
-      if (codexError) {
-        return c.text(codexError.message, codexError.status);
-      }
-    } else if (provider === "opencode") {
-      const openCodeError = await validateOpenCodeReady();
-      if (openCodeError) {
-        return c.text(openCodeError.message, openCodeError.status);
-      }
-    } else if (provider === "cursor") {
-      const cursorError = await validateCursorReady();
-      if (cursorError) {
-        return c.text(cursorError.message, cursorError.status);
-      }
-    } else if (provider === "grok") {
-      const grokError = await validateGrokReady();
-      if (grokError) {
-        return c.text(grokError.message, grokError.status);
-      }
-    } else {
-      const claudeError = await validateClaudeReady();
-      if (claudeError) {
-        return c.text(claudeError.message, claudeError.status);
-      }
+    const readyError = await getProvider(provider).checkReady();
+    if (readyError) {
+      return c.text(readyError.message, readyError.status);
     }
 
     try {
@@ -241,7 +140,6 @@ export const registerChatRoutes = (app) => {
 
     const {
       chatId,
-
       checkpointsEnabled,
       messages,
       model,
@@ -252,7 +150,7 @@ export const registerChatRoutes = (app) => {
       projectPath,
       projectId,
       permissionMode,
-      provider,
+      provider: providerId,
       reasoningEffort,
       reasoningLabel,
       remoteConversationId,
@@ -262,12 +160,24 @@ export const registerChatRoutes = (app) => {
       threadId,
       mcpServers,
     } = parsed.data;
+    const provider = getProvider(providerId);
     const resolvedChatId = chatId ?? threadId;
     const resolvedProjectPath =
       resolvePersistedProjectPath({
         chatId: resolvedChatId,
         projectId,
       }) ?? projectPath;
+
+    const projectPathError = await validateProjectPath(resolvedProjectPath);
+    if (projectPathError) {
+      return c.text(projectPathError.message, projectPathError.status);
+    }
+
+    const readyError = await provider.checkReady();
+    if (readyError) {
+      return c.text(readyError.message, readyError.status);
+    }
+
     const responseMessageMetadata = {
       createdAt: new Date().toISOString(),
       model,
@@ -277,14 +187,6 @@ export const registerChatRoutes = (app) => {
       ...(reasoningEffort ? { reasoningEffort } : {}),
       ...(reasoningLabel ? { reasoningLabel } : {}),
     };
-    const projectReferencesPrompt =
-      formatProjectReferencesForPrompt(projectReferences);
-
-    const projectPathError = await validateProjectPath(resolvedProjectPath);
-    if (projectPathError) {
-      return c.text(projectPathError.message, projectPathError.status);
-    }
-
     const checkpointId = await resolveTurnCheckpointId({
       chatId: resolvedChatId,
       checkpointsEnabled,
@@ -296,20 +198,42 @@ export const registerChatRoutes = (app) => {
     }
 
     // `$skill` mentions in the latest user message become whatever the
-    // provider expands natively (see skill-dispatch.js). Codex needs no
-    // change; the other providers get an instruction part or a slash prefix.
+    // provider expands natively (see skill-dispatch.js): nothing, an
+    // instruction part, or a slash prefix on the prompt.
     const skillDispatch = await resolveSkillDispatch({
       mcpServers,
       messages,
       projectPath: resolvedProjectPath,
-      provider,
+      provider: providerId,
     });
-    const dispatchedMessages = applySkillDispatchToMessages(
-      messages,
-      skillDispatch,
-    );
 
-    const streamResponse = await dispatchChatStream();
+    const streamResponse = await provider.stream({
+      abortSignal: c.req.raw.signal,
+      chatId: resolvedChatId,
+      // Dream's browser tools reach the agent over MCP where the provider
+      // takes MCP config per session; Claude gets them in-process instead.
+      mcpServers: provider.browserMcpScope
+        ? appendBrowserMcpServer(mcpServers, {
+            projectId,
+            scope: provider.browserMcpScope,
+          })
+        : mcpServers,
+      messages: applySkillDispatchToMessages(messages, skillDispatch),
+      model,
+      modelSpeed,
+      permissionMode,
+      projectId,
+      projectPath: resolvedProjectPath,
+      projectReferencesPrompt:
+        formatProjectReferencesForPrompt(projectReferences),
+      reasoningEffort,
+      remoteConversationId,
+      remoteConversationModel,
+      remoteConversationModelSpeed,
+      remoteConversationProjectPath,
+      responseMessageMetadata,
+      skillSlashCommand: skillDispatch?.slashCommand,
+    });
     if (!checkpointId || !(streamResponse instanceof Response)) {
       return streamResponse;
     }
@@ -321,139 +245,5 @@ export const registerChatRoutes = (app) => {
         projectPath: resolvedProjectPath,
       }),
     );
-
-    async function dispatchChatStream() {
-      if (provider === "openai") {
-        const codexError = await validateCodexReady();
-        if (codexError) {
-          return c.text(codexError.message, codexError.status);
-        }
-
-        return streamCodexAppServerResponse({
-          abortSignal: c.req.raw.signal,
-          chatId: resolvedChatId,
-          permissionMode,
-          // Shared app-server: project-agnostic browser URL keeps its MCP
-          // config (and process) stable across projects.
-          mcpServers: appendBrowserMcpServer(mcpServers, {
-            projectId,
-            scope: "shared",
-          }),
-          messages,
-          model,
-          projectId,
-          projectReferencesPrompt,
-          projectPath: resolvedProjectPath,
-          modelSpeed,
-          reasoningEffort,
-          remoteConversationId,
-          remoteConversationModel,
-          remoteConversationModelSpeed,
-          remoteConversationProjectPath,
-          responseMessageMetadata,
-        });
-      }
-
-      if (provider === "opencode") {
-        const openCodeError = await validateOpenCodeReady();
-        if (openCodeError) {
-          return c.text(openCodeError.message, openCodeError.status);
-        }
-
-        return streamOpenCodeResponse({
-          abortSignal: c.req.raw.signal,
-
-          permissionMode,
-          mcpServers: appendBrowserMcpServer(mcpServers, {
-            projectId,
-            scope: "project",
-          }),
-          messages: dispatchedMessages,
-          model,
-          modelSpeed,
-          projectReferencesPrompt,
-          projectPath: resolvedProjectPath,
-          remoteConversationId,
-          remoteConversationModel,
-          remoteConversationModelSpeed,
-          remoteConversationProjectPath,
-          responseMessageMetadata,
-        });
-      }
-
-      if (provider === "cursor") {
-        const cursorError = await validateCursorReady();
-        if (cursorError) {
-          return c.text(cursorError.message, cursorError.status);
-        }
-
-        return streamCursorResponse({
-          mcpServers,
-          abortSignal: c.req.raw.signal,
-          permissionMode,
-          messages,
-          skillSlashCommand: skillDispatch?.slashCommand,
-          model,
-          modelSpeed,
-          projectReferencesPrompt,
-          projectPath: resolvedProjectPath,
-          remoteConversationId,
-          remoteConversationModel,
-          remoteConversationModelSpeed,
-          remoteConversationProjectPath,
-          responseMessageMetadata,
-        });
-      }
-
-      if (provider === "grok") {
-        const grokError = await validateGrokReady();
-        if (grokError) {
-          return c.text(grokError.message, grokError.status);
-        }
-
-        return streamGrokResponse({
-          modelSpeed,
-          remoteConversationModelSpeed,
-          abortSignal: c.req.raw.signal,
-
-          permissionMode,
-          mcpServers: appendBrowserMcpServer(mcpServers, {
-            projectId,
-            scope: "project",
-          }),
-          messages,
-          model,
-          projectReferencesPrompt,
-          projectPath: resolvedProjectPath,
-          reasoningEffort,
-          remoteConversationId,
-          remoteConversationModel,
-          remoteConversationProjectPath,
-          responseMessageMetadata,
-        });
-      }
-
-      const claudeError = await validateClaudeReady();
-      if (claudeError) {
-        return c.text(claudeError.message, claudeError.status);
-      }
-
-      return streamClaudeResponse({
-        permissionMode,
-        mcpServers,
-        messages: dispatchedMessages,
-        model,
-        modelSpeed,
-        projectId,
-        projectReferencesPrompt,
-        projectPath: resolvedProjectPath,
-        reasoningEffort,
-        remoteConversationId,
-        remoteConversationModel,
-        remoteConversationModelSpeed,
-        remoteConversationProjectPath,
-        responseMessageMetadata,
-      });
-    }
   });
 };
