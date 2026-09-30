@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { CodeBlock } from "@/components/ai-elements/code-block";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { cn } from "@/lib/utils";
-import type { ToolLikePart } from "../../assistant-message-tools";
-import { getToolName, parseMcpToolName } from "../../assistant-message-tools";
+import {
+  describeMcp,
+  getToolName,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import {
   ActionApproval,
   ApprovalStatusLabel,
@@ -31,7 +34,8 @@ export const McpToolChip = ({
   const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const toolName = getToolName(part);
-  const mcpInfo = parseMcpToolName(toolName);
+  const { command, server } = describeMcp({ toolName });
+  const mcpInfo = server && command ? { command, server } : null;
   const label = mcpInfo
     ? `${mcpInfo.server} - ${mcpInfo.command}`
     : formatToolName(toolName);

@@ -30,10 +30,7 @@ export {
 export {
   buildLineDiff,
   buildWriteDiff,
-  formatWriteOutputMessage,
-  getAgentOutputText,
   getDiffStats,
-  getFilePathFromOutputText,
   getWriteFileStateLabel,
   parseSingleDiff,
 } from "./diff-utils";
@@ -69,7 +66,6 @@ export {
   StreamingMessageResponse,
 } from "./streaming-message";
 export {
-  getNestedValue,
   getNumberFromPaths,
   getStringFromPaths,
   isRecord,

@@ -11,7 +11,11 @@ import {
 } from "@/components/ai-elements/code-block";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { cn } from "@/lib/utils";
-import type { ToolLikePart } from "../../assistant-message-tools";
+import {
+  describeCommand,
+  getToolCallSource,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import {
   ActionApproval,
   ApprovalStatusLabel,
@@ -20,7 +24,6 @@ import {
   ChipButton,
   ChipContent,
   getCommandWithoutShellPrefix,
-  isRecord,
   isString,
   JsonBlock,
   RUN_COMMAND_HEADER_CLASSES,
@@ -44,39 +47,13 @@ export const RunCommandChip = ({
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
-  const command =
-    isRecord(part.input) && isString(part.input.command)
-      ? part.input.command
-      : isRecord(output) && isString(output.command)
-        ? output.command
-        : null;
-  const commandType =
-    isRecord(part.input) && isString(part.input.type)
-      ? part.input.type
-      : isRecord(output) && isString(output.type)
-        ? output.type
-        : null;
-  const commandOutput = useMemo(() => {
-    if (isString(output)) {
-      return stripAnsiSequences(output);
-    }
-
-    if (!isRecord(output)) {
-      return null;
-    }
-
-    const combinedOutput = [output.stdout, output.stderr]
-      .filter(isString)
-      .join(output.stdout && output.stderr ? "\n" : "");
-    const textOutput =
-      (isString(output.output) && output.output) ||
-      combinedOutput ||
-      (isString(output.result) ? output.result : null);
-
-    return textOutput ? stripAnsiSequences(textOutput) : null;
-  }, [output]);
-  const status =
-    isRecord(output) && isString(output.status) ? output.status : null;
+  const { command, commandType, outputText, status } = describeCommand(
+    getToolCallSource(part),
+  );
+  const commandOutput = useMemo(
+    () => (outputText === null ? null : stripAnsiSequences(outputText)),
+    [outputText],
+  );
   const hasRawOutput = output !== undefined;
   const approvalId = part.approval?.id;
   const canExpand =

@@ -3,10 +3,7 @@ import { test } from "vitest";
 import {
   buildLineDiff,
   buildWriteDiff,
-  formatWriteOutputMessage,
-  getAgentOutputText,
   getDiffStats,
-  getFilePathFromOutputText,
   getWriteFileStateLabel,
   parseSingleDiff,
 } from "@/components/ide/assistant-message/diff-utils";
@@ -134,47 +131,4 @@ test("getWriteFileStateLabel maps diff types and write modes to labels", () => {
   assert.equal(getWriteFileStateLabel(null, "append", null), "modified");
   assert.equal(getWriteFileStateLabel(null, null, "previous text"), "modified");
   assert.equal(getWriteFileStateLabel(null, null, null), null);
-});
-
-test("getFilePathFromOutputText extracts file paths from update messages", () => {
-  assert.equal(
-    getFilePathFromOutputText("The file /repo/src/index.ts has been updated"),
-    "/repo/src/index.ts",
-  );
-  assert.equal(
-    getFilePathFromOutputText("file 'notes.md' was created."),
-    "notes.md",
-  );
-  assert.equal(getFilePathFromOutputText("No file changes were made"), null);
-  assert.equal(
-    getFilePathFromOutputText({ message: "file a.ts was updated" }),
-    null,
-  );
-});
-
-test("formatWriteOutputMessage unwraps message records and normalizes slashes", () => {
-  assert.equal(
-    formatWriteOutputMessage("'C:\\dev\\project\\file.ts'"),
-    "C:/dev/project/file.ts",
-  );
-  assert.equal(
-    formatWriteOutputMessage({ message: "  saved file  " }),
-    "saved file",
-  );
-  assert.equal(formatWriteOutputMessage(42), null);
-  assert.equal(formatWriteOutputMessage({ status: "ok" }), null);
-});
-
-test("getAgentOutputText strips usage blocks and agentId lines", () => {
-  assert.equal(
-    getAgentOutputText('Task complete.\n\n<usage>{"tokens": 100}</usage>'),
-    "Task complete.",
-  );
-  assert.equal(
-    getAgentOutputText("agentId: abc-123\nHere are the findings."),
-    "Here are the findings.",
-  );
-  assert.equal(getAgentOutputText(""), null);
-  assert.equal(getAgentOutputText("<usage>only usage</usage>"), null);
-  assert.equal(getAgentOutputText({ text: "not a string" }), null);
 });

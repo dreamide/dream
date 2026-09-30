@@ -1,9 +1,8 @@
 import type { UIMessage } from "ai";
 import { formatApprovalId } from "../../../../electron/shared/agent-turn-contract.js";
 import {
-  getToolName,
+  getToolKind,
   isToolLikePart,
-  normalizeToolName,
   type ToolLikePart,
 } from "../assistant-message-tools";
 import type { ToolApprovalResponder } from "./tool-call-groups";
@@ -47,8 +46,7 @@ const getAskUserQuestionApprovalId = (part: MessagePart) => {
 };
 
 const isAskUserQuestionPart = (part: MessagePart): part is ToolLikePart =>
-  isToolLikePart(part) &&
-  normalizeToolName(getToolName(part)) === "ask-user-question";
+  isToolLikePart(part) && getToolKind(part) === "question";
 
 const getAskUserQuestionPayloadFromPart = (part: MessagePart) => {
   if (!isAskUserQuestionPart(part)) {

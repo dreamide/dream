@@ -5,15 +5,17 @@ import { CodeBlock } from "@/components/ai-elements/code-block";
 import { MessageResponse } from "@/components/ai-elements/message";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { cn } from "@/lib/utils";
-import type { ToolLikePart } from "../../assistant-message-tools";
-import { getToolName, normalizeToolName } from "../../assistant-message-tools";
+import {
+  describeWebFetch,
+  getToolCallSource,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import {
   ActionApproval,
   ApprovalStatusLabel,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   ChipContent,
-  getStringFromPaths,
   isRecord,
   isString,
   JsonBlock,
@@ -46,20 +48,6 @@ const formatTextLength = (text: string | null) => {
   return `${(text.length / 1000).toFixed(1)}k chars`;
 };
 
-const getWebFetchTextOutput = (output: unknown) => {
-  if (isString(output)) {
-    return output;
-  }
-
-  return getStringFromPaths(output, [
-    ["content"],
-    ["text"],
-    ["result"],
-    ["markdown"],
-    ["body"],
-  ]);
-};
-
 export const WebFetchChip = ({
   defaultExpanded = false,
   onToolApproval,
@@ -75,27 +63,18 @@ export const WebFetchChip = ({
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
-  const url = getStringFromPaths(part.input, [
-    ["url"],
-    ["request", "url"],
-    ["input", "url"],
-  ]);
-  const query = getStringFromPaths(part.input, [
-    ["query"],
-    ["search_query"],
-    ["searchQuery"],
-    ["input", "query"],
-  ]);
-  const prompt = getStringFromPaths(part.input, [["prompt"], ["query"]]);
+  const {
+    isWebSearch,
+    prompt,
+    query,
+    text: outputText,
+    url,
+  } = describeWebFetch(getToolCallSource(part));
   const displayUrl = useMemo(() => getDisplayUrl(url), [url]);
-  const normalizedToolName = normalizeToolName(getToolName(part));
-  const isWebSearch =
-    normalizedToolName === "web-search" || normalizedToolName === "websearch";
   const label = displayUrl ?? (isWebSearch ? query : null);
   const fallbackLabel = isWebSearch
     ? assistantT("webSearch")
     : assistantT("webFetch");
-  const outputText = getWebFetchTextOutput(part.output);
   const outputLength = formatTextLength(outputText);
   const hasRawOutput = part.output !== undefined;
   const approvalId = part.approval?.id;

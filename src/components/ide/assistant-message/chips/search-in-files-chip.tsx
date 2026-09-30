@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  CHIP_TOOL_NAME_ALIASES,
-  getToolName,
-  normalizeToolName,
+  describeSearch,
+  getToolCallSource,
+  getToolKind,
   type ToolLikePart,
 } from "../../assistant-message-tools";
 import {
@@ -14,7 +14,6 @@ import {
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   ChipContent,
-  isRecord,
   isString,
   JsonBlock,
 } from "../shared";
@@ -29,54 +28,10 @@ export const SearchInFilesChip = ({
   const assistantT = useTranslations("assistant");
   const [expanded, setExpanded] = useState(defaultExpanded);
   const output = part.output;
-  const rawMatches =
-    isRecord(output) && Array.isArray(output.matches)
-      ? output.matches
-      : isRecord(output) && Array.isArray(output.results)
-        ? output.results
-        : isRecord(output) && Array.isArray(output.files)
-          ? output.files
-          : Array.isArray(output)
-            ? output
-            : null;
-  const matches = Array.isArray(rawMatches) ? rawMatches.filter(isRecord) : [];
-  const textResults = (
-    isString(output)
-      ? output.split(/\r?\n/)
-      : Array.isArray(rawMatches)
-        ? rawMatches.filter(isString)
-        : []
-  ).filter((line) => {
-    const trimmedLine = line.trim();
-    return (
-      trimmedLine.length > 0 && trimmedLine.toLowerCase() !== "no files found"
-    );
-  });
-  const toolReferences = matches
-    .map(
-      (match) =>
-        (isString(match.tool_name) && match.tool_name) ||
-        (isString(match.toolName) && match.toolName) ||
-        null,
-    )
-    .filter((toolName): toolName is string => toolName !== null);
-  const normalizedToolName = normalizeToolName(getToolName(part));
-  const isToolSearch =
-    CHIP_TOOL_NAME_ALIASES.toolSearch.has(normalizedToolName);
+  const { count, hasOutput, matches, query, textResults, toolReferences } =
+    describeSearch(getToolCallSource(part));
+  const isToolSearch = getToolKind(part) === "toolSearch";
   const isToolReferenceSearch = isToolSearch || toolReferences.length > 0;
-  const hasOutput = rawMatches !== null || textResults.length > 0;
-  const count =
-    isRecord(output) && typeof output.count === "number"
-      ? output.count
-      : Array.isArray(rawMatches)
-        ? rawMatches.length
-        : textResults.length;
-  const query =
-    isRecord(part.input) && isString(part.input.query)
-      ? part.input.query
-      : isRecord(part.input) && isString(part.input.pattern)
-        ? part.input.pattern
-        : null;
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
@@ -185,25 +140,8 @@ export const SearchInFilesChip = ({
                 </p>
               ) : (
                 matches.map((match) => {
-                  const file =
-                    (isString(match.file) && match.file) ||
-                    (isString(match.path) && match.path) ||
-                    null;
-                  const toolName =
-                    (isString(match.tool_name) && match.tool_name) ||
-                    (isString(match.toolName) && match.toolName) ||
-                    null;
-                  const line =
-                    typeof match.line === "number"
-                      ? match.line
-                      : typeof match.line_number === "number"
-                        ? match.line_number
-                        : "?";
-                  const text =
-                    (isString(match.text) && match.text) ||
-                    (isString(match.preview) && match.preview) ||
-                    (isString(match.lineText) && match.lineText) ||
-                    "";
+                  const { file, line: lineNumber, text, toolName } = match;
+                  const line = lineNumber ?? "?";
                   const key = `${file ?? toolName ?? "result"}:${line}:${text}`;
 
                   return (
@@ -223,7 +161,7 @@ export const SearchInFilesChip = ({
                       ) : toolName ? (
                         <p className="font-medium text-sm">{toolName}</p>
                       ) : (
-                        <JsonBlock value={match} />
+                        <JsonBlock value={match.raw} />
                       )}
                     </div>
                   );

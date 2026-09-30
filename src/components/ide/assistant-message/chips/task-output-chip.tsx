@@ -12,14 +12,17 @@ import {
 } from "@/components/ai-elements/code-block";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { cn } from "@/lib/utils";
-import type { ToolLikePart } from "../../assistant-message-tools";
+import {
+  describeTaskOutput,
+  getToolCallSource,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import { stringifyPart } from "../../ide-state";
 import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   ChipContent,
-  getStringFromPaths,
   isRecord,
   isString,
   RUN_COMMAND_HEADER_CLASSES,
@@ -37,14 +40,10 @@ export const TaskOutputChip = ({
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
-  const taskId =
-    getStringFromPaths(part.input, [["task_id"], ["taskId"], ["id"]]) ??
-    getStringFromPaths(part.output, [["task_id"], ["taskId"], ["id"]]);
+  const { outputText, taskId } = describeTaskOutput(getToolCallSource(part));
   const parametersCode = isRecord(part.input)
     ? JSON.stringify(part.input, null, 2)
     : null;
-  const outputText =
-    isString(part.output) && part.output.length > 0 ? part.output : null;
   const hasRawOutput = part.output !== undefined;
   const resultCode = hasError
     ? (part.errorText ?? "")

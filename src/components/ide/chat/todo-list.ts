@@ -1,5 +1,5 @@
 import type { UIMessage } from "ai";
-import { getToolName, isToolLikePart } from "../assistant-message-tools";
+import { getToolKind } from "../assistant-message-tools";
 
 export type ChatTodoStatus = "pending" | "inProgress" | "completed";
 
@@ -213,51 +213,16 @@ export const normalizeChatTodos = (value: unknown): ChatTodoItem[] | null => {
   });
 };
 
-const normalizeToolName = (name: string) =>
-  name
-    .split(/[.:/]+/)
-    .pop()
-    ?.replace(/[\s_-]+/g, "")
-    .toLowerCase() ?? "";
+export const isTaskCreateToolPart = (part: UIMessage["parts"][number]) =>
+  getToolKind(part) === "taskCreate";
 
-export const isTaskCreateToolPart = (part: UIMessage["parts"][number]) => {
-  if (!isToolLikePart(part)) {
-    return false;
-  }
+export const isTaskUpdateToolPart = (part: UIMessage["parts"][number]) =>
+  getToolKind(part) === "taskUpdate";
 
-  const toolName = normalizeToolName(getToolName(part));
-  return toolName === "taskcreate" || toolName === "createtask";
-};
+const TODO_TOOL_KINDS = new Set(["taskCreate", "taskUpdate", "todo"]);
 
-export const isTaskUpdateToolPart = (part: UIMessage["parts"][number]) => {
-  if (!isToolLikePart(part)) {
-    return false;
-  }
-
-  const toolName = normalizeToolName(getToolName(part));
-  return toolName === "taskupdate" || toolName === "updatetask";
-};
-
-export const isTodoToolPart = (part: UIMessage["parts"][number]) => {
-  if (!isToolLikePart(part)) {
-    return false;
-  }
-
-  const toolName = normalizeToolName(getToolName(part));
-  return (
-    toolName === "todowrite" ||
-    toolName === "todo" ||
-    toolName === "todolist" ||
-    toolName === "todos" ||
-    toolName === "taskcreate" ||
-    toolName === "createtask" ||
-    toolName === "taskupdate" ||
-    toolName === "updatetask" ||
-    toolName === "updatetodo" ||
-    toolName === "updatetodos" ||
-    toolName === "updateplan"
-  );
-};
+export const isTodoToolPart = (part: UIMessage["parts"][number]) =>
+  TODO_TOOL_KINDS.has(getToolKind(part) ?? "");
 
 export const isTodoListPart = (part: UIMessage["parts"][number]) =>
   (typeof part.type === "string" && TODO_DATA_PART_TYPES.has(part.type)) ||

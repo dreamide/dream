@@ -18,9 +18,14 @@ import type {
   ProjectGitStatusEntry,
 } from "@/types/ide";
 import {
+  describeWrite,
   getChipToolKind,
+  getCommandOutputText,
+  getToolCallSource,
+  isToolLikePart,
   type MessagePart,
   type ToolLikePart,
+  type WriteToolCall,
 } from "../../assistant-message-tools";
 import { IdeDiffViewer } from "../../diff-viewer";
 import { normalizeProjectPathKey } from "../../ide-state";
@@ -35,13 +40,9 @@ import {
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   ChipContent,
-  formatWriteOutputMessage,
   getDiffStats,
-  getFilePathFromOutputText,
-  getStringFromPaths,
   getWriteFileStateLabel,
   inferLanguage,
-  isRecord,
   isString,
   JsonBlock,
   normalizeEmbeddedLineNumbers,
@@ -49,155 +50,18 @@ import {
   type ToolApprovalHandler,
 } from "../shared";
 
-const getEditDiffFromInput = (
-  input: unknown,
+const getEditDiff = (
+  edit: WriteToolCall["edit"],
   filePath: string | null,
-): string | null => {
-  if (!filePath) {
-    return null;
-  }
-
-  const oldString = getStringFromPaths(
-    input,
-    [["old_string"], ["oldString"], ["oldText"], ["old"]],
-    { allowEmpty: true },
-  );
-  const newString = getStringFromPaths(
-    input,
-    [["new_string"], ["newString"], ["newText"], ["new"]],
-    { allowEmpty: true },
-  );
-
-  if (oldString !== null && newString !== null) {
-    return buildWriteDiff({
-      content: newString,
-      filePath,
-      mode: null,
-      previousContent: oldString,
-    });
-  }
-
-  if (
-    input &&
-    typeof input === "object" &&
-    "edits" in input &&
-    Array.isArray(input.edits)
-  ) {
-    const previousContent = input.edits
-      .map((edit) =>
-        getStringFromPaths(edit, [["old_string"], ["oldString"]], {
-          allowEmpty: true,
-        }),
-      )
-      .filter(isString)
-      .join("\n");
-    const nextContent = input.edits
-      .map((edit) =>
-        getStringFromPaths(edit, [["new_string"], ["newString"]], {
-          allowEmpty: true,
-        }),
-      )
-      .filter(isString)
-      .join("\n");
-
-    if (previousContent || nextContent) {
-      return buildWriteDiff({
-        content: nextContent,
+): string | null =>
+  edit && filePath
+    ? buildWriteDiff({
+        content: edit.next,
         filePath,
         mode: null,
-        previousContent,
-      });
-    }
-  }
-
-  return null;
-};
-
-const getFirstChangeStringFromPaths = (
-  value: unknown,
-  paths: ReadonlyArray<readonly string[]>,
-  options?: { allowEmpty?: boolean },
-): string | null => {
-  if (!isRecord(value) || !Array.isArray(value.changes)) {
-    return null;
-  }
-
-  for (const change of value.changes) {
-    const value = getStringFromPaths(change, paths, options);
-
-    if (value !== null && (options?.allowEmpty || value.length > 0)) {
-      return value;
-    }
-  }
-
-  return null;
-};
-
-const getFirstChangePath = (value: unknown): string | null =>
-  getFirstChangeStringFromPaths(value, [
-    ["path"],
-    ["filePath"],
-    ["file_path"],
-    ["filename"],
-    ["name"],
-    ["title"],
-    ["file", "file"],
-    ["file", "path"],
-    ["file", "filePath"],
-    ["file", "filename"],
-    ["file", "name"],
-  ]);
-
-const getFirstChangeDiff = (value: unknown): string | null =>
-  getFirstChangeStringFromPaths(value, [
-    ["diff"],
-    ["patch"],
-    ["file", "diff"],
-    ["file", "patch"],
-  ]);
-
-const getFirstChangeContent = (value: unknown): string | null =>
-  getFirstChangeStringFromPaths(
-    value,
-    [
-      ["content"],
-      ["contents"],
-      ["text"],
-      ["newContent"],
-      ["new_content"],
-      ["newText"],
-      ["new_text"],
-      ["file", "content"],
-      ["file", "text"],
-      ["file", "newContent"],
-    ],
-    { allowEmpty: true },
-  );
-
-const getFirstChangePreviousContent = (value: unknown): string | null =>
-  getFirstChangeStringFromPaths(
-    value,
-    [
-      ["previousContent"],
-      ["previous_content"],
-      ["oldContent"],
-      ["old_content"],
-      ["oldText"],
-      ["old_text"],
-      ["file", "previousContent"],
-      ["file", "oldContent"],
-    ],
-    { allowEmpty: true },
-  );
-
-const getFirstChangeStatus = (value: unknown): string | null =>
-  getFirstChangeStringFromPaths(value, [
-    ["status"],
-    ["kind"],
-    ["type"],
-    ["file", "status"],
-    ["file", "kind"],
-  ]);
+        previousContent: edit.previous,
+      })
+    : null;
 
 const normalizePathForCompare = (value: string) =>
   value.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
@@ -301,23 +165,6 @@ const commandOutputContainsDiffForFile = (
   return null;
 };
 
-const getToolOutputText = (part: MessagePart): string | null => {
-  if (!isRecord(part)) {
-    return null;
-  }
-
-  const output = (part as ToolLikePart).output;
-  if (isString(output)) {
-    return output;
-  }
-
-  return getStringFromPaths(
-    output,
-    [["output"], ["text"], ["content"], ["stdout"]],
-    { allowEmpty: true },
-  );
-};
-
 const findSiblingCommandDiff = ({
   filePath,
   messageParts,
@@ -341,7 +188,9 @@ const findSiblingCommandDiff = ({
       continue;
     }
 
-    const outputText = getToolOutputText(part);
+    const outputText = isToolLikePart(part)
+      ? getCommandOutputText(getToolCallSource(part))
+      : null;
     if (!outputText) {
       continue;
     }
@@ -452,121 +301,24 @@ export const WriteFileChip = ({
   const hasError = isString(part.errorText) && part.errorText.length > 0;
   const isApprovalRequested = state === "approval-requested";
 
-  const filePath =
-    getStringFromPaths(part.input, [
-      ["filePath"],
-      ["path"],
-      ["file_path"],
-      ["filename"],
-      ["name"],
-      ["title"],
-      ["file", "file"],
-      ["file", "path"],
-      ["file", "filePath"],
-      ["file", "filename"],
-      ["file", "name"],
-    ]) ??
-    getStringFromPaths(output, [
-      ["filePath"],
-      ["path"],
-      ["file_path"],
-      ["filename"],
-      ["name"],
-      ["title"],
-      ["file"],
-      ["file", "file"],
-      ["file", "path"],
-      ["file", "filePath"],
-      ["file", "filename"],
-      ["file", "name"],
-    ]) ??
-    getFirstChangePath(part.input) ??
-    getFirstChangePath(output) ??
-    getFilePathFromOutputText(output);
+  const {
+    changeStatus,
+    content,
+    diff: savedDiff,
+    edit,
+    filename: namedFile,
+    mode,
+    outputMessage,
+    path: filePath,
+    previousContent,
+  } = describeWrite(getToolCallSource(part));
   const projectRelativeFilePath = getProjectRelativeFilePath(
     filePath,
     projectPath,
   );
-  const filename =
-    filePath?.split(/[\\/]/).pop() ??
-    getStringFromPaths(part.input, [
-      ["filename"],
-      ["name"],
-      ["title"],
-      ["file", "file"],
-      ["file", "name"],
-    ]) ??
-    getStringFromPaths(output, [
-      ["filename"],
-      ["name"],
-      ["title"],
-      ["file", "file"],
-      ["file", "name"],
-    ]) ??
-    "file";
+  const filename = namedFile ?? "file";
   const headerFilePath = projectRelativeFilePath ?? filePath ?? filename;
-  const content =
-    getStringFromPaths(
-      part.input,
-      [
-        ["content"],
-        ["contents"],
-        ["text"],
-        ["file", "content"],
-        ["file", "text"],
-      ],
-      { allowEmpty: true },
-    ) ??
-    getFirstChangeContent(part.input) ??
-    getFirstChangeContent(output) ??
-    getStringFromPaths(
-      output,
-      [
-        ["content"],
-        ["contents"],
-        ["text"],
-        ["file", "content"],
-        ["file", "text"],
-      ],
-      { allowEmpty: true },
-    );
-  const previousContent =
-    getStringFromPaths(
-      output,
-      [["previousContent"], ["previous_content"], ["file", "previousContent"]],
-      { allowEmpty: true },
-    ) ??
-    getFirstChangePreviousContent(output) ??
-    getFirstChangePreviousContent(part.input);
-  const savedDiffCandidate =
-    getStringFromPaths(
-      output,
-      [
-        ["diff"],
-        ["patch"],
-        ["changes", "diff"],
-        ["file", "diff"],
-        ["file", "patch"],
-      ],
-      { allowEmpty: true },
-    ) ??
-    getFirstChangeDiff(part.input) ??
-    getFirstChangeDiff(output);
-  const savedDiff =
-    savedDiffCandidate && savedDiffCandidate.trim().length > 0
-      ? savedDiffCandidate
-      : null;
-  const changeStatus =
-    getFirstChangeStatus(output) ?? getFirstChangeStatus(part.input);
-  const mode =
-    getStringFromPaths(part.input, [
-      ["mode"],
-      ["writeMode"],
-      ["file", "mode"],
-    ]) ??
-    getStringFromPaths(output, [["mode"], ["writeMode"], ["file", "mode"]]);
   const hasOutput = output !== undefined;
-  const outputMessage = formatWriteOutputMessage(output);
   const approvalId = part.approval?.id;
   const previewLanguage = inferLanguage(filePath ?? filename);
   const normalizedContent =
@@ -577,7 +329,7 @@ export const WriteFileChip = ({
     savedDiff ??
     (previousContent !== null && content !== null && filePath
       ? buildWriteDiff({ content, filePath, mode, previousContent })
-      : getEditDiffFromInput(part.input, filePath));
+      : getEditDiff(edit, filePath));
   const siblingCommandDiffCode = useMemo(
     () =>
       findSiblingCommandDiff({

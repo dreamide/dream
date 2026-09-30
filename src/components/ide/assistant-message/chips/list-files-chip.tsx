@@ -2,7 +2,11 @@ import { FolderIcon, SearchIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { ToolLikePart } from "../../assistant-message-tools";
+import {
+  describeList,
+  getToolCallSource,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import {
   buildFileTree,
   CHIP_ERROR_SUBTEXT_CLASSES,
@@ -11,7 +15,6 @@ import {
   ChipContent,
   FileTree,
   FileTreeNodeView,
-  isRecord,
   isString,
   JsonBlock,
 } from "../shared";
@@ -33,41 +36,12 @@ export const ListFilesChip = ({
     part.state === "input-available" || part.state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
 
-  const { files, count } = useMemo(() => {
-    if (!isRecord(output)) {
-      return { files: null, count: 0 };
-    }
-    const candidates = [
-      output.files,
-      output.matches,
-      output.paths,
-      output.results,
-    ].find(Array.isArray);
-
-    if (!Array.isArray(candidates)) {
-      return { files: null, count: 0 };
-    }
-
-    const filtered = candidates
-      .map((item) => {
-        if (isString(item)) {
-          return item;
-        }
-        if (isRecord(item) && isString(item.path)) {
-          return item.path;
-        }
-        if (isRecord(item) && isString(item.file)) {
-          return item.file;
-        }
-        return null;
-      })
-      .filter((item): item is string => item !== null);
-
-    return {
-      files: filtered,
-      count: typeof output.count === "number" ? output.count : filtered.length,
-    };
-  }, [output]);
+  const {
+    count,
+    directory: rawDirectory,
+    files,
+    pattern,
+  } = useMemo(() => describeList(getToolCallSource(part)), [part]);
 
   const { root, defaultExpandedFolders } = useMemo(() => {
     if (!files) {
@@ -80,16 +54,6 @@ export const ListFilesChip = ({
   const hasOutput = files !== null && root !== null;
   const hasRawOutput = output !== undefined;
   const canExpand = hasError || hasRawOutput;
-  const rawDirectory =
-    isRecord(part.input) && isString(part.input.directory)
-      ? part.input.directory
-      : isRecord(part.input) && isString(part.input.path)
-        ? part.input.path
-        : null;
-  const pattern =
-    isRecord(part.input) && isString(part.input.pattern)
-      ? part.input.pattern
-      : null;
   const directory =
     rawDirectory === "." && projectPath ? projectPath : rawDirectory;
   const filesLabel = commonT("files");

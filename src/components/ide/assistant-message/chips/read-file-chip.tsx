@@ -12,7 +12,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ToolLikePart } from "../../assistant-message-tools";
+import {
+  describeRead,
+  getToolCallSource,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import { normalizeProjectPathKey } from "../../ide-state";
 import { useIdeStore } from "../../ide-store";
 import { MaterialFileIcon } from "../../material-file-icon";
@@ -22,8 +26,6 @@ import {
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   ChipContent,
-  getNumberFromPaths,
-  getStringFromPaths,
   inferLanguage,
   isString,
   JsonBlock,
@@ -47,53 +49,14 @@ export const ReadFileChip = ({
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
-  const filePath =
-    getStringFromPaths(part.input, [
-      ["filePath"],
-      ["path"],
-      ["file_path"],
-      ["file", "path"],
-      ["file", "filePath"],
-    ]) ??
-    getStringFromPaths(output, [
-      ["filePath"],
-      ["path"],
-      ["file_path"],
-      ["file"],
-      ["file", "path"],
-      ["file", "filePath"],
-    ]);
-  const content =
-    getStringFromPaths(
-      output,
-      [
-        [],
-        ["content"],
-        ["text"],
-        ["contents"],
-        ["file", "content"],
-        ["file", "text"],
-      ],
-      { allowEmpty: true },
-    ) ??
-    getStringFromPaths(part.input, [["content"], ["text"]], {
-      allowEmpty: true,
-    });
-  const start =
-    getNumberFromPaths(output, [["startLine"], ["start_line"]]) ??
-    getNumberFromPaths(part.input, [["startLine"], ["start_line"]]);
-  const end =
-    getNumberFromPaths(output, [["endLine"], ["end_line"]]) ??
-    getNumberFromPaths(part.input, [["endLine"], ["end_line"]]);
-  const filename =
-    filePath?.split(/[\\/]/).pop() ??
-    getStringFromPaths(part.input, [
-      ["filename"],
-      ["name"],
-      ["file", "name"],
-    ]) ??
-    getStringFromPaths(output, [["filename"], ["name"], ["file", "name"]]) ??
-    "file";
+  const {
+    content,
+    endLine: end,
+    filename: namedFile,
+    path: filePath,
+    startLine: start,
+  } = describeRead(getToolCallSource(part));
+  const filename = namedFile ?? "file";
   const headerFilePath = filePath ?? filename;
   const normalizedContent =
     content !== null ? normalizeEmbeddedLineNumbers(content, start) : null;

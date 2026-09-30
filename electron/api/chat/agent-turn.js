@@ -10,6 +10,7 @@
 //   turn.text(delta, id?) / turn.reasoning(delta, id?)   streamed prose
 //   turn.endText(id, type?) / turn.closeText()           part boundaries
 //   turn.toolStart / turn.toolOutput / turn.toolError    provider-run tools
+//                                   (each stamped with its kind, see below)
 //   turn.approval(...)                                   ask the user
 //   turn.todos(payload) / turn.todosFromTool(item)       plan updates
 //   turn.compaction(id, state)                           context compaction
@@ -18,9 +19,16 @@
 //
 // Everything is idempotent where a provider is likely to repeat itself: a
 // tool started twice is written once, a completed tool stays completed.
+//
+// Every tool part says what it is: the writer stamps `toolMetadata.kind`
+// (see electron/shared/tool-call.js) on each tool it writes, from the kind
+// the adapter passes when it knows one natively, or else from the tool's
+// name. Tools in a merged AI SDK stream (Claude's) are stamped the same way,
+// so the transcript classifies a tool once, here, whatever produced it.
 
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { formatApprovalId } from "../../shared/agent-turn-contract.js";
+import { getToolKindForName, isToolKind } from "../../shared/tool-call.js";
 import { waitForToolApproval } from "../tool-approvals.js";
 import { formatStreamError } from "./errors.js";
 
@@ -111,25 +119,44 @@ const getArrayFromPayload = (payload, depth = 0) => {
   return null;
 };
 
-const normalizeToolNameForMatch = (toolName) =>
-  String(toolName ?? "")
-    .split(/[.:/]+/)
-    .pop()
-    .replace(/[\s_-]+/g, "")
-    .toLowerCase();
+export const isTodoToolName = (toolName) =>
+  getToolKindForName(toolName) === "todo";
 
-const TODO_TOOL_NAMES = new Set([
-  "todo",
-  "todolist",
-  "todos",
-  "todowrite",
-  "updateplan",
-  "updatetodo",
-  "updatetodos",
+/**
+ * The metadata a tool part is stamped with: its kind (see tool-call.js),
+ * or none for a tool Dream renders generically.
+ */
+const getToolMetadata = (toolName, kind) => {
+  const resolved = isToolKind(kind) ? kind : getToolKindForName(toolName);
+  return resolved ? { kind: resolved } : undefined;
+};
+
+const STAMPED_TOOL_CHUNK_TYPES = new Set([
+  "tool-input-start",
+  "tool-input-available",
+  "tool-input-error",
 ]);
 
-export const isTodoToolName = (toolName) =>
-  TODO_TOOL_NAMES.has(normalizeToolNameForMatch(toolName));
+/** Stamps the tool chunks of a merged stream with their kind. */
+const stampToolKinds = () =>
+  new TransformStream({
+    transform(chunk, controller) {
+      if (
+        STAMPED_TOOL_CHUNK_TYPES.has(chunk?.type) &&
+        !isToolKind(chunk.toolMetadata?.kind)
+      ) {
+        const toolMetadata = getToolMetadata(chunk.toolName);
+        if (toolMetadata) {
+          controller.enqueue({
+            ...chunk,
+            toolMetadata: { ...chunk.toolMetadata, ...toolMetadata },
+          });
+          return;
+        }
+      }
+      controller.enqueue(chunk);
+    },
+  });
 
 // ── The turn ──────────────────────────────────────────────────────────
 
@@ -298,18 +325,20 @@ export const createAgentTurn = ({
     write({ messageMetadata: buildMetadata(extra), type: "message-metadata" });
   };
 
-  const toolStart = ({ input = {}, title, toolCallId, toolName }) => {
+  const toolStart = ({ input = {}, kind, title, toolCallId, toolName }) => {
     if (!toolCallId || startedTools.has(toolCallId)) {
       return false;
     }
     closeAutoParts();
     startedTools.add(toolCallId);
+    const toolMetadata = getToolMetadata(toolName, kind);
     const base = {
       dynamic: true,
       providerExecuted: true,
       title: title || toolName,
       toolCallId,
       toolName,
+      ...(toolMetadata ? { toolMetadata } : {}),
     };
     write({ ...base, type: "tool-input-start" });
     write({ ...base, input, type: "tool-input-available" });
@@ -384,13 +413,14 @@ export const createAgentTurn = ({
      */
     approval: async ({
       input = {},
+      kind,
       request,
       signal,
       title,
       toolCallId,
       toolName,
     }) => {
-      toolStart({ input, title, toolCallId, toolName });
+      toolStart({ input, kind, title, toolCallId, toolName });
       const approvalId = formatApprovalId(provider, toolCallId);
       write({ approvalId, toolCallId, type: "tool-approval-request" });
       return waitForToolApproval({
@@ -463,7 +493,7 @@ export const createAgentTurn = ({
       });
     },
 
-    merge: (stream) => writer.merge(stream),
+    merge: (stream) => writer.merge(stream.pipeThrough(stampToolKinds())),
   };
 };
 

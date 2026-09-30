@@ -105,7 +105,23 @@ translation.
 The two things in a turn's stream that are Dream's own rather than the AI
 SDK's, agreed by both sides in `electron/shared/agent-turn-contract.js`:
 the **approval id** (`<provider>:<toolCallId>`) a tool-approval request
-carries, and the `ChatMessageMetadata` stamped on the response message.
+carries, the `ChatMessageMetadata` stamped on the response message, and the
+**tool kind** stamped on each tool part.
+
+## Tool kind
+
+What a tool call is, whichever agent made it and whatever it named the
+tool: `read`, `write`, `command`, `search`, `list`, `webFetch`, `agent`,
+`taskOutput`, `toolSearch`, `mcp` (these render as **tool chips**), and
+`question`, `planMode`, `todo`, `taskCreate`, `taskUpdate` (rendered by the
+generic tool call, the question prompt and the todo list). The agent-turn
+writer stamps it on every tool part as `toolMetadata.kind`, from the kind an
+adapter passes or else from the tool's name; a part saved before kinds were
+stamped is classified by name when read. `electron/shared/tool-call.js`
+holds the vocabulary, every known tool-name spelling, and the `describe*`
+readers that turn a tool's raw input and output into the typed fields its
+chip shows (a **tool call** descriptor). A new tool spelling, or a new input
+or output shape, is a change to that file alone.
 
 ## Provider
 

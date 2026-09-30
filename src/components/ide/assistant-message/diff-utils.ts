@@ -1,5 +1,4 @@
 import { parsePatchFiles } from "@pierre/diffs";
-import { isRecord, isString } from "./value-utils";
 
 export const buildLineDiff = (previousContent: string, nextContent: string) => {
   const previousLines = previousContent.replace(/\r\n/g, "\n").split("\n");
@@ -144,52 +143,4 @@ export const getWriteFileStateLabel = (
   }
 
   return null;
-};
-
-export const getFilePathFromOutputText = (output: unknown) => {
-  if (!isString(output)) {
-    return null;
-  }
-
-  const match = output.match(
-    /(?:^|\b)(?:the\s+)?file\s+(.+?)\s+(?:has\s+been|was)\s+(?:updated|written|created)\b/i,
-  );
-  const rawPath = match?.[1]?.trim();
-  if (!rawPath) {
-    return null;
-  }
-
-  return rawPath.replace(/^['"`]+|['"`.]+$/g, "");
-};
-
-export const formatWriteOutputMessage = (output: unknown) => {
-  const message = isString(output)
-    ? output
-    : isRecord(output) && isString(output.message)
-      ? output.message
-      : null;
-
-  if (!message) {
-    return null;
-  }
-
-  return message
-    .trim()
-    .replace(/^['"`]+|['"`]+$/g, "")
-    .replace(/\\/g, "/");
-};
-
-export const getAgentOutputText = (output: unknown): string | null => {
-  if (!isString(output) || output.length === 0) {
-    return null;
-  }
-
-  const withoutUsage = output.replace(/\n*<usage>[\s\S]*?<\/usage>\s*$/i, "");
-  const withoutAgentId = withoutUsage.replace(
-    /\n*agentId:[^\n]*(?:\n|$)/i,
-    "\n",
-  );
-  const trimmed = withoutAgentId.trim();
-
-  return trimmed.length > 0 ? trimmed : null;
 };

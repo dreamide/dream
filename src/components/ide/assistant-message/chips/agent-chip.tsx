@@ -5,15 +5,17 @@ import { CodeBlock } from "@/components/ai-elements/code-block";
 import { MessageResponse } from "@/components/ai-elements/message";
 import type { ToolPart } from "@/components/ai-elements/tool";
 import { cn } from "@/lib/utils";
-import type { ToolLikePart } from "../../assistant-message-tools";
+import {
+  describeAgent,
+  getToolCallSource,
+  type ToolLikePart,
+} from "../../assistant-message-tools";
 import {
   CHIP_ERROR_SUBTEXT_CLASSES,
   CHIP_SUBTEXT_CLASSES,
   ChipButton,
   ChipContent,
   formatToolName,
-  getAgentOutputText,
-  getStringFromPaths,
   isRecord,
   isString,
   JsonBlock,
@@ -31,25 +33,18 @@ export const AgentChip = ({
   const state = (part.state ?? "input-streaming") as ToolPart["state"];
   const isRunning = state === "input-available" || state === "input-streaming";
   const hasError = isString(part.errorText) && part.errorText.length > 0;
-  const outputText = getAgentOutputText(part.output);
+  const {
+    agentType: subagentType,
+    description: givenDescription,
+    outputText,
+  } = describeAgent(getToolCallSource(part));
   const hasRawOutput = part.output !== undefined;
   const hasInput = isRecord(part.input);
   const canExpand = hasError || hasRawOutput || hasInput;
-  const description =
-    getStringFromPaths(part.input, [["description"]]) ?? assistantT("agent");
+  const description = givenDescription ?? assistantT("agent");
   const isGenericAgent = description === assistantT("agent");
   const displayDescription =
     isGenericAgent && isRunning ? assistantT("runningAgent") : description;
-  const subagentType = getStringFromPaths(part.input, [
-    ["nickname"],
-    ["agentNickname"],
-    ["role"],
-    ["agentRole"],
-    ["subagent_type"],
-    ["subagentType"],
-    ["type"],
-  ]);
-
   useEffect(() => {
     if (defaultExpanded) {
       setExpanded(true);

@@ -1,4 +1,41 @@
+// Reading tool parts. What a tool call is, and what its raw input and
+// output mean, is decided in electron/shared/tool-call.js; this file only
+// adapts a message part to it.
 import type { UIMessage } from "ai";
+import {
+  type ChipToolKind,
+  getToolKindForName,
+  isChipToolKind,
+  isDirectWebToolSearch,
+  isRecord,
+  isToolKind,
+  type ToolCallSource,
+  type ToolKind,
+} from "../../../electron/shared/tool-call.js";
+
+export {
+  type AgentToolCall,
+  type ChipToolKind,
+  type CommandToolCall,
+  describeAgent,
+  describeCommand,
+  describeList,
+  describeMcp,
+  describeRead,
+  describeSearch,
+  describeTaskOutput,
+  describeWebFetch,
+  describeWrite,
+  getCommandOutputText,
+  type ListToolCall,
+  parseMcpToolName,
+  type ReadToolCall,
+  type SearchMatch,
+  type SearchToolCall,
+  type ToolKind,
+  type WebFetchToolCall,
+  type WriteToolCall,
+} from "../../../electron/shared/tool-call.js";
 
 export type MessagePart = UIMessage["parts"][number];
 
@@ -9,218 +46,62 @@ export type ToolLikePart = MessagePart & {
   output?: unknown;
   state?: string;
   toolCallId?: string;
+  toolMetadata?: unknown;
   toolName?: string;
 };
-
-const isString = (value: unknown): value is string => typeof value === "string";
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const isToolLikePart = (part: MessagePart): part is ToolLikePart =>
   typeof part.type === "string" &&
   (part.type.startsWith("tool-") || part.type === "dynamic-tool");
 
 export const getToolName = (part: ToolLikePart): string => {
-  if (part.type === "dynamic-tool" && isString(part.toolName)) {
+  if (part.type === "dynamic-tool" && typeof part.toolName === "string") {
     return part.toolName;
   }
 
   return part.type.startsWith("tool-") ? part.type.slice(5) : part.type;
 };
 
-export const normalizeToolName = (name: string): string =>
-  name
-    .replace(/([a-z])([A-Z])/g, "$1-$2")
-    .replace(/[\s_]+/g, "-")
-    .toLowerCase();
+/** A tool part as the `describe*` readers take it. */
+export const getToolCallSource = (part: ToolLikePart): ToolCallSource => ({
+  input: part.input,
+  output: part.output,
+  toolName: getToolName(part),
+});
 
-const MCP_TOOL_NAME_PATTERN = /^mcp__(.+?)__(.+)$/;
-
-export type McpToolInfo = {
-  command: string;
-  server: string;
-};
-
-export const parseMcpToolName = (name: string): McpToolInfo | null => {
-  const match = MCP_TOOL_NAME_PATTERN.exec(name);
-
-  if (!match) {
-    return null;
-  }
-
-  return {
-    command: match[2],
-    server: match[1],
-  };
-};
-
-export const CHIP_TOOL_NAME_ALIASES = {
-  agent: new Set([
-    "agent",
-    "collab-agent-tool-call",
-    "collaboration-spawn-agent",
-    "spawn-agent",
-    "spawnagent",
-    "task",
-  ]),
-  command: new Set([
-    "run-command",
-    "runcommand",
-    "command",
-    "exec-command",
-    "bash",
-    "power-shell",
-    "powershell",
-    "shell-command",
-  ]),
-  list: new Set(["list-files"]),
-  read: new Set(["read", "read-file"]),
-  search: new Set(["glob", "grep", "search", "search-in-files"]),
-  taskOutput: new Set(["task-output", "taskoutput", "task-result"]),
-  toolSearch: new Set(["tool-search"]),
-  webFetch: new Set([
-    "fetch",
-    "web-fetch",
-    "webfetch",
-    "web-search",
-    "websearch",
-  ]),
-  write: new Set([
-    "apply-patch",
-    "applypatch",
-    "edit",
-    "file-change",
-    "filechange",
-    "multi-edit",
-    "multiedit",
-    "notebook-edit",
-    "notebookedit",
-    "patch",
-    "write",
-    "write-file",
-    "writefile",
-  ]),
-} as const;
-
-export type ChipToolKind = keyof typeof CHIP_TOOL_NAME_ALIASES | "mcp";
-
-export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
+/**
+ * What a tool part is: the kind the turn writer stamped on it, or, for a
+ * part saved before kinds were stamped, the kind its name implies.
+ */
+export const getToolKind = (part: MessagePart): ToolKind | null => {
   if (!isToolLikePart(part)) {
     return null;
   }
 
-  if (parseMcpToolName(getToolName(part))) {
-    return "mcp";
-  }
+  const stamped = isRecord(part.toolMetadata)
+    ? part.toolMetadata.kind
+    : undefined;
+  return isToolKind(stamped) ? stamped : getToolKindForName(getToolName(part));
+};
 
-  const toolName = normalizeToolName(getToolName(part));
-
-  if (CHIP_TOOL_NAME_ALIASES.command.has(toolName)) {
-    return "command";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.agent.has(toolName)) {
-    return "agent";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.read.has(toolName)) {
-    return "read";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.search.has(toolName)) {
-    return "search";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.taskOutput.has(toolName)) {
-    return "taskOutput";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.toolSearch.has(toolName)) {
-    return "toolSearch";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.webFetch.has(toolName)) {
-    return "webFetch";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.list.has(toolName)) {
-    return "list";
-  }
-  if (CHIP_TOOL_NAME_ALIASES.write.has(toolName)) {
-    return "write";
-  }
-
-  return null;
+/** The chip a tool part renders as, or null for a generic tool call. */
+export const getChipToolKind = (part: MessagePart): ChipToolKind | null => {
+  const kind = getToolKind(part);
+  return isChipToolKind(kind) ? kind : null;
 };
 
 export const isChipToolPart = (part: MessagePart): boolean =>
   getChipToolKind(part) !== null;
 
-const REDUNDANT_DIRECT_WEB_TOOL_NAMES = new Set(["web-fetch", "web-search"]);
-
-const getToolSearchQuery = (input: unknown) => {
-  if (isString(input)) {
-    return input;
-  }
-
-  if (!isRecord(input)) {
-    return null;
-  }
-
-  const value =
-    input.query ??
-    input.pattern ??
-    input.tool ??
-    input.toolName ??
-    input.tool_name ??
-    input.name;
-
-  return isString(value) ? value : null;
-};
-
-const getToolSearchReferences = (output: unknown) => {
-  const rawMatches =
-    isRecord(output) && Array.isArray(output.matches)
-      ? output.matches
-      : isRecord(output) && Array.isArray(output.results)
-        ? output.results
-        : isRecord(output) && Array.isArray(output.files)
-          ? output.files
-          : Array.isArray(output)
-            ? output
-            : [];
-
-  return rawMatches
-    .map((match) => {
-      if (isString(match)) {
-        return match;
-      }
-
-      if (!isRecord(match)) {
-        return null;
-      }
-
-      const value = match.tool_name ?? match.toolName ?? match.name;
-      return isString(value) ? value : null;
-    })
-    .filter((toolName): toolName is string => toolName !== null);
-};
-
-const isDirectWebToolName = (toolName: string) =>
-  REDUNDANT_DIRECT_WEB_TOOL_NAMES.has(normalizeToolName(toolName));
-
+/**
+ * A tool search that only looked up the direct web tools. The web tool's
+ * own chip follows it, so the search is not shown.
+ */
 export const isRedundantDirectWebToolSearchPart = (
   part: MessagePart,
-): part is ToolLikePart => {
-  if (!isToolLikePart(part) || getChipToolKind(part) !== "toolSearch") {
-    return false;
-  }
-
-  if (part.state === "output-error" || part.errorText) {
-    return false;
-  }
-
-  const query = getToolSearchQuery(part.input);
-  if (query && isDirectWebToolName(query)) {
-    return true;
-  }
-
-  const references = getToolSearchReferences(part.output);
-  return (
-    references.length > 0 &&
-    references.every((name) => isDirectWebToolName(name))
-  );
-};
+): part is ToolLikePart =>
+  isToolLikePart(part) &&
+  getToolKind(part) === "toolSearch" &&
+  part.state !== "output-error" &&
+  !part.errorText &&
+  isDirectWebToolSearch(getToolCallSource(part));

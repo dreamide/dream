@@ -25,11 +25,11 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatApprovalId } from "../../../../electron/shared/agent-turn-contract.js";
 import {
+  getToolKind,
   getToolName,
   isRedundantDirectWebToolSearchPart,
   isToolLikePart,
   type MessagePart,
-  normalizeToolName,
   type ToolLikePart,
 } from "../assistant-message-tools";
 import { isTodoListPart } from "../chat/todo-list";
@@ -457,11 +457,9 @@ const GenericToolChip = ({
   const uiT = useTranslations("ui");
   const [expanded, setExpanded] = useState(false);
   const toolName = getToolName(part);
-  const normalizedToolName = normalizeToolName(toolName);
-  const isPlanModeTool =
-    normalizedToolName === "enter-plan-mode" ||
-    normalizedToolName === "exit-plan-mode";
-  const isAskUserQuestion = normalizedToolName === "ask-user-question";
+  const toolKind = getToolKind(part);
+  const isPlanModeTool = toolKind === "planMode";
+  const isAskUserQuestion = toolKind === "question";
   const ToolIcon = isAskUserQuestion
     ? CircleQuestionMarkIcon
     : isPlanModeTool

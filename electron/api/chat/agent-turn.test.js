@@ -145,13 +145,115 @@ test("a tool starts once, completes once, and ends the prose it interrupts", () 
       providerExecuted: true,
       title: "Command",
       toolCallId: "call-1",
+      toolMetadata: { kind: "command" },
       toolName: "runCommand",
       type: "tool-input-available",
     });
+    assert.deepEqual(chunks[3].toolMetadata, { kind: "command" });
     assert.equal(turn.toolStart({ toolCallId: "", toolName: "x" }), false);
   } finally {
     vi.useRealTimers();
   }
+});
+
+test("a tool is stamped with the kind its adapter passes, else its name's", () => {
+  const { chunks, turn } = collect();
+  turn.toolStart({ kind: "write", toolCallId: "a", toolName: "patchFiles" });
+  turn.toolStart({ toolCallId: "b", toolName: "Read" });
+  turn.toolStart({ kind: "nonsense", toolCallId: "c", toolName: "Grep" });
+  turn.toolStart({ toolCallId: "d", toolName: "mcp__github__list_issues" });
+  turn.toolStart({ toolCallId: "e", toolName: "somethingElse" });
+
+  const kinds = Object.fromEntries(
+    chunks
+      .filter((chunk) => chunk.type === "tool-input-available")
+      .map((chunk) => [chunk.toolCallId, chunk.toolMetadata?.kind ?? null]),
+  );
+  assert.deepEqual(kinds, {
+    a: "write",
+    b: "read",
+    c: "search",
+    d: "mcp",
+    e: null,
+  });
+  assert.equal(
+    "toolMetadata" in chunks.find((chunk) => chunk.toolCallId === "e"),
+    false,
+    "a tool of no known kind carries no metadata",
+  );
+});
+
+test("tools in a merged stream are stamped with their kind", async () => {
+  const merged = [];
+  const turn = createAgentTurn({
+    provider: "anthropic",
+    writer: {
+      merge: (stream) => merged.push(stream),
+      write: () => {},
+    },
+  });
+  turn.merge(
+    new ReadableStream({
+      start(controller) {
+        for (const chunk of [
+          { id: "t", type: "text-start" },
+          { toolCallId: "1", toolName: "Bash", type: "tool-input-start" },
+          {
+            input: { command: "ls" },
+            toolCallId: "1",
+            toolName: "Bash",
+            type: "tool-input-available",
+          },
+          {
+            toolCallId: "2",
+            toolMetadata: { kind: "read", source: "sdk" },
+            toolName: "Bash",
+            type: "tool-input-start",
+          },
+          { toolCallId: "3", toolName: "Unknown", type: "tool-input-start" },
+          { output: "ok", toolCallId: "1", type: "tool-output-available" },
+        ]) {
+          controller.enqueue(chunk);
+        }
+        controller.close();
+      },
+    }),
+  );
+
+  const chunks = [];
+  for await (const chunk of merged[0]) {
+    chunks.push(chunk);
+  }
+  assert.deepEqual(
+    chunks.map((chunk) => chunk.toolMetadata ?? null),
+    [
+      null,
+      { kind: "command" },
+      { kind: "command" },
+      { kind: "read", source: "sdk" },
+      null,
+      null,
+    ],
+  );
+});
+
+test("an approval stamps the tool it shows", async () => {
+  const { chunks, turn } = collect();
+  const controller = new AbortController();
+  const pending = turn
+    .approval({
+      kind: "question",
+      signal: controller.signal,
+      toolCallId: "q",
+      toolName: "ask-user-question",
+    })
+    .catch(() => {});
+  assert.deepEqual(
+    chunks.find((chunk) => chunk.type === "tool-input-available").toolMetadata,
+    { kind: "question" },
+  );
+  controller.abort();
+  await pending;
 });
 
 test("a failed tool reports its error text with a label fallback", () => {

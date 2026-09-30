@@ -1,10 +1,6 @@
 import type { UIMessage } from "ai";
 import type { ChatConfig } from "@/types/ide";
-import {
-  getToolName,
-  isToolLikePart,
-  normalizeToolName,
-} from "../assistant-message-tools";
+import { getToolKind, isToolLikePart } from "../assistant-message-tools";
 
 const COMPLETED_ASK_USER_QUESTION_STATES = new Set([
   "approval-responded",
@@ -52,7 +48,7 @@ const getAskUserQuestionAwaitingState = (
 ): boolean | null => {
   if (
     !isToolLikePart(part) ||
-    normalizeToolName(getToolName(part)) !== "ask-user-question" ||
+    getToolKind(part) !== "question" ||
     !hasAskUserQuestionPrompt(part.input)
   ) {
     return null;

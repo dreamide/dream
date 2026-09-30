@@ -3,8 +3,8 @@ import type { UIMessage } from "ai";
 import { test } from "vitest";
 import {
   getChipToolKind,
+  getToolKind,
   isRedundantDirectWebToolSearchPart,
-  normalizeToolName,
   parseMcpToolName,
 } from "@/components/ide/assistant-message-tools";
 
@@ -21,11 +21,40 @@ const createToolPart = (
     ...overrides,
   }) as MessagePart;
 
-test("normalizeToolName converts camel case, underscores, and spaces to kebab case", () => {
-  assert.equal(normalizeToolName("WebSearch"), "web-search");
-  assert.equal(normalizeToolName("run_command"), "run-command");
-  assert.equal(normalizeToolName("Notebook Edit"), "notebook-edit");
-  assert.equal(normalizeToolName("bash"), "bash");
+test("a tool part is the kind the stream stamped on it", () => {
+  const stamped = createToolPart("dynamic-tool", {
+    toolMetadata: { kind: "write" },
+    toolName: "runCommand",
+  });
+  assert.equal(getToolKind(stamped), "write");
+  assert.equal(getChipToolKind(stamped), "write");
+});
+
+test("a part saved before kinds were stamped is classified by its name", () => {
+  assert.equal(
+    getToolKind(createToolPart("dynamic-tool", { toolName: "runCommand" })),
+    "command",
+  );
+  // A stamp that is not a kind is ignored rather than trusted.
+  assert.equal(
+    getToolKind(
+      createToolPart("tool-Read", { toolMetadata: { kind: "teleport" } }),
+    ),
+    "read",
+  );
+});
+
+test("questions, plans and todos have kinds but render without a chip", () => {
+  for (const [type, kind] of [
+    ["tool-AskUserQuestion", "question"],
+    ["tool-ExitPlanMode", "planMode"],
+    ["tool-TodoWrite", "todo"],
+    ["tool-TaskCreate", "taskCreate"],
+  ] as const) {
+    const part = createToolPart(type);
+    assert.equal(getToolKind(part), kind, type);
+    assert.equal(getChipToolKind(part), null, type);
+  }
 });
 
 test("parseMcpToolName splits server and command from mcp tool names", () => {
