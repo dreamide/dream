@@ -35,9 +35,6 @@ export const STREAMING_TEXT_REVEAL_DURATION_MS = 220;
 export const STREAMING_TEXT_REVEAL_SETTLE_MS = 140;
 export const STREAMING_MAX_ANIMATED_TOKENS_PER_TICK = 8;
 export const STREAMING_FINISHED_MAX_ANIMATED_TOKENS_PER_TICK = 10;
-export const STREAMING_SMOOTH_REVEAL_BUFFER_MS = 240;
-export const STREAMING_SMOOTH_REVEAL_MAX_DELAY_MS = 260;
-export const STREAMING_SMOOTH_REVEAL_CHECK_INTERVAL_MS = 24;
 
 export const streamingTextAnimation = {
   animation: "searIn",
@@ -813,27 +810,6 @@ const getStreamingFrameInterval = (
   );
 };
 
-const getStreamingRevealBufferTokenCount = (
-  text: string,
-  maxTokenCount: number,
-) => {
-  let cursor = 0;
-  let tokenCount = 0;
-
-  while (cursor < text.length && tokenCount < maxTokenCount) {
-    const token = getNextStreamingRevealToken(text.slice(cursor), true);
-
-    if (token.blocked || !token.text) {
-      break;
-    }
-
-    cursor += token.text.length;
-    tokenCount += token.animatedTokenCount;
-  }
-
-  return tokenCount;
-};
-
 export const getNextStreamingFrame = (
   currentText: string,
   targetText: string,
@@ -920,57 +896,6 @@ export const getNextStreamingFrame = (
     nextText,
     animatedTokenCount,
   };
-};
-
-// While streaming, keep a small unread tail so the reveal loop does not catch
-// the network stream and pause between tiny provider chunks.
-export const getStreamingRevealDelayMs = ({
-  currentText,
-  isStreaming,
-  pendingElapsedMs,
-  targetText,
-}: {
-  currentText: string;
-  isStreaming: boolean;
-  pendingElapsedMs: number;
-  targetText: string;
-}) => {
-  if (
-    !isStreaming ||
-    currentText === targetText ||
-    !targetText.startsWith(currentText) ||
-    pendingElapsedMs >= STREAMING_SMOOTH_REVEAL_MAX_DELAY_MS
-  ) {
-    return 0;
-  }
-
-  const frame = getNextStreamingFrame(currentText, targetText, true);
-  if (frame.blocked || frame.nextText === currentText) {
-    return 0;
-  }
-
-  const bufferAfterNextFrame = targetText.slice(frame.nextText.length);
-  if (getBacklogPressure(bufferAfterNextFrame.length) > 0) {
-    return 0;
-  }
-
-  const targetBufferTokenCount = Math.max(
-    1,
-    Math.ceil(STREAMING_SMOOTH_REVEAL_BUFFER_MS / STREAMING_WORD_INTERVAL_MS),
-  );
-  const bufferedTokenCount = getStreamingRevealBufferTokenCount(
-    bufferAfterNextFrame,
-    targetBufferTokenCount,
-  );
-
-  if (bufferedTokenCount >= targetBufferTokenCount) {
-    return 0;
-  }
-
-  return Math.min(
-    STREAMING_SMOOTH_REVEAL_CHECK_INTERVAL_MS,
-    Math.max(0, STREAMING_SMOOTH_REVEAL_MAX_DELAY_MS - pendingElapsedMs),
-  );
 };
 
 export const StreamingMessageResponse = ({

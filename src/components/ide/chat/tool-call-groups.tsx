@@ -20,13 +20,6 @@ import { useState } from "react";
 import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 import {
-  CHIP_BUTTON_BASE_CLASSES,
-  CHIP_ENTER_ANIMATION_CLASS,
-  type ChipTone,
-  getChipToneClasses,
-  useChipAnimate,
-} from "../assistant-message/shared";
-import {
   AgentChip,
   ListFilesChip,
   McpToolChip,
@@ -36,7 +29,14 @@ import {
   TaskOutputChip,
   WebFetchChip,
   WriteFileChip,
-} from "../assistant-message-part";
+} from "../assistant-message";
+import {
+  CHIP_BUTTON_BASE_CLASSES,
+  CHIP_ENTER_ANIMATION_CLASS,
+  type ChipTone,
+  getChipToneClasses,
+  useChipAnimate,
+} from "../assistant-message/shared";
 import {
   type ChipToolKind,
   getChipToolKind,

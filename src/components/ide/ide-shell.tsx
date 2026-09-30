@@ -292,11 +292,11 @@ export const IdeShell = () => {
     if (!desktopApi) return;
 
     const removeTerminalData = desktopApi.onTerminalData((event) => {
-      const { projectId, generation, sequence } = event;
-      publishTerminalOutput(projectId, event.chunk, () => {
+      const { generation, sequence, sessionId } = event;
+      publishTerminalOutput(sessionId, event.chunk, () => {
         if (generation !== undefined && sequence !== undefined) {
           desktopApi.acknowledgeTerminalOutput({
-            projectId,
+            sessionId,
             generation,
             sequence,
           });
@@ -305,17 +305,17 @@ export const IdeShell = () => {
     });
 
     const removeTerminalStatus = desktopApi.onTerminalStatus((event) => {
-      if (!hasTerminalScrollback(event.projectId)) {
+      if (!hasTerminalScrollback(event.sessionId)) {
         return;
       }
-      setTerminalStatus(event.projectId, event.status);
+      setTerminalStatus(event.sessionId, event.status);
       if (event.transport) {
-        setTerminalTransport(event.projectId, event.transport);
+        setTerminalTransport(event.sessionId, event.transport);
       }
 
       const shell = typeof event.shell === "string" ? event.shell.trim() : "";
       if (shell) {
-        setTerminalShell(event.projectId, shell);
+        setTerminalShell(event.sessionId, shell);
       }
     });
 

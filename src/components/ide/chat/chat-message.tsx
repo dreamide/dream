@@ -8,8 +8,8 @@ import {
   SourcesContent,
   SourcesTrigger,
 } from "@/components/ai-elements/sources";
+import { AssistantMessagePart } from "../assistant-message";
 import { ChipAnimateProvider } from "../assistant-message/shared";
-import { AssistantMessagePart } from "../assistant-message-part";
 import {
   isChipToolPart,
   isRedundantDirectWebToolSearchPart,

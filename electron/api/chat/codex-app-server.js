@@ -4,7 +4,7 @@
 import {
   getProjectGitDiff,
   listProjectGitChanges,
-} from "../project-git-service.js";
+} from "../project-git/core.js";
 import { beginBrowserTurn } from "./active-browser-turns.js";
 import { streamAgentTurn } from "./agent-turn.js";
 import { getCodexAppServerClient } from "./codex-app-server-client.js";

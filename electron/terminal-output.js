@@ -7,7 +7,7 @@ const BATCH_DELAY_MS = 4;
 
 // Count UTF-16 code units consistently across the Electron bridge. Only an
 // acknowledgment of a known batch can release its outstanding budget.
-export function createTerminalOutput({ projectId, send, pause, resume }) {
+export function createTerminalOutput({ sessionId, send, pause, resume }) {
   const generation = randomUUID();
   const pending = new Map();
   let chunks = [];
@@ -31,7 +31,7 @@ export function createTerminalOutput({ projectId, send, pause, resume }) {
     queued = 0;
     const batch = ++sequence;
     pending.set(batch, { length: chunk.length, sentAt: performance.now() });
-    send("terminal:data", { projectId, generation, sequence: batch, chunk });
+    send("terminal:data", { sessionId, generation, sequence: batch, chunk });
   }
 
   function write(chunk) {
@@ -87,7 +87,7 @@ export function createTerminalOutput({ projectId, send, pause, resume }) {
     flush,
     write,
     getDiagnostics: () => ({
-      projectId,
+      sessionId,
       outstanding,
       queued,
       pendingBatches: pending.size,

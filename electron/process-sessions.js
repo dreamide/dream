@@ -2,7 +2,7 @@ import { spawn as spawnProcess } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { app } from "electron";
 import { spawn as spawnPty } from "node-pty";
-import { stopChildProcess, stopProcessTree } from "./process-tree.js";
+import { stopProcessTree } from "./process-tree.js";
 import { createTerminalOutput } from "./terminal-output.js";
 import { getDefaultTerminalShellPath } from "./terminal-shells.js";
 
@@ -163,30 +163,29 @@ function getPipeFallbackShell() {
 }
 
 export function createProcessSessionManager({ sendToRenderer }) {
-  const runProcesses = new Map();
   const terminalSessions = new Map();
   const terminalTransports = new Map();
   const terminalShells = new Map();
   const terminalOutputs = new Map();
   const terminalStartupTimers = new Map();
 
-  function clearTerminalStartupTimer(projectId) {
-    clearTimeout(terminalStartupTimers.get(projectId));
-    terminalStartupTimers.delete(projectId);
+  function clearTerminalStartupTimer(sessionId) {
+    clearTimeout(terminalStartupTimers.get(sessionId));
+    terminalStartupTimers.delete(sessionId);
   }
 
-  function writeTerminalStartupCommands(projectId, commands, delayMs = 80) {
+  function writeTerminalStartupCommands(sessionId, commands, delayMs = 80) {
     if (!Array.isArray(commands) || commands.length === 0) {
       return;
     }
 
-    clearTerminalStartupTimer(projectId);
-    const session = terminalSessions.get(projectId);
+    clearTerminalStartupTimer(sessionId);
+    const session = terminalSessions.get(sessionId);
     const timer = setTimeout(() => {
-      if (terminalStartupTimers.get(projectId) === timer) {
-        terminalStartupTimers.delete(projectId);
+      if (terminalStartupTimers.get(sessionId) === timer) {
+        terminalStartupTimers.delete(sessionId);
       }
-      if (!session || terminalSessions.get(projectId) !== session) {
+      if (!session || terminalSessions.get(sessionId) !== session) {
         return;
       }
 
@@ -196,37 +195,23 @@ export function createProcessSessionManager({ sendToRenderer }) {
         // ignore write failures after session exits
       }
     }, delayMs);
-    terminalStartupTimers.set(projectId, timer);
+    terminalStartupTimers.set(sessionId, timer);
   }
 
-  async function stopRunProcess(projectId) {
-    const child = runProcesses.get(projectId);
-    if (!child) {
-      return;
-    }
-
-    runProcesses.delete(projectId);
-    await stopChildProcess(child);
-    sendToRenderer("runner:status", {
-      projectId,
-      status: "stopped",
-    });
-  }
-
-  async function stopTerminalSession(projectId) {
-    clearTerminalStartupTimer(projectId);
-    const session = terminalSessions.get(projectId);
-    const transport = terminalTransports.get(projectId);
-    const shell = terminalShells.get(projectId);
+  async function stopTerminalSession(sessionId) {
+    clearTerminalStartupTimer(sessionId);
+    const session = terminalSessions.get(sessionId);
+    const transport = terminalTransports.get(sessionId);
+    const shell = terminalShells.get(sessionId);
     if (!session) {
       return;
     }
 
-    terminalOutputs.get(projectId)?.dispose();
-    terminalOutputs.delete(projectId);
-    terminalSessions.delete(projectId);
-    terminalTransports.delete(projectId);
-    terminalShells.delete(projectId);
+    terminalOutputs.get(sessionId)?.dispose();
+    terminalOutputs.delete(sessionId);
+    terminalSessions.delete(sessionId);
+    terminalTransports.delete(sessionId);
+    terminalShells.delete(sessionId);
 
     await stopProcessTree(session.pid);
     try {
@@ -236,7 +221,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
     }
 
     sendToRenderer("terminal:status", {
-      projectId,
+      sessionId,
       shell,
       status: "stopped",
       transport,
@@ -244,96 +229,29 @@ export function createProcessSessionManager({ sendToRenderer }) {
   }
 
   function hasActiveSessions() {
-    return runProcesses.size > 0 || terminalSessions.size > 0;
+    return terminalSessions.size > 0;
   }
 
   async function stopAllProcesses() {
-    await Promise.all([
-      ...[...runProcesses.keys()].map((projectId) => stopRunProcess(projectId)),
-      ...[...terminalSessions.keys()].map((projectId) =>
-        stopTerminalSession(projectId),
+    await Promise.all(
+      [...terminalSessions.keys()].map((sessionId) =>
+        stopTerminalSession(sessionId),
       ),
-    ]);
-  }
-
-  async function startRunner({ command, cwd, projectId, projectName }) {
-    if (!projectId || !cwd || !command) {
-      throw new Error("Missing runner parameters.");
-    }
-
-    await stopRunProcess(projectId);
-
-    const child = spawnProcess(command, {
-      cwd,
-      detached: process.platform !== "win32",
-      env: {
-        ...process.env,
-        FORCE_COLOR: "1",
-      },
-      shell: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    runProcesses.set(projectId, child);
-
-    sendToRenderer("runner:status", {
-      pid: child.pid,
-      projectId,
-      projectName,
-      status: "running",
-    });
-
-    child.stdout?.on("data", (chunk) => {
-      sendToRenderer("runner:data", {
-        chunk: chunk.toString(),
-        projectId,
-        stream: "stdout",
-      });
-    });
-
-    child.stderr?.on("data", (chunk) => {
-      sendToRenderer("runner:data", {
-        chunk: chunk.toString(),
-        projectId,
-        stream: "stderr",
-      });
-    });
-
-    child.on("close", (code, signal) => {
-      if (runProcesses.get(projectId) === child) {
-        runProcesses.delete(projectId);
-      }
-      sendToRenderer("runner:status", {
-        code,
-        projectId,
-        signal,
-        status: "stopped",
-      });
-    });
-
-    child.on("error", (error) => {
-      sendToRenderer("runner:data", {
-        chunk: `[runner error] ${error.message}\n`,
-        projectId,
-        stream: "stderr",
-      });
-    });
-
-    return { pid: child.pid, status: "running" };
+    );
   }
 
   async function startTerminal({
     command,
     cwd,
-    projectId,
+    sessionId,
     shellPath,
     strictCwd,
   }) {
-    if (!projectId || !cwd) {
+    if (!sessionId || !cwd) {
       throw new Error("Missing terminal parameters.");
     }
 
-    await stopTerminalSession(projectId);
+    await stopTerminalSession(sessionId);
 
     const shellCandidates = buildTerminalShellCandidates(shellPath);
     const resolvedCwd = resolveTerminalCwd(cwd, { strict: strictCwd === true });
@@ -396,10 +314,10 @@ export function createProcessSessionManager({ sendToRenderer }) {
           spawnErrors.length > 0 ? `\r\n${spawnErrors.join("\r\n")}` : "";
         sendToRenderer("terminal:data", {
           chunk: `\r\n[terminal error] Unable to start shell.${detail}\r\n`,
-          projectId,
+          sessionId,
         });
         sendToRenderer("terminal:status", {
-          projectId,
+          sessionId,
           status: "stopped",
         });
         return { status: "stopped" };
@@ -410,17 +328,17 @@ export function createProcessSessionManager({ sendToRenderer }) {
           spawnErrors.length > 0 ? `\r\n${spawnErrors.join("\r\n")}` : "";
         sendToRenderer("terminal:data", {
           chunk: `\r\n[terminal error] Shell started without a PID.${detail}\r\n`,
-          projectId,
+          sessionId,
         });
         sendToRenderer("terminal:status", {
-          projectId,
+          sessionId,
           status: "stopped",
         });
         return { status: "stopped" };
       }
 
       const output = createTerminalOutput({
-        projectId,
+        sessionId,
         send: sendToRenderer,
         pause: () => {
           child.stdout?.pause();
@@ -431,8 +349,8 @@ export function createProcessSessionManager({ sendToRenderer }) {
           child.stderr?.resume();
         },
       });
-      terminalOutputs.set(projectId, output);
-      terminalSessions.set(projectId, {
+      terminalOutputs.set(sessionId, output);
+      terminalSessions.set(sessionId, {
         kill: () => {
           try {
             child.kill("SIGTERM");
@@ -454,16 +372,16 @@ export function createProcessSessionManager({ sendToRenderer }) {
           child.stdin.write(data);
         },
       });
-      terminalTransports.set(projectId, "pipe");
+      terminalTransports.set(sessionId, "pipe");
       const shellCommand = formatShellCommand(
         pipeFallbackCandidate.command,
         pipeFallbackCandidate.args,
       );
-      terminalShells.set(projectId, shellCommand);
+      terminalShells.set(sessionId, shellCommand);
 
       sendToRenderer("terminal:status", {
         pid: child.pid,
-        projectId,
+        sessionId,
         shell: shellCommand,
         status: "running",
         transport: "pipe",
@@ -472,7 +390,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
       if (spawnErrors.length > 0) {
         sendToRenderer("terminal:data", {
           chunk: `\u001b[2m[terminal info] PTY unavailable; using pipe fallback.\u001b[0m\r\n`,
-          projectId,
+          sessionId,
         });
       }
 
@@ -485,17 +403,17 @@ export function createProcessSessionManager({ sendToRenderer }) {
       });
 
       child.on("close", (code, signal) => {
-        if (terminalOutputs.get(projectId) !== output) return;
-        clearTerminalStartupTimer(projectId);
+        if (terminalOutputs.get(sessionId) !== output) return;
+        clearTerminalStartupTimer(sessionId);
         output.flush();
         output.dispose();
-        terminalOutputs.delete(projectId);
-        terminalSessions.delete(projectId);
-        terminalTransports.delete(projectId);
-        terminalShells.delete(projectId);
+        terminalOutputs.delete(sessionId);
+        terminalSessions.delete(sessionId);
+        terminalTransports.delete(sessionId);
+        terminalShells.delete(sessionId);
         sendToRenderer("terminal:status", {
           code,
-          projectId,
+          sessionId,
           shell: shellCommand,
           signal,
           status: "stopped",
@@ -504,20 +422,20 @@ export function createProcessSessionManager({ sendToRenderer }) {
       });
 
       child.on("error", (error) => {
-        if (terminalOutputs.get(projectId) !== output) return;
-        clearTerminalStartupTimer(projectId);
+        if (terminalOutputs.get(sessionId) !== output) return;
+        clearTerminalStartupTimer(sessionId);
         output.flush();
         output.dispose();
-        terminalOutputs.delete(projectId);
-        terminalSessions.delete(projectId);
-        terminalTransports.delete(projectId);
-        terminalShells.delete(projectId);
+        terminalOutputs.delete(sessionId);
+        terminalSessions.delete(sessionId);
+        terminalTransports.delete(sessionId);
+        terminalShells.delete(sessionId);
         sendToRenderer("terminal:data", {
           chunk: `\r\n[terminal error] ${error.message}\r\n`,
-          projectId,
+          sessionId,
         });
         sendToRenderer("terminal:status", {
-          projectId,
+          sessionId,
           shell: shellCommand,
           status: "stopped",
           transport: "pipe",
@@ -525,7 +443,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
       });
 
       writeTerminalStartupCommands(
-        projectId,
+        sessionId,
         createTerminalStartupCommands(command),
       );
 
@@ -537,42 +455,42 @@ export function createProcessSessionManager({ sendToRenderer }) {
       };
     }
 
-    terminalSessions.set(projectId, terminalSession);
-    terminalTransports.set(projectId, "pty");
+    terminalSessions.set(sessionId, terminalSession);
+    terminalTransports.set(sessionId, "pty");
     const shellCommand = formatShellCommand(
       chosenShell.command,
       chosenShell.args,
     );
-    terminalShells.set(projectId, shellCommand);
+    terminalShells.set(sessionId, shellCommand);
     sendToRenderer("terminal:status", {
       pid: terminalSession.pid,
-      projectId,
+      sessionId,
       shell: shellCommand,
       status: "running",
       transport: "pty",
     });
 
     const output = createTerminalOutput({
-      projectId,
+      sessionId,
       send: sendToRenderer,
       pause: () => terminalSession.pause(),
       resume: () => terminalSession.resume(),
     });
-    terminalOutputs.set(projectId, output);
+    terminalOutputs.set(sessionId, output);
     terminalSession.onData((chunk) => output.write(chunk));
 
     terminalSession.onExit(({ exitCode, signal }) => {
-      if (terminalOutputs.get(projectId) !== output) return;
-      clearTerminalStartupTimer(projectId);
+      if (terminalOutputs.get(sessionId) !== output) return;
+      clearTerminalStartupTimer(sessionId);
       output.flush();
       output.dispose();
-      terminalOutputs.delete(projectId);
-      terminalSessions.delete(projectId);
-      terminalTransports.delete(projectId);
-      terminalShells.delete(projectId);
+      terminalOutputs.delete(sessionId);
+      terminalSessions.delete(sessionId);
+      terminalTransports.delete(sessionId);
+      terminalShells.delete(sessionId);
       sendToRenderer("terminal:status", {
         code: exitCode,
-        projectId,
+        sessionId,
         shell: shellCommand,
         signal: signal ?? null,
         status: "stopped",
@@ -581,7 +499,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
     });
 
     writeTerminalStartupCommands(
-      projectId,
+      sessionId,
       createTerminalStartupCommands(command),
     );
 
@@ -593,12 +511,12 @@ export function createProcessSessionManager({ sendToRenderer }) {
     };
   }
 
-  function writeTerminalInput({ data, projectId }) {
-    if (!projectId || typeof data !== "string") {
+  function writeTerminalInput({ data, sessionId }) {
+    if (!sessionId || typeof data !== "string") {
       return;
     }
 
-    const session = terminalSessions.get(projectId);
+    const session = terminalSessions.get(sessionId);
     if (!session) {
       return;
     }
@@ -610,12 +528,12 @@ export function createProcessSessionManager({ sendToRenderer }) {
     }
   }
 
-  function resizeTerminal({ cols, projectId, rows }) {
-    if (!projectId) {
+  function resizeTerminal({ cols, sessionId, rows }) {
+    if (!sessionId) {
       return;
     }
 
-    const session = terminalSessions.get(projectId);
+    const session = terminalSessions.get(sessionId);
     if (!session || typeof session.resize !== "function") {
       return;
     }
@@ -641,18 +559,16 @@ export function createProcessSessionManager({ sendToRenderer }) {
 
   return {
     acknowledgeTerminalOutput: (event) => {
-      if (event && typeof event.projectId === "string") {
-        terminalOutputs.get(event.projectId)?.acknowledge(event);
+      if (event && typeof event.sessionId === "string") {
+        terminalOutputs.get(event.sessionId)?.acknowledge(event);
       }
     },
     getTerminalOutputDiagnostics: () =>
       [...terminalOutputs.values()].map((output) => output.getDiagnostics()),
     hasActiveSessions,
     resizeTerminal,
-    startRunner,
     startTerminal,
     stopAllProcesses,
-    stopRunProcess,
     stopTerminalSession,
     writeTerminalInput,
   };

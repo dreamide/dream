@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { codePullRequestRequestSchema } from "./code-pull-request-schemas.js";
 import { runGitCommand } from "./project-git/core.js";
-import { ensureProjectDirectory } from "./project-git-service.js";
+import { ensureProjectDirectory } from "./project-git/files.js";
 import { execFileAsync } from "./shared/cli.js";
 import { handleJsonRoute } from "./shared/json-route.js";
 

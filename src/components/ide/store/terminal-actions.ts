@@ -51,7 +51,7 @@ export const createTerminalActions = (
     await desktopApi.startTerminal({
       command: project.runCommand,
       cwd: project.path,
-      projectId: sessionId,
+      sessionId,
       shellPath: get().settings.shellPath || undefined,
     });
   },
@@ -191,7 +191,7 @@ export const createTerminalActions = (
       const result = await desktopApi.startTerminal({
         command: options.command,
         cwd: options.cwd?.trim() || project.path,
-        projectId: sessionId,
+        sessionId,
         shellPath: settings.shellPath || undefined,
         strictCwd: options.strictCwd,
       });

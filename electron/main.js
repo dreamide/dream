@@ -841,36 +841,15 @@ ipcMain.handle("editors:open", (_event, { projectPath, editorId }) => {
 });
 
 ipcMain.handle(
-  "runner:start",
-  (_event, { command, cwd, projectId, projectName }) => {
-    return processSessionManager.startRunner({
-      command,
-      cwd,
-      projectId,
-      projectName,
-    });
-  },
-);
-
-ipcMain.handle("runner:stop", async (_event, { projectId }) => {
-  if (!projectId) {
-    return false;
-  }
-
-  await processSessionManager.stopRunProcess(projectId);
-  return true;
-});
-
-ipcMain.handle(
   "terminal:start",
   (
     _event,
-    { command, cwd, projectId, shellPath: preferredShellPath, strictCwd },
+    { command, cwd, sessionId, shellPath: preferredShellPath, strictCwd },
   ) => {
     return processSessionManager.startTerminal({
       command,
       cwd,
-      projectId,
+      sessionId,
       shellPath: preferredShellPath,
       strictCwd,
     });
@@ -894,12 +873,12 @@ ipcMain.on("terminal:resize", (_event, payload) => {
   processSessionManager.resizeTerminal(payload);
 });
 
-ipcMain.handle("terminal:stop", async (_event, { projectId }) => {
-  if (!projectId) {
+ipcMain.handle("terminal:stop", async (_event, { sessionId }) => {
+  if (!sessionId) {
     return false;
   }
 
-  await processSessionManager.stopTerminalSession(projectId);
+  await processSessionManager.stopTerminalSession(sessionId);
   return true;
 });
 

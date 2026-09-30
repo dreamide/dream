@@ -28,8 +28,8 @@ export function PullRequestNavButton({
   const label = pr
     ? `PR #${pr.number} · ${pr.draft ? "Draft" : pr.state} · ${pr.title}`
     : error
-      ? "Pull requests · GitHub unavailable"
-      : "Pull requests";
+      ? "Pull request · GitHub unavailable"
+      : "Pull request";
   return (
     <WorkspaceNavButton
       active={active}

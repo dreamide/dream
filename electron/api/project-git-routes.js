@@ -1,28 +1,32 @@
 import { promises as fs, constants as fsConstants } from "node:fs";
 import { TextDecoder } from "node:util";
 import {
-  checkoutProjectGitBranch,
   commitProjectGitChanges,
-  compareProjectGitWorktree,
-  createProjectGitWorktree,
   createProjectPullRequest,
-  detectProjectIcon,
-  ensureProjectDirectory,
-  forgetProjectGitWorktree,
   generateProjectGitCommitMessage,
   generateProjectPullRequestDetails,
-  getProjectGitDiff,
-  getProjectGitFileAtHead,
   getProjectGitLog,
   getProjectGitPushPreview,
-  getProjectGitWorktreeCompareDiff,
-  listProjectDirectory,
-  listProjectFiles,
+  pushProjectGitChanges,
+} from "./project-git/actions.js";
+import {
+  checkoutProjectGitBranch,
+  getProjectGitDiff,
+  getProjectGitFileAtHead,
   listProjectGitBranches,
   listProjectGitChanges,
-  listProjectGitWorktrees,
+  revertAllProjectGitChanges,
+  revertProjectGitFile,
+} from "./project-git/core.js";
+import {
+  ensureProjectDirectory,
+  listProjectDirectory,
+  listProjectFiles,
   MIME_TYPES,
-  mergeProjectGitWorktree,
+  resolveProjectPath,
+} from "./project-git/files.js";
+import { detectProjectIcon } from "./project-git/icons.js";
+import {
   projectDirectoryRequestSchema,
   projectFileRequestSchema,
   projectFilesRequestSchema,
@@ -47,11 +51,15 @@ import {
   projectGitWorktreeMergeRequestSchema,
   projectGitWorktreesRequestSchema,
   projectIconRequestSchema,
-  pushProjectGitChanges,
-  resolveProjectPath,
-  revertAllProjectGitChanges,
-  revertProjectGitFile,
-} from "./project-git-service.js";
+} from "./project-git/schemas.js";
+import {
+  compareProjectGitWorktree,
+  createProjectGitWorktree,
+  forgetProjectGitWorktree,
+  getProjectGitWorktreeCompareDiff,
+  listProjectGitWorktrees,
+  mergeProjectGitWorktree,
+} from "./project-git/worktree-lifecycle.js";
 import {
   handleJsonRoute,
   postProjectRoute,

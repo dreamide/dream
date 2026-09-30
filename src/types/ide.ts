@@ -283,20 +283,23 @@ export interface PersistedIdeState {
 }
 
 export interface TerminalDataEvent {
-  projectId: string;
+  /** The terminal session (one project can have several). */
+  sessionId: string;
   chunk: string;
   generation?: string;
   sequence?: number;
 }
 
 export interface TerminalOutputAcknowledgment {
-  projectId: string;
+  /** The terminal session (one project can have several). */
+  sessionId: string;
   generation: string;
   sequence: number;
 }
 
 export interface TerminalOutputDiagnostics {
-  projectId: string;
+  /** The terminal session (one project can have several). */
+  sessionId: string;
   outstanding: number;
   queued: number;
   pendingBatches: number;
@@ -307,7 +310,8 @@ export interface TerminalOutputDiagnostics {
 }
 
 export interface TerminalStatusEvent {
-  projectId: string;
+  /** The terminal session (one project can have several). */
+  sessionId: string;
   status: "running" | "stopped";
   transport?: "pty" | "pipe";
   shell?: string;
@@ -694,7 +698,8 @@ export interface ProjectGitPullRequestDetailsResponse {
 }
 
 export interface StartTerminalPayload {
-  projectId: string;
+  /** The terminal session (one project can have several). */
+  sessionId: string;
   cwd: string;
   command?: string;
   shellPath?: string;
@@ -708,12 +713,14 @@ export interface TerminalShellOption {
 }
 
 export interface TerminalInputPayload {
-  projectId: string;
+  /** The terminal session (one project can have several). */
+  sessionId: string;
   data: string;
 }
 
 export interface TerminalResizePayload {
-  projectId: string;
+  /** The terminal session (one project can have several). */
+  sessionId: string;
   cols: number;
   rows: number;
 }
@@ -812,7 +819,7 @@ export interface DesktopApi {
   acknowledgeTerminalOutput: (payload: TerminalOutputAcknowledgment) => void;
   getTerminalOutputDiagnostics: () => Promise<TerminalOutputDiagnostics[]>;
   resizeTerminal: (payload: TerminalResizePayload) => void;
-  stopTerminal: (projectId: string) => Promise<boolean>;
+  stopTerminal: (sessionId: string) => Promise<boolean>;
   stopAllTerminals: () => Promise<boolean>;
   onTerminalData: (listener: (event: TerminalDataEvent) => void) => () => void;
   onTerminalStatus: (
