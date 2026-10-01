@@ -20,16 +20,17 @@ import { registerChatRoutes } from "./chat-routes.js";
 import { registerCheckpointRoutes } from "./checkpoint-routes.js";
 import { registerCodePullRequestRoutes } from "./code-pull-request-routes.js";
 import { registerHostInfoRoute } from "./host-info-routes.js";
+import {
+  HOST_SOCKET_PATH,
+  registerHostSocketRoutes,
+} from "./host-socket-routes.js";
 import { registerMcpServerRoutes } from "./mcp-server-routes.js";
 import { registerProjectGitRoutes } from "./project-git-routes.js";
 import { registerProviderRoutes } from "./provider-routes.js";
 import { trackRequestActivity } from "./shared/request-activity.js";
 import { API_SESSION_TOKEN_HEADER } from "./shared/session-token.js";
 import { registerSkillsRoutes } from "./skills-routes.js";
-import {
-  registerTerminalRoutes,
-  TERMINAL_SOCKET_PATH,
-} from "./terminal-routes.js";
+import { registerTerminalRoutes } from "./terminal-routes.js";
 import { registerToolApprovalRoutes } from "./tool-approvals.js";
 
 export {
@@ -41,7 +42,13 @@ export {
 // Exported start function
 // ---------------------------------------------------------------------------
 
-function createApiApp({ activity, apiToken, getHostInfo, terminals }) {
+function createApiApp({
+  activity,
+  apiToken,
+  getHostInfo,
+  hostSocket,
+  terminals,
+}) {
   if (!apiToken) {
     throw new Error("API session token is required to start the API server.");
   }
@@ -49,9 +56,9 @@ function createApiApp({ activity, apiToken, getHostInfo, terminals }) {
   const guardedApp = new Hono();
 
   guardedApp.use("/api/*", async (c, next) => {
-    // The terminal socket checks a one-time ticket instead (see
-    // terminal-routes.js): a browser WebSocket cannot send this header.
-    if (c.req.path === TERMINAL_SOCKET_PATH) {
+    // The host socket checks a one-time ticket instead (see
+    // host-socket-routes.js): a browser WebSocket cannot send this header.
+    if (c.req.path === HOST_SOCKET_PATH) {
       await next();
       return;
     }
@@ -65,7 +72,7 @@ function createApiApp({ activity, apiToken, getHostInfo, terminals }) {
 
   if (activity) {
     trackRequestActivity(guardedApp, activity, {
-      skipPaths: [TERMINAL_SOCKET_PATH],
+      skipPaths: [HOST_SOCKET_PATH],
     });
   }
 
@@ -79,7 +86,8 @@ function createApiApp({ activity, apiToken, getHostInfo, terminals }) {
   registerMcpServerRoutes(guardedApp);
   registerSkillsRoutes(guardedApp);
   registerBrowserMcpRoutes(guardedApp);
-  registerTerminalRoutes(guardedApp, { ...terminals, upgradeWebSocket });
+  registerTerminalRoutes(guardedApp, terminals);
+  registerHostSocketRoutes(guardedApp, { ...hostSocket, upgradeWebSocket });
 
   return guardedApp;
 }
@@ -88,13 +96,15 @@ function createApiApp({ activity, apiToken, getHostInfo, terminals }) {
  * Starts the host's API server on loopback. Resolves with the port it
  * listens on and `close`, which drops socket clients and stops listening.
  *
- * `getHostInfo` answers `GET /api/host-info`. `activity`, when given, is told
+ * `getHostInfo` answers `GET /api/host-info`. `hostSocket` is
+ * `{ socket, tickets }` for the host socket (host-socket-routes.js). `activity`, when given, is told
  * when each request begins and ends (see shared/request-activity.js).
  */
 export function startApiServer({
   activity,
   apiToken,
   getHostInfo,
+  hostSocket,
   port,
   terminals,
 }) {
@@ -102,6 +112,7 @@ export function startApiServer({
     activity,
     apiToken,
     getHostInfo,
+    hostSocket,
     terminals,
   });
   const webSocketServer = new WebSocketServer({ noServer: true });

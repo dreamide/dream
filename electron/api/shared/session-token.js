@@ -1,5 +1,5 @@
-// The token every /api/* request carries (the terminal socket excepted, see
-// terminal-routes.js). A small module of its own so a daemon launcher can
+// The token every /api/* request carries (the host socket excepted, see
+// host-socket-routes.js). A small module of its own so a daemon launcher can
 // use it without loading the whole API.
 import { randomBytes } from "node:crypto";
 

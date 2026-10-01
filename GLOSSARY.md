@@ -51,8 +51,11 @@ session). All of them mean chat.
 
 ## Workspace document
 
-The projects the user has open or closed, their chats and transcripts, the
-draft per project and which project is active:
+One client's **workspace**: which projects (on which hosts) are open or
+closed, which chats are open, the draft per project and which project is
+active. Moving toward holding only that view; projects, chats and
+transcripts themselves belong to the host catalog (today the document still
+carries them):
 `store/workspace-document.ts`. Every operation on it (open, close, set and
 activate projects; add, add beside, branch, focus, delete, remove, restore
 chats; toggle multi-chat) is a pure function ending in `settle`, which
@@ -76,6 +79,15 @@ The machine whose filesystem, agent CLIs and terminals a project uses. The
 **local host** is the machine Dream's window runs on; an **SSH host** is
 another machine Dream reaches over SSH. Not to be confused with a provider
 session, which lives on the provider's side whatever the host.
+
+## Host catalog
+
+What exists on one host, owned by that host and the same for every client
+that connects to it: its projects (directories on that machine, identified
+by the host), their chats and chat metadata, transcripts, provider sessions
+and checkpoints. A turn is written into the host catalog as it runs, whether
+or not any client is watching. Contrast the workspace, which is one
+client's view of it.
 
 ## Terminal session
 

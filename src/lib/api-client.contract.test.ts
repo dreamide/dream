@@ -12,6 +12,7 @@ test("every client route is registered on the API server", async () => {
     { registerMcpServerRoutes },
     { registerProjectGitRoutes },
     { registerProviderRoutes },
+    { registerHostSocketRoutes },
     { registerSkillsRoutes },
     { registerTerminalRoutes },
     { registerToolApprovalRoutes },
@@ -22,6 +23,7 @@ test("every client route is registered on the API server", async () => {
     import("../../electron/api/mcp-server-routes.js"),
     import("../../electron/api/project-git-routes.js"),
     import("../../electron/api/provider-routes.js"),
+    import("../../electron/api/host-socket-routes.js"),
     import("../../electron/api/skills-routes.js"),
     import("../../electron/api/terminal-routes.js"),
     import("../../electron/api/tool-approvals.js"),
@@ -43,7 +45,9 @@ test("every client route is registered on the API server", async () => {
   registerTerminalRoutes(app, {
     detectShells: () => [],
     sessions: {} as never,
-    stream: {} as never,
+  });
+  registerHostSocketRoutes(app, {
+    socket: {} as never,
     tickets: {} as never,
   });
 

@@ -55,6 +55,7 @@ import type {
   checkpointRestoreRequestSchema,
 } from "../../electron/api/checkpoints/schemas.js";
 import type { codePullRequestRequestSchema } from "../../electron/api/code-pull-request-schemas.js";
+import type { hostSocketTicketRequestSchema } from "../../electron/api/host-socket-routes.js";
 import type { mcpImportCandidatesRequestSchema } from "../../electron/api/mcp-servers/schemas.js";
 import type {
   projectDirectoryRequestSchema,
@@ -420,7 +421,13 @@ export const API_ROUTES = {
     ToolApprovalResolution
   >("/api/tool-approval-response"),
 
-  // Terminals (output and input travel over the terminal socket)
+  // The host socket (live traffic: terminals, catalog events)
+  hostSocketTicket: post<
+    Input<typeof hostSocketTicketRequestSchema>,
+    { ticket: string }
+  >("/api/host-socket-ticket"),
+
+  // Terminals (output and input travel on the host socket)
   terminalShells: post<
     Input<typeof terminalEmptyRequestSchema>,
     TerminalShellOption[]
@@ -439,10 +446,6 @@ export const API_ROUTES = {
     Input<typeof terminalEmptyRequestSchema>,
     TerminalOutputDiagnostics[]
   >("/api/terminal-diagnostics"),
-  terminalSocketTicket: post<
-    Input<typeof terminalEmptyRequestSchema>,
-    { ticket: string }
-  >("/api/terminal-socket-ticket"),
 
   // Other
   mcpImportCandidates: post<

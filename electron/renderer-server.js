@@ -34,7 +34,7 @@ function getNodeExecutable() {
 }
 
 /**
- * Forwards a WebSocket upgrade for `/api/*` (the terminal socket) to the API
+ * Forwards a WebSocket upgrade for `/api/*` (the host socket) to the API
  * server: replays the handshake there, then pipes the two sockets together.
  */
 function proxyApiUpgrade(request, socket, head, apiServerPort) {

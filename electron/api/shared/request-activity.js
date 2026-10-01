@@ -6,7 +6,7 @@
  * @param {import("hono").Hono} app
  * @param {{ begin: () => void, end: () => void }} activity
  * @param {{ skipPaths?: string[] }} [options]
- *   `skipPaths`: requests not counted (the terminal socket, whose clients
+ *   `skipPaths`: requests not counted (the host socket, whose clients
  *   the host counts itself).
  */
 export function trackRequestActivity(app, activity, { skipPaths = [] } = {}) {

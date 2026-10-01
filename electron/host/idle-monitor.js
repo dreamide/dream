@@ -1,5 +1,5 @@
 // Shuts an idle daemon down. Idle means nothing at all is going on (no
-// client on the terminal socket, no live terminal, no request being
+// client on the host socket, no live terminal, no request being
 // answered) continuously for `timeoutMs`. Work never counts as idle, so a
 // disconnected client's terminals keep the daemon alive indefinitely.
 

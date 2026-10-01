@@ -5,8 +5,8 @@
 // Electron's main process and as a standalone daemon on an SSH host
 // (daemon.js).
 import { startApiServer } from "../api/app.js";
+import { createHostSocket } from "../api/host-socket/host-socket.js";
 import { createSocketTickets } from "../api/shared/socket-tickets.js";
-import { createTerminalStream } from "../api/terminals/terminal-stream.js";
 import { createProcessSessionManager } from "../process-sessions.js";
 import { detectAvailableTerminalShells } from "../terminal-shells.js";
 import { configureHostDataDirectory } from "./host-paths.js";
@@ -33,11 +33,11 @@ export function createHost({
 }) {
   configureHostDataDirectory(dataDirectory);
 
-  const terminalStream = createTerminalStream();
+  const hostSocket = createHostSocket();
   const processSessions = createProcessSessionManager({
-    emit: terminalStream.publish,
+    emit: hostSocket.terminals.publish,
   });
-  terminalStream.bindSessions(processSessions);
+  hostSocket.terminals.bindSessions(processSessions);
   const socketTickets = createSocketTickets();
 
   let requestsInFlight = 0;
@@ -65,14 +65,16 @@ export function createHost({
 
   return {
     processSessions,
+    /** Where host catalog changes are published for every client. */
+    catalogEvents: hostSocket.catalog,
     getHostInfo,
 
     /**
-     * Whether anything is going on: a client on the terminal socket, a live
+     * Whether anything is going on: a client on the host socket, a live
      * terminal, or (with `trackActivity`) a request still being answered.
      */
     isBusy: () =>
-      terminalStream.getClientCount() > 0 ||
+      hostSocket.getClientCount() > 0 ||
       processSessions.hasActiveSessions() ||
       requestsInFlight > 0,
 
@@ -88,13 +90,12 @@ export function createHost({
         activity,
         apiToken,
         getHostInfo,
+        hostSocket: { socket: hostSocket, tickets: socketTickets },
         port,
         terminals: {
           detectShells: detectAvailableTerminalShells,
           diagnosticsEnabled,
           sessions: processSessions,
-          stream: terminalStream,
-          tickets: socketTickets,
         },
       });
       return server.port;

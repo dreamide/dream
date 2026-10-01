@@ -5,7 +5,7 @@
 
 export const HOST_PROTOCOL_VERSION = 1;
 
-export const HOST_CAPABILITIES = Object.freeze(["terminal-socket"]);
+export const HOST_CAPABILITIES = Object.freeze(["host-socket"]);
 
 /** The host protocol versions this app can talk to, as a client. */
 export const SUPPORTED_HOST_PROTOCOLS = Object.freeze({ min: 1, max: 1 });
