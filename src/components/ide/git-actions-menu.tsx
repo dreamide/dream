@@ -274,16 +274,16 @@ const GitActionsMenuImpl = ({
           side="left"
           className="w-52 [-webkit-app-region:no-drag]"
         >
-          <DropdownMenuItem onClick={handleOpenChanges}>
-            <Code className="size-4" />
-            {commonT("changes")}
-            <GitMenuDeltaSummary status={status} />
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleOpenLog}>
             <SquareText className="size-4" />
             {gitT("viewLog")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={handleOpenChanges}>
+            <Code className="size-4" />
+            {commonT("changes")}
+            <GitMenuDeltaSummary status={status} />
+          </DropdownMenuItem>
           <DropdownMenuItem
             disabled={!hasGitChanges}
             onClick={() => handleOpenDialog("commit")}
