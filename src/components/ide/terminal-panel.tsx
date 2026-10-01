@@ -361,6 +361,8 @@ export const TerminalPanel = ({
 
     let resizeFrame: number | null = null;
     let webgl: ReturnType<typeof attachTerminalWebglRenderer> | null = null;
+    // WebGL2 unsupported on this machine: never retry for this instance.
+    let webglUnsupported = false;
 
     const fitAndSyncSize = () => {
       resizeFrame = null;
@@ -368,10 +370,22 @@ export const TerminalPanel = ({
       if (host.clientWidth === 0 || host.clientHeight === 0) return;
       fitAddon.fit();
 
-      // Allocate once, on first visible activation; retain across tab switches.
-      // A failed renderer keeps its disposable so this instance never retries.
-      if (activeRef.current && !webgl) {
+      // Allocate on first visible activation and retain across tab switches:
+      // the addon sizes its canvas asynchronously, so re-attaching on every
+      // activation paints a mis-sized frame before it snaps into place.
+      // Context loss is transient (Chromium reclaims the oldest contexts
+      // past its cap), so a renderer it disposed is re-attached when the
+      // tab is next shown.
+      if (
+        activeRef.current &&
+        (!webgl || webgl.disposed) &&
+        !webglUnsupported
+      ) {
         webgl = attachTerminalWebglRenderer(terminal, () => new WebglAddon());
+        if (webgl.failed) {
+          webglUnsupported = true;
+          webgl = null;
+        }
       }
       // Repaint after fitting even when the terminal dimensions are unchanged.
       terminal.refresh(0, Math.max(0, terminal.rows - 1));

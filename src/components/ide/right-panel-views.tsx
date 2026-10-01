@@ -78,15 +78,16 @@ const RightPanelViewSlot = ({
 export const RightPanelViews = (props: RightPanelViewsProps) => {
   const baseColor = useUiStore((state) => state.baseColor);
   const rightPanelView = props.rightPanelView;
+  // Every visited view stays mounted. Terminals in particular must not be
+  // torn down on a view switch: each xterm rebuild replays scrollback and
+  // allocates a new WebGL context, and leaked contexts eventually force live
+  // terminals onto the much slower DOM renderer.
   const [visitedPersistentViews, setVisitedPersistentViews] = useState(
-    () =>
-      new Set<RightPanelView>(
-        props.open && rightPanelView !== "terminal" ? [rightPanelView] : [],
-      ),
+    () => new Set<RightPanelView>(props.open ? [rightPanelView] : []),
   );
 
   useEffect(() => {
-    if (props.open && rightPanelView !== "terminal") {
+    if (props.open) {
       setVisitedPersistentViews((visitedViews) => {
         if (visitedViews.has(rightPanelView)) {
           return visitedViews;
@@ -176,10 +177,12 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
                 />
               </RightPanelViewSlot>
             ) : null}
-            {rightPanelView === "terminal" ? (
-              <RightPanelViewSlot active={true}>
+            {visitedPersistentViews.has("terminal") ? (
+              <RightPanelViewSlot active={rightPanelView === "terminal"}>
                 <ProjectTerminalTabsPanel
-                  active={props.active && props.open}
+                  active={
+                    props.active && props.open && rightPanelView === "terminal"
+                  }
                   embedded={true}
                   expanded={props.panelExpanded}
                   onClosePanel={props.onClosePanel}
