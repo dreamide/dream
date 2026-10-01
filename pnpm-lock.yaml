@@ -89,6 +89,9 @@ importers:
       stringify-entities:
         specifier: 4.0.4
         version: 4.0.4
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -5685,6 +5688,18 @@ packages:
 
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
+
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
 
   wsl-utils@0.3.1:
     resolution: {integrity: sha512-g/eziiSUNBSsdDJtCLB8bdYEUMj4jR7AGeUo96p/3dTafgjHhpF4RiCFPiRILwjQoDXx5MqkBr4fwWtR3Ky4Wg==}
@@ -11353,6 +11368,8 @@ snapshots:
       strip-ansi: 6.0.1
 
   wrappy@1.0.2: {}
+
+  ws@8.22.0: {}
 
   wsl-utils@0.3.1:
     dependencies:

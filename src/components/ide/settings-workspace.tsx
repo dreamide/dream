@@ -59,6 +59,7 @@ import {
   getOpenCodeModelName,
   groupOpenCodeModels,
 } from "@/lib/opencode-model-groups";
+import { terminalClient } from "@/lib/terminal-client";
 import { ACCENT_COLORS, BASE_COLORS, useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type {
@@ -241,7 +242,7 @@ export const SettingsWorkspace = () => {
         return;
       }
 
-      const shells = await desktopApi.detectTerminalShells();
+      const shells = await terminalClient.detectShells();
       if (!cancelled) {
         setTerminalShellOptions(shells);
         setSettings((previous) => {

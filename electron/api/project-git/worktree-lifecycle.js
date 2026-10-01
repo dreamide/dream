@@ -9,7 +9,7 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { app } from "electron";
+import { getHostDataDirectory } from "../../host/host-paths.js";
 import {
   forgetProjectDirectory,
   releaseProjectDirectory,
@@ -126,12 +126,19 @@ const getAppWorktreesDirectory = () =>
 
 // Worktrees created before the move to ~/.dream/worktrees lived under the
 // app's userData folder. Keep recognising them as app-managed.
-const getLegacyAppWorktreesDirectory = () =>
-  path.join(app.getPath("userData"), "worktrees");
+const getLegacyAppWorktreesDirectory = () => {
+  const hostDataDirectory = getHostDataDirectory();
+  return hostDataDirectory ? path.join(hostDataDirectory, "worktrees") : null;
+};
 
-const isAppManagedWorktreePath = (worktreePath) =>
-  isPathInsideDirectory(worktreePath, getAppWorktreesDirectory()) ||
-  isPathInsideDirectory(worktreePath, getLegacyAppWorktreesDirectory());
+const isAppManagedWorktreePath = (worktreePath) => {
+  const legacyDirectory = getLegacyAppWorktreesDirectory();
+  return (
+    isPathInsideDirectory(worktreePath, getAppWorktreesDirectory()) ||
+    (legacyDirectory !== null &&
+      isPathInsideDirectory(worktreePath, legacyDirectory))
+  );
+};
 
 /**
  * App-managed worktrees live at `<worktrees>/<repo>-<hash>/<name>`. Once the
@@ -146,15 +153,17 @@ export const removeEmptyAppWorktreeParent = async (worktreePath) => {
   const isRepoFolder = [
     getAppWorktreesDirectory(),
     getLegacyAppWorktreesDirectory(),
-  ].some((root) => {
-    const relativePath = path.relative(path.resolve(root), parentPath);
-    return (
-      relativePath !== "" &&
-      !relativePath.startsWith("..") &&
-      !path.isAbsolute(relativePath) &&
-      !relativePath.includes(path.sep)
-    );
-  });
+  ]
+    .filter((root) => root !== null)
+    .some((root) => {
+      const relativePath = path.relative(path.resolve(root), parentPath);
+      return (
+        relativePath !== "" &&
+        !relativePath.startsWith("..") &&
+        !path.isAbsolute(relativePath) &&
+        !relativePath.includes(path.sep)
+      );
+    });
   if (!isRepoFolder) {
     return false;
   }

@@ -46,7 +46,7 @@ when it has none, built by `createDefaultChatConfig` in the codec from the
 workspace's default model.
 
 Older code calls this a _thread_; the chat runtime calls a running one a
-_session_; _remote conversation_ is the provider's id for it (see Remote
+_session_; _remote conversation_ is the provider's id for it (see Provider
 session). All of them mean chat.
 
 ## Workspace document
@@ -62,16 +62,25 @@ that project with the active one among them, and the active project is
 open. The zustand actions are thin wrappers around these operations; the
 main process settles persisted state with the same codec primitives.
 
-## Remote session
+## Provider session
 
 The provider-side identity of a chat's conversation, used to resume it:
 `remoteConversationId`, `remoteConversationModel`,
 `remoteConversationModelSpeed`, `remoteConversationProjectPath`. Not a chat.
+Older code and docs call this the _remote session_; "remote" there means the
+provider's side, never another machine (see Host).
+
+## Host
+
+The machine whose filesystem, agent CLIs and terminals a project uses. The
+**local host** is the machine Dream's window runs on; an **SSH host** is
+another machine Dream reaches over SSH. Not to be confused with a provider
+session, which lives on the provider's side whatever the host.
 
 ## Terminal session
 
 A shell process attached to a project (`__project_terminal__:<projectId>:…`)
-or to the browser panel. Not related to a chat's remote session.
+or to the browser panel. Not related to a chat's provider session.
 
 ## Persisted state
 
@@ -94,7 +103,7 @@ to and from database rows. A persisted field is added there, once.
 
 One request to an agent provider and everything it streams back for a
 single assistant message: prose, reasoning, tool calls, approvals, plan
-updates, context compaction, the remote session id and usage. Written by
+updates, context compaction, the provider session id and usage. Written by
 the **agent-turn writer** (`electron/api/chat/agent-turn.js`), whose small
 interface every provider adapter translates its native events into. The
 writer owns the chunk shapes the client receives; adapters own only the

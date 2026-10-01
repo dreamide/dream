@@ -5,10 +5,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test, vi } from "vitest";
 
-vi.mock("electron", () => ({
-  app: { getPath: () => "/tmp/dream-test-user-data" },
-}));
-
 const { getProjectGitLog } = await import("./actions.js");
 
 vi.setConfig({ testTimeout: 30_000 });

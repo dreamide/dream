@@ -3,11 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
-import { afterEach, test, vi } from "vitest";
-
-vi.mock("electron", () => ({
-  app: { getPath: () => "/tmp/dream-test-user-data" },
-}));
+import { afterEach, test } from "vitest";
 
 const { mergeMcpImportCandidates, registerMcpServerRoutes } = await import(
   "./mcp-server-routes.js"

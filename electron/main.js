@@ -29,6 +29,7 @@ import { createBrowserAgentBridge } from "./browser-agent-bridge.js";
 import { createBrowserSessionManager } from "./browser-sessions.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import { getHelloUrl } from "./hello.js";
+import { createHost } from "./host/index.js";
 import {
   closePersistedStateDatabase,
   ensurePersistedInstallId,
@@ -38,10 +39,8 @@ import {
   resolveStateDatabasePath,
   savePersistedThemePreference,
 } from "./persisted-state.js";
-import { createProcessSessionManager } from "./process-sessions.js";
 import { createRendererServerManager } from "./renderer-server.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
-import { detectAvailableTerminalShells } from "./terminal-shells.js";
 import { initializeAutoUpdater } from "./updater.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -102,6 +101,14 @@ mkdirSync(APP_SESSION_DATA_PATH, { recursive: true });
 app.setPath("userData", APP_USER_DATA_PATH);
 // Keep Chromium caches per process so parallel launches do not lock user data.
 app.setPath("sessionData", APP_SESSION_DATA_PATH);
+
+// The local host: projects on this machine are served by the same host
+// module an SSH host runs as a daemon. It keeps its files in userData.
+const host = createHost({
+  dataDirectory: APP_USER_DATA_PATH,
+  diagnosticsEnabled: !app.isPackaged,
+  version: app.getVersion(),
+});
 
 let mainWindow = null;
 let updateManager = null;
@@ -188,9 +195,7 @@ const browserSessionManager = createBrowserSessionManager({
 const browserAgentBridge = createBrowserAgentBridge({ sendToRenderer });
 setBrowserBridge(browserAgentBridge);
 
-const processSessionManager = createProcessSessionManager({
-  sendToRenderer,
-});
+const processSessionManager = host.processSessions;
 
 let rendererServerManager = null;
 
@@ -430,6 +435,7 @@ async function createStartupRendererServerManager() {
     rendererProbeIntervalMs,
     rendererStartupTimeoutMs,
     rendererUrlFromEnv,
+    startApi: ({ apiToken, port }) => host.listen({ apiToken, port }),
   });
 }
 
@@ -783,8 +789,6 @@ ipcMain.handle(
   },
 );
 
-ipcMain.handle("terminal:detect-shells", detectAvailableTerminalShells);
-
 ipcMain.handle("clipboard:write-text", (_event, { text }) => {
   if (typeof text !== "string") {
     return false;
@@ -838,53 +842,6 @@ ipcMain.handle("editors:detect", () => {
 
 ipcMain.handle("editors:open", (_event, { projectPath, editorId }) => {
   return openProjectInEditor({ editorId, projectPath });
-});
-
-ipcMain.handle(
-  "terminal:start",
-  (
-    _event,
-    { command, cwd, sessionId, shellPath: preferredShellPath, strictCwd },
-  ) => {
-    return processSessionManager.startTerminal({
-      command,
-      cwd,
-      sessionId,
-      shellPath: preferredShellPath,
-      strictCwd,
-    });
-  },
-);
-
-ipcMain.on("terminal:input", (_event, payload) => {
-  processSessionManager.writeTerminalInput(payload);
-});
-
-ipcMain.on("terminal:acknowledge", (event, payload) => {
-  if (event.sender !== mainWindow?.webContents) return;
-  processSessionManager.acknowledgeTerminalOutput(payload);
-});
-
-ipcMain.handle("terminal:diagnostics", () =>
-  app.isPackaged ? [] : processSessionManager.getTerminalOutputDiagnostics(),
-);
-
-ipcMain.on("terminal:resize", (_event, payload) => {
-  processSessionManager.resizeTerminal(payload);
-});
-
-ipcMain.handle("terminal:stop", async (_event, { sessionId }) => {
-  if (!sessionId) {
-    return false;
-  }
-
-  await processSessionManager.stopTerminalSession(sessionId);
-  return true;
-});
-
-ipcMain.handle("terminal:stop-all", async () => {
-  await processSessionManager.stopAllProcesses();
-  return true;
 });
 
 ipcMain.on("browser:update", (_event, payload) => {
@@ -952,7 +909,7 @@ app.on("before-quit", (event) => {
   Promise.resolve()
     .then(async () => {
       await stopCodexAppServer();
-      await processSessionManager.stopAllProcesses();
+      await host.close();
       await rendererServerManager?.stop();
       await stateSaveQueue?.flushAndClose();
       closePersistedStateDatabase();

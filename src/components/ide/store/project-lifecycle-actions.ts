@@ -2,6 +2,7 @@
 // workspace-document.ts; these wrappers add what is runtime-only (terminal
 // sessions, the per-project runtime maps, the "finished while away" marks).
 import { getDesktopApi } from "@/lib/electron";
+import { terminalClient } from "@/lib/terminal-client";
 import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
 import { deleteTerminalScrollback } from "../terminal-scrollback";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
@@ -67,7 +68,7 @@ export const createProjectLifecycleActions = (
       get().projectTerminalSessionIds?.[projectId] ?? [];
     const desktopApi = getDesktopApi();
     for (const sessionId of terminalSessionIds) {
-      void desktopApi?.stopTerminal(sessionId);
+      if (desktopApi) void terminalClient.stop(sessionId);
       deleteTerminalScrollback(sessionId);
     }
   },

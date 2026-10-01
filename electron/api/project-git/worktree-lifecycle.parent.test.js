@@ -2,15 +2,14 @@ import assert from "node:assert/strict";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, test, vi } from "vitest";
+import { afterEach, test } from "vitest";
+import { configureHostDataDirectory } from "../../host/host-paths.js";
 
-const { userDataDir } = vi.hoisted(() => ({
-  userDataDir: `${process.env.TEMP ?? process.env.TMPDIR ?? "/tmp"}/dream-worktree-parent-test-${process.pid}`,
-}));
-
-vi.mock("electron", () => ({
-  app: { getPath: () => userDataDir },
-}));
+const userDataDir = path.join(
+  os.tmpdir(),
+  `dream-worktree-parent-test-${process.pid}`,
+);
+configureHostDataDirectory(userDataDir);
 
 const { removeEmptyAppWorktreeParent } = await import(
   "./worktree-lifecycle.js"

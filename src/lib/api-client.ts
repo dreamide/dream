@@ -44,6 +44,8 @@ import type {
   ProjectGitWorktreeMergeResponse,
   ProjectGitWorktreesResponse,
   ProviderSkillsResponse,
+  TerminalOutputDiagnostics,
+  TerminalShellOption,
 } from "@/types/ide";
 import type { chatTitleRequestBodySchema } from "../../electron/api/chat/schema.js";
 import type {
@@ -92,6 +94,11 @@ import type {
   setSkillEnabledRequestSchema,
   skillsRequestSchema,
 } from "../../electron/api/skills/schemas.js";
+import type {
+  terminalEmptyRequestSchema,
+  terminalStartRequestSchema,
+  terminalStopRequestSchema,
+} from "../../electron/api/terminals/schemas.js";
 import type { toolApprovalResponseSchema } from "../../electron/api/tool-approvals.js";
 import { API_SESSION_TOKEN_HEADER, getApiSessionToken } from "./api-session";
 
@@ -209,6 +216,13 @@ export interface SkillFileContents {
 
 export interface CreateSkillResponse {
   paths: string[];
+}
+
+export interface TerminalStartResponse {
+  status: string;
+  pid?: number;
+  transport?: "pty" | "pipe";
+  shell?: string;
 }
 
 export interface ToolApprovalResolution {
@@ -406,6 +420,30 @@ export const API_ROUTES = {
     ToolApprovalResolution
   >("/api/tool-approval-response"),
 
+  // Terminals (output and input travel over the terminal socket)
+  terminalShells: post<
+    Input<typeof terminalEmptyRequestSchema>,
+    TerminalShellOption[]
+  >("/api/terminal-shells"),
+  terminalStart: post<
+    Input<typeof terminalStartRequestSchema>,
+    TerminalStartResponse
+  >("/api/terminal-start"),
+  terminalStop: post<Input<typeof terminalStopRequestSchema>, boolean>(
+    "/api/terminal-stop",
+  ),
+  terminalStopAll: post<Input<typeof terminalEmptyRequestSchema>, boolean>(
+    "/api/terminal-stop-all",
+  ),
+  terminalDiagnostics: post<
+    Input<typeof terminalEmptyRequestSchema>,
+    TerminalOutputDiagnostics[]
+  >("/api/terminal-diagnostics"),
+  terminalSocketTicket: post<
+    Input<typeof terminalEmptyRequestSchema>,
+    { ticket: string }
+  >("/api/terminal-socket-ticket"),
+
   // Other
   mcpImportCandidates: post<
     Input<typeof mcpImportCandidatesRequestSchema>,
@@ -434,6 +472,8 @@ export type ApiResponseOf<Name extends ApiRouteName> =
 
 export interface ApiCallOptions {
   signal?: AbortSignal;
+  /** Let the request outlive the page (for calls made while unloading). */
+  keepalive?: boolean;
 }
 
 export type ApiClient = {
@@ -494,6 +534,7 @@ export interface ApiTransportRequest {
   name: ApiRouteName;
   path: string;
   signal?: AbortSignal;
+  keepalive?: boolean;
 }
 
 /** Sends one request; resolves with the JSON body or throws `ApiError`. */
@@ -501,7 +542,7 @@ export type ApiTransport = (request: ApiTransportRequest) => Promise<unknown>;
 
 export const createHttpTransport =
   (fetchImpl: typeof fetch = (...args) => fetch(...args)): ApiTransport =>
-  async ({ body, method, path, signal }) => {
+  async ({ body, keepalive, method, path, signal }) => {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -513,6 +554,7 @@ export const createHttpTransport =
     const response = await fetchImpl(path, {
       body: JSON.stringify(body ?? {}),
       headers,
+      keepalive,
       method,
       signal,
     });
@@ -531,7 +573,14 @@ export const createApiClient = (transport: ApiTransport): ApiClient => {
   for (const name of Object.keys(API_ROUTES) as ApiRouteName[]) {
     const { method, path } = API_ROUTES[name];
     client[name] = (request, options) =>
-      transport({ body: request, method, name, path, signal: options?.signal });
+      transport({
+        body: request,
+        keepalive: options?.keepalive,
+        method,
+        name,
+        path,
+        signal: options?.signal,
+      });
   }
   return client as ApiClient;
 };

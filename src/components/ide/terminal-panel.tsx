@@ -8,6 +8,7 @@ import { useTheme } from "next-themes";
 import { type HTMLAttributes, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
+import { terminalClient } from "@/lib/terminal-client";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { echoPipeFallbackInput } from "./ide-helpers";
@@ -403,7 +404,7 @@ export const TerminalPanel = ({
       }
 
       terminalSizeRef.current = { cols, rows };
-      getDesktopApi()?.resizeTerminal({
+      terminalClient.resize({
         cols,
         sessionId,
         rows,
@@ -439,8 +440,7 @@ export const TerminalPanel = ({
     );
 
     const inputSubscription = terminal.onData((data) => {
-      const api = getDesktopApi();
-      if (!api) {
+      if (!getDesktopApi()) {
         return;
       }
 
@@ -452,7 +452,7 @@ export const TerminalPanel = ({
         echoPipeFallbackInput(terminal, data);
       }
 
-      api.sendTerminalInput({
+      terminalClient.sendInput({
         data,
         sessionId,
       });

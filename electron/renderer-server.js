@@ -3,7 +3,7 @@ import http from "node:http";
 import path from "node:path";
 import sirv from "sirv";
 
-import { createApiSessionToken, startApiServer } from "./api-server.js";
+import { createApiSessionToken } from "./api-server.js";
 import { stopChildProcess } from "./process-tree.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,6 +33,49 @@ function getNodeExecutable() {
   return "node";
 }
 
+/**
+ * Forwards a WebSocket upgrade for `/api/*` (the terminal socket) to the API
+ * server: replays the handshake there, then pipes the two sockets together.
+ */
+function proxyApiUpgrade(request, socket, head, apiServerPort) {
+  const proxyRequest = http.request({
+    headers: request.headers,
+    host: "127.0.0.1",
+    method: request.method,
+    path: request.url,
+    port: apiServerPort,
+  });
+
+  proxyRequest.on("upgrade", (proxyResponse, proxySocket, proxyHead) => {
+    const headerLines = [];
+    for (let i = 0; i < proxyResponse.rawHeaders.length; i += 2) {
+      headerLines.push(
+        `${proxyResponse.rawHeaders[i]}: ${proxyResponse.rawHeaders[i + 1]}`,
+      );
+    }
+    socket.write(
+      `HTTP/1.1 ${proxyResponse.statusCode} ${proxyResponse.statusMessage}\r\n${headerLines.join("\r\n")}\r\n\r\n`,
+    );
+    if (proxyHead?.length) socket.write(proxyHead);
+    if (head?.length) proxySocket.write(head);
+    proxySocket.pipe(socket);
+    socket.pipe(proxySocket);
+    proxySocket.on("error", () => socket.destroy());
+    socket.on("error", () => proxySocket.destroy());
+  });
+
+  proxyRequest.on("response", (proxyResponse) => {
+    // The API refused the upgrade (e.g. a bad ticket): pass its answer on.
+    socket.end(
+      `HTTP/1.1 ${proxyResponse.statusCode} ${proxyResponse.statusMessage}\r\n\r\n`,
+    );
+    proxyResponse.resume();
+  });
+
+  proxyRequest.on("error", () => socket.destroy());
+  proxyRequest.end();
+}
+
 export function createRendererServerManager({
   apiServerPort,
   appDir,
@@ -42,6 +85,7 @@ export function createRendererServerManager({
   rendererProbeIntervalMs,
   rendererStartupTimeoutMs,
   rendererUrlFromEnv,
+  startApi,
 }) {
   const apiSessionToken = createApiSessionToken();
 
@@ -50,8 +94,8 @@ export function createRendererServerManager({
   let productionHttpServer = null;
 
   async function start() {
-    // Always start the API server (Hono) on the API port.
-    await startApiServer({ port: apiServerPort, apiToken: apiSessionToken });
+    // Always start the API server (the local host) on the API port.
+    await startApi({ port: apiServerPort, apiToken: apiSessionToken });
 
     if (isDevelopment) {
       rendererUrl = developmentRendererUrl;
@@ -168,6 +212,14 @@ export function createRendererServerManager({
         response.statusCode = 404;
         response.end("Not found");
       });
+    });
+
+    productionHttpServer.on("upgrade", (request, socket, head) => {
+      if (request.url?.startsWith("/api")) {
+        proxyApiUpgrade(request, socket, head, apiServerPort);
+        return;
+      }
+      socket.destroy();
     });
 
     await new Promise((resolve, reject) => {

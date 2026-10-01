@@ -14,7 +14,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { app } from "electron";
+import { requireHostDataDirectory } from "../../host/host-paths.js";
 import { parseSingleFileDiff } from "../project-git/core.js";
 import { normalizePath, resolveProjectPath } from "../project-git/files.js";
 
@@ -79,7 +79,7 @@ const getProjectKey = (projectPath) => {
 };
 
 export const getCheckpointsDirectory = () =>
-  path.join(app.getPath("userData"), "checkpoints");
+  path.join(requireHostDataDirectory(), "checkpoints");
 
 export const getShadowRepoDirectory = (projectPath) =>
   path.join(

@@ -1,6 +1,6 @@
 import { spawn as spawnProcess } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
-import { app } from "electron";
+import os from "node:os";
 import { spawn as spawnPty } from "node-pty";
 import { stopProcessTree } from "./process-tree.js";
 import { createTerminalOutput } from "./terminal-output.js";
@@ -67,7 +67,7 @@ function resolveTerminalCwd(cwd, { strict = false } = {}) {
     if (strict) {
       throw new Error("Terminal working directory does not exist.");
     }
-    return app.getPath("home");
+    return os.homedir();
   }
 
   const trimmed = cwd.trim();
@@ -75,7 +75,7 @@ function resolveTerminalCwd(cwd, { strict = false } = {}) {
     if (strict) {
       throw new Error("Terminal working directory does not exist.");
     }
-    return app.getPath("home");
+    return os.homedir();
   }
 
   try {
@@ -90,7 +90,7 @@ function resolveTerminalCwd(cwd, { strict = false } = {}) {
     throw new Error("Terminal working directory does not exist.");
   }
 
-  return app.getPath("home");
+  return os.homedir();
 }
 
 function buildTerminalShellCandidates(preferredShellPath) {
@@ -162,7 +162,7 @@ function getPipeFallbackShell() {
   };
 }
 
-export function createProcessSessionManager({ sendToRenderer }) {
+export function createProcessSessionManager({ emit }) {
   const terminalSessions = new Map();
   const terminalTransports = new Map();
   const terminalShells = new Map();
@@ -220,7 +220,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
       // ignore stop failures
     }
 
-    sendToRenderer("terminal:status", {
+    emit("terminal:status", {
       sessionId,
       shell,
       status: "stopped",
@@ -312,11 +312,11 @@ export function createProcessSessionManager({ sendToRenderer }) {
         );
         const detail =
           spawnErrors.length > 0 ? `\r\n${spawnErrors.join("\r\n")}` : "";
-        sendToRenderer("terminal:data", {
+        emit("terminal:data", {
           chunk: `\r\n[terminal error] Unable to start shell.${detail}\r\n`,
           sessionId,
         });
-        sendToRenderer("terminal:status", {
+        emit("terminal:status", {
           sessionId,
           status: "stopped",
         });
@@ -326,11 +326,11 @@ export function createProcessSessionManager({ sendToRenderer }) {
       if (typeof child.pid !== "number") {
         const detail =
           spawnErrors.length > 0 ? `\r\n${spawnErrors.join("\r\n")}` : "";
-        sendToRenderer("terminal:data", {
+        emit("terminal:data", {
           chunk: `\r\n[terminal error] Shell started without a PID.${detail}\r\n`,
           sessionId,
         });
-        sendToRenderer("terminal:status", {
+        emit("terminal:status", {
           sessionId,
           status: "stopped",
         });
@@ -339,7 +339,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
 
       const output = createTerminalOutput({
         sessionId,
-        send: sendToRenderer,
+        send: emit,
         pause: () => {
           child.stdout?.pause();
           child.stderr?.pause();
@@ -379,7 +379,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
       );
       terminalShells.set(sessionId, shellCommand);
 
-      sendToRenderer("terminal:status", {
+      emit("terminal:status", {
         pid: child.pid,
         sessionId,
         shell: shellCommand,
@@ -388,7 +388,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
       });
 
       if (spawnErrors.length > 0) {
-        sendToRenderer("terminal:data", {
+        emit("terminal:data", {
           chunk: `\u001b[2m[terminal info] PTY unavailable; using pipe fallback.\u001b[0m\r\n`,
           sessionId,
         });
@@ -411,7 +411,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
         terminalSessions.delete(sessionId);
         terminalTransports.delete(sessionId);
         terminalShells.delete(sessionId);
-        sendToRenderer("terminal:status", {
+        emit("terminal:status", {
           code,
           sessionId,
           shell: shellCommand,
@@ -430,11 +430,11 @@ export function createProcessSessionManager({ sendToRenderer }) {
         terminalSessions.delete(sessionId);
         terminalTransports.delete(sessionId);
         terminalShells.delete(sessionId);
-        sendToRenderer("terminal:data", {
+        emit("terminal:data", {
           chunk: `\r\n[terminal error] ${error.message}\r\n`,
           sessionId,
         });
-        sendToRenderer("terminal:status", {
+        emit("terminal:status", {
           sessionId,
           shell: shellCommand,
           status: "stopped",
@@ -462,7 +462,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
       chosenShell.args,
     );
     terminalShells.set(sessionId, shellCommand);
-    sendToRenderer("terminal:status", {
+    emit("terminal:status", {
       pid: terminalSession.pid,
       sessionId,
       shell: shellCommand,
@@ -472,7 +472,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
 
     const output = createTerminalOutput({
       sessionId,
-      send: sendToRenderer,
+      send: emit,
       pause: () => terminalSession.pause(),
       resume: () => terminalSession.resume(),
     });
@@ -488,7 +488,7 @@ export function createProcessSessionManager({ sendToRenderer }) {
       terminalSessions.delete(sessionId);
       terminalTransports.delete(sessionId);
       terminalShells.delete(sessionId);
-      sendToRenderer("terminal:status", {
+      emit("terminal:status", {
         code: exitCode,
         sessionId,
         shell: shellCommand,

@@ -24,6 +24,8 @@ export default defineConfig({
       "/api": {
         target: `http://127.0.0.1:${apiServerPort}`,
         changeOrigin: true,
+        // The terminal socket (/api/terminal-socket) is a WebSocket.
+        ws: true,
       },
     },
   },

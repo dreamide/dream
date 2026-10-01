@@ -1,4 +1,5 @@
 import { getDesktopApi } from "@/lib/electron";
+import { terminalClient } from "@/lib/terminal-client";
 import {
   createProjectTerminalSessionId,
   getBrowserTerminalSessionId,
@@ -48,7 +49,7 @@ export const createTerminalActions = (
       browserError: null,
     });
 
-    await desktopApi.startTerminal({
+    await terminalClient.start({
       command: project.runCommand,
       cwd: project.path,
       sessionId,
@@ -70,7 +71,7 @@ export const createTerminalActions = (
       terminalStatus: { ...state.terminalStatus, [sessionId]: "stopped" },
     }));
 
-    await desktopApi.stopTerminal(sessionId);
+    await terminalClient.stop(sessionId);
   },
 
   openProjectTerminal: async (projectId) => {
@@ -188,7 +189,7 @@ export const createTerminalActions = (
     });
 
     try {
-      const result = await desktopApi.startTerminal({
+      const result = await terminalClient.start({
         command: options.command,
         cwd: options.cwd?.trim() || project.path,
         sessionId,
@@ -325,7 +326,7 @@ export const createTerminalActions = (
 
     const desktopApi = getDesktopApi();
     if (desktopApi) {
-      await desktopApi.stopTerminal(sessionId);
+      await terminalClient.stop(sessionId);
     }
   },
 });

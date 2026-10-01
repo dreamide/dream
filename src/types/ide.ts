@@ -808,24 +808,6 @@ export interface DesktopApi {
   setBaseColor: (baseColor: string) => Promise<boolean>;
   setAccentColor: (accentColor: string) => Promise<boolean>;
 
-  detectTerminalShells: () => Promise<TerminalShellOption[]>;
-  startTerminal: (payload: StartTerminalPayload) => Promise<{
-    status: string;
-    pid?: number;
-    transport?: "pty" | "pipe";
-    shell?: string;
-  }>;
-  sendTerminalInput: (payload: TerminalInputPayload) => void;
-  acknowledgeTerminalOutput: (payload: TerminalOutputAcknowledgment) => void;
-  getTerminalOutputDiagnostics: () => Promise<TerminalOutputDiagnostics[]>;
-  resizeTerminal: (payload: TerminalResizePayload) => void;
-  stopTerminal: (sessionId: string) => Promise<boolean>;
-  stopAllTerminals: () => Promise<boolean>;
-  onTerminalData: (listener: (event: TerminalDataEvent) => void) => () => void;
-  onTerminalStatus: (
-    listener: (event: TerminalStatusEvent) => void,
-  ) => () => void;
-
   updateBrowser: (payload: BrowserUpdatePayload) => void;
   captureBrowserPage: (
     payload: BrowserCapturePayload,

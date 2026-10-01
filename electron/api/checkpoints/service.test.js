@@ -3,15 +3,14 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
-import { afterEach, beforeAll, test, vi } from "vitest";
+import { afterEach, beforeAll, test } from "vitest";
+import { configureHostDataDirectory } from "../../host/host-paths.js";
 
 const userDataDirectory = await fs.mkdtemp(
   path.join(os.tmpdir(), "dream-checkpoints-userdata-"),
 );
 
-vi.mock("electron", () => ({
-  app: { getPath: () => userDataDirectory },
-}));
+configureHostDataDirectory(userDataDirectory);
 
 const {
   createCheckpoint,

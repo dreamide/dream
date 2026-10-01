@@ -14,6 +14,7 @@
     "dev:update": "pnpm electron:dev:update",
     "db:generate": "drizzle-kit generate",
     "import:codex-chats": "node scripts/import-codex-chats.mjs",
+    "host": "node electron/host/dream-host.js",
     "postinstall": "node scripts/fix-node-pty-permissions.mjs && node scripts/prepare-electron-dev-app.mjs",
     "start": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=production electron electron/main.js",
     "package": "pnpm package:dir",
@@ -58,6 +59,7 @@
     "sonner": "^2.0.8",
     "space-separated-tokens": "2.0.2",
     "stringify-entities": "4.0.4",
+    "ws": "^8.22.0",
     "zod": "^4.6.5",
     "zwitch": "2.0.4"
   },

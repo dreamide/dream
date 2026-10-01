@@ -166,19 +166,7 @@ contextBridge.exposeInMainWorld("dream", {
   setAccentColor: (accentColor) =>
     ipcRenderer.invoke("theme:set-accent-color", { accentColor }),
 
-  detectTerminalShells: () => ipcRenderer.invoke("terminal:detect-shells"),
-  startTerminal: (payload) => ipcRenderer.invoke("terminal:start", payload),
-  sendTerminalInput: (payload) => ipcRenderer.send("terminal:input", payload),
-  acknowledgeTerminalOutput: (payload) =>
-    ipcRenderer.send("terminal:acknowledge", payload),
-  getTerminalOutputDiagnostics: () =>
-    ipcRenderer.invoke("terminal:diagnostics"),
-  resizeTerminal: (payload) => ipcRenderer.send("terminal:resize", payload),
-  stopTerminal: (sessionId) =>
-    ipcRenderer.invoke("terminal:stop", { sessionId }),
-  stopAllTerminals: () => ipcRenderer.invoke("terminal:stop-all"),
-  onTerminalData: (listener) => subscribe("terminal:data", listener),
-  onTerminalStatus: (listener) => subscribe("terminal:status", listener),
+  // Terminals are served by the host (src/lib/terminal-client.ts), not IPC.
 
   updateBrowser: (payload) => ipcRenderer.send("browser:update", payload),
   captureBrowserPage: (payload) =>

@@ -10,6 +10,7 @@ import {
   normalizeClaudeCodeModelId,
   normalizeDefaultModelSettings,
 } from "@/lib/ide-defaults";
+import { terminalClient } from "@/lib/terminal-client";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { AppScreenshotToast } from "./app-screenshot-toast";
@@ -245,12 +246,12 @@ export const IdeShell = () => {
     };
   }, []);
 
-  // Best-effort: ask main to stop PTYs on page hide/unload. Keyboard reload and
-  // in-app navigations are intercepted in the main process so sessions are
-  // closed before the renderer is torn down; this covers remaining unload paths.
+  // Best-effort: ask the host to stop PTYs on page hide/unload. Keyboard
+  // reload and in-app navigations are intercepted in the main process so
+  // sessions are closed before the renderer is torn down; this covers the
+  // remaining unload paths.
   useEffect(() => {
-    const desktopApi = getDesktopApi();
-    if (!desktopApi || typeof desktopApi.stopAllTerminals !== "function") {
+    if (!getDesktopApi()) {
       return;
     }
 
@@ -274,7 +275,7 @@ export const IdeShell = () => {
         return;
       }
 
-      void desktopApi.stopAllTerminals();
+      void terminalClient.stopAll({ keepalive: true });
     };
 
     window.addEventListener("pagehide", stopActiveSessions);
@@ -291,11 +292,11 @@ export const IdeShell = () => {
     const desktopApi = getDesktopApi();
     if (!desktopApi) return;
 
-    const removeTerminalData = desktopApi.onTerminalData((event) => {
+    const removeTerminalData = terminalClient.onData((event) => {
       const { generation, sequence, sessionId } = event;
       publishTerminalOutput(sessionId, event.chunk, () => {
         if (generation !== undefined && sequence !== undefined) {
-          desktopApi.acknowledgeTerminalOutput({
+          terminalClient.acknowledge({
             sessionId,
             generation,
             sequence,
@@ -304,7 +305,7 @@ export const IdeShell = () => {
       });
     });
 
-    const removeTerminalStatus = desktopApi.onTerminalStatus((event) => {
+    const removeTerminalStatus = terminalClient.onStatus((event) => {
       if (!hasTerminalScrollback(event.sessionId)) {
         return;
       }

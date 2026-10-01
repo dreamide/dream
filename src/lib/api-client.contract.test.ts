@@ -1,12 +1,8 @@
 // The route client's paths against the routes the server registers: every
 // method the renderer can call is one the API server answers.
 import { Hono } from "hono";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { API_ROUTES } from "./api-client";
-
-vi.mock("electron", () => ({
-  app: { getPath: () => "/tmp/dream-test-user-data" },
-}));
 
 test("every client route is registered on the API server", async () => {
   const [
@@ -17,6 +13,7 @@ test("every client route is registered on the API server", async () => {
     { registerProjectGitRoutes },
     { registerProviderRoutes },
     { registerSkillsRoutes },
+    { registerTerminalRoutes },
     { registerToolApprovalRoutes },
   ] = await Promise.all([
     import("../../electron/api/chat-routes.js"),
@@ -26,6 +23,7 @@ test("every client route is registered on the API server", async () => {
     import("../../electron/api/project-git-routes.js"),
     import("../../electron/api/provider-routes.js"),
     import("../../electron/api/skills-routes.js"),
+    import("../../electron/api/terminal-routes.js"),
     import("../../electron/api/tool-approvals.js"),
   ]);
 
@@ -42,6 +40,12 @@ test("every client route is registered on the API server", async () => {
   ]) {
     register(app);
   }
+  registerTerminalRoutes(app, {
+    detectShells: () => [],
+    sessions: {} as never,
+    stream: {} as never,
+    tickets: {} as never,
+  });
 
   const served = new Set(
     app.routes.map((route) => `${route.method} ${route.path}`),

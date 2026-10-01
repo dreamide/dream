@@ -1,9 +1,5 @@
 import assert from "node:assert/strict";
-import { test, vi } from "vitest";
-
-vi.mock("electron", () => ({
-  app: { getPath: () => "/tmp/dream-test-user-data" },
-}));
+import { test } from "vitest";
 
 const { getGitCommandErrorMessage, getProjectGitChangesFingerprint } =
   await import("./core.js");

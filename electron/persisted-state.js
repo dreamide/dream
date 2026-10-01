@@ -8,11 +8,11 @@
 // receives a valid state.
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { readMigrationFiles } from "drizzle-orm/migrator";
+import { requireHostDataDirectory } from "./host/host-paths.js";
 import {
   chatFromRow,
   chatToRow,
@@ -89,12 +89,9 @@ export function resolveStateDatabasePath() {
     return configuredPath;
   }
 
-  // Lazy-loaded so this module also works inside worker threads, where the
-  // "electron" module is unavailable. Workers must set DREAM_DB_PATH (the
-  // save worker always does), so this branch never runs there.
-  const require = createRequire(import.meta.url);
-  const { app } = require("electron");
-  return path.join(app.getPath("userData"), STATE_DB_FILENAME);
+  // Workers must set DREAM_DB_PATH (the save worker always does): the host
+  // data directory is configured per thread, so this branch never runs there.
+  return path.join(requireHostDataDirectory(), STATE_DB_FILENAME);
 }
 
 function getMetadataObject(value) {
