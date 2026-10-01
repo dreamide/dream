@@ -1,6 +1,7 @@
 import "./load-env.js";
 import { existsSync, mkdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -40,6 +41,7 @@ import {
   savePersistedThemePreference,
 } from "./persisted-state.js";
 import { createRendererServerManager } from "./renderer-server.js";
+import { createSshHostManager } from "./ssh/ssh-hosts.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
 import { initializeAutoUpdater } from "./updater.js";
 
@@ -196,6 +198,23 @@ const browserAgentBridge = createBrowserAgentBridge({ sendToRenderer });
 setBrowserBridge(browserAgentBridge);
 
 const processSessionManager = host.processSessions;
+
+// Connections to SSH hosts' daemons. Nothing opens one from the UI yet (the
+// host registry is still to come; `pnpm ssh-host-check` drives it from a
+// terminal), so ssh's prompts are declined: key and agent sign-in works,
+// passwords and 2FA wait for the prompt UI.
+const sshHosts = createSshHostManager({
+  onPrompt: async ({ target }) => {
+    console.warn(`[ssh] ${target}: declined a prompt (no prompt UI yet).`);
+    return null;
+  },
+  onStatus: (status) => {
+    console.log(
+      `[ssh] ${status.target}: ${status.state}${status.error ? ` (${status.error})` : ""}`,
+    );
+  },
+  stateDirectory: path.join(os.homedir(), ".dream", "ssh"),
+});
 
 let rendererServerManager = null;
 
@@ -910,6 +929,7 @@ app.on("before-quit", (event) => {
     .then(async () => {
       await stopCodexAppServer();
       await host.close();
+      await sshHosts.disconnectAll();
       await rendererServerManager?.stop();
       await stateSaveQueue?.flushAndClose();
       closePersistedStateDatabase();

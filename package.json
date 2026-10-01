@@ -15,6 +15,7 @@
     "db:generate": "drizzle-kit generate",
     "import:codex-chats": "node scripts/import-codex-chats.mjs",
     "host": "node electron/host/dream-host.js",
+    "ssh-host-check": "node scripts/ssh-host-check.mjs",
     "postinstall": "node scripts/fix-node-pty-permissions.mjs && node scripts/prepare-electron-dev-app.mjs",
     "start": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=production electron electron/main.js",
     "package": "pnpm package:dir",
@@ -139,6 +140,9 @@
       }
     ],
     "afterPack": "scripts/prune-packaged-app.cjs",
+    "asarUnpack": [
+      "electron/ssh/askpass.js"
+    ],
     "files": [
       "electron/**/*",
       "dist/**/*",
