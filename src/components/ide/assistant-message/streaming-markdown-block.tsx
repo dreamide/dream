@@ -1,8 +1,7 @@
 import { useContext, useMemo } from "react";
 import { Block, type BlockProps, parseMarkdownIntoBlocks } from "streamdown";
 import {
-  createDreamStreamingRehypePlugin,
-  getInlineCodeRanges,
+  dreamStreamingRehypePlugin,
   getMarkdownBlockAnimationTokenStartIndices,
   getMarkdownBlockStartOffsets,
   StreamingMarkdownBlockContext,
@@ -37,10 +36,6 @@ const StreamingMarkdownBlock = (props: BlockProps) => {
       props.content,
     ],
   );
-  const inlineCodeRanges = useMemo(
-    () => getInlineCodeRanges(props.content),
-    [props.content],
-  );
   const blockStartOffset = markdownBlockStartOffsets[props.index] ?? 0;
   const blockAnimationStartOffset = animationContext
     ? Math.min(
@@ -53,23 +48,28 @@ const StreamingMarkdownBlock = (props: BlockProps) => {
     : 0;
   const animationTokenStartIndex =
     markdownBlockAnimationTokenStartIndices[props.index] ?? 0;
-  const rehypePlugins = useMemo(
+  const rehypePlugins = useMemo<BlockProps["rehypePlugins"]>(
     () =>
       animationContext?.animateStreamedText
         ? [
             ...(props.rehypePlugins ?? []),
-            createDreamStreamingRehypePlugin(
-              blockAnimationStartOffset,
-              inlineCodeRanges,
-              animationTokenStartIndex,
-            ),
+            // The per-block offsets are plugin options on purpose: Streamdown
+            // caches processors by plugin name and options, so state captured
+            // in a closure would be shared across blocks. See
+            // dreamStreamingRehypePlugin.
+            [
+              dreamStreamingRehypePlugin,
+              {
+                animationStartOffset: blockAnimationStartOffset,
+                animationTokenStartIndex,
+              },
+            ],
           ]
         : props.rehypePlugins,
     [
       animationContext?.animateStreamedText,
       animationTokenStartIndex,
       blockAnimationStartOffset,
-      inlineCodeRanges,
       props.rehypePlugins,
     ],
   );

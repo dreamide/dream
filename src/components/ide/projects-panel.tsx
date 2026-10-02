@@ -367,9 +367,9 @@ export const ProjectSidebar = ({
                   chat.id !== activeChatId;
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
                 const statusIndicator = isStreaming ? (
-                  <StatusDot
+                  <Spinner
                     aria-label={projectsT("chatStreaming")}
-                    color="blue"
+                    className="size-3 shrink-0"
                   />
                 ) : isCompleted ? (
                   <StatusDot

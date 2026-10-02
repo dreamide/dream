@@ -359,97 +359,112 @@ const splitTextForSearAnimation = (
   return nodes;
 };
 
-export const createDreamStreamingRehypePlugin =
-  (
-    animationStartOffset: number,
-    inlineCodeRanges: InlineCodeRange[],
-    animationTokenStartIndex: number,
-  ) =>
-  () => {
-    return (tree: HastNode) => {
-      const animatedTokenIndex = { current: animationTokenStartIndex };
-      let inlineCodeRangeIndex = 0;
+export type DreamStreamingRehypePluginOptions = {
+  animationStartOffset: number;
+  animationTokenStartIndex: number;
+};
 
-      const visit = (
-        node: HastNode,
-        parentTagName: string | null = null,
-        listItemNode: HastNode | null = null,
-      ) => {
-        if (!node.children?.length) {
-          return;
-        }
+type UnifiedFile = {
+  value?: unknown;
+};
 
-        if (
-          node.tagName &&
-          SKIP_DREAM_STREAMING_ANIMATION_TAGS.has(node.tagName.toLowerCase())
-        ) {
-          return;
-        }
+// Streamdown keeps one unified processor per rehype plugin list in a
+// module-level cache keyed by each plugin's function name plus the JSON of its
+// options. Per-block state therefore has to travel as plugin options. A closure
+// over that state is keyed only by its (empty) function name, so the first
+// processor ever built, with the first block's offset, would be served for
+// every block and every later frame, re-animating text that already settled.
+export const dreamStreamingRehypePlugin = ({
+  animationStartOffset,
+  animationTokenStartIndex,
+}: DreamStreamingRehypePluginOptions) => {
+  return (tree: HastNode, file?: UnifiedFile) => {
+    const inlineCodeRanges = getInlineCodeRanges(
+      typeof file?.value === "string" ? file.value : "",
+    );
+    const animatedTokenIndex = { current: animationTokenStartIndex };
+    let inlineCodeRangeIndex = 0;
 
-        const currentListItemNode =
-          node.tagName?.toLowerCase() === "li" ? node : listItemNode;
+    const visit = (
+      node: HastNode,
+      parentTagName: string | null = null,
+      listItemNode: HastNode | null = null,
+    ) => {
+      if (!node.children?.length) {
+        return;
+      }
 
-        for (let index = 0; index < node.children.length; index++) {
-          const child = node.children[index];
-          const childTagName = child.tagName?.toLowerCase() ?? null;
+      if (
+        node.tagName &&
+        SKIP_DREAM_STREAMING_ANIMATION_TAGS.has(node.tagName.toLowerCase())
+      ) {
+        return;
+      }
 
-          if (childTagName === "code" && parentTagName !== "pre") {
-            const offsets =
-              inlineCodeRanges[inlineCodeRangeIndex++] ??
-              getHastNodeOffsets(child);
+      const currentListItemNode =
+        node.tagName?.toLowerCase() === "li" ? node : listItemNode;
 
-            if (offsets && offsets.end > animationStartOffset) {
-              const delayMs =
-                animatedTokenIndex.current * streamingTextAnimation.stagger;
-              markNewListItemForRevealAnimation(
-                currentListItemNode,
-                animationStartOffset,
-                delayMs,
-              );
-              child.properties = child.properties ?? {};
-              child.properties["data-sd-animate"] = true;
-              appendHastStyle(child, getSearAnimationStyle(delayMs));
-              animatedTokenIndex.current++;
-            }
-            continue;
-          }
+      for (let index = 0; index < node.children.length; index++) {
+        const child = node.children[index];
+        const childTagName = child.tagName?.toLowerCase() ?? null;
 
-          if (child.type === "text" && typeof child.value === "string") {
-            const offsets = getHastNodeOffsets(child);
-            if (
-              !offsets ||
-              offsets.end <= animationStartOffset ||
-              !child.value.trim()
-            ) {
-              continue;
-            }
+        if (childTagName === "code" && parentTagName !== "pre") {
+          const offsets =
+            inlineCodeRanges[inlineCodeRangeIndex++] ??
+            getHastNodeOffsets(child);
 
-            const firstAnimatedTokenIndex = animatedTokenIndex.current;
-            const replacement = splitTextForSearAnimation(
-              child.value,
-              offsets.start,
+          if (offsets && offsets.end > animationStartOffset) {
+            const delayMs =
+              animatedTokenIndex.current * streamingTextAnimation.stagger;
+            markNewListItemForRevealAnimation(
+              currentListItemNode,
               animationStartOffset,
-              animatedTokenIndex,
+              delayMs,
             );
-            if (animatedTokenIndex.current > firstAnimatedTokenIndex) {
-              markNewListItemForRevealAnimation(
-                currentListItemNode,
-                animationStartOffset,
-                firstAnimatedTokenIndex * streamingTextAnimation.stagger,
-              );
-            }
-            node.children.splice(index, 1, ...replacement);
-            index += replacement.length - 1;
+            child.properties = child.properties ?? {};
+            child.properties["data-sd-animate"] = true;
+            appendHastStyle(child, getSearAnimationStyle(delayMs));
+            animatedTokenIndex.current++;
+          }
+          continue;
+        }
+
+        if (child.type === "text" && typeof child.value === "string") {
+          const offsets = getHastNodeOffsets(child);
+          if (
+            !offsets ||
+            offsets.end <= animationStartOffset ||
+            !child.value.trim()
+          ) {
             continue;
           }
 
-          visit(child, childTagName, currentListItemNode);
+          const firstAnimatedTokenIndex = animatedTokenIndex.current;
+          const replacement = splitTextForSearAnimation(
+            child.value,
+            offsets.start,
+            animationStartOffset,
+            animatedTokenIndex,
+          );
+          if (animatedTokenIndex.current > firstAnimatedTokenIndex) {
+            markNewListItemForRevealAnimation(
+              currentListItemNode,
+              animationStartOffset,
+              firstAnimatedTokenIndex * streamingTextAnimation.stagger,
+            );
+          }
+          node.children.splice(index, 1, ...replacement);
+          index += replacement.length - 1;
+          continue;
         }
-      };
 
-      visit(tree);
+        visit(child, childTagName, currentListItemNode);
+      }
     };
+
+    visit(tree);
   };
+};
 
 const InlineCode = ({ className, ...props }: ComponentProps<"code">) => {
   return (
