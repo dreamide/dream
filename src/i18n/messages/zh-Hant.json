@@ -3,7 +3,9 @@
     "loadingDream": "正在載入 Dream",
     "videoUnavailable": "影片無法使用",
     "working": "正在處理",
-    "subwaySurfing": "地鐵跑酷中"
+    "subwaySurfing": "地鐵跑酷中",
+    "workspaceLoadFailed": "Dream 無法載入你的工作區，因此不會儲存任何內容。你的設定和專案仍安全地保存在磁碟上。",
+    "reload": "重新載入"
   },
   "ui": {
     "addPhotosOrFiles": "新增照片或檔案",
@@ -153,7 +155,10 @@
     "noMatchingProjects": "沒有相符的專案。",
     "recentlyClosed": "最近關閉",
     "searchRecentlyClosed": "搜尋最近關閉的專案...",
-    "worktree": "工作樹"
+    "worktree": "工作樹",
+    "removeRecent": "移除",
+    "removeRecentTitle": "移除 {name}？",
+    "removeRecentDescription": "將從 Dream 中移除此專案及其聊天。資料夾本身不受影響。"
   },
   "workspace": {
     "chatHistory": "聊天記錄",
@@ -501,7 +506,7 @@
     "title": "技能",
     "description": "每個代理程式為專案載入的技能，依該代理程式自己的方式讀取。在聊天中以 $名稱 提及技能。",
     "project": "專案",
-    "noProject": "無專案（僅個人技能）",
+    "noProject": "無專案",
     "refresh": "重新整理",
     "newSkill": "新增技能",
     "empty": "找不到技能",
@@ -937,13 +942,13 @@
   },
   "sshHosts": {
     "settingsTitle": "SSH 主機",
-    "settingsDescription": "Dream 可以在這些機器上開啟專案。Dream 使用你自己的 ssh（金鑰、agent、~/.ssh/config）連線，並在那裡啟動它的主機；代理和終端機都在那台機器上執行。",
+    "settingsDescription": "用於開啟專案的遠端機器，使用你自己的 ssh 設定和金鑰連線。",
     "add": "新增 SSH 主機",
     "name": "名稱",
     "target": "SSH 目標",
     "targetPlaceholder": "devbox 或 user@host",
     "hostCommand": "主機指令",
-    "hostCommandHint": "留空則由 Dream 在那裡安裝它的主機；否則填寫在那台機器上執行 dream-host 的方式。",
+    "hostCommandHint": "留空則自動安裝主機；否則填寫在那台機器上執行 dream-host 的指令。",
     "remove": "移除",
     "connect": "連線",
     "disconnect": "中斷連線",
@@ -970,7 +975,7 @@
     "yes": "是",
     "no": "否",
     "onHost": "位於 {host}",
-    "hostCommandPlaceholder": "由 Dream 安裝",
+    "hostCommandPlaceholder": "自動安裝",
     "pathOnHost": "{path} 位於 {host}。請在連線到那裡的編輯器中開啟。",
     "connectingTo": "正在連線到 {host}…",
     "reconnectingTo": "正在重新連線到 {host}…",
@@ -983,6 +988,10 @@
     "noFolders": "這裡沒有資料夾。",
     "foldersTruncated": "僅顯示前 {count} 個資料夾。",
     "loadingFolders": "正在載入資料夾…",
-    "foldersFailed": "無法列出資料夾。"
+    "foldersFailed": "無法列出資料夾。",
+    "localMachine": "本機",
+    "runsHere": "在這台電腦上執行",
+    "runsOn": "在 {host}（{target}）上執行",
+    "edit": "編輯"
   }
 }

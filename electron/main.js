@@ -1,5 +1,5 @@
 import "./load-env.js";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -40,6 +40,7 @@ import {
   savePersistedThemePreference,
 } from "./persisted-state.js";
 import { createRendererServerManager } from "./renderer-server.js";
+import { DEV_RUNTIME_VERSION } from "./ssh/host-install.js";
 import { createSshHostManager } from "./ssh/ssh-hosts.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
 import { initializeAutoUpdater } from "./updater.js";
@@ -52,6 +53,20 @@ const appIconPath = app.isPackaged
   : path.join(__dirname, "..", "public", appIconFileName);
 
 const isDevelopment = process.env.NODE_ENV === "development";
+
+// Dream's version. Unpackaged, `app.getVersion()` can answer Electron's own
+// version, which names no Dream release (and so no host runtime to install).
+const readDreamVersion = () => {
+  if (app.isPackaged) return app.getVersion();
+  try {
+    return JSON.parse(
+      readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
+    ).version;
+  } catch {
+    return app.getVersion();
+  }
+};
+const dreamVersion = readDreamVersion();
 
 // Diagnostic only: opt-in via env var to test whether software rendering is
 // caused by Chromium's GPU blocklist (do NOT enable in production builds —
@@ -116,7 +131,7 @@ const host = createHost({
     saveChatMessages: (payload) =>
       trackStateWrite(getStateSaveQueue().saveChatMessages(payload)),
   }),
-  version: app.getVersion(),
+  version: dreamVersion,
   // Requests for SSH-host projects go through the local API to the host's
   // forwarded port (api/host-proxy-routes.js).
   resolveRemoteHost: (hostId) => sshHosts.getEndpoint(hostId),
@@ -253,8 +268,10 @@ const sshHosts = createSshHostManager({
     });
   },
   stateDirectory: path.join(os.homedir(), ".dream", "ssh"),
-  // A host without its own host command gets this version installed.
-  runtimeVersion: app.getVersion(),
+  // A host without its own host command gets this version installed. A
+  // development build has nothing published: its runtime is built on the
+  // host from the working tree (pnpm host:install-dev <target>).
+  runtimeVersion: app.isPackaged ? dreamVersion : DEV_RUNTIME_VERSION,
 });
 
 ipcMain.handle(

@@ -54,6 +54,9 @@ const BranchSwitcherImpl = ({
 }: BranchSwitcherProps) => {
   const branchT = useTranslations("branches");
   const commonT = useTranslations("common");
+  const projectHostId = useIdeStore(
+    (s) => s.projects.find((project) => project.id === projectId)?.hostId,
+  );
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[projectId] ?? 0,
   );
@@ -70,7 +73,7 @@ const BranchSwitcherImpl = ({
     loading,
     refresh,
     switching,
-  } = useProjectGitBranches(projectPath, gitRefreshKey);
+  } = useProjectGitBranches(projectPath, gitRefreshKey, projectHostId);
 
   const [open, setOpen] = useState(false);
   const [createBranchOpen, setCreateBranchOpen] = useState(false);

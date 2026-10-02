@@ -5,13 +5,24 @@ import {
   FolderTree,
   History,
   Plug,
-  ServerCog,
+  Server,
   Settings,
+  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import dreamSvg from "@/assets/dream.svg";
 import { ProviderIcon } from "@/components/ai-elements/provider-icons";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -24,6 +35,7 @@ import {
 import { SearchInput } from "@/components/ui/search-input";
 import { getDesktopApi } from "@/lib/electron";
 import { getConnectedProviders } from "@/lib/ide-defaults";
+import type { ProjectConfig } from "@/types/ide";
 import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
@@ -113,9 +125,17 @@ export const EmptyProjectWorkspace = () => {
   const chats = useIdeStore((s) => s.chats);
   const settings = useIdeStore((s) => s.settings);
   const addProject = useIdeStore((s) => s.addProject);
+  const openProjectOnHost = useIdeStore((s) => s.openProjectOnHost);
+  const sshHosts = useIdeStore((s) => s.settings.sshHosts);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const [recentProjectQuery, setRecentProjectQuery] = useState("");
+  const commonT = useTranslations("common");
+  const forgetClosedProject = useIdeStore((s) => s.forgetClosedProject);
+  // The closed project whose removal awaits confirmation.
+  const [pendingRemove, setPendingRemove] = useState<ProjectConfig | null>(
+    null,
+  );
 
   const connectedProviders = useMemo(
     () => getConnectedProviders(settings),
@@ -258,7 +278,7 @@ export const EmptyProjectWorkspace = () => {
             size="lg"
             variant="outline"
           >
-            <ServerCog className="size-4" />
+            <Server className="size-4" />
             {sshHostsT("openOnHost")}
           </Button>
         </div>
@@ -297,6 +317,17 @@ export const EmptyProjectWorkspace = () => {
               >
                 {filteredRecentProjects.map((project) => {
                   const isWorktree = project.worktree?.kind === "worktree";
+                  // A project on an SSH host reopens there (connecting first
+                  // if needed), never as a local folder at the same path.
+                  const hostLabel = project.hostId
+                    ? (sshHosts.find((host) => host.id === project.hostId)
+                        ?.label ?? project.hostId)
+                    : null;
+                  const placeholderIcon = hostLabel ? (
+                    <Server className="size-4" />
+                  ) : (
+                    <Folder className="size-4" />
+                  );
                   const lastUsedAt =
                     project.lastUsedAt ??
                     chatLastUsedAtByProject.get(project.id) ??
@@ -310,48 +341,72 @@ export const EmptyProjectWorkspace = () => {
                   });
 
                   return (
-                    <button
-                      className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-sm border border-transparent px-3 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:border-surface-300 dark:hover:bg-[color-mix(in_oklab,var(--muted)_70%,var(--background))] dark:focus-visible:border-surface-700 focus-visible:outline-none"
-                      key={project.id}
-                      onClick={() => addProject(project.path)}
-                      type="button"
-                    >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                        {isWorktree && project.icon?.source !== "custom" ? (
-                          <FolderTree className="size-4" />
-                        ) : project.icon ? (
-                          <ProjectTabIcon
-                            hostId={project.hostId}
-                            fallback={<Folder className="size-4" />}
-                            icon={project.icon}
-                            projectName={project.name}
-                            projectPath={project.path}
-                          />
-                        ) : (
-                          <Folder className="size-4" />
-                        )}
-                      </span>
-                      <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
-                        <span className="col-start-1 block truncate font-medium text-foreground text-sm">
-                          {project.name}
+                    <div className="group/recent relative" key={project.id}>
+                      <button
+                        className="group flex min-h-12 w-full min-w-0 items-center gap-3 rounded-sm border border-transparent px-3 py-2 text-left text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:border-surface-300 dark:hover:bg-[color-mix(in_oklab,var(--muted)_70%,var(--background))] dark:focus-visible:border-surface-700 focus-visible:outline-none"
+                        onClick={() => {
+                          if (project.hostId) {
+                            void openProjectOnHost(
+                              project.hostId,
+                              project.path,
+                            );
+                          } else {
+                            addProject(project.path);
+                          }
+                        }}
+                        type="button"
+                      >
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                          {isWorktree && project.icon?.source !== "custom" ? (
+                            <FolderTree className="size-4" />
+                          ) : project.icon ? (
+                            <ProjectTabIcon
+                              hostId={project.hostId}
+                              fallback={placeholderIcon}
+                              icon={project.icon}
+                              projectName={project.name}
+                              projectPath={project.path}
+                            />
+                          ) : (
+                            placeholderIcon
+                          )}
                         </span>
-                        {lastUsedLabel ? (
-                          <span
-                            className="col-start-2 row-span-2 self-center whitespace-nowrap text-right text-muted-foreground/80 text-xs"
-                            title={
-                              lastUsedAt
-                                ? new Date(lastUsedAt).toLocaleString()
-                                : undefined
-                            }
-                          >
-                            {lastUsedLabel}
+                        <span className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3">
+                          <span className="col-start-1 block truncate font-medium text-foreground text-sm">
+                            {project.name}
                           </span>
-                        ) : null}
-                        <span className="col-start-1 block truncate text-muted-foreground text-xs">
-                          {isWorktree ? emptyT("worktree") : project.path}
+                          {lastUsedLabel ? (
+                            <span
+                              className="col-start-2 row-span-2 self-center whitespace-nowrap text-right text-muted-foreground/80 text-xs group-focus-within/recent:invisible group-hover/recent:invisible"
+                              title={
+                                lastUsedAt
+                                  ? new Date(lastUsedAt).toLocaleString()
+                                  : undefined
+                              }
+                            >
+                              {lastUsedLabel}
+                            </span>
+                          ) : null}
+                          <span className="col-start-1 block truncate text-muted-foreground text-xs">
+                            {isWorktree
+                              ? emptyT("worktree")
+                              : hostLabel
+                                ? `${hostLabel} · ${project.path}`
+                                : project.path}
+                          </span>
                         </span>
-                      </span>
-                    </button>
+                      </button>
+                      <Button
+                        aria-label={emptyT("removeRecent")}
+                        className="absolute top-1/2 right-2 -translate-y-1/2 opacity-0 focus-visible:opacity-100 group-hover/recent:opacity-100"
+                        onClick={() => setPendingRemove(project)}
+                        size="icon-sm"
+                        title={emptyT("removeRecent")}
+                        variant="ghost"
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
                   );
                 })}
               </div>
@@ -363,6 +418,35 @@ export const EmptyProjectWorkspace = () => {
           </div>
         ) : null}
       </EmptyContent>
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) setPendingRemove(null);
+        }}
+        open={pendingRemove !== null}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {emptyT("removeRecentTitle", { name: pendingRemove?.name ?? "" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {emptyT("removeRecentDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{commonT("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingRemove) forgetClosedProject(pendingRemove.id);
+                setPendingRemove(null);
+              }}
+              variant="destructive"
+            >
+              {emptyT("removeRecent")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Empty>
   );
 };

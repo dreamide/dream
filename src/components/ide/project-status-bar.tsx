@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
 import { BranchSwitcher } from "./branch-switcher";
 import { useIdeStore } from "./ide-store";
+import { ProjectHostLabel } from "./ssh/project-host-label";
 import { slugifyWorktreeBranchName, WorktreeFields } from "./worktree-fields";
 
 const CreateWorktreeDialog = ({
@@ -132,19 +133,20 @@ export const ProjectBranchFooter = ({
   const { branch, isRepo, loading } = useProjectGitStatus(
     project.path,
     gitRefreshKey,
-    { detail: "summary" },
+    { detail: "summary", hostId: project.hostId },
   );
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
 
-  if (!project.worktree && !isRepo && !loading) {
-    return null;
-  }
+  // Where the project runs sits on the left, always; the branch on the
+  // right, for a repository.
+  const showBranch = Boolean(project.worktree) || isRepo || loading;
 
   return (
     <>
       <div className={cn("shrink-0 px-2 pt-1 pb-2", className)}>
-        <div className="mx-auto flex w-full max-w-[700px] justify-end">
-          {project?.worktree ? (
+        <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-2">
+          <ProjectHostLabel className="-ml-2" project={project} />
+          {!showBranch ? null : project.worktree ? (
             <div
               className="flex h-7 max-w-[280px] items-center gap-1.5 px-2 text-xs text-muted-foreground"
               title={project.worktree.branch}
@@ -155,7 +157,7 @@ export const ProjectBranchFooter = ({
                 {project.worktree.branch}
               </span>
             </div>
-          ) : project ? (
+          ) : (
             <BranchSwitcher
               onCreateWorktree={
                 isRepo ? () => setCreateWorktreeOpen(true) : undefined
@@ -163,7 +165,7 @@ export const ProjectBranchFooter = ({
               projectId={project.id}
               projectPath={project.path}
             />
-          ) : null}
+          )}
         </div>
       </div>
 

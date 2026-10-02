@@ -20,6 +20,7 @@ import type {
   ProjectWorktreeInfo,
   RightPanelView,
   SavedPrompt,
+  SshHostConfig,
   StashItem,
 } from "@/types/ide";
 import type {
@@ -87,6 +88,30 @@ export interface IdeState {
   hostRunningChatIds: Record<string, true>;
   /** SSH hosts' connection state (the local host is always there). */
   hosts: Record<string, HostRuntimeState>;
+  /**
+   * After hydration: picks up the SSH hosts main is already connected to
+   * (it keeps them across a reload of the window) and reconnects those in
+   * `openHostIds` (hosts with projects open last time).
+   */
+  resumeHosts: (openHostIds: string[]) => Promise<void>;
+  /**
+   * Projects a host refused because it already has a project at that path:
+   * each is replaced by the host's project, in the same place, with its
+   * chats moved over.
+   */
+  adoptHostProjects: (
+    hostId: string,
+    conflicts: { id: string; existingId: string }[],
+  ) => Promise<void>;
+  /**
+   * Changes how an SSH host is named or reached, keeping its id (and so its
+   * projects); a live connection reconnects when the target or host
+   * command changed.
+   */
+  updateSshHost: (
+    hostId: string,
+    patch: Partial<Pick<SshHostConfig, "label" | "target" | "hostCommand">>,
+  ) => Promise<void>;
   awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
@@ -112,6 +137,11 @@ export interface IdeState {
     { filePath: string; requestId: number }
   >;
   stateHydrated: boolean;
+  /**
+   * The workspace could not be loaded: what is shown is empty defaults, and
+   * nothing is saved (it would overwrite the user's data).
+   */
+  persistenceBlocked: boolean;
   isMacOs: boolean;
   isElectron: boolean;
   appReady: boolean;
@@ -216,6 +246,11 @@ export interface IdeState {
     },
   ) => void;
   closeProject: (projectId: string) => void;
+  /**
+   * Removes a closed project for good, with its chats: from this window and
+   * from its host's catalog. Its folder is not touched.
+   */
+  forgetClosedProject: (projectId: string) => void;
   stopProjectTerminals: (projectId: string) => void;
   updateProject: (
     projectId: string,

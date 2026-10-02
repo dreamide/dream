@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectGitBranchesResponse } from "@/types/ide";
 
 type ProjectGitBranchesCacheEntry = {
@@ -21,10 +22,14 @@ const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
 export const useProjectGitBranches = (
   projectPath: string | null | undefined,
   refreshKey?: number,
+  /** The project's host (absent: the local host). */
+  hostId: string = LOCAL_HOST_ID,
 ) => {
   const uiT = useTranslations("ui");
   const refreshToken = refreshKey ?? 0;
-  const cacheKey = getProjectPathCacheKey(projectPath);
+  // The same path on two hosts is two repositories.
+  const pathKey = getProjectPathCacheKey(projectPath);
+  const cacheKey = pathKey ? `${hostId}\0${pathKey}` : "";
   const cachedEntry = cacheKey ? gitBranchesCache.get(cacheKey) : null;
   const [status, setStatus] = useState<ProjectGitBranchesResponse | null>(
     cachedEntry?.refreshToken === refreshToken
@@ -69,7 +74,10 @@ export const useProjectGitBranches = (
               const entry: ProjectGitBranchesCacheEntry = {
                 error: null,
                 refreshToken,
-                status: await apiClient.gitBranches({ projectPath }),
+                status: await apiClient.gitBranches(
+                  { projectPath },
+                  { hostId },
+                ),
               };
               gitBranchesCache.set(cacheKey, entry);
               return entry;
@@ -108,7 +116,7 @@ export const useProjectGitBranches = (
         }
       }
     },
-    [cacheKey, projectPath, refreshToken, uiT],
+    [cacheKey, projectPath, refreshToken, uiT, hostId],
   );
 
   useEffect(() => {
@@ -130,11 +138,10 @@ export const useProjectGitBranches = (
       setError(null);
 
       try {
-        const payload = await apiClient.gitCheckout({
-          branchName,
-          create,
-          projectPath,
-        });
+        const payload = await apiClient.gitCheckout(
+          { branchName, create, projectPath },
+          { hostId },
+        );
         if (cacheKey) {
           gitBranchesCache.set(cacheKey, {
             error: null,
@@ -156,7 +163,7 @@ export const useProjectGitBranches = (
         setSwitching(false);
       }
     },
-    [cacheKey, projectPath, refreshToken, uiT],
+    [cacheKey, projectPath, refreshToken, uiT, hostId],
   );
 
   const forceRefresh = useCallback(() => refresh(undefined, true), [refresh]);

@@ -38,6 +38,7 @@ export const createCatalogActions = (
   get: IdeStoreGet,
 ): Pick<
   IdeState,
+  | "adoptHostProjects"
   | "applyCatalogChanges"
   | "applyCatalogTranscript"
   | "reloadCatalog"
@@ -100,8 +101,22 @@ export const createCatalogActions = (
     const state = get();
     if (!state.stateHydrated) return;
 
-    const removedProjectIds = new Set(changes.removedProjectIds ?? []);
-    const removedChatIds = new Set(changes.removedChatIds ?? []);
+    // A host's changes only ever remove that host's projects, and chats of
+    // them: another host's project with an id it does not know is not gone.
+    const hostProjectIds = new Set(
+      [...state.projects, ...state.closedProjects]
+        .filter((project) => getProjectHostId(project) === hostId)
+        .map((project) => project.id),
+    );
+    const removedProjectIds = new Set(
+      (changes.removedProjectIds ?? []).filter((id) => hostProjectIds.has(id)),
+    );
+    const removedChatIds = new Set(
+      (changes.removedChatIds ?? []).filter((id) => {
+        const chat = state.chats.find((item) => item.id === id);
+        return !chat || hostProjectIds.has(chat.projectId);
+      }),
+    );
     const incomingProjects = new Map(
       (changes.projects ?? [])
         .filter(isRecordWithId)
@@ -200,6 +215,78 @@ export const createCatalogActions = (
 
   return {
     applyCatalogChanges,
+
+    adoptHostProjects: async (hostId, conflicts) => {
+      // The host's own projects, read from it: the store cannot hold the
+      // one it kept beside the refused one (one project per path).
+      let catalog: Awaited<ReturnType<typeof loadCatalog>>;
+      try {
+        catalog = await loadCatalog(hostId);
+      } catch (error) {
+        console.warn(`Unable to read the catalog of host ${hostId}.`, error);
+        return;
+      }
+      const hostProjects = new Map(
+        catalog.projects
+          .filter(isRecordWithId)
+          .map((project) => [project.id, project]),
+      );
+
+      for (const { id, existingId } of conflicts) {
+        const keptRow = hostProjects.get(existingId);
+        if (!keptRow || existingId === id) continue;
+        set((state) => {
+          const all = [...state.projects, ...state.closedProjects];
+          const refused = all.find((project) => project.id === id);
+          if (!refused) return {};
+
+          // The host's project takes the refused one's place: open or
+          // closed, its position, and what this window had open in it.
+          const adopted = {
+            ...refused,
+            ...withHost(keptRow, hostId),
+            id: existingId,
+            lastUsedAt: refused.lastUsedAt,
+            ui: refused.ui,
+          } as ProjectConfig;
+          const kept = { id: existingId };
+          const swap = (projects: ProjectConfig[]) =>
+            projects.flatMap((project) =>
+              project.id === refused.id
+                ? [adopted]
+                : project.id === kept.id
+                  ? []
+                  : [project],
+            );
+          const projects = swap(state.projects);
+          const closedProjects = swap(state.closedProjects);
+
+          const { [refused.id]: draftChatId = null, ...draftChatIdByProject } =
+            state.draftChatIdByProject;
+          return {
+            activeProjectId:
+              state.activeProjectId === refused.id
+                ? kept.id
+                : state.activeProjectId,
+            // Its chats go with it: the host refused them along with it.
+            chats: state.chats.map((chat) =>
+              chat.projectId === refused.id
+                ? { ...chat, projectId: kept.id }
+                : chat,
+            ),
+            closedProjects,
+            draftChatIdByProject: {
+              ...draftChatIdByProject,
+              ...(draftChatId ? { [kept.id]: draftChatId } : {}),
+            },
+            projects,
+          };
+        });
+      }
+      get().persist();
+      // Its chats, and anything else the host has that this window lacks.
+      await get().reloadCatalog(hostId);
+    },
 
     setHostTurnRunning: (chatId, running) => {
       const current = get().hostRunningChatIds;

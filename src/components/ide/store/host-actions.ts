@@ -32,6 +32,8 @@ export const createHostActions = (
 ): Pick<
   IdeState,
   | "connectHost"
+  | "resumeHosts"
+  | "updateSshHost"
   | "disconnectHost"
   | "setHostStatus"
   | "openProjectOnHost"
@@ -106,8 +108,78 @@ export const createHostActions = (
     return run;
   };
 
+  // The host's catalog, once it is connected: loaded the first time,
+  // reloaded after that (it may have changed while away).
+  const followConnectedHost = async (hostId: string) => {
+    if (isHostLoaded(hostId)) {
+      await get().reloadCatalog(hostId);
+    } else {
+      await get().loadHostCatalog(hostId);
+      setHost(hostId, { loaded: true });
+    }
+    refreshHostProjects(hostId);
+  };
+
   return {
     connectHost,
+
+    resumeHosts: async (openHostIds) => {
+      const desktopApi = getDesktopApi();
+      const reopen = new Set(openHostIds);
+      await Promise.all(
+        get().settings.sshHosts.map(async (host) => {
+          // Main keeps its connections across a reload of this window; ask
+          // it rather than assume nothing is connected.
+          const mainState = await desktopApi
+            ?.getHostState(host.id)
+            .catch(() => "idle" as const);
+          if (mainState === "connected") {
+            // Already there: connecting returns at once, without prompts.
+            await connectHost(host.id);
+          } else if (
+            mainState === "connecting" ||
+            mainState === "reconnecting"
+          ) {
+            // On its way: its status event brings the catalog in.
+            setHost(host.id, { error: null, state: mainState });
+          } else if (reopen.has(host.id)) {
+            // Projects of it were open last time: connect again.
+            await connectHost(host.id);
+          }
+        }),
+      );
+    },
+
+    updateSshHost: async (hostId, patch) => {
+      const previous = get().settings.sshHosts.find(
+        (host) => host.id === hostId,
+      );
+      if (!previous) return;
+      const next = { ...previous, ...patch, id: hostId };
+      get().setSettings((settings) => ({
+        ...settings,
+        sshHosts: settings.sshHosts.map((host) =>
+          host.id === hostId ? next : host,
+        ),
+      }));
+
+      // Same host, reached differently: a live connection reconnects with
+      // the new settings. Its projects stay (they are keyed by the host's
+      // id, which does not change).
+      const reachedDifferently =
+        next.target !== previous.target ||
+        next.hostCommand !== previous.hostCommand;
+      const live = get().hosts[hostId]?.state;
+      if (
+        reachedDifferently &&
+        (live === "connected" ||
+          live === "connecting" ||
+          live === "reconnecting")
+      ) {
+        await getDesktopApi()?.disconnectHost(hostId);
+        await connectHost(hostId);
+      }
+    },
 
     removeSshHost: async (hostId) => {
       await getDesktopApi()?.disconnectHost(hostId);
@@ -150,22 +222,27 @@ export const createHostActions = (
     setHostStatus: ({ error, hostId, state }) => {
       const previous = get().hosts[hostId]?.state;
       setHost(hostId, { error, state });
-      // Back after a drop: catch up with what changed meanwhile.
+      // Connected without this window asking (back after a drop, or a
+      // connection main had before this window reloaded): bring the
+      // catalog in. A connect this window started does that itself.
       if (
         state === "connected" &&
-        previous === "reconnecting" &&
-        isHostLoaded(hostId)
+        previous !== "connected" &&
+        !connecting.has(hostId)
       ) {
-        void get()
-          .reloadCatalog(hostId)
-          .then(() => refreshHostProjects(hostId));
+        void followConnectedHost(hostId).catch((failure: unknown) =>
+          setHost(hostId, { error: errorMessage(failure) }),
+        );
       }
     },
 
     openProjectOnHost: async (hostId, path) => {
       const trimmed = path.trim();
       if (!trimmed) return false;
-      if (get().hosts[hostId]?.state !== "connected") {
+      // The host's projects must be here first: one already at this path
+      // opens as itself, not as a second project the host would refuse.
+      const runtime = get().hosts[hostId];
+      if (runtime?.state !== "connected" || !runtime.loaded) {
         if (!(await connectHost(hostId))) return false;
       }
       get().addProject(trimmed, { hostId });

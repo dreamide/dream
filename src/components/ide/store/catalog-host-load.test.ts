@@ -98,3 +98,105 @@ test("a host's catalog replaces its snapshot projects in place", async () => {
   ).toEqual([remoteChat.id]);
   expect(state.activeProjectId).toBe(remote.id);
 });
+
+test("a project the host refused (it has one at that path) becomes the host's project, in place, with its chats", async () => {
+  const localA = createProjectConfig("/local/a", DEFAULT_SETTINGS);
+  const refused = onDevbox("/srv/app", "App (new)");
+  const kept = onDevbox("/srv/app", "App");
+  const refusedChat = {
+    ...createChatConfig(refused, { title: "Started here" }),
+    messageCount: 2,
+  };
+  hostState.workspaceProjects = [];
+  hostState.catalog = {
+    chats: [],
+    projects: [{ ...kept, hostId: undefined }],
+  };
+
+  let saves = 0;
+  const store = createStore<IdeState>(
+    () =>
+      ({
+        activeProjectId: refused.id,
+        chats: [refusedChat],
+        closedProjects: [],
+        draftChatIdByProject: {},
+        hostRunningChatIds: {},
+        messagesByChatId: {},
+        persist: () => {
+          saves += 1;
+        },
+        projects: [localA, refused],
+        settings: DEFAULT_SETTINGS,
+        stateHydrated: true,
+        streamingChatIds: {},
+      }) as unknown as IdeState,
+  );
+  store.setState(createCatalogActions(store.setState, store.getState));
+
+  await store
+    .getState()
+    .adoptHostProjects("devbox", [{ existingId: kept.id, id: refused.id }]);
+
+  const state = store.getState();
+  expect(state.projects.map((project) => project.id)).toEqual([
+    localA.id,
+    kept.id,
+  ]);
+  expect(state.projects[1]?.hostId).toBe("devbox");
+  expect(state.closedProjects.map((project) => project.id)).not.toContain(
+    kept.id,
+  );
+  expect(state.activeProjectId).toBe(kept.id);
+  expect(
+    state.chats.find((chat) => chat.id === refusedChat.id)?.projectId,
+  ).toBe(kept.id);
+  expect(saves).toBe(1);
+});
+
+test("the local host's reload never removes an SSH host's project", async () => {
+  const local = createProjectConfig("/local/a", DEFAULT_SETTINGS);
+  const remote = onDevbox("/srv/app", "App");
+  const remoteChat = {
+    ...createChatConfig(remote, { title: "Remote chat" }),
+    messageCount: 1,
+  };
+  const store = createStore<IdeState>(
+    () =>
+      ({
+        activeProjectId: remote.id,
+        chats: [remoteChat],
+        closedProjects: [],
+        draftChatIdByProject: {},
+        hostRunningChatIds: {},
+        messagesByChatId: {},
+        projects: [local, remote],
+        settings: DEFAULT_SETTINGS,
+        stateHydrated: true,
+        streamingChatIds: {},
+      }) as unknown as IdeState,
+  );
+  store.setState(createCatalogActions(store.setState, store.getState));
+
+  // The local host says these are gone: they were never its own.
+  store.getState().applyCatalogChanges({
+    removedChatIds: [remoteChat.id],
+    removedProjectIds: [remote.id],
+  });
+
+  const state = store.getState();
+  expect(state.projects.map((project) => project.id)).toEqual([
+    local.id,
+    remote.id,
+  ]);
+  expect(state.chats.map((chat) => chat.id)).toContain(remoteChat.id);
+  expect(state.activeProjectId).toBe(remote.id);
+
+  // Its own host can remove it.
+  store
+    .getState()
+    .applyCatalogChanges({ removedProjectIds: [remote.id] }, "devbox");
+  expect(store.getState().projects.map((project) => project.id)).not.toContain(
+    remote.id,
+  );
+});

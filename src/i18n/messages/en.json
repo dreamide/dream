@@ -3,7 +3,9 @@
     "loadingDream": "Loading Dream",
     "videoUnavailable": "Video unavailable",
     "working": "Working",
-    "subwaySurfing": "Subway surfing"
+    "subwaySurfing": "Subway surfing",
+    "workspaceLoadFailed": "Dream couldn't load your workspace, so nothing is being saved. Your settings and projects are safe on disk.",
+    "reload": "Reload"
   },
   "ui": {
     "addPhotosOrFiles": "Add photos or files",
@@ -153,7 +155,10 @@
     "noMatchingProjects": "No matching projects.",
     "recentlyClosed": "Recently closed",
     "searchRecentlyClosed": "Search recently closed...",
-    "worktree": "worktree"
+    "worktree": "worktree",
+    "removeRecent": "Remove",
+    "removeRecentTitle": "Remove {name}?",
+    "removeRecentDescription": "This removes the project and its chats from Dream. The folder itself is not touched."
   },
   "workspace": {
     "chatHistory": "Chat history",
@@ -501,7 +506,7 @@
     "title": "Skills",
     "description": "What each agent loads for a project, read the way that agent reads it. Mention a skill in chat with $name.",
     "project": "Project",
-    "noProject": "No project (personal skills only)",
+    "noProject": "No project",
     "refresh": "Refresh",
     "newSkill": "New skill",
     "empty": "No skills found",
@@ -937,13 +942,13 @@
   },
   "sshHosts": {
     "settingsTitle": "SSH hosts",
-    "settingsDescription": "Machines Dream can open projects on. Dream connects with your own ssh (keys, agent, ~/.ssh/config) and starts its host there; agents and terminals run on that machine.",
+    "settingsDescription": "Remote machines to open projects on, connected with your own ssh config and keys.",
     "add": "Add SSH host",
     "name": "Name",
     "target": "SSH target",
     "targetPlaceholder": "devbox or user@host",
     "hostCommand": "Host command",
-    "hostCommandHint": "Leave empty and Dream installs its host there. Otherwise, how to run dream-host on that machine.",
+    "hostCommandHint": "Leave empty to install the host automatically, or enter the command that runs dream-host on that machine.",
     "remove": "Remove",
     "connect": "Connect",
     "disconnect": "Disconnect",
@@ -970,7 +975,7 @@
     "yes": "Yes",
     "no": "No",
     "onHost": "On {host}",
-    "hostCommandPlaceholder": "Installed by Dream",
+    "hostCommandPlaceholder": "Installed automatically",
     "pathOnHost": "{path} is on {host}. Open it from an editor connected there.",
     "connectingTo": "Connecting to {host}…",
     "reconnectingTo": "Reconnecting to {host}…",
@@ -983,6 +988,10 @@
     "noFolders": "No folders here.",
     "foldersTruncated": "Showing the first {count} folders.",
     "loadingFolders": "Loading folders…",
-    "foldersFailed": "Could not list folders."
+    "foldersFailed": "Could not list folders.",
+    "localMachine": "Local",
+    "runsHere": "Runs on this computer",
+    "runsOn": "Runs on {host} ({target})",
+    "edit": "Edit"
   }
 }

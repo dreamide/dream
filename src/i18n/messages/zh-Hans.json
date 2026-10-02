@@ -3,7 +3,9 @@
     "loadingDream": "正在加载 Dream",
     "videoUnavailable": "视频不可用",
     "working": "正在处理",
-    "subwaySurfing": "地铁跑酷中"
+    "subwaySurfing": "地铁跑酷中",
+    "workspaceLoadFailed": "Dream 无法加载你的工作区，因此不会保存任何内容。你的设置和项目仍安全地保存在磁盘上。",
+    "reload": "重新加载"
   },
   "ui": {
     "addPhotosOrFiles": "添加照片或文件",
@@ -153,7 +155,10 @@
     "noMatchingProjects": "没有匹配的项目。",
     "recentlyClosed": "最近关闭",
     "searchRecentlyClosed": "搜索最近关闭的项目...",
-    "worktree": "工作树"
+    "worktree": "工作树",
+    "removeRecent": "移除",
+    "removeRecentTitle": "移除 {name}？",
+    "removeRecentDescription": "将从 Dream 中移除该项目及其聊天。文件夹本身不受影响。"
   },
   "workspace": {
     "chatHistory": "聊天记录",
@@ -501,7 +506,7 @@
     "title": "技能",
     "description": "每个智能体为项目加载的技能，按该智能体自己的方式读取。在聊天中用 $名称 提及技能。",
     "project": "项目",
-    "noProject": "无项目（仅个人技能）",
+    "noProject": "无项目",
     "refresh": "刷新",
     "newSkill": "新建技能",
     "empty": "未找到技能",
@@ -937,13 +942,13 @@
   },
   "sshHosts": {
     "settingsTitle": "SSH 主机",
-    "settingsDescription": "Dream 可以在这些机器上打开项目。Dream 使用你自己的 ssh（密钥、agent、~/.ssh/config）连接，并在那里启动它的主机；智能体和终端都在那台机器上运行。",
+    "settingsDescription": "用于打开项目的远程机器，使用你自己的 ssh 配置和密钥连接。",
     "add": "添加 SSH 主机",
     "name": "名称",
     "target": "SSH 目标",
     "targetPlaceholder": "devbox 或 user@host",
     "hostCommand": "主机命令",
-    "hostCommandHint": "留空则由 Dream 在那里安装它的主机；否则填写在那台机器上运行 dream-host 的方式。",
+    "hostCommandHint": "留空则自动安装主机；否则填写在那台机器上运行 dream-host 的命令。",
     "remove": "移除",
     "connect": "连接",
     "disconnect": "断开连接",
@@ -970,7 +975,7 @@
     "yes": "是",
     "no": "否",
     "onHost": "位于 {host}",
-    "hostCommandPlaceholder": "由 Dream 安装",
+    "hostCommandPlaceholder": "自动安装",
     "pathOnHost": "{path} 位于 {host}。请在连接到那里的编辑器中打开。",
     "connectingTo": "正在连接到 {host}…",
     "reconnectingTo": "正在重新连接到 {host}…",
@@ -983,6 +988,10 @@
     "noFolders": "这里没有文件夹。",
     "foldersTruncated": "仅显示前 {count} 个文件夹。",
     "loadingFolders": "正在加载文件夹…",
-    "foldersFailed": "无法列出文件夹。"
+    "foldersFailed": "无法列出文件夹。",
+    "localMachine": "本地",
+    "runsHere": "在此计算机上运行",
+    "runsOn": "在 {host}（{target}）上运行",
+    "edit": "编辑"
   }
 }

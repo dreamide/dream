@@ -3,7 +3,9 @@
     "loadingDream": "Dream 로드 중",
     "videoUnavailable": "동영상을 사용할 수 없습니다",
     "working": "처리 중",
-    "subwaySurfing": "지하철 서핑 중"
+    "subwaySurfing": "지하철 서핑 중",
+    "workspaceLoadFailed": "Dream이 작업 공간을 불러오지 못해 아무것도 저장하지 않습니다. 설정과 프로젝트는 디스크에 안전하게 남아 있습니다.",
+    "reload": "다시 불러오기"
   },
   "ui": {
     "addPhotosOrFiles": "사진 또는 파일 추가",
@@ -153,7 +155,10 @@
     "noMatchingProjects": "일치하는 프로젝트가 없습니다.",
     "recentlyClosed": "최근 닫힘",
     "searchRecentlyClosed": "최근 닫은 프로젝트 검색...",
-    "worktree": "워크트리"
+    "worktree": "워크트리",
+    "removeRecent": "제거",
+    "removeRecentTitle": "{name}을(를) 제거할까요?",
+    "removeRecentDescription": "프로젝트와 채팅이 Dream에서 제거됩니다. 폴더 자체는 그대로 유지됩니다."
   },
   "workspace": {
     "chatHistory": "채팅 기록",
@@ -501,7 +506,7 @@
     "title": "스킬",
     "description": "각 에이전트가 프로젝트에서 불러오는 스킬을 해당 에이전트와 같은 방식으로 표시합니다. 채팅에서 $이름 으로 언급하세요.",
     "project": "프로젝트",
-    "noProject": "프로젝트 없음(개인 스킬만)",
+    "noProject": "프로젝트 없음",
     "refresh": "새로고침",
     "newSkill": "새 스킬",
     "empty": "스킬이 없습니다",
@@ -937,13 +942,13 @@
   },
   "sshHosts": {
     "settingsTitle": "SSH 호스트",
-    "settingsDescription": "Dream이 프로젝트를 열 수 있는 컴퓨터입니다. Dream은 사용자의 ssh(키, 에이전트, ~/.ssh/config)로 연결하고 그곳에서 호스트를 시작합니다. 에이전트와 터미널은 그 컴퓨터에서 실행됩니다.",
+    "settingsDescription": "프로젝트를 열 원격 컴퓨터입니다. 사용자의 ssh 설정과 키로 연결합니다.",
     "add": "SSH 호스트 추가",
     "name": "이름",
     "target": "SSH 대상",
     "targetPlaceholder": "devbox 또는 user@host",
     "hostCommand": "호스트 명령",
-    "hostCommandHint": "비워 두면 Dream이 그곳에 호스트를 설치합니다. 아니면 그 컴퓨터에서 dream-host를 실행하는 방법.",
+    "hostCommandHint": "비워 두면 호스트를 자동으로 설치합니다. 또는 그 컴퓨터에서 dream-host를 실행하는 명령을 입력하세요.",
     "remove": "제거",
     "connect": "연결",
     "disconnect": "연결 해제",
@@ -970,7 +975,7 @@
     "yes": "예",
     "no": "아니요",
     "onHost": "{host}에서",
-    "hostCommandPlaceholder": "Dream이 설치",
+    "hostCommandPlaceholder": "자동으로 설치됨",
     "pathOnHost": "{path}은(는) {host}에 있습니다. 그곳에 연결된 편집기에서 여세요.",
     "connectingTo": "{host}에 연결하는 중…",
     "reconnectingTo": "{host}에 다시 연결하는 중…",
@@ -983,6 +988,10 @@
     "noFolders": "여기에는 폴더가 없습니다.",
     "foldersTruncated": "처음 {count}개 폴더를 표시합니다.",
     "loadingFolders": "폴더를 불러오는 중…",
-    "foldersFailed": "폴더 목록을 가져올 수 없습니다."
+    "foldersFailed": "폴더 목록을 가져올 수 없습니다.",
+    "localMachine": "로컬",
+    "runsHere": "이 컴퓨터에서 실행",
+    "runsOn": "{host}({target})에서 실행",
+    "edit": "편집"
   }
 }

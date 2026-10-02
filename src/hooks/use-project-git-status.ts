@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectGitStatusResponse } from "@/types/ide";
 
 type ProjectGitStatusCacheEntry = {
@@ -52,14 +53,22 @@ export type ProjectGitStatusDetail = "full" | "summary";
 export const useProjectGitStatus = (
   projectPath: string | null | undefined,
   refreshKey?: number,
-  options: { detail?: ProjectGitStatusDetail } = {},
+  options: {
+    detail?: ProjectGitStatusDetail;
+    /**
+     * The project's host (absent: the local host). The same path on two
+     * hosts is two repositories, each read from its own host.
+     */
+    hostId?: string;
+  } = {},
 ) => {
   const uiT = useTranslations("ui");
   const detail = options.detail ?? "full";
+  const hostId = options.hostId ?? LOCAL_HOST_ID;
   const refreshToken = refreshKey ?? 0;
   const projectPathCacheKey = getProjectPathCacheKey(projectPath);
   const cacheKey = projectPathCacheKey
-    ? `${projectPathCacheKey}\0${detail}`
+    ? `${hostId}\0${projectPathCacheKey}\0${detail}`
     : "";
   const cachedEntry = cacheKey ? gitStatusCache.get(cacheKey) : null;
   const [status, setStatus] = useState<ProjectGitStatusResponse | null>(
@@ -110,7 +119,10 @@ export const useProjectGitStatus = (
               const entry: ProjectGitStatusCacheEntry = {
                 error: null,
                 refreshToken,
-                status: await apiClient.gitStatus({ detail, projectPath }),
+                status: await apiClient.gitStatus(
+                  { detail, projectPath },
+                  { hostId },
+                ),
               };
               gitStatusCache.set(cacheKey, entry);
               notifyGitStatusCacheListeners(cacheKey);
@@ -152,7 +164,7 @@ export const useProjectGitStatus = (
         }
       }
     },
-    [cacheKey, detail, projectPath, refreshToken, uiT],
+    [cacheKey, detail, projectPath, refreshToken, uiT, hostId],
   );
 
   useEffect(() => {

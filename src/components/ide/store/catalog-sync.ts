@@ -57,7 +57,20 @@ const isEmpty = (changes: CatalogChangeSet) =>
   changes.removedProjectIds.length === 0 &&
   changes.removedChatIds.length === 0;
 
-export const createCatalogSync = ({ api }: { api: CatalogRoutes }) => {
+export type CatalogConflict = CatalogChangesResponse["conflicts"][number];
+
+export const createCatalogSync = ({
+  api,
+  onConflicts,
+}: {
+  api: CatalogRoutes;
+  /**
+   * Projects the host refused because another of its projects already has
+   * that path. Sending them again would be refused again; the caller
+   * switches to the host's project instead.
+   */
+  onConflicts?: (conflicts: CatalogConflict[]) => void;
+}) => {
   const syncedProjects = new Map<string, string>();
   const syncedChats = new Map<string, string>();
   let queue: Promise<unknown> = Promise.resolve();
@@ -157,6 +170,7 @@ export const createCatalogSync = ({ api }: { api: CatalogRoutes }) => {
               `Project ${conflict.id} was not saved: ${conflict.path} already belongs to project ${conflict.existingId}.`,
             );
           }
+          if (result.conflicts.length > 0) onConflicts?.(result.conflicts);
           return result;
         })
         .catch((error: unknown) => {

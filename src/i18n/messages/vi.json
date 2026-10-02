@@ -3,7 +3,9 @@
     "loadingDream": "Đang tải Dream",
     "videoUnavailable": "Video không khả dụng",
     "working": "Đang xử lý",
-    "subwaySurfing": "Đang lướt tàu điện ngầm"
+    "subwaySurfing": "Đang lướt tàu điện ngầm",
+    "workspaceLoadFailed": "Dream không thể tải không gian làm việc của bạn nên sẽ không lưu gì. Cài đặt và dự án của bạn vẫn an toàn trên đĩa.",
+    "reload": "Tải lại"
   },
   "ui": {
     "addPhotosOrFiles": "Thêm ảnh hoặc tệp",
@@ -153,7 +155,10 @@
     "noMatchingProjects": "Không có dự án phù hợp.",
     "recentlyClosed": "Đã đóng gần đây",
     "searchRecentlyClosed": "Tìm trong các dự án đã đóng gần đây...",
-    "worktree": "worktree"
+    "worktree": "worktree",
+    "removeRecent": "Xóa",
+    "removeRecentTitle": "Xóa {name}?",
+    "removeRecentDescription": "Dự án và các cuộc trò chuyện của nó sẽ bị xóa khỏi Dream. Bản thân thư mục không bị thay đổi."
   },
   "workspace": {
     "chatHistory": "Lịch sử chat",
@@ -501,7 +506,7 @@
     "title": "Kỹ năng",
     "description": "Những gì mỗi agent tải cho một dự án, đọc theo cách agent đó đọc. Nhắc đến kỹ năng trong chat bằng $tên.",
     "project": "Dự án",
-    "noProject": "Không có dự án (chỉ kỹ năng cá nhân)",
+    "noProject": "Không có dự án",
     "refresh": "Làm mới",
     "newSkill": "Kỹ năng mới",
     "empty": "Không tìm thấy kỹ năng",
@@ -937,13 +942,13 @@
   },
   "sshHosts": {
     "settingsTitle": "Máy chủ SSH",
-    "settingsDescription": "Những máy Dream có thể mở dự án. Dream kết nối bằng ssh của bạn (khóa, agent, ~/.ssh/config) và khởi động host của nó ở đó; agent và terminal chạy trên máy đó.",
+    "settingsDescription": "Các máy từ xa để mở dự án, kết nối bằng cấu hình và khóa ssh của bạn.",
     "add": "Thêm máy chủ SSH",
     "name": "Tên",
     "target": "Đích SSH",
     "targetPlaceholder": "devbox hoặc user@host",
     "hostCommand": "Lệnh host",
-    "hostCommandHint": "Để trống thì Dream sẽ cài host của nó ở đó. Nếu không, đây là cách chạy dream-host trên máy đó.",
+    "hostCommandHint": "Để trống để tự động cài host, hoặc nhập lệnh chạy dream-host trên máy đó.",
     "remove": "Xóa",
     "connect": "Kết nối",
     "disconnect": "Ngắt kết nối",
@@ -970,7 +975,7 @@
     "yes": "Có",
     "no": "Không",
     "onHost": "Trên {host}",
-    "hostCommandPlaceholder": "Do Dream cài đặt",
+    "hostCommandPlaceholder": "Tự động cài đặt",
     "pathOnHost": "{path} nằm trên {host}. Hãy mở nó từ một trình soạn thảo đã kết nối tới đó.",
     "connectingTo": "Đang kết nối tới {host}…",
     "reconnectingTo": "Đang kết nối lại tới {host}…",
@@ -983,6 +988,10 @@
     "noFolders": "Không có thư mục nào ở đây.",
     "foldersTruncated": "Đang hiển thị {count} thư mục đầu tiên.",
     "loadingFolders": "Đang tải thư mục…",
-    "foldersFailed": "Không thể liệt kê thư mục."
+    "foldersFailed": "Không thể liệt kê thư mục.",
+    "localMachine": "Cục bộ",
+    "runsHere": "Chạy trên máy tính này",
+    "runsOn": "Chạy trên {host} ({target})",
+    "edit": "Chỉnh sửa"
   }
 }

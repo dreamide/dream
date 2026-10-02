@@ -1,5 +1,7 @@
+import { useTranslations } from "next-intl";
 import { lazy, Suspense, useDeferredValue, useEffect } from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
@@ -39,6 +41,31 @@ const SettingsWorkspace = lazy(() =>
 );
 
 const CLI_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * The workspace did not load: say so, and that nothing is being saved, so
+ * the user restarts rather than rebuilding settings that are still on disk.
+ */
+const PersistenceBlockedBanner = () => {
+  const t = useTranslations("app");
+  const blocked = useIdeStore((state) => state.persistenceBlocked);
+  if (!blocked) return null;
+  return (
+    <div
+      className="fixed inset-x-0 top-12 z-50 mx-auto flex w-fit max-w-[90vw] items-center gap-3 rounded-md border border-destructive-border bg-destructive-surface px-4 py-2 text-destructive text-sm shadow-md"
+      role="alert"
+    >
+      <span>{t("workspaceLoadFailed")}</span>
+      <Button
+        onClick={() => window.location.reload()}
+        size="sm"
+        variant="outline"
+      >
+        {t("reload")}
+      </Button>
+    </div>
+  );
+};
 
 export const IdeShell = () => {
   // ── Store selectors ─────────────────────────────────────────────────
@@ -640,6 +667,7 @@ export const IdeShell = () => {
         </div>
       ) : null}
 
+      <PersistenceBlockedBanner />
       <AppScreenshotToast />
       <SshPromptDialog />
       <Toaster />

@@ -9,7 +9,6 @@ import {
   RotateCcw,
   RotateCw,
   Server,
-  ServerCog,
   Settings,
   Sun,
   Trash2,
@@ -78,6 +77,7 @@ import { SavedPromptsSettingsSection } from "./saved-prompts/saved-prompts-setti
 import {
   formatDeletedDate,
   MCP_LIST_VIEW,
+  McpIcon,
   McpServersSection,
   type McpView,
   ModelSelectionControl,
@@ -606,7 +606,7 @@ export const SettingsWorkspace = () => {
               type="button"
             >
               <span className="flex items-center gap-2">
-                <Server className="size-4" />
+                <McpIcon className="size-4" />
                 {settingsT("mcpServers")}
               </span>
             </button>
@@ -621,7 +621,7 @@ export const SettingsWorkspace = () => {
               type="button"
             >
               <span className="flex items-center gap-2">
-                <ServerCog className="size-4" />
+                <Server className="size-4" />
                 {sshHostsT("settingsTitle")}
               </span>
             </button>

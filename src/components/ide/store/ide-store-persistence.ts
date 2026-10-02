@@ -15,7 +15,11 @@ import {
   mergeWorkspaceAndCatalog,
   normalizeSshHosts,
 } from "../../../../electron/shared/persisted-state-codec.js";
-import { type CatalogState, createCatalogSync } from "./catalog-sync";
+import {
+  type CatalogConflict,
+  type CatalogState,
+  createCatalogSync,
+} from "./catalog-sync";
 
 // Where persisted state lives. The client's workspace (config, saved
 // prompts, which projects are open on which host, their UI) is the main
@@ -26,6 +30,20 @@ import { type CatalogState, createCatalogSync } from "./catalog-sync";
 // them (codec mergeWorkspaceAndCatalog, snapshotHostIds).
 
 const STATE_LOAD_TIMEOUT_MS = 8000;
+/**
+ * Loading at startup: the local API can be slow while the app starts, so
+ * each part gets longer, and the whole load a few tries.
+ */
+const STARTUP_LOAD_TIMEOUT_MS = 30_000;
+const STARTUP_LOAD_ATTEMPTS = 3;
+
+/**
+ * Whether this window loaded the workspace. Until it has, it saves nothing:
+ * a window that could not load holds defaults, and saving them would
+ * overwrite the user's settings and projects with them.
+ */
+let workspaceLoaded = false;
+export const isWorkspaceLoaded = () => workspaceLoaded;
 
 const requireDesktopApi = () => {
   const desktopApi = getDesktopApi();
@@ -78,6 +96,15 @@ export const forgetLoadedHost = (hostId: string) => {
 
 const catalogSyncs = new Map<string, ReturnType<typeof createCatalogSync>>();
 
+/** Who resolves projects a host refused (the store registers it). */
+let conflictHandler: (hostId: string, conflicts: CatalogConflict[]) => void =
+  () => {};
+export const setCatalogConflictHandler = (
+  handler: (hostId: string, conflicts: CatalogConflict[]) => void,
+) => {
+  conflictHandler = handler;
+};
+
 /** The store's link to `hostId`'s catalog. */
 export const getCatalogSync = (hostId: string = LOCAL_HOST_ID) => {
   let sync = catalogSyncs.get(hostId);
@@ -90,6 +117,7 @@ export const getCatalogSync = (hostId: string = LOCAL_HOST_ID) => {
         saveCatalogTranscript: (payload, options) =>
           apiClient.saveCatalogTranscript(payload, { ...options, ...onHost }),
       },
+      onConflicts: (conflicts) => conflictHandler(hostId, conflicts),
     });
     catalogSyncs.set(hostId, sync);
   }
@@ -102,10 +130,11 @@ export const catalogSync = getCatalogSync(LOCAL_HOST_ID);
 /** `hostId`'s catalog, raw. */
 export const loadCatalog = (
   hostId: string = LOCAL_HOST_ID,
+  timeoutMs: number = STATE_LOAD_TIMEOUT_MS,
 ): Promise<CatalogResponse> =>
   withTimeout(
     apiClient.catalog({}, { hostId }),
-    STATE_LOAD_TIMEOUT_MS,
+    timeoutMs,
     `Timed out loading the catalog of host ${hostId}.`,
   );
 
@@ -117,16 +146,33 @@ export const loadCatalog = (
  * when their hosts connect (connectHost).
  */
 export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
-  const desktopApi = requireDesktopApi();
+  for (let attempt = 1; attempt <= STARTUP_LOAD_ATTEMPTS; attempt += 1) {
+    try {
+      const state = await loadOnce();
+      workspaceLoaded = true;
+      return state;
+    } catch (error) {
+      console.warn(
+        `Unable to load persisted Dream state (attempt ${attempt} of ${STARTUP_LOAD_ATTEMPTS}).`,
+        error,
+      );
+    }
+  }
+  // Shown empty, and never saved (isWorkspaceLoaded): the user's data is
+  // still on disk for the next start.
+  return createEmptyPersistedState();
+};
 
-  try {
+const loadOnce = async (): Promise<PersistedIdeState> => {
+  const desktopApi = requireDesktopApi();
+  {
     const workspace = await withTimeout(
       desktopApi.loadState(),
-      STATE_LOAD_TIMEOUT_MS,
+      STARTUP_LOAD_TIMEOUT_MS,
       "Timed out loading persisted Dream state.",
     );
     loadedWorkspace = workspace;
-    const catalog = await loadCatalog(LOCAL_HOST_ID);
+    const catalog = await loadCatalog(LOCAL_HOST_ID, STARTUP_LOAD_TIMEOUT_MS);
     loadedRunningChatIds = catalog.runningChatIds ?? [];
     // SSH hosts still in Settings show their projects from the snapshot.
     const snapshotHostIds = normalizeSshHosts(
@@ -140,12 +186,26 @@ export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
         workspace,
       }),
     );
-    getCatalogSync(LOCAL_HOST_ID).reset(state);
+    // The local host's baseline is its own projects and their chats only:
+    // an SSH host's projects shown from the snapshot are not the local
+    // host's, and counting them as synced here would have its next reload
+    // remove them (and the next save delete them on their host).
+    const localProjectIds = new Set(
+      [...state.projects, ...state.closedProjects]
+        .filter((project) => getProjectHostId(project) === LOCAL_HOST_ID)
+        .map((project) => project.id),
+    );
+    getCatalogSync(LOCAL_HOST_ID).reset({
+      chats: state.chats.filter((chat) => localProjectIds.has(chat.projectId)),
+      closedProjects: state.closedProjects.filter((project) =>
+        localProjectIds.has(project.id),
+      ),
+      projects: state.projects.filter((project) =>
+        localProjectIds.has(project.id),
+      ),
+    });
     markHostLoaded(LOCAL_HOST_ID);
     return state;
-  } catch (error) {
-    console.warn("Unable to load persisted Dream state.", error);
-    return createEmptyPersistedState();
   }
 };
 
@@ -208,6 +268,7 @@ export const savePersistedIdeState = (
   encoded: PersistedIdeState,
   live: CatalogState,
 ) => {
+  if (!workspaceLoaded) return;
   const describedHostIds = [...loadedHostIds];
   void requireDesktopApi().saveState({
     ...encoded,
@@ -254,6 +315,7 @@ export const savePersistedActiveProject = (
   activeProjectId: string | null,
   lastUsedAt: string | null,
 ) => {
+  if (!workspaceLoaded) return;
   const desktopApi = requireDesktopApi();
   if (typeof desktopApi.saveActiveProject !== "function") {
     return;

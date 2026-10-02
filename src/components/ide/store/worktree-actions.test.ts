@@ -511,3 +511,32 @@ test("attachWorktreeProject opens a worktree listed on an SSH host on that host"
   // machine's folder.
   assert.equal(opened?.worktree?.parentProjectId, null);
 });
+
+test("forgetClosedProject removes a closed project for good, with its chats", () => {
+  const { parent, parentChat, store, worktree } = createTestStore();
+  let saves = 0;
+  store.setState({
+    persist: () => {
+      saves += 1;
+    },
+  });
+
+  // An open project is not removed this way.
+  store.getState().forgetClosedProject(parent.id);
+  assert.ok(store.getState().projects.some((p) => p.id === parent.id));
+  assert.equal(saves, 0);
+
+  store.getState().closeProject(parent.id);
+  store.getState().forgetClosedProject(parent.id);
+
+  const state = store.getState();
+  assert.ok(
+    ![...state.projects, ...state.closedProjects].some(
+      (p) => p.id === parent.id,
+    ),
+  );
+  assert.ok(!state.chats.some((chat) => chat.id === parentChat.id));
+  assert.equal(state.messagesByChatId[parentChat.id], undefined);
+  assert.ok(state.projects.some((p) => p.id === worktree.id));
+  assert.equal(saves, 1);
+});

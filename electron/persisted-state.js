@@ -306,7 +306,7 @@ function writeConfig(database, key, value, updatedAt) {
  * completely (by default the local host). A project of another host (an SSH
  * host not loaded this session, shown from its snapshot) only moves: its
  * status and place are saved, while its UI and snapshot stay as last saved
- * by a window that had its chats.
+ * by a window that had its chats. One with no row yet gets a whole one.
  */
 function saveStateToRelationalDatabase(database, state) {
   if (!isRecord(state)) {
@@ -369,16 +369,34 @@ function saveStateToRelationalDatabase(database, state) {
           updated_at = excluded.updated_at
       `,
     );
+    // A project of a host this save does not describe: a row it already
+    // has only moves (its UI and snapshot were saved by a window that had
+    // the host's chats); a project with no row yet gets one.
     const move = database.prepare(
       `
-        UPDATE workspace_projects
-        SET status = ?, sort_order = ?, updated_at = ?
-        WHERE host_id = ? AND project_id = ?
+        INSERT INTO workspace_projects (
+          host_id, project_id, status, sort_order, ui, last_used_at,
+          snapshot, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(host_id, project_id) DO UPDATE SET
+          status = excluded.status,
+          sort_order = excluded.sort_order,
+          updated_at = excluded.updated_at
       `,
     );
     for (const row of rows) {
       if (!described.has(row.hostId)) {
-        move.run(row.status, row.sortOrder, now, row.hostId, row.projectId);
+        move.run(
+          row.hostId,
+          row.projectId,
+          row.status,
+          row.sortOrder,
+          toJson(row.ui),
+          row.lastUsedAt,
+          toJson(row.snapshot),
+          now,
+        );
         continue;
       }
       upsert.run(

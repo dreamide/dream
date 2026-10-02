@@ -1148,3 +1148,42 @@ test("a project of a host not loaded this session only moves when saved", async 
     await rm(directory, { force: true, recursive: true });
   }
 });
+
+test("a project of a host not loaded this session still gets a row when it has none", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-test-"));
+  const databasePath = path.join(directory, "state.db");
+  const local = createProject("local-project", "2026-09-01T12:00:00.000Z");
+  const remote = {
+    ...createProject("remote-project", "2026-09-01T12:00:00.000Z"),
+    hostId: "devbox",
+    name: "App on devbox",
+  };
+
+  try {
+    savePersistedWorkspace(
+      {
+        activeBrowserTabIdByProject: {},
+        activeProjectId: remote.id,
+        browserTabsByProject: {},
+        chats: [],
+        chatSort: "recent",
+        closedProjects: [],
+        describedHostIds: ["local"],
+        messagesByChatId: {},
+        projects: [local, remote],
+        settings: {},
+      },
+      { databasePath },
+    );
+
+    const row = loadPersistedState({ databasePath }).workspaceProjects.find(
+      (entry) => entry.projectId === "remote-project",
+    );
+    assert.equal(row?.hostId, "devbox");
+    assert.equal(row?.status, "open");
+    assert.equal(row?.snapshot.name, "App on devbox");
+  } finally {
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});

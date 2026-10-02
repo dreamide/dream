@@ -61,10 +61,14 @@ export const SkillsSettingsSection = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
+  // null is an explicit "no project" choice; only a project that has since
+  // been removed falls back to the active one.
   const project =
-    projects.find((item) => item.id === projectId) ??
-    projects.find((item) => item.id === activeProjectId) ??
-    null;
+    projectId === null
+      ? null
+      : (projects.find((item) => item.id === projectId) ??
+        projects.find((item) => item.id === activeProjectId) ??
+        null);
   const projectPath = project?.path ?? "";
   const openLocalPath = useOpenLocalPath();
 

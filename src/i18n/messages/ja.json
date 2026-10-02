@@ -3,7 +3,9 @@
     "loadingDream": "Dream を読み込み中",
     "videoUnavailable": "動画を利用できません",
     "working": "処理中",
-    "subwaySurfing": "地下鉄サーフィン中"
+    "subwaySurfing": "地下鉄サーフィン中",
+    "workspaceLoadFailed": "Dream はワークスペースを読み込めなかったため、何も保存していません。設定とプロジェクトはディスク上に残っています。",
+    "reload": "再読み込み"
   },
   "ui": {
     "addPhotosOrFiles": "写真またはファイルを追加",
@@ -153,7 +155,10 @@
     "noMatchingProjects": "一致するプロジェクトがありません。",
     "recentlyClosed": "最近閉じた項目",
     "searchRecentlyClosed": "最近閉じた項目を検索...",
-    "worktree": "ワークツリー"
+    "worktree": "ワークツリー",
+    "removeRecent": "削除",
+    "removeRecentTitle": "{name} を削除しますか？",
+    "removeRecentDescription": "プロジェクトとそのチャットを Dream から削除します。フォルダ自体は変更されません。"
   },
   "workspace": {
     "chatHistory": "チャット履歴",
@@ -501,7 +506,7 @@
     "title": "スキル",
     "description": "各エージェントがプロジェクトで読み込むスキルを、そのエージェントと同じ方法で一覧します。チャットでは $名前 で呼び出せます。",
     "project": "プロジェクト",
-    "noProject": "プロジェクトなし（個人スキルのみ）",
+    "noProject": "プロジェクトなし",
     "refresh": "更新",
     "newSkill": "新しいスキル",
     "empty": "スキルが見つかりません",
@@ -937,13 +942,13 @@
   },
   "sshHosts": {
     "settingsTitle": "SSH ホスト",
-    "settingsDescription": "Dream がプロジェクトを開けるマシンです。Dream はあなたの ssh（鍵、エージェント、~/.ssh/config）で接続し、そこでホストを起動します。エージェントとターミナルはそのマシンで動きます。",
+    "settingsDescription": "プロジェクトを開くリモートマシンです。お使いの ssh の設定と鍵で接続します。",
     "add": "SSH ホストを追加",
     "name": "名前",
     "target": "SSH の接続先",
     "targetPlaceholder": "devbox または user@host",
     "hostCommand": "ホストコマンド",
-    "hostCommandHint": "空のままにすると Dream がそこにホストをインストールします。指定する場合は、そのマシンで dream-host を起動する方法。",
+    "hostCommandHint": "空のままにするとホストを自動でインストールします。指定する場合は、そのマシンで dream-host を起動するコマンドを入力します。",
     "remove": "削除",
     "connect": "接続",
     "disconnect": "切断",
@@ -970,7 +975,7 @@
     "yes": "はい",
     "no": "いいえ",
     "onHost": "{host} 上",
-    "hostCommandPlaceholder": "Dream がインストール",
+    "hostCommandPlaceholder": "自動でインストール",
     "pathOnHost": "{path} は {host} 上にあります。そこに接続したエディタで開いてください。",
     "connectingTo": "{host} に接続しています…",
     "reconnectingTo": "{host} に再接続しています…",
@@ -983,6 +988,10 @@
     "noFolders": "ここにはフォルダがありません。",
     "foldersTruncated": "最初の {count} 個のフォルダを表示しています。",
     "loadingFolders": "フォルダを読み込んでいます…",
-    "foldersFailed": "フォルダを一覧表示できませんでした。"
+    "foldersFailed": "フォルダを一覧表示できませんでした。",
+    "localMachine": "ローカル",
+    "runsHere": "このコンピュータで実行",
+    "runsOn": "{host} ({target}) で実行",
+    "edit": "編集"
   }
 }

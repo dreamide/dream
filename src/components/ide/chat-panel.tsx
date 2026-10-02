@@ -188,6 +188,7 @@ export const ChatPanel = ({
     gitRefreshKey,
     {
       detail: "summary",
+      hostId: project.hostId,
     },
   );
   const allModelOptions = useMemo(

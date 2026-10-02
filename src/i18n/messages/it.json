@@ -3,7 +3,9 @@
     "loadingDream": "Caricamento di Dream",
     "videoUnavailable": "Video non disponibile",
     "working": "Elaborazione in corso",
-    "subwaySurfing": "Surf in metropolitana"
+    "subwaySurfing": "Surf in metropolitana",
+    "workspaceLoadFailed": "Dream non è riuscito a caricare il tuo spazio di lavoro, quindi non viene salvato nulla. Impostazioni e progetti sono al sicuro sul disco.",
+    "reload": "Ricarica"
   },
   "ui": {
     "addPhotosOrFiles": "Aggiungi foto o file",
@@ -153,7 +155,10 @@
     "noMatchingProjects": "Nessun progetto corrispondente.",
     "recentlyClosed": "Chiusi di recente",
     "searchRecentlyClosed": "Cerca tra i progetti chiusi di recente...",
-    "worktree": "worktree"
+    "worktree": "worktree",
+    "removeRecent": "Rimuovi",
+    "removeRecentTitle": "Rimuovere {name}?",
+    "removeRecentDescription": "Il progetto e le sue chat vengono rimossi da Dream. La cartella non viene toccata."
   },
   "workspace": {
     "chatHistory": "Cronologia chat",
@@ -501,7 +506,7 @@
     "title": "Skill",
     "description": "Cosa carica ogni agente per un progetto, letto come lo legge quell'agente. Menziona una skill in chat con $nome.",
     "project": "Progetto",
-    "noProject": "Nessun progetto (solo skill personali)",
+    "noProject": "Nessun progetto",
     "refresh": "Aggiorna",
     "newSkill": "Nuova skill",
     "empty": "Nessuna skill trovata",
@@ -937,13 +942,13 @@
   },
   "sshHosts": {
     "settingsTitle": "Host SSH",
-    "settingsDescription": "Le macchine su cui Dream può aprire progetti. Dream si collega con il tuo ssh (chiavi, agent, ~/.ssh/config) e vi avvia il suo host; agenti e terminali girano su quella macchina.",
+    "settingsDescription": "Macchine remote su cui aprire progetti, collegate con la tua configurazione e le tue chiavi ssh.",
     "add": "Aggiungi host SSH",
     "name": "Nome",
     "target": "Destinazione SSH",
     "targetPlaceholder": "devbox o utente@host",
     "hostCommand": "Comando dell’host",
-    "hostCommandHint": "Lascia vuoto e Dream vi installa il suo host. Altrimenti, come avviare dream-host su quella macchina.",
+    "hostCommandHint": "Lascia vuoto per installare l’host automaticamente, oppure inserisci il comando che avvia dream-host su quella macchina.",
     "remove": "Rimuovi",
     "connect": "Connetti",
     "disconnect": "Disconnetti",
@@ -970,7 +975,7 @@
     "yes": "Sì",
     "no": "No",
     "onHost": "Su {host}",
-    "hostCommandPlaceholder": "Installato da Dream",
+    "hostCommandPlaceholder": "Installato automaticamente",
     "pathOnHost": "{path} si trova su {host}. Aprilo da un editor collegato lì.",
     "connectingTo": "Connessione a {host}…",
     "reconnectingTo": "Riconnessione a {host}…",
@@ -983,6 +988,10 @@
     "noFolders": "Nessuna cartella qui.",
     "foldersTruncated": "Vengono mostrate le prime {count} cartelle.",
     "loadingFolders": "Caricamento cartelle…",
-    "foldersFailed": "Impossibile elencare le cartelle."
+    "foldersFailed": "Impossibile elencare le cartelle.",
+    "localMachine": "Locale",
+    "runsHere": "Viene eseguito su questo computer",
+    "runsOn": "Viene eseguito su {host} ({target})",
+    "edit": "Modifica"
   }
 }

@@ -171,8 +171,12 @@ const GitActionsMenuImpl = ({
   const [worktreeAction, setWorktreeAction] =
     useState<WorktreeDialogAction>("merge");
   const [menuOpen, setMenuOpen] = useState(false);
+  const projectHostId = useIdeStore(
+    (s) => s.projects.find((item) => item.id === projectId)?.hostId,
+  );
   const { branch, status } = useProjectGitStatus(projectPath, gitRefreshKey, {
     detail: menuOpen || activeDialog ? "full" : "summary",
+    hostId: projectHostId,
   });
   const hasGitChanges = getStatusFileCount(status) > 0;
   const canPush = hasPushableCommits(status);

@@ -19,8 +19,10 @@ import { createHostActions } from "./store/host-actions";
 import {
   getLoadedRunningChatIds,
   getLoadedWorkspace,
+  isWorkspaceLoaded,
   loadPersistedIdeState,
   savePersistedIdeState,
+  setCatalogConflictHandler,
 } from "./store/ide-store-persistence";
 import type { IdeState } from "./store/ide-store-types";
 import { createPanelActions } from "./store/panel-actions";
@@ -82,6 +84,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   projectFilesRefreshKeys: {},
   projectFileOpenRequests: {},
   stateHydrated: false,
+  persistenceBlocked: false,
   isMacOs: false,
   isElectron: false,
   appReady: false,
@@ -203,23 +206,17 @@ export const useIdeStore = create<IdeState>((set, get) => ({
         getLoadedRunningChatIds().map((chatId) => [chatId, true as const]),
       ),
       stateHydrated: true,
+      persistenceBlocked: !isWorkspaceLoaded(),
     });
     transcriptCache.markHydrated(loaded.messagesByChatId);
 
-    // SSH hosts with projects open last time reconnect; their projects
-    // join as their catalogs load.
-    const reopenHostIds = new Set(
+    void get().resumeHosts(
       getLoadedWorkspace()
         .workspaceProjects.filter(
           (entry) => entry.status === "open" && entry.hostId !== LOCAL_HOST_ID,
         )
         .map((entry) => entry.hostId),
     );
-    for (const hostId of reopenHostIds) {
-      if (loaded.settings.sshHosts.some((host) => host.id === hostId)) {
-        void get().connectHost(hostId);
-      }
-    }
   },
 
   ...transcriptCache.actions,
@@ -267,6 +264,12 @@ useIdeStore.subscribe(transcriptCache.observe);
 // Which host a request is for (host-routing.ts): the host of the project the
 // request names, by id, by one of its chats or terminals, or by path.
 const TERMINAL_SESSION_PROJECT = /^__(?:project|browser)_terminal__:([^:]+)/;
+// A project a host refused (it already has one at that path) becomes the
+// host's project.
+setCatalogConflictHandler((hostId, conflicts) => {
+  void useIdeStore.getState().adoptHostProjects(hostId, conflicts);
+});
+
 setHostResolver((hint) => {
   const state = useIdeStore.getState();
   const projects = [...state.projects, ...state.closedProjects];

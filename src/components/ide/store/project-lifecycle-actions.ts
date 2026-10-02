@@ -6,7 +6,10 @@ import { terminalClient } from "@/lib/terminal-client";
 import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
 import { deleteTerminalScrollback } from "../terminal-scrollback";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import { dropProjectRuntimeState } from "./project-runtime-state";
+import {
+  dropProjectRuntimeState,
+  dropPurgedProjectState,
+} from "./project-runtime-state";
 import * as workspace from "./workspace-document";
 
 export const createProjectLifecycleActions = (
@@ -18,6 +21,7 @@ export const createProjectLifecycleActions = (
   | "setActiveProjectId"
   | "addProject"
   | "closeProject"
+  | "forgetClosedProject"
   | "stopProjectTerminals"
   | "updateProject"
 > => ({
@@ -91,6 +95,25 @@ export const createProjectLifecycleActions = (
         ),
       };
     });
+  },
+
+  forgetClosedProject: (projectId: string) => {
+    const state = get();
+    if (!state.closedProjects.some((project) => project.id === projectId)) {
+      return;
+    }
+    const chatIds = state.chats
+      .filter((chat) => chat.projectId === projectId)
+      .map((chat) => chat.id);
+    set((current) => ({
+      ...dropPurgedProjectState(current, [projectId], chatIds),
+      chats: current.chats.filter((chat) => chat.projectId !== projectId),
+      closedProjects: current.closedProjects.filter(
+        (project) => project.id !== projectId,
+      ),
+    }));
+    // Its host's catalog hears of the removal with the next save.
+    get().persist();
   },
 
   updateProject: (

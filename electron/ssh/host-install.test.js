@@ -192,3 +192,36 @@ test.skipIf(!hasSh)(
     }
   },
 );
+
+test("a release without a host runtime says how to connect anyway", async () => {
+  const { downloadRuntimeArchive } = await import("./host-install.js");
+  await expect(
+    downloadRuntimeArchive({
+      arch: "x64",
+      cacheDirectory: mkdtempSync(path.join(os.tmpdir(), "dream-runtime-")),
+      fetchImpl: async () => new Response("Not Found", { status: 404 }),
+      os: "linux",
+      version: "0.24.0",
+    }),
+  ).rejects.toThrow(/Dream 0\.24\.0 has no host runtime.*Host command/);
+});
+
+test("a development build never downloads a runtime and says how to install one", async () => {
+  const { DEV_RUNTIME_VERSION, downloadRuntimeArchive } = await import(
+    "./host-install.js"
+  );
+  let fetched = false;
+  await expect(
+    downloadRuntimeArchive({
+      arch: "x64",
+      cacheDirectory: mkdtempSync(path.join(os.tmpdir(), "dream-runtime-")),
+      fetchImpl: async () => {
+        fetched = true;
+        return new Response("", { status: 404 });
+      },
+      os: "linux",
+      version: DEV_RUNTIME_VERSION,
+    }),
+  ).rejects.toThrow(/pnpm host:install-dev/);
+  expect(fetched).toBe(false);
+});

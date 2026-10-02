@@ -97,7 +97,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const { status: projectGitStatus } = useProjectGitStatus(
     project.path,
     gitRefreshKey,
-    { detail: "summary" },
+    { detail: "summary", hostId: project.hostId },
   );
 
   // ── Local workspace state ───────────────────────────────────────────

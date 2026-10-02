@@ -21,6 +21,14 @@ import { quoteShellWord } from "./ssh-args.js";
 export const RUNTIME_RELEASES_URL =
   "https://github.com/dreamide/dream/releases/download";
 
+/**
+ * The runtime version a development build of Dream uses: nothing is
+ * published for it, so it is never downloaded; `pnpm host:install-dev
+ * <target>` (scripts/install-dev-host.mjs) builds it on the host from the
+ * working tree.
+ */
+export const DEV_RUNTIME_VERSION = "dev";
+
 /** Exit codes of the install script. */
 export const INSTALL_EXIT = Object.freeze({
   busy: 75,
@@ -164,6 +172,11 @@ export async function downloadRuntimeArchive({
   baseUrl = `${RUNTIME_RELEASES_URL}/v${version}`,
   fetchImpl = (...args) => fetch(...args),
 }) {
+  if (version === DEV_RUNTIME_VERSION) {
+    throw new Error(
+      "This development build of Dream has no host runtime to download. Run `pnpm host:install-dev <ssh target>` from the repository to build one on the host, then connect again.",
+    );
+  }
   const name = runtimeArchiveName(version, os, arch);
   const directory = path.join(cacheDirectory, version);
   mkdirSync(directory, { recursive: true });
@@ -172,6 +185,13 @@ export async function downloadRuntimeArchive({
 
   const download = async (url) => {
     const response = await fetchImpl(url);
+    if (response.status === 404) {
+      // The release has no runtime for this platform: one from before the
+      // host runtime was published, or a development version.
+      throw new Error(
+        `Dream ${version} has no host runtime to install (${url} was not found). Set this SSH host's Host command in Settings to run a dream-host you installed there.`,
+      );
+    }
     if (!response.ok) {
       throw new Error(`Could not download ${url} (${response.status}).`);
     }
