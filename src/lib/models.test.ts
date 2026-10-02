@@ -24,12 +24,21 @@ test("getModelContextWindow matches known model families and falls back to 128k"
   assert.equal(getModelContextWindow("opus[1m]"), 1_000_000);
   assert.equal(getModelContextWindow("haiku"), 200_000);
   assert.equal(getModelContextWindow("claude-fable-5"), 1_000_000);
+  assert.equal(getModelContextWindow("claude-fable-5-1"), 1_000_000);
+  assert.equal(getModelContextWindow("claude-opus-5-5"), 1_000_000);
+  assert.equal(getModelContextWindow("claude-sonnet-5"), 1_000_000);
   assert.equal(getModelContextWindow("claude-sonnet-4-6"), 1_000_000);
+  assert.equal(getModelContextWindow("claude-opus-4-5"), 200_000);
+  assert.equal(getModelContextWindow("claude-haiku-4-5"), 200_000);
   assert.equal(getModelContextWindow("claude-3-5-sonnet"), 200_000);
   assert.equal(getModelContextWindow("gpt-5.4-codex"), 272_000);
-  assert.equal(getModelContextWindow("gpt-5"), 200_000);
+  assert.equal(getModelContextWindow("gpt-5.3-codex-spark"), 128_000);
+  assert.equal(getModelContextWindow("gpt-5"), 272_000);
   assert.equal(getModelContextWindow("gpt-4o-mini"), 128_000);
-  assert.equal(getModelContextWindow("  GPT-5  "), 200_000);
+  assert.equal(getModelContextWindow("  GPT-5  "), 272_000);
+  assert.equal(getModelContextWindow("grok-4"), 256_000);
+  assert.equal(getModelContextWindow("grok-code-fast-1"), 256_000);
+  assert.equal(getModelContextWindow("grok-4.1-fast"), 2_000_000);
   assert.equal(getModelContextWindow("mystery-model"), 128_000);
 });
 
