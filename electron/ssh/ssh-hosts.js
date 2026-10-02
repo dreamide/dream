@@ -37,15 +37,28 @@ export function createSshHostManager({
   // asked one at a time, labelled with the host being connected.
   let prompting = null;
 
+  // A declined prompt (cancelled, or left unanswered) ends the attempt.
+  // ssh reads a failed askpass as an empty password and asks again, up to
+  // NumberOfPasswordPrompts times; cancel has to mean cancel.
+  const askFor = async (prompt) => {
+    const asking = prompting;
+    if (asking?.cancelled) return null;
+    const answer = await onPrompt({
+      ...prompt,
+      hostId: asking?.hostId ?? null,
+      target: asking?.target ?? null,
+    });
+    if (answer === null && asking && !asking.cancelled) {
+      asking.cancelled = true;
+      asking.connection.cancel("Cancelled at the SSH prompt.");
+    }
+    return answer;
+  };
+
   const getAskpass = async () => {
     askpass ??= startAskpassServer({
       directory: path.join(stateDirectory, "askpass"),
-      onPrompt: (prompt) =>
-        onPrompt({
-          ...prompt,
-          hostId: prompting?.hostId ?? null,
-          target: prompting?.target ?? null,
-        }),
+      onPrompt: askFor,
     });
     return askpass;
   };
@@ -84,11 +97,12 @@ export function createSshHostManager({
         target,
       });
       connections.set(hostId, connection);
-      prompting = { hostId, target };
+      const asking = { cancelled: false, connection, hostId, target };
+      prompting = asking;
       try {
         return await connection.connect();
       } finally {
-        if (prompting?.hostId === hostId) prompting = null;
+        if (prompting === asking) prompting = null;
       }
     },
 

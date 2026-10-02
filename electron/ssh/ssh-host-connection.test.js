@@ -176,6 +176,33 @@ test("multiplexed: one master, ensure and forward through it", async () => {
   expect(states.at(-1)).toBe("disconnected");
 });
 
+test("cancelling ends the attempt's ssh, so it cannot ask again", async () => {
+  // ssh sits waiting on its password prompt.
+  const { calls, spawnProcess } = createScriptedSpawn(() => null);
+  const states = [];
+  const connection = createSshHostConnection({
+    getLocalPort: async () => 5555,
+    onStatus: (status) => states.push(status.state),
+    spawnProcess,
+    target: "devbox",
+  });
+
+  const connecting = connection.connect();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(calls).toHaveLength(1);
+
+  expect(connection.cancel("Cancelled at the SSH prompt.")).toBe(true);
+
+  await expect(connecting).rejects.toMatchObject({
+    fatal: true,
+    message: "Cancelled at the SSH prompt.",
+  });
+  expect(calls[0].child.exitCode).not.toBeNull();
+  expect(calls).toHaveLength(1);
+  expect(states).toEqual(["connecting", "failed"]);
+  expect(connection.cancel()).toBe(false);
+});
+
 test("a host speaking an unsupported protocol is refused", async () => {
   const { spawnProcess } = createScriptedSpawn(() => ({
     stdout: `${JSON.stringify({ hostProtocolVersion: 99, pid: 1, port: 1, token: "t" })}\n`,

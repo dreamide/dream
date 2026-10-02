@@ -15,8 +15,16 @@ import {
 import { forgetLoadedHost, isHostLoaded } from "./ide-store-persistence";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
+// Electron prefixes errors thrown across ipcRenderer.invoke with where they
+// came from; the user wants only what went wrong.
+const IPC_ERROR_PREFIX =
+  /^Error invoking remote method '[^']*': (?:\w*Error: )?/;
+
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+  (error instanceof Error ? error.message : String(error)).replace(
+    IPC_ERROR_PREFIX,
+    "",
+  );
 
 export const createHostActions = (
   set: IdeStoreSet,

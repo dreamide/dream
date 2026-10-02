@@ -108,7 +108,7 @@ export const OpenOnHostDialog = ({
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
-              <span className="text-muted-foreground text-xs">
+              <span className="break-words text-muted-foreground text-xs">
                 {stateLabel(runtime?.state)}
                 {runtime?.error ? ` — ${runtime.error}` : ""}
               </span>

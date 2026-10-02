@@ -98,8 +98,12 @@ export const SshHostsSettingsSection = () => {
                 <div className="truncate font-medium text-sm">{host.label}</div>
                 <div className="truncate text-muted-foreground text-xs">
                   {host.target} · {stateLabel(runtime?.state)}
-                  {runtime?.error ? ` — ${runtime.error}` : ""}
                 </div>
+                {runtime?.error ? (
+                  <div className="mt-1 select-text whitespace-pre-wrap break-words text-destructive text-xs">
+                    {runtime.error}
+                  </div>
+                ) : null}
               </div>
               {connected ? (
                 <Button

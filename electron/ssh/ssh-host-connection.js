@@ -9,6 +9,8 @@
 //                 daemon may have restarted on a new port.
 //   disconnect()  ends the session. The daemon is never stopped: its
 //                 terminals and turns keep running for the next connect.
+//   cancel()      stops an attempt in flight (the user declined an ssh
+//                 prompt): its ssh processes end, so ssh cannot ask again.
 //
 // An attempt that fails on authentication or the host key stops retrying:
 // asking for a password again every minute helps nobody.
@@ -140,20 +142,34 @@ export function createSshHostConnection({
   let retryIndex = 0;
   let connectedAt = 0;
   let generation = 0; // bumps on disconnect, so a stale attempt stands down
+  // The ssh processes of the attempt in flight, ended by cancel(); and the
+  // error a cancelled attempt rejects with.
+  let attemptProcesses = new Set();
+  let cancellation = null; // { attempt, error }
 
   const setState = (next, extra = {}) => {
     state = next;
     onStatus({ state: next, target, ...extra });
   };
 
-  const spawnSsh = (args, { holdOpen = false } = {}) =>
-    spawnProcess(sshPath, args, {
+  const spawnTracked = (args, stdio) => {
+    const child = spawnProcess(sshPath, args, {
       env,
-      // A held-open session reads nothing from Dream; the pipe exists so it
-      // ends when Dream does.
-      stdio: [holdOpen ? "pipe" : "ignore", "pipe", "pipe"],
+      stdio,
       windowsHide: true,
     });
+    const processes = attemptProcesses;
+    processes.add(child);
+    const forget = () => processes.delete(child);
+    child.once("exit", forget);
+    child.once("error", forget);
+    return child;
+  };
+
+  // A held-open session reads nothing from Dream; the pipe exists so it
+  // ends when Dream does.
+  const spawnSsh = (args, { holdOpen = false } = {}) =>
+    spawnTracked(args, [holdOpen ? "pipe" : "ignore", "pipe", "pipe"]);
 
   // Managed: the runtime of this app's version, installed by Dream.
   const managed = !configuredHostCommand && Boolean(runtimeVersion);
@@ -164,11 +180,7 @@ export function createSshHostConnection({
   const runSsh = (args, { input = null } = {}) =>
     new Promise((resolve) => {
       const child = input
-        ? spawnProcess(sshPath, args, {
-            env,
-            stdio: ["pipe", "pipe", "pipe"],
-            windowsHide: true,
-          })
+        ? spawnTracked(args, ["pipe", "pipe", "pipe"])
         : spawnSsh(args);
       if (input) {
         const source = createReadStream(input);
@@ -512,6 +524,7 @@ export function createSshHostConnection({
     retryTimer = setTimer(async () => {
       retryTimer = null;
       if (attempt !== generation) return;
+      attemptProcesses = new Set();
       try {
         adopt(attempt, await establish());
       } catch (error) {
@@ -550,6 +563,7 @@ export function createSshHostConnection({
       generation += 1;
       const attempt = generation;
       retryIndex = 0;
+      attemptProcesses = new Set();
       setState("connecting");
       try {
         const result = await establish();
@@ -558,11 +572,30 @@ export function createSshHostConnection({
         }
         return endpoint;
       } catch (error) {
+        if (cancellation?.attempt === attempt) throw cancellation.error;
         if (attempt === generation) {
           setState("failed", { error: error.message });
         }
         throw error;
       }
+    },
+
+    /**
+     * Stops the attempt in flight, connecting or reconnecting: its ssh
+     * processes end and it fails with `reason`. Without one, nothing.
+     * @param {string} [reason]
+     */
+    cancel(reason = "Cancelled.") {
+      if (state !== "connecting" && state !== "reconnecting") return false;
+      const error = new SshHostError(reason, { fatal: true });
+      cancellation = { attempt: generation, error };
+      generation += 1;
+      if (retryTimer !== null) clearTimer(retryTimer);
+      retryTimer = null;
+      for (const child of attemptProcesses) child.kill();
+      attemptProcesses = new Set();
+      setState("failed", { error: reason });
+      return true;
     },
 
     /** Ends the session. The daemon and its work keep running. */
