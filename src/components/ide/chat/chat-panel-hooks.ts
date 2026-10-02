@@ -89,6 +89,10 @@ export const useChatAutoScroll = ({
         window.clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = null;
       }
+      if (mode === "force" && scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+        scrollFrameRef.current = null;
+      }
 
       if (
         scrollFrameRef.current !== null ||
@@ -146,6 +150,20 @@ export const useChatAutoScroll = ({
   }, [isActive, scheduleConversationScroll]);
 
   const lastMessage = messages[messages.length - 1];
+  const latestUserMessageId = messages.findLast(
+    (message) => message.role === "user",
+  )?.id;
+  const previousUserMessageIdRef = useRef(latestUserMessageId);
+
+  useEffect(() => {
+    const previousUserMessageId = previousUserMessageIdRef.current;
+    previousUserMessageIdRef.current = latestUserMessageId;
+
+    if (latestUserMessageId && latestUserMessageId !== previousUserMessageId) {
+      scrollConversationToBottom();
+    }
+  }, [latestUserMessageId, scrollConversationToBottom]);
+
   const lastPart = lastMessage?.parts?.[lastMessage.parts.length - 1];
   const streamFingerprint = `${messages.length}:${lastMessage?.parts?.length ?? 0}:${
     lastPart && "text" in lastPart ? (lastPart.text as string).length : 0
